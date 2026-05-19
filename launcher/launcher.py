@@ -417,6 +417,21 @@ class LauncherApp(tk.Tk):
     def _yesno(self, title: str, message: str) -> bool:
         return self._dialog(title, message, ("Yes", "No"), default="No") == "Yes"
 
+    def _confirm_rom_license(self, display_name: str) -> bool:
+        return self._yesno(
+            "Download confirmation",
+            "ROM bundles distributed by this launcher are abandonware "
+            "released publicly by their respective OEMs. They remain the "
+            "property of those OEMs and are governed by whatever terms "
+            "the OEM applied when releasing them.\n\n"
+            f"By pressing Yes you take full personal responsibility for "
+            f"downloading {display_name} and accept whatever license, "
+            f"terms, or restrictions the OEM applied. The CERF project "
+            f"gives no warranty, grants no license, and accepts no "
+            f"liability for the ROM contents.\n\n"
+            f"Download {display_name}?"
+        )
+
     def _set_busy(self, busy: bool, label: str = "") -> None:
         self.busy = busy
         state = "disabled" if busy else "normal"
@@ -566,6 +581,8 @@ class LauncherApp(tk.Tk):
         d = self._selected_device()
         if d is None or self.busy or d.remote is None:
             return
+        if not self._confirm_rom_license(d.meta.device_name or d.name):
+            return
         self._set_busy(True, f"Downloading {d.name}…")
         f = self.manager.submit_install(d.name, with_pdbs=False, progress=self._progress_cb,
                                         cancel_event=self.cancel_event)
@@ -599,6 +616,8 @@ class LauncherApp(tk.Tk):
         targets = [d for d in self.devices if d.has_update]
         if not targets:
             self._info("Update all", "All installed bundles are up to date.")
+            return
+        if not self._confirm_rom_license(f"{len(targets)} bundle(s)"):
             return
         self._set_busy(True, f"Updating {len(targets)} bundle(s)…")
         names = [d.name for d in targets]
@@ -695,6 +714,17 @@ def _cli_progress(label: str, done: int, total: Optional[int]) -> None:
         print(f"\r{label}: {done:,} bytes", end="", flush=True)
 
 
+def _print_rom_license_notice(target: str) -> None:
+    print(
+        f"NOTICE: ROM bundles distributed by this launcher are abandonware "
+        f"released publicly by their respective OEMs and remain their "
+        f"property. By downloading {target} you take full personal "
+        f"responsibility and accept whatever license or terms the OEM "
+        f"applied when releasing it. The CERF project gives no warranty, "
+        f"grants no license, and accepts no liability for the ROM contents.\n"
+    )
+
+
 def _cli_run(devices_dir: Path, argv: List[str]) -> int:
     parser = argparse.ArgumentParser(prog="launcher.exe sync")
     parser.add_argument("command", choices=(
@@ -724,11 +754,13 @@ def _cli_run(devices_dir: Path, argv: List[str]) -> int:
                 print(line)
             return 0
         if args.command == "update-all":
-            for d in manager.list_devices():
-                if d.has_update:
-                    print(f"Updating {d.name}...")
-                    manager.submit_install(d.name, False, _cli_progress, cancel).result()
-                    print()
+            targets = [d for d in manager.list_devices() if d.has_update]
+            if targets:
+                _print_rom_license_notice(f"{len(targets)} bundle(s)")
+            for d in targets:
+                print(f"Updating {d.name}...")
+                manager.submit_install(d.name, False, _cli_progress, cancel).result()
+                print()
             return 0
         if args.command == "download-pdbs-all":
             for d in manager.list_devices():
@@ -741,6 +773,7 @@ def _cli_run(devices_dir: Path, argv: List[str]) -> int:
             print(f"ERROR: {args.command} requires a bundle name", file=sys.stderr)
             return 1
         if args.command in ("download", "update"):
+            _print_rom_license_notice(args.bundle)
             manager.submit_install(args.bundle, False, _cli_progress, cancel).result()
         elif args.command == "delete":
             manager.submit_delete(args.bundle).result()
