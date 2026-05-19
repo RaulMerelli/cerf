@@ -17,6 +17,10 @@ A universal Windows CE emulator: a virtual ARM hardware platform that boots real
 
 ## Usage
 
+The easiest way to run CERF is **`launcher.exe`** — a GUI app shipped next to `cerf.exe` that downloads publicly available ROM bundles and boots them. Pick a device from the list, tweak launch options (resolution, quiet logs, network) if you want, click **Launch CERF**.
+
+For direct invocation without the launcher:
+
 | Command | Action |
 | - | - |
 | ``cerf.exe `` | Boot default device (ce5_smdk2410) |
