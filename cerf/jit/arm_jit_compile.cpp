@@ -1,0 +1,235 @@
+#include "arm_jit.h"
+
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+#include <cstddef>
+#include <cstring>
+#include <intrin.h>
+
+#include "../core/cerf_emulator.h"
+#include "../core/log.h"
+#include "../cpu/arm_processor_config.h"
+#include "../cpu/emulated_memory.h"
+#include "../peripherals/peripheral_dispatcher.h"
+#include "arm_cpu.h"
+#include "arm_cpu_exceptions.h"
+#include "arm_cpu_ops.h"
+#include "arm_decoder.h"
+#include "arm_jit_runtime.h"
+#include "arm_mmu.h"
+#include "arm_mmu_state.h"
+#include "place_fns.h"
+#include "x86_emit.h"
+
+void ArmJit::JitDecode(JitBlock* containing_block, uint32_t guest_pc) {
+    int instruction_size;
+    if (cpu_->State()->cpsr.bits.thumb_mode) {
+        instruction_size = 2;
+        guest_pc &= 0xFFFFFFFEu;
+    } else {
+        instruction_size = 4;
+        guest_pc &= 0xFFFFFFFCu;
+    }
+
+    /* End of decode range: either the end of the containing block
+       (we cannot extend past an existing translation), or the
+       guest_start of the NEXT outer block in the index (we cannot
+       overlap), or 0xFFFFFFFF (no upper bound). */
+    JitBlockIndex& idx = cpu_->State()->cpsr.bits.thumb_mode ? blocks_thumb_ : blocks_arm_;
+    uint32_t end_address;
+    if (containing_block) {
+        end_address = containing_block->guest_end;
+    } else {
+        JitBlock* next_block =
+            idx.FindNext(ApplyFcseFold(*mmu_->State(), guest_pc));
+        end_address = next_block ? next_block->guest_start : 0xFFFFFFFFu;
+    }
+
+    /* Reset the decoded array. block_ctx_ is reused between
+       JitCompile invocations; each call starts with a clean slate. */
+    std::memset(block_ctx_.insns, 0, sizeof(block_ctx_.insns));
+    int8_t tlb_index_hint = 0;
+
+    /* Apply FCSE fold once; thereafter both `guest_pc` (the raw
+       guest-visible address) and `actual_guest_pc` (the post-fold
+       PA-side address used for memory access) advance in lockstep
+       by instruction_size. */
+    uint32_t actual_guest_pc = ApplyFcseFold(*mmu_->State(), guest_pc);
+
+    uint32_t i;
+    for (i = 0;
+         i < kMaxInsnPerBlock && actual_guest_pc < end_address;
+         ++i, guest_pc += instruction_size, actual_guest_pc += instruction_size) {
+        DecodedInsn& insn = block_ctx_.insns[i];
+
+        insn.guest_address        = guest_pc;
+        insn.actual_guest_address = actual_guest_pc;
+        insn.jmp_fixup_location   = nullptr;
+
+        /* Translate guest VA to host pointer for instruction fetch.
+           MMU-on path goes through the page-table walker + ITLB;
+           MMU-off path is identity (VA == PA) and consults
+           EmulatedMemory directly. */
+        uint8_t* host_addr;
+        if (mmu_->State()->control_register.bits.m) {
+            host_addr = mmu_->TranslateExecute(cpu_->State(), actual_guest_pc, &tlb_index_hint);
+        } else {
+            host_addr = memory_->TryTranslate(actual_guest_pc);
+        }
+
+        if (!host_addr) {
+            if (mmu_->io_pending_address() != 0) {
+                LOG(Caution,
+                    "ArmJit::JitDecode: attempt to execute from I/O space "
+                    "at guest PA 0x%08X\n", actual_guest_pc);
+                CerfFatalExit(2);
+            }
+
+            if (guest_pc > 0xF0000000u) {
+                /* Synthetic entry: at runtime, restore the MMU
+                   fault state captured here and dispatch to the
+                   prefetch-abort vector. */
+                insn.place_fn      = &PlaceRaiseAbortPrefetchException;
+                insn.guest_address = guest_pc;
+                insn.cond          = 14;  /* AL — unconditional */
+                insn.immediate     = mmu_->State()->fault_address;
+                insn.reserved3     = mmu_->State()->fault_status.word;
+                ++i;
+                break;
+            }
+
+            /* Stop decoding; JitCompile evaluates num_insns and,
+               if zero, raises CpuRaiseAbortPrefetchException
+               directly. */
+            break;
+        }
+
+        if (cpu_->State()->cpsr.bits.thumb_mode) {
+            uint16_t opcode_word;
+            std::memcpy(&opcode_word, host_addr, sizeof(opcode_word));
+            if (!decoder_->DecodeThumb(&insn, opcode_word)) {
+                ++i;
+                break;
+            }
+        } else {
+            uint32_t opcode_word;
+            std::memcpy(&opcode_word, host_addr, sizeof(opcode_word));
+            if (!decoder_->DecodeArm(&insn, opcode_word)) {
+                ++i;
+                break;
+            }
+
+            if (opcode_word == 0xEAFFFFFEu &&
+                actual_guest_pc == 0x92001010u) {
+                insn.place_fn = &PlacePowerDown;
+            }
+        }
+    }
+
+    block_ctx_.num_insns = i;
+}
+
+void* ArmJit::JitCompile(uint32_t guest_pc) {
+    uint32_t cached_fault_status  = mmu_->State()->fault_status.word;
+    uint32_t cached_fault_address = mmu_->State()->fault_address;
+
+    JitBlockIndex& idx = cpu_->State()->cpsr.bits.thumb_mode ? blocks_thumb_ : blocks_arm_;
+    JitBlock* containing_block = nullptr;
+
+    do {
+        containing_block =
+            idx.FindContaining(ApplyFcseFold(*mmu_->State(), guest_pc));
+
+        /* Disassemble guest instructions starting at `guest_pc`
+           into block_ctx_.insns[]. Sets block_ctx_.num_insns. */
+        JitDecode(containing_block, guest_pc);
+
+        if (block_ctx_.num_insns == 0) {
+            (void)cpu_->RaiseAbortPrefetchException(guest_pc);
+
+            void* abort_native = NativeAddr(ExceptionVector::kAbortPrefetch);
+            if (abort_native) {
+                return abort_native;
+            }
+            void* lookup = FindBlockNativeStart(cpu_->State()->gprs[15]);
+            if (lookup) {
+                SetNativeAddr(ExceptionVector::kAbortPrefetch, lookup);
+                return lookup;
+            }
+
+            /* Vector block not translated. Loop with the new R15
+               (now pointing at the vector) and re-cache MMU fault
+               state for the kernel ISR to observe. */
+            guest_pc             = cpu_->State()->gprs[15];
+            cached_fault_status  = mmu_->State()->fault_status.word;
+            cached_fault_address = mmu_->State()->fault_address;
+        }
+    } while (block_ctx_.num_insns == 0);
+
+    /* Locate entrypoints + run flag-elimination passes. Returns the
+       count of entrypoints discovered inside the decoded block. */
+    int entrypoint_count = JitOptimizeIR();
+
+    const size_t per_entry_size = containing_block
+        ? JitBlockIndex::SubEntrySize()
+        : JitBlockIndex::OuterEntrySize();
+    const size_t ep_size        = static_cast<size_t>(entrypoint_count) * per_entry_size;
+
+    constexpr size_t kCodeSize = 32u * 1024u;
+    uint8_t* slab          = arena_.Allocate(ep_size + kCodeSize);
+    if (!slab) {
+        FlushTranslationCache(0u, 0xFFFFFFFFu);
+        containing_block = nullptr;
+
+        const size_t ep_size_retry =
+            static_cast<size_t>(entrypoint_count) * JitBlockIndex::OuterEntrySize();
+        slab = arena_.Allocate(ep_size_retry + kCodeSize);
+        if (!slab) {
+            LOG(Caution,
+                "ArmJit::JitCompile: arena allocation of %zu bytes failed twice "
+                "after flush\n", ep_size_retry + kCodeSize);
+            CerfFatalExit(2);
+        }
+    }
+
+    /* After the (possible) flush + reallocation, recompute ep_size
+       for the post-flush case (containing_block may now be null and
+       sizes may have changed). */
+    const size_t final_ep_size = (containing_block ? JitBlockIndex::SubEntrySize()
+                                                   : JitBlockIndex::OuterEntrySize())
+                                 * static_cast<size_t>(entrypoint_count);
+    uint8_t* code_location = slab + final_ep_size;
+
+    /* Register the entrypoints into the prefix slab. JitCreateEntrypoints
+       lays out per_entry_size bytes per entrypoint at slab[0], slab[1],
+       ... and stashes a per-insn entry_point pointer. */
+    JitCreateEntrypoints(containing_block, slab);
+
+    /* Drop dead CPSR flag packs across the decoded instructions. */
+    OptimizeARMFlags();
+
+    /* Emit host x86 into the suffix. Returns the bytes actually used. */
+    size_t native_size = JitGenerateCode(code_location, entrypoint_count);
+
+    /* Patch within-batch forward jumps now that every entrypoint's
+       native_start is finalized. */
+    JitApplyFixups();
+
+    /* Restore MMU fault state — the decoder's instruction-fetch
+       translations may have overwritten it. */
+    mmu_->State()->fault_status.word = cached_fault_status;
+    mmu_->State()->fault_address     = cached_fault_address;
+
+    /* Return the unused tail of the arena allocation — past records
+       AND past emitted code. */
+    arena_.FreeUnusedTail(code_location + native_size);
+
+    /* Make the freshly emitted bytes visible to the host CPU's
+       instruction-fetch pipeline. */
+    FlushInstructionCache(GetCurrentProcess(), code_location,
+                          static_cast<SIZE_T>(native_size));
+
+    return reinterpret_cast<JitBlock*>(slab)->native_start;
+}

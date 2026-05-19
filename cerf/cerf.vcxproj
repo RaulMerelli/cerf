@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>cerf</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestRoot>$(SolutionDir)</VcpkgManifestRoot>
+    <VcpkgTriplet>x86-windows-static</VcpkgTriplet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <!-- PlatformToolset is set to $(DefaultPlatformToolset) which Microsoft.Cpp.Default.props
+       (imported above) populates with the installed-VS default: v143 on VS 2022 (CI
+       runner), v145 on VS 2026 (maintainer's box). DO NOT hardcode v143/v145 here; it
+       breaks whichever side doesn't have that toolset installed. Omitting PlatformToolset
+       does NOT work either, because Microsoft.Cpp.props falls back to $(LegacyPlatformToolset)
+       (v100, VS 2010) before $(DefaultPlatformToolset) when PlatformToolset is empty.
+       CI can still override via /p:PlatformToolset=vNNN on the msbuild command line. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)\build\$(Configuration)\$(Platform)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\build\$(Configuration)\$(Platform)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;$(CerfExtraDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;$(CerfExtraDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/FS /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="**\*.h" />
+    <ClCompile Include="**\*.cpp" />
+  </ItemGroup>
+  <!-- Per-device trace files live in cerf/tracing/<device>/. The
+       TraceManager framework at cerf/tracing/*.cpp stays always-built;
+       only the per-device subdirectories are excluded in production
+       mode. Passed by build.ps1 via /p:CerfMode=production. -->
+  <ItemGroup Condition="'$(CerfMode)' == 'production'">
+    <ClCompile Remove="tracing\*\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="cerf.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="cerf.ico" />
+  </ItemGroup>
+  <!-- Bundled device files — copied to devices/ next to cerf.exe.
+       OverwriteReadOnlyFiles: source bundles once contained ROM-extracted
+       files with ReadOnly+Hidden attrs; destination copies inherited them
+       and then blocked every subsequent overwrite with ERROR_ACCESS_DENIED
+       (CopyFile refuses to overwrite a read-only target). Even though the
+       source bundle is now clean, stale read-only destinations still exist
+       in build/ from older extractions — this flag clears their read-only
+       bit before overwriting.
+       Retries: files may be briefly locked by a running cerf.exe or by the
+       host indexer — retry a few times before giving up on a single file. -->
+  <Target Name="CopyBundledFiles" AfterTargets="Build">
+    <ItemGroup>
+      <BundledAllFiles Include="$(ProjectDir)..\bundled\**\*" Exclude="$(ProjectDir)..\bundled\**\.git;$(ProjectDir)..\bundled\**\*.i64;$(ProjectDir)..\bundled\**\*.id0;$(ProjectDir)..\bundled\**\*.id1;$(ProjectDir)..\bundled\**\*.id2;$(ProjectDir)..\bundled\**\*.nam;$(ProjectDir)..\bundled\**\*.til" />
+      <BundledFiles Include="@(BundledAllFiles)" Exclude="$(ProjectDir)..\bundled\**\.gitkeep" />
+    </ItemGroup>
+    <MakeDir Directories="@(BundledAllFiles->'$(OutDir)%(RecursiveDir)')" />
+    <Copy SourceFiles="@(BundledFiles)"
+          DestinationFiles="@(BundledFiles->'$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          OverwriteReadOnlyFiles="true"
+          Retries="3"
+          RetryDelayMilliseconds="200" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

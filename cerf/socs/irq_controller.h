@@ -1,0 +1,16 @@
+#pragma once
+
+#include "../core/service.h"
+
+#include <cstdint>
+
+class IrqController : public Service {
+public:
+    using Service::Service;
+    ~IrqController() override = default;
+
+    virtual void AssertIrq   (int source_bit)                          = 0;
+    virtual void AssertSubIrq(int main_source_bit, int sub_source_bit) = 0;
+    virtual void DeliverPendingIrq()                                   = 0;
+    virtual void DeAssertIrq (int /*source_bit*/) {}
+};
