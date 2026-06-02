@@ -67,6 +67,10 @@ bool ResolveRomhdrAtEcec(std::span<const uint8_t> flat,
                          ParsedXipRegion&         out,
                          size_t&                  out_romhdr_off);
 
+bool ResolveRomhdrStructural(std::span<const uint8_t> flat,
+                             ParsedXipRegion&         out,
+                             size_t&                  out_romhdr_off);
+
 /* Parse `romhdr.nummods` TOCentry records and `romhdr.numfiles`
    FILESentry records starting at `romhdr_off + kRomHdrSize`,
    resolving filenames via `load_offset`. Appends to `toc.modules`

@@ -42,7 +42,8 @@ public:
     }
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardDetector>().GetBoard() == Board::OdoArm720;
+        auto* bd = emu_.TryGet<BoardDetector>();
+        return bd && bd->GetBoard() == Board::OdoArm720;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -228,7 +229,7 @@ void OdoArm720CpuTimer::WriteHalf(uint32_t addr, uint16_t value) {
             "- the ARM720 CPU-interface registers are 32-bit-only; "
             "halt rather than guess the half-write semantic.\n",
             addr, value);
-    CerfFatalExit(1);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
 }  /* namespace */

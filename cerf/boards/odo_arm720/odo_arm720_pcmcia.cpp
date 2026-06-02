@@ -26,7 +26,8 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardDetector>().GetBoard() == Board::OdoArm720;
+        auto* bd = emu_.TryGet<BoardDetector>();
+        return bd && bd->GetBoard() == Board::OdoArm720;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -87,7 +88,7 @@ void OdoArm720Pcmcia::WriteHalf(uint32_t addr, uint16_t value) {
                     "PCMCIA_REG%c = 0x%04X — non-zero control "
                     "bits set, no host PCMCIA model behind this "
                     "peripheral.\n", SlotIndex(off), value);
-            CerfFatalExit(1);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (off == kSlotPcmciaReg0) pcmcia_reg0_ = value;
@@ -101,7 +102,7 @@ void OdoArm720Pcmcia::WriteHalf(uint32_t addr, uint16_t value) {
                     "(0x0001) set; only bit 0 has a modeled W1C "
                     "semantic.\n",
                     SlotIndex(off), value);
-            CerfFatalExit(1);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (off == kSlotPcmciaIntrReg0) {
@@ -139,7 +140,7 @@ void OdoArm720Pcmcia::WriteWord(uint32_t addr, uint32_t value) {
         LOG(Caution, "Odo PCMCIA: WriteWord at 0x%08X = 0x%08X has "
                 "non-zero high 16 bits; only bits 0-7 are "
                 "modeled.\n", addr, value);
-        CerfFatalExit(1);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     WriteHalf(addr, static_cast<uint16_t>(value & 0xFFFFu));
 }
