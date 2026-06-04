@@ -30,6 +30,30 @@ public:
                 auto lr  = c.ReadVa32(ctx + 0x9Cu);
                 auto pc  = c.ReadVa32(ctx + 0xA0u);
                 const uint32_t sp_val = sp.has_value() ? *sp : 0xFFFFFFFFu;
+
+                /* Working set of distinct faulting (PC, FAR): host-side dedup so
+                   the ~270k/s freeze can't flood. A tiny fixed set = the same
+                   instructions re-faulting forever (no forward progress). */
+                {
+                    const uint32_t fpc = pc.has_value() ? *pc : 0u;
+                    const uint32_t far = c.regs[2];
+                    const uint32_t key = fpc ^ (far << 1);
+                    static std::atomic<uint32_t> seen[64];
+                    static std::atomic<uint32_t> seen_n{0};
+                    const uint32_t have = seen_n.load(std::memory_order_relaxed);
+                    bool fresh = true;
+                    for (uint32_t i = 0; i < have && i < 64u; ++i)
+                        if (seen[i].load(std::memory_order_relaxed) == key) { fresh = false; break; }
+                    if (fresh && have < 64u) {
+                        seen[have].store(key, std::memory_order_relaxed);
+                        seen_n.store(have + 1u, std::memory_order_relaxed);
+                        LOG(Trace, "[EXC-WS] NEW faultPC=0x%08X FAR=0x%08X type=%d curId=0x%08X k=%llu\n",
+                            fpc, far, static_cast<int>(c.regs[1]),
+                            c.ReadVa32(0xFFFFC808u).value_or(0u),
+                            static_cast<unsigned long long>(n));
+                    }
+                }
+
                 /* Always log the bogus-SP case (target) plus the first 64
                    for context, so the fatal call is never throttled out. */
                 if (n >= 64 && sp_val >= 0x00100000u) return;

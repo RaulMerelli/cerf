@@ -17,11 +17,9 @@
 #include <mutex>
 #include <thread>
 
-/* Intel/Marvell OS Timer — the SAME IP block on SA-1110 (§9.4) and PXA25x
-   (§4.4): OSCR / OSMR0-3 / OSSR / OWER / OIER at 0x00..0x1C, identical
-   semantics. A per-SoC concrete supplies ONLY MmioBase + AssertMatch /
-   DeassertMatch (its INTC) + ShouldRegister; putting register logic in the
-   concrete re-forks the shared IP and re-creates the duplicate-timer bugs. */
+/* Intel/Marvell OS Timer — the same IP block on SA-1110 (§9.4) and PXA25x
+   (§4.4): OSCR / OSMR0-3 / OSSR / OWER / OIER at 0x00..0x1C. A per-SoC concrete
+   supplies MmioBase + AssertMatch / DeassertMatch + ShouldRegister. */
 class OsTimer : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -281,17 +279,18 @@ private:
         for (int n = 0; n < 4; ++n) {
             if ((oier      & (1u << n)) == 0) continue;
             if ((ossr_snap & (1u << n)) != 0) continue;
-            /* DO NOT hoist ReadOscr above this load — a JIT WriteOsmr/Ossr
-               concurrently re-anchors oscr_at_arm fresher than a hoisted
-               ReadOscr; forward_to_now then unsigned-wraps and the match fires
-               while OSCR < OSMR. */
+            /* ReadOscr MUST be sampled after this osmr_arm_ load: a concurrent
+               JIT-thread WriteOsmr/Ossr re-anchors oscr_at_arm, and an oscr read
+               taken before the load is staler than that anchor, so
+               forward_to_now unsigned-wraps and the match fires while OSCR < OSMR. */
             const uint64_t pair = osmr_arm_[n].load(std::memory_order_acquire);
             const uint32_t oscr = ReadOscr();
-            if (!MatchHasFired(UnpackArm(pair), UnpackOsmr(pair), oscr)) continue;
+            if (!MatchHasFired(UnpackArm(pair), UnpackOsmr(pair), oscr)) {
+                continue;
+            }
             ossr_.fetch_or(1u << n, std::memory_order_acq_rel);
             newly_set |= (1u << n);
-            /* §9.4.6: with OWER.WME=1, an OSMR3 match resets the SoC instead of
-               asserting its IRQ. */
+            /* §9.4.6: an OSMR3 match with OWER.WME=1 triggers a watchdog reset. */
             if (n == 3 && (ower_.load(std::memory_order_acquire) & 0x1u) != 0) {
                 trigger_reset = true;
             }

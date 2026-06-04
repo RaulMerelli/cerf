@@ -84,6 +84,8 @@ private:
     void     DrawLine(uint32_t cmd);
     void     BlitColorSource(const uint32_t* r);
     void     BlitMonoSource(const uint32_t* r);
+    void     BlitColorFromDisplay(uint32_t cmd);   /* screen-to-screen copy. */
+    void     BlitMonoFromDisplay(uint32_t cmd);    /* mono source in display memory. */
 
     uint32_t DestStrideBytes() const { return reg_[kGe0ADstStride] & 0x3FFu; }    /* GE0AR[9:0]. */
     uint32_t BaseAddr()        const { return reg_[kGe0BBase] & 0xFFFFFu; }       /* GE0BR[19:0]. */
