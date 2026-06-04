@@ -17,6 +17,7 @@
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../boot/rom_parser_service.h"
 #include "../boards/page_table_builder.h"
+#include "../host/guest_power_notifier.h"
 #include "arm_cp15_sctlr_handler.h"
 #include "arm_cpu.h"
 #include "arm_cpu_exceptions.h"
@@ -290,6 +291,10 @@ void __fastcall ArmJit::WfiHelper(ArmJit* jit) {
         (static_cast<uint64_t>(elapsed_ns) * cpu_hz) / 1000000000ull);
 }
 
+void __fastcall ArmJit::NotifyPowerDownHelper(ArmJit* jit) {
+    jit->emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
+}
+
 void ArmJit::SetResetPending() {
     ArmCpuState* state = cpu_->State();
     state->spsr.bits.irq_disable = 0;
@@ -300,6 +305,7 @@ void ArmJit::SetResetPending() {
         SetInterruptPendingLocked();
     }
     SetEvent(idle_event_);
+    emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
 
 /* All three take an FCSE-folded VA — the index is VA-keyed. */

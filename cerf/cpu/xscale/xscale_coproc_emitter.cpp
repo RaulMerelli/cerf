@@ -72,20 +72,27 @@ public:
             const int32_t rd_disp = static_cast<int32_t>(
                 offsetof(ArmCpuState, gprs) + d->rd * 4u);
 
-            /* PWRMODE (CRn=c7) — XScale Core Dev Manual Table 7-23. Writes
-               request a low-power mode (M field != 0); during ACTIVE the
-               OAL idle loop writes it to halt the core until the next
-               interrupt. Read always returns 0 in the M field. */
+            /* PWRMODE (CRn=c7) — XScale Core Dev Manual Table 7-23, M=bits[3:0].
+               Read returns 0 (ACTIVE). On write: M=1 IDLE (OEMIdle sub_800F736C)
+               halts till the next IRQ; M=3 SLEEP (OEMPowerOff sub_800F73B0) is a
+               real power-down — notify the user, then park. */
             if (d->crn == 7) {
                 if (d->l) {
                     EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp, 0u);
-                } else {
-                    EmitMovRegImm32(cursor, kEcx,
-                        static_cast<uint32_t>(
-                            reinterpret_cast<uintptr_t>(ctx->jit)));
-                    EmitCall(cursor,
-                        reinterpret_cast<void*>(&ArmJit::WfiHelper));
+                    return cursor;
                 }
+                EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
+                EmitAndRegImm32(cursor, kEax, 0xFu);
+                EmitCmpRegImm32(cursor, kEax, 3u);
+                uint8_t* not_sleep = EmitJnzLabel(cursor);
+                EmitMovRegImm32(cursor, kEcx,
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+                EmitCall(cursor,
+                    reinterpret_cast<void*>(&ArmJit::NotifyPowerDownHelper));
+                FixupLabel(not_sleep, cursor);
+                EmitMovRegImm32(cursor, kEcx,
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+                EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
                 return cursor;
             }
 

@@ -155,6 +155,10 @@ void HostCanvas::SetTab(Tab t, bool user_initiated) {
     if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
+void HostCanvas::RearmFramebufferAutoSwitch() {
+    latched_once_ = false;
+}
+
 void HostCanvas::SetViewportMode(ViewportMode m) {
     if (mode_ == m) return;
     mode_ = m;

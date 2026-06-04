@@ -27,6 +27,7 @@ namespace {
 constexpr wchar_t  kWindowClass[]  = L"CerfHostWindow";
 constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
 constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
+constexpr UINT     kShowUartMsg    = WM_APP + 3;
 constexpr UINT_PTR kResizeDebounceTimer = 1;
 constexpr UINT     kResizeDebounceMs    = 200;
 
@@ -93,6 +94,11 @@ void HostWindow::OnLcdEnabled(uint32_t fb_w, uint32_t fb_h) {
 void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
     if (hwnd_)
         PostMessageW(hwnd_, kGuestRemodeMsg, (WPARAM)guest_w, (LPARAM)guest_h);
+}
+
+void HostWindow::ShowUartTab(bool rearm_framebuffer) {
+    if (hwnd_)
+        PostMessageW(hwnd_, kShowUartMsg, rearm_framebuffer ? 1u : 0u, 0);
 }
 
 HMENU HostWindow::BuildMenu() {
@@ -369,6 +375,13 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             emu_.Get<HostCanvas>().SetGuestSurfaceSize(w, h);
             if (follow_guest_) AutoResizeToGuest();
         }
+        return 0;
+    }
+
+    if (msg == kShowUartMsg) {
+        auto& canvas = emu_.Get<HostCanvas>();
+        canvas.SetTab(HostCanvas::Tab::Uart, /*user_initiated=*/false);
+        if (wp) canvas.RearmFramebufferAutoSwitch();
         return 0;
     }
 

@@ -152,6 +152,11 @@ public:
        OEMIdle's post-WFI OSCR read sees time having passed. */
     static void __fastcall WfiHelper(ArmJit* jit);
 
+    /* JIT-emitted helper: a SoC power-down detector (e.g. XScale PWRMODE=SLEEP)
+       calls this to surface the power-off to the user via GuestPowerNotifier.
+       Generic — the SoC strategy owns the detection, this owns only the notify. */
+    static void __fastcall NotifyPowerDownHelper(ArmJit* jit);
+
     /* __fastcall: ECX = va, EDX = tlb_hint, stack = jit. Nullptr
        return + io_pending_address_ set ⇒ peripheral I/O dispatch;
        nullptr without io_pending set ⇒ data abort. */
