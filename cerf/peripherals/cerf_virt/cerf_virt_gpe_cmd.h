@@ -15,6 +15,7 @@ const uint32_t kGpeCmdDescVa = 0x000u;
 const uint32_t kGpeCmdStatus = 0x004u;
 const uint32_t kGpeCmdKick     = 0x800u;
 const uint32_t kGpeCmdGradKick = 0x804u; /* desc at kGpeCmdDescVa is a CerfGradDescriptor */
+const uint32_t kGpeCmdLineKick = 0x808u; /* desc at kGpeCmdDescVa is a CerfLineDescriptor */
 
 const uint32_t kGpeStatusIdle  = 0u;
 const uint32_t kGpeStatusBusy  = 1u;

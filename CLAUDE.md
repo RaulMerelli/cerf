@@ -1,4 +1,4 @@
-# CERF — Virtual hardware platform for Windows CE / Windows Mobile / Windows Phone
+# CERF — Virtual hardware platform for Windows CE-based devices
 
 Boots unmodified CE binaries (kernel + userspace + ROM drivers) on Windows. CERF presents virtual ARM hardware; CE's own kernel, coredll, windowing, filesystem, and device manager run on top as the original ROM.
 
@@ -65,8 +65,9 @@ Output: `build/Release/Win32/cerf.exe`. Pre-commit hook rejects .cpp/.h files ov
 Logs are written to `cerf.log` next to the executable (e.g. `build/Release/Win32/cerf.log`) - never delete cerf.log without a reason. A fatal crash additionally writes a snapshot of every other thread's register/stack state to `cerf.crash.log` next to it via a lock-free emergency writer  — always check both when investigating a crash. See `cerf.exe --help` for the full CLI.
 
 - **Never run cerf as a background task.** cerf is a GUI app; running it backgrounded hides the window and orphans the process. Always run it in the foreground. Unless there is a specific reason to do this - e.g. you want to do something in parallel.
-- **Never rely on stdout or stderr.** cerf's terminal output is not a source of truth and is frequently empty or truncated. Read `cerf.log` (or the test's own log file under `tmp/`) for every investigation.
+- **cerf stdout/stderr is flood-controlled and silently drops lines — it is NEVER a valid log source.** Every cerf run MUST pass `--log-file=<repo>/tmp/<unique>.log`; read logs ONLY from that file. Reading a run's terminal/stdout output is prohibited. After a run, confirm the log file was actually created before reading — if `--log-file` failed to produce it, re-run with a corrected path; never fall back to stdout.
 - **Always use GNU timeout for cerf.exe** prefer optimal timeout looking at logs, unless user has different purposes of this run. Dont increase timeout drastically if you found that nothing happens, first ask user if you can try. If increasing timeout didn't help - most likely this is a regression/bug. Never run cerf for inadequate amount of time when not proved by logs.
+- **Never pass `--log` filters when running cerf to debug** — dev builds already enable every log category by default; narrowing with `--log=CATEGORIES` only risks hiding the signal you're hunting and is a repeat time-sink. Touch `--log` only when debugging the logging mechanism itself; use `--log=none` solely for perf/benchmark runs.
 
 ## IDA MCP
 

@@ -18,5 +18,6 @@ inline constexpr char kArgScreenHeight[]   = "--screen-height=";
 inline constexpr char kArgDisableNetwork[] = "--disable-network";
 inline constexpr char kArgGuestAdditions[] = "--guest-additions";
 inline constexpr char kArgRecovery[]       = "--recovery";
+inline constexpr char kArgShareFolder[]    = "--share-folder=";
 
 bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg);

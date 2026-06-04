@@ -1,102 +1,94 @@
-#include "../peripheral_base.h"
+#include "mediaq_mq1188.h"
 
-#include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
+#include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
+#include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
 
-#include <cstdint>
 #include <cstring>
-#include <vector>
 
-namespace {
+bool MediaQMq1188::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardDetector>();
+    return bd && bd->GetBoard() == Board::FalconPC3xx;
+}
 
-/* MediaQ MQ-1100/1132 (MQ1188), Falcon CS2. §4.2 / Figure 4-1: 512 KB
-   aperture = 256 KB frame-buffer SRAM, then 8 KB registers at 0x40000, then
-   248 KB SRAM for non-graphics (USB/audio) buffers. Both SRAM regions are
-   plain RAM; only the register window has device semantics (GC/display regs
-   HaltUnsupported so the display first-hit is loud, task §6). */
-class MediaQMq1188 : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+void MediaQMq1188::OnReady() {
+    sram_.assign(kApertureSize, 0u);
+    reg_[kDc01R / 4u] = 0xF0000000u;   /* DC01R reset value (Table 4-2). */
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::FalconPC3xx;
+bool MediaQMq1188::IsEnabled() const {
+    /* GC08R/GC09R reset to 0, which the (n-1) geometry encoding reads back as a
+       1-pixel dimension; require >1 so the enable edge fires on the programmed
+       mode, not the transient state before the mode-set writes geometry. */
+    return (Reg(kDc05R) & 0x1u) != 0u && GetGuestW() > 1u &&
+           GetGuestH() > 1u && Stride() != 0u;
+}
+
+uint32_t MediaQMq1188::Bpp() const {
+    switch ((Reg(kGc00R) >> 4u) & 0xFu) {  /* GC00R[7:4] color depth (Reg 4-31). */
+        case 0x0u: return 1u;
+        case 0x1u: return 2u;
+        case 0x2u: return 4u;
+        case 0x3u: return 8u;
+        case 0x4u:
+        case 0xCu: return 16u;
+        default:   return 0u;
     }
-    void OnReady() override {
-        sram_.assign(kApertureSize, 0u);
-        regs_[0x384u / 4u] = 0xF0000000u;  /* DC01R reset (Table 4-2). */
-        emu_.Get<PeripheralDispatcher>().Register(this);
-    }
+}
 
-    uint32_t MmioBase() const override { return 0x08000000u; }
-    uint32_t MmioSize() const override { return kApertureSize; }
+uint32_t MediaQMq1188::GetGuestW()      const { return ((Reg(kGc08R) >> 16u) & 0xFFFFu) + 1u; }
+uint32_t MediaQMq1188::GetGuestH()      const { return ((Reg(kGc09R) >> 16u) & 0xFFFFu) + 1u; }
+uint32_t MediaQMq1188::FbWindowOffset() const { return Reg(kGc0CR) & 0x3FFFFu; }
+uint32_t MediaQMq1188::Stride()         const { return Reg(kGc0ER) & 0x3FFFFu; }
 
-    uint8_t  ReadByte (uint32_t addr) override;
-    uint16_t ReadHalf (uint32_t addr) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteByte(uint32_t addr, uint8_t  value) override;
-    void     WriteHalf(uint32_t addr, uint16_t value) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
+uint32_t MediaQMq1188::PaletteEntry(uint32_t index) const {
+    return Reg(kPaletteBase + (index & 0xFFu) * 4u);
+}
 
-private:
-    static constexpr uint32_t kApertureSize = 0x00080000u;  /* 512 KB total. */
-    static constexpr uint32_t kRegBase      = 0x00040000u;  /* registers start. */
-    static constexpr uint32_t kRegWindow    = 0x00002000u;  /* 8 KB register space. */
+void MediaQMq1188::PublishScreenSizeOnEnableEdge() {
+    const bool enabled = IsEnabled();
+    if (!enabled) { enable_published_ = false; return; }
 
-    static constexpr uint32_t kGcLo = 0x180u;  /* Graphics Controller — display. */
-    static constexpr uint32_t kGcHi = 0x1FFu;
-    static constexpr uint32_t kChipRegsEnd = 0x3FFu;
+    const uint32_t w = GetGuestW(), h = GetGuestH();
+    if (enable_published_ && w == published_w_ && h == published_h_) return;
 
-    /* Table 4-1: USB Host = 0x500..0x5FF, an OHCI controller. Careful stub —
-       HcRevision must read OHCI 1.0a and HcCommandStatus.HCR must self-clear
-       or the driver hangs polling reset-complete; all else is zero-default
-       storage (reads as no-device / no-interrupt). */
-    static constexpr uint32_t kUsbLo  = 0x500u;
-    static constexpr uint32_t kUsbHi  = 0x5FFu;
-    static constexpr uint32_t kHcRevision      = 0x00u;  /* OHCI op-reg offsets. */
-    static constexpr uint32_t kHcCommandStatus = 0x08u;
-    static constexpr uint32_t kHcrResetBit     = 0x1u;   /* HcCommandStatus.HCR. */
-
-    static bool InRegWindow(uint32_t off) {
-        return off >= kRegBase && off < kRegBase + kRegWindow;
-    }
-    static bool IsDisplayModule(uint32_t roff) { return roff >= kGcLo && roff <= kGcHi; }
-    static bool IsUsbHost(uint32_t roff) { return roff >= kUsbLo && roff <= kUsbHi; }
-
-    uint32_t RegRead(uint32_t addr);
-    void     RegWrite(uint32_t addr, uint32_t value);
-
-    std::vector<uint8_t> sram_;
-    uint32_t regs_[(kChipRegsEnd / 4u) + 1u] = {};
-    uint32_t usbhost_[(kUsbHi - kUsbLo) / 4u + 1u] = {};
-};
+    enable_published_ = true;
+    published_w_ = w;
+    published_h_ = h;
+    LOG(Lcd, "MediaQMq1188: display enabled %ux%u %ubpp stride=%u fb_off=0x%X\n",
+        w, h, Bpp(), Stride(), FbWindowOffset());
+    emu_.Get<HostWindow>().OnLcdEnabled(w, h);
+}
 
 uint32_t MediaQMq1188::RegRead(uint32_t addr) {
     const uint32_t roff = (addr - MmioBase()) - kRegBase;
-    if (IsDisplayModule(roff)) HaltUnsupportedAccess("ReadWord(GC/display)", addr, 0);
+    if (roff == kCc01R) { ge_.FlushPending(); return MediaQMq1188Ge::StatusReady(); }
+    if (roff >= kGeRegLo && roff < kGeRegHi) return ge_.ReadReg((roff - kGeRegLo) / 4u);
+    if (roff >= kGeCmdLo && roff < kGeCmdHi) return ge_.ReadReg((roff - kGeCmdLo) / 4u);
     if (IsUsbHost(roff)) {
         const uint32_t uoff = roff - kUsbLo;
         if (uoff == kHcRevision)      return 0x10u;  /* OHCI 1.0a. */
-        if (uoff == kHcCommandStatus) return usbhost_[uoff / 4u] & ~kHcrResetBit;
-        return usbhost_[uoff / 4u];
+        if (uoff == kHcCommandStatus) return Reg(roff) & ~kHcrResetBit;
     }
-    if (roff <= kChipRegsEnd && (roff & 3u) == 0u) return regs_[roff / 4u];
-    HaltUnsupportedAccess("ReadWord(reg)", addr, 0);
+    return Reg(roff);
 }
 
 void MediaQMq1188::RegWrite(uint32_t addr, uint32_t value) {
     const uint32_t roff = (addr - MmioBase()) - kRegBase;
-    if (IsDisplayModule(roff)) HaltUnsupportedAccess("WriteWord(GC/display)", addr, value);
-    if (IsUsbHost(roff)) { usbhost_[(roff - kUsbLo) / 4u] = value; return; }
-    if (roff <= kChipRegsEnd && (roff & 3u) == 0u) { regs_[roff / 4u] = value; return; }
-    HaltUnsupportedAccess("WriteWord(reg)", addr, value);
+    if (roff >= kGeRegLo && roff < kGeRegHi) { ge_.WriteReg((roff - kGeRegLo) / 4u, value); return; }
+    if (roff >= kGeCmdLo && roff < kGeCmdHi) { ge_.WriteReg((roff - kGeCmdLo) / 4u, value); return; }
+    if (roff >= kSrcFifoLo && roff < kSrcFifoHi) { ge_.PushSourceFifo(value); return; }
+    reg_[roff / 4u] = value;
+    PublishScreenSizeOnEnableEdge();
 }
 
 uint8_t MediaQMq1188::ReadByte(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (InRegWindow(off)) {
-        const uint32_t word = RegRead((addr & ~0x3u));
+        const uint32_t word = RegRead(addr & ~0x3u);
         return static_cast<uint8_t>(word >> ((off & 0x3u) * 8u));
     }
     return sram_[off];
@@ -105,7 +97,7 @@ uint8_t MediaQMq1188::ReadByte(uint32_t addr) {
 uint16_t MediaQMq1188::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (InRegWindow(off)) {
-        const uint32_t word = RegRead((addr & ~0x3u));
+        const uint32_t word = RegRead(addr & ~0x3u);
         return static_cast<uint16_t>(word >> ((off & 0x2u) * 8u));
     }
     uint16_t v;
@@ -126,7 +118,8 @@ void MediaQMq1188::WriteByte(uint32_t addr, uint8_t value) {
     if (InRegWindow(off)) {
         const uint32_t shift = (off & 0x3u) * 8u;
         const uint32_t word  = RegRead(addr & ~0x3u);
-        RegWrite(addr & ~0x3u, (word & ~(0xFFu << shift)) | (static_cast<uint32_t>(value) << shift));
+        RegWrite(addr & ~0x3u,
+                 (word & ~(0xFFu << shift)) | (static_cast<uint32_t>(value) << shift));
         return;
     }
     sram_[off] = value;
@@ -137,7 +130,8 @@ void MediaQMq1188::WriteHalf(uint32_t addr, uint16_t value) {
     if (InRegWindow(off)) {
         const uint32_t shift = (off & 0x2u) * 8u;
         const uint32_t word  = RegRead(addr & ~0x3u);
-        RegWrite(addr & ~0x3u, (word & ~(0xFFFFu << shift)) | (static_cast<uint32_t>(value) << shift));
+        RegWrite(addr & ~0x3u,
+                 (word & ~(0xFFFFu << shift)) | (static_cast<uint32_t>(value) << shift));
         return;
     }
     std::memcpy(&sram_[off], &value, sizeof(value));
@@ -148,7 +142,5 @@ void MediaQMq1188::WriteWord(uint32_t addr, uint32_t value) {
     if (InRegWindow(off)) { RegWrite(addr, value); return; }
     std::memcpy(&sram_[off], &value, sizeof(value));
 }
-
-}  /* namespace */
 
 REGISTER_SERVICE(MediaQMq1188);

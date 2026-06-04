@@ -78,12 +78,12 @@ bool HostStatusBar::Relayout(const std::vector<HostWidget*>& ordered) {
     GetClientRect(hwnd_, &rc);
     const int total_slots = rc.right > 0 ? rc.right / kIconBoxW : 0;
 
-    /* ordered is sorted by (Group, Name); InputControl widgets are the tail.
-       They pin to the right and always show; device widgets fill the rest and
-       drop the leftmost on overflow. */
+    /* ordered is sorted by (Group, Name); the InputControl..InputCapture range
+       is the tail. They pin to the right and always show; device widgets fill
+       the rest and drop the leftmost on overflow. */
     int term_count = 0;
     for (auto* w : ordered)
-        if (w->Group() == WidgetGroup::InputControl) ++term_count;
+        if (w->Group() >= WidgetGroup::InputControl) ++term_count;
     const int dev_count = (int)ordered.size() - term_count;
 
     const int term_show = term_count < total_slots ? term_count : total_slots;

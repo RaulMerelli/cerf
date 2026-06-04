@@ -19,6 +19,8 @@ void PrintUsage(const char* prog) {
     printf("  --screen-height=N        Override device cerf.json board.configurable_screen_height\n");
     printf("  --guest-additions        Inject CERF guest-additions DLL into the ROM\n");
     printf("                           (replaces matching modules with CERF-built equivalents)\n");
+    printf("  --share-folder=PATH      Pre-enable the guest-additions shared folder on a host\n");
+    printf("                           directory at boot (requires --guest-additions)\n");
     printf("  --recovery               Boot the device's recovery ROM (rom.recovery) instead of primary\n");
     printf("  --help                   Show this help\n");
     printf("\n");

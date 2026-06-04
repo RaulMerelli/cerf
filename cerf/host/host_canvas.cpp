@@ -5,10 +5,9 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "frame_renderer.h"
-#include "keyboard_input.h"
+#include "host_canvas_input.h"
 #include "lcd_scan_tick.h"
 #include "memory_visualizer.h"
-#include "touch_input.h"
 #include "uart_screen.h"
 
 #include <algorithm>
@@ -146,7 +145,7 @@ void HostCanvas::SetGuestSurfaceSize(uint32_t w, uint32_t h) {
 void HostCanvas::SetTab(Tab t, bool user_initiated) {
     if (user_initiated) user_picked_view_ = true;
     if (tab_ == t) return;
-    if (tab_ == Tab::Framebuffer) ReleasePenIfDown();
+    if (tab_ == Tab::Framebuffer) emu_.Get<HostCanvasInput>().ReleasePenIfDown();
     else if (tab_ == Tab::MemoryVisualizer) {
         if (GetCapture() == hwnd_) ReleaseCapture();
         if (auto* mv = emu_.TryGet<MemoryVisualizer>()) mv->CancelInput();
@@ -251,13 +250,6 @@ void HostCanvas::ClampGuest(int& sx, int& sy) const {
     sy = std::clamp(sy, 0, (sh > 0 ? sh - 1 : 0));
 }
 
-void HostCanvas::ReleasePenIfDown() {
-    if (!pen_down_) return;
-    pen_down_ = false;
-    if (GetCapture() == hwnd_) ReleaseCapture();
-    if (auto* t = emu_.TryGet<TouchInput>()) t->OnCaptureLost();
-}
-
 void HostCanvas::UpdateScrollbars() {
     if (!hwnd_) return;
     const int sw = (int)surface_w_.load(std::memory_order_acquire);
@@ -354,11 +346,8 @@ LRESULT CALLBACK HostCanvas::WndProcStatic(HWND hwnd, UINT msg,
 }
 
 LRESULT HostCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    /* Dev memory-visualizer owns all mouse/key/wheel input while its tab is
-       active (selected from the View menu). Absent in production. */
-    if (tab_ == Tab::MemoryVisualizer)
-        if (auto* mv = emu_.TryGet<MemoryVisualizer>())
-            if (mv->HandleInput(hwnd, msg, wp, lp)) return 0;
+    LRESULT out;
+    if (emu_.Get<HostCanvasInput>().Handle(hwnd, msg, wp, lp, out)) return out;
 
     switch (msg) {
         case WM_TIMER:
@@ -370,8 +359,13 @@ LRESULT HostCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
 
         case WM_SIZE: {
-            RECT rc; GetClientRect(hwnd, &rc);
-            const int w = (int)rc.right, h = (int)rc.bottom;
+            /* canvas_w_/h_ is the reference UpdateScrollbars tests to decide
+               scrollbar visibility, so it must be scrollbar-independent: the
+               window rect is stable, the client rect shrinks under a visible
+               scrollbar and would let the bar latch itself on permanently. */
+            RECT wr; GetWindowRect(hwnd, &wr);
+            const int w = (int)(wr.right - wr.left);
+            const int h = (int)(wr.bottom - wr.top);
             if (w != canvas_w_ || h != canvas_h_) RebuildPresentDib(w, h);
             UpdateScrollbars();
             return 0;
@@ -427,50 +421,6 @@ LRESULT HostCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, nullptr, FALSE);
             return 0;
         }
-
-        case WM_LBUTTONDOWN: {
-            SetFocus(hwnd);
-            if (tab_ != Tab::Framebuffer) return 0;
-            int sx, sy;
-            if (!HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy))
-                return 0;
-            pen_down_ = true;
-            SetCapture(hwnd);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenDown(sx, sy);
-            return 0;
-        }
-        case WM_MOUSEMOVE: {
-            if (!pen_down_) return 0;
-            int sx, sy;
-            HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
-            ClampGuest(sx, sy);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenMove(sx, sy);
-            return 0;
-        }
-        case WM_LBUTTONUP: {
-            if (!pen_down_) return 0;
-            pen_down_ = false;
-            ReleaseCapture();
-            int sx, sy;
-            HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
-            ClampGuest(sx, sy);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenUp(sx, sy);
-            return 0;
-        }
-        case WM_CAPTURECHANGED: {
-            if (pen_down_) {
-                pen_down_ = false;
-                if (auto* t = emu_.TryGet<TouchInput>()) t->OnCaptureLost();
-            }
-            return 0;
-        }
-
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-            if (tab_ == Tab::Framebuffer)
-                if (auto* k = emu_.TryGet<KeyboardInput>())
-                    k->OnHostKey(static_cast<uint8_t>(wp), msg == WM_KEYUP);
-            return 0;
 
         case WM_DESTROY:
             if (timer_id_)   { KillTimer(hwnd, timer_id_); timer_id_ = 0; }

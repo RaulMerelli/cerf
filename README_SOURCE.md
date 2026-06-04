@@ -5,11 +5,8 @@ A universal Windows CE emulator: a virtual ARM hardware platform that boots real
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
 
-> [!CAUTION]
-> **You can't put own apps or data into ROMs.** We really have no any kind of shared storage with host today. This is next version's goal - we'll try to add shared storage with our guest additions driver.
-
 > [!TIP]
-> Our touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit. 
+> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit. 
 
 <p align="center">
   <img src="https://cerf.dz3n.net/promo1_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 1)" />
@@ -33,41 +30,33 @@ For direct invocation without the launcher:
 | `cerf.exe --log=ALL`           | Enable every log channel                                     |
 | `cerf.exe --flush-outputs`     | Force-flush logs (avoid truncation on crash, extremely slow) |
 
-Logs are written to `cerf.log` next to the executable. On a fatal crash, every other thread's register state and a top-of-stack snapshot is dumped to `cerf.crash.log` next to it through a lock-free emergency writer (no ucrt, no mutexes). Run `cerf.exe --help` for the full CLI.
+Logs are written to `cerf.log` next to the executable. On a fatal crash, every other thread's register state and a top-of-stack snapshot is dumped to `cerf.crash.log` next to it. Run `cerf.exe --help` for the full CLI.
 
 > [!NOTE]
-> **`cerf.log` is quiet by default** — only critical `CERF` / `CAUTION` lines are written, so logging never dominates the hot path. Pass `--log=ALL` (or a channel list, e.g. `--log=BOOT,JIT,MMU`) to turn channels on.
+> **`cerf.log` is quiet by default** — only critical `CERF` / `CAUTION` lines are written. Pass `--log=ALL` (or a channel list, e.g. `--log=BOOT,JIT,MMU`) to turn channels on.
 
 ## <img src="gweslab.png" width="24" height="24" /> Guest Additions
 
 > [!WARNING]
-> **Experimental and unstable.** Guest Additions are opt-in (`--guest-additions`), off by default, and under active development. Expect per-device rendering glitches and reduced stability — some guest OSes behave better than others. For the most stable experience, boot without it and let the ROM use its own stock drivers.
+> **Experimental and unstable.** Guest Additions are opt-in (`--guest-additions`), off by default. Expect per-device rendering glitches and reduced stability — some guest OSes behave better than others.
 
-Guest Additions inject **CERF-built modules into the guest ROM at load time**, replacing the matching stock modules with CERF equivalents that cooperate directly with the host. Pass `--guest-additions` (or tick the matching launcher option) to enable them.
+Guest Additions mechanism injects **pre-built ARM driver**, replacing the matching ROM's video driver. The library is fully OS version-agnostic and orchestrates entire set of features along with regular video driver responsibilities.
 
-**Today** the payload is a single component: a **universal CERF display driver** (`cerf_guest.dll`). It is a *real* Windows CE display driver — built from genuine CE driver sources against the CE 6 DDGPE/GPE libraries — that takes the place of the board's stock display driver. A compatibility-shim layer lets that one CE 6-based driver run **unmodified on every supported Windows CE generation** (CE 3 through CE 7, including Windows Mobile 5 / 6): it transforms driver-interface data shapes back and forth at the OS boundary so that the CE 6 driver always sees CE 6 shapes while the target OS always sees its own, and both stay happy.
+Pass `--guest-additions` (or tick the matching launcher option) to enable them.
 
-What it can do today:
+### Features
 
-- **One universal graphics driver** across CE 3 / 5 / 6 / 7 and Windows Mobile 5 / 6.
-- **Arbitrary screen resolution**, decoupled from the device's original panel, via `--screen-width` / `--screen-height` — including resolutions far larger than the real hardware ever shipped.
-- **Host-accelerated blitting** over a virtual command channel — the guest driver routes blits to the host, which performs the full set (copy, fill, format-convert, ROP, transparency, alpha-blend, gradient) in native code. Some guests can still be slow.
-
+- 32bpp custom screen resolution (boot CE3 into 4K!)
+- Host-accelerated blitting - the driver routes blits to host which performs the full set of graphical operations in native code
+- Dynamic screen resolution (CE 4+)
+- Shared storage with host
+- Mouse pointer driver:
+  - required to avoid stock touch limitations on custom resolutions
+  - guest OS cursor shape translated directly into host graphics
+  - scroll wheel support on newer CE
+  
 > [!WARNING]
-> **Touch breaks at non-native resolution.** The board's touch peripheral still uses the device's original input driver, which expects the original screen dimensions — so with guest additions enabled, touch will most likely be broken (and the device hard to use) at any resolution other than the panel's native one. Custom input is the next step in guest additions work.
-
-Where it is headed (planned, not yet implemented):
-
-- **Dynamic screen resize** at runtime — resize the host window and the guest follows.
-- **Shared storage** — host folders mounted into the guest.
-- **Drag-and-drop file copy** between host and guest.
-- **Shared clipboard** between host and guest.
-
-Unique things you can do with guest additions driver today:
-
-- Boot grayscale ODO CE3 in 1080p resolution with full color
-- Boot iPaq H36xx series Pocket PC 2000/2002 in 1080p resolution with full color
-- Boot Windows CE6+ in 2K resolution with full color
+> **Touch breaks at non-native resolution.** The board's touch peripheral still uses the device's original input driver, which expects the original screen dimensions. With guest additions enabled, the main default input is the regular mouse cursor emulator that every (maybe) OS supports. In case if you need to go back to original touch interface, use the runtime switcher in Actions menu or in status bar. However it might be really corrupted on custom resolutions. E.g. iPaq H3600 devices seem to allow you to run calibration app only through stock stylus - the single app ignores the mouse pointer input.
 
 ## Supported boards
 
@@ -86,6 +75,14 @@ Unique things you can do with guest additions driver today:
         {i_pda} <b>Compaq iPAQ H3600 Series</b><br/>
         {i_os_ppc2000} Pocket PC 2000 <code>ipaq_h3600_ppc2000</code><br/>
         {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3600_ppc2002</code>
+      </td>
+      <td>{i_display} {i_speaker} {i_stylus}</td>
+    </tr>
+    <tr>
+      <td align="center"><b>{i_chip} Intel XScale PXA255</b><br/><sub>ARMv5TE</sub></td>
+      <td>
+        {i_pda} <b>Datalogic Falcon 4220</b> (Askey PC3xx)<br/>
+        {i_os_ce} Windows CE .NET 4.2 <code>falcon_4220__4_10</code>
       </td>
       <td>{i_display} {i_speaker} {i_stylus}</td>
     </tr>
@@ -145,9 +142,7 @@ Unique things you can do with guest additions driver today:
 
 ## How CERF runs ROM images? (NK.BIN, etc.)
 
-Each device under `devices/<name>/` contains a Windows CE ROM image (`*.nb0` or `*.bin`).
-
-Each device declares a `cerf.json` describing itself and (optionally) overriding board / network / rom defaults:
+Each device under `devices/<name>/` contains a Windows CE ROM image (`*.nb0` or `*.bin`) and each device declares an optional `cerf.json` describing itself and (optionally) overriding board / network / rom defaults:
 
 ```json
 {
@@ -170,11 +165,11 @@ Each device declares a `cerf.json` describing itself and (optionally) overriding
 }
 ```
 
-`meta` is informational (device identification for the launcher / status displays — SoC and Board selection at runtime still come from BoardDetector heuristics on the ROM). `board` is only honoured by BSPs with a configurable screen resolution (today only Device Emulator boards). `rom` is only needed when a device ships more than one partition; single-ROM devices auto-detect the `*.nb0` / `*.bin`.
+`meta` is informational (device identification for the launcher / status displays). `board` is only honoured by BSPs with a configurable screen resolution (today only Device Emulator boards). `rom` is only needed when a device ships more than one partition; single-ROM devices auto-detect the `*.nb0` / `*.bin`.
 
 See [device_config.h](cerf/core/device_config.h) for the full schema.
 
-To determine what is the board, CERF looks inside of ROM and performs heuristic search by module names or binary blobs.
+To determine what is the board, CERF looks inside of ROM and performs heuristic search by module names or binary blobs. CERF also replaces entire bootloader, therefore e.g. Zune 30 can boot OS without HDD (tho OS actually will hang without HDD), but in reality it seems that the bootloader spins the HDD and boots NK.BIN from HDD. Our synthed Zune 30 HDD lacks NK.BIN entirely.
 
 ## Building
 
@@ -209,10 +204,6 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 - **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)** 
 - JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)
 
-## Roadmap
-
-See [roadmap.md](docs/roadmap.md)
-
 ## Known Issues
 
 - iPAQ H36xx series - hang after user interaction with device stopped for ~10 seconds (clock bugged?)
@@ -227,44 +218,12 @@ See [roadmap.md](docs/roadmap.md)
 
 ## Changelog
 
-<table>
-  <thead>
-    <tr>
-      <th>CERF Version</th>
-      <th>Changes</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>v3.0</td>
-      <td>
-        <ul>
-          <li>GUEST ADDITIONS - injects own video driver into ROMs</li>
-          <li>OMAP 3530 EVM board support (MVP)</li>
-          <li>Zune 30 board support (MVP)</li>
-          <li>Massive emulator UI overhaul</li>
-          <li>ARMv5,v6,v7 VFP/NEON MVP support, massive JIT improvements</li>
-          <li>Tons of bug fixes and improvements</li>
-        </ul>
-      </td>
-    </tr>
-    <tr>
-      <td>v2.0</td>
-      <td>
-        <ul>
-          <li>Initial release</li>
-          <li>ARMv4 support</li>
-          <li>DevEmu, iPAQ H3600, Microsoft ODO support (MVP)</li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
+{changelog}
 
 ## What happened to CERF v1?
 
 > [!NOTE]
-> CERF v1 reimplemented CE userspace + kernel in host C++ - coredll exports thunked, rehosted on Win32. It hit a hard ceiling: per-process host resources (GDI handles, atom tables, kernel handles) couldn't hold an entire guest OS, because v1 mocked CE at the user-API layer instead of below CE's own per-process isolation. v1 was overengineering hell that literally grew exponentially. v2 is a completely different project. v1's source lives at [cerf-v1-obsolete](https://github.com/gweslab/cerf-v1-obsolete).
+> CERF v1 reimplemented CE userspace + kernel in host C++ - coredll exports thunked, rehosted on Win32. It hit a hard ceiling: per-process host resources (GDI handles, atom tables, kernel handles) couldn't hold an entire guest OS. v1 was overengineering hell that literally grew exponentially. v2 is a completely different project. v1's source lives at [cerf-v1-obsolete](https://github.com/gweslab/cerf-v1-obsolete).
 
 ## AI-generated code
 

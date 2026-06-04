@@ -19,9 +19,9 @@ constexpr COLORREF kClrFree   = RGB(140, 140, 140);  /* gray */
 constexpr wchar_t kGlyphLock   = L'\xE72E';
 constexpr wchar_t kGlyphUnlock = L'\xE785';
 
-/* The input-capture lock as a host-owned widget. WidgetGroup::InputControl
-   sorts last, so it stays rightmost in the bar regardless of which device
-   widgets are present. */
+/* The input-capture lock as a host-owned widget. WidgetGroup::InputCapture is
+   the highest rank, so it stays rightmost in the bar (and menu-top) regardless
+   of which other widgets are present. */
 class HostCaptureLockWidget : public Service, public HostWidget {
 public:
     using Service::Service;
@@ -39,7 +39,7 @@ public:
     }
 
     std::wstring WidgetName() const override { return L"Input Capture"; }
-    WidgetGroup  Group() const override { return WidgetGroup::InputControl; }
+    WidgetGroup  Group() const override { return WidgetGroup::InputCapture; }
     std::wstring Tooltip() const override {
         return emu_.Get<HostInputCapture>().IsCaptured()
             ? L"Input captured — Right Ctrl (or click) to release"

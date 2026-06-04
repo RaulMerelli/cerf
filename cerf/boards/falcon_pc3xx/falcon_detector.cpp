@@ -9,16 +9,12 @@ public:
     using BoardDetector::BoardDetector;
 
     bool ShouldRegister() override {
-#if CERF_DEV_MODE
         /* xsc1bd_serial.dll = Datalogic XScale serial driver; BCDCore.dll
            = the PSC/Datalogic barcode-decoder core. Both modules are
            unique to the Falcon barcode-terminal ROM. */
         const std::string names = ModuleNames();
         return NameContains(names, "xsc1bd_serial") &&
                NameContains(names, "BCDCore");
-#else
-        return false;
-#endif
     }
 
     Board       GetBoard()  const override { return Board::FalconPC3xx; }

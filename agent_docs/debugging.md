@@ -170,8 +170,12 @@ branch is named.
   16-slot stack snapshot at the time the dying thread aborted. Use it
   when the FATAL message comes from a thread whose state you need to
   cross-reference with another thread.
-- Stdout / stderr are NOT a source of truth — frequently truncated.
-  Always read the file.
+- Stdout / stderr is flood-controlled and silently drops lines — it is
+  NEVER a valid log source, and reading it is prohibited. Pass
+  `--log-file=<repo>/tmp/<unique>.log` on every run and read ONLY that
+  file; confirm it was created before reading, and if `--log-file` didn't
+  produce it, re-run with a corrected path rather than falling back to
+  stdout.
 
 Filtering log channels with `--log=Boot,Mmu,Periph` (etc.) helps
 narrow output during a long boot, but `--log=ALL` (default) is what

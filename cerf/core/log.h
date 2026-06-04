@@ -28,6 +28,7 @@ namespace Log {
         X(SocMemc,     "SOC_MEMC",    "any SoC memory controller")                  \
         X(SocUart,     "SOC_UART",    "any SoC UART / debug serial")                \
         X(SocTimer,    "SOC_TIMER",   "any SoC PWM / system tick timer")            \
+        X(SocDma,      "SOC_DMA",     "any SoC DMA controller")                     \
         X(SocRtc,      "SOC_RTC",     "any SoC real-time clock")                    \
         X(SocNand,     "SOC_NAND",    "any SoC NAND flash controller")              \
         X(SocReset,    "SOC_RESET",   "any SoC reset controller")                   \

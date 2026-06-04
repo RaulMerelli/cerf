@@ -5,6 +5,9 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 VERSION_H = os.path.join(ROOT, 'cerf', 'version.h')
 SOURCE    = os.path.join(ROOT, 'README_SOURCE.md')
 OUTPUT    = os.path.join(ROOT, 'README.md')
+CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
+CHANGELOG_LINK = 'docs/changelog.html'
+CHANGELOG_RECENT = 3
 
 ICONS = {
     'i_display':   '<img src="docs/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/>',
@@ -33,12 +36,43 @@ def parse_version():
     return f'{major}.{minor}' if patch == 0 else f'{major}.{minor}.{patch}'
 
 
+def build_changelog():
+    with open(CHANGELOG, 'r', encoding='utf-8') as f:
+        html = f.read()
+
+    tbody = re.search(r'<tbody>(.*?)</tbody>', html, re.DOTALL).group(1)
+    rows = re.findall(r'<tr>.*?</tr>', tbody, re.DOTALL)
+    recent = rows[:CHANGELOG_RECENT]
+
+    lines = [
+        '<table>',
+        '  <thead>',
+        '    <tr>',
+        '      <th>CERF Version</th>',
+        '      <th>Changes</th>',
+        '    </tr>',
+        '  </thead>',
+        '  <tbody>',
+    ]
+    for row in recent:
+        lines.append('    ' + row.strip().replace('\n', '\n    '))
+    if len(rows) > CHANGELOG_RECENT:
+        lines.append('    <tr>')
+        lines.append('      <td colspan="2"><b>Previous versions</b> — '
+                     f'see the <a href="{CHANGELOG_LINK}">full changelog</a>.</td>')
+        lines.append('    </tr>')
+    lines.append('  </tbody>')
+    lines.append('</table>')
+    return '\n'.join(lines)
+
+
 def main():
     with open(SOURCE, 'r', encoding='utf-8') as f:
         content = f.read()
 
     version = parse_version()
     content = content.replace('{version}', version)
+    content = content.replace('{changelog}', build_changelog())
     for key, value in ICONS.items():
         content = content.replace('{' + key + '}', value)
 

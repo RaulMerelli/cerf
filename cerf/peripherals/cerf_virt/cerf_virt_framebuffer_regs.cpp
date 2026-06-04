@@ -18,6 +18,7 @@ using CerfVirt::kFbRegSizeBytes;
 using CerfVirt::kFbRegMemBasePa;
 using CerfVirt::kFbRegPresent;
 using CerfVirt::kFbRegMemSizeTotal;
+using CerfVirt::kFbRegPrimaryReserve;
 
 class CerfVirtFramebufferRegs : public Peripheral {
 public:
@@ -46,6 +47,7 @@ public:
             case kFbRegMemBasePa: return CerfVirt::kFramebufferMemBase;
             case kFbRegPresent:   return 0u;
             case kFbRegMemSizeTotal: return fb_->RegionBytes();
+            case kFbRegPrimaryReserve: return fb_->PrimaryReserveBytes();
             default:              return 0u;
         }
     }

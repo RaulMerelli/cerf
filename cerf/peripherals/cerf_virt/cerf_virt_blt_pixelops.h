@@ -57,6 +57,28 @@ struct BltPixelOps {
         }
     }
 
+    static uint32_t ApplyRop2(uint8_t rop2, uint32_t P, uint32_t D) {
+        switch (rop2) {
+        case 1:  return 0u;            /* R2_BLACK */
+        case 2:  return ~(P | D);      /* R2_NOTMERGEPEN */
+        case 3:  return ~P & D;        /* R2_MASKNOTPEN */
+        case 4:  return ~P;            /* R2_NOTCOPYPEN */
+        case 5:  return P & ~D;        /* R2_MASKPENNOT */
+        case 6:  return ~D;            /* R2_NOT */
+        case 7:  return P ^ D;         /* R2_XORPEN */
+        case 8:  return ~(P & D);      /* R2_NOTMASKPEN */
+        case 9:  return P & D;         /* R2_MASKPEN */
+        case 10: return ~(P ^ D);      /* R2_NOTXORPEN */
+        case 11: return D;             /* R2_NOP */
+        case 12: return ~P | D;        /* R2_MERGENOTPEN */
+        case 13: return P;             /* R2_COPYPEN */
+        case 14: return P | ~D;        /* R2_MERGEPENNOT */
+        case 15: return P | D;         /* R2_MERGEPEN */
+        case 16: return 0xFFFFFFFFu;   /* R2_WHITE */
+        default: return D;
+        }
+    }
+
     static bool DestMatters(uint32_t rop4) {
         const uint8_t fg = (uint8_t)rop4;
         const uint8_t bg = (uint8_t)(rop4 >> 8);

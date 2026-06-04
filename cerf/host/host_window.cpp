@@ -10,6 +10,7 @@
 #include "../jit/jit_runner.h"
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
 #include "../version.h"
+#include "host_auto_resize.h"
 #include "frame_renderer.h"
 #include "host_canvas.h"
 #include "host_dark_mode.h"
@@ -25,6 +26,9 @@ namespace {
 
 constexpr wchar_t  kWindowClass[]  = L"CerfHostWindow";
 constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
+constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
+constexpr UINT_PTR kResizeDebounceTimer = 1;
+constexpr UINT     kResizeDebounceMs    = 200;
 
 enum MenuId : int {
     kIdCtrlAltDel    = 201,
@@ -58,8 +62,9 @@ void HostWindow::OnReady() {
     initial_surface_h_ = ih;
     LOG(Lcd, "HostWindow OnReady: opening at %ux%u\n", iw, ih);
 
-    /* Pixel-exact regardless of system DPI scaling. */
-    SetProcessDPIAware();
+    /* Per-Monitor-v2 DPI awareness comes from cerf.manifest: ConfigLoader reads
+       host screen metrics for the adopt-resolution path before this window
+       exists, and that read must already see physical (un-virtualized) pixels. */
 
     ui_thread_ = std::thread([this] { UiThreadMain(); });
 
@@ -83,6 +88,11 @@ void HostWindow::OnLcdEnabled(uint32_t fb_w, uint32_t fb_h) {
         fb_w, fb_h, host_w, host_h);
     if (hwnd_)
         PostMessageW(hwnd_, kLcdResizeMsg, (WPARAM)host_w, (LPARAM)host_h);
+}
+
+void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
+    if (hwnd_)
+        PostMessageW(hwnd_, kGuestRemodeMsg, (WPARAM)guest_w, (LPARAM)guest_h);
 }
 
 HMENU HostWindow::BuildMenu() {
@@ -165,21 +175,56 @@ void HostWindow::HandleCommand(int id) {
     }
 }
 
+void HostWindow::WindowChromeExtent(UINT dpi, int& extra_w, int& extra_h) const {
+    const DWORD style = (DWORD)GetWindowLongW(hwnd_, GWL_STYLE);
+    const DWORD ex    = (DWORD)GetWindowLongW(hwnd_, GWL_EXSTYLE);
+    RECT r = { 0, 0, 0, 0 };
+    AdjustWindowRectExForDpi(&r, style, /*bMenu=*/TRUE, ex, dpi);
+    extra_w = (int)(r.right - r.left);                 /* left/top are <= 0 */
+    extra_h = (int)(r.bottom - r.top)
+            + (int)emu_.Get<HostStatusBar>().Height();
+}
+
+void HostWindow::AdoptResolutionToWindowMonitor() {
+    if (!hwnd_) return;
+    auto& dc = emu_.Get<DeviceConfig>();
+    if (!dc.guest_additions ||
+        !dc.adopt_guest_additions_resolution_for_host_screen)
+        return;
+
+    MONITORINFO mi = { sizeof(mi) };
+    if (!GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST), &mi))
+        return;
+    const int work_w = (int)(mi.rcWork.right  - mi.rcWork.left);
+    const int work_h = (int)(mi.rcWork.bottom - mi.rcWork.top);
+
+    int ex_w = 0, ex_h = 0;
+    WindowChromeExtent(GetDpiForWindow(hwnd_), ex_w, ex_h);
+    const int surf_w = work_w - ex_w;
+    const int surf_h = work_h - ex_h;
+    if (surf_w < 1 || surf_h < 1) return;
+
+    emu_.Get<CerfVirtFramebuffer>().ApplyGuestMode((uint32_t)surf_w,
+                                                   (uint32_t)surf_h);
+    initial_surface_w_ = (uint32_t)surf_w;
+    initial_surface_h_ = (uint32_t)surf_h;
+    LOG(Lcd, "HostWindow: adopt fit monitor work=%dx%d -> guest surface %dx%d\n",
+        work_w, work_h, surf_w, surf_h);
+}
+
 void HostWindow::FitWindowToSurface(uint32_t sw, uint32_t sh) {
     if (!hwnd_ || sw == 0 || sh == 0) return;
 
-    const DWORD style = (DWORD)GetWindowLongW(hwnd_, GWL_STYLE);
-    const DWORD ex    = (DWORD)GetWindowLongW(hwnd_, GWL_EXSTYLE);
-    const LONG  th    = (LONG)emu_.Get<HostStatusBar>().Height();
-    RECT r = { 0, 0, (LONG)sw, (LONG)sh + th };
-    AdjustWindowRectEx(&r, style, /*bMenu=*/TRUE, ex);
-    int outer_w = (int)(r.right - r.left);
-    int outer_h = (int)(r.bottom - r.top);
+    int ex_w = 0, ex_h = 0;
+    WindowChromeExtent(GetDpiForWindow(hwnd_), ex_w, ex_h);
+    int outer_w = (int)sw + ex_w;
+    int outer_h = (int)sh + ex_h;
 
     int x = 0, y = 0;
     bool move = false;
-    RECT wa = {};
-    if (SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0)) {
+    MONITORINFO mi = { sizeof(mi) };
+    if (GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST), &mi)) {
+        const RECT wa = mi.rcWork;
         const int wa_w = (int)(wa.right - wa.left);
         const int wa_h = (int)(wa.bottom - wa.top);
         if (outer_w > wa_w) outer_w = wa_w;
@@ -258,6 +303,11 @@ void HostWindow::UiThreadMain() {
     }
     emu_.Get<HostDarkMode>().ApplyToWindow(hwnd_);
 
+    /* The window now has a monitor, so the guest surface can be fitted to it
+       before the canvas is built and before the guest reads its framebuffer
+       dims (no re-mode needed). No-op unless adopt-resolution is enabled. */
+    AdoptResolutionToWindowMonitor();
+
     /* Clamp to the work area before building the canvas: the canvas takes the
        window client size, so an oversized surface then scrolls instead of
        spilling off-screen. */
@@ -322,6 +372,16 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    if (msg == kGuestRemodeMsg) {
+        const uint32_t w = (uint32_t)wp;
+        const uint32_t h = (uint32_t)lp;
+        if (w != 0 && h != 0) {
+            emu_.Get<CerfVirtFramebuffer>().ApplyGuestMode(w, h);
+            emu_.Get<HostCanvas>().SetGuestSurfaceSize(w, h);
+        }
+        return 0;
+    }
+
     switch (msg) {
         case WM_SIZE: {
             RECT rc;
@@ -331,6 +391,13 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             emu_.Get<HostCanvas>().Reposition(cv);
             RECT sb = { 0, rc.bottom - sbh, rc.right, rc.bottom };
             emu_.Get<HostStatusBar>().Reposition(sb);
+            /* Coalesce the drag/maximize WM_SIZE storm: (re)arm a short timer and
+               publish only the settled size on WM_TIMER. One guest re-mode per
+               intermediate size floods gwes with PDEV re-enables and crashes at
+               high resolution. */
+            if (auto* ar = emu_.TryGet<HostAutoResize>();
+                wp != SIZE_MINIMIZED && ar && ar->Enabled())
+                SetTimer(hwnd, kResizeDebounceTimer, kResizeDebounceMs, nullptr);
             return 0;
         }
 
@@ -346,6 +413,20 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         case WM_SYSCOMMAND:
             if ((wp & 0xFFF0) == (WPARAM)SC_MAXIMIZE) follow_guest_ = false;
+            break;
+
+        case WM_TIMER:
+            if (wp == kResizeDebounceTimer) {
+                KillTimer(hwnd, kResizeDebounceTimer);
+                if (auto* ar = emu_.TryGet<HostAutoResize>()) {
+                    RECT rc;
+                    GetClientRect(hwnd, &rc);
+                    const LONG sbh = (LONG)emu_.Get<HostStatusBar>().Height();
+                    ar->OnUserResizeEnd((uint32_t)rc.right,
+                                        (uint32_t)(rc.bottom - sbh));
+                }
+                return 0;
+            }
             break;
 
         case WM_GETMINMAXINFO: {

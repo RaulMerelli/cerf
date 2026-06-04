@@ -1,12 +1,16 @@
 #pragma once
 
 #include "../peripheral_base.h"
+#include "cerf_virt_addr_map.h"
 
 #include <cstdint>
 #include <mutex>
 #include <string>
 
-class CerfDebugTxPeripheral : public Peripheral {
+/* Each guest driver maps its OWN page (id -> kLogChannelBase + id*stride): on
+   an FCSE kernel two processes that VirtualCopy the same MMIO page evict each
+   other's single mapping, so distinct ids MUST use distinct physical pages. */
+class CerfLogChannelPeripheral : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
@@ -24,8 +28,8 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
 private:
-    void AppendChar(char c);
+    void AppendChar(uint32_t id, char c);
 
     std::mutex  mutex_;
-    std::string line_buffer_;
+    std::string line_[CerfVirt::kLogChannelCount];
 };

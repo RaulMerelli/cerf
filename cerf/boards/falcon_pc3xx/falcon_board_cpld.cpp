@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../socs/pxa255/pxa255_gpio.h"
 
 #include <cstdint>
 
@@ -52,6 +53,13 @@ private:
 
     void TriggerReset() {
         LOG(SocReset, "Falcon CPLD PA 0xA3CC380C=3: board reboot -> SetResetPending\n");
+        /* Warm reset retains SDRAM. The OAL board-init (nk.exe sub_800F3FFC)
+           clears the CE object-store header (memset ulRAMFree) when GPIO pins
+           2,3 read low; assert RAM-valid or the registry (incl HKLM\Comm\
+           BootCount) is wiped each reboot and WarmCheck loops forever. */
+        auto& gpio = emu_.Get<Pxa255Gpio>();
+        gpio.SetInputLevel(2, true);
+        gpio.SetInputLevel(3, true);
         emu_.Get<ArmJit>().SetResetPending();
     }
 
