@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v3.11 pre-alpha
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v3.2 pre-alpha
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
