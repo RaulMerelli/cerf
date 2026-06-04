@@ -53,6 +53,7 @@ jobs:
           & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
 
       - name: Stamp version.h with CI build info
+        id: version
         shell: pwsh
         run: |
           $vh   = Get-Content cerf/version.h -Raw
@@ -62,11 +63,14 @@ jobs:
           $sha  = "${{ github.sha }}".Substring(0, 7)
           $ts   = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm") + " UTC"
           $run  = "${{ github.run_number }}"
-          $disp = "$maj.$min.$pat ($ts, $sha)"
+          $ver  = "$maj.$min.$pat"
+          $disp = "$ver ($ts, $sha)"
           $vh = $vh -replace '(?m)^#define\s+CERF_VERSION_BUILD\s+\d+', "#define CERF_VERSION_BUILD $run"
           $vh = $vh -replace '(?m)^#define\s+CERF_VERSION_DISPLAY_STR\s+.*$',  "#define CERF_VERSION_DISPLAY_STR   `"$disp`""
           $vh = $vh -replace '(?m)^#define\s+CERF_VERSION_DISPLAY_WSTR\s+.*$', "#define CERF_VERSION_DISPLAY_WSTR  L`"$disp`""
           Set-Content cerf/version.h -Value $vh -Encoding utf8 -NoNewline
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha=$sha"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Stamped: $disp (build $run)"
 
       - name: Build
@@ -76,5 +80,5 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cerf-${{matrix.configuration}}-${{matrix.platform}}
+          name: CERF-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}-${{matrix.configuration}}-${{matrix.platform}}
           path: ./build/
