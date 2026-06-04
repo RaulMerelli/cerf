@@ -48,6 +48,23 @@ public:
                 }
                 return cursor;
             }
+            /* CP15 c14 = XScale debug/breakpoint regs (Table 7-19); no
+               breakpoints modeled → read 0, ignore writes. Delegating to the
+               shared cp15 body UNDs CRn=14, and the OAL suspend state-save reads
+               these — the UND becomes a fatal exception-storm halt. */
+            if (d->crn == 14) {
+                const bool is_dbg = d->cp_opc == 0 && d->cp == 0 &&
+                    (d->crm == 0 || d->crm == 3 || d->crm == 4 ||
+                     d->crm == 8 || d->crm == 9);
+                if (!is_dbg) return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+                if (d->l) {
+                    using namespace x86;
+                    const int32_t rd_disp = static_cast<int32_t>(
+                        offsetof(ArmCpuState, gprs) + d->rd * 4u);
+                    EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp, 0u);
+                }
+                return cursor;
+            }
             return EmitCp15RegisterTransfer(cursor, d, ctx);
         }
         if (d->cp_num == 14 && d->cp_opc == 0 && d->crm == 0 && d->cp == 0) {
@@ -82,9 +99,12 @@ public:
                 }
                 return cursor;
             }
-            /* Any other CP14 register (e.g. the c0-c5 performance monitor) is a
-               real XScale instruction we have not emitted — loud FATAL, never UND. */
-            return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+            /* CP14 c0-c5 perfmon + c8-c15 debug (XScale Core Dev Manual §8,
+               §7.1): the perfmon counters and JTAG debug are not modeled, so
+               these read 0 (inactive) and ignore writes. The OAL suspend
+               state-save reads the whole CP14 bank, so a FATAL/UND here halts. */
+            if (d->l) EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp, 0u);
+            return cursor;
         }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
