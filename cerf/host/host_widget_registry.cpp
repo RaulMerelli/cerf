@@ -65,9 +65,9 @@ HMENU HostWidgetRegistry::BuildContextMenu(HostWidget* w) {
 
 void HostWidgetRegistry::AppendAllToMenu(HMENU dest) {
     ResetIds();
-    /* Reversed (Ordered() is ascending by Group): the terminal InputControl
-       group — the capture lock — leads the block, the device widgets follow.
-       One contiguous block, no inter-widget separators. */
+    /* Reversed (Ordered() is ascending by Group): the highest-rank terminal
+       widget — the capture lock — leads the block, the rest follow. One
+       contiguous block, no inter-widget separators. */
     auto ordered = Ordered();
     for (auto it = ordered.rbegin(); it != ordered.rend(); ++it) {
         HostWidget* w = *it;

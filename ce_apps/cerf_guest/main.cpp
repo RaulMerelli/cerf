@@ -3,8 +3,6 @@
 #include <winddi.h>
 #include <gpe.h>
 
-#define CERF_VIRT_DEBUG_TX_PA  0xD0000000u
-#define CERF_VIRT_DEBUG_TX_SZ  0x1000u
 #define CERF_VIRT_FB_REGS_PA   0xD0001000u
 #define CERF_VIRT_FB_REGS_SZ   0x1000u
 #define CERF_VIRT_GPE_CMD_PA   0xD0002000u
@@ -15,9 +13,9 @@
 #define CERF_GPE_STATUS           0x004u
 #define CERF_GPE_KICK_OFFSET      0x800u
 #define CERF_GPE_GRAD_KICK_OFFSET 0x804u
+#define CERF_GPE_LINE_KICK_OFFSET 0x808u
 #define CERF_GPE_STATUS_DONE      2u
 
-static volatile UCHAR* s_debug_tx = NULL;
 static volatile ULONG* s_fb_regs  = NULL;
 static volatile ULONG* s_gpe_cmd  = NULL;
 ULONG g_FbWidth   = 0;
@@ -27,41 +25,17 @@ ULONG g_FbStride  = 0;
 ULONG g_FbMemPa   = 0;
 ULONG g_FbMemTotal = 0;   /* total host-backed region bytes (kFbRegMemSizeTotal);
                              region tail past the primary = DDraw video memory. */
+ULONG g_FbPrimaryReserve = 0;  /* kFbRegPrimaryReserve: byte span the host reserved
+                                  for the growable primary; video heap starts past it. */
 void* g_FbMemVa   = NULL;
 ULONG g_EngineVersion = 0;
 
-static void CerfDebugTxInit(void) {
-    if (s_debug_tx) return;
-    s_debug_tx = (volatile UCHAR*)VirtualAlloc(0, CERF_VIRT_DEBUG_TX_SZ,
-                                                MEM_RESERVE, PAGE_NOACCESS);
-    if (!s_debug_tx) return;
-    if (!VirtualCopy((LPVOID)s_debug_tx,
-                     (LPVOID)(CERF_VIRT_DEBUG_TX_PA >> 8),
-                     CERF_VIRT_DEBUG_TX_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_debug_tx, 0, MEM_RELEASE);
-        s_debug_tx = NULL;
-    }
-}
-
-#if CERF_DEV_MODE
-extern "C" void CerfDebugTx(const char* msg) {
-    if (!s_debug_tx) CerfDebugTxInit();
-    if (!s_debug_tx || !msg) return;
-    for (const char* p = msg; *p; ++p) s_debug_tx[0] = (UCHAR)*p;
-    s_debug_tx[0] = '\n';
-}
-
-extern "C" void CerfDebugTxX(const char* msg, DWORD value) {
-    if (!s_debug_tx) CerfDebugTxInit();
-    if (!s_debug_tx || !msg) return;
-    for (const char* p = msg; *p; ++p) s_debug_tx[0] = (UCHAR)*p;
-    s_debug_tx[0] = ' '; s_debug_tx[0] = '0'; s_debug_tx[0] = 'x';
-    static const char hex[] = "0123456789ABCDEF";
-    for (int i = 7; i >= 0; --i) s_debug_tx[0] = hex[(value >> (i * 4)) & 0xF];
-    s_debug_tx[0] = '\n';
-}
-#endif
+/* The filename cerf_guest was injected under (the stock display driver it
+   replaced); the driver-in-driver carrier needs it as the Dll value device.exe
+   LoadLibrarys to reach the CDD_ entry points in this same module. */
+static wchar_t s_module_name[MAX_PATH] = { 0 };
+static HMODULE s_hinst = NULL;   /* captured in DllMain, used by the display init */
+extern "C" const wchar_t* CerfInjectedModuleName(void) { return s_module_name; }
 
 void CerfReadFbRegs(void) {
     CERF_LOG("cerf_guest: CerfReadFbRegs entry");
@@ -83,6 +57,7 @@ void CerfReadFbRegs(void) {
     g_FbStride = s_fb_regs[3];
     g_FbMemPa   = s_fb_regs[5];   /* kFbRegMemBasePa   (0x14 >> 2) */
     g_FbMemTotal = s_fb_regs[7];  /* kFbRegMemSizeTotal (0x1C >> 2) */
+    g_FbPrimaryReserve = s_fb_regs[8];  /* kFbRegPrimaryReserve (0x20 >> 2) */
     CERF_LOG_X("cerf_guest: CerfReadFbRegs w",      g_FbWidth);
     CERF_LOG_X("cerf_guest: CerfReadFbRegs h",      g_FbHeight);
     CERF_LOG_X("cerf_guest: CerfReadFbRegs bpp",    g_FbBpp);
@@ -92,7 +67,7 @@ void CerfReadFbRegs(void) {
 }
 
 BOOL CerfMapGpeCmd(void) {
-    CERF_LOG("cerf_guest: CerfMapGpeCmd entry");
+    CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (s_gpe_cmd) return TRUE;
     s_gpe_cmd = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_GPE_CMD_SZ,
                                                MEM_RESERVE, PAGE_NOACCESS);
@@ -126,46 +101,67 @@ extern "C" ULONG CerfGpeGrad(ULONG desc_va) {
     return s_gpe_cmd[CERF_GPE_STATUS / 4];
 }
 
+/* Publish a filled CerfLineDescriptor and kick the line port; the host reads it
+   through the live MMU, draws the segment by PA, and returns the status. */
+extern "C" ULONG CerfGpeLine(ULONG desc_va) {
+    if (!CerfMapGpeCmd()) return (ULONG)-1;
+    s_gpe_cmd[CERF_GPE_DESC_VA / 4] = desc_va;
+    *(volatile ULONG*)(((volatile UCHAR*)s_gpe_cmd) + CERF_GPE_LINE_KICK_OFFSET) = 1u;
+    return s_gpe_cmd[CERF_GPE_STATUS / 4];
+}
+
 extern "C" ULONG CerfGpeFbMemBasePa(void) { return CERF_VIRT_FB_MEM_PA; }
 
+/* The host accelerator addresses the framebuffer by physical address
+   (SurfaceFbPa), so the surface base is the FB PA itself, not a mapped VA. */
 void* CerfMapFbMemory(void) {
     CERF_LOG("cerf_guest: CerfMapFbMemory entry");
     if (g_FbMemVa) { CERF_LOG_X("cerf_guest: CerfMapFbMemory cached va", g_FbMemVa); return g_FbMemVa; }
     if (g_FbMemPa == 0 || g_FbStride == 0 || g_FbHeight == 0) return NULL;
-    /* Map the whole region, not just the primary: the tail past the primary
-       (which sits at offset 0) is the DDraw video memory the driver carves
-       offscreen surfaces from — shrinking this to primary_size hands video
-       surfaces unmapped VAs. */
-    ULONG primary_size = g_FbStride * g_FbHeight;
-    if (g_FbMemTotal < primary_size) {
+    if (g_FbMemTotal < g_FbStride * g_FbHeight) {
         CERF_LOG_X("cerf_guest: CerfMapFbMemory region too small for primary; total", g_FbMemTotal);
         return NULL;
     }
-    void* va = VirtualAlloc(0, g_FbMemTotal, MEM_RESERVE, PAGE_NOACCESS);
+    g_FbMemVa = (void*)(ULONG_PTR)g_FbMemPa;
+    CERF_LOG_X("cerf_guest: CerfMapFbMemory PA-only base", g_FbMemPa);
+    return g_FbMemVa;
+}
+
+/* On-demand FB aperture for guest CPU code that must touch PA-only FB pixels
+   (DirectDraw Lock, GDI SW-blit edge). Map only the rect needed — a whole 4K
+   surface (33 MB) exceeds the 32 MB slot. Returns the exact byte; free the same
+   pointer via CerfUnmapFbWindow. */
+extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes) {
+    const ULONG page_off  = fb_pa & 0xFFFu;
+    const ULONG base_pa   = fb_pa & ~0xFFFu;
+    const ULONG map_bytes = (page_off + bytes + 0xFFFu) & ~0xFFFu;
+    void* va = VirtualAlloc(0, map_bytes, MEM_RESERVE, PAGE_NOACCESS);
     if (!va) return NULL;
-    if (!VirtualCopy(va, (LPVOID)(g_FbMemPa >> 8), g_FbMemTotal,
+    if (!VirtualCopy(va, (LPVOID)(base_pa >> 8), map_bytes,
                      PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
         VirtualFree(va, 0, MEM_RELEASE);
         return NULL;
     }
-    g_FbMemVa = va;
-    CERF_LOG_X("cerf_guest: CerfMapFbMemory mapped va", va);
-    return va;
+    return (void*)((BYTE*)va + page_off);
+}
+
+extern "C" void CerfUnmapFbWindow(void* exact_va) {
+    if (exact_va) VirtualFree((void*)((ULONG_PTR)exact_va & ~0xFFFu), 0, MEM_RELEASE);
 }
 
 static ULONG s_RgbMasks_32bpp[3] = { 0x00FF0000u, 0x0000FF00u, 0x000000FFu };
 static ULONG s_RgbMasks_16bpp[3] = { 0xF800u,     0x07E0u,     0x001Fu     };
 
 extern "C" ULONG* APIENTRY DrvGetMasks(DHPDEV) {
-    CERF_LOG_X("cerf_guest: DrvGetMasks bpp", g_FbBpp);
+    CERF_LOG_X_DEV("cerf_guest: DrvGetMasks bpp", g_FbBpp);
     return (g_FbBpp == 16) ? s_RgbMasks_16bpp
          : (g_FbBpp == 32) ? s_RgbMasks_32bpp : NULL;
 }
 
-extern "C" BOOL APIENTRY DrvEndDoc(SURFOBJ*, FLONG)            { CERF_LOG("cerf_guest: DrvEndDoc"); return TRUE; }
-extern "C" BOOL APIENTRY DrvStartDoc(SURFOBJ*, PWSTR, DWORD)   { CERF_LOG("cerf_guest: DrvStartDoc"); return TRUE; }
-extern "C" BOOL APIENTRY DrvStartPage(SURFOBJ*)                { CERF_LOG("cerf_guest: DrvStartPage"); return TRUE; }
-extern "C" BOOL APIENTRY DrvExclusiveMode(DHPDEV, BOOL)        { CERF_LOG("cerf_guest: DrvExclusiveMode"); return TRUE; }
+extern "C" BOOL APIENTRY DrvEndDoc(SURFOBJ*, FLONG)            { CERF_LOG_DEV("cerf_guest: DrvEndDoc"); return TRUE; }
+extern "C" BOOL APIENTRY DrvStartDoc(SURFOBJ*, PWSTR, DWORD)   { CERF_LOG_DEV("cerf_guest: DrvStartDoc"); return TRUE; }
+extern "C" BOOL APIENTRY DrvStartPage(SURFOBJ*)                { CERF_LOG_DEV("cerf_guest: DrvStartPage"); return TRUE; }
+extern "C" BOOL APIENTRY DrvExclusiveMode(DHPDEV, BOOL)        { CERF_LOG_DEV("cerf_guest: DrvExclusiveMode"); return TRUE; }
 
 extern "C" BOOL APIENTRY DrvBitBlt(SURFOBJ*, SURFOBJ*, SURFOBJ*, CLIPOBJ*,
                                     XLATEOBJ*, RECTL*, POINTL*, POINTL*,
@@ -195,18 +191,18 @@ static BOOL APIENTRY CerfTraceBitBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
                                       CLIPOBJ* co, XLATEOBJ* xlo, RECTL* prd,
                                       POINTL* pps, POINTL* ppm, BRUSHOBJ* pbo,
                                       POINTL* ppb, ROP4 rop4) {
-    CERF_LOG_X("cerf_guest: DrvBitBlt rop4", rop4);
-    CERF_LOG_X("cerf_guest: DrvBitBlt xlo",  xlo);
-    CERF_LOG_X("cerf_guest: DrvBitBlt src",  src);
-    CERF_LOG_X("cerf_guest: DrvBitBlt dst",  dst);
-    CERF_LOG_X("cerf_guest: DrvBitBlt pbo",  pbo);
+    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt rop4", rop4);
+    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt xlo",  xlo);
+    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt src",  src);
+    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt dst",  dst);
+    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt pbo",  pbo);
     return DrvBitBlt(dst, src, msk, co, xlo, prd, pps, ppm, pbo, ppb, rop4);
 }
 static BOOL APIENTRY CerfTraceCopyBits(SURFOBJ* dst, SURFOBJ* src, CLIPOBJ* co,
                                         XLATEOBJ* xlo, RECTL* prd, POINTL* pps) {
-    CERF_LOG_X("cerf_guest: DrvCopyBits xlo", xlo);
-    CERF_LOG_X("cerf_guest: DrvCopyBits src", src);
-    CERF_LOG_X("cerf_guest: DrvCopyBits dst", dst);
+    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits xlo", xlo);
+    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits src", src);
+    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits dst", dst);
     return DrvCopyBits(dst, src, co, xlo, prd, pps);
 }
 static BOOL APIENTRY CerfTraceAnyBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
@@ -214,42 +210,42 @@ static BOOL APIENTRY CerfTraceAnyBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
                                       RECTL* prd, RECTL* prs, POINTL* ppm,
                                       BRUSHOBJ* pbo, POINTL* ppb, ROP4 rop4,
                                       ULONG mode, ULONG flags) {
-    CERF_LOG_X("cerf_guest: DrvAnyBlt rop4", rop4);
-    CERF_LOG_X("cerf_guest: DrvAnyBlt xlo",  xlo);
-    CERF_LOG_X("cerf_guest: DrvAnyBlt mode", mode);
+    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt rop4", rop4);
+    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt xlo",  xlo);
+    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt mode", mode);
     return DrvAnyBlt(dst, src, msk, co, xlo, phto, prd, prs, ppm, pbo, ppb,
                       rop4, mode, flags);
 }
 static BOOL APIENTRY CerfTraceTransparentBlt(SURFOBJ* dst, SURFOBJ* src,
                                               CLIPOBJ* co, XLATEOBJ* xlo,
                                               RECTL* prd, RECTL* prs, ULONG tc) {
-    CERF_LOG_X("cerf_guest: DrvTransparentBlt xlo", xlo);
-    CERF_LOG_X("cerf_guest: DrvTransparentBlt tc",  tc);
+    CERF_LOG_X_DEV("cerf_guest: DrvTransparentBlt xlo", xlo);
+    CERF_LOG_X_DEV("cerf_guest: DrvTransparentBlt tc",  tc);
     return DrvTransparentBlt(dst, src, co, xlo, prd, prs, tc);
 }
 static BOOL APIENTRY CerfTraceRealizeBrush(BRUSHOBJ* pbo, SURFOBJ* psoTarget,
                                             SURFOBJ* psoPattern, SURFOBJ* psoMask,
                                             XLATEOBJ* pxlo, ULONG iHatch) {
-    CERF_LOG_X("cerf_guest: DrvRealizeBrush pxlo", pxlo);
-    CERF_LOG_X("cerf_guest: DrvRealizeBrush iHatch", iHatch);
+    CERF_LOG_X_DEV("cerf_guest: DrvRealizeBrush pxlo", pxlo);
+    CERF_LOG_X_DEV("cerf_guest: DrvRealizeBrush iHatch", iHatch);
     return DrvRealizeBrush(pbo, psoTarget, psoPattern, psoMask, pxlo, iHatch);
 }
 static BOOL APIENTRY CerfTraceStrokePath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
                                           XFORMOBJ* pxo, BRUSHOBJ* pbo,
                                           POINTL* pptlBrush, LINEATTRS* plineattrs,
                                           MIX mix) {
-    CERF_LOG_X("cerf_guest: DrvStrokePath mix", mix);
+    CERF_LOG_X_DEV("cerf_guest: DrvStrokePath mix", mix);
     return DrvStrokePath(pso, ppo, pco, pxo, pbo, pptlBrush, plineattrs, mix);
 }
 static BOOL APIENTRY CerfTraceFillPath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
                                         BRUSHOBJ* pbo, POINTL* pptlBrush, MIX mix,
                                         FLONG flOptions) {
-    CERF_LOG_X("cerf_guest: DrvFillPath mix", mix);
+    CERF_LOG_X_DEV("cerf_guest: DrvFillPath mix", mix);
     return DrvFillPath(pso, ppo, pco, pbo, pptlBrush, mix, flOptions);
 }
 static BOOL APIENTRY CerfTracePaint(SURFOBJ* pso, CLIPOBJ* pco, BRUSHOBJ* pbo,
                                      POINTL* pptlBrush, MIX mix) {
-    CERF_LOG_X("cerf_guest: DrvPaint mix", mix);
+    CERF_LOG_X_DEV("cerf_guest: DrvPaint mix", mix);
     return DrvPaint(pso, pco, pbo, pptlBrush, mix);
 }
 
@@ -262,7 +258,7 @@ static ULONG (*g_EngineXlateObj_cGetPalette)(XLATEOBJ*, ULONG, ULONG, ULONG*) = 
 static ULONG WINAPI CerfXlateGetPaletteWrap(XLATEOBJ* pxlo, ULONG iPal,
                                              ULONG cPal, ULONG* pPal) {
     if (!pxlo) return 0;
-    CERF_LOG_X("cerf_guest: XlateGetPal flXlate", pxlo->flXlate);
+    CERF_LOG_X_DEV("cerf_guest: XlateGetPal flXlate", pxlo->flXlate);
     if (pxlo->flXlate == XO_TRIVIAL) return 0;
     if (!g_EngineXlateObj_cGetPalette) return 0;
     return g_EngineXlateObj_cGetPalette(pxlo, iPal, cPal, pPal);
@@ -285,6 +281,10 @@ extern "C" DHPDEV APIENTRY DrvEnablePDEV(DEVMODEW*, LPWSTR, ULONG, HSURF*,
                                           ULONG, ULONG*, ULONG, DEVINFO*,
                                           HDEV, LPWSTR, HANDLE);
 
+extern "C" void CerfStartPointerPump(void);
+extern "C" void CerfStartResizePump(void);
+extern "C" void CerfStartDriverInDriver(void);
+
 static DHPDEV APIENTRY CerfEnablePDEVWrap(
     DEVMODEW* pdm, LPWSTR pwszLogAddress, ULONG cPat, HSURF* phsurfPatterns,
     ULONG cjCaps, ULONG* pdevcaps, ULONG cjDevInfo, DEVINFO* pdi,
@@ -295,10 +295,21 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
                                    cjCaps, pdevcaps, cjDevInfo, pdi,
                                    hdev, pwszDeviceName, hDriver);
     CERF_LOG_X("cerf_guest: CerfEnablePDEVWrap result", result);
+    if (result) CerfStartPointerPump();
+    if (result) CerfStartResizePump();
+    if (result) CerfStartDriverInDriver();
     if (!result || !pdevcaps || cjCaps < sizeof(ULONG) || g_EngineVersion == 0) {
         return result;
     }
     pdevcaps[0] = g_EngineVersion;
+    /* ulHorzRes/ulVertRes (GDIINFO words 4/5). On a runtime re-enable the gwes
+       applier copies these into SM_CXSCREEN/CYSCREEN and the desktop surface
+       rect, so reporting the live g_Fb* target here is what makes auto-resize
+       take effect regardless of which DEVMODE the matched mode carried. */
+    if (cjCaps >= 6 * sizeof(ULONG)) {
+        pdevcaps[4] = g_FbWidth;
+        pdevcaps[5] = g_FbHeight;
+    }
     if (g_EngineVersion == 0x00020001u && cjCaps >= 20 * sizeof(ULONG)) {
         /* CE3 GPE lib's exact GDIINFO fill (WINCE300 PRIVATE GPE DDI_IF.CPP:801-817);
            the linked CE6 lib wrote CE6 values at CE6 offsets, and CE3 has no
@@ -325,9 +336,24 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
                                           ULONG cj,
                                           DRVENABLEDATA* pded,
                                           PENGCALLBACKS pCallbacks) {
+    CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);   /* arm before the first log */
     CERF_LOG_X("cerf_guest: DrvEnableDriver iEngineVersion", iEngineVersion);
     CERF_LOG_X("cerf_guest: DrvEnableDriver cj", cj);
     if (pded == NULL || pCallbacks == NULL || cj < 27 * sizeof(void*)) return FALSE;
+
+    if (!s_module_name[0]) {
+        wchar_t full[MAX_PATH];
+        DWORD n = GetModuleFileNameW(s_hinst, full, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            const wchar_t* base = full;
+            for (const wchar_t* p = full; *p; ++p)
+                if (*p == L'\\' || *p == L'/') base = p + 1;
+            ULONG i = 0;
+            for (; base[i] && i < MAX_PATH - 1; ++i) s_module_name[i] = base[i];
+            s_module_name[i] = L'\0';
+        }
+    }
+    CerfReadFbRegs();
 
     g_EngineVersion = iEngineVersion;
 
@@ -403,7 +429,7 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
 extern "C" BOOL APIENTRY DllEntryPoint(HANDLE hInst, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         CERF_LOG("cerf_guest: DLL_PROCESS_ATTACH");
-        CerfReadFbRegs();
+        s_hinst = (HMODULE)hInst;
     } else if (reason == DLL_PROCESS_DETACH) {
         CERF_LOG("cerf_guest: DLL_PROCESS_DETACH");
     }

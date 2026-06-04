@@ -4,8 +4,10 @@
 #include "../cpu/emulated_memory.h"
 #include "arm_pte.h"
 
-/* Side-effect-free VA->host peek: no TLB fill, no abort raise. Diagnostic /
-   tracing use only. */
+/* Functional resolver, not diagnostic-only: the guest-additions accelerator
+   (cerf_virt gpe_cmd / blitter) reads & writes guest memory through it. MUST
+   stay side-effect-free (no TLB fill, no abort raise, null on untranslatable)
+   or a host-side accelerator read faults/perturbs the running guest. */
 uint8_t* ArmMmu::PeekVaToHost(uint32_t va) {
     uint32_t p = va;
 
@@ -14,6 +16,12 @@ uint8_t* ArmMmu::PeekVaToHost(uint32_t va) {
         uint8_t* ram = memory_->TryTranslateWrite(p);
         return ram ? ram : memory_->TryTranslate(p);
     }
+
+    /* TLB before walk, mirroring the real walker. WinCE lazily zeroes the
+       in-memory L2 of a PSL server's home-slot stack while the server runs
+       under a different active FCSE process; the page stays TLB-resident, so a
+       walk-only peek returns nullptr for a page the guest still reads fine. */
+    if (std::optional<uint8_t*> tlb = PeekDataTlb(va)) return *tlb;
 
     /* FCSE fold: low-32-MB VAs are private to the current process,
        same fold MapGuestVirtualToHost applies. */

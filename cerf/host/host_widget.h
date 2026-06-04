@@ -19,9 +19,11 @@ enum class WidgetGroup : int {
     Indicator,
     Power,
     Debug,
-    /* Terminal group — always sorts last (rightmost in the bar). Reserved for
-       UI-owned widgets such as the input-capture lock. */
-    InputControl = 1000,
+    /* Terminal range — pinned to the right of the bar (always shown) and to the
+       top of the Actions menu. The capture lock takes the highest rank so it is
+       always the very last; other input widgets sort ahead of it. */
+    InputControl = 1000,   /* input-device widgets, e.g. the touch/pointer switch */
+    InputCapture = 1100,   /* the capture lock — always rightmost / menu-top */
 };
 
 struct WidgetMenuItem {

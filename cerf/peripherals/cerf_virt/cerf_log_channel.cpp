@@ -1,0 +1,69 @@
+#include "cerf_log_channel.h"
+
+#include "cerf_virt_addr_map.h"
+#include "../peripheral_dispatcher.h"
+#include "../../core/cerf_emulator.h"
+#include "../../core/device_config.h"
+#include "../../core/log.h"
+#include "../../host/uart_screen.h"
+
+REGISTER_SERVICE(CerfLogChannelPeripheral);
+
+namespace {
+
+const char* ChannelTag(uint32_t id) {
+    switch (id) {
+        case CerfVirt::kLogChannelIdDisplay:       return "[guest] ";
+        case CerfVirt::kLogChannelIdSharedFolders: return "[guest-fs] ";
+        default:                                   return "[guest-?] ";
+    }
+}
+
+}  /* namespace */
+
+bool CerfLogChannelPeripheral::ShouldRegister() {
+    return emu_.Get<DeviceConfig>().guest_additions;
+}
+
+void CerfLogChannelPeripheral::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
+
+uint32_t CerfLogChannelPeripheral::MmioBase() const { return CerfVirt::kLogChannelBase; }
+uint32_t CerfLogChannelPeripheral::MmioSize() const { return CerfVirt::kLogChannelSize; }
+
+uint8_t  CerfLogChannelPeripheral::ReadByte (uint32_t /*addr*/) { return 0u; }
+uint16_t CerfLogChannelPeripheral::ReadHalf (uint32_t /*addr*/) { return 0u; }
+uint32_t CerfLogChannelPeripheral::ReadWord (uint32_t /*addr*/) { return 0u; }
+
+void CerfLogChannelPeripheral::WriteByte(uint32_t addr, uint8_t value) {
+    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
+               static_cast<char>(value));
+}
+void CerfLogChannelPeripheral::WriteHalf(uint32_t addr, uint16_t value) {
+    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
+               static_cast<char>(value & 0xFFu));
+}
+void CerfLogChannelPeripheral::WriteWord(uint32_t addr, uint32_t value) {
+    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
+               static_cast<char>(value & 0xFFu));
+}
+
+void CerfLogChannelPeripheral::AppendChar(uint32_t id, char c) {
+    if (id >= CerfVirt::kLogChannelCount) return;
+    std::string flush;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::string& buf = line_[id];
+        if (c == '\n' || c == '\r') {
+            if (buf.empty()) return;
+            flush.swap(buf);
+        } else {
+            buf.push_back(c);
+            if (buf.size() < 4096u) return;
+            flush.swap(buf);
+        }
+    }
+    LOG(GuestDriver, "%s%s\n", ChannelTag(id), flush.c_str());
+    emu_.Get<UartScreen>().AddLine(ChannelTag(id) + flush);
+}

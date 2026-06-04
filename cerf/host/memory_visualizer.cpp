@@ -26,11 +26,7 @@ MemoryVisualizer::~MemoryVisualizer() {
 }
 
 bool MemoryVisualizer::ShouldRegister() {
-#if CERF_DEV_MODE
     return true;
-#else
-    return false;
-#endif
 }
 
 uint32_t MemoryVisualizer::BytesPerSample() const {

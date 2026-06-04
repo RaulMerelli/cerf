@@ -59,6 +59,7 @@ struct E32Layout {
 std::vector<uint8_t> BuildModuleHeader(const E32Layout&            L,
                                         const PeImage&             pe,
                                         uint32_t                   target_vbase,
+                                        const std::vector<uint32_t>& slot_realaddr,
                                         const std::vector<PackedSlot>& slots);
 
 }

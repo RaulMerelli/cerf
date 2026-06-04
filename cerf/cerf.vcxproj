@@ -73,8 +73,11 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;gdiplus.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;ole32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;gdiplus.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <Manifest>
+      <AdditionalManifestFiles>cerf.manifest</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -95,8 +98,11 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;gdiplus.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;shell32.lib;ole32.lib;comctl32.lib;advapi32.lib;comdlg32.lib;imm32.lib;winmm.lib;msimg32.lib;psapi.lib;dbghelp.lib;Ws2_32.lib;iphlpapi.lib;dwmapi.lib;gdiplus.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <Manifest>
+      <AdditionalManifestFiles>cerf.manifest</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="**\*.h" />

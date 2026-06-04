@@ -6,6 +6,7 @@
 #include "ce_image_relocator.h"
 #include "ce_imgfs_patcher.h"
 #include "ce_imgfs_walker.h"
+#include "guest_module_placer.h"
 #include "pe_image.h"
 #include "rom_parser_service.h"
 
@@ -212,18 +213,45 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
         CerfFatalExit();
     }
 
+    /* Slot geometry is byte-independent; a writable slot goes on a per-process
+       slot-0 base so the device.exe carrier gets its own copy, via the same
+       ComputeSectionRealaddrs the XIP path uses. */
+    const size_t K = victim->sections.size();
+    auto geom = cerf::ce_imgfs_patcher::PackPeSections(
+        pe, std::vector<uint8_t>(pe.Bytes().begin(), pe.Bytes().end()), K);
+    std::vector<ModuleSection> slot_units;
+    slot_units.reserve(geom.size());
+    for (const auto& g : geom)
+        slot_units.push_back({g.rva, g.vsize, g.psize, g.flags});
+    auto& placer = emu_.Get<GuestModulePlacer>();
+    uint32_t data_base = 0;
+    placer.ExtendDllRwRegion(slot_units, orig_vbase, slot_base, data_base);
+    const std::vector<uint32_t> slot_realaddr =
+        placer.ComputeSectionRealaddrs(slot_units, orig_vbase, slot_base, data_base);
+
+    std::vector<uint32_t> section_realaddr(pe.Sections().size());
+    for (size_t i = 0; i < pe.Sections().size(); ++i) {
+        const uint32_t rva = pe.Sections()[i].rva;
+        section_realaddr[i] = orig_vbase + rva;
+        for (size_t s = 0; s < geom.size(); ++s)
+            if (rva >= geom[s].rva && rva < geom[s].rva + geom[s].vsize) {
+                section_realaddr[i] = slot_realaddr[s] + (rva - geom[s].rva);
+                break;
+            }
+    }
+
     std::vector<uint8_t> pe_bytes_relocated(pe.Bytes().begin(), pe.Bytes().end());
-    const int32_t delta = int32_t(orig_vbase) - int32_t(pe.ImageBase());
+    const int32_t code_delta = int32_t(orig_vbase) - int32_t(pe.ImageBase());
     uint32_t reloc_count = 0, unhandled = 0;
     cerf::ce_image_relocator::ApplyRelocations(
-        pe_bytes_relocated, pe, delta, reloc_count, unhandled);
+        pe_bytes_relocated, pe, section_realaddr, code_delta,
+        reloc_count, unhandled);
     if (unhandled > 0) {
         LOG(Caution, "[ImgfsInjector] %s has %u unhandled relocation entries\n",
             victim_name, unhandled);
         CerfFatalExit();
     }
 
-    const size_t K = victim->sections.size();
     auto slots = cerf::ce_imgfs_patcher::PackPeSections(
         pe, pe_bytes_relocated, K);
     if (slots.empty() || slots.size() > K) {
@@ -233,7 +261,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     }
 
     auto new_hdr = cerf::ce_imgfs_patcher::BuildModuleHeader(
-        kE32RomCE5plus, pe, orig_vbase, slots);
+        kE32RomCE5plus, pe, orig_vbase, slot_realaddr, slots);
 
     auto translate_or_halt = [&](uint32_t la, const char* what) -> uint32_t {
         const size_t off = tr.Translate(la);

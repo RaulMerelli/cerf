@@ -122,6 +122,36 @@ STATE_TINT = {
     STATE_USER:      "#3a1e3a",
 }
 
+# Common display resolutions the override slider snaps through, ordered by
+# pixel area (ascending) so the thumb moves monotonically small -> large,
+# spanning PDA sizes up to 4K UHD. Both orientations of the everyday small
+# sizes are included; the boxes stay free-form so any value off this list
+# is still typable.
+RES_PRESETS = [
+    (240, 320),  (320, 240),    #  QVGA
+    (320, 480),  (480, 320),    #  HVGA
+    (640, 480),  (480, 640),    #  VGA
+    (800, 480),  (480, 800),    #  WVGA
+    (854, 480),                 #  FWVGA
+    (800, 600),  (600, 800),    #  SVGA
+    (1024, 600),                #  WSVGA
+    (1024, 768), (768, 1024),   #  XGA
+    (1280, 720),                #  HD 720p
+    (1280, 800),                #  WXGA
+    (1366, 768),                #  HD
+    (1280, 1024),               #  SXGA
+    (1440, 900),                #  WXGA+
+    (1600, 900),                #  HD+
+    (1680, 1050),               #  WSXGA+
+    (1600, 1200),               #  UXGA
+    (1920, 1080),               #  FHD 1080p
+    (1920, 1200),               #  WUXGA
+    (2560, 1440),               #  QHD 1440p
+    (2560, 1600),               #  WQXGA
+    (3440, 1440),               #  UW-QHD
+    (3840, 2160),               #  4K UHD
+]
+
 
 def _enable_dpi_awareness() -> None:
     if sys.platform != "win32":
@@ -336,6 +366,14 @@ class LauncherApp(tk.Tk):
                         bordercolor=BORDER, lightcolor=BG_SELECTED,
                         darkcolor=BG_SELECTED)
 
+        style.configure("Res.Horizontal.TScale",
+                        background=BG, troughcolor=BG_FIELD,
+                        bordercolor=BORDER, lightcolor=BG_SELECTED,
+                        darkcolor=BG_SELECTED)
+        style.map("Res.Horizontal.TScale",
+                  background=[("active", BG_HOVER), ("disabled", BG)],
+                  troughcolor=[("disabled", BG)])
+
         style.configure("Treeview",
                         background=BG_FIELD, foreground=FG,
                         fieldbackground=BG_FIELD, bordercolor=BORDER,
@@ -462,7 +500,8 @@ class LauncherApp(tk.Tk):
         self.var_height = tk.StringVar(value="320")
         numeric_vcmd = (self.register(self._is_optional_uint), "%P")
         res_fields = ttk.Frame(opts)
-        res_fields.grid(row=8, column=0, columnspan=3, sticky="w", pady=(2, 0))
+        res_fields.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        res_fields.columnconfigure(5, weight=1)
         self.width_entry = ttk.Entry(res_fields, textvariable=self.var_width, width=8,
                                      validate="key", validatecommand=numeric_vcmd)
         self.height_entry = ttk.Entry(res_fields, textvariable=self.var_height, width=8,
@@ -475,6 +514,17 @@ class LauncherApp(tk.Tk):
         ttk.Label(res_fields, text="Height").grid(row=0, column=3, sticky="w")
         self.height_entry.grid(row=0, column=4, sticky="w", padx=(4, 4))
         self.height_unit.grid(row=0, column=5, sticky="w")
+
+        self._res_sync_guard = False
+        self.res_slider = ttk.Scale(res_fields, from_=0, to=len(RES_PRESETS) - 1,
+                                    orient="horizontal", style="Res.Horizontal.TScale",
+                                    command=self._on_res_slider)
+        self.res_slider.grid(row=1, column=0, columnspan=6, sticky="ew", pady=(8, 0))
+        self.res_preset_label = ttk.Label(res_fields, text="", style="Hint.TLabel")
+        self.res_preset_label.grid(row=2, column=0, columnspan=6, sticky="w")
+        self.var_width.trace_add("write", self._on_res_text_changed)
+        self.var_height.trace_add("write", self._on_res_text_changed)
+        self._sync_slider_to_text()
 
         actions = ttk.LabelFrame(right, text="Bundle actions", padding=8)
         actions.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
@@ -583,22 +633,22 @@ class LauncherApp(tk.Tk):
     def _show_guest_additions_help(self) -> None:
         self._info(
             "Guest additions",
-            "Guest additions are experimental and unstable — opt-in and "
-            "off by default. Expect per-device rendering glitches and "
-            "reduced stability; some guest OSes behave better than others. "
-            "For the most stable experience, boot without them and let the "
-            "ROM use its own stock drivers.\n\n"
-            "What you get: CERF swaps in its own universal display driver — "
-            "one driver giving every supported OS (CE 3 through CE 7, "
-            "Windows Mobile 5 / 6) full color and arbitrary screen "
-            "resolution, far larger than the original hardware ever shipped "
-            "(grayscale CE 3 or an iPAQ at 1080p, CE 6+ at 2K).\n\n"
-            "Heads-up: touch still uses the device's original input driver, "
-            "which expects the original screen size — so touch will likely "
-            "be broken (and the device hard to use) at any non-native "
-            "resolution. Custom input is next.\n\n"
-            "Planned: dynamic screen resize, shared storage, drag-and-drop "
-            "file copy, and a shared clipboard."
+            "CERF injects own ARM library into XIP/IMGFS and replaces stock video driver "
+            "with own OS version-agnostic driver. It fully replaces original video driver "
+            "and operates OS APIs to orchestrate the entire stack of features.\n\n"
+            "⚠️ Guest additions are experimental and unstable. Consider booting stock "
+            "ROM in case if there are any glitches/instabilities.\n\n"
+            "Supported features:\n"
+            "- 32bpp custom big resolution (boot CE3 into 4K!)\n"
+            "- Host-accelerated blitting - the driver routes blits to host which performs the "
+            "full set of graphical operations in native code\n"
+            "- Dynamic screen resolution (CE 4+)\n"
+            "- Shared storage with host"
+            "- Mouse pointer driver:\n"
+            "  - required to avoid stock touch limitations on custom res\n"
+            "  - guest OS cursor shape translated directly into host graphics\n"
+            "  - scroll wheel support for newer CE\n"
+            "  - use runtime switcher if you need to go back to stock touch"
         )
 
     def _confirm_rom_license(self, display_name: str) -> bool:
@@ -723,6 +773,53 @@ class LauncherApp(tk.Tk):
         state = "normal" if enabled else "disabled"
         self.width_entry.config(state=state)
         self.height_entry.config(state=state)
+        self.res_slider.config(state=state)
+        self.res_preset_label.config(foreground=FG_DIM if enabled else BG_FIELD)
+
+    def _on_res_slider(self, value: str) -> None:
+        if self._res_sync_guard:
+            return
+        index = max(0, min(len(RES_PRESETS) - 1, round(float(value))))
+        # Snap the continuous Scale thumb onto the discrete preset stop.
+        if abs(float(value) - index) > 1e-9:
+            self.res_slider.set(index)
+            return
+        w, h = RES_PRESETS[index]
+        self._res_sync_guard = True
+        try:
+            self.var_width.set(str(w))
+            self.var_height.set(str(h))
+        finally:
+            self._res_sync_guard = False
+        self.res_preset_label.config(text=f"{w} × {h}")
+
+    def _on_res_text_changed(self, *_args: object) -> None:
+        if self._res_sync_guard:
+            return
+        self._sync_slider_to_text()
+
+    def _sync_slider_to_text(self) -> None:
+        try:
+            w = int(self.var_width.get().strip())
+            h = int(self.var_height.get().strip())
+        except ValueError:
+            self.res_preset_label.config(text="Custom")
+            return
+        self._res_sync_guard = True
+        try:
+            if (w, h) in RES_PRESETS:
+                self.res_slider.set(RES_PRESETS.index((w, h)))
+                self.res_preset_label.config(text=f"{w} × {h}")
+            else:
+                # Off-list value: park the thumb on the nearest-area preset
+                # for a sensible position without overwriting the typed size.
+                area = w * h
+                nearest = min(range(len(RES_PRESETS)),
+                              key=lambda i: abs(RES_PRESETS[i][0] * RES_PRESETS[i][1] - area))
+                self.res_slider.set(nearest)
+                self.res_preset_label.config(text=f"Custom — {w} × {h}")
+        finally:
+            self._res_sync_guard = False
 
     def _refresh_resolution_state(self) -> None:
         device = self._selected_device()

@@ -1,6 +1,7 @@
 #include "cerf_virt_gpe_cmd.h"
 #include "cerf_virt_blt_descriptor.h"
 #include "cerf_virt_grad_descriptor.h"
+#include "cerf_virt_line_descriptor.h"
 #include "cerf_virt_blitter.h"
 #include "cerf_virt_addr_map.h"
 
@@ -42,6 +43,7 @@ public:
         const uint32_t off = addr - MmioBase();
         if (off == CerfVirt::kGpeCmdKick)     { ExecuteCmd();     return; }
         if (off == CerfVirt::kGpeCmdGradKick) { ExecuteGradCmd(); return; }
+        if (off == CerfVirt::kGpeCmdLineKick) { ExecuteLineCmd(); return; }
         if (off >= sizeof(regs_)) return;
         if (off == CerfVirt::kGpeCmdStatus) return;
         regs_[off / 4] = value;
@@ -91,6 +93,21 @@ private:
             return;
         }
         const bool ok = emu_.Get<CerfVirt::CerfVirtBlitter>().ExecuteGradient(g);
+        regs_[CerfVirt::kGpeCmdStatus / 4] =
+            ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
+    }
+
+    void ExecuteLineCmd() {
+        regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusBusy;
+        const uint32_t desc_va = regs_[CerfVirt::kGpeCmdDescVa / 4];
+
+        CerfVirt::CerfLineDescriptor l;
+        if (!ReadBlob(desc_va, &l, (uint32_t)sizeof(l))) {
+            LOG(Periph, "[CerfVirtGpeCmd] line VA 0x%08X unreadable\n", desc_va);
+            regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
+            return;
+        }
+        const bool ok = emu_.Get<CerfVirt::CerfVirtBlitter>().ExecuteLine(l);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
     }

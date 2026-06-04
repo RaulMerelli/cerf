@@ -3,3 +3,13 @@ LIBRARY cerf_guest
 EXPORTS
     DrvEnableDriver
     HALInit
+    CDD_Init
+    CDD_Deinit
+    CDD_Open
+    CDD_Close
+    CDD_Read
+    CDD_Write
+    CDD_Seek
+    CDD_IOControl
+    CDD_PowerUp
+    CDD_PowerDown

@@ -19,6 +19,7 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
             Log::SetAllowFlood(true);
         } else if (strncmp(argv[i], kArgScreenWidth, sizeof(kArgScreenWidth) - 1) == 0 ||
                    strncmp(argv[i], kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0 ||
+                   strncmp(argv[i], kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0 ||
                    strcmp(argv[i], kArgDisableNetwork) == 0 ||
                    strcmp(argv[i], kArgGuestAdditions) == 0 ||
                    strcmp(argv[i], kArgRecovery) == 0) {

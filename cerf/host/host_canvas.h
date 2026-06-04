@@ -57,6 +57,11 @@ public:
 
     HWND Hwnd() const { return hwnd_; }
 
+    /* canvas-client (cx,cy) -> guest-surface (sx,sy). Returns false when the
+       point is outside the blitted guest image. Public for HostCanvasInput. */
+    bool HostToGuest(int cx, int cy, int& sx, int& sy) const;
+    void ClampGuest(int& sx, int& sy) const;
+
 private:
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -76,12 +81,6 @@ private:
         bool stretch;
     };
     Layout ComputeLayout() const;
-
-    /* canvas-client (cx,cy) -> guest-surface (sx,sy). Returns false when the
-       point is outside the blitted guest image. */
-    bool HostToGuest(int cx, int cy, int& sx, int& sy) const;
-    void ClampGuest(int& sx, int& sy) const;
-    void ReleasePenIfDown();
 
     HWND      hwnd_   = nullptr;
     HWND      parent_ = nullptr;

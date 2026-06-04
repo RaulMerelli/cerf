@@ -207,27 +207,6 @@ void LoadGlobalSubstitutions(const json& root, DeviceConfig& config,
 
 }  // namespace
 
-void ConfigLoader::ApplyAdoptedGuestAdditionsResolution(DeviceConfig& config) {
-    const int scr_w = ::GetSystemMetrics(SM_CXSCREEN);
-    const int scr_h = ::GetSystemMetrics(SM_CYSCREEN);
-    if (scr_w > 10 && scr_h > 40) {
-        uint32_t w = (uint32_t)(scr_w - 10);
-        uint32_t h = (uint32_t)(scr_h - 40);
-        if (w > 3840) w = 3840;   /* clamp wide ultrawide/multimon spans */
-        if (h > 2160) h = 2160;
-        config.board_configurable_screen_width  = w;
-        config.board_configurable_screen_height = h;
-    } else {
-        LOG(Cfg, "adopt-GA-resolution: host metrics unusable (%dx%d); "
-                 "keeping %ux%u\n", scr_w, scr_h,
-            config.board_configurable_screen_width,
-            config.board_configurable_screen_height);
-    }
-    LOG(Cfg, "adopt-GA-resolution: host-derived screen=%ux%u\n",
-        config.board_configurable_screen_width,
-        config.board_configurable_screen_height);
-}
-
 void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
     auto& config = emu_.Get<DeviceConfig>();
 
@@ -270,12 +249,6 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
         LoadFeatures(dev, config,      dev_path);
     }
 
-    /* cerf.json may ask the guest-additions display to fill the host screen.
-       Applied before the CLI-override loop so an explicit
-       --screen-width/--screen-height still wins over the derived size. */
-    if (config.adopt_guest_additions_resolution_for_host_screen)
-        ApplyAdoptedGuestAdditionsResolution(config);
-
     /* Device-config CLI overrides, applied after cerf.json so the command
        line wins over the json value. */
     for (int i = 1; i < argc; i++) {
@@ -290,10 +263,15 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
             int n = atoi(a + sizeof(kArgScreenWidth) - 1);
             if (n < 1) Fatal("(command line)", "--screen-width must be >= 1");
             config.board_configurable_screen_width = (uint32_t)n;
+            /* An explicit size is authoritative over the host-screen fit. */
+            config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenHeight) - 1);
             if (n < 1) Fatal("(command line)", "--screen-height must be >= 1");
             config.board_configurable_screen_height = (uint32_t)n;
+            config.adopt_guest_additions_resolution_for_host_screen = false;
+        } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
+            config.share_folder = a + sizeof(kArgShareFolder) - 1;
         }
     }
 }

@@ -30,7 +30,17 @@ Warns about:
                        narration; the comment should inline the SUBSTANCE
                        (specific bits, register fields, BSP behaviour) or
                        not exist.
-  8. ALWAYS-BAILOUT — scheduling-verb phrasings ("deferred to/until/for",
+  8. DECISION-DEFENSE-COMMENT — comment phrasing that defends the current
+                       approach against an alternative ("Do NOT <X>",
+                       "rather than", "instead of", "we chose",
+                       "originally / previously / used to"). The worst
+                       bloat shape: decision-history disguised as a
+                       caution. Fires by CONTENT regardless of comment
+                       size — the canonical offender is below the bloat
+                       size trigger. Razor test in the message: would a
+                       fresh reader with no knowledge of the alternative
+                       write this warning from the code alone?
+  9. ALWAYS-BAILOUT — scheduling-verb phrasings ("deferred to/until/for",
                        "placeholder until X", "to/will be implemented",
                        "TODO: implement X", "implement X later", etc.).
                        The BAILOUT-COMMENT FP gate does NOT rescue these —
@@ -85,6 +95,24 @@ ALWAYS_BAILOUT_RE = re.compile(
 DEV_EMU_RE = re.compile(r"\bdev_emu_src\b", re.IGNORECASE)
 
 CHECKLIST_PATH_RE = re.compile(r"docs/ai_checklists\b", re.IGNORECASE)
+
+# Decision-defense phrasing in a comment — the worst bloat shape. A
+# comment whose reason to exist is to warn a reader AWAY from an
+# alternative the author considered / removed, or to justify the
+# current approach by contrast. Fires regardless of comment SIZE (the
+# canonical offender is only 3-4 lines, below the bloat size trigger),
+# so it is detected by content, not structure. "do not" / "don't" are
+# included despite also appearing in legitimate hazard notes — the
+# emitted message carries the razor test (system-invariant a fresh
+# reader would hit, vs defending the author's journey) so a real
+# hazard clears in one step while decision-defense is deleted.
+DECISION_DEFENSE_RE = re.compile(
+    r"\bdo\s*not\b|\bdon'?t\b"
+    r"|\brather than\b|\binstead of\b"
+    r"|\bwe chose\b|\bchosen over\b|\bchose\b.*\bover\b"
+    r"|\boriginally\b|\bpreviously\b|\bused to\b|\bno longer\b",
+    re.IGNORECASE,
+)
 
 # Path under the references/ tree mentioned in a comment. The tree is
 # gitignored and gigabytes-scale (chip datasheets, BSP archives, ARM
@@ -224,6 +252,7 @@ def main() -> int:
     cerf_ref_hits = []
     references_tree_hits = []
     always_bailout_hits = []
+    decision_defense_hits = []
 
     checklist_names = collect_checklist_filenames()
     checklist_name_re = (
@@ -256,6 +285,9 @@ def main() -> int:
 
         if comment_text and REFERENCES_TREE_RE.search(comment_text):
             references_tree_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
+
+        if comment_text and DECISION_DEFENSE_RE.search(comment_text):
+            decision_defense_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
 
     def fmt_block(label: str, hits: list, advice: str) -> str:
         sample = "\n".join(hits[:5])
@@ -426,6 +458,46 @@ def main() -> int:
             "technical info; they are NOT allowed as standalone 'see X' / "
             "'body in X' pointers. If the WHY would be the same whether the "
             "code lived here or in the referenced file, delete the comment.",
+        ))
+
+    if decision_defense_hits:
+        warnings.append(fmt_block(
+            "DECISION-DEFENSE-COMMENT",
+            decision_defense_hits,
+            "THE WORST FORM OF COMMENT BLOAT. This comment exists to "
+            "warn a reader AWAY from an alternative you considered or "
+            "removed, or to justify the current approach by contrast "
+            "('Do NOT <approach>', 'rather than', 'instead of', 'we "
+            "chose', 'originally / previously / used to'). The code IS "
+            "the approach. Nobody needs to be argued out of the path "
+            "not taken — that path is absent from git history and "
+            "irrelevant to a fresh reader. A comment defending your "
+            "own design decision is decision-history, not a "
+            "description of the code.\n\n"
+            "RAZOR TEST — apply to EACH hit:\n"
+            "  Would a fresh reader, with ZERO knowledge that any "
+            "alternative was ever considered, write this exact warning "
+            "from the code alone? If NO → it leaks your decision "
+            "history → DELETE it.\n\n"
+            "THE ONE EXCEPTION (do not abuse it): a genuine "
+            "forward-facing hazard — a NON-OBVIOUS SYSTEM INVARIANT a "
+            "fresh reader would plausibly violate — stated as a "
+            "PROPERTY OF THE SYSTEM, not as 'don't undo my choice'. "
+            "Rewrite to the positive invariant form:\n"
+            "  BAD  (decision-defense): 'Do NOT VirtualCopy the region "
+            "— that's the approach we removed.'\n"
+            "  OK   (system invariant): 'Mapping the full framebuffer "
+            "overflows the 32 MB process slot above ~Full HD, so the "
+            "surface base is the FB physical address, not a mapped "
+            "VA.'\n"
+            "The OK form names a real constraint of the platform and "
+            "would be written by anyone who understood the system, "
+            "with no knowledge of what you tried. The BAD form only "
+            "makes sense if you know what you removed.\n\n"
+            "If the hit has no real system invariant behind it → "
+            "DELETE the whole comment. If it does → rewrite to the "
+            "positive-invariant form. Never keep the 'do not <X>' / "
+            "'rather than <Y>' framing.",
         ))
 
     bloat_hits = find_bloated_blocks(content)

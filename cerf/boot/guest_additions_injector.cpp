@@ -2,6 +2,7 @@
 #define NOMINMAX
 
 #include "ce_image_relocator.h"
+#include "guest_module_placer.h"
 #include "imgfs_injector.h"
 #include "pe_image.h"
 #include "rom_parser_service.h"
@@ -108,10 +109,13 @@ public:
         }
 
         ce_major_ = DetectCeMajor();
-        layout_   = (ce_major_ <= 3) ? &kE32RomCE3 : &kE32RomCE5plus;
+        /* e32_rom inserts e32_timestamp before e32_unit in CE5 (pehdr.h: CE3
+           e32_unit at 0x20, CE5 adds e32_timestamp at 0x20 pushing it to 0x24),
+           so CE3 and CE4.2 use the pre-timestamp layout. */
+        layout_   = (ce_major_ <= 4) ? &kE32RomCE3 : &kE32RomCE5plus;
         LOG(GuestAdditions, "CE major=%u; e32_rom layout=%s "
                   "(size=%u, ts_off=%d, unit_off=0x%X, subsys_off=0x%X)\n",
-            ce_major_, (layout_ == &kE32RomCE3) ? "CE3" : "CE5+",
+            ce_major_, (layout_ == &kE32RomCE3) ? "pre-CE5" : "CE5+",
             layout_->size, layout_->off_timestamp,
             layout_->off_unit, layout_->off_subsys);
 
@@ -151,8 +155,7 @@ private:
                               uint32_t target_vbase);
     void     WriteO32Array  (uint32_t pa, const PeImage& pe,
                               uint32_t section_pa_base,
-                              uint32_t target_base,
-                              uint32_t slot_base);
+                              const std::vector<uint32_t>& section_realaddr);
     uint32_t WriteSectionBytes(uint32_t pa, const PeImage& pe,
                                 const std::vector<uint8_t>& bytes);
 
@@ -239,8 +242,7 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
 
 void GuestAdditionsInjector::WriteO32Array(uint32_t pa, const PeImage& pe,
                                             uint32_t section_pa_base,
-                                            uint32_t target_base,
-                                            uint32_t slot_base) {
+                                            const std::vector<uint32_t>& section_realaddr) {
     auto& mem = emu_.Get<EmulatedMemory>();
     uint32_t section_pa = section_pa_base;
     for (size_t i = 0; i < pe.Sections().size(); ++i) {
@@ -248,7 +250,7 @@ void GuestAdditionsInjector::WriteO32Array(uint32_t pa, const PeImage& pe,
         const uint32_t kva = KvaForPa(section_pa);
         const uint32_t off = pa + uint32_t(i) * kO32RomSize;
 
-        const uint32_t realaddr = target_base + slot_base + s.rva;
+        const uint32_t realaddr = section_realaddr[i];
         mem.WriteWord(off + kO32OffVsize,    s.vsize);
         mem.WriteWord(off + kO32OffRva,      s.rva);
         mem.WriteWord(off + kO32OffPsize,    s.psize);
@@ -359,10 +361,8 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
             um_first, um_last, km_first, km_last,
             primary_toc.romhdr.dllfirst, primary_toc.romhdr.dlllast);
     } else {
-        /* Need BOTH clauses. DO NOT drop in_dll_region for xip_codebase alone:
-           CE3 ddi.dll has vbase 0x01680000 != codebase 0x03680000 (code realaddr
-           in slot 1) so xip_codebase REJECTS it -> CE3 GA FATALs. xip_codebase
-           covers kernel-fixup DLLs whose code XIPs above dlllast (CE5/Zune). */
+        /* Accept if either holds — without in_dll_region, CE3 ddi.dll FATALs
+           (vbase 0x01680000 != codebase 0x03680000); xip_codebase covers CE5/Zune. */
         const uint32_t code_realaddr0 =
             mem.ReadWord(orig_o32_pa + kO32OffRealaddr);
         const uint32_t code_rva0 =
@@ -418,25 +418,6 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         CerfFatalExit();
     }
 
-    std::vector<uint8_t> patched_bytes(pe.Bytes().begin(), pe.Bytes().end());
-    const int32_t delta =
-        int32_t(orig_vbase) - int32_t(pe.ImageBase());
-    uint32_t reloc_count = 0;
-    uint32_t unhandled_relocs = 0;
-    cerf::ce_image_relocator::ApplyRelocations(
-        patched_bytes, pe, delta, reloc_count, unhandled_relocs);
-    LOG(GuestAdditions, "%s reloc delta=0x%08X patched=%u unhandled=%u\n",
-        victim_name, uint32_t(delta), reloc_count, unhandled_relocs);
-    if (unhandled_relocs > 0) {
-        LOG(Caution, "%s has %u unhandled relocation "
-                "entries (likely ARM_MOV32/THUMB_MOV32). The injected "
-                "DLL would jump to unrelocated addresses on first use; "
-                "rebuild cerf_guest with /machine:THUMB ARMV4I (no "
-                "MOVW/MOVT) or extend ce_image_relocator to handle the "
-                "missing types.\n", victim_name, unhandled_relocs);
-        CerfFatalExit();
-    }
-
     uint32_t slot_base = 0;
     if (orig_objcnt > 0) {
         const uint32_t orig_realaddr0 =
@@ -449,8 +430,42 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
             slot_base, orig_realaddr0, orig_rva0, orig_vbase);
     }
 
-    WriteE32Rom  (e32_pa, pe, orig_vbase);
-    WriteO32Array(o32_pa, pe, section_pa_base, orig_vbase, slot_base);
+    const uint32_t target_vbase = emu_.Get<GuestModulePlacer>().ComputeVbase(
+        orig_vbase, slot_base, pe.ImageSize(), ce_major_, L.off_vbase,
+        victim_name);
+
+    std::vector<ModuleSection> units;
+    units.reserve(pe.Sections().size());
+    for (const auto& s : pe.Sections())
+        units.push_back({s.rva, s.vsize, s.psize, s.flags});
+    auto& placer = emu_.Get<GuestModulePlacer>();
+    uint32_t data_base = 0;
+    placer.ExtendDllRwRegion(units, target_vbase, slot_base, data_base);
+    const std::vector<uint32_t> section_realaddr =
+        placer.ComputeSectionRealaddrs(units, target_vbase, slot_base, data_base);
+
+    std::vector<uint8_t> patched_bytes(pe.Bytes().begin(), pe.Bytes().end());
+    const int32_t code_delta =
+        int32_t(target_vbase + slot_base) - int32_t(pe.ImageBase());
+    uint32_t reloc_count = 0;
+    uint32_t unhandled_relocs = 0;
+    cerf::ce_image_relocator::ApplyRelocations(
+        patched_bytes, pe, section_realaddr, code_delta,
+        reloc_count, unhandled_relocs);
+    LOG(GuestAdditions, "%s reloc code_delta=0x%08X patched=%u unhandled=%u\n",
+        victim_name, uint32_t(code_delta), reloc_count, unhandled_relocs);
+    if (unhandled_relocs > 0) {
+        LOG(Caution, "%s has %u unhandled relocation "
+                "entries (likely ARM_MOV32/THUMB_MOV32). The injected "
+                "DLL would jump to unrelocated addresses on first use; "
+                "rebuild cerf_guest with /machine:THUMB ARMV4I (no "
+                "MOVW/MOVT) or extend ce_image_relocator to handle the "
+                "missing types.\n", victim_name, unhandled_relocs);
+        CerfFatalExit();
+    }
+
+    WriteE32Rom  (e32_pa, pe, target_vbase);
+    WriteO32Array(o32_pa, pe, section_pa_base, section_realaddr);
     const uint32_t after_sections_pa =
         WriteSectionBytes(section_pa_base, pe, patched_bytes);
 

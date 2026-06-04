@@ -22,6 +22,10 @@ public:
        so rotating renderers can swap. */
     void OnLcdEnabled(uint32_t fb_w, uint32_t fb_h);
 
+    /* CerfVirtResize calls this (JIT thread) when the guest acks a re-mode;
+       marshals to the UI thread to repoint the framebuffer + canvas surface. */
+    void NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h);
+
     HWND Hwnd() const { return hwnd_; }
 
 private:
@@ -33,6 +37,16 @@ private:
     void  SyncMenu();
     void  HandleCommand(int id);
     void  AutoResizeToGuest();
+
+    /* Guest-additions: when adopt-resolution is enabled, size the guest surface
+       to the work area of the monitor this window landed on, minus the exact
+       window chrome. Runs on the UI thread after the window exists but before
+       the canvas is built and before the guest reads its framebuffer dims. */
+    void  AdoptResolutionToWindowMonitor();
+
+    /* Non-client + menu + status-bar pixel overhead around a guest surface, at
+       the given DPI (Per-Monitor-v2: pass the window's monitor DPI). */
+    void  WindowChromeExtent(UINT dpi, int& extra_w, int& extra_h) const;
 
     /* Size the window so its client holds an sw x sh guest surface, but never
        larger than the work area, and pull the origin in so the whole frame

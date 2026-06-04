@@ -2,7 +2,6 @@
 #include "cerf_virt_blt_pixelops.h"
 #include "cerf_virt_blt_alpha.h"
 #include "cerf_virt_framebuffer.h"
-#include "cerf_virt_addr_map.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
@@ -20,118 +19,6 @@ bool CerfVirtBlitter::ShouldRegister() {
 void CerfVirtBlitter::OnReady() {
     fb_  = &emu_.Get<CerfVirtFramebuffer>();
     mmu_ = &emu_.Get<ArmMmu>();
-}
-
-bool CerfVirtBlitter::ResolveSurface(const CerfBltSurface& s, uint32_t bpp,
-                                     Surface* out) {
-    out->desc = &s;
-    out->bpp  = bpp;
-    out->is_va = (s.is_fb_pa == 0u);
-    out->host_base = nullptr;
-    if (!out->is_va) {
-        const uint32_t fb_base = CerfVirt::kFramebufferMemBase;
-        const uint32_t fb_size = fb_->RegionBytes();
-        if (s.buffer < fb_base) return false;
-        const uint32_t off = s.buffer - fb_base;
-        if (off >= fb_size) return false;
-        out->host_base = fb_->Bytes() + off;
-    }
-    return true;
-}
-
-/* Rotated surface: map logical (x,y) to the physical byte via the 4-angle
-   transform (WINCE600 pixeliterator.cpp GetPtr). screen_w/h are physical dims
-   minus 1 (0-indexed), matching ScreenWidth()-1 / ScreenHeight()-1 at Init. */
-uint8_t* CerfVirtBlitter::RotatedPixelPtr(const Surface& s, int32_t x, int32_t y) {
-    const CerfBltSurface& d = *s.desc;
-    const int32_t stride = d.stride;
-    const int32_t bpp    = (int32_t)s.bpp;
-    const int32_t W = (int32_t)d.screen_w - 1;
-    const int32_t H = (int32_t)d.screen_h - 1;
-    int32_t off;
-    switch (d.rotate) {
-    case kCerfRotate90:  off = (H - x) * stride + y * bpp;            break;
-    case kCerfRotate180: off = (H - y) * stride + (W - x) * bpp;      break;
-    case kCerfRotate270: off = x * stride + (W - y) * bpp;            break;
-    default:             off = y * stride + x * bpp;                  break;
-    }
-    if (!s.is_va) return s.host_base + off;
-    return mmu_->PeekVaToHost(d.buffer + (uint32_t)off);
-}
-
-/* Host pointer to pixel (x,y) plus the contiguous byte run available from there
-   (run >= bpp on success). Rotated surfaces resolve one pixel at a time
-   (addresses jump); linear FB-PA spans to region end; linear VA spans to page
-   end. */
-uint8_t* CerfVirtBlitter::PixelPtr(const Surface& s, int32_t x, int32_t y,
-                                   uint32_t run_bytes, uint32_t* run) {
-    if (s.desc->is_rotate) {
-        uint8_t* p = RotatedPixelPtr(s, x, y);
-        if (!p) return nullptr;
-        *run = s.bpp;
-        return p;
-    }
-    const uint32_t off = (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * s.bpp;
-    if (!s.is_va) {
-        const uint32_t fb_size = fb_->RegionBytes();
-        const uint32_t base_off = (uint32_t)(s.host_base - fb_->Bytes());
-        if (base_off + off >= fb_size) return nullptr;
-        const uint32_t avail = fb_size - (base_off + off);
-        *run = run_bytes < avail ? run_bytes : avail;
-        return s.host_base + off;
-    }
-    const uint32_t va = s.desc->buffer + off;
-    uint8_t* p = mmu_->PeekVaToHost(va);
-    if (!p) return nullptr;
-    const uint32_t page_left = 0x1000u - (va & 0x0FFFu);
-    *run = run_bytes < page_left ? run_bytes : page_left;
-    return p;
-}
-
-/* A 24bpp (3-byte) source pixel — or any multi-byte pixel — can straddle a 4KB
-   page whose two halves map to non-adjacent host pages, so a single host read of
-   bpp bytes from PixelPtr would cross into the wrong page. Assemble it byte-by-
-   byte: the guest VA is contiguous, so each byte translates independently. */
-uint32_t CerfVirtBlitter::ReadStraddlePixel(const Surface& s, int32_t x, int32_t y,
-                                            uint32_t bpp) {
-    uint32_t v = 0;
-    if (s.is_va) {
-        const uint32_t va = s.desc->buffer
-                          + (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
-        for (uint32_t i = 0; i < bpp; ++i) {
-            uint8_t* bp = mmu_->PeekVaToHost(va + i);
-            if (bp) v |= (uint32_t)(*bp) << (8u * i);
-        }
-    } else {
-        const uint32_t off = (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
-        const uint32_t fb_size  = fb_->RegionBytes();
-        const uint32_t base_off = (uint32_t)(s.host_base - fb_->Bytes());
-        for (uint32_t i = 0; i < bpp; ++i) {
-            if (base_off + off + i < fb_size)
-                v |= (uint32_t)(s.host_base[off + i]) << (8u * i);
-        }
-    }
-    return v;
-}
-
-void CerfVirtBlitter::WriteStraddlePixel(const Surface& s, int32_t x, int32_t y,
-                                         uint32_t bpp, uint32_t value) {
-    if (s.is_va) {
-        const uint32_t va = s.desc->buffer
-                          + (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
-        for (uint32_t i = 0; i < bpp; ++i) {
-            uint8_t* bp = mmu_->PeekVaToHost(va + i);
-            if (bp) *bp = (uint8_t)(value >> (8u * i));
-        }
-    } else {
-        const uint32_t off = (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
-        const uint32_t fb_size  = fb_->RegionBytes();
-        const uint32_t base_off = (uint32_t)(s.host_base - fb_->Bytes());
-        for (uint32_t i = 0; i < bpp; ++i) {
-            if (base_off + off + i < fb_size)
-                s.host_base[off + i] = (uint8_t)(value >> (8u * i));
-        }
-    }
 }
 
 namespace {
@@ -486,6 +373,68 @@ bool CerfVirtBlitter::ExecuteGradient(const CerfGradDescriptor& g) {
             if (!dp) continue;
             if (run >= d_bpp) BltPixelOps::WritePixel(dp, d_bpp, px);
             else              WriteStraddlePixel(dst, x, y, d_bpp, px);
+        }
+    }
+    fb_->MarkDirty();
+    return true;
+}
+
+/* Faithful replay of GPE::EmulatedLine (swline.cpp); diverging from its
+   accumulator/ROP2 shape draws lines off the CE reference pixels. */
+bool CerfVirtBlitter::ExecuteLine(const CerfLineDescriptor& l) {
+    if (l.magic != kCerfLineMagic) {
+        LOG(Periph, "[CerfVirtBlitter] bad line magic 0x%08X\n", l.magic);
+        return false;
+    }
+    if (l.i_dir < 0 || l.i_dir > 7) {
+        LOG(Periph, "[CerfVirtBlitter] line bad iDir %d\n", l.i_dir);
+        return false;
+    }
+    const uint32_t bits = BltPixelOps::FormatBits(l.dst.format);
+    if (bits < 8u) {
+        LOG(Periph, "[CerfVirtBlitter] line unsupported dst format %u\n", l.dst.format);
+        return false;
+    }
+    const uint32_t bpp = bits / 8u;
+    Surface dst;
+    if (!ResolveSurface(l.dst, bpp, &dst)) return false;
+
+    const uint32_t base_mask = (bits >= 32u) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
+    const uint32_t pen       = l.solid_color & base_mask;
+    const uint8_t  rop2_mark  = (uint8_t)l.mix;
+    const uint8_t  rop2_space = (uint8_t)(l.mix >> 8);
+
+    /* (maj_dx, maj_dy, min_dx, min_dy) per octant — the coordinate form of
+       swblt's MajorDPtr/MinorDPtr/MajorDPixel/MinorDPixel (swline.cpp:87-100). */
+    static const int8_t kDir[8][4] = {
+        {  1,  0,  0,  1 }, {  0,  1,  1,  0 }, {  0,  1, -1,  0 }, { -1,  0,  0,  1 },
+        { -1,  0,  0, -1 }, {  0, -1, -1,  0 }, {  0, -1,  1,  0 }, {  1,  0,  0, -1 },
+    };
+    const int8_t* dir = kDir[l.i_dir];
+
+    long accum = (long)l.d_n + l.ll_gamma;
+    const long axstp = (long)l.d_n;
+    const long dgstp = (long)l.d_n - (long)l.d_m;
+
+    int32_t x = l.x_start, y = l.y_start;
+    int32_t style_state = l.style_state;
+    for (int32_t n = l.c_pels; n > 0; --n) {
+        const uint8_t rop2 = ((l.style >> ((uint32_t)(style_state++) & 31u)) & 1u)
+                           ? rop2_space : rop2_mark;
+        uint32_t run = 0;
+        uint8_t* p = PixelPtr(dst, x, y, bpp, &run);
+        if (p) {
+            const uint32_t d = (run >= bpp) ? BltPixelOps::ReadPixel(p, bpp)
+                                            : ReadStraddlePixel(dst, x, y, bpp);
+            const uint32_t v = BltPixelOps::ApplyRop2(rop2, pen, d) & base_mask;
+            if (run >= bpp) BltPixelOps::WritePixel(p, bpp, v);
+            else            WriteStraddlePixel(dst, x, y, bpp, v);
+        }
+        if (n == 1) break;
+        x += dir[0]; y += dir[1];
+        if (axstp) {
+            if (accum < 0) accum += axstp;
+            else { x += dir[2]; y += dir[3]; accum += dgstp; }
         }
     }
     fb_->MarkDirty();

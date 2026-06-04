@@ -30,7 +30,7 @@ public:
         return {fb_w, fb_h};
     }
 
-    /* Optional framebuffer locator for the dev MemoryVisualizer's
+    /* Optional framebuffer locator for the MemoryVisualizer's
        jump-to-framebuffer bookmark. Default nullopt: a renderer that doesn't
        advertise one is simply not bookmarkable; nothing else depends on it. */
     struct FbLayout {

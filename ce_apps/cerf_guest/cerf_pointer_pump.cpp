@@ -1,0 +1,86 @@
+#include <windows.h>
+#include <pkfuncs.h>
+
+/* These offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_pointer_regs.h
+   (the host peripheral); a mismatch reads the wrong reg and breaks the pointer.
+   Duplicated as #defines because the CE toolchain can't include the host C++
+   header, same as the fb/gpe channels in main.cpp. */
+#define CERF_VIRT_PTR_REGS_PA  0xD0003000u
+#define CERF_VIRT_PTR_REGS_SZ  0x1000u
+
+#define CERF_PTR_X            0x00u
+#define CERF_PTR_Y            0x04u
+#define CERF_PTR_BUTTONS      0x08u
+#define CERF_PTR_WHEEL        0x0Cu
+#define CERF_PTR_SEQ          0x10u
+
+typedef VOID (WINAPI *PFN_mouse_event)(DWORD, DWORD, DWORD, DWORD, DWORD);
+
+static volatile ULONG* s_ptr_regs = NULL;
+
+static BOOL CerfMapPtrRegs(void) {
+    if (s_ptr_regs) return TRUE;
+    s_ptr_regs = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_PTR_REGS_SZ,
+                                               MEM_RESERVE, PAGE_NOACCESS);
+    if (!s_ptr_regs) return FALSE;
+    if (!VirtualCopy((LPVOID)s_ptr_regs,
+                     (LPVOID)(CERF_VIRT_PTR_REGS_PA >> 8),
+                     CERF_VIRT_PTR_REGS_SZ,
+                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
+        VirtualFree((LPVOID)s_ptr_regs, 0, MEM_RELEASE);
+        s_ptr_regs = NULL;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/* mouse_event is a coredll export callable from any thread (CE3 WINUSER.H:2247).
+   Do NOT make this an ActivateDeviceEx/RegisterDevice driver: CE mouse/kbd are
+   GWES-loaded via HKLM\HARDWARE\DEVICEMAP\* (WINCE600 KEYBD/PS2_8042 reg), so
+   registration never produces an input device. */
+static DWORD WINAPI CerfPointerPumpThread(LPVOID) {
+    HMODULE h = LoadLibraryW(L"coredll.dll");
+    PFN_mouse_event me = h ? (PFN_mouse_event)GetProcAddressW(h, L"mouse_event") : NULL;
+    CERF_LOG_X_DEV("cerf_guest: ptrpump mouse_event", (DWORD)me);
+    if (!me || !CerfMapPtrRegs()) {
+        CERF_LOG("cerf_guest: ptrpump init FAILED");
+        return 0;
+    }
+
+    ULONG last_seq   = s_ptr_regs[CERF_PTR_SEQ / 4];
+    ULONG last_btn   = 0;
+    LONG  last_wheel = (LONG)s_ptr_regs[CERF_PTR_WHEEL / 4];
+
+    for (;;) {
+        ULONG seq = s_ptr_regs[CERF_PTR_SEQ / 4];
+        if (seq != last_seq) {
+            last_seq = seq;
+            DWORD nx    = s_ptr_regs[CERF_PTR_X / 4];
+            DWORD ny    = s_ptr_regs[CERF_PTR_Y / 4];
+            ULONG btn   = s_ptr_regs[CERF_PTR_BUTTONS / 4];
+            LONG  wheel = (LONG)s_ptr_regs[CERF_PTR_WHEEL / 4];
+
+            me(MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE, nx, ny, 0, 0);
+
+            ULONG changed = btn ^ last_btn;
+            if (changed & 1u) me((btn & 1u) ? MOUSEEVENTF_LEFTDOWN   : MOUSEEVENTF_LEFTUP,   0, 0, 0, 0);
+            if (changed & 2u) me((btn & 2u) ? MOUSEEVENTF_RIGHTDOWN  : MOUSEEVENTF_RIGHTUP,  0, 0, 0, 0);
+            if (changed & 4u) me((btn & 4u) ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0);
+            last_btn = btn;
+
+            if (wheel != last_wheel) {
+                me(MOUSEEVENTF_WHEEL, 0, 0, (DWORD)(wheel - last_wheel), 0);
+                last_wheel = wheel;
+            }
+        }
+        Sleep(10);
+    }
+}
+
+extern "C" void CerfStartPointerPump(void) {
+    static BOOL started = FALSE;
+    if (started) return;
+    started = TRUE;
+    HANDLE t = CreateThread(NULL, 0, CerfPointerPumpThread, NULL, 0, NULL);
+    if (t) CloseHandle(t);
+}

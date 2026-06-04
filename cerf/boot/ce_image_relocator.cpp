@@ -18,10 +18,22 @@ uint32_t RvaToFileOff(const PeImage& pe, uint32_t rva) {
     return 0;
 }
 
+int SectionIndexForRva(const PeImage& pe, uint32_t rva) {
+    const auto& secs = pe.Sections();
+    for (size_t i = 0; i < secs.size(); ++i) {
+        const uint32_t span = (secs[i].vsize > secs[i].psize) ? secs[i].vsize
+                                                              : secs[i].psize;
+        if (rva >= secs[i].rva && rva < secs[i].rva + span) return int(i);
+    }
+    return -1;
+}
+
 }
 
 void ApplyRelocations(std::vector<uint8_t>& bytes,
-                      const PeImage& pe, int32_t delta,
+                      const PeImage& pe,
+                      const std::vector<uint32_t>& section_realaddr,
+                      int32_t code_delta,
                       uint32_t& out_patched, uint32_t& out_unhandled) {
     out_patched   = 0;
     out_unhandled = 0;
@@ -53,7 +65,17 @@ void ApplyRelocations(std::vector<uint8_t>& bytes,
                 if (tgt_off && tgt_off + 4 <= bytes.size()) {
                     uint32_t v;
                     std::memcpy(&v, bytes.data() + tgt_off, 4);
-                    v = uint32_t(int64_t(v) + delta);
+                    /* v is a link-time absolute pointer; rebase by the runtime
+                       address of the section it points into (writable data ->
+                       slot-0, code/RO -> slot-1), else by code_delta. */
+                    const uint32_t pointed_rva = v - pe.ImageBase();
+                    const int sec = SectionIndexForRva(pe, pointed_rva);
+                    if (sec >= 0 && size_t(sec) < section_realaddr.size()) {
+                        v = section_realaddr[size_t(sec)]
+                          + (pointed_rva - pe.Sections()[size_t(sec)].rva);
+                    } else {
+                        v = uint32_t(int64_t(v) + code_delta);
+                    }
                     std::memcpy(bytes.data() + tgt_off, &v, 4);
                     ++out_patched;
                 }

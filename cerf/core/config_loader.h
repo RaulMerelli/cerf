@@ -12,7 +12,5 @@ public:
     void Load(const CerfConfig& cli, int argc, char** argv);
 
 private:
-    void ApplyAdoptedGuestAdditionsResolution(DeviceConfig& config);
-
     std::string cerf_dir_;
 };

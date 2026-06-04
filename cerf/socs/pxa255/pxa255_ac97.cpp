@@ -1,68 +1,144 @@
-#include "../../peripherals/peripheral_base.h"
+#include "pxa255_ac97.h"
 
-#include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
+#include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
+#include "../../peripherals/ac97_codec.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
-#include <cstdint>
+#include <algorithm>
+#include <cstring>
 
-namespace {
+REGISTER_SERVICE(Pxa255Ac97);
 
-/* PXA255 AC'97 controller (§13, base 0x40500000). Careful audio stub: no
-   codec/FIFO is modeled, so GSR must report codec-ready (PCR) + commands-done
-   (CDONE/SDONE) and CAR must report the link free (CAIP=0), or the audio
-   driver deadlocks the boot polling for them. Control regs are storage. */
-class Pxa255Ac97 : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+bool Pxa255Ac97::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardDetector>();
+    return bd && bd->GetSoc() == SocFamily::PXA25x;
+}
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+Pxa255Ac97::~Pxa255Ac97() {
+    shutdown_.store(true, std::memory_order_release);
+    if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
+    if (audio_thread_.joinable()) audio_thread_.join();
+    if (out_device_) waveOutClose(out_device_);
+    if (thread_ready_event_) CloseHandle(thread_ready_event_);
+}
+
+void Pxa255Ac97::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+    thread_ready_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    audio_thread_ = std::thread([this] { AudioThreadMain(); });
+    WaitForSingleObject(thread_ready_event_, INFINITE);
+}
+
+void Pxa255Ac97::AudioThreadMain() {
+    audio_thread_id_ = GetCurrentThreadId();
+
+    /* Force the message queue to exist before any PostThreadMessage races us. */
+    MSG msg;
+    PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
+    SetEvent(thread_ready_event_);
+
+    WAVEFORMATEX fmt{};
+    fmt.wFormatTag      = WAVE_FORMAT_PCM;
+    fmt.nChannels       = kChannels;
+    fmt.nSamplesPerSec  = kSampleRate;
+    fmt.wBitsPerSample  = kBitsPerSamp;
+    fmt.nBlockAlign     = static_cast<uint16_t>((fmt.wBitsPerSample / 8) * fmt.nChannels);
+    fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
+
+    const MMRESULT r = waveOutOpen(&out_device_, WAVE_MAPPER, &fmt,
+                                   audio_thread_id_, 0,
+                                   CALLBACK_THREAD | WAVE_FORMAT_DIRECT);
+    if (r != MMSYSERR_NOERROR) {
+        LOG(Caution, "Pxa255Ac97: waveOutOpen failed (mmresult=%u) — silent-mode "
+                "boot; DMA completion IRQ still paced\n", r);
+        out_device_ = nullptr;
     }
-    void OnReady() override {
-        emu_.Get<PeripheralDispatcher>().Register(this);
+
+    while (!shutdown_.load(std::memory_order_acquire) &&
+           GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message != MM_WOM_DONE) continue;
+        std::function<void()> cb;
+        {
+            std::lock_guard<std::mutex> lk(audio_mutex_);
+            if (msg.lParam != 0 && out_device_ != nullptr) {
+                auto* h = reinterpret_cast<LPWAVEHDR>(msg.lParam);
+                waveOutUnprepareHeader(out_device_, h, sizeof(WAVEHDR));
+            }
+            if (output_active_.load(std::memory_order_acquire)) cb = on_block_done_;
+        }
+        /* Invoke without the lock: the callback re-enters QueueOutput (DMA ->
+           AC97 lock order); holding audio_mutex_ here would self-deadlock. */
+        if (cb) cb();
+    }
+}
+
+void Pxa255Ac97::BeginAudioOut(std::function<void()> on_block_done) {
+    std::lock_guard<std::mutex> lk(audio_mutex_);
+    on_block_done_ = std::move(on_block_done);
+    output_active_.store(true, std::memory_order_release);
+}
+
+void Pxa255Ac97::StopAudioOut() {
+    std::lock_guard<std::mutex> lk(audio_mutex_);
+    output_active_.store(false, std::memory_order_release);
+    on_block_done_ = nullptr;
+    if (out_device_) waveOutReset(out_device_);   /* flush queued buffers. */
+}
+
+void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
+    if (length == 0) return;
+    if (length > kMaxBlock) length = kMaxBlock;
+
+    std::lock_guard<std::mutex> lk(audio_mutex_);
+    if (!output_active_.load(std::memory_order_acquire)) return;
+
+    /* Silent mode (or device error): pace by posting completion immediately so
+       the DMA delivers the next block and the ring keeps cycling. */
+    if (!out_device_) {
+        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+        return;
     }
 
-    uint32_t MmioBase() const override { return 0x40500000u; }
-    uint32_t MmioSize() const override { return 0x00001000u; }
-
-    uint16_t ReadHalf (uint32_t addr) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteHalf(uint32_t addr, uint16_t value) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
-
-private:
-    static constexpr uint32_t kPOCR = 0x00u;
-    static constexpr uint32_t kPICR = 0x04u;
-    static constexpr uint32_t kMCCR = 0x08u;
-    static constexpr uint32_t kGCR  = 0x0Cu;
-    static constexpr uint32_t kGSR  = 0x1Cu;
-    static constexpr uint32_t kCAR  = 0x20u;
-    static constexpr uint32_t kMOCR = 0x100u;
-    static constexpr uint32_t kMICR = 0x108u;
-
-    /* §13.8.3.17 / Table 13-24: CODEC register windows span 0x200..0x5FF,
-       each a 16-bit reg at offset (codec_reg << 1). No codec modeled, so the
-       window is storage — set-then-verify read-back must match or codec init
-       hangs. */
-    static constexpr uint32_t kCodecBase = 0x200u;
-    static constexpr uint32_t kCodecEnd  = 0x600u;
-    static bool InCodecWindow(uint32_t off) {
-        return off >= kCodecBase && off < kCodecEnd;
+    /* One block in flight: the prior block's MM_WOM_DONE freed header_ before
+       the DMA paced this next call. If somehow still queued, post a synthetic
+       completion so the ring keeps cycling instead of stalling. */
+    if (header_.dwFlags & WHDR_INQUEUE) {
+        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+        return;
     }
+    std::memset(&header_, 0, sizeof(header_));
+    std::memcpy(buffer_, host_bytes, length);
+    header_.lpData         = reinterpret_cast<LPSTR>(buffer_);
+    header_.dwBufferLength = length;
 
-    /* §13.8.3.2 Table 13-8: codec ready (PCR) + commands done (CDONE/SDONE). */
-    static constexpr uint32_t kGsrReady = (1u << 8) | (1u << 18) | (1u << 19);
+    if (waveOutPrepareHeader(out_device_, &header_, sizeof(header_)) != MMSYSERR_NOERROR ||
+        waveOutWrite(out_device_, &header_, sizeof(header_)) != MMSYSERR_NOERROR) {
+        if (header_.dwFlags & WHDR_PREPARED) waveOutUnprepareHeader(out_device_, &header_, sizeof(header_));
+        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+    }
+}
 
-    uint32_t pocr_ = 0, picr_ = 0, mccr_ = 0, gcr_ = 0, mocr_ = 0, micr_ = 0;
-    uint16_t codec_[(kCodecEnd - kCodecBase) / 2] = {};
-};
+uint16_t Pxa255Ac97::CodecRead(uint32_t reg) {
+    if (auto* codec = emu_.TryGet<Ac97Codec>()) return codec->ReadReg(reg);
+    return codec_[reg];
+}
+
+void Pxa255Ac97::CodecWrite(uint32_t reg, uint16_t value) {
+    if (auto* codec = emu_.TryGet<Ac97Codec>()) { codec->WriteReg(reg, value); return; }
+    codec_[reg] = value;
+}
 
 uint32_t Pxa255Ac97::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
-    if (InCodecWindow(off)) return codec_[(off - kCodecBase) >> 1];
+    if (InCodecWindow(off)) return CodecRead((off - kCodecBase) >> 1);
     switch (off) {
+        case kMODR: { uint16_t w = 0; return PopTouchWords(&w, 1u) ? w : 0u; }
+        case kMISR: {
+            std::lock_guard<std::mutex> lk(touch_mutex_);
+            return touch_fifo_.empty() ? 0u : kMisrFsr;
+        }
         case kPOCR: return pocr_;
         case kPICR: return picr_;
         case kMCCR: return mccr_;
@@ -70,15 +146,15 @@ uint32_t Pxa255Ac97::ReadWord(uint32_t addr) {
         case kMOCR: return mocr_;
         case kMICR: return micr_;
         case kGSR:  return kGsrReady;  /* codec ready, commands done. */
-        case kCAR:  return 0u;         /* §13.6.3: CAIP=0 → AC-link free. */
-        default:    return 0u;         /* status/codec/FIFO idle. */
+        case kCAR:  return 0u;         /* §13.8.3.7 Table 13-13: CAIP=0 -> AC-link free. */
+        default:    return 0u;         /* status / codec / FIFO idle. */
     }
 }
 
 void Pxa255Ac97::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (InCodecWindow(off)) {
-        codec_[(off - kCodecBase) >> 1] = static_cast<uint16_t>(value);
+        CodecWrite((off - kCodecBase) >> 1, static_cast<uint16_t>(value));
         return;
     }
     switch (off) {
@@ -88,10 +164,10 @@ void Pxa255Ac97::WriteWord(uint32_t addr, uint32_t value) {
         case kGCR:  gcr_  = value; return;
         case kMOCR: mocr_ = value; return;
         case kMICR: micr_ = value; return;
-        /* §13.6.3: CAR.CAIP is HW-owned and no codec is modeled, so CAR always
-           reads CAIP=0 (free). The driver's `car &= ~CAIP` must stay dropped —
-           storing it would let a stale CAIP=1 read back BUSY and hang the poll
-           (aclinkcontrol.c Ac97Unlock / while(TEST(car,CAIP)==BUSY)). */
+        /* §13.8.3.7 Table 13-13: CAR.CAIP is HW-owned and no codec is modeled,
+           so CAR always reads CAIP=0 (free). Storing a write would let a stale
+           CAIP=1 read back BUSY and spin the driver's CODEC-access poll
+           (§13.6.3 operational flow). */
         case kCAR:  return;
         default:    return;            /* GSR W1C status / FIFO writes. */
     }
@@ -99,7 +175,7 @@ void Pxa255Ac97::WriteWord(uint32_t addr, uint32_t value) {
 
 uint16_t Pxa255Ac97::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
-    if (InCodecWindow(off)) return codec_[(off - kCodecBase) >> 1];
+    if (InCodecWindow(off)) return CodecRead((off - kCodecBase) >> 1);
     const uint32_t word  = ReadWord(addr & ~0x3u);
     const uint32_t shift = (off & 0x2u) * 8u;
     return static_cast<uint16_t>((word >> shift) & 0xFFFFu);
@@ -108,7 +184,7 @@ uint16_t Pxa255Ac97::ReadHalf(uint32_t addr) {
 void Pxa255Ac97::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - MmioBase();
     if (InCodecWindow(off)) {
-        codec_[(off - kCodecBase) >> 1] = value;
+        CodecWrite((off - kCodecBase) >> 1, value);
         return;
     }
     const uint32_t shift = (off & 0x2u) * 8u;
@@ -117,6 +193,37 @@ void Pxa255Ac97::WriteHalf(uint32_t addr, uint16_t value) {
               (word & ~(0xFFFFu << shift)) | (static_cast<uint32_t>(value) << shift));
 }
 
-}  /* namespace */
+void Pxa255Ac97::PushTouchSample(const uint16_t* words, uint32_t count) {
+    std::function<void()> cb;
+    {
+        std::lock_guard<std::mutex> lk(touch_mutex_);
+        for (uint32_t i = 0; i < count; ++i) touch_fifo_.push_back(words[i]);
+        cb = on_touch_sample_;
+    }
+    /* Invoke without the lock: the DMA callback re-enters PopTouchWords. */
+    if (cb) cb();
+}
 
-REGISTER_SERVICE(Pxa255Ac97);
+void Pxa255Ac97::BeginTouchCapture(std::function<void()> on_sample) {
+    std::lock_guard<std::mutex> lk(touch_mutex_);
+    on_touch_sample_ = std::move(on_sample);
+}
+
+void Pxa255Ac97::StopTouchCapture() {
+    std::lock_guard<std::mutex> lk(touch_mutex_);
+    on_touch_sample_ = nullptr;
+    touch_fifo_.clear();
+}
+
+uint32_t Pxa255Ac97::PopTouchWords(uint16_t* out, uint32_t max) {
+    std::lock_guard<std::mutex> lk(touch_mutex_);
+    const uint32_t n = std::min<uint32_t>(max, static_cast<uint32_t>(touch_fifo_.size()));
+    for (uint32_t i = 0; i < n; ++i) out[i] = touch_fifo_[i];
+    touch_fifo_.erase(touch_fifo_.begin(), touch_fifo_.begin() + n);
+    return n;
+}
+
+uint32_t Pxa255Ac97::TouchFifoCount() {
+    std::lock_guard<std::mutex> lk(touch_mutex_);
+    return static_cast<uint32_t>(touch_fifo_.size());
+}

@@ -35,6 +35,11 @@ struct DeviceConfig {
     bool boot_in_recovery = false;
     bool guest_additions = false;
 
+    /* --share-folder=<host path>: pre-enables the guest-additions folder share
+       on a host directory at boot (the widget still toggles it live). Empty when
+       not given on the command line. */
+    std::string share_folder;
+
     /* Guest-additions ROM-module substitutions from the GLOBAL cerf.json
        ("global_substitutions_inside_rom"): {ROM module name -> ce_apps DLL}.
        GuestAdditionsInjector replaces each present ROM module with the named

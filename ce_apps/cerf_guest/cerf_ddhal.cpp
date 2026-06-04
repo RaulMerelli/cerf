@@ -20,6 +20,50 @@ extern "C" DWORD WINAPI DDGPESetColorKey(LPDDHAL_SETCOLORKEYDATA);
 extern "C" DWORD WINAPI DDGPEGetFlipStatus(LPDDHAL_GETFLIPSTATUSDATA);
 extern "C" DWORD WINAPI DDGPESetPalette(LPDDHAL_SETPALETTEDATA);
 
+extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes);
+extern "C" void  CerfUnmapFbWindow(void* va);
+extern "C" BOOL  CerfDDSurfFbInfo(void* lcl, ULONG* pa, int* stride, int* bpp,
+                                  int* height);
+
+/* Per-surface lock window so Unlock releases exactly what Lock mapped. */
+struct CerfLockWin { void* lcl; void* va; };
+static CerfLockWin s_lockWins[16] = { 0 };
+
+/* DirectDraw Lock/Unlock for PA-only FB surfaces (primary + video memory have no
+   standing VA): map the locked rect's rows on demand and hand the app / DDraw HEL
+   a real pointer. A system-memory surface delegates to the generic DDGPE lib. */
+static DWORD WINAPI CerfDDGPELockWrap(LPDDHAL_LOCKDATA pd) {
+    ULONG pa; int stride = 0, bpp = 0, height = 0;
+    if (!CerfDDSurfFbInfo(pd->lpDDSurface, &pa, &stride, &bpp, &height))
+        return DDGPELock(pd);
+    int x = pd->bHasRect ? pd->rArea.left : 0;
+    int y = pd->bHasRect ? pd->rArea.top  : 0;
+    int h = pd->bHasRect ? (pd->rArea.bottom - pd->rArea.top) : height;
+    if (h <= 0) { h = height; x = 0; y = 0; }
+    ULONG origin = pa + (ULONG)y * (ULONG)stride + (ULONG)x * ((ULONG)bpp / 8u);
+    void* va = CerfMapFbWindow(origin, (ULONG)h * (ULONG)stride);
+    if (!va) { pd->ddRVal = DDERR_OUTOFMEMORY; return DDHAL_DRIVER_HANDLED; }
+    int slot = -1;
+    for (int i = 0; i < 16; ++i) if (!s_lockWins[i].va) { slot = i; break; }
+    if (slot < 0) { CerfUnmapFbWindow(va); pd->ddRVal = DDERR_OUTOFMEMORY; return DDHAL_DRIVER_HANDLED; }
+    s_lockWins[slot].lcl = pd->lpDDSurface;
+    s_lockWins[slot].va  = va;
+    pd->lpSurfData = va;
+    pd->ddRVal = DD_OK;
+    return DDHAL_DRIVER_HANDLED;
+}
+
+static DWORD WINAPI CerfDDGPEUnlockWrap(LPDDHAL_UNLOCKDATA pd) {
+    for (int i = 0; i < 16; ++i)
+        if (s_lockWins[i].va && s_lockWins[i].lcl == pd->lpDDSurface) {
+            CerfUnmapFbWindow(s_lockWins[i].va);
+            s_lockWins[i].va = 0; s_lockWins[i].lcl = 0;
+            pd->ddRVal = DD_OK;
+            return DDHAL_DRIVER_HANDLED;
+        }
+    return DDGPEUnlock(pd);
+}
+
 /* Diagnostic wrappers: log whether the kernel reaches the HAL for each surface
    create + what it answers, to settle why a system-memory (DDSD_LPSURFACE)
    surface gets E_NOTIMPL while a video surface succeeds. Delegate to the generic
@@ -27,18 +71,18 @@ extern "C" DWORD WINAPI DDGPESetPalette(LPDDHAL_SETPALETTEDATA);
 static DWORD WINAPI CerfCreateSurface(LPDDHAL_CREATESURFACEDATA pd) {
     DWORD caps  = pd->lpDDSurfaceDesc ? pd->lpDDSurfaceDesc->ddsCaps.dwCaps : 0;
     DWORD flags = pd->lpDDSurfaceDesc ? pd->lpDDSurfaceDesc->dwFlags : 0;
-    CERF_LOG_X("cerf_guest: HAL CreateSurface caps", caps);
-    CERF_LOG_X("cerf_guest: HAL CreateSurface dwFlags", flags);
+    CERF_LOG_X_DEV("cerf_guest: HAL CreateSurface caps", caps);
+    CERF_LOG_X_DEV("cerf_guest: HAL CreateSurface dwFlags", flags);
     DWORD r = DDGPECreateSurface(pd);
-    CERF_LOG_X("cerf_guest: HAL CreateSurface ddRVal", (DWORD)pd->ddRVal);
-    CERF_LOG_X("cerf_guest: HAL CreateSurface result", r);
+    CERF_LOG_X_DEV("cerf_guest: HAL CreateSurface ddRVal", (DWORD)pd->ddRVal);
+    CERF_LOG_X_DEV("cerf_guest: HAL CreateSurface result", r);
     return r;
 }
 static DWORD WINAPI CerfCanCreateSurface(LPDDHAL_CANCREATESURFACEDATA pd) {
     DWORD caps  = pd->lpDDSurfaceDesc ? pd->lpDDSurfaceDesc->ddsCaps.dwCaps : 0;
-    CERF_LOG_X("cerf_guest: HAL CanCreateSurface caps", caps);
+    CERF_LOG_X_DEV("cerf_guest: HAL CanCreateSurface caps", caps);
     DWORD r = DDGPECanCreateSurface(pd);
-    CERF_LOG_X("cerf_guest: HAL CanCreateSurface ddRVal", (DWORD)pd->ddRVal);
+    CERF_LOG_X_DEV("cerf_guest: HAL CanCreateSurface ddRVal", (DWORD)pd->ddRVal);
     return r;
 }
 
@@ -61,8 +105,8 @@ static DDHAL_DDSURFACECALLBACKS g_cbDDSurfaceCallbacks = {
         DDHAL_SURFCB32_GETFLIPSTATUS | DDHAL_SURFCB32_SETPALETTE,
     DDGPEDestroySurface,       /* DestroySurface */
     DDGPEFlip,                 /* Flip */
-    DDGPELock,                 /* Lock */
-    DDGPEUnlock,               /* Unlock */
+    CerfDDGPELockWrap,         /* Lock */
+    CerfDDGPEUnlockWrap,       /* Unlock */
     DDGPESetColorKey,          /* SetColorKey */
     NULL,                      /* GetBltStatus */
     DDGPEGetFlipStatus,        /* GetFlipStatus */
@@ -81,7 +125,7 @@ static DWORD WINAPI CerfHalGetDriverInfo(LPDDHAL_GETDRIVERINFODATA lpInput) {
         *(DWORD*)(lpInput->lpvData) = base;
         lpInput->dwActualSize = sizeof(DWORD);
         lpInput->ddRVal = DD_OK;
-        CERF_LOG_X("cerf_guest: HalGetDriverInfo VidMemBase", base);
+        CERF_LOG_X_DEV("cerf_guest: HalGetDriverInfo VidMemBase", base);
     }
     return DDHAL_DRIVER_HANDLED;
 }

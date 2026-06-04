@@ -96,6 +96,7 @@ std::vector<uint8_t> BuildIndexBlock(const std::vector<IndexRec>& records) {
 std::vector<uint8_t> BuildModuleHeader(const E32Layout&             L,
                                         const PeImage&              pe,
                                         uint32_t                    target_vbase,
+                                        const std::vector<uint32_t>& slot_realaddr,
                                         const std::vector<PackedSlot>& slots) {
     const size_t header_size = kHeaderO32Base + slots.size() * kO32RomSize;
     std::vector<uint8_t> hdr(header_size, 0);
@@ -126,7 +127,7 @@ std::vector<uint8_t> BuildModuleHeader(const E32Layout&             L,
         Wr32(hdr, base + 4,  s.rva);
         Wr32(hdr, base + 8,  s.psize);
         Wr32(hdr, base + 12, uint32_t(i) << 28);   /* dataptr */
-        Wr32(hdr, base + 16, target_vbase + s.rva); /* realaddr */
+        Wr32(hdr, base + 16, slot_realaddr[i]);     /* realaddr */
         Wr32(hdr, base + 20, s.flags);
     }
     return hdr;

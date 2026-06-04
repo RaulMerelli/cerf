@@ -9,7 +9,7 @@ param(
     [string[]]$LinkExtras = @(),
     [string[]]$ExtraIncludes = @(),
     [string[]]$ExtraLibPaths = @(),
-    [string]$ForcedInclude
+    [string[]]$ForcedInclude = @()
 )
 $ErrorActionPreference = "Stop"
 
@@ -70,7 +70,7 @@ foreach ($src in $Sources) {
         $incFlags = @()
         foreach ($i in $IncDirs) { $incFlags += @("/I", $i) }
         $fiFlag = @()
-        if ($ForcedInclude) { $fiFlag = @("/FI", $ForcedInclude) }
+        foreach ($fi in $ForcedInclude) { $fiFlag += @("/FI", $fi) }
         & $CL /nologo /c /W3 /WX /O2 /QRarch4T /QRinterwork-return /DUNICODE /D_UNICODE /DUNDER_CE /DARM /D_ARM_ /DARMV4I "/D$WceDef" "/DCERF_DEV_MODE=$devModeFlag" @incFlags @fiFlag $src
         if ($LASTEXITCODE -ne 0) { throw "Compile failed: $src" }
     }

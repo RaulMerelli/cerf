@@ -19,5 +19,9 @@ const uint32_t kFbRegMemSizeTotal = 0x1Cu;  /* total host-backed region bytes
                                                (kFramebufferMemSize); the driver
                                                carves DDraw video memory from the
                                                span past the primary surface. */
+const uint32_t kFbRegPrimaryReserve = 0x20u;  /* byte span reserved at the region
+                                                 head for the re-mode-growable
+                                                 primary; the driver's offscreen
+                                                 video heap must start past it. */
 
 }  /* namespace CerfVirt */
