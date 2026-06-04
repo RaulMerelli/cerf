@@ -206,6 +206,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Known Issues
 
+- Guest additions shared storage often misbehaves. Also has severe problems on CE3
 - iPAQ H36xx series - hang after user interaction with device stopped for ~10 seconds (clock bugged?)
 - iPAQ H36xx series - PCMCIA errors (not critical) - perhaps bad emulation/stubs
 - DevEmu CE3 - PCMCIA errors
