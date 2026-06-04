@@ -66,6 +66,16 @@ Genuine "stop and ask the user" is unchanged and lives elsewhere (`agent_docs/ru
 
 The incident this section exists for: told to "work," the agent deleted a live investigation, made a random JIT edit it could not justify, and announced "It doesn't work, I changed the JIT, I failed." The failure was **research-deletion + ungrounded panic-edit + declared-failure** — NOT "edited the JIT." Never delete a live investigation to make room for a guess. Never make an edit you cannot ground. When a *grounded* edit doesn't pan out, that is a hook result — return to the investigation; do not declare failure and do not pivot to another random edit.
 
+## Instrumentation is not an edit — it NEVER needs permission
+
+The grounding gate above governs CHANGING BEHAVIOR. It does NOT apply to OBSERVABILITY. A diagnostic that adds no logic — a `LOG()` line, a `TraceManager` hook, a `#if CERF_DEV_MODE` probe, a register/state dump at an existing site — only READS and PRINTS. It cannot corrupt the guest, cannot change emitted code, cannot mis-translate a page. There is therefore NO fragile-file gate on it: `arm_mmu_walker.cpp`, `arm_jit.cpp`, the coproc emitter, any `place/` fn — a print statement is exactly as safe there as in a trace file.
+
+So asking the user *"should I add this DEV-MODE log to the MMU walker / the JIT?"* is a bailout — the same shape as *"should I continue?"*. **The file's fragility is irrelevant to whether you may LOOK.** The STOP trigger is a BEHAVIOR change you cannot ground; it is never the decision to instrument. When you catch yourself about to ask leave to add a diagnostic, that catch IS the bailout firing: add it, build, run, read the fire.
+
+The ONLY legitimate concern for a diagnostic is hot-path cost (a per-instruction / per-access `LOG` that floods the log or shifts guest timing). The fix for THAT is to GATE it — `#if CERF_DEV_MODE`, one-shot, throttle, or move it into a `cerf/tracing/<bundle>/` file — never to ask permission. Gate and proceed.
+
+"This is the most fragile file" is a reason to be careful with LOGIC and zero reason to withhold a LOG. Debugging the fragile core IS the work; instrumenting it is how that work gets done. The recurring failure this section exists for: an agent root-caused a hang to a translation fault in the MMU walker, then asked the user for permission to add a DEV-MODE dump at the fault site instead of just adding it — burning a turn to request leave to look at the exact thing it was paid to look at.
+
 ## The "visible work" trap
 
 Code edits LOOK like work. Hooks DON'T look like work.
