@@ -4,10 +4,10 @@
 
 #include <cstdint>
 
-/* Wolfson WM9705 AC'97 audio + touchscreen codec (Falcon 4220 / Askey PC3xx).
-   Registers only — touch samples do NOT flow through here; in continuous mode
-   the WM9705 streams them on AC-link slot 5 into the controller's modem-in
-   FIFO (see Pxa255Ac97 MODR), not via a codec-register read. */
+/* Wolfson WM9705 AC'97 audio + touch + battery codec (Falcon 4220 / Askey PC3xx).
+   Runtime touch coordinates stream over AC-link slot 5 to the controller's MODR
+   FIFO (Pxa255Ac97); the codec registers here serve device identity, the battery
+   ADC poll, and touch.dll's init X/Y panel-probe. */
 class Wm9705Codec : public Ac97Codec {
 public:
     using Ac97Codec::Ac97Codec;
