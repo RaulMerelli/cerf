@@ -227,6 +227,14 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
   </thead>
   <tbody>
     <tr>
+          <td>v3.2 (WIP, not released yet)</td>
+          <td>
+            <ul>
+              <li>Falcon 4220 board MVP support</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v3.11 (For Workgroups)</td>
           <td>
             <ul>
@@ -253,15 +261,8 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
           </td>
         </tr>
     <tr>
-          <td>v2.0</td>
-          <td>
-            <ul>
-              <li>Initial release</li>
-              <li>ARMv4 support</li>
-              <li>DevEmu, iPAQ H3600, Microsoft ODO support (MVP)</li>
-            </ul>
-          </td>
-        </tr>
+      <td colspan="2"><b>Previous versions</b> — see the <a href="docs/changelog.html">full changelog</a>.</td>
+    </tr>
   </tbody>
 </table>
 
