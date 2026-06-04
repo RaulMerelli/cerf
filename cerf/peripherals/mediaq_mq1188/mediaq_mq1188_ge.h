@@ -5,10 +5,10 @@
 
 class MediaQMq1188;
 
-/* MediaQ MQ-1100/1132 2D Graphics Engine. The driver writes GE registers via
-   the queued command aperture at register-window 0x1400 (aliases the direct GE
-   block at 0x200) — routing it to RAM instead of here drops every accelerated
-   blit. GE00R write triggers; CPU source data arrives via Source FIFO 0xC00. */
+/* MediaQ MQ-1100/1132 2D Graphics Engine. The driver issues GE register writes
+   through the queued command aperture at register-window 0x1400 (an alias of the
+   direct GE block at 0x200). A GE00R write triggers the command; CPU source data
+   arrives via the Source FIFO at register-window 0xC00. */
 class MediaQMq1188Ge {
 public:
     explicit MediaQMq1188Ge(MediaQMq1188& owner) : owner_(owner) {}
@@ -60,6 +60,7 @@ private:
     static constexpr uint32_t kCmdRopMask    = 0x000000FFu; /* [7:0]  raster op. */
     static constexpr uint32_t kCmdTypeShift  = 8u;          /* [10:8] command type. */
     static constexpr uint32_t kCmdTypeMask   = 0x7u;
+    static constexpr uint32_t kTypeNop       = 0x0u;        /* 000 = No Operation (Reg 4-83). */
     static constexpr uint32_t kTypeBitBlt    = 0x2u;        /* 010 = BitBLT. */
     static constexpr uint32_t kTypeLine      = 0x4u;        /* 100 = Bresenham line. */
     static constexpr uint32_t kCmdXNeg       = 1u << 11;    /* X direction = negative. */

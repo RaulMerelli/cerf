@@ -49,6 +49,8 @@ void MediaQMq1188Ge::Execute() {
     const bool src_sys   = (cmd & kCmdSrcSystem) != 0u;
     const bool mono_src  = (cmd & kCmdMonoSrc) != 0u;
 
+    if (type == kTypeNop) return;   /* Reg 4-83 [10:8]=000: No Operation. */
+
     if (type == kTypeBitBlt && src_sys) {
         /* Source streams in after this command; latch a snapshot and draw it
            from PushSourceFifo once the expected source-dword count arrives. */
