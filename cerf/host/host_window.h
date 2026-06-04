@@ -26,6 +26,11 @@ public:
        marshals to the UI thread to repoint the framebuffer + canvas surface. */
     void NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h);
 
+    /* Any thread. Marshal a switch to the UART tab to the UI thread (so a guest
+       power-down / reboot banner is visible). rearm_framebuffer re-arms the
+       framebuffer auto-switch so a rebooting guest's video returns to it. */
+    void ShowUartTab(bool rearm_framebuffer);
+
     HWND Hwnd() const { return hwnd_; }
 
 private:
