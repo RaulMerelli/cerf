@@ -219,10 +219,11 @@ See [launcher's boards details database](launcher/boards.py) for per-board issue
   </thead>
   <tbody>
     <tr>
-          <td>v3.2 (WIP, not released yet)</td>
+          <td>v3.20</td>
           <td>
             <ul>
               <li>Falcon 4220 board MVP support</li>
+              <li>Launcher updates</li>
             </ul>
           </td>
         </tr>
