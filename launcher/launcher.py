@@ -23,6 +23,7 @@ if str(_THIS_DIR) not in sys.path:
 from bundles import (
     BundleError,
     DeviceBundle,
+    ManifestVersionError,
     is_safe_bundle_name,
 )
 from boards import board_support_state, board_extra_notes
@@ -779,18 +780,41 @@ class LauncherApp(tk.Tk):
         future = self.manager.submit_refresh()
         def done(exc: Optional[BaseException]) -> None:
             self._set_busy(False)
-            if exc is not None:
+            if isinstance(exc, ManifestVersionError):
+                self._show_manifest_version_error(exc)
+            elif exc is not None:
                 self._error(
                     "Remote manifest unavailable",
                     f"{exc}\n\n"
                     f"Local devices remain available to launch. Download / "
-                    f"update / PDB fetch require a reachable remote manifest "
-                    f"in a supported version — try again later, check your "
-                    f"network, or update the launcher if the manifest schema "
-                    f"has moved on."
+                    f"update / PDB fetch require a reachable remote manifest — "
+                    f"try again later or check your network."
                 )
             self._reload_device_list()
         self._await_future(future, done)
+
+    def _show_manifest_version_error(self, exc: ManifestVersionError) -> None:
+        if exc.remote_is_newer:
+            self._info(
+                "A newer CERF build is required",
+                f"The bundle catalog on the server uses a newer format "
+                f"(manifest version {exc.remote_version}) than this CERF build "
+                f"understands (version {exc.supported_version}).\n\n"
+                f"Download a newer CERF build to fetch or update ROM bundles:\n"
+                f"https://github.com/gweslab/cerf\n"
+                f"  • Releases — latest stable build\n"
+                f"  • Actions artifacts — newest CI build\n\n"
+                f"Your already-installed devices remain available to launch."
+            )
+        else:
+            self._error(
+                "Remote manifest outdated",
+                f"The server's bundle catalog (manifest version "
+                f"{exc.remote_version}) is older than this CERF build expects "
+                f"(version {exc.supported_version}). This is usually "
+                f"temporary — try again later.\n\n"
+                f"Your already-installed devices remain available to launch."
+            )
 
     def _reload_device_list(self) -> None:
         previous = self.selected_name

@@ -32,6 +32,27 @@ class BundleError(RuntimeError):
     pass
 
 
+class ManifestVersionError(BundleError):
+    """Remote manifest schema version this CERF build cannot read."""
+
+    def __init__(self, remote_version: int, supported_version: int):
+        self.remote_version = remote_version
+        self.supported_version = supported_version
+        self.remote_is_newer = remote_version > supported_version
+        if self.remote_is_newer:
+            msg = (
+                f"remote manifest version {remote_version} is newer than this "
+                f"CERF build supports (version {supported_version}); download a "
+                f"newer CERF build from https://github.com/gweslab/cerf"
+            )
+        else:
+            msg = (
+                f"remote manifest version {remote_version} is older than this "
+                f"CERF build expects (version {supported_version})"
+            )
+        super().__init__(msg)
+
+
 @dataclass(frozen=True)
 class RemoteBundle:
     name: str
@@ -222,16 +243,8 @@ def load_remote_manifest() -> List[RemoteBundle]:
     version = manifest.get("version")
     if not isinstance(version, int):
         raise BundleError("remote manifest has no integer version")
-    if version > SUPPORTED_REMOTE_MANIFEST_VERSION:
-        raise BundleError(
-            f"remote manifest version {version} is newer than supported "
-            f"version {SUPPORTED_REMOTE_MANIFEST_VERSION}; please upgrade CERF"
-        )
-    if version < SUPPORTED_REMOTE_MANIFEST_VERSION:
-        raise BundleError(
-            f"remote manifest version {version} is older than supported "
-            f"version {SUPPORTED_REMOTE_MANIFEST_VERSION}"
-        )
+    if version != SUPPORTED_REMOTE_MANIFEST_VERSION:
+        raise ManifestVersionError(version, SUPPORTED_REMOTE_MANIFEST_VERSION)
 
     bundles = manifest.get("bundles")
     if not isinstance(bundles, list):
