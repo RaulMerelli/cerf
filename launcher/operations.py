@@ -21,6 +21,7 @@ from bundles import (
     DeviceBundle,
     DeviceMeta,
     RemoteBundle,
+    fetch_last_release_version,
     is_safe_bundle_name,
     load_local_manifest,
     load_remote_manifest,
@@ -120,6 +121,9 @@ class BundleManager:
 
     def submit_refresh(self) -> Future:
         return self._pool.submit(self._do_refresh)
+
+    def submit_version_check(self) -> Future:
+        return self._pool.submit(fetch_last_release_version)
 
     def _do_refresh(self) -> None:
         try:

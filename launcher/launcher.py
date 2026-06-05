@@ -11,6 +11,7 @@ import sys
 import threading
 import tkinter as tk
 import traceback
+import webbrowser
 from concurrent.futures import Future
 from pathlib import Path
 from tkinter import ttk
@@ -24,7 +25,9 @@ from bundles import (
     BundleError,
     DeviceBundle,
     ManifestVersionError,
+    RELEASE_TAG_URL,
     is_safe_bundle_name,
+    parse_version_tuple,
 )
 from boards import board_support_state, board_extra_notes
 from operations import BundleManager, CancelledError
@@ -116,6 +119,7 @@ BG_SELECTED = "#094771"
 FG          = "#e0e0e0"
 FG_DIM      = "#808080"
 BORDER      = "#3f3f46"
+UPDATE_LINK = "#e8c44a"  # yellow "update available" status-bar link
 
 STATE_TINT = {
     STATE_INSTALLED: "#1e3a1e",
@@ -286,6 +290,7 @@ class LauncherApp(tk.Tk):
         _enable_dark_titlebar(self)
         self._pump_progress()
         self.after(50, self._refresh_manifest)
+        self.after(50, self._start_update_check)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -617,10 +622,18 @@ class LauncherApp(tk.Tk):
         bar = ttk.Frame(root, padding=(8, 4))
         bar.pack(fill="x", side="bottom")
         bar.columnconfigure(0, weight=1)
+
+        self.update_var = tk.StringVar(value="")
+        self._update_url: Optional[str] = None
+        self.update_link = ttk.Label(bar, textvariable=self.update_var, anchor="w")
+        self.update_link.grid(row=0, column=0, sticky="w")
+        self.update_link.bind("<Button-1>", self._on_update_link_click)
+
         self.status_var = tk.StringVar(value="Ready.")
-        ttk.Label(bar, textvariable=self.status_var, anchor="w").grid(row=0, column=0, sticky="ew")
+        ttk.Label(bar, textvariable=self.status_var, anchor="e").grid(
+            row=0, column=1, sticky="e", padx=(8, 8))
         self.progress = ttk.Progressbar(bar, orient="horizontal", length=220, mode="determinate")
-        self.progress.grid(row=0, column=1, sticky="e")
+        self.progress.grid(row=0, column=2, sticky="e")
 
     def _is_optional_uint(self, value: str) -> bool:
         return value == "" or value.isdigit()
@@ -815,6 +828,43 @@ class LauncherApp(tk.Tk):
                 f"temporary — try again later.\n\n"
                 f"Your already-installed devices remain available to launch."
             )
+
+    def _start_update_check(self) -> None:
+        self._set_update_status("Checking updates…", FG_DIM, link=False)
+        future = self.manager.submit_version_check()
+        def done(exc: Optional[BaseException]) -> None:
+            remote: Optional[str] = None
+            if exc is None:
+                try:
+                    remote = future.result()
+                except Exception:
+                    remote = None
+            self._apply_update_check(remote)
+        self._await_future(future, done)
+
+    def _apply_update_check(self, remote: Optional[str]) -> None:
+        current = parse_version_tuple(_resolve_version())
+        remote_tuple = parse_version_tuple(remote) if remote else None
+        # Stay silent when either side is unknown (offline, missing file,
+        # unparseable) rather than asserting a state we cannot verify.
+        if remote_tuple is None or current is None:
+            self._update_url = None
+            self._set_update_status("", FG_DIM, link=False)
+            return
+        if remote_tuple > current:
+            self._update_url = RELEASE_TAG_URL.format(tag=remote)
+            self._set_update_status(f"Download CERF v{remote}", UPDATE_LINK, link=True)
+        else:
+            self._update_url = None
+            self._set_update_status("No new releases of CERF available", FG_DIM, link=False)
+
+    def _set_update_status(self, text: str, color: str, link: bool) -> None:
+        self.update_var.set(text)
+        self.update_link.config(foreground=color, cursor=("hand2" if link else ""))
+
+    def _on_update_link_click(self, _event: object) -> None:
+        if self._update_url:
+            webbrowser.open(self._update_url)
 
     def _reload_device_list(self) -> None:
         previous = self.selected_name
