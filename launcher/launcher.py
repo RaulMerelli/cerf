@@ -29,7 +29,7 @@ from bundles import (
     is_safe_bundle_name,
     parse_version_tuple,
 )
-from boards import board_support_state, board_extra_notes
+from boards import board_support_state, board_extra_notes, board_features
 from operations import BundleManager, CancelledError
 
 
@@ -79,6 +79,19 @@ def _resolve_icon() -> Optional[Path]:
     return None
 
 
+def _resolve_icons_dir() -> Optional[Path]:
+    meipass = getattr(sys, "_MEIPASS", None)
+    candidates: List[Path] = []
+    if meipass:
+        candidates.append(Path(meipass) / "assets" / "icons")
+    candidates.append(_exe_dir() / "assets" / "icons")
+    candidates.append(Path(__file__).resolve().parent / "assets" / "icons")
+    for path in candidates:
+        if path.is_dir():
+            return path
+    return None
+
+
 def _resolve_version() -> str:
     meipass = getattr(sys, "_MEIPASS", None)
     candidates: List[Path] = []
@@ -105,6 +118,15 @@ def _resolve_version() -> str:
             return f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
     return ""
 
+
+# Side-panel feature icons, in display order. (boards.py key, icon file, tooltip).
+FEATURE_SPECS = [
+    ("display",  "display.png",  "Display"),
+    ("sound",    "speaker.png",  "Sound"),
+    ("touch",    "stylus.png",   "Touch"),
+    ("keyboard", "keyboard.png", "Keyboard"),
+    ("network",  "internet.png", "Network"),
+]
 
 STATE_INSTALLED = "Installed"
 STATE_UPDATE    = "Update available"
@@ -285,6 +307,9 @@ class LauncherApp(tk.Tk):
         self.busy = False
         self.devices: List[DeviceBundle] = []
         self.selected_name: Optional[str] = None
+
+        self._icons_dir = _resolve_icons_dir()
+        self._icon_cache: Dict[tuple[str, bool], Optional[tk.PhotoImage]] = {}
 
         self._build_ui()
         _enable_dark_titlebar(self)
@@ -503,24 +528,30 @@ class LauncherApp(tk.Tk):
             ttk.Label(meta, textvariable=var, wraplength=220,
                       justify="left").grid(row=i, column=1, sticky="w")
 
+        self.features_frame = ttk.LabelFrame(inner, text="Features", padding=8)
+        self.features_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.features_icons = ttk.Frame(self.features_frame)
+        self.features_icons.pack(anchor="w")
+
         self.desc_frame = ttk.LabelFrame(inner, text="Description", padding=8)
-        self.desc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.desc_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         self.desc_frame.columnconfigure(0, weight=1)
         self.desc_label = ttk.Label(self.desc_frame, text="", wraplength=260,
                                     justify="left")
         self.desc_label.grid(row=0, column=0, sticky="w")
 
         self.notes_frame = ttk.LabelFrame(inner, text="Notes & quirks", padding=8)
-        self.notes_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        self.notes_frame.grid(row=3, column=0, sticky="ew", pady=(0, 8))
         self.notes_frame.columnconfigure(0, weight=1)
         self.notes_label = ttk.Label(self.notes_frame, text="", wraplength=260,
                                      justify="left")
         self.notes_label.grid(row=0, column=0, sticky="w")
+        self.features_frame.grid_remove()
         self.desc_frame.grid_remove()
         self.notes_frame.grid_remove()
 
         opts = ttk.LabelFrame(inner, text="Launch options", padding=8)
-        opts.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        opts.grid(row=4, column=0, sticky="ew", pady=(0, 8))
         opts.columnconfigure(1, weight=1)
         self.var_log_all   = tk.BooleanVar(value=False)
         self.var_flush     = tk.BooleanVar(value=False)
@@ -584,7 +615,7 @@ class LauncherApp(tk.Tk):
         self._sync_slider_to_text()
 
         actions = ttk.LabelFrame(inner, text="Bundle actions", padding=8)
-        actions.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+        actions.grid(row=5, column=0, sticky="ew", pady=(0, 8))
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
         actions.columnconfigure(2, weight=1)
@@ -1002,6 +1033,8 @@ class LauncherApp(tk.Tk):
         self._refresh_selection_state()
 
     def _update_info_panels(self, device: DeviceBundle) -> None:
+        self._update_features(device)
+
         description = device.meta.description.strip()
         if description:
             self.desc_label.config(text=description)
@@ -1017,6 +1050,84 @@ class LauncherApp(tk.Tk):
             self.notes_frame.grid()
         else:
             self.notes_frame.grid_remove()
+
+    def _update_features(self, device: DeviceBundle) -> None:
+        for child in self.features_icons.winfo_children():
+            child.destroy()
+        features = board_features(device.meta.board_name)
+        shown = 0
+        for key, filename, label in FEATURE_SPECS:
+            if key not in features:  # absent -> board has no such hardware
+                continue
+            supported = features[key]
+            icon = self._feature_icon(filename, gray=not supported)
+            if icon is None:
+                continue
+            lbl = ttk.Label(self.features_icons, image=icon)
+            lbl.image = icon  # keep a ref so Tk doesn't GC it
+            lbl.pack(side="left", padx=(0, 8))
+            tip = label if supported else f"{label} (unsupported)"
+            self._bind_tooltip(lbl, tip)
+            shown += 1
+        self._bind_right_wheel(self.features_icons)
+        if shown:
+            self.features_frame.grid()
+        else:
+            self.features_frame.grid_remove()
+
+    def _feature_icon(self, filename: str, gray: bool) -> Optional[tk.PhotoImage]:
+        cache_key = (filename, gray)
+        if cache_key in self._icon_cache:
+            return self._icon_cache[cache_key]
+        icon: Optional[tk.PhotoImage] = None
+        if self._icons_dir is not None:
+            path = self._icons_dir / filename
+            try:
+                base = tk.PhotoImage(file=str(path))
+                if base.width() > 24:  # source icons are 32px; show ~16px
+                    base = base.subsample(2, 2)
+                icon = self._grayscale_image(base) if gray else base
+            except tk.TclError:
+                icon = None
+        self._icon_cache[cache_key] = icon
+        return icon
+
+    def _grayscale_image(self, img: tk.PhotoImage) -> tk.PhotoImage:
+        # Desaturate in-place on a copy, preserving per-pixel transparency.
+        w, h = img.width(), img.height()
+        gray = img.copy()
+        for y in range(h):
+            for x in range(w):
+                if self.tk.call(img, "transparency", "get", x, y):
+                    continue
+                r, g, b = img.get(x, y)
+                lum = (r * 299 + g * 587 + b * 114) // 1000
+                gray.put(f"#{lum:02x}{lum:02x}{lum:02x}", to=(x, y))
+        return gray
+
+    def _bind_tooltip(self, widget: tk.Widget, text: str) -> None:
+        state: Dict[str, Optional[tk.Toplevel]] = {"tip": None}
+
+        def show(_e: object) -> None:
+            if state["tip"] is not None:
+                return
+            tip = tk.Toplevel(widget)
+            tip.wm_overrideredirect(True)
+            tip.configure(bg=BORDER)
+            ttk.Label(tip, text=text, background=BG_FIELD, foreground=FG,
+                      padding=(6, 2)).pack(padx=1, pady=1)
+            x = widget.winfo_rootx()
+            y = widget.winfo_rooty() + widget.winfo_height() + 2
+            tip.wm_geometry(f"+{x}+{y}")
+            state["tip"] = tip
+
+        def hide(_e: object) -> None:
+            if state["tip"] is not None:
+                state["tip"].destroy()
+                state["tip"] = None
+
+        widget.bind("<Enter>", show)
+        widget.bind("<Leave>", hide)
 
     def _selected_device(self) -> Optional[DeviceBundle]:
         if not self.selected_name:

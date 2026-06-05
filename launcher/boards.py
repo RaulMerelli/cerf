@@ -15,6 +15,13 @@ Semantics (matched case-insensitively on ``name``):
 ``notes`` here EXTEND (do not replace) the per-ROM ``meta.notes`` shown in
 the side panel. Use them for board-wide quirks that apply to every ROM on
 the board.
+
+``features`` is an optional dict of capability -> bool the side panel shows
+as icons. Three states per capability:
+  * True  -> hardware present and working (colour icon)
+  * False -> hardware present but unsupported in CERF (greyed icon)
+  * key absent -> the board has no such hardware (icon hidden entirely)
+Recognised keys: display, sound, touch, keyboard, network.
 """
 
 from __future__ import annotations
@@ -27,6 +34,13 @@ BOARDS_INFORMATION = [
     {
         "name": "Device Emulator",
         "supported": True,
+        "features": {
+            "display": True,
+            "sound": True,
+            "touch": True,
+            "keyboard": True,
+            "network": True,
+        },
         "notes": [
             "Stock video: don't exceed 640x480 on Windows Mobile 6.5 or newer.",
             "Stock video: don't exceed 800x600 on any OS.",
@@ -44,8 +58,8 @@ BOARDS_INFORMATION = [
     {
         "name": "PC3xx",
         "supported": True,
+        "features": {"display": True, "sound": False, "touch": True, "keyboard": False},
         "notes": [
-            "CERF doesn't support keypad",
             "Stock video adapter shows severe artifacts - enable guest "
             "additions for a usable display.",
             "Audio is currently crippled.",
@@ -55,6 +69,7 @@ BOARDS_INFORMATION = [
     {
         "name": "iPAQ 3600",
         "supported": True,
+        "features": {"display": True, "sound": True, "touch": True},
         "notes": [
             "Occasional random freezes (suspected OS-timer issue).",
             "Non-critical PCMCIA errors may appear on screen.",
@@ -70,6 +85,7 @@ BOARDS_INFORMATION = [
     {
         "name": "ODO/Poseidon",
         "supported": True,
+        "features": {"display": True, "sound": True, "touch": True, "keyboard": True},
         "notes": [
             "Audio is currently crippled.",
             CE3_SHARED_STORAGE_PROBLEM,
@@ -79,8 +95,8 @@ BOARDS_INFORMATION = [
     {
         "name": "OMAP 3530 EVM",
         "supported": True,
+        "features": {"display": True, "sound": False, "touch": True},
         "notes": [
-            "CERF doesn't support sound.",
             "Don't open the XAML keyboard or Internet Explorer - they "
             "render blank and hurt performance.",
             "ROMs with Compositor are slower than regular",
@@ -89,8 +105,8 @@ BOARDS_INFORMATION = [
     {
         "name": "Keel",
         "supported": True,
+        "features": {"display": True, "sound": False, "keyboard": True},
         "notes": [
-            "CERF doesn't support sound. Good luck using emulated Zune :)",
             "Guest additions break the ROM - don't use them",
             "Main input is the keyboard: use arrows, enter, backspace, space",
             "CERF auto-generates HDD on first boot if there was no (hdd.img in device dir)",
@@ -150,3 +166,15 @@ def board_extra_notes(board_name: str) -> List[str]:
     if not isinstance(notes, list):
         return []
     return [n for n in notes if isinstance(n, str) and n.strip()]
+
+
+def board_features(board_name: str) -> dict:
+    """Capability -> bool map for the board; empty when the launcher has no
+    feature data for it (unknown board, or no features declared)."""
+    entry = _board_entry(board_name)
+    if entry is None:
+        return {}
+    features = entry.get("features")
+    if not isinstance(features, dict):
+        return {}
+    return {k: bool(v) for k, v in features.items() if isinstance(k, str)}
