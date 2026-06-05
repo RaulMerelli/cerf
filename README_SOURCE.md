@@ -206,17 +206,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Known Issues
 
-- Guest additions shared storage often misbehaves. Also has severe problems on CE3. Explorer explodes on CE.NET when Storage card opened.
-- Falcon 4220: stock video adapter has severe artifacts, however device is completely usable with ``--guest-additions``
-- iPAQ H36xx series - random freezes. Might be ostimer problem. With ``--guest-additions`` regular touch input method **switching** sometimes helps. Might be that many UI components really require stylus input or something mythical is going on.
-- iPAQ H36xx series - PCMCIA errors (not critical) - perhaps bad emulation/stubs
-- DevEmu CE3 - PCMCIA errors
-- OMAP 3530 EVM - XAML keyboard and IE are not rendering (blank white) and causing emulator to drop performance - do not open them
-- Guest additions seem to destroy multi-XIP ROMs
-- libslirp internet is extremely slow or doesn't work at all (CERF v1 bug)
-- DevEmu WM2003SE - touch rarely works - reproducible on Device Emulator itself
-- Keyboard seems to be broken on DevEmu WM ROMs
-- Sound crippled on ODO and DevEmu - audio peripheral/ostimer problems
+See [launcher's boards details database](launcher/boards.py) for per-board issues.
 
 ## Changelog
 

@@ -307,6 +307,20 @@ We are using `bundled/devices` locally because it is synced into
 `build\release\win32\devices` however regular users have launcher
 inside build directory and sync the devices folder there.
 
+## Launcher
+
+`launcher/` is a standalone Python/tkinter GUI (packaged to `launcher.exe`
+via PyInstaller), not a `CerfEmulator` service but a separate host-side
+tool. It syncs public ROM bundles into `bundled/devices/` from a remote
+manifest, authors each installed bundle's `cerf.json` from the manifest's
+`cerf_json` and reconciles it on refresh, boots a selected device via
+`cerf.exe`, and runs a release self-update check
+against the repo-root `.last-release-version`. It owns the developer-editable
+supported-boards / board-quirk list (`boards.py`), whose per-board `notes`
+surface in the side panel and extend a ROM's own `cerf.json` notes.
+
+— `launcher/` (`launcher.py`, `bundles.py`, `operations.py`, `boards.py`)
+
 ## CE Apps — CERF-built ARM CE binaries
 
 `ce_apps/<name>/` directories build small Windows CE ARM EXEs and DLLs
