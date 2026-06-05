@@ -1,12 +1,14 @@
 #include "guest_power_notifier.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/log.h"
 #include "host_window.h"
 #include "uart_screen.h"
 
 REGISTER_SERVICE(GuestPowerNotifier);
 
 void GuestPowerNotifier::Banner(const char* line) {
+    LOG(Caution, "%s", line);
     auto& uart = emu_.Get<UartScreen>();
     uart.AddLine("");
     uart.AddLine("==================================================");

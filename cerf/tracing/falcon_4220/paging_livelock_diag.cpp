@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../jit/arm_cpu.h"
 #include "../../jit/arm_mmu.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "bundle.h"
@@ -135,6 +136,29 @@ public:
                 LOG(Trace, "[PGLL] now=%u OSCR=0x%08X OSMR0=0x%08X OSSR=0x%X OIER=0x%X\n",
                     *now, d.ReadWord(0x40A00010u), d.ReadWord(0x40A00000u),
                     d.ReadWord(0x40A00014u), d.ReadWord(0x40A0001Cu));
+            });
+
+            /* Host-side, non-perturbing: is irq_interrupt_pending stuck, which makes
+               WfiHelper early-return and freezes the icount OSCR / kills the OST tick? */
+            tm.OnRunLoopIter([](const TraceContext& c) {
+                static std::atomic<uint64_t> beat{0};
+                const uint64_t b = beat.fetch_add(1, std::memory_order_relaxed);
+                if ((b & 0x3Fu) != 0u) return;
+                const uint32_t irqp = c.emu.Get<ArmCpu>().State()->irq_interrupt_pending;
+                auto& d = c.emu.Get<PeripheralDispatcher>();
+                const uint32_t icip = d.ReadWord(0x40D00000u);
+                const uint32_t icmr = d.ReadWord(0x40D00004u);
+                const uint32_t icpr = d.ReadWord(0x40D00010u);
+                static std::atomic<uint32_t> last{0xFFFFFFFFu};
+                const uint32_t key = (irqp & 1u) | (icip ^ (icmr * 2654435761u));
+                if (last.exchange(key, std::memory_order_relaxed) == key &&
+                        (b & 0x3FFFFu) != 0u)
+                    return;
+                LOG(Trace, "[IRQSTUCK] irqp=%u I=%u ICIP=0x%08X ICMR=0x%08X "
+                           "ICPR=0x%08X now=%u nextWake=%u\n",
+                    irqp, (c.cpsr >> 7) & 1u, icip, icmr, icpr,
+                    c.ReadVa32(0x822B90B4u).value_or(0u),
+                    c.ReadVa32(0x822B8E7Cu).value_or(0u));
             });
         });
     }

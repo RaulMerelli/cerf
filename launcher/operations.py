@@ -27,6 +27,8 @@ from bundles import (
     parse_cerf_json,
     parse_cerf_json_object,
     save_local_manifest,
+    write_cerf_json,
+    write_cerf_json_if_changed,
     _sha256_file,
 )
 
@@ -125,6 +127,24 @@ class BundleManager:
         except BundleError:
             self.installed = {}
         self.remote_bundles = load_remote_manifest()
+        self._reconcile_cerf_json()
+
+    def _reconcile_cerf_json(self) -> None:
+        """Manifest v2 no longer ships cerf.json inside the ROM zip; the
+        launcher owns it. Whenever the remote cerf_json for an installed
+        device differs from the on-disk copy, silently rewrite it."""
+        for rb in self.remote_bundles:
+            if rb.cerf_json is None:
+                continue
+            if not is_safe_bundle_name(rb.name):
+                continue
+            target = self.devices_dir / rb.name
+            if not target.is_dir():
+                continue
+            try:
+                write_cerf_json_if_changed(target / "cerf.json", rb.cerf_json)
+            except OSError:
+                pass
 
     def list_devices(self) -> List[DeviceBundle]:
         result: Dict[str, DeviceBundle] = {}
@@ -222,6 +242,11 @@ class BundleManager:
             if target.exists():
                 shutil.rmtree(target)
             shutil.move(str(prepared), str(target))
+
+        # Manifest v2: cerf.json is not packed in the ROM zip; the launcher
+        # writes it from the manifest's cerf_json after unpacking.
+        if bundle.cerf_json is not None:
+            write_cerf_json(target / "cerf.json", bundle.cerf_json)
 
         with self._manifest_lock:
             self.installed[name] = bundle.updated_at

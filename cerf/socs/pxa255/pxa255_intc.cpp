@@ -72,6 +72,16 @@ void Pxa255Intc::DeassertSource(uint32_t bit_index) {
     }
 }
 
+void Pxa255Intc::SetSourceLevel(uint32_t mask, uint32_t level) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    const uint32_t old_icip = IcIpLocked();
+    const uint32_t old_icfp = IcFpLocked();
+    icpr_ = (icpr_ & ~mask) | (level & mask);
+    if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp) {
+        NotifyLocked();
+    }
+}
+
 uint32_t Pxa255Intc::ReadRegLocked(uint32_t off) const {
     switch (off) {
         case 0x00: return IcIpLocked();  /* ICIP */

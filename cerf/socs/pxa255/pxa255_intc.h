@@ -27,6 +27,10 @@ public:
     void AssertSource(uint32_t bit_index);
     void DeassertSource(uint32_t bit_index);
 
+    /* Level source: set ICPR bits within `mask` to `level` in one atomic update
+       (used by the OS timer, whose §4.4 interrupt follows OSSR&OIER as a level). */
+    void SetSourceLevel(uint32_t mask, uint32_t level);
+
 private:
     /* NotifyLocked must run under this lock: a mask write racing an
        AssertSource would otherwise commit a stale SetInterruptPending and

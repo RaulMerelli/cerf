@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional
 
 BASE_URL = "https://cerf.dz3n.net/cerf-bundles"
 REMOTE_MANIFEST_URL = BASE_URL + "/manifest.json"
-SUPPORTED_REMOTE_MANIFEST_VERSION = 1
+SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 USER_AGENT = "CERF launcher"
 SAFE_BUNDLE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DEFAULT_TIMEOUT = 30
@@ -66,6 +66,8 @@ class DeviceMeta:
     os_ver_major: int = 0
     os_ver_minor: int = 0
     device_year: int = 0
+    description: str = ""
+    notes: List[str] = field(default_factory=list)
 
     @property
     def os_version(self) -> str:
@@ -140,6 +142,8 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[in
         meta.board_name = _str_or_empty(m.get("board_name"))
         meta.soc_family = _str_or_empty(m.get("soc_family"))
         meta.device_year = _int_or_zero(m.get("device_year"))
+        meta.description = _str_or_empty(m.get("description"))
+        meta.notes = _str_list(m.get("notes"))
         os_block = m.get("os")
         if isinstance(os_block, dict):
             meta.os_name = _str_or_empty(os_block.get("name"))
@@ -176,6 +180,35 @@ def _str_or_empty(v) -> str:
 
 def _int_or_zero(v) -> int:
     return v if isinstance(v, int) else 0
+
+
+def _str_list(v) -> List[str]:
+    if not isinstance(v, list):
+        return []
+    return [s for s in v if isinstance(s, str) and s.strip()]
+
+
+def write_cerf_json(path: Path, obj: dict) -> None:
+    tmp = path.with_suffix(".json.tmp")
+    with tmp.open("w", encoding="utf-8", newline="\n") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def write_cerf_json_if_changed(path: Path, obj: dict) -> bool:
+    """Rewrite cerf.json only when its parsed content differs from obj.
+    Comparison is semantic (parsed JSON), so reformatting / key reordering
+    on disk never triggers a spurious rewrite. Returns True if written."""
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            existing = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        existing = None
+    if existing == obj:
+        return False
+    write_cerf_json(path, obj)
+    return True
 
 
 def load_remote_manifest() -> List[RemoteBundle]:
