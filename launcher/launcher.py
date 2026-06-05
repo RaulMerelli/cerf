@@ -25,6 +25,7 @@ from bundles import (
     DeviceBundle,
     is_safe_bundle_name,
 )
+from boards import board_support_state, board_extra_notes
 from operations import BundleManager, CancelledError
 
 
@@ -388,6 +389,10 @@ class LauncherApp(tk.Tk):
                   background=[("active", BG_HOVER)])
 
     def _build_ui(self) -> None:
+        # Status bar is packed first (side=bottom) so it is always reserved at
+        # the window's bottom edge; the expanding content fills the rest above.
+        self._build_status(self)
+
         outer = ttk.Frame(self, padding=8)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1, minsize=650)
@@ -396,13 +401,19 @@ class LauncherApp(tk.Tk):
 
         self._build_left(outer)
         self._build_right(outer)
-        self._build_status(self)
 
     def _build_left(self, parent: ttk.Frame) -> None:
         left = ttk.Frame(parent)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        left.rowconfigure(0, weight=1)
+        left.rowconfigure(1, weight=1)
         left.columnconfigure(0, weight=1)
+
+        filter_bar = ttk.Frame(left)
+        filter_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        self.var_hide_unsupported = tk.BooleanVar(value=True)
+        ttk.Checkbutton(filter_bar, text="Hide unsupported boards",
+                        variable=self.var_hide_unsupported,
+                        command=self._reload_device_list).pack(side="left")
 
         columns = ("os", "year", "board", "soc", "status")
         tree = ttk.Treeview(left, columns=columns, show="tree headings", selectmode="browse")
@@ -418,9 +429,9 @@ class LauncherApp(tk.Tk):
         tree.column("board", width=140, minwidth=95, anchor="w", stretch=True)
         tree.column("soc", width=105, minwidth=80, anchor="w", stretch=True)
         tree.column("status", width=100, minwidth=90, anchor="w", stretch=False)
-        tree.grid(row=0, column=0, sticky="nsew")
+        tree.grid(row=1, column=0, sticky="nsew")
         vsb = ttk.Scrollbar(left, orient="vertical", command=tree.yview)
-        vsb.grid(row=0, column=1, sticky="ns")
+        vsb.grid(row=1, column=1, sticky="ns")
         tree.configure(yscrollcommand=vsb.set)
         tree.bind("<<TreeviewSelect>>", self._on_select_device)
         tree.bind("<Double-1>", lambda _e: self._launch())
@@ -429,7 +440,7 @@ class LauncherApp(tk.Tk):
         self.tree = tree
 
         bottom = ttk.Frame(left)
-        bottom.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        bottom.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         bottom.columnconfigure(0, weight=1)
         bottom.columnconfigure(1, weight=1)
         bottom.columnconfigure(2, weight=1)
@@ -444,9 +455,32 @@ class LauncherApp(tk.Tk):
         right = ttk.Frame(parent)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(2, weight=1)
+        right.rowconfigure(0, weight=1)  # scroll area expands; launch bar pinned
 
-        meta = ttk.LabelFrame(right, text="Device", padding=8)
+        canvas = tk.Canvas(right, bg=BG, highlightthickness=0, width=300)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        rsb = ttk.Scrollbar(right, orient="vertical", command=canvas.yview)
+        rsb.grid(row=0, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=rsb.set)
+        self.right_canvas = canvas
+
+        inner = ttk.Frame(canvas)
+        inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.columnconfigure(0, weight=1)
+
+        def _on_inner_config(_e: object) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        inner.bind("<Configure>", _on_inner_config)
+
+        def _on_canvas_config(e: object) -> None:
+            canvas.itemconfigure(inner_id, width=e.width)
+            wrap = max(120, e.width - 24)
+            if hasattr(self, "desc_label"):
+                self.desc_label.config(wraplength=wrap)
+                self.notes_label.config(wraplength=wrap)
+        canvas.bind("<Configure>", _on_canvas_config)
+
+        meta = ttk.LabelFrame(inner, text="Device", padding=8)
         meta.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         meta.columnconfigure(1, weight=1)
         self.meta_vars: Dict[str, tk.StringVar] = {}
@@ -463,8 +497,24 @@ class LauncherApp(tk.Tk):
             ttk.Label(meta, textvariable=var, wraplength=220,
                       justify="left").grid(row=i, column=1, sticky="w")
 
-        opts = ttk.LabelFrame(right, text="Launch options", padding=8)
-        opts.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.desc_frame = ttk.LabelFrame(inner, text="Description", padding=8)
+        self.desc_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.desc_frame.columnconfigure(0, weight=1)
+        self.desc_label = ttk.Label(self.desc_frame, text="", wraplength=260,
+                                    justify="left")
+        self.desc_label.grid(row=0, column=0, sticky="w")
+
+        self.notes_frame = ttk.LabelFrame(inner, text="Notes & quirks", padding=8)
+        self.notes_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        self.notes_frame.columnconfigure(0, weight=1)
+        self.notes_label = ttk.Label(self.notes_frame, text="", wraplength=260,
+                                     justify="left")
+        self.notes_label.grid(row=0, column=0, sticky="w")
+        self.desc_frame.grid_remove()
+        self.notes_frame.grid_remove()
+
+        opts = ttk.LabelFrame(inner, text="Launch options", padding=8)
+        opts.grid(row=3, column=0, sticky="ew", pady=(0, 8))
         opts.columnconfigure(1, weight=1)
         self.var_log_all   = tk.BooleanVar(value=False)
         self.var_flush     = tk.BooleanVar(value=False)
@@ -483,14 +533,15 @@ class LauncherApp(tk.Tk):
 
         guest = ttk.Frame(opts)
         guest.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        guest.columnconfigure(0, weight=1)
         ttk.Checkbutton(guest, text="Enable guest additions",
                         variable=self.var_guest_additions,
                         command=self._refresh_resolution_state,
-                        style="Guest.TCheckbutton").pack(side="left")
-        ttk.Label(guest, text="(might be unstable)",
-                  style="Hint.TLabel").pack(side="left", padx=(8, 0))
+                        style="Guest.TCheckbutton").grid(row=0, column=0, sticky="w")
         ttk.Button(guest, text="?", width=2, style="Help.TButton",
-                   command=self._show_guest_additions_help).pack(side="left", padx=(6, 0))
+                   command=self._show_guest_additions_help).grid(row=0, column=1, sticky="e")
+        ttk.Label(guest, text="(might be unstable)",
+                  style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
         ttk.Separator(opts).grid(row=6, column=0, columnspan=3, sticky="ew", pady=(0, 6))
 
@@ -526,8 +577,8 @@ class LauncherApp(tk.Tk):
         self.var_height.trace_add("write", self._on_res_text_changed)
         self._sync_slider_to_text()
 
-        actions = ttk.LabelFrame(right, text="Bundle actions", padding=8)
-        actions.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
+        actions = ttk.LabelFrame(inner, text="Bundle actions", padding=8)
+        actions.grid(row=4, column=0, sticky="ew", pady=(0, 8))
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
         actions.columnconfigure(2, weight=1)
@@ -540,12 +591,26 @@ class LauncherApp(tk.Tk):
         self.btn_delete.grid  (row=0, column=2, sticky="ew", padx=(4, 0))
         self.btn_pdbs.grid    (row=1, column=0, columnspan=3, sticky="ew", pady=(4, 0))
 
+        # Launch bar is pinned below the scroll area (right row 1), so it stays
+        # visible no matter how far the options scroll or how short the window.
         launch_bar = ttk.Frame(right)
-        launch_bar.grid(row=3, column=0, sticky="e")
+        launch_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self.btn_launch = ttk.Button(launch_bar, text="Launch CERF",
                                      command=self._launch,
                                      style="Launch.TButton")
-        self.btn_launch.grid(row=0, column=0, padx=(0, 0))
+        self.btn_launch.pack(side="right")
+
+        self._bind_right_wheel(canvas)
+        self._bind_right_wheel(inner)
+
+    def _on_right_wheel(self, event: object) -> str:
+        self.right_canvas.yview_scroll(int(-event.delta / 120), "units")
+        return "break"
+
+    def _bind_right_wheel(self, widget: tk.Misc) -> None:
+        widget.bind("<MouseWheel>", self._on_right_wheel)
+        for child in widget.winfo_children():
+            self._bind_right_wheel(child)
 
     def _build_status(self, root: tk.Misc) -> None:
         bar = ttk.Frame(root, padding=(8, 4))
@@ -730,8 +795,13 @@ class LauncherApp(tk.Tk):
     def _reload_device_list(self) -> None:
         previous = self.selected_name
         self.devices = sorted(self.manager.list_devices(), key=_device_sort_key)
+        hide = self.var_hide_unsupported.get()
         self.tree.delete(*self.tree.get_children())
         for d in self.devices:
+            # Only an explicit supported:False board is hidden. Unknown boards
+            # (no board_name, or not in boards.py) are always shown.
+            if hide and board_support_state(d.meta.board_name) is False:
+                continue
             state = self._state_label(d)
             year = str(d.meta.device_year) if d.meta.device_year else ""
             os_label = _table_os_label(d)
@@ -742,12 +812,13 @@ class LauncherApp(tk.Tk):
                              text=display if display != d.name else d.name,
                              values=(os_label, year, board, soc, state),
                              tags=(state,))
-        if previous and previous in (d.name for d in self.devices):
+        visible = self.tree.get_children()
+        if previous and previous in visible:
             self.tree.selection_set(previous)
             self.tree.see(previous)
-        elif self.devices:
-            self.tree.selection_set(self.devices[0].name)
-            self.tree.see(self.devices[0].name)
+        elif visible:
+            self.tree.selection_set(visible[0])
+            self.tree.see(visible[0])
 
     def _state_label(self, d: DeviceBundle) -> str:
         if d.is_user_device:
@@ -852,8 +923,26 @@ class LauncherApp(tk.Tk):
         self.meta_vars["os_version"] .set(device.meta.os_version or "—")
         self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "—")
         self.meta_vars["state"].set(self._state_label(device))
+        self._update_info_panels(device)
         self._refresh_resolution_state()
         self._refresh_selection_state()
+
+    def _update_info_panels(self, device: DeviceBundle) -> None:
+        description = device.meta.description.strip()
+        if description:
+            self.desc_label.config(text=description)
+            self.desc_frame.grid()
+        else:
+            self.desc_frame.grid_remove()
+
+        # ROM-specific notes first, then board-wide quirks from boards.py.
+        notes: List[str] = list(device.meta.notes)
+        notes += board_extra_notes(device.meta.board_name)
+        if notes:
+            self.notes_label.config(text="\n".join(f"• {n}" for n in notes))
+            self.notes_frame.grid()
+        else:
+            self.notes_frame.grid_remove()
 
     def _selected_device(self) -> Optional[DeviceBundle]:
         if not self.selected_name:

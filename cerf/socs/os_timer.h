@@ -19,7 +19,7 @@
 
 /* Intel/Marvell OS Timer — the same IP block on SA-1110 (§9.4) and PXA25x
    (§4.4): OSCR / OSMR0-3 / OSSR / OWER / OIER at 0x00..0x1C. A per-SoC concrete
-   supplies MmioBase + AssertMatch / DeassertMatch + ShouldRegister. */
+   supplies MmioBase + SetMatchLevel + ShouldRegister. */
 class OsTimer : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -100,10 +100,10 @@ public:
     }
 
 protected:
-    /* Per-SoC: route an OSMR[n] match (n = 0..3) and its clear to this SoC's
-       interrupt controller. */
-    virtual void AssertMatch(int n)   = 0;
-    virtual void DeassertMatch(int n) = 0;
+    /* Drive the OST match interrupt LEVEL into the SoC INTC (level4 bit n =
+       OSSR.M[n] & OIER.E[n]). PXA §4.4 / SA-1110 §9.4: it is a level, not an
+       edge — an edge model desyncs the INTC line from OSSR and storms. */
+    virtual void SetMatchLevel(uint32_t level4) = 0;
 
 private:
     static constexpr auto     kPollInterval      = std::chrono::microseconds(100);
@@ -113,6 +113,11 @@ private:
     std::condition_variable cv_;
     std::thread             match_thread_;
     std::atomic<bool>       stop_{false};
+
+    /* Serializes an ossr_/oier_ change with the level push that follows it, so
+       the JIT-thread OSSR-clear and the match-thread match-set can't interleave
+       to leave the INTC line set while OSSR is clear. */
+    std::mutex              irq_mtx_;
 
     /* High 32 = baseline_oscr, low 32 = baseline_cycles. Single 64-bit atomic so
        the reader sees a consistent (oscr, cycles) pair — splitting into two
@@ -210,29 +215,39 @@ private:
         }
     }
 
+    /* Caller holds irq_mtx_: push the current OSSR&OIER level so the INTC OST
+       line is re-synced atomically with the latch mutation that preceded it. */
+    void PushMatchLevelLocked() {
+        SetMatchLevel((ossr_.load(std::memory_order_acquire) &
+                       oier_.load(std::memory_order_acquire)) & 0xFu);
+    }
+
     void WriteOssr(uint32_t value) {
         /* §9.4.4: writing 1 to OSSR.M[N] clears it; writing 0 has no effect.
            Re-arm each cleared channel's edge anchor against the current OSCR. */
         const uint32_t mask = value & 0xFu;
+        std::lock_guard<std::mutex> g(irq_mtx_);
         const uint32_t prev = ossr_.fetch_and(~mask, std::memory_order_acq_rel);
         const uint32_t cleared = prev & mask;
-        if (cleared == 0) return;
-
-        const uint32_t oscr_now = ReadOscr();
-        for (int n = 0; n < 4; ++n) {
-            if ((cleared & (1u << n)) == 0) continue;
-            /* CAS so a concurrent JIT-thread OSMR write isn't clobbered. */
-            uint64_t expected = osmr_arm_[n].load(std::memory_order_acquire);
-            for (;;) {
-                const uint32_t osmr = UnpackOsmr(expected);
-                const uint64_t desired = PackOsmr(osmr, oscr_now);
-                if (osmr_arm_[n].compare_exchange_weak(
-                        expected, desired,
-                        std::memory_order_acq_rel,
-                        std::memory_order_acquire)) break;
+        if (cleared != 0) {
+            const uint32_t oscr_now = ReadOscr();
+            for (int n = 0; n < 4; ++n) {
+                if ((cleared & (1u << n)) == 0) continue;
+                /* CAS so a concurrent JIT-thread OSMR write isn't clobbered. */
+                uint64_t expected = osmr_arm_[n].load(std::memory_order_acquire);
+                for (;;) {
+                    const uint32_t osmr = UnpackOsmr(expected);
+                    const uint64_t desired = PackOsmr(osmr, oscr_now);
+                    if (osmr_arm_[n].compare_exchange_weak(
+                            expected, desired,
+                            std::memory_order_acq_rel,
+                            std::memory_order_acquire)) break;
+                }
             }
-            DeassertMatch(n);
         }
+        /* Always re-push (even when nothing cleared): if a prior race left the
+           INTC line set with OSSR clear, this guest OSSR write re-syncs it. */
+        PushMatchLevelLocked();
         NotifyMatchLoop();
     }
 
@@ -264,7 +279,11 @@ private:
                 NotifyMatchLoop();
                 break;
             case 0x1C:
-                oier_.store(value & 0xFu, std::memory_order_release);
+                {
+                    std::lock_guard<std::mutex> g(irq_mtx_);
+                    oier_.store(value & 0xFu, std::memory_order_release);
+                    PushMatchLevelLocked();
+                }
                 NotifyMatchLoop();
                 break;
             default: break;
@@ -288,25 +307,25 @@ private:
             if (!MatchHasFired(UnpackArm(pair), UnpackOsmr(pair), oscr)) {
                 continue;
             }
-            ossr_.fetch_or(1u << n, std::memory_order_acq_rel);
             newly_set |= (1u << n);
             /* §9.4.6: an OSMR3 match with OWER.WME=1 triggers a watchdog reset. */
             if (n == 3 && (ower_.load(std::memory_order_acquire) & 0x1u) != 0) {
                 trigger_reset = true;
             }
         }
+        if (newly_set == 0) return;
+        {
+            std::lock_guard<std::mutex> g(irq_mtx_);
+            ossr_.fetch_or(newly_set, std::memory_order_acq_rel);
+            if (!trigger_reset) PushMatchLevelLocked();
+        }
         if (trigger_reset) {
             emu_.Get<ArmJit>().SetResetPending();
             return;
         }
-        if (newly_set != 0) {
 #if CERF_DEV_MODE
-            emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstFires);
+        emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstFires);
 #endif
-            for (int n = 0; n < 4; ++n) {
-                if (newly_set & (1u << n)) AssertMatch(n);
-            }
-        }
     }
 
     bool AnyMatchArmed() const {

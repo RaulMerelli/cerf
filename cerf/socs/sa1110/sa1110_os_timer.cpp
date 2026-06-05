@@ -21,11 +21,9 @@ public:
     uint32_t MmioBase() const override { return 0x90000000u; }
 
 protected:
-    void AssertMatch(int n) override {
-        emu_.Get<Sa1110Intc>().AssertSource(kIntcOst0Bit + n);
-    }
-    void DeassertMatch(int n) override {
-        emu_.Get<Sa1110Intc>().DeassertSource(kIntcOst0Bit + n);
+    void SetMatchLevel(uint32_t level4) override {
+        emu_.Get<Sa1110Intc>().SetSourceLevel(0xFu << kIntcOst0Bit,
+                                              (level4 & 0xFu) << kIntcOst0Bit);
     }
 };
 

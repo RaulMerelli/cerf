@@ -281,12 +281,16 @@ empty-container check.
   Optional `board` / `network` / `rom` blocks override `DeviceConfig`
   defaults. A missing file means CERF uses `DeviceConfig` defaults
   plus CLI overrides.
+- `cerf.json` is completely optional and has no value for `cerf.exe`.
+- You can't use `meta` in `cerf.json` for `cerf.exe` for anything more
+  serious than displaying device name beatified string - it's metadata.
 
-`bundled/devices/` is synced via `bundled/devices/sync_bundles.py`,
+`bundled/devices/` is synced via `./launcher`,
 which downloads the public manifest and installs selected bundles.
+
 Downloaded bundle directories and the local `manifest.json` are
 ignored by Git — only those are copied to the release directory; users
-run `sync_bundles.py` locally. Never run `sync_bundles.py` on your own.
+run `launcher` locally. Never run `launcher` on your own.
 
 For IDA debugging, the same `.nb0` / `.bin` is decomposed offline by
 `tools/extract_bundles.py` (runs `references/extract-wince-rom`
@@ -295,9 +299,13 @@ against each ROM and copies any matching PDBs in) into
 not consumed by CERF at runtime, and exists solely for IDA / static
 analysis — see `agent_docs/debugging.md` § IDA discipline.
 
-Build-time staging mirrors `bundled/**/*` into `build/<config>/x64/**`
+Build-time staging mirrors `bundled/**/*` into `build/<config>/Win32/**`
 via the `CopyBundledFiles` MSBuild target (incremental, never deletes
 destination files absent from the source set).
+
+We are using `bundled/devices` locally because it is synced into 
+`build\release\win32\devices` however regular users have launcher
+inside build directory and sync the devices folder there.
 
 ## CE Apps — CERF-built ARM CE binaries
 
