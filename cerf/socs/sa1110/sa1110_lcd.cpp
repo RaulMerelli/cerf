@@ -1,6 +1,7 @@
 #include "sa1110_lcd.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -37,6 +38,8 @@ uint32_t Sa1110Lcd::ReadReg(uint32_t off) const {
 }
 
 void Sa1110Lcd::WriteReg(uint32_t off, uint32_t value) {
+    /* LCSR acks excluded: per-frame W1C would flood the log. */
+    if (off != 0x04) LOG(Lcd, "Sa1110Lcd write +0x%02X = 0x%08X\n", off, value);
     switch (off) {
         case 0x00: {
             const uint32_t old = lccr0_;

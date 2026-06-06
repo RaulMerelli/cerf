@@ -11,7 +11,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetSoc() == SocFamily::SA1110;
     }
 
     /* SA-1110 Dev Manual §5.2.3: TTBR bits 13:0 ignored on write

@@ -56,10 +56,15 @@ Concretes' `ShouldRegister` checks
 never knows which board it's on — only which chip.
 
 The VA→PA placement map (`PageTableBuilder`) and the MMU base-mask policy
-(`MmuPolicy`) are **not** here. VA→PA placement is a BSP/board choice (the
-OEMAddressTable), so its concretes live under `cerf/boards/<board>/`; the
-MMU base-mask is a CPU-arch property, so its concretes live under
-`cerf/cpu/<arch>/`. Both are selected by `GetBoard()`, not `GetSoc()`.
+(`MmuPolicy`) are **not** here, but they split on different axes. VA→PA
+placement is a BSP/board choice (the OEMAddressTable differs per board), so
+its concretes live under `cerf/boards/<board>/` and are selected by
+`GetBoard()`. The MMU base-mask is a CPU-arch property identical across every
+board on that core, so its concretes live under `cerf/cpu/<arch>/` and are
+selected by `GetSoc()` — the same as the other core strategies there
+(`ArmProcessorConfig`, `CoprocEmitter`). Gating a core strategy on
+`GetBoard()` leaves every additional board on that SoC with no winner (a
+second SA-1110 board re-stating the die's MIDR is the smell).
 
 ### `cerf/boards/<board>/` — one specific OEM board / BSP
 

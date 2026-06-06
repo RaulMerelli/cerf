@@ -50,13 +50,13 @@ constexpr uint32_t kDramPaBase     = 0xC0000000u;
 constexpr uint32_t kDramSize       = MB(64);
 constexpr uint32_t kInitStackTopPa = kDramPaBase + kDramSize;
 
-class Ipaq3650PageTableBuilder : public PageTableBuilder {
+class IpaqGen1PageTableBuilder : public PageTableBuilder {
 public:
     using PageTableBuilder::PageTableBuilder;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }
@@ -65,18 +65,18 @@ public:
     std::vector<BackedRegion> BackedMemoryRegions() const override;
 };
 
-uint32_t Ipaq3650PageTableBuilder::VaToPa(uint32_t va) const {
+uint32_t IpaqGen1PageTableBuilder::VaToPa(uint32_t va) const {
     for (const auto& e : kOat) {
         if (va >= e.va_base && va < e.va_base + e.size) {
             return e.pa_base + (va - e.va_base);
         }
     }
-    LOG(Caution, "Ipaq3650PageTableBuilder::VaToPa: VA 0x%08X outside "
+    LOG(Caution, "IpaqGen1PageTableBuilder::VaToPa: VA 0x%08X outside "
             "every OAT band (nk.exe + 0x13F4)\n", va);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
-std::vector<DramRegion> Ipaq3650PageTableBuilder::CachedDramRegions() const {
+std::vector<DramRegion> IpaqGen1PageTableBuilder::CachedDramRegions() const {
     std::vector<DramRegion> regions;
     for (const auto& e : kOat) {
         if (e.kind == OatKind::Dram) {
@@ -87,7 +87,7 @@ std::vector<DramRegion> Ipaq3650PageTableBuilder::CachedDramRegions() const {
 }
 
 std::vector<BackedRegion>
-Ipaq3650PageTableBuilder::BackedMemoryRegions() const {
+IpaqGen1PageTableBuilder::BackedMemoryRegions() const {
     std::vector<BackedRegion> regions;
     for (const auto& e : kOat) {
         if (e.kind == OatKind::Mmio) continue;
@@ -100,4 +100,4 @@ Ipaq3650PageTableBuilder::BackedMemoryRegions() const {
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Ipaq3650PageTableBuilder, PageTableBuilder);
+REGISTER_SERVICE_AS(IpaqGen1PageTableBuilder, PageTableBuilder);

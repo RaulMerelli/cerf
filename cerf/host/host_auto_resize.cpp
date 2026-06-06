@@ -14,7 +14,6 @@
 namespace {
 constexpr COLORREF kClrOn  = RGB(78, 201, 90);    /* green */
 constexpr COLORREF kClrOff = RGB(140, 140, 140);  /* gray */
-constexpr wchar_t  kGlyph  = L'\xE740';           /* Segoe MDL2 FullScreen */
 }  /* namespace */
 
 REGISTER_SERVICE(HostAutoResize);
@@ -24,16 +23,10 @@ bool HostAutoResize::ShouldRegister() {
 }
 
 void HostAutoResize::OnReady() {
-    glyph_font_ = CreateFontW(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                              CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                              DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
-HostAutoResize::~HostAutoResize() {
-    if (glyph_font_) DeleteObject(glyph_font_);
-}
+HostAutoResize::~HostAutoResize() = default;
 
 void HostAutoResize::Toggle() {
     enabled_.store(!enabled_.load(std::memory_order_acquire),
@@ -65,12 +58,24 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
 }
 
 void HostAutoResize::DrawIcon(HDC dc, const RECT& box) const {
-    HGDIOBJ of = glyph_font_ ? SelectObject(dc, glyph_font_) : nullptr;
-    SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, Enabled() ? kClrOn : kClrOff);
-    RECT r = box;
-    DrawTextW(dc, &kGlyph, 1, &r, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
-    if (of) SelectObject(dc, of);
+    const int cx = (box.left + box.right) / 2;
+    const int cy = (box.top + box.bottom) / 2;
+    constexpr int e = 7;  /* half-extent of the bracket square */
+    constexpr int a = 5;  /* bracket arm length */
+    constexpr int t = 2;  /* bracket arm thickness */
+    const RECT arms[8] = {
+        { cx - e,     cy - e,     cx - e + a, cy - e + t },  /* top-left */
+        { cx - e,     cy - e,     cx - e + t, cy - e + a },
+        { cx + e - a, cy - e,     cx + e,     cy - e + t },  /* top-right */
+        { cx + e - t, cy - e,     cx + e,     cy - e + a },
+        { cx - e,     cy + e - t, cx - e + a, cy + e     },  /* bottom-left */
+        { cx - e,     cy + e - a, cx - e + t, cy + e     },
+        { cx + e - a, cy + e - t, cx + e,     cy + e     },  /* bottom-right */
+        { cx + e - t, cy + e - a, cx + e,     cy + e     },
+    };
+    HBRUSH br = CreateSolidBrush(Enabled() ? kClrOn : kClrOff);
+    for (const RECT& r : arms) FillRect(dc, &r, br);
+    DeleteObject(br);
 }
 
 bool HostAutoResize::PollDirty() {

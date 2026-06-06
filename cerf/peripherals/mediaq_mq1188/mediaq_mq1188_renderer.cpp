@@ -6,10 +6,13 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/frame_renderer.h"
+#include "../../lcd/lcd_content_latch.h"
 
 #include <cstring>
 
 namespace {
+
+constexpr size_t kContentProbeStride = 251;
 
 /* Pixel formats from MediaQ doc 12-00026 Rev D: 16-bpp is RGB565 R[15:11]
    G[10:5] B[4:0] with the palette bypassed (Reg 4-31, p.4-56); palette-indexed
@@ -24,7 +27,19 @@ public:
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 
-    bool HasFrame() override { return emu_.Get<MediaQMq1188>().IsEnabled(); }
+    bool HasFrame() override {
+        auto& mq = emu_.Get<MediaQMq1188>();
+        if (!mq.IsEnabled())  return false;
+        if (latch_.Latched()) return true;
+        const uint32_t gh = mq.GetGuestH(), stride = mq.Stride();
+        if (gh == 0 || stride == 0) return false;
+        const uint64_t base  = mq.FbWindowOffset();
+        const uint64_t bytes = static_cast<uint64_t>(stride) * gh;
+        if (base + bytes > mq.FbSize()) return false;
+        return latch_.ProbeAndLatch(mq.FbBytes() + base,
+                                    static_cast<size_t>(bytes),
+                                    kContentProbeStride);
+    }
 
     void RenderInto(uint32_t* dib, uint32_t host_w, uint32_t host_h) override {
         std::memset(dib, 0, static_cast<size_t>(host_w) * host_h * 4u);
@@ -80,6 +95,8 @@ private:
         const uint32_t shift = (ppb - 1u - (x % ppb)) * bpp;
         return FromPalette(mq, (byte >> shift) & mask);
     }
+
+    LcdContentLatch latch_;
 };
 
 }  /* namespace */

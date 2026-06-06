@@ -19,10 +19,6 @@ constexpr wchar_t kDlgClass[] = L"CerfFolderShareDlg";
 constexpr COLORREF kFolderClr   = RGB(232, 196, 92);  /* folder yellow (on) */
 constexpr COLORREF kDisabledClr = RGB(128, 128, 128);  /* grayscale (off) */
 
-/* Segoe MDL2 Assets glyph (present Win10+), same font family the capture-lock
-   widget uses. E8B7 = Folder. */
-constexpr wchar_t kGlyphFolder = L'\xE8B7';
-
 enum : int { IDC_ENABLE = 1001, IDC_PATH = 1002, IDC_BROWSE = 1003 };
 
 /* Status-bar UI for guest-additions folder sharing: shows on/off state and
@@ -36,11 +32,6 @@ public:
     }
 
     void OnReady() override {
-        glyph_font_ = CreateFontW(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                  CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                  DEFAULT_PITCH | FF_DONTCARE,
-                                  L"Segoe MDL2 Assets");
         WNDCLASSEXW wc = {};
         wc.cbSize        = sizeof(wc);
         wc.lpfnWndProc   = &FolderShareWidget::DlgProcStatic;
@@ -52,10 +43,6 @@ public:
 
         emu_.Get<HostWidgetRegistry>().Register(this);
     }
-    ~FolderShareWidget() override {
-        if (glyph_font_) DeleteObject(glyph_font_);
-    }
-
     /* HostWidget */
     std::wstring WidgetName() const override { return L"Shared folder"; }
     WidgetGroup  Group() const override { return WidgetGroup::Storage; }
@@ -97,14 +84,23 @@ public:
         return items;
     }
     void DrawIcon(HDC dc, const RECT& box) const override {
-        HGDIOBJ of = glyph_font_ ? SelectObject(dc, glyph_font_) : nullptr;
-        SetBkMode(dc, TRANSPARENT);
-        SetTextColor(dc, emu_.Get<FolderShareConfig>().Enabled()
-                             ? kFolderClr : kDisabledClr);
-        RECT r = box;
-        DrawTextW(dc, &kGlyphFolder, 1, &r,
-                  DT_SINGLELINE | DT_VCENTER | DT_CENTER);
-        if (of) SelectObject(dc, of);
+        const COLORREF clr = emu_.Get<FolderShareConfig>().Enabled()
+                                 ? kFolderClr : kDisabledClr;
+        const int cx = (box.left + box.right) / 2;
+        const int cy = (box.top + box.bottom) / 2;
+        const POINT folder[6] = {
+            { cx - 8, cy + 6 }, { cx - 8, cy - 6 }, { cx - 2, cy - 6 },
+            { cx,     cy - 3 }, { cx + 8, cy - 3 }, { cx + 8, cy + 6 },
+        };
+        HBRUSH  fill = CreateSolidBrush(clr);
+        HPEN    pen  = CreatePen(PS_SOLID, 1, clr);
+        HGDIOBJ ob   = SelectObject(dc, fill);
+        HGDIOBJ op   = SelectObject(dc, pen);
+        Polygon(dc, folder, 6);
+        SelectObject(dc, ob);
+        SelectObject(dc, op);
+        DeleteObject(fill);
+        DeleteObject(pen);
     }
     bool PollDirty() override {
         const bool on = emu_.Get<FolderShareConfig>().Enabled();
@@ -124,8 +120,7 @@ private:
     void ChangeFolder();
     static LRESULT CALLBACK DlgProcStatic(HWND, UINT, WPARAM, LPARAM);
 
-    bool  drawn_enabled_ = false;
-    HFONT glyph_font_    = nullptr;
+    bool drawn_enabled_ = false;
 };
 
 std::wstring FolderShareWidget::PickFolder(HWND owner,

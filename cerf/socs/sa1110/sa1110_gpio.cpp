@@ -1,60 +1,57 @@
-#include "../../peripherals/peripheral_base.h"
+#include "sa1110_gpio.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "sa1110_intc.h"
 
-namespace {
+bool Sa1110Gpio::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardDetector>();
+    return bd && bd->GetSoc() == SocFamily::SA1110;
+}
 
-/* SA-1110 Dev Man §9.1.1: GPSR (+0x8) and GPCR (+0xC) are W-O
-   set/clear commands updating the output shadow read via GPLR
-   (+0x0); plain-reg storage breaks GPLR readback. GEDR (+0x18)
-   is W1C. */
+void Sa1110Gpio::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
 
-class Sa1110Gpio : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+void Sa1110Gpio::DriveInputPin(uint32_t pin, bool level) {
+    const uint32_t bit = 1u << pin;
+    std::unique_lock<std::mutex> lk(mtx_);
+    const uint32_t old = input_state_;
+    input_state_ = level ? (input_state_ | bit) : (input_state_ & ~bit);
+    if (old == input_state_) return;
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::SA1110;
+    /* §9.1.1.5: an edge matching GRER/GFER latches the GEDR bit. Edge
+       detect applies to the pin state regardless of direction; CERF only
+       drives input pins here. */
+    const bool rising = level;
+    const bool latched =
+        (rising && (grer_ & bit)) || (!rising && (gfer_ & bit));
+#if CERF_DEV_MODE
+    LOG(Periph, "[Sa1110Gpio] DriveInputPin %u=%d grer=0x%08X gfer=0x%08X "
+        "-> %s\n", pin, level ? 1 : 0, grer_, gfer_,
+        latched ? "GEDR latch + IRQ" : "no edge config (dropped)");
+#endif
+    if (latched) {
+        gedr_ |= bit;
+        PublishEdgeSourcesLocked();
     }
-    void OnReady() override {
-        emu_.Get<PeripheralDispatcher>().Register(this);
-    }
+}
 
-    uint32_t MmioBase() const override { return 0x90040000u; }
-    uint32_t MmioSize() const override { return 0x00010000u; }
+/* ICPR sources 0..10 follow GEDR bits 0..10; source 11 is the OR of GEDR
+   27..11 (§9.2.1.1). GEDR is the latch, so the ICPR view is a level. */
+void Sa1110Gpio::PublishEdgeSourcesLocked() {
+    const uint32_t gedr = gedr_;
+    auto& intc = emu_.Get<Sa1110Intc>();
+    intc.SetSourceLevel(0x7FFu, gedr & 0x7FFu);
+    intc.SetSourceLevel(1u << 11,
+                        (gedr & 0x0FFFF800u) ? (1u << 11) : 0u);
+}
 
-    uint8_t  ReadByte (uint32_t addr) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteByte(uint32_t addr, uint8_t  value) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
-
-private:
-    static constexpr uint32_t kPinMask = 0x0FFFFFFFu;  /* bits 27:0 */
-
-    /* Output-pin shadow (driven by GPSR/GPCR writes for output-
-       configured pins). GPLR returns this OR-ed with the input-pin
-       sense (input pins read 0 — no physical pins connected here
-       beyond what board-side peripherals will eventually feed in). */
-    uint32_t output_state_ = 0;
-    uint32_t gpdr_         = 0;
-    uint32_t grer_         = 0;
-    uint32_t gfer_         = 0;
-    uint32_t gedr_         = 0;
-    uint32_t gafr_         = 0;
-
-    uint32_t ReadGplr() const { return output_state_ & gpdr_ & kPinMask; }
-
-    uint32_t ReadReg(uint32_t off) const;
-    void     WriteReg(uint32_t off, uint32_t value);
-};
-
-uint32_t Sa1110Gpio::ReadReg(uint32_t off) const {
+uint32_t Sa1110Gpio::ReadReg(uint32_t off) {
+    std::unique_lock<std::mutex> lk(mtx_);
     switch (off) {
-        case 0x00: return ReadGplr();                          /* GPLR R-O */
+        case 0x00: return ReadGplrLocked();                    /* GPLR R-O */
         case 0x04: return gpdr_ & kPinMask;                    /* GPDR R/W */
         case 0x08: return 0;                                   /* GPSR W-O, read unpredictable */
         case 0x0C: return 0;                                   /* GPCR W-O, read unpredictable */
@@ -68,6 +65,7 @@ uint32_t Sa1110Gpio::ReadReg(uint32_t off) const {
 
 void Sa1110Gpio::WriteReg(uint32_t off, uint32_t value) {
     const uint32_t v = value & kPinMask;
+    std::unique_lock<std::mutex> lk(mtx_);
     switch (off) {
         case 0x00: break;                                      /* GPLR R-O, writes ignored */
         case 0x04: gpdr_ = v; break;
@@ -75,7 +73,7 @@ void Sa1110Gpio::WriteReg(uint32_t off, uint32_t value) {
         case 0x0C: output_state_ &= ~(v & gpdr_); break;
         case 0x10: grer_ = v; break;
         case 0x14: gfer_ = v; break;
-        case 0x18: gedr_ &= ~v; break;                         /* W1C */
+        case 0x18: gedr_ &= ~v; PublishEdgeSourcesLocked(); break;  /* W1C */
         case 0x1C: gafr_ = v; break;
         default:   break;
     }
@@ -110,7 +108,5 @@ void Sa1110Gpio::WriteWord(uint32_t addr, uint32_t value) {
     if (off > 0x1C || (off & 0x3u) != 0) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
 }
-
-}  /* namespace */
 
 REGISTER_SERVICE(Sa1110Gpio);

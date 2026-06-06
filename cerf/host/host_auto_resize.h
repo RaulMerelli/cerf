@@ -39,6 +39,5 @@ private:
     std::atomic<bool> enabled_{true};
     uint32_t last_w_      = 0;   /* last published size; UI-thread only */
     uint32_t last_h_      = 0;
-    HFONT glyph_font_     = nullptr;
     bool  last_drawn_on_  = false;
 };

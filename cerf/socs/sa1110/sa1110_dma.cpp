@@ -59,8 +59,8 @@ void Sa1110Dma::CompleteTransfer(uint32_t channel_index, bool buffer_b) {
     std::lock_guard<std::mutex> lk(state_mtx_);
     Channel& c = ch_[channel_index];
     const uint32_t before = c.dcsr;
-    if (buffer_b) c.dcsr = (c.dcsr & ~kDcsrStrtB) | kDcsrDoneB;
-    else          c.dcsr = (c.dcsr & ~kDcsrStrtA) | kDcsrDoneA;
+    if (buffer_b) { c.dcsr = (c.dcsr & ~kDcsrStrtB) | kDcsrDoneB; c.in_flight_b = false; }
+    else          { c.dcsr = (c.dcsr & ~kDcsrStrtA) | kDcsrDoneA; c.in_flight_a = false; }
     LOG(Periph, "[Sa1110Dma] ch=%u CompleteTransfer buf=%c DCSR %08X -> %08X\n",
         channel_index, buffer_b ? 'B' : 'A', before, c.dcsr);
     RefreshIrqLineLocked(channel_index, c);
@@ -76,7 +76,19 @@ void Sa1110Dma::RefreshIrqLineLocked(uint32_t channel_index, Channel& c) {
 
 void Sa1110Dma::KickIfStartedLocked(uint32_t channel_index, Channel& c,
                                      uint32_t newly_set) {
-    if (!(c.dcsr & kDcsrRun)) return;
+    const uint32_t before = c.dcsr;
+
+    /* §11.6.1.2: setting STRTA clears DONEA, NOT STRTA itself —
+       wavedev sub_F524B4 polls until both STRT bits stay set after
+       software writes them; clearing in-Kick makes it spin forever.
+       The clear is unconditional on the STRT write, even under RUN=0. */
+    if (newly_set & kDcsrStrtA) c.dcsr &= ~kDcsrDoneA;
+    if (newly_set & kDcsrStrtB) c.dcsr &= ~kDcsrDoneB;
+
+    if (!(c.dcsr & kDcsrRun)) {
+        if (c.dcsr != before) RefreshIrqLineLocked(channel_index, c);
+        return;
+    }
 
     const auto try_sinks = [&](bool buffer_b) -> bool {
         ChannelState st{
@@ -88,24 +100,36 @@ void Sa1110Dma::KickIfStartedLocked(uint32_t channel_index, Channel& c,
         return false;
     };
 
-    const uint32_t before = c.dcsr;
-    const bool strt_a = (newly_set & kDcsrStrtA) != 0;
-    const bool strt_b = (newly_set & kDcsrStrtB) != 0;
+    /* §11.6.1.2: STRT is "functional only if the RUN bit is set" — STRT
+       written under RUN=0 stays pending and takes effect on the RUN 0→1
+       edge. PPC2002 wavedev arms STRTA/STRTB first and sets RUN|IE last;
+       kicking only on STRT edges leaves those transfers dead forever. */
+    uint32_t starting = (newly_set & kDcsrRun)
+                      ? (c.dcsr    & (kDcsrStrtA | kDcsrStrtB))
+                      : (newly_set & (kDcsrStrtA | kDcsrStrtB));
+    /* A buffer a sink still owns continues across pause/resume
+       (§11.6.1.3 "resume from the current pointer"); re-kicking it
+       would double-submit the page. */
+    if (c.in_flight_a) starting &= ~kDcsrStrtA;
+    if (c.in_flight_b) starting &= ~kDcsrStrtB;
+    const bool strt_a = (starting & kDcsrStrtA) != 0;
+    const bool strt_b = (starting & kDcsrStrtB) != 0;
 
-    /* §11.6.1.2: setting STRTA clears DONEA, NOT STRTA itself —
-       wavedev sub_F524B4 polls until both STRT bits stay set after
-       software writes them; clearing in-Kick makes it spin forever. */
-    if (strt_a) c.dcsr &= ~kDcsrDoneA;
-    if (strt_b) c.dcsr &= ~kDcsrDoneB;
-
+    /* DDAR[0]=1 is receive (Table 11-6). Faking DONE on an unclaimed receive
+       manufactures a phantom completion the driver re-arms forever (UART3 RX
+       wedged serial.dll); a real idle receive stays RUN-pending until data
+       arrives, so leave DONE unset and let the IST block. */
+    const bool is_receive = (c.ddar & 0x1u) != 0;
     bool a_claimed = false, b_claimed = false;
     if (strt_a) {
         a_claimed = try_sinks(false);
-        if (!a_claimed) c.dcsr |= kDcsrDoneA;
+        if (a_claimed) c.in_flight_a = true;
+        else if (!is_receive) c.dcsr |= kDcsrDoneA;
     }
     if (strt_b) {
         b_claimed = try_sinks(true);
-        if (!b_claimed) c.dcsr |= kDcsrDoneB;
+        if (b_claimed) c.in_flight_b = true;
+        else if (!is_receive) c.dcsr |= kDcsrDoneB;
     }
 
     if (strt_a || strt_b) {
@@ -142,6 +166,9 @@ void Sa1110Dma::WriteRegLocked(uint32_t off, uint32_t value) {
     emu_.Get<RateProbe>().Inc(RateProbe::Counter::DmaWrites);
 #endif
     Channel& c = ch_[ch];
+#if CERF_DEV_MODE
+    LOG(Periph, "[Sa1110Dma] ch=%u W +0x%02X = 0x%08X\n", ch, reg, value);
+#endif
     switch (reg) {
         case kOffDdar:    c.ddar = value; break;
         case kOffDcsrSet: {

@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "sa1110_ssp_device.h"
 
 namespace {
 
@@ -37,11 +38,13 @@ private:
     uint32_t ssdr_  = 0;
     uint32_t sssr_  = 0x02;   /* TNF=1 reset state */
 
-    uint32_t ReadReg(uint32_t off) const {
+    uint32_t ReadReg(uint32_t off) {
         switch (off) {
             case 0x60: return sscr0_;
             case 0x64: return sscr1_;
-            case 0x6C: return ssdr_;
+            case 0x6C:
+                sssr_ &= ~0x04u;           /* RX FIFO drained -> RNE clear. */
+                return ssdr_;
             case 0x74: return sssr_;
             default:   return 0;
         }
@@ -58,7 +61,15 @@ private:
         switch (off) {
             case 0x60: sscr0_ = value; break;
             case 0x64: sscr1_ = value; break;
-            case 0x6C: ssdr_  = value; break;
+            case 0x6C:
+                /* Full-duplex transfer: a slave (board-registered
+                   Sa1110SspDevice) answers in the same frame; RNE (bit 2)
+                   flags the response. No slave -> TX drops, RNE stays 0. */
+                if (auto* dev = emu_.TryGet<Sa1110SspDevice>()) {
+                    ssdr_  = dev->Exchange(static_cast<uint16_t>(value));
+                    sssr_ |= 0x04u;
+                }
+                break;
             case 0x74: sssr_  = (sssr_ & ~0x40u) | (sssr_ & ~(value & 0x40u));
                        break;                /* ROR (bit 6) W1C, rest R-O */
             default:   break;

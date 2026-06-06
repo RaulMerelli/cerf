@@ -24,13 +24,13 @@ constexpr uint32_t kProbePassWord = 0xBFBFBFBFu;
    probe data/status register pair from sub_8005A150/sub_8005A228. */
 constexpr uint32_t kDebugDataPa = 0x4A000FE0u;
 
-class Ipaq3650Cs5Unwired : public Peripheral {
+class IpaqGen1Cs5Unwired : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetBoard() == Board::IpaqGen1;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -60,14 +60,14 @@ private:
     }
 };
 
-void Ipaq3650Cs5Unwired::WriteByte(uint32_t addr, uint8_t value) {
+void IpaqGen1Cs5Unwired::WriteByte(uint32_t addr, uint8_t value) {
     if (addr == kDebugDataPa) DebugByte(value);
 }
 
-void Ipaq3650Cs5Unwired::WriteWord(uint32_t addr, uint32_t value) {
+void IpaqGen1Cs5Unwired::WriteWord(uint32_t addr, uint32_t value) {
     if (addr == kDebugDataPa) DebugByte(static_cast<uint8_t>(value & 0xFFu));
 }
 
 }  /* namespace */
 
-REGISTER_SERVICE(Ipaq3650Cs5Unwired);
+REGISTER_SERVICE(IpaqGen1Cs5Unwired);

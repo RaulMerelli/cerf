@@ -133,6 +133,12 @@ STATE_UPDATE    = "Update available"
 STATE_AVAILABLE = "Available"
 STATE_USER      = "User device"
 
+# Board-group rows in the device tree. The iid prefix contains ':' which is
+# invalid in Windows directory names, so it can never collide with a bundle
+# directory name used as a device iid.
+GROUP_IID_PREFIX    = "board-group::"
+UNKNOWN_BOARD_LABEL = "Unknown board"
+
 BG          = "#1e1e1e"
 BG_LIGHTER  = "#252526"
 BG_FIELD    = "#2d2d30"
@@ -142,6 +148,12 @@ FG          = "#e0e0e0"
 FG_DIM      = "#808080"
 BORDER      = "#3f3f46"
 UPDATE_LINK = "#e8c44a"  # yellow "update available" status-bar link
+LINK_FG     = "#569cd6"  # community links in the status bar
+
+DISCORD_URL       = "https://discord.gg/QREE9Y2v2d"
+GITHUB_URL        = "https://github.com/gweslab/cerf"
+GITHUB_ISSUES_URL = "https://github.com/gweslab/cerf/issues"
+ROM_SUBMIT_EMAIL  = "cerf@dz3n.net"
 
 STATE_TINT = {
     STATE_INSTALLED: "#1e3a1e",
@@ -225,6 +237,21 @@ def _sort_optional_int(value: object, *, missing_when_zero: bool = True) -> tupl
     number = value if isinstance(value, int) and not isinstance(value, bool) else 0
     missing = number == 0 if missing_when_zero else False
     return (missing, number)
+
+
+def _board_group_key(d: DeviceBundle) -> tuple[int, str]:
+    # Three tiers: unknown boards (no cerf.json / no board meta) first, the
+    # unusual real boards alphabetically in the middle, and the massive
+    # official "Device Emulator" group pinned last (board names compare
+    # case-insensitively, same as boards.py matching).
+    board = _sort_text(d.meta.board_name)
+    if not board:
+        tier = 0
+    elif board == "device emulator":
+        tier = 2
+    else:
+        tier = 1
+    return (tier, board)
 
 
 def _device_sort_key(d: DeviceBundle) -> tuple:
@@ -468,6 +495,7 @@ class LauncherApp(tk.Tk):
         tree.bind("<Double-1>", lambda _e: self._launch())
         for state, tint in STATE_TINT.items():
             tree.tag_configure(state, background=tint, foreground=FG)
+        tree.tag_configure("group", background=BG_LIGHTER, foreground=FG)
         self.tree = tree
 
         bottom = ttk.Frame(left)
@@ -652,19 +680,47 @@ class LauncherApp(tk.Tk):
     def _build_status(self, root: tk.Misc) -> None:
         bar = ttk.Frame(root, padding=(8, 4))
         bar.pack(fill="x", side="bottom")
-        bar.columnconfigure(0, weight=1)
+        bar.columnconfigure(3, weight=1)
+
+        links = (
+            ("Discord",             lambda: webbrowser.open(DISCORD_URL)),
+            ("Please submit ROMs!", self._show_rom_submit_dialog),
+            ("GitHub",              lambda: webbrowser.open(GITHUB_URL)),
+        )
+        for col, (text, action) in enumerate(links):
+            label = ttk.Label(bar, text=text, foreground=LINK_FG, cursor="hand2")
+            label.grid(row=0, column=col, sticky="w", padx=(0, 12))
+            label.bind("<Button-1>", lambda _e, a=action: a())
 
         self.update_var = tk.StringVar(value="")
         self._update_url: Optional[str] = None
         self.update_link = ttk.Label(bar, textvariable=self.update_var, anchor="w")
-        self.update_link.grid(row=0, column=0, sticky="w")
+        self.update_link.grid(row=0, column=3, sticky="w")
         self.update_link.bind("<Button-1>", self._on_update_link_click)
 
         self.status_var = tk.StringVar(value="Ready.")
         ttk.Label(bar, textvariable=self.status_var, anchor="e").grid(
-            row=0, column=1, sticky="e", padx=(8, 8))
+            row=0, column=4, sticky="e", padx=(8, 8))
         self.progress = ttk.Progressbar(bar, orient="horizontal", length=220, mode="determinate")
-        self.progress.grid(row=0, column=2, sticky="e")
+        self.progress.grid(row=0, column=5, sticky="e")
+
+    def _show_rom_submit_dialog(self) -> None:
+        choice = self._dialog(
+            "Please submit ROMs!",
+            "CERF really needs Windows CE ROMs — dumps, backups, recovery "
+            "images, anything. Every submitted image helps preserve these "
+            "devices in history (at the very least), and more importantly "
+            "lets us bring them to CERF later.\n\n"
+            "Ways to submit a ROM:\n"
+            f"  •  Join our Discord:  {DISCORD_URL}\n"
+            f"  •  Email us:  {ROM_SUBMIT_EMAIL}\n"
+            f"  •  Open a GitHub issue:  {GITHUB_ISSUES_URL}",
+            buttons=("Join Discord", "GitHub issues", "Close"),
+            default="Close")
+        if choice == "Join Discord":
+            webbrowser.open(DISCORD_URL)
+        elif choice == "GitHub issues":
+            webbrowser.open(GITHUB_ISSUES_URL)
 
     def _is_optional_uint(self, value: str) -> bool:
         return value == "" or value.isdigit()
@@ -899,31 +955,41 @@ class LauncherApp(tk.Tk):
 
     def _reload_device_list(self) -> None:
         previous = self.selected_name
-        self.devices = sorted(self.manager.list_devices(), key=_device_sort_key)
+        self.devices = sorted(self.manager.list_devices(),
+                              key=lambda d: (_board_group_key(d), _device_sort_key(d)))
         hide = self.var_hide_unsupported.get()
         self.tree.delete(*self.tree.get_children())
+        group_iids: Dict[str, str] = {}
+        device_iids: List[str] = []
         for d in self.devices:
             # Only an explicit supported:False board is hidden. Unknown boards
             # (no board_name, or not in boards.py) are always shown.
             if hide and board_support_state(d.meta.board_name) is False:
                 continue
+            board = d.meta.board_name or ""
+            group_iid = group_iids.get(board)
+            if group_iid is None:
+                group_iid = GROUP_IID_PREFIX + board
+                self.tree.insert("", "end", iid=group_iid,
+                                 text=board or UNKNOWN_BOARD_LABEL,
+                                 open=True, tags=("group",))
+                group_iids[board] = group_iid
             state = self._state_label(d)
             year = str(d.meta.device_year) if d.meta.device_year else ""
             os_label = _table_os_label(d)
-            board = d.meta.board_name or ""
             soc = d.meta.soc_family or ""
             display = d.meta.device_name or d.name
-            self.tree.insert("", "end", iid=d.name,
+            self.tree.insert(group_iid, "end", iid=d.name,
                              text=display if display != d.name else d.name,
                              values=(os_label, year, board, soc, state),
                              tags=(state,))
-        visible = self.tree.get_children()
-        if previous and previous in visible:
+            device_iids.append(d.name)
+        if previous and previous in device_iids:
             self.tree.selection_set(previous)
             self.tree.see(previous)
-        elif visible:
-            self.tree.selection_set(visible[0])
-            self.tree.see(visible[0])
+        elif device_iids:
+            self.tree.selection_set(device_iids[0])
+            self.tree.see(device_iids[0])
 
     def _state_label(self, d: DeviceBundle) -> str:
         if d.is_user_device:
@@ -1017,6 +1083,12 @@ class LauncherApp(tk.Tk):
     def _on_select_device(self, _event: object) -> None:
         sel = self.tree.selection()
         if not sel:
+            return
+        if sel[0].startswith(GROUP_IID_PREFIX):
+            # Board-group header row: no device selected; disable the
+            # per-bundle actions until a device row is picked.
+            self.selected_name = None
+            self._refresh_selection_state()
             return
         self.selected_name = sel[0]
         device = self._selected_device()

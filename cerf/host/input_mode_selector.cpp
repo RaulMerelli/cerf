@@ -67,14 +67,15 @@ void InputModeSelector::DrawIcon(HDC dc, const RECT& box) const {
         };
         Polygon(dc, a, 7);
     } else {
-        /* Stylus barrel, tip down-right, touching a surface line. */
+        /* Thin stylus, tip down-right, above a surface line. */
         const POINT s[5] = {
-            { cx - 2, cy - 7 }, { cx + 4, cy - 1 }, { cx + 5, cy + 4 },
-            { cx + 1, cy + 1 }, { cx - 6, cy - 3 },
+            { cx + 5, cy + 6 },                       /* tip */
+            { cx + 4, cy + 3 }, { cx - 5, cy - 6 },   /* upper edge */
+            { cx - 7, cy - 4 }, { cx + 2, cy + 5 },   /* lower edge */
         };
         Polygon(dc, s, 5);
-        MoveToEx(dc, cx + 1, cy + 6, nullptr);
-        LineTo(dc, cx + 8, cy + 6);
+        MoveToEx(dc, cx + 1, cy + 8, nullptr);
+        LineTo(dc, cx + 9, cy + 8);
     }
 
     SelectObject(dc, ob);

@@ -2,11 +2,10 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../core/rate_probe.h"
 #include "../../core/service.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../socs/sa1110/sa1110_dma.h"
+#include "../../peripherals/intel_sa1111/sa1111_sac.h"
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -21,40 +20,30 @@
 
 namespace {
 
-constexpr uint32_t kDdarSspTxMask  = 0xFFFFFF00u;
-constexpr uint32_t kDdarSspTxValue = 0x81C01B00u;
-
-constexpr uint32_t kSampleRate     = 22050u;
-constexpr uint16_t kChannels       = 2u;
-constexpr uint16_t kBitsPerSample  = 16u;
-constexpr uint32_t kMaxPageBytes   = 16384u;
-constexpr uint32_t kPagesQueued    = 4u;
+constexpr uint16_t kChannels      = 2u;
+constexpr uint16_t kBitsPerSample = 16u;   /* §7.3.1: L in bits 15:0, R in
+                                              31:16 — WAV interleave order. */
+constexpr uint32_t kMaxPageBytes  = 65536u;
+constexpr uint32_t kPagesQueued   = 4u;
 
 constexpr UINT kMsgSubmitPage = WM_USER + 0x10u;
 
-struct PendingPage {
-    uint32_t dma_channel;
-    bool     buffer_b;
-    uint32_t src_pa;
-    uint32_t byte_count;
-};
-
-class Ipaq3650AudioPlayer : public Service {
+class Jornada720AudioPlayer : public Service {
 public:
     using Service::Service;
-    ~Ipaq3650AudioPlayer() override {
+    ~Jornada720AudioPlayer() override {
         shutdown_.store(true, std::memory_order_release);
         if (audio_thread_id_) {
             PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
         }
         if (audio_thread_.joinable()) audio_thread_.join();
-        if (out_device_)        waveOutClose(out_device_);
+        if (out_device_)         waveOutClose(out_device_);
         if (thread_ready_event_) CloseHandle(thread_ready_event_);
     }
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetBoard() == Board::Jornada720;
     }
 
     void OnReady() override {
@@ -65,9 +54,9 @@ public:
         audio_thread_ = std::thread([this] { AudioThreadMain(); });
         WaitForSingleObject(thread_ready_event_, INFINITE);
 
-        emu_.Get<Sa1110Dma>().RegisterSink(
-            [this](const Sa1110Dma::ChannelState& st) {
-                return OnDmaStart(st);
+        emu_.Get<Sa1111Sac>().RegisterTransmitSink(
+            [this](const Sa1111Sac::TransmitPage& page) {
+                return OnPage(page);
             });
     }
 
@@ -75,38 +64,28 @@ private:
     struct Slot {
         WAVEHDR              hdr{};
         std::vector<uint8_t> bytes;
-        uint32_t             dma_channel = 0;
-        bool                 buffer_b    = false;
-        bool                 in_flight   = false;
+        bool                 buffer_b  = false;
+        bool                 in_flight = false;
     };
 
     HWAVEOUT          out_device_         = nullptr;
+    uint32_t          open_rate_hz_       = 0;
     DWORD             audio_thread_id_    = 0;
     HANDLE            thread_ready_event_ = nullptr;
     std::thread       audio_thread_;
     std::atomic<bool> shutdown_{false};
 
-    std::mutex             slots_mtx_;
-    Slot                   slots_[kPagesQueued];
-    uint32_t               next_slot_ = 0;
-    std::deque<PendingPage> page_queue_;
-    bool                   waveout_open_attempted_ = false;
+    std::mutex slots_mtx_;
+    Slot       slots_[kPagesQueued];
+    uint32_t   next_slot_ = 0;
+    std::deque<Sa1111Sac::TransmitPage> page_queue_;
 
-    bool OnDmaStart(const Sa1110Dma::ChannelState& st) {
-        if ((st.ddar & kDdarSspTxMask) != kDdarSspTxValue) return false;
-        const uint32_t src_pa = st.buffer_b ? st.dbsb : st.dbsa;
-        const uint32_t bytes  = st.buffer_b ? st.dbtb : st.dbta;
-        if (bytes == 0) return false;
-        if (bytes > kMaxPageBytes) return false;
-
-        auto* pending = new PendingPage{
-            st.channel_index, st.buffer_b, src_pa, bytes,
-        };
+    bool OnPage(const Sa1111Sac::TransmitPage& page) {
+        if (page.byte_count == 0 || page.byte_count > kMaxPageBytes)
+            return false;
+        auto* pending = new Sa1111Sac::TransmitPage(page);
         PostThreadMessageW(audio_thread_id_, kMsgSubmitPage,
                            0, reinterpret_cast<LPARAM>(pending));
-#if CERF_DEV_MODE
-        emu_.Get<RateProbe>().Inc(RateProbe::Counter::AudioMsgs);
-#endif
         return true;
     }
 
@@ -119,40 +98,50 @@ private:
         while (!shutdown_.load(std::memory_order_acquire) &&
                GetMessageW(&msg, nullptr, 0, 0) > 0) {
             if (msg.message == kMsgSubmitPage) {
-                if (!waveout_open_attempted_) OpenWaveOut();
-                auto* p = reinterpret_cast<PendingPage*>(msg.lParam);
+                auto* p = reinterpret_cast<Sa1111Sac::TransmitPage*>(msg.lParam);
                 SubmitPage(*p);
                 delete p;
                 continue;
             }
             if (msg.message == MM_WOM_DONE) {
-                auto* hdr = reinterpret_cast<LPWAVEHDR>(msg.lParam);
-                OnPageDone(hdr);
+                OnPageDone(reinterpret_cast<LPWAVEHDR>(msg.lParam));
                 continue;
             }
         }
     }
 
-    void OpenWaveOut() {
-        waveout_open_attempted_ = true;
+    void EnsureWaveOutFor(uint32_t rate_hz) {
+        if (out_device_ && open_rate_hz_ == rate_hz) return;
+        if (out_device_) {
+            bool busy;
+            {
+                std::lock_guard<std::mutex> lk(slots_mtx_);
+                busy = false;
+                for (auto& s : slots_) busy |= s.in_flight;
+            }
+            if (busy) return;          /* rate switch lands on next idle page. */
+            waveOutClose(out_device_);
+            out_device_ = nullptr;
+        }
         WAVEFORMATEX fmt{};
         fmt.wFormatTag      = WAVE_FORMAT_PCM;
         fmt.nChannels       = kChannels;
-        fmt.nSamplesPerSec  = kSampleRate;
+        fmt.nSamplesPerSec  = rate_hz;
         fmt.wBitsPerSample  = kBitsPerSample;
         fmt.nBlockAlign     = static_cast<uint16_t>(
                                 (fmt.wBitsPerSample / 8) * fmt.nChannels);
         fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
 
         const MMRESULT r = waveOutOpen(&out_device_, WAVE_MAPPER, &fmt,
-                                       audio_thread_id_, 0,
-                                       CALLBACK_THREAD | WAVE_FORMAT_DIRECT);
+                                       audio_thread_id_, 0, CALLBACK_THREAD);
         if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "Ipaq3650AudioPlayer: waveOutOpen failed mmresult=%u\n", r);
+            LOG(Caution, "Jornada720AudioPlayer: waveOutOpen(%u Hz) failed "
+                "mmresult=%u\n", rate_hz, r);
             out_device_ = nullptr;
         } else {
-            LOG(Periph, "[Ipaq3650AudioPlayer] waveOut opened %u Hz x %u ch x %u bit\n",
-                kSampleRate, kChannels, kBitsPerSample);
+            open_rate_hz_ = rate_hz;
+            LOG(Periph, "[J720Audio] waveOut opened %u Hz x %u ch x %u bit\n",
+                rate_hz, kChannels, kBitsPerSample);
         }
     }
 
@@ -167,45 +156,17 @@ private:
         return nullptr;
     }
 
-    void LoadIntoSlot(Slot& slot, const PendingPage& p) {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        for (uint32_t i = 0; i < p.byte_count; ++i) {
-            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
-        }
-        slot.dma_channel = p.dma_channel;
-        slot.buffer_b    = p.buffer_b;
-
-        std::memset(&slot.hdr, 0, sizeof(slot.hdr));
-        slot.hdr.lpData         = reinterpret_cast<LPSTR>(slot.bytes.data());
-        slot.hdr.dwBufferLength = p.byte_count;
-        slot.hdr.dwUser         = reinterpret_cast<DWORD_PTR>(&slot);
-
-        MMRESULT r = waveOutPrepareHeader(out_device_, &slot.hdr,
-                                          sizeof(WAVEHDR));
-        if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "Ipaq3650AudioPlayer: waveOutPrepareHeader failed %u\n", r);
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
-            return;
-        }
-        {
-            std::lock_guard<std::mutex> lk(slots_mtx_);
-            slot.in_flight = true;
-        }
-        r = waveOutWrite(out_device_, &slot.hdr, sizeof(WAVEHDR));
-        if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "Ipaq3650AudioPlayer: waveOutWrite failed %u\n", r);
-            waveOutUnprepareHeader(out_device_, &slot.hdr, sizeof(WAVEHDR));
-            {
-                std::lock_guard<std::mutex> lk(slots_mtx_);
-                slot.in_flight = false;
-            }
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
-        }
-    }
-
-    void SubmitPage(const PendingPage& p) {
+    void SubmitPage(const Sa1111Sac::TransmitPage& p) {
+        EnsureWaveOutFor(p.sample_rate_hz);
         if (!out_device_) {
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
+            /* No host audio device: the guest still needs done IRQs at the
+               real cadence of the buffer (bytes / 4 frames at fs), or the
+               ping-pong storms interrupts at host speed. This thread's only
+               job is that pacing. */
+            const uint32_t ms = (uint32_t)((uint64_t)p.byte_count * 1000u /
+                                           ((uint64_t)p.sample_rate_hz * 4u));
+            Sleep(ms ? ms : 1u);
+            emu_.Get<Sa1111Sac>().CompleteTransmit(p.buffer_b);
             return;
         }
         Slot* slot;
@@ -220,15 +181,50 @@ private:
         LoadIntoSlot(*slot, p);
     }
 
+    void LoadIntoSlot(Slot& slot, const Sa1111Sac::TransmitPage& p) {
+        auto& mem = emu_.Get<EmulatedMemory>();
+        for (uint32_t i = 0; i < p.byte_count; ++i) {
+            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+        }
+        slot.buffer_b = p.buffer_b;
+
+        std::memset(&slot.hdr, 0, sizeof(slot.hdr));
+        slot.hdr.lpData         = reinterpret_cast<LPSTR>(slot.bytes.data());
+        slot.hdr.dwBufferLength = p.byte_count;
+        slot.hdr.dwUser         = reinterpret_cast<DWORD_PTR>(&slot);
+
+        MMRESULT r = waveOutPrepareHeader(out_device_, &slot.hdr,
+                                          sizeof(WAVEHDR));
+        if (r != MMSYSERR_NOERROR) {
+            LOG(Caution, "Jornada720AudioPlayer: waveOutPrepareHeader "
+                "failed %u\n", r);
+            emu_.Get<Sa1111Sac>().CompleteTransmit(p.buffer_b);
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(slots_mtx_);
+            slot.in_flight = true;
+        }
+        r = waveOutWrite(out_device_, &slot.hdr, sizeof(WAVEHDR));
+        if (r != MMSYSERR_NOERROR) {
+            LOG(Caution, "Jornada720AudioPlayer: waveOutWrite failed %u\n", r);
+            waveOutUnprepareHeader(out_device_, &slot.hdr, sizeof(WAVEHDR));
+            {
+                std::lock_guard<std::mutex> lk(slots_mtx_);
+                slot.in_flight = false;
+            }
+            emu_.Get<Sa1111Sac>().CompleteTransmit(p.buffer_b);
+        }
+    }
+
     void OnPageDone(LPWAVEHDR hdr) {
         if (!hdr || !out_device_) return;
         auto* slot = reinterpret_cast<Slot*>(hdr->dwUser);
         waveOutUnprepareHeader(out_device_, &slot->hdr, sizeof(WAVEHDR));
 
-        const uint32_t completed_ch  = slot->dma_channel;
-        const bool     completed_buf = slot->buffer_b;
-        PendingPage    next_page{};
-        bool           have_next = false;
+        const bool completed_buf = slot->buffer_b;
+        Sa1111Sac::TransmitPage next_page{};
+        bool have_next = false;
         {
             std::lock_guard<std::mutex> lk(slots_mtx_);
             slot->in_flight = false;
@@ -239,14 +235,11 @@ private:
             }
         }
 
-        LOG(Periph, "[Ipaq3650AudioPlayer] waveOut DONE ch=%u buf=%c\n",
-            completed_ch, completed_buf ? 'B' : 'A');
-        emu_.Get<Sa1110Dma>().CompleteTransfer(completed_ch, completed_buf);
-
+        emu_.Get<Sa1111Sac>().CompleteTransmit(completed_buf);
         if (have_next) LoadIntoSlot(*slot, next_page);
     }
 };
 
 }  /* namespace */
 
-REGISTER_SERVICE(Ipaq3650AudioPlayer);
+REGISTER_SERVICE(Jornada720AudioPlayer);

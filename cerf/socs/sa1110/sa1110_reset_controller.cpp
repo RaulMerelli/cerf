@@ -35,6 +35,12 @@ public:
 private:
     uint32_t rcsr_ = 0x1u;  /* HWR cold-reset state per §9.6.1.2. */
 
+    /* SA-1110 Dev Man App. D.1: TUCR (+0x08, reset 0) is a R/W control
+       register — TSEL2:0 clock-out select, MIR, PMD; no hardware-set
+       bits — so plain storage is faithful. The clock-out routing
+       (TSEL=0b101 drives RCLK to the SA-1111) has no CERF side effect. */
+    uint32_t tucr_ = 0;
+
     void ApplyRcsrW1c(uint32_t v) { rcsr_ &= ~(v & 0xFu); }
 
     void HandleRsrrWrite(uint32_t value) {
@@ -56,6 +62,9 @@ uint8_t Sa1110ResetController::ReadByte(uint32_t addr) {
     if (off >= 0x4 && off <= 0x7) {
         return static_cast<uint8_t>((rcsr_ >> (8 * (off - 0x4))) & 0xFFu);
     }
+    if (off >= 0x8 && off <= 0xB) {
+        return static_cast<uint8_t>((tucr_ >> (8 * (off - 0x8))) & 0xFFu);
+    }
     HaltUnsupportedAccess("ReadByte", addr, 0);
 }
 
@@ -63,6 +72,7 @@ uint32_t Sa1110ResetController::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (off == 0x0) return 0;
     if (off == 0x4) return rcsr_;
+    if (off == 0x8) return tucr_;
     HaltUnsupportedAccess("ReadWord", addr, 0);
 }
 
@@ -71,6 +81,11 @@ void Sa1110ResetController::WriteByte(uint32_t addr, uint8_t value) {
     if (off == 0x0) { HandleRsrrWrite(value); return; }
     if (off == 0x4) { ApplyRcsrW1c(value); return; }
     if (off >= 0x5 && off <= 0x7) return;    /* RCSR bytes 1..3 reserved. */
+    if (off >= 0x8 && off <= 0xB) {
+        const uint32_t shift = 8 * (off - 0x8);
+        tucr_ = (tucr_ & ~(0xFFu << shift)) | (static_cast<uint32_t>(value) << shift);
+        return;
+    }
     HaltUnsupportedAccess("WriteByte", addr, value);
 }
 
@@ -78,6 +93,7 @@ void Sa1110ResetController::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (off == 0x0) { HandleRsrrWrite(value); return; }
     if (off == 0x4) { ApplyRcsrW1c(value); return; }
+    if (off == 0x8) { tucr_ = value; return; }
     HaltUnsupportedAccess("WriteWord", addr, value);
 }
 

@@ -2,11 +2,13 @@
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
 
 > [!TIP]
-> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit. 
+> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
 
 <p align="center">
   <img src="https://cerf.dz3n.net/promo1_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 1)" />
@@ -25,7 +27,7 @@ For direct invocation without the launcher:
 
 | Command                        | Action                                                       |
 | ------------------------------ | ------------------------------------------------------------ |
-| `cerf.exe `                    | Boot default device (ce5_smdk2410)                           |
+| `cerf.exe `                    | Boot default device (cerfos)                                 |
 | `cerf.exe --device=devemu_ce6` | Boot specific device                                         |
 | `cerf.exe --log=ALL`           | Enable every log channel                                     |
 | `cerf.exe --flush-outputs`     | Force-flush logs (avoid truncation on crash, extremely slow) |
@@ -54,7 +56,7 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
   - required to avoid stock touch limitations on custom resolutions
   - guest OS cursor shape translated directly into host graphics
   - scroll wheel support on newer CE
-  
+
 > [!WARNING]
 > **Touch breaks at non-native resolution.** The board's touch peripheral still uses the device's original input driver, which expects the original screen dimensions. With guest additions enabled, the main default input is the regular mouse cursor emulator that every (maybe) OS supports. In case if you need to go back to original touch interface, use the runtime switcher in Actions menu or in status bar. However it might be really corrupted on custom resolutions. E.g. iPaq H3600 devices seem to allow you to run calibration app only through stock stylus - the single app ignores the mouse pointer input.
 
@@ -74,7 +76,12 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
       <td>
         {i_pda} <b>Compaq iPAQ H3600 Series</b><br/>
         {i_os_ppc2000} Pocket PC 2000 <code>ipaq_h3600_ppc2000</code><br/>
-        {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3600_ppc2002</code>
+        {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3600_ppc2002</code><br/>
+        {i_pda} <b>Compaq iPAQ H3100 Series</b> (monochrome)<br/>
+        {i_os_ppc2000} Pocket PC 2000 <code>(rom needed!)</code><br/>
+        {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3100_ppc2002</code><br/>
+        {i_pda} <b>HP Jornada 720</b><br/>
+        {i_os_old_ce} Handheld PC 2000 <code>jornada720</code>
       </td>
       <td>{i_display} {i_speaker} {i_stylus}</td>
     </tr>
@@ -198,10 +205,10 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Third-party / Credits
 
-- **[QEMU](https://www.qemu.org/)** 
-- **[The Linux kernel](https://www.kernel.org/)** 
+- **[QEMU](https://www.qemu.org/)**
+- **[The Linux kernel](https://www.kernel.org/)**
 - **[nlohmann-json](https://github.com/nlohmann/json)**
-- **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)** 
+- **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
 - JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)
 
 ## Known Issues

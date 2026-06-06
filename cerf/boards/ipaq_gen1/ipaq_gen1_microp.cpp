@@ -27,13 +27,13 @@ constexpr uint16_t kAdcYMin = 35;
 constexpr uint16_t kAdcYMax = 980;
 constexpr auto     kSamplePeriod = std::chrono::milliseconds(20);
 
-class Ipaq3650MicroP : public Service {
+class IpaqGen1MicroP : public Service {
 public:
     using Service::Service;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 
     void OnReady() override {
@@ -136,20 +136,20 @@ static uint16_t MapAxis(int v, int v_max, uint16_t adc_lo, uint16_t adc_hi) {
         adc_lo + (uint32_t)v * span / (uint32_t)v_max);
 }
 
-class Ipaq3650Touch : public TouchInput {
+class IpaqGen1Touch : public TouchInput {
 public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 
     void OnReady() override {
         sampler_ = std::thread([this] { SamplerLoop(); });
     }
 
-    ~Ipaq3650Touch() override {
+    ~IpaqGen1Touch() override {
         {
             std::lock_guard<std::mutex> lk(mtx_);
             stop_ = true;
@@ -198,7 +198,7 @@ private:
         const int h = (int)hc.GuestSurfaceHeight();
         const uint16_t adc_x = MapAxis(x_host, w - 1, kAdcXMin, kAdcXMax);
         const uint16_t adc_y = MapAxis(y_host, h - 1, kAdcYMin, kAdcYMax);
-        emu_.Get<Ipaq3650MicroP>().SendTouchPress(adc_x, adc_y);
+        emu_.Get<IpaqGen1MicroP>().SendTouchPress(adc_x, adc_y);
     }
 
     void SamplerLoop() {
@@ -218,7 +218,7 @@ private:
                 if (was_down) {
                     was_down = false;
                     lk.unlock();
-                    emu_.Get<Ipaq3650MicroP>().SendTouchRelease();
+                    emu_.Get<IpaqGen1MicroP>().SendTouchRelease();
                     lk.lock();
                 }
                 cv_.wait(lk, [&] { return stop_ || pen_down_; });
@@ -226,12 +226,12 @@ private:
         }
         if (was_down) {
             lk.unlock();
-            emu_.Get<Ipaq3650MicroP>().SendTouchRelease();
+            emu_.Get<IpaqGen1MicroP>().SendTouchRelease();
         }
     }
 };
 
 }  /* namespace */
 
-REGISTER_SERVICE(Ipaq3650MicroP);
-REGISTER_SERVICE_AS(Ipaq3650Touch, TouchInput);
+REGISTER_SERVICE(IpaqGen1MicroP);
+REGISTER_SERVICE_AS(IpaqGen1Touch, TouchInput);

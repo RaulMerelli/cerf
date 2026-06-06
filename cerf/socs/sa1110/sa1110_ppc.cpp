@@ -1,12 +1,15 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 namespace {
 
-/* SA-1110 Dev Man §11.13.8: PPDR/PPSR/PPAR/PSDR/PPFR at +0x00/04/08/0C/10. */
+/* SA-1110 Dev Man §11.13: PPDR/PPSR/PPAR/PSDR/PPFR at +0x00..0x10. +0x28 is
+   reserved but HPIrDA.dll sub_EE4B88 RMWs it during IrDA config; real HW reads
+   it 0 / ignores writes without aborting. Other undocumented offsets halt. */
 
 class Sa1110Ppc : public Peripheral {
 public:
@@ -29,6 +32,8 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
 private:
+    static constexpr uint32_t kReservedIrdaPoke = 0x28u;  /* HPIrDA sub_EE4B88. */
+
     uint32_t regs_[5] = {};  /* PPDR, PPSR, PPAR, PSDR, PPFR */
 
     static bool OffsetToIndex(uint32_t off, uint32_t* index_out) {
@@ -43,15 +48,24 @@ uint8_t Sa1110Ppc::ReadByte(uint32_t addr) {
     const uint32_t base  = off & ~0x3u;
     const uint32_t shift = (off & 0x3u) * 8;
     uint32_t index;
-    if (!OffsetToIndex(base, &index)) HaltUnsupportedAccess("ReadByte", addr, 0);
-    return static_cast<uint8_t>((regs_[index] >> shift) & 0xFFu);
+    if (OffsetToIndex(base, &index))
+        return static_cast<uint8_t>((regs_[index] >> shift) & 0xFFu);
+    if (base == kReservedIrdaPoke) {
+        LOG(Periph, "[Sa1110Ppc] reserved read +0x%02X -> 0\n", off);
+        return 0;
+    }
+    HaltUnsupportedAccess("ReadByte", addr, 0);
 }
 
 uint32_t Sa1110Ppc::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
-    if (!OffsetToIndex(off, &index)) HaltUnsupportedAccess("ReadWord", addr, 0);
-    return regs_[index];
+    if (OffsetToIndex(off, &index)) return regs_[index];
+    if (off == kReservedIrdaPoke) {
+        LOG(Periph, "[Sa1110Ppc] reserved read +0x%02X -> 0\n", off);
+        return 0;
+    }
+    HaltUnsupportedAccess("ReadWord", addr, 0);
 }
 
 void Sa1110Ppc::WriteByte(uint32_t addr, uint8_t value) {
@@ -59,17 +73,28 @@ void Sa1110Ppc::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t base  = off & ~0x3u;
     const uint32_t shift = (off & 0x3u) * 8;
     uint32_t index;
-    if (!OffsetToIndex(base, &index)) HaltUnsupportedAccess("WriteByte", addr, value);
-    const uint32_t cur     = regs_[index];
-    const uint32_t cleared = cur & ~(0xFFu << shift);
-    regs_[index] = cleared | (static_cast<uint32_t>(value) << shift);
+    if (OffsetToIndex(base, &index)) {
+        const uint32_t cur     = regs_[index];
+        const uint32_t cleared = cur & ~(0xFFu << shift);
+        regs_[index] = cleared | (static_cast<uint32_t>(value) << shift);
+        return;
+    }
+    if (base == kReservedIrdaPoke) {
+        LOG(Periph, "[Sa1110Ppc] reserved write +0x%02X (ignored)\n", base);
+        return;
+    }
+    HaltUnsupportedAccess("WriteByte", addr, value);
 }
 
 void Sa1110Ppc::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
-    if (!OffsetToIndex(off, &index)) HaltUnsupportedAccess("WriteWord", addr, value);
-    regs_[index] = value;
+    if (OffsetToIndex(off, &index)) { regs_[index] = value; return; }
+    if (off == kReservedIrdaPoke) {
+        LOG(Periph, "[Sa1110Ppc] reserved write +0x%02X = 0x%08X (ignored)\n", off, value);
+        return;
+    }
+    HaltUnsupportedAccess("WriteWord", addr, value);
 }
 
 }  /* namespace */

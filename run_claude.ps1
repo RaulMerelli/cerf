@@ -49,7 +49,7 @@ Clear-Host
 # section (the MANDATORY bullets — the lazy-read set is intentionally omitted).
 $files = @(
     @{ Name = $null;                      Path = 'CLAUDE.md' },
-    @{ Name = 'README.md';                Path = 'README_SOURCE.md' },
+    @{ Name = 'README_SOURCE.md';         Path = 'README_SOURCE.md' },
     @{ Name = 'agent_docs/workflow.md';   Path = 'agent_docs\workflow.md' },
     @{ Name = 'agent_docs/subsystems.md'; Path = 'agent_docs\subsystems.md' },
     @{ Name = 'agent_docs/jit.md';        Path = 'agent_docs\jit.md' },

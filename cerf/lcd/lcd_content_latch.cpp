@@ -16,6 +16,13 @@ bool LcdContentLatch::ProbeAndLatch(EmulatedMemory& mem,
        just stays false until CE publishes a real fb. */
     const uint8_t* fb = mem.TryTranslate(fb_pa);
     if (!fb) return false;
+    return ProbeAndLatch(fb, fb_bytes, stride);
+}
+
+bool LcdContentLatch::ProbeAndLatch(const uint8_t* fb, size_t fb_bytes,
+                                    size_t stride) {
+    if (latched_.load(std::memory_order_acquire)) return true;
+    if (!fb || fb_bytes == 0 || stride == 0)      return false;
 
     for (size_t i = 0; i < fb_bytes; i += stride) {
         if (fb[i] != 0) {

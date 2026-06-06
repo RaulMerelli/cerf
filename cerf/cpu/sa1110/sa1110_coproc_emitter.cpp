@@ -21,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Ipaq3650;
+        return bd && bd->GetSoc() == SocFamily::SA1110;
     }
 
     /* SA-110 Data Sheet §3.3: cp15 is the only coprocessor on

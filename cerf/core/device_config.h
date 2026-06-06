@@ -32,6 +32,11 @@ struct DeviceConfig {
     std::vector<std::string> rom_extensions;
     std::string              rom_recovery;
 
+    /* Optional serial-config EEPROM image (cerf.json rom.eeprom). A board's
+       SSP/SPI EEPROM peripheral loads it from the device directory; empty
+       when the device has none. */
+    std::string              rom_eeprom;
+
     bool boot_in_recovery = false;
     bool guest_additions = false;
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 CE3_SHARED_STORAGE_PROBLEM = "Guest additions shared storage misbehaves on CE3"
+GUEST_ADDITIONS_BREAK_ROM = "Do NOT use guest additions - they break the ROM"
 
 BOARDS_INFORMATION = [
     {
@@ -56,7 +57,7 @@ BOARDS_INFORMATION = [
         "notes": [],
     },
     {
-        "name": "PC3xx",
+        "name": "Falcon 4220",
         "supported": True,
         "features": {"display": True, "sound": False, "touch": True, "keyboard": False},
         "notes": [
@@ -67,7 +68,7 @@ BOARDS_INFORMATION = [
         ],
     },
     {
-        "name": "iPAQ 3600",
+        "name": "iPAQ H3100/H3600/H3700",
         "supported": True,
         "features": {"display": True, "sound": True, "touch": True},
         "notes": [
@@ -81,6 +82,12 @@ BOARDS_INFORMATION = [
             "Guest additions break multi-XIP PPC2002 ROM",
             CE3_SHARED_STORAGE_PROBLEM,
         ],
+    },
+    {
+        "name": "HP Jornada 720",
+        "supported": True,
+        "features": {"display": True, "sound": True, "touch": True},
+        "notes": [GUEST_ADDITIONS_BREAK_ROM],
     },
     {
         "name": "ODO/Poseidon",
@@ -107,7 +114,7 @@ BOARDS_INFORMATION = [
         "supported": True,
         "features": {"display": True, "sound": False, "keyboard": True},
         "notes": [
-            "Guest additions break the ROM - don't use them",
+            GUEST_ADDITIONS_BREAK_ROM,
             "Main input is the keyboard: use arrows, enter, backspace, space",
             "CERF auto-generates HDD on first boot if there was no (hdd.img in device dir)",
         ],

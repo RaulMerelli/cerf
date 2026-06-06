@@ -1,12 +1,14 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v3.20 pre-alpha
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v3.21 pre-alpha
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
+
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
 
 > [!TIP]
-> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit. 
+> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
 
 <p align="center">
   <img src="https://cerf.dz3n.net/promo1_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 1)" />
@@ -25,7 +27,7 @@ For direct invocation without the launcher:
 
 | Command                        | Action                                                       |
 | ------------------------------ | ------------------------------------------------------------ |
-| `cerf.exe `                    | Boot default device (ce5_smdk2410)                           |
+| `cerf.exe `                    | Boot default device (cerfos)                                 |
 | `cerf.exe --device=devemu_ce6` | Boot specific device                                         |
 | `cerf.exe --log=ALL`           | Enable every log channel                                     |
 | `cerf.exe --flush-outputs`     | Force-flush logs (avoid truncation on crash, extremely slow) |
@@ -54,7 +56,7 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
   - required to avoid stock touch limitations on custom resolutions
   - guest OS cursor shape translated directly into host graphics
   - scroll wheel support on newer CE
-  
+
 > [!WARNING]
 > **Touch breaks at non-native resolution.** The board's touch peripheral still uses the device's original input driver, which expects the original screen dimensions. With guest additions enabled, the main default input is the regular mouse cursor emulator that every (maybe) OS supports. In case if you need to go back to original touch interface, use the runtime switcher in Actions menu or in status bar. However it might be really corrupted on custom resolutions. E.g. iPaq H3600 devices seem to allow you to run calibration app only through stock stylus - the single app ignores the mouse pointer input.
 
@@ -74,7 +76,12 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Compaq iPAQ H3600 Series</b><br/>
         <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000 <code>ipaq_h3600_ppc2000</code><br/>
-        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Pocket PC 2002 <code>ipaq_h3600_ppc2002</code>
+        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Pocket PC 2002 <code>ipaq_h3600_ppc2002</code><br/>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Compaq iPAQ H3100 Series</b> (monochrome)<br/>
+        <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000 <code>(rom needed!)</code><br/>
+        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Pocket PC 2002 <code>ipaq_h3100_ppc2002</code><br/>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 720</b><br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE (Classic)" alt="Windows CE (Classic)"/> Handheld PC 2000 <code>jornada720</code>
       </td>
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
     </tr>
@@ -198,10 +205,10 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Third-party / Credits
 
-- **[QEMU](https://www.qemu.org/)** 
-- **[The Linux kernel](https://www.kernel.org/)** 
+- **[QEMU](https://www.qemu.org/)**
+- **[The Linux kernel](https://www.kernel.org/)**
 - **[nlohmann-json](https://github.com/nlohmann/json)**
-- **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)** 
+- **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
 - JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)
 
 ## Known Issues
@@ -218,6 +225,17 @@ See [launcher's boards details database](launcher/boards.py) for per-board issue
     </tr>
   </thead>
   <tbody>
+    <tr>
+          <td>v3.21</td>
+          <td>
+            <ul>
+              <li>iPaq H3100 support</li>
+              <li>iPaq H3100,H3600 PPC2002 sound fixes</li>
+              <li>Jornada 720 support</li>
+              <li>JIT/MMU improvements</li>
+            </ul>
+          </td>
+        </tr>
     <tr>
           <td>v3.20</td>
           <td>
@@ -237,19 +255,6 @@ See [launcher's boards details database](launcher/boards.py) for per-board issue
               <li>Guest Additions: auto screen resolution change on host window resize</li>
               <li>Falcon 4220 board partial implementation (OS boots to UI but hangs)</li>
               <li>Various bug fixes and improvements</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v3.0</td>
-          <td>
-            <ul>
-              <li>GUEST ADDITIONS - injects own video driver into ROMs</li>
-              <li>OMAP 3530 EVM board support (MVP)</li>
-              <li>Zune 30 board support (MVP)</li>
-              <li>Massive emulator UI overhaul</li>
-              <li>ARMv5,v6,v7 VFP/NEON MVP support, massive JIT improvements</li>
-              <li>Tons of bug fixes and improvements</li>
             </ul>
           </td>
         </tr>

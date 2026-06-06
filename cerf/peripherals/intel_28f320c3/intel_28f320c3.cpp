@@ -21,7 +21,7 @@ public:
         auto* bd = emu_.TryGet<BoardDetector>();
         if (!bd) return false;
         const auto b = bd->GetBoard();
-        return b == Board::Ipaq3650;
+        return b == Board::IpaqGen1;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

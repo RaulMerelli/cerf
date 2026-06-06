@@ -22,13 +22,21 @@ enum class SocFamily {
 enum class Board {
     Unknown,
     Smdk2410DevEmu,   /* Microsoft DeviceEmulator BSP on Samsung SMDK2410 */
-    OdoArm720,
+    OdoArm720,        /* Microsoft Odo CE3 reference platform + Philips
+                         Poseidon peripheral ASIC, ARM720T CPU socket; BSP
+                         builds Thumb (_TGTCPUTYPE=THUMB, _TGTCPU=ARM720). */
     OmapEvm3530,      /* TI OMAP 3530 EVM (Cortex-A8 / CE7); EVM1 and EVM2 ship same BSP */
-    Ipaq3650,         /* Compaq iPAQ H3000-platform Pocket PC 2000 (H3650 SKU), Intel SA-1110 */
+    IpaqGen1,         /* Compaq iPAQ first generation (H31xx mono, H36xx color,
+                         H37xx SKUs — EGPIO + Atmel MicroP companions), Intel
+                         SA-1110. One BSP across the family; H38xx (ASIC1/2)
+                         and H39xx (PXA, ASIC3) are separate future boards. */
     ZuneKeel,         /* Microsoft Zune 30, board codename Keel, Freescale
                          i.MX31L (ARM1136JF-S, ARMv6K + VFPv2). */
     FalconPC3xx,      /* Datalogic Falcon 4220 rugged handheld, PC3xx board,
                          Intel XScale PXA255 (ARMv5TE), Windows CE .NET 4.2. */
+    Jornada720,       /* HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM
+                         + SA-1111 companion + EPSON SED1356 LCD + SSP MCU.
+                         Windows CE 3.0 / HPC2000. */
 };
 
 class BoardDetector : public Service {

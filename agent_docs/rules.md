@@ -12,6 +12,10 @@
 - **Always implement SoC reset/power down/suspend paths** - some devices utilize reset during boot legally. Some devices have power down or use power down mode as unrecoverable crash state. We dont fully implement suspend in any proper way for today - the SoC should go back to regular state instantly. However the power down and reset paths must be fully implemented. When reset/powerdown initiated, use shared ``GuestPowerNotifier`` service to notify UI.
 - **User-facing board quirks live in the launcher boards list** - board-wide operating details a user must know (input/keypad/keyboard mapping, unsupported peripherals, resolution caps, guest-additions caveats, boot quirks) belong in `launcher/boards.py`'s per-board ``notes``, which surface in the launcher side panel and extend a ROM's own ``cerf.json`` notes. When you discover such a detail, propose adding it there to the user rather than writing it unprompted.
 
+## Host UI
+
+- **No font-glyph icon rendering** — host widget / status-bar icons are drawn with GDI primitives (`FillRect`, `Polygon`, `Rectangle`, `Arc`), never as text glyphs from a symbol font (`Segoe MDL2 Assets`, `Segoe UI Symbol`, `Wingdings`, emoji). Symbol fonts are not present on every supported host (pre-Win10 Windows, Wine), and a missing face never fails — GDI silently substitutes a font without those codepoints and the icon renders as a `.notdef` box.
+
 ## JIT, MMU, CPU, Peripherals, Boards Code Changes Rules
 
 The enumerated modules are the most fragile on CERF ordered by the priority. E.g. JIT is the place where you change code the MOST careful way. No mistakes in JIT can be done. Prefferable this spreads accross other modules, tho JIT is the worst. The harm in JIT is silent and causes weeks of debugging and tons of money spent on debugging. Same goes for shitcode/destruction in MMU, CPU, Peripherals, SoC configuration, - basically the entire emulation core.
