@@ -8,6 +8,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <thread>
 
@@ -31,6 +32,12 @@ public:
        power-down / reboot banner is visible). rearm_framebuffer re-arms the
        framebuffer auto-switch so a rebooting guest's video returns to it. */
     void ShowUartTab(bool rearm_framebuffer);
+
+    /* Any thread. Run `job` on the main UI thread; dropped if the window is
+       gone. Lets an action run off its caller's thread (a VGA card window
+       ejecting itself must not run the eject on its own UI thread — the eject
+       joins that thread). */
+    void RunOnUiThread(std::function<void()> job);
 
     HWND Hwnd() const { return hwnd_; }
 

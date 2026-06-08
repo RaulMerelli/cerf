@@ -35,8 +35,7 @@ int GetPngEncoderClsid(CLSID& clsid) {
     return -1;
 }
 
-std::wstring SanitizeForFilename(const std::string& utf8) {
-    std::wstring w = Utf8ToWide(utf8.c_str());
+std::wstring SanitizeForFilename(std::wstring w) {
     if (w.empty()) w = L"device";
     for (wchar_t& c : w) {
         if (c == L'\\' || c == L'/' || c == L':' || c == L'*' || c == L'?' ||
@@ -73,32 +72,10 @@ void HostScreenshot::Save() {
         LOG(Lcd, "HostScreenshot::Save: no guest frame to capture\n");
         return;
     }
-
-    const std::wstring dir = Utf8ToWide(GetCerfDir().c_str()) + L"screenshots\\";
-    CreateDirectoryW(dir.c_str(), nullptr);  /* ok if it already exists */
-
     const std::string dev = emu_.Get<DeviceConfig>().meta.device_name.empty()
         ? emu_.Get<DeviceConfig>().device_name
         : emu_.Get<DeviceConfig>().meta.device_name;
-    const std::wstring path =
-        dir + SanitizeForFilename(dev) + L"_" + TimestampNow() + L".png";
-
-    CLSID png;
-    if (GetPngEncoderClsid(png) < 0) {
-        LOG(Caution, "HostScreenshot::Save: no PNG encoder available\n");
-        return;
-    }
-
-    Gdiplus::Bitmap bmp((INT)w, (INT)h, (INT)(w * 4),
-                        PixelFormat32bppRGB,
-                        reinterpret_cast<BYTE*>(px.data()));
-    const Gdiplus::Status st = bmp.Save(path.c_str(), &png, nullptr);
-    if (st != Gdiplus::Ok) {
-        LOG(Caution, "HostScreenshot::Save: GDI+ Save failed (status=%d)\n",
-            (int)st);
-        return;
-    }
-    LOG(Lcd, "HostScreenshot::Save: wrote %ux%u screenshot\n", w, h);
+    SavePixels(px, w, h, Utf8ToWide(dev.c_str()));
 }
 
 void HostScreenshot::Copy() {
@@ -108,12 +85,46 @@ void HostScreenshot::Copy() {
         LOG(Lcd, "HostScreenshot::Copy: no guest frame to capture\n");
         return;
     }
+    CopyPixels(px, w, h, emu_.Get<HostWindow>().Hwnd());
+}
+
+void HostScreenshot::SavePixels(const std::vector<uint32_t>& px, uint32_t w,
+                                uint32_t h, const std::wstring& name_hint) {
+    if (px.empty() || w == 0 || h == 0) return;
+
+    const std::wstring dir = Utf8ToWide(GetCerfDir().c_str()) + L"screenshots\\";
+    CreateDirectoryW(dir.c_str(), nullptr);  /* ok if it already exists */
+
+    const std::wstring path =
+        dir + SanitizeForFilename(name_hint) + L"_" + TimestampNow() + L".png";
+
+    CLSID png;
+    if (GetPngEncoderClsid(png) < 0) {
+        LOG(Caution, "HostScreenshot::SavePixels: no PNG encoder available\n");
+        return;
+    }
+
+    Gdiplus::Bitmap bmp((INT)w, (INT)h, (INT)(w * 4),
+                        PixelFormat32bppRGB,
+                        reinterpret_cast<BYTE*>(const_cast<uint32_t*>(px.data())));
+    const Gdiplus::Status st = bmp.Save(path.c_str(), &png, nullptr);
+    if (st != Gdiplus::Ok) {
+        LOG(Caution, "HostScreenshot::SavePixels: GDI+ Save failed (status=%d)\n",
+            (int)st);
+        return;
+    }
+    LOG(Lcd, "HostScreenshot::SavePixels: wrote %ux%u screenshot\n", w, h);
+}
+
+void HostScreenshot::CopyPixels(const std::vector<uint32_t>& px, uint32_t w,
+                                uint32_t h, HWND clipboard_owner) {
+    if (px.empty() || w == 0 || h == 0) return;
 
     const size_t row_bytes = (size_t)w * 4u;
     const size_t total = sizeof(BITMAPINFOHEADER) + row_bytes * h;
     HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, total);
     if (!hg) {
-        LOG(Caution, "HostScreenshot::Copy: GlobalAlloc failed\n");
+        LOG(Caution, "HostScreenshot::CopyPixels: GlobalAlloc failed\n");
         return;
     }
     auto* base = static_cast<uint8_t*>(GlobalLock(hg));
@@ -133,17 +144,16 @@ void HostScreenshot::Copy() {
     }
     GlobalUnlock(hg);
 
-    HWND owner = emu_.Get<HostWindow>().Hwnd();
-    if (!OpenClipboard(owner)) {
-        LOG(Caution, "HostScreenshot::Copy: OpenClipboard failed\n");
+    if (!OpenClipboard(clipboard_owner)) {
+        LOG(Caution, "HostScreenshot::CopyPixels: OpenClipboard failed\n");
         GlobalFree(hg);
         return;
     }
     EmptyClipboard();
     if (SetClipboardData(CF_DIB, hg) == nullptr) {
-        LOG(Caution, "HostScreenshot::Copy: SetClipboardData failed\n");
+        LOG(Caution, "HostScreenshot::CopyPixels: SetClipboardData failed\n");
         GlobalFree(hg);  /* still owned by us on failure */
     }
     CloseClipboard();    /* on success the clipboard owns hg */
-    LOG(Lcd, "HostScreenshot::Copy: copied %ux%u image\n", w, h);
+    LOG(Lcd, "HostScreenshot::CopyPixels: copied %ux%u image\n", w, h);
 }

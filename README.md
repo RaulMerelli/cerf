@@ -216,6 +216,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
           <td>v4.1 (WIP)</td>
           <td>
             <ul>
+              <li>Added HP Palmtop VGA (F1252A) card</li>
             </ul>
           </td>
         </tr>

@@ -1,28 +1,23 @@
 #pragma once
 
 #include "../core/service.h"
+#include "presenter_canvas.h"
 
-#define NOMINMAX
-#include <windows.h>
-
-#include <atomic>
 #include <cstdint>
 #include <vector>
 
-/* Child window for the host-window drawable area. Runs entirely on
-   HostWindow's UI thread; the ONLY members touched off-thread are the
-   atomic guest-surface dims — a touch sampler thread reads them, so a
-   non-atomic dim member would be a data race. */
-
-class HostCanvas : public Service {
+/* The main host window's drawable. Owns a shared PresenterCanvas (the
+   present-DIB + scaling + scrollbars, also used by VGA card windows) and
+   layers on the main-window-only concerns: the UART / Framebuffer /
+   MemoryVisualizer tabs, the LCD scan tick, and stylus input — supplied to
+   the canvas through the PresenterCanvasHost hooks. Runs on HostWindow's UI
+   thread. */
+class HostCanvas : public Service, public PresenterCanvasHost {
 public:
     using Service::Service;
-    ~HostCanvas() override;
 
-    void OnReady() override;
-
-    enum class Tab         { Uart, Framebuffer, MemoryVisualizer };
-    enum class ViewportMode { Original, Aspect, Stretch };
+    enum class Tab { Uart, Framebuffer, MemoryVisualizer };
+    using ViewportMode = PresenterCanvas::ViewportMode;
 
     /* UI thread. Create the child window inside `parent` at `rect`, with the
        guest surface sized to surf_w x surf_h. */
@@ -32,87 +27,54 @@ public:
     /* UI thread. Move/resize the canvas within the parent client. */
     void Reposition(const RECT& rect);
 
-    /* Guest presented-surface native dimensions — what the FrameRenderer
-       draws at, and the coordinate span touch maps against. Atomic so the
-       touch sampler threads can read them. */
-    uint32_t GuestSurfaceWidth () const { return surface_w_.load(std::memory_order_acquire); }
-    uint32_t GuestSurfaceHeight() const { return surface_h_.load(std::memory_order_acquire); }
+    /* Guest presented-surface native dimensions (atomic, off-thread-safe). */
+    uint32_t GuestSurfaceWidth () const { return canvas_.GuestSurfaceWidth();  }
+    uint32_t GuestSurfaceHeight() const { return canvas_.GuestSurfaceHeight(); }
 
     /* UI thread. Re-size the guest surface (rebuilds the surface DIB). */
-    void SetGuestSurfaceSize(uint32_t w, uint32_t h);
+    void SetGuestSurfaceSize(uint32_t w, uint32_t h) {
+        canvas_.SetGuestSurfaceSize(w, h);
+    }
 
     /* View state (UI thread). */
     Tab          CurrentTab() const { return tab_; }
-    ViewportMode Mode()       const { return mode_; }
+    ViewportMode Mode()       const { return canvas_.Mode(); }
     void SetTab(Tab t, bool user_initiated);
-    void SetViewportMode(ViewportMode m);
+    void SetViewportMode(ViewportMode m) { canvas_.SetViewportMode(m); }
 
     /* UI thread. Re-arm the one-shot that auto-switches to Framebuffer on the
        first frame, so a guest reboot returns to Framebuffer when video resumes. */
     void RearmFramebufferAutoSwitch();
 
-    bool Antialias() const { return antialias_; }
-    void SetAntialias(bool on);
+    bool Antialias() const     { return canvas_.Antialias(); }
+    void SetAntialias(bool on) { canvas_.SetAntialias(on); }
 
-    /* UI thread. Render the live guest framebuffer fresh into the surface
-       and copy it out 1:1 for screenshot/clipboard. False if no frame. */
+    /* UI thread. Render the live guest framebuffer fresh and copy it out 1:1
+       for screenshot/clipboard. False if no frame. */
     bool CaptureGuestSurface(std::vector<uint32_t>& out,
-                             uint32_t& w, uint32_t& h);
+                             uint32_t& w, uint32_t& h) {
+        return canvas_.CaptureSurface(out, w, h);
+    }
 
-    HWND Hwnd() const { return hwnd_; }
+    HWND Hwnd() const { return canvas_.Hwnd(); }
 
-    /* canvas-client (cx,cy) -> guest-surface (sx,sy). Returns false when the
-       point is outside the blitted guest image. Public for HostCanvasInput. */
-    bool HostToGuest(int cx, int cy, int& sx, int& sy) const;
-    void ClampGuest(int& sx, int& sy) const;
+    /* canvas-client (cx,cy) -> guest-surface (sx,sy). False when the point is
+       outside the blitted guest image. Public for HostCanvasInput. */
+    bool HostToGuest(int cx, int cy, int& sx, int& sy) const {
+        return canvas_.HostToGuest(cx, cy, sx, sy);
+    }
+    void ClampGuest(int& sx, int& sy) const { canvas_.ClampGuest(sx, sy); }
+
+    /* PresenterCanvasHost — main-window-only concerns layered on the canvas. */
+    void OnPresentTick() override;
+    bool RenderAltContent(HDC dc, uint32_t* bits, int w, int h) override;
+    bool HandleInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                     LRESULT& out) override;
 
 private:
-    static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
-    LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
+    Tab  tab_  = Tab::Uart;
+    bool user_picked_view_ = false;
+    bool latched_once_     = false;
 
-    void TickAndPresent();
-    void ComposeFramebuffer();
-    void RebuildPresentDib(int w, int h);
-    void RebuildGuestDib(uint32_t w, uint32_t h);
-    void UpdateScrollbars();
-
-    /* Both ComposeFramebuffer and HostToGuest derive from this one Layout —
-       computing the touch transform with separate math would land taps off
-       the rendered image whenever the two drift. */
-    struct Layout {
-        int  dst_x, dst_y, dst_w, dst_h;
-        int  src_x, src_y, src_w, src_h;
-        bool stretch;
-    };
-    Layout ComputeLayout() const;
-
-    HWND      hwnd_   = nullptr;
-    HWND      parent_ = nullptr;
-
-    HDC       present_dc_   = nullptr;   /* wraps present_dib_  (canvas-sized) */
-    HBITMAP   present_dib_  = nullptr;
-    uint32_t* present_bits_ = nullptr;
-    HDC       guest_dc_     = nullptr;   /* wraps guest_dib_ (surface-sized) */
-    HBITMAP   guest_dib_    = nullptr;
-    uint32_t* guest_bits_   = nullptr;
-
-    int       canvas_w_ = 0;
-    int       canvas_h_ = 0;
-    std::atomic<uint32_t> surface_w_{0};
-    std::atomic<uint32_t> surface_h_{0};
-
-    UINT_PTR  timer_id_ = 0;
-
-    Tab          tab_  = Tab::Uart;
-    ViewportMode mode_ = ViewportMode::Original;
-    bool         antialias_ = false;  /* off = crisp nearest-neighbor scale */
-    bool         user_picked_view_ = false;
-    bool         latched_once_     = false;
-
-    int  scroll_x_ = 0;
-    int  scroll_y_ = 0;
-    bool hsb_shown_ = false;
-    bool vsb_shown_ = false;
-
-    bool pen_down_ = false;
+    PresenterCanvas canvas_{nullptr, this};
 };
