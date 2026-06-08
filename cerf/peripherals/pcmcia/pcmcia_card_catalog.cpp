@@ -3,11 +3,13 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../compactflash/compactflash_menu.h"
+#include "../hp_palmtop_vga/hp_palmtop_vga_card.h"
 #include "../realtek_rtl8019/rtl8019.h"
 
 namespace {
 
 const char kIdNe2000[] = "ne2000";
+const char kIdHpVga[]  = "hpvga";
 
 }  /* namespace */
 
@@ -23,13 +25,21 @@ void PcmciaCardCatalog::OnReady() {
         return emu_.Get<CompactFlashMenu>().BuildInsertMenu(std::move(inserter));
     };
 
+    Entry hpvga;
+    hpvga.id           = kIdHpVga;
+    hpvga.display_name = HpPalmtopVgaCard::kDisplayName;
+
     entries_.push_back(std::move(ne2000));
     entries_.push_back(std::move(cf));
+    entries_.push_back(std::move(hpvga));
 }
 
 std::unique_ptr<PcmciaCard> PcmciaCardCatalog::Create(const std::string& id) {
     if (id == kIdNe2000) {
         return std::make_unique<Rtl8019>(emu_);
+    }
+    if (id == kIdHpVga) {
+        return std::make_unique<HpPalmtopVgaCard>(emu_);
     }
     LOG(Caution, "PcmciaCardCatalog::Create: unknown card id '%s'\n",
         id.c_str());

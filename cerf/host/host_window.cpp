@@ -29,6 +29,7 @@ constexpr wchar_t  kWindowClass[]  = L"CerfHostWindow";
 constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
 constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
 constexpr UINT     kShowUartMsg    = WM_APP + 3;
+constexpr UINT     kRunJobMsg      = WM_APP + 4;   /* lParam = heap std::function */
 constexpr UINT_PTR kResizeDebounceTimer = 1;
 constexpr UINT     kResizeDebounceMs    = 200;
 constexpr UINT_PTR kCloseWatchdogTimer  = 2;
@@ -101,6 +102,13 @@ void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
 void HostWindow::ShowUartTab(bool rearm_framebuffer) {
     if (hwnd_)
         PostMessageW(hwnd_, kShowUartMsg, rearm_framebuffer ? 1u : 0u, 0);
+}
+
+void HostWindow::RunOnUiThread(std::function<void()> job) {
+    if (!job || !hwnd_) return;
+    auto* heap = new std::function<void()>(std::move(job));
+    if (!PostMessageW(hwnd_, kRunJobMsg, 0, reinterpret_cast<LPARAM>(heap)))
+        delete heap;
 }
 
 void HostWindow::MatchGuestSize() {
@@ -300,6 +308,13 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         auto& canvas = emu_.Get<HostCanvas>();
         canvas.SetTab(HostCanvas::Tab::Uart, /*user_initiated=*/false);
         if (wp) canvas.RearmFramebufferAutoSwitch();
+        return 0;
+    }
+
+    if (msg == kRunJobMsg) {
+        auto* heap = reinterpret_cast<std::function<void()>*>(lp);
+        (*heap)();
+        delete heap;
         return 0;
     }
 
