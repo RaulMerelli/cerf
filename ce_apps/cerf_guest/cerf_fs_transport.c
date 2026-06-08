@@ -1,21 +1,13 @@
 #include "cerf_fs_driver.h"
+#include "cerf_regs_map.h"
 
 #include <windows.h>
-#include <pkfuncs.h>
 
 static volatile CerfFsChannel* g_chan = NULL;
 
 volatile CerfFsChannel* CerfFsMapChannel(void) {
-    volatile CerfFsChannel* p;
     if (g_chan) return g_chan;
-    p = (volatile CerfFsChannel*)VirtualAlloc(0, 0x1000, MEM_RESERVE, PAGE_NOACCESS);
-    if (!p) return NULL;
-    if (!VirtualCopy((LPVOID)p, (LPVOID)(CERF_FS_CHANNEL_PA >> 8), 0x1000,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)p, 0, MEM_RELEASE);
-        return NULL;
-    }
-    g_chan = p;
+    g_chan = (volatile CerfFsChannel*)CerfMapRegsPage(CERF_FS_CHANNEL_PA, 0x1000);
     return g_chan;
 }
 

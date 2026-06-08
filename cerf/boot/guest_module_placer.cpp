@@ -57,13 +57,16 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
     const uint32_t slot = (slot_ceiling == 0xFFFFFFFFu)
                         ? 0xFFFFFFFFu : (slot_ceiling - orig_vbase);
 
-    if (image_size <= slot)
-        return orig_vbase;   /* fits its own slot — load in place */
+    /* Relocate on EITHER trigger: slot overflow, OR a section-0 codebase — a
+       runtime-loaded ROM DLL must live in section 1 (SharedDllBase-covered);
+       dropping the section-0 test regresses CE4.2/WM5 (codebase 0x01xxxxxx). */
+    const uint32_t codebase = orig_vbase + orig_slot_base;
+    if (image_size <= slot && codebase >= kModCodeBase)
+        return orig_vbase;   /* fits its slot and already in section 1 */
 
-    /* In-place oversized overruns the next module's section-1 VA and the kernel's
-       load stomps its mapping; relocate below the lowest section-1 code (romimage
-       grows dll_code_start down). Anchor on the code realaddr (CE3 has
-       vbase+slot_base==codebase); new_vbase keeps slot_base. */
+    /* Relocate below the lowest section-1 code (romimage grows dll_code_start
+       down). Anchor on the code realaddr (CE3 has vbase+slot_base==codebase);
+       new_vbase keeps slot_base. */
     if (ce_major < 3 || ce_major > 5 || lowest_code == 0xFFFFFFFFu) {
         LOG(GuestAdditions, "%s image 0x%X overflows victim slot 0x%X; relocation "
                   "N/A (ce_major=%u lowest_code=0x%08X) — in-place at 0x%08X\n",

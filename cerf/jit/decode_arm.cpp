@@ -59,7 +59,11 @@ bool ArmDecoder::DecodeArm(DecodedInsn* insn, uint32_t opcode_word) {
 
             case 1:
                 switch (op.control_extension.op1) {
-                case 1:  /* BX. */
+                case 1:  /* BX — v4T+; undefined on a no-Thumb core
+                            (SA-1110 = ARM V4, Dev Manual §1.4). */
+                    if (!processor_config_->HasThumb()) {
+                        goto RaiseException;
+                    }
                     insn->place_fn     = &PlaceBx;
                     insn->rd           = op.branch_exchange.rd;
                     insn->r15_modified = true;
@@ -486,10 +490,10 @@ SingleDataTransfer:
     return true;
 
 RaiseException:
-    /* Do NOT force cond=14 here: a conditional undefined encoding whose
-       condition fails must do nothing, not trap (DDI0100I A1.2). Forcing
-       it defeats the generator's cond guard, faulting the guest where
-       ARM720T skips the instruction. */
+    /* insn->cond stays as decoded: a conditional undefined encoding
+       whose condition fails executes as a NOP, not a trap (DDI0100I
+       A1.2) — the generator's cond guard must keep skipping the
+       PlaceRaiseUndefinedException body, as ARM720T silicon does. */
     insn->immediate = opcode_word;  /* raw bytes for the decode-gap log */
     insn->place_fn  = &PlaceRaiseUndefinedException;
     return false;

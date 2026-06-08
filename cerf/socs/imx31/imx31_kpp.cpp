@@ -34,11 +34,16 @@ constexpr auto kSyncDetectInterval = std::chrono::milliseconds(16);
 
 }  /* namespace */
 
-Imx31Kpp::~Imx31Kpp() {
+void Imx31Kpp::StopSyncThread() {
     { std::lock_guard<std::mutex> lk(mtx_); stop_ = true; }
     sync_cv_.notify_all();
     if (sync_thread_.joinable()) sync_thread_.join();
 }
+
+/* Sync thread raises AVIC IRQs; stop it before any peer is destroyed. */
+void Imx31Kpp::OnShutdown() { StopSyncThread(); }
+
+Imx31Kpp::~Imx31Kpp() { StopSyncThread(); }
 
 bool Imx31Kpp::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();

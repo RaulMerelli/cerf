@@ -13,6 +13,7 @@ namespace {
 
 const char* ChannelTag(uint32_t id) {
     switch (id) {
+        case CerfVirt::kLogChannelIdStub:          return "[guest-stub] ";
         case CerfVirt::kLogChannelIdDisplay:       return "[guest] ";
         case CerfVirt::kLogChannelIdSharedFolders: return "[guest-fs] ";
         default:                                   return "[guest-?] ";

@@ -40,6 +40,10 @@ public:
 
     void MarkDirty() { any_write_ = true; }
 
+    /* Guest reset: drop the write-seen edge so HasContent stays false
+       until the rebooted guest's driver writes the surface again. */
+    void ClearContentEdge() { any_write_ = false; }
+
     /* UI thread only (renderer reads width_/height_ there). A mode whose
        SizeBytes exceeds the boot-fixed region_bytes_ is rejected, else the
        renderer reads past bytes_. */

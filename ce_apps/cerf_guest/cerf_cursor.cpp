@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <pkfuncs.h>
+#include "cerf_regs_map.h"
 #include <string.h>
 
 /* These offsets/struct MUST match cerf/peripherals/cerf_virt/
@@ -30,18 +30,9 @@ static CerfCursorDesc   s_cur_desc;
 
 static BOOL CerfMapCursorRegs(void) {
     if (s_cur_regs) return TRUE;
-    s_cur_regs = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_CURSOR_SZ,
-                                               MEM_RESERVE, PAGE_NOACCESS);
-    if (!s_cur_regs) return FALSE;
-    if (!VirtualCopy((LPVOID)s_cur_regs,
-                     (LPVOID)(CERF_VIRT_CURSOR_PA >> 8),
-                     CERF_VIRT_CURSOR_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_cur_regs, 0, MEM_RELEASE);
-        s_cur_regs = NULL;
-        return FALSE;
-    }
-    return TRUE;
+    s_cur_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_CURSOR_PA,
+                                                  CERF_VIRT_CURSOR_SZ);
+    return s_cur_regs != NULL;
 }
 
 /* The GPE mask stride is often NEGATIVE (bottom-up surface); normalize into a

@@ -17,6 +17,10 @@ public:
        the rebooted guest's video brings the Framebuffer tab back automatically. */
     void NotifyReboot();
 
+    /* Hard reset executed: volatile RAM wiped. Follows the NotifyReboot the
+       reset request itself raised, so it only banners. */
+    void NotifyHardReset();
+
 private:
     void Banner(const char* line);
 };

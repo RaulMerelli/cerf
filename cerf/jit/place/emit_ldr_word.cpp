@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstring>
 
+#include "../../cpu/arm_processor_config.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../arm_jit.h"
 #include "../arm_mmu.h"
@@ -101,6 +102,12 @@ uint8_t* EmitLdrWord(uint8_t*                  cursor,
         /* ROR EAX, CL — 0xD3 /1 ModRM(3, EAX, 1). */
         Emit8(cursor, 0xD3);
         EmitModRmReg(cursor, 3, kEax, 1);
+    }
+    if (d->rd == ArmGpr::kR15 &&
+        jit->ProcessorConfig()->HasLoadToPcInterworking()) {
+        /* v5T+ LDR-to-PC interworks (DDI0406C §A2.3.1). ARM-state
+           only: Thumb-1 has no LDR encoding targeting PC. */
+        cursor = EmitArmInterworkingMaskEax(cursor);
     }
     EmitMovBaseDisp32Reg(cursor, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4),

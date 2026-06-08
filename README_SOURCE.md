@@ -1,8 +1,12 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v{version} pre-alpha
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v{version} pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=LmfaXUNGFlU">
+    <img src="docs/cerf_youtube.png" alt="YouTube Preview" width="640" height="360" />
+  </a>
+</p>
 
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
@@ -10,12 +14,6 @@ A universal Windows CE emulator: a virtual ARM hardware platform that boots real
 > [!TIP]
 > Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
 
-<p align="center">
-  <img src="https://cerf.dz3n.net/promo1_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 1)" />
-</p>
-<p align="center">
-  <img src="https://cerf.dz3n.net/promo2_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 2)" />
-</p>
 
 ## Usage
 
@@ -52,6 +50,7 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
 - Host-accelerated blitting - the driver routes blits to host which performs the full set of graphical operations in native code
 - Dynamic screen resolution (CE 4+)
 - Shared storage with host
+- Task manager in a host window
 - Mouse pointer driver:
   - required to avoid stock touch limitations on custom resolutions
   - guest OS cursor shape translated directly into host graphics
@@ -62,90 +61,7 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
 
 ## Supported boards
 
-<table>
-  <thead>
-    <tr>
-      <th>SoC</th>
-      <th>Board / Device ID / OS</th>
-      <th>Features</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><b>{i_chip} Intel SA-1110</b><br/><sub>StrongARM</sub></td>
-      <td>
-        {i_pda} <b>Compaq iPAQ H3600 Series</b><br/>
-        {i_os_ppc2000} Pocket PC 2000 <code>ipaq_h3600_ppc2000</code><br/>
-        {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3600_ppc2002</code><br/>
-        {i_pda} <b>Compaq iPAQ H3100 Series</b> (monochrome)<br/>
-        {i_os_ppc2000} Pocket PC 2000 <code>(rom needed!)</code><br/>
-        {i_os_ppc2002} Pocket PC 2002 <code>ipaq_h3100_ppc2002</code><br/>
-        {i_pda} <b>HP Jornada 720</b><br/>
-        {i_os_old_ce} Handheld PC 2000 <code>jornada720</code>
-      </td>
-      <td>{i_display} {i_speaker} {i_stylus}</td>
-    </tr>
-    <tr>
-      <td align="center"><b>{i_chip} Intel XScale PXA255</b><br/><sub>ARMv5TE</sub></td>
-      <td>
-        {i_pda} <b>Datalogic Falcon 4220</b> (Askey PC3xx)<br/>
-        {i_os_ce} Windows CE .NET 4.2 <code>falcon_4220__4_10</code>
-      </td>
-      <td>{i_display} {i_speaker} {i_stylus}</td>
-    </tr>
-    <tr>
-      <td align="center"><b>{i_chip} Microsoft ODO (???)</b><br/><sub>ARM720T (1996 NDA board)</sub></td>
-      <td>
-        {i_pda} <b>ODO/Poseidon</b> (???)<br/>
-        {i_os_old_ce} Windows CE 2.11 <code>odo_poseidon_ce2</code><br/>
-        {i_os_old_ce} Windows CE 3 <code>odo_poseidon_ce3</code>
-      </td>
-      <td>{i_display} {i_speaker} {i_stylus} {i_keyboard}</td>
-    </tr>
-    <tr>
-      <td align="center"><b>{i_chip} TI OMAP 3530</b><br/><sub>Cortex-A8</sub></td>
-      <td>
-        {i_pda} <b>OMAP 3530 EVM</b><br/>
-        {i_os_ce} Windows CE 7 <code>omap_3530_evm_ce7</code>
-      </td>
-      <td>{i_display} {i_stylus}</td>
-    </tr>
-    <tr>
-      <td align="center"><b>{i_chip} Freescale i.MX31L</b><br/><sub>ARM1136</sub></td>
-      <td>
-        {i_pda} <b>Zune 30</b> (Pyxis Keel)<br/>
-        {i_os_zune} Windows CE 5 <code>zune_keel</code>
-      </td>
-      <td>{i_display} {i_keyboard}</td>
-    </tr>
-    <tr>
-      <td rowspan="3" align="center"><b>{i_chip} Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
-      <td>
-        {i_pda} <b>Device Emulator</b><br/>
-        {i_os_ce} Windows CE 6 <code>devemu_ce6</code><br/>
-        {i_os_ppc2002} Windows Mobile 5 <code>devemu_wm5</code><br/>
-        {i_os_wm6} Windows Mobile 6 <code>devemu_wm6</code><br/>
-        <p>...any many other WM5+/smartphone</p>
-      </td>
-      <td>{i_display} {i_speaker} {i_stylus} {i_keyboard} {i_internet}</td>
-    </tr>
-    <tr>
-      <td>
-        {i_pda} <b>Device Emulator (CE 4.2/5 branches)</b><br/>
-        {i_os_ppc2002} WM 2003 SE <code>devemu_wm2003se</code><br/>
-        {i_os_ce} Windows CE 5 <code>devemu_ce5</code><br/>
-      </td>
-      <td>{i_display} {i_speaker} {i_stylus} {i_keyboard}</td>
-    </tr>
-    <tr>
-      <td>
-        {i_pda} <b>PB SMDK 2410 Sample</b><br/>
-        {i_os_ce} Windows CE 5 <code>smdk2410_sample_ce5</code>
-      </td>
-      <td>&mdash;</td>
-    </tr>
-  </tbody>
-</table>
+{supported_devices}
 
 ## How CERF runs ROM images? (NK.BIN, etc.)
 
@@ -213,7 +129,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Known Issues
 
-See [launcher's boards details database](launcher/boards.py) for per-board issues.
+See [launcher's boards details database](launcher/supported_devices.py) for per-board issues.
 
 ## Changelog
 

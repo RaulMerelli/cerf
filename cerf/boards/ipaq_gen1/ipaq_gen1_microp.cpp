@@ -3,7 +3,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
-#include "../../socs/sa1110/sa1110_sp1_uart.h"
+#include "../../socs/sa11xx/sa11xx_sp1_uart.h"
 
 #include <atomic>
 #include <chrono>
@@ -20,6 +20,38 @@ constexpr uint8_t kMsgVersion   = 0x0;
 constexpr uint8_t kMsgTouch     = 0x3;
 constexpr uint8_t kMsgEepromRd  = 0x4;
 constexpr uint8_t kMsgBattery   = 0x9;
+constexpr uint8_t kMsgNvmRead   = 0xB;   /* SSC NVM read: payload [off_lo,off_hi,len] */
+
+/* Sleeve NVM served for kMsgNvmRead. Byte layout MUST match ppcutil
+   sub_1043C0's version-1 parse exactly (markers below) — any deviation fails
+   the parse, so HH_dm never issues the IOCTL 0x0101010D subcmd-12 that sets
+   OAL handshake bit 0xAC02034E.1, and PCMCIA card-detect never enables. */
+constexpr uint8_t kSleeveNvm[] = {
+    0xAA,                                /* @0   start ID */
+    0x00, 0x00, 0x00, 0x00,              /* @1   header dword */
+    0x01,                                /* @5   NVM version = 1 */
+    0x00, 0x00,                          /* @6   field */
+    0x00, 0x00,                          /* @8   field */
+    'C', 'E', 'R', 'F', 0x00,            /* @10  name string (null-terminated) */
+    0x00, 0x00, 0x00, 0x00, 0x00,        /* @15  5 bytes */
+    0x00, 0x00, 0x00, 0x00,              /* @20  2x 16-bit fields */
+    0x00, 0x00, 0x00, 0x00,              /* @24  2x 16-bit fields */
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @28  section terminator */
+    0xBB,                                /* @32  start control */
+    0x00, 0x00, 0x00, 0x00,              /* @33  4x 32-bit fields */
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @49  terminator */
+    0xFF, 0xFF, 0xFF, 0xFF,              /* @53  record list: empty */
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @57  section terminator */
+    0x00, 0x00, 0x00, 0x00,              /* @61  blob1 count = 0 */
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @65  terminator */
+    0x00, 0x00, 0x00, 0x00,              /* @69  blob2 count = 0 */
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @73  terminator */
+    0x00, 0x00, 0x00, 0x00,              /* @77  blob3 count = 0 */
+    0x0F, 0x0F, 0x0F, 0x0F,              /* @81  final terminator -> parse OK */
+};
 
 constexpr uint16_t kAdcXMin = 60;
 constexpr uint16_t kAdcXMax = 960;
@@ -37,7 +69,7 @@ public:
     }
 
     void OnReady() override {
-        emu_.Get<Sa1110Sp1Uart>().SetTxListener(
+        emu_.Get<Sa11xxSp1Uart>().SetTxListener(
             [this](uint8_t b) { OnTxByte(b); });
     }
 
@@ -65,7 +97,7 @@ private:
     uint8_t  rx_count_      = 0;
     uint8_t  rx_buf_[16]    = {};
 
-    void Push(uint8_t b) { emu_.Get<Sa1110Sp1Uart>().PushRxByte(b); }
+    void Push(uint8_t b) { emu_.Get<Sa11xxSp1Uart>().PushRxByte(b); }
 
     void SendFrame(uint8_t msg_id, const uint8_t* data, uint8_t len) {
         const uint8_t hdr = static_cast<uint8_t>(
@@ -104,7 +136,7 @@ private:
         }
     }
 
-    void RespondTo(uint8_t id, const uint8_t* /*req*/, uint8_t /*req_len*/) {
+    void RespondTo(uint8_t id, const uint8_t* req, uint8_t req_len) {
         switch (id) {
             case kMsgVersion: {
                 const uint8_t v[4] = { '1', '.', '7', '7' };
@@ -119,6 +151,20 @@ private:
             case kMsgBattery: {
                 const uint8_t v[4] = { 0x01u, 0x00u, 0x0Fu, 0x01u };
                 SendFrame(kMsgBattery, v, 4);
+                break;
+            }
+            case kMsgNvmRead: {
+                const uint16_t off = static_cast<uint16_t>(
+                    (req_len > 0 ? req[0] : 0) |
+                    ((req_len > 1 ? req[1] : 0) << 8));
+                const uint8_t rlen = req_len > 2 ? req[2] : 0;
+                uint8_t resp[16] = {};
+                const uint8_t n = rlen > sizeof(resp)
+                    ? static_cast<uint8_t>(sizeof(resp)) : rlen;
+                for (uint8_t i = 0; i < n; ++i)
+                    resp[i] = (off + i < sizeof(kSleeveNvm))
+                        ? kSleeveNvm[off + i] : 0u;
+                SendFrame(kMsgNvmRead, resp, n);
                 break;
             }
             default:

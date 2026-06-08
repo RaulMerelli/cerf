@@ -47,6 +47,15 @@ uint32_t __fastcall ArmMmu::CcsidrLookupHelper(ArmMmu* mmu) {
     return mmu->emu_.Get<ArmProcessorConfig>().Ccsidr(mmu->state_.cssel_register);
 }
 
+bool ArmMmu::IsReadOnlyBacked(uint32_t pa) {
+    /* TryTranslateWrite returns nullptr for a backed region exactly when its
+       host protection is PAGE_READONLY / PAGE_EXECUTE_READ (EmulatedMemory
+       sources page_protect from PageTableBuilder's ROM/flash declarations);
+       a non-null TryTranslate confirms the PA is backed at all. */
+    return memory_->TryTranslate(pa) != nullptr &&
+           memory_->TryTranslateWrite(pa) == nullptr;
+}
+
 void ArmMmu::RaiseAbort(uint32_t va, uint32_t fault_status, bool is_write) {
     state_.fault_status.bits.status = fault_status;
     state_.fault_status.bits.d      = 0;

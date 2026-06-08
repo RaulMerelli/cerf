@@ -6,7 +6,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/frame_renderer.h"
-#include "../../lcd/lcd_content_latch.h"
 
 #include <cstring>
 
@@ -96,7 +95,6 @@ private:
         return FromPalette(mq, (byte >> shift) & mask);
     }
 
-    LcdContentLatch latch_;
 };
 
 }  /* namespace */

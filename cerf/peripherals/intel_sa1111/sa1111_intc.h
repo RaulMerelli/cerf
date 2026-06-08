@@ -21,9 +21,10 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
-    /* Source 0..31 → bank 0, 32..63 → bank 1. Raise latches a pending
-       status bit; Lower clears it (for level-style sources whose driver
-       owns deassert). Edge sources leave the bit for software W1C. */
+    /* Source 0..31 → bank 0, 32..63 → bank 1; Raise/Lower drive the raw
+       input line, Raise also sets status. Lower must NOT clear status — the
+       latch is edge-triggered (Dev Manual Fig 11-1), cleared only by
+       INTSTATCLR W1C; clearing on Lower drops an IRQ not yet acked. */
     void RaiseInterrupt(uint8_t source);
     void LowerInterrupt(uint8_t source);
 
@@ -34,6 +35,13 @@ public:
 
 private:
     void DriveCascadeOutput(bool pulse_low_first);
+
+    /* Latch sources whose (raw ^ pol) rose 0->1 into status; run on raw AND
+       INTPOL writes — the INTPOL case is the kernel's retrigger (Fig 11-1). */
+    void LatchEdges(bool bank1);
+
+    uint32_t raw0_ = 0, raw1_ = 0;       /* IntRaw(n) per-source input lines. */
+    uint32_t detect0_ = 0, detect1_ = 0; /* last (raw ^ pol) per source. */
     uint32_t inttest0_ = 0, inttest1_ = 0;
     uint32_t enable0_  = 0, enable1_  = 0;   /* INTEN0/1 */
     uint32_t polarity0_ = 0, polarity1_ = 0; /* INTPOL0/1 */

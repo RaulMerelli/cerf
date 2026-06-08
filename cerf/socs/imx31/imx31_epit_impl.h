@@ -98,7 +98,12 @@ public:
         match_thread_ = std::thread([this] { MatchLoop(); });
     }
 
-    ~Imx31EpitImpl() override {
+    ~Imx31EpitImpl() override { StopMatchThread(); }
+
+    /* Match thread raises AVIC IRQs; stop it before any peer is destroyed. */
+    void OnShutdown() override { StopMatchThread(); }
+
+    void StopMatchThread() {
         stop_.store(true, std::memory_order_release);
         cv_.notify_all();
         if (match_thread_.joinable()) match_thread_.join();

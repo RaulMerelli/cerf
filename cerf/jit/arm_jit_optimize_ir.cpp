@@ -35,9 +35,10 @@ int ArmJit::JitOptimizeIR() {
     for (uint32_t i = 0; i < block_ctx_.num_insns; ++i) {
         DecodedInsn& insn = block_ctx_.insns[i];
 
-        /* Single-instruction optimization: "LDR Rd, [PC + immediate]"
-           where the source PA is in read-only memory — sneak a peek
-           and inline the value as a MOV Rd, immediate. */
+        /* "LDR Rd, [PC + imm]" whose source is immutable ROM/flash: peek it
+           and inline as MOV Rd, imm. The baked immediate has no SMC tracking,
+           so it is sound only for genuinely unwritable backing — AP-read-only
+           DRAM (e.g. the kernel-rewritten kuser TLS slot) is excluded. */
         if (insn.place_fn == &PlaceSingleDataTransfer &&
             insn.rn == ArmGpr::kR15 &&
             insn.p &&
@@ -51,7 +52,7 @@ int ArmJit::JitOptimizeIR() {
                 uint8_t* host_read_addr =
                     mmu_->TranslateRead(cpu_->State(), addr);
                 if (host_read_addr &&
-                    mmu_->TranslateReadWrite(cpu_->State(), addr) == nullptr) {
+                    mmu_->IsReadOnlyBacked(mmu_->LastDataPa())) {
                     uint32_t value;
                     std::memcpy(&value, host_read_addr, sizeof(value));
 

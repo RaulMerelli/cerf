@@ -102,6 +102,12 @@ namespace Log {
     void EmergencyPrintNativeStack(const char* tag);
     void EmergencyDumpAllThreadStacks();
 
+    /* Installs a top-level SEH filter that runs the Emergency* crash dump for
+       exceptions outside any CerfFatalExit / JIT __except — e.g. an access
+       violation during service teardown, which otherwise terminates the
+       process with no cerf.crash.log. Call once, early in main. */
+    void InstallCrashHandler();
+
 }  // namespace Log
 
 /* LOG(name, fmt, ...) — `name` is an unqualified Cat identifier (e.g. Boot,

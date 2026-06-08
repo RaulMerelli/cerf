@@ -3,14 +3,14 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
+#include "sa1111_gpio_port_a_sink.h"
 
 namespace {
 
-/* SA-1111 GPIO blocks A/B/C (Developer's Manual Table 10-7, base 0x40001000),
-   8-bit ports DDR/DWR·DRR/SDR/SSR at stride 0x10. Px_DDR (§10.3.3) 1=input,
-   0=output, reset 0xFF (all input). Px_DRR (§10.3.2) reads the external pin
-   state — an output pin reads back its DWR latch; nothing drives the SA-1111
-   GPIO inputs in CERF yet, so input pins read 0. */
+/* SA-1111 GPIO A/B/C (Dev Man Table 10-7, base 0x40001000), 8-bit
+   ports DDR/DWR·DRR/SDR/SSR at stride 0x10. Px_DDR (§10.3.3): 1=input,
+   0=output, reset 0xFF — flipping the polarity inverts every port.
+   Input pins read 0 (nothing drives them). */
 class Sa1111Gpio : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -44,12 +44,18 @@ public:
         if (off >= 0x30u || (off & 3u)) HaltUnsupportedAccess("WriteWord", addr, value);
         const uint32_t port = off >> 4, reg = (off >> 2) & 3u, v = value & 0xFFu;
         switch (reg) {
-            case 0: ddr_[port] = v; return;
-            case 1: dwr_[port] = v; return;
+            case 0: ddr_[port] = v; break;
+            case 1: dwr_[port] = v; break;
             case 2: sdr_[port] = v; return;
             case 3: ssr_[port] = v; return;
+            default: HaltUnsupportedAccess("WriteWord", addr, value);
         }
-        HaltUnsupportedAccess("WriteWord", addr, value);
+        if (port == 0) {
+            if (auto* sink = emu_.TryGet<Sa1111GpioPortASink>()) {
+                sink->OnPortAOutputs(
+                    static_cast<uint8_t>(dwr_[0] & ~ddr_[0] & 0xFFu));
+            }
+        }
     }
 
 private:

@@ -1,5 +1,6 @@
 import re
 import os
+import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 VERSION_H = os.path.join(ROOT, 'cerf', 'version.h')
@@ -8,23 +9,10 @@ OUTPUT    = os.path.join(ROOT, 'README.md')
 CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
 CHANGELOG_LINK = 'docs/changelog.html'
 CHANGELOG_RECENT = 3
+ICONS_DIR = 'launcher/assets/icons'
 
-ICONS = {
-    'i_display':   '<img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/>',
-    'i_speaker':   '<img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/>',
-    'i_stylus':    '<img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/>',
-    'i_keyboard':  '<img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/>',
-    'i_internet':  '<img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network Emulation" alt="Network Emulation"/>',
-    'i_pda':       '<img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/>',
-    'i_chip':      '<img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/>',
-    'i_os_ce':     '<img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/>',
-    'i_os_old_ce': '<img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE (Classic)" alt="Windows CE (Classic)"/>',
-    'i_os_ppc2000':'<img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/>',
-    'i_os_ppc2002':'<img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/>',
-    'i_os_wm6':    '<img src="launcher/assets/icons/os_wm6.png" width="16" height="16" title="Windows Mobile 6+" alt="Windows Mobile 6+"/>',
-    'i_os_zune':   '<img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Zune OS" alt="Zune OS"/>',
-    'i_os_zune_hd':'<img src="launcher/assets/icons/os_zune_hd.png" width="16" height="16" title="Zune HD OS" alt="Zune HD OS"/>',
-}
+sys.path.insert(0, os.path.join(ROOT, 'launcher'))
+from supported_devices import BOARDS_INFORMATION, FEATURE_SPECS, board_sort_key
 
 
 def parse_version():
@@ -34,6 +22,63 @@ def parse_version():
     minor = int(re.search(r'#define CERF_VERSION_MINOR\s+(\d+)', text).group(1))
     patch = int(re.search(r'#define CERF_VERSION_PATCH\s+(\d+)', text).group(1))
     return f'{major}.{minor}' if patch == 0 else f'{major}.{minor}.{patch}'
+
+
+def icon_img(filename, title):
+    return (f'<img src="{ICONS_DIR}/{filename}" width="16" height="16" '
+            f'title="{title}" alt="{title}"/>')
+
+
+def features_cell(features):
+    icons = [icon_img(filename, label)
+             for key, filename, label in FEATURE_SPECS if features.get(key)]
+    return ' '.join(icons) if icons else '&mdash;'
+
+
+def build_supported_devices():
+    boards = sorted((b for b in BOARDS_INFORMATION if b.get('supported')),
+                    key=lambda b: board_sort_key(b['name']))
+
+    # Consecutive boards on the same SoC share one rowspan SoC cell, in the
+    # same board order the launcher's device tree shows.
+    groups = []
+    for board in boards:
+        soc = board['soc']
+        if groups and groups[-1][0] == soc:
+            groups[-1][1].append(board)
+        else:
+            groups.append((soc, [board]))
+
+    lines = [
+        '<table>',
+        '  <thead>',
+        '    <tr>',
+        '      <th>SoC</th>',
+        '      <th>Board / OS</th>',
+        '      <th>Features</th>',
+        '    </tr>',
+        '  </thead>',
+        '  <tbody>',
+    ]
+    for soc, group in groups:
+        for index, board in enumerate(group):
+            lines.append('    <tr>')
+            if index == 0:
+                rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
+                lines.append(f'      <td{rowspan} align="center">'
+                             f'<b>{icon_img("chip.png", "Chip")} {soc.family}</b>'
+                             f'<br/><sub>{soc.arch}</sub></td>')
+            cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b>']
+            cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
+                     for guest_os in board['operating_systems']]
+            lines.append('      <td>')
+            lines.append('        ' + '<br/>\n        '.join(cell))
+            lines.append('      </td>')
+            lines.append(f'      <td>{features_cell(board.get("features", {}))}</td>')
+            lines.append('    </tr>')
+    lines.append('  </tbody>')
+    lines.append('</table>')
+    return '\n'.join(lines)
 
 
 def build_changelog():
@@ -73,8 +118,7 @@ def main():
     version = parse_version()
     content = content.replace('{version}', version)
     content = content.replace('{changelog}', build_changelog())
-    for key, value in ICONS.items():
-        content = content.replace('{' + key + '}', value)
+    content = content.replace('{supported_devices}', build_supported_devices())
 
     with open(OUTPUT, 'w', encoding='utf-8') as f:
         f.write(content)

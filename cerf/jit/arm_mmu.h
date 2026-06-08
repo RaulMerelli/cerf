@@ -32,6 +32,7 @@ public:
     /* No walk, no TLB fill, no abort raise — diagnostic-only. */
     std::optional<uint8_t*> PeekDataTlb(uint32_t va) const;
 
+
     uint8_t* PeekVaToHost(uint32_t va);
 
     /* I-TLB nG/global flag for va's page; slot absent ⇒ false. */
@@ -45,6 +46,15 @@ public:
        this is the fetch's own resolved PA, never a separate re-walk (a
        re-walk diverges from the fetch's TLB mid-TTBR0-setup). */
     uint32_t LastExecPa() const { return last_exec_pa_; }
+
+    /* PA of the most recent non-execute translate; set only on data paths,
+       parallel to last_exec_pa_. */
+    uint32_t LastDataPa() const { return last_data_pa_; }
+
+    /* True iff `pa` is backed by genuine ROM/flash (host PAGE_READONLY /
+       PAGE_EXECUTE_READ) — storage the guest cannot rewrite, distinct from
+       DRAM the MMU's AP bits merely mark read-only for one regime. */
+    bool IsReadOnlyBacked(uint32_t pa);
 
     uint32_t* IoPendingAddressPtr()       { return &io_pending_address_; }
     uint32_t* IoPendingAddressAdjustPtr() { return &io_pending_address_adjust_; }
@@ -75,6 +85,7 @@ private:
     uint32_t io_pending_address_        = 0;
     uint32_t io_pending_address_adjust_ = 0;
     uint32_t last_exec_pa_              = 0;
+    uint32_t last_data_pa_             = 0;
 
     /* Backing stores for the SMC bitmaps (code_xlat_bitmap word-marks +
        code_page_dirty page set). Sized once in OnReady, never resized, so

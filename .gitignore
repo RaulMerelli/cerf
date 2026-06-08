@@ -1,4 +1,5 @@
 ce_apps/**/.build_mode
+ce_apps/**/*.res
 
 # Device bundles are downloaded cache data.
 bundled/devices/manifest.json

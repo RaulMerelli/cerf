@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../socs/sa1110/sa1110_intc.h"
+#include "../../socs/sa11xx/sa11xx_intc.h"
 #include "bundle.h"
 
 #if CERF_DEV_MODE
@@ -29,7 +29,7 @@ public:
                 const uint32_t baseC = c.ReadVa32(a1 + 0xC8).value_or(0);
                 /* baseB+0x20 is the uncached alias of the SA-1110 INTC ICPR
                    (PA 0x90050020). Read the live value from the INTC. */
-                const uint32_t icpr = c.emu.Get<Sa1110Intc>().GetIcpr();
+                const uint32_t icpr = c.emu.Get<Sa11xxIntc>().GetIcpr();
                 if (icpr == lastV_) return;   /* throttle on ICPR change. */
                 lastB_ = baseB; lastV_ = icpr;
                 LOG(Trace, "[SERPOLL] a1=0x%08X baseB=0x%08X baseC=0x%08X "

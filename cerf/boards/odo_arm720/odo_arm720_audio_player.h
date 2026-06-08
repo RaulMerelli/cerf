@@ -18,11 +18,13 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     void SetPlaybackEnabled(bool enabled);
 
 private:
     void AudioThreadMain();
+    void StopAudioThread();
     void SubmitNextPage();
 
     static constexpr uint32_t kSampleRate     = 44100u;

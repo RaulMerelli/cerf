@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <pkfuncs.h>
+#include "cerf_regs_map.h"
 
 /* Offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_resize_regs.h. The CE
    toolchain can't include the host C++ header, same as the pointer/fb channels. */
@@ -45,18 +45,9 @@ static volatile ULONG* s_rsz_regs = NULL;
 
 static BOOL CerfMapRszRegs(void) {
     if (s_rsz_regs) return TRUE;
-    s_rsz_regs = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_RSZ_REGS_SZ,
-                                               MEM_RESERVE, PAGE_NOACCESS);
-    if (!s_rsz_regs) return FALSE;
-    if (!VirtualCopy((LPVOID)s_rsz_regs,
-                     (LPVOID)(CERF_VIRT_RSZ_REGS_PA >> 8),
-                     CERF_VIRT_RSZ_REGS_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_rsz_regs, 0, MEM_RELEASE);
-        s_rsz_regs = NULL;
-        return FALSE;
-    }
-    return TRUE;
+    s_rsz_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_RSZ_REGS_PA,
+                                                  CERF_VIRT_RSZ_REGS_SZ);
+    return s_rsz_regs != NULL;
 }
 
 static DWORD WINAPI CerfResizePumpThread(LPVOID) {

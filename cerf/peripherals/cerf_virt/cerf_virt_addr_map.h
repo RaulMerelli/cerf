@@ -6,9 +6,9 @@ typedef unsigned int uint32_t;
 #include <cstdint>
 #endif
 
-/* DO NOT move kBaseAddr outside 0xD0000000-0xDFFFFFFF: collides with
-   iPaq SDRAM (0xC0000000), SA1110 zero-bank (0xE0000000), and SoC MMIO
-   blocks at 0xA0000000-0xBFFFFFFF. */
+/* 0xD0000000-0xDFFFFFFF is the only PA window free on every supported board:
+   0xC0000000 is iPaq SDRAM, 0xE0000000 the SA1110 zero-bank, and
+   0xA0000000-0xBFFFFFFF SoC MMIO blocks. */
 
 namespace CerfVirt {
 
@@ -40,12 +40,25 @@ const uint32_t kResizeSize = 0x1000u;
 
 const uint32_t kLogChannelBase   = kRegsBase + 0x7000u;
 const uint32_t kLogChannelStride = 0x1000u;
-const uint32_t kLogChannelIdDisplay       = 0u;   /* gwes display driver */
-const uint32_t kLogChannelIdSharedFolders = 1u;   /* device.exe shared-folders FSD carrier */
-const uint32_t kLogChannelCount  = 2u;
+const uint32_t kLogChannelIdStub          = 0u;   /* cerf_guest_stub injection carrier */
+const uint32_t kLogChannelIdDisplay       = 1u;   /* gwes display driver */
+const uint32_t kLogChannelIdSharedFolders = 2u;   /* device.exe shared-folders FSD carrier */
+const uint32_t kLogChannelCount  = 3u;
 const uint32_t kLogChannelSize   = kLogChannelCount * kLogChannelStride;
+
+/* Moved 0x9000 -> 0xA000: the 3-slot log block now occupies 0x7000..0x9000. */
+const uint32_t kTaskManagerBase = kRegsBase + 0xA000u;
+const uint32_t kTaskManagerSize = 0x1000u;
 
 const uint32_t kFramebufferMemBase = kBaseAddr + 0x00100000u;
 const uint32_t kFramebufferMemSize = 0x02000000u;
+
+/* cerf_guest body delivery: word[0] = body byte count, body bytes at
+   +kGuestBodyHdrSize. The framebuffer-mem region grows UP from
+   kFramebufferMemBase to fill the window (sized to the host monitor), so the
+   body sits in the fixed gap BELOW it, just past the register pages. */
+const uint32_t kGuestBodyBase    = kRegsBase + kRegsSize;
+const uint32_t kGuestBodyHdrSize = 0x1000u;
+const uint32_t kGuestBodyMaxSize = kFramebufferMemBase - kGuestBodyBase;
 
 }  /* namespace CerfVirt */

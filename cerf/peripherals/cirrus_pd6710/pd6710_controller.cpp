@@ -1,407 +1,334 @@
 #include "pd6710_controller.h"
 
-#include "pd6710_card.h"
 #include "pd6710_card_irq_line.h"
+#include "pd6710_management_irq_line.h"
 
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../peripherals/peripheral_dispatcher.h"
+#include "../../host/host_widget_registry.h"
 
 namespace {
 
-constexpr uint32_t kBase = 0x110003E0u;
-constexpr uint32_t kSize = 0x00FFFC20u;
+constexpr uint32_t kPortIndex = 0x0u;
+constexpr uint32_t kPortData  = 0x1u;
 
-constexpr uint32_t kOffsetIndex = 0x0u;
-constexpr uint32_t kOffsetData  = 0x1u;
-
-/* PD6710 internal register indices — names match pcmcia.sys
-   conventions and the PD6710 datasheet. */
+/* PCIC register indices, BSP pd6710.h. */
 enum : uint8_t {
-    kRegChipRevision              = 0x00,
-    kRegInterfaceStatus           = 0x01,
-    kRegPowerControl              = 0x02,
-    kRegInterruptAndGeneralCtrl   = 0x03,
-    kRegCardStatusChange          = 0x04,
-    kRegStatusChangeIntConfig     = 0x05,
-    kRegWindowEnable              = 0x06,
-    kRegIoWindowControl           = 0x07,
-    kRegIoMap0StartAddrLo         = 0x08,
-    kRegIoMap0StartAddrHi         = 0x09,
-    kRegIoMap0EndAddrLo           = 0x0A,
-    kRegIoMap0EndAddrHi           = 0x0B,
-    kRegIoMap1StartAddrLo         = 0x0C,
-    kRegIoMap1StartAddrHi         = 0x0D,
-    kRegIoMap1EndAddrLo           = 0x0E,
-    kRegIoMap1EndAddrHi           = 0x0F,
-    kRegMemMap0StartAddrLo        = 0x10,
-    kRegMemMap0StartAddrHi        = 0x11,
-    kRegMemMap0EndAddrLo          = 0x12,
-    kRegMemMap0EndAddrHi          = 0x13,
-    kRegMemMap0AddrOffsetLo       = 0x14,
-    kRegMemMap0AddrOffsetHi       = 0x15,
-    kRegGeneralControl            = 0x16,
-    kRegFifoControl               = 0x17,
-    kRegMemMap1StartAddrLo        = 0x18,
-    kRegMemMap1StartAddrHi        = 0x19,
-    kRegMemMap1EndAddrLo          = 0x1A,
-    kRegMemMap1EndAddrHi          = 0x1B,
-    kRegMemMap1AddrOffsetLo       = 0x1C,
-    kRegMemMap1AddrOffsetHi       = 0x1D,
-    kRegGlobalControl             = 0x1E,
-    kRegChipInfo                  = 0x1F,
-    kRegMemMap2StartAddrLo        = 0x20,
-    kRegMemMap2StartAddrHi        = 0x21,
-    kRegMemMap2EndAddrLo          = 0x22,
-    kRegMemMap2EndAddrHi          = 0x23,
-    kRegMemMap2AddrOffsetLo       = 0x24,
-    kRegMemMap2AddrOffsetHi       = 0x25,
-    kRegMemMap3StartAddrLo        = 0x28,
-    kRegMemMap3StartAddrHi        = 0x29,
-    kRegMemMap3EndAddrLo          = 0x2A,
-    kRegMemMap3EndAddrHi          = 0x2B,
-    kRegMemMap3AddrOffsetLo       = 0x2C,
-    kRegMemMap3AddrOffsetHi       = 0x2D,
-    kRegMemMap4StartAddrLo        = 0x30,
-    kRegMemMap4StartAddrHi        = 0x31,
-    kRegMemMap4EndAddrLo          = 0x32,
-    kRegMemMap4EndAddrHi          = 0x33,
-    kRegMemMap4AddrOffsetLo       = 0x34,
-    kRegMemMap4AddrOffsetHi       = 0x35,
-    kRegCardIoMap0OffsetLo        = 0x36,
-    kRegCardIoMap0OffsetHi        = 0x37,
-    kRegSetupTiming0              = 0x3A,
-    kRegCmdTiming0                = 0x3B,
-    kRegRecoveryTiming0           = 0x3C,
-    kRegSetupTiming1              = 0x3D,
-    kRegCmdTiming1                = 0x3E,
-    kRegRecoveryTiming1           = 0x3F,
+    kRegChipRevision            = 0x00,
+    kRegInterfaceStatus         = 0x01,
+    kRegPowerControl            = 0x02,
+    kRegInterruptAndGeneralCtrl = 0x03,
+    kRegCardStatusChange        = 0x04,
+    kRegStatusChangeIntConfig   = 0x05,
+    kRegWindowEnable            = 0x06,
+    kRegIoWindowControl         = 0x07,
+    kRegIoMapFirst              = 0x08,   /* 0x08-0x0F: io start/end ×2 */
+    kRegIoMapLast               = 0x0F,
+    kRegMemMapFirst             = 0x10,   /* 0x10-0x35 stride 8, low 6 */
+    kRegMemMapLast              = 0x35,
+    kRegGeneralControl          = 0x16,
+    kRegFifoControl             = 0x17,
+    kRegGlobalControl           = 0x1E,
+    kRegChipInfo                = 0x1F,
+    kRegIoOffsetFirst           = 0x36,   /* 0x36-0x39: io offsets ×2 */
+    kRegIoOffsetLast            = 0x39,
+    kRegTimingFirst             = 0x3A,   /* 0x3A-0x3F: setup/cmd/recovery ×2 */
+    kRegTimingLast              = 0x3F,
 };
 
-/* REG_INTERFACE_STATUS bits (PD6710 register set, matching the
-   IOCONTROLPCMCIA bitfield union in the DeviceEmulator host runtime). */
-constexpr uint8_t kIfsCd1       = 1u << 2;
-constexpr uint8_t kIfsCd2       = 1u << 3;
-constexpr uint8_t kIfsCardReady = 1u << 5;
+/* REG_INTERFACE_STATUS bits, BSP pd6710.h. */
+constexpr uint8_t kIfsCd1       = 0x04u;
+constexpr uint8_t kIfsCd2       = 0x08u;
+constexpr uint8_t kIfsCardReady = 0x20u;
 
-/* REG_POWER_CONTROL: pcmcia.sys writes 0x90 to power the card on
-   (bit 4 = VCC enable, bit 7 = output enable). The PD6710 reports
-   STS_CARD_READY only when both bits are set. */
-constexpr uint8_t kPowerOnPattern = 0x90;
+/* PWR_VCC_POWER | PWR_OUTPUT_ENABLE — the powered-on pattern the BSP
+   driver writes (pd6710.h bits 0x10 / 0x80). */
+constexpr uint8_t kPowerOnPattern = 0x90u;
 
-/* REG_INTERRUPT_AND_GENERAL_CONTROL low nibble = CARD_IRQ_SEL[3:0].
-   Non-zero means the card IRQ is enabled (any non-zero value routes
-   the same way; the PD6710 datasheet documents this as the IRQ
-   number, but on this board the routing always lands on EINT8). */
-constexpr uint8_t kCardIrqSelectMask = 0x0F;
+/* REG_INTERRUPT_AND_GENERAL_CONTROL low nibble = card IRQ select; any
+   non-zero value enables the card IRQ routing. */
+constexpr uint8_t kCardIrqSelectMask = 0x0Fu;
+
+/* REG_CARD_STATUS_CHANGE / REG_STATUS_CHANGE_INT_CONFIG detect bits,
+   BSP pd6710.h (CSC_DETECT_CHANGE / CFG_CARD_DETECT_ENABLE). */
+constexpr uint8_t kCscDetectChange     = 0x08u;
+constexpr uint8_t kCfgCardDetectEnable = 0x08u;
+
+/* Card Memory Map Offset Address High bits, PD6710 datasheet p56
+   (§8.6): bit 6 = REG setting (attribute), bit 7 = write protect. */
+constexpr uint8_t kMohRegActive    = 0x40u;
+constexpr uint8_t kMohWriteProtect = 0x80u;
+
+bool IsMemMapReg(uint8_t index) {
+    return index >= kRegMemMapFirst && index <= kRegMemMapLast &&
+           (index & 7u) <= 5u;
+}
 
 }  /* namespace */
 
+Pd6710Controller::Pd6710Controller(CerfEmulator& emu)
+    : Service(emu), slot_(emu, *this, L"PCMCIA #1") {}
+
 bool Pd6710Controller::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
-    if (!bd) return false;
-    const auto b = bd->GetBoard();
-    return b == Board::Smdk2410DevEmu;
+    return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
 }
 
 void Pd6710Controller::OnReady() {
-    /* Power-on default: REG_CHIP_INFO starts at 0xC0 so the first
-       read returns the top-two-bits-set form and subsequent reads
-       return 0 until the register is written again. */
+    /* Power-on default: first REG_CHIP_INFO read returns 0xC0, later
+       reads 0 until rewritten (mirrors the DeviceEmulator host
+       runtime; the BSP driver probes this pattern to detect the chip). */
     reg_chip_info_ = 0xC0u;
 
-    emu_.Get<PeripheralDispatcher>().Register(this);
+    emu_.Get<HostWidgetRegistry>().Register(&slot_);
 }
 
-Pd6710Card* Pd6710Controller::ResolveCard() const {
-    if (!card_) card_ = emu_.TryGet<Pd6710Card>();
-    return card_;
-}
-
-Pd6710CardIrqLine* Pd6710Controller::ResolveIrqLine() const {
-    if (!irq_line_) irq_line_ = emu_.TryGet<Pd6710CardIrqLine>();
-    return irq_line_;
-}
-
-uint32_t Pd6710Controller::MmioBase() const { return kBase; }
-uint32_t Pd6710Controller::MmioSize() const { return kSize; }
-
-uint8_t Pd6710Controller::ReadByte(uint32_t addr) {
-    const uint32_t off = addr - kBase;
-    if (off == kOffsetIndex) {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        LOG(Pcmcia, "[PD6710] read INDEX -> 0x%02X\n", index_);
-        return index_;
-    }
-    if (off == kOffsetData) {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        const uint8_t value = ReadIndexedData();
-        LOG(Pcmcia, "[PD6710] read DATA[idx=0x%02X] -> 0x%02X\n",
-            index_, value);
-        return value;
-    }
-    LOG(Pcmcia, "[PD6710] read fallback +0x%X -> 0\n", off);
-    return 0u;
-}
-
-uint16_t Pd6710Controller::ReadHalf(uint32_t addr) {
-    const uint32_t off = addr - kBase;
-    LOG(Pcmcia, "[PD6710] read16 +0x%X (fallthrough) -> 0\n", off);
-    return 0u;
-}
-
-void Pd6710Controller::WriteByte(uint32_t addr, uint8_t value) {
-    const uint32_t off = addr - kBase;
-    if (off == kOffsetIndex) {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        index_ = value;
-        LOG(Pcmcia, "[PD6710] write INDEX = 0x%02X\n", value);
-        return;
-    }
-    if (off == kOffsetData) {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        LOG(Pcmcia, "[PD6710] write DATA[idx=0x%02X] = 0x%02X\n",
-            index_, value);
-        WriteIndexedData(value);
-        return;
-    }
-    LOG(Pcmcia, "[PD6710] write fallback +0x%X = 0x%02X\n", off, value);
-}
-
-void Pd6710Controller::WriteHalf(uint32_t addr, uint16_t value) {
-    const uint32_t off = addr - kBase;
-    LOG(Pcmcia, "[PD6710] write16 +0x%X = 0x%04X (fallthrough)\n",
-        off, value);
-}
-
-bool Pd6710Controller::IsCardInserted() const {
-    return const_cast<Pd6710Controller*>(this)->ResolveCard() != nullptr;
-}
-
-bool Pd6710Controller::IsCardPowered() const {
-    if (!IsCardInserted()) return false;
-    std::lock_guard<std::mutex> lk(state_mutex_);
+bool Pd6710Controller::IsCardPoweredLocked() const {
     return (reg_power_control_ & kPowerOnPattern) == kPowerOnPattern;
 }
 
-Pd6710Card* Pd6710Controller::Card() const {
-    return const_cast<Pd6710Controller*>(this)->ResolveCard();
+uint8_t Pd6710Controller::ReadPcicByte(uint32_t port) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    if (port == kPortIndex) return index_;
+    return ReadIndexedDataLocked();
 }
 
-bool Pd6710Controller::MapIoAddress(uint32_t* io_offset) const {
-    if (!IsCardPowered()) return false;
+void Pd6710Controller::WritePcicByte(uint32_t port, uint8_t value) {
+    bool power_changed = false;
+    bool power_on      = false;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        if (port == kPortIndex) {
+            index_ = value;
+            return;
+        }
+        power_changed = WriteIndexedDataLocked(value, &power_on);
+    }
+    if (power_changed) slot_.SetPowered(power_on);
+}
 
-    if (*io_offset < 0xFF0000u) return false;
-    const uint32_t addr = *io_offset - 0xFF0000u;
+uint8_t Pd6710Controller::ReadIndexedDataLocked() {
+    if (IsMemMapReg(index_)) {
+        return mem_reg_[(index_ - kRegMemMapFirst) >> 3][index_ & 7u];
+    }
+    if (index_ >= kRegIoMapFirst && index_ <= kRegIoMapLast) {
+        const int win = (index_ - kRegIoMapFirst) >= 4 ? 1 : 0;
+        switch ((index_ - kRegIoMapFirst) & 3u) {
+            case 0: return io_start_lo_[win];
+            case 1: return io_start_hi_[win];
+            case 2: return io_end_lo_[win];
+            case 3: return io_end_hi_[win];
+        }
+    }
+    if (index_ >= kRegIoOffsetFirst && index_ <= kRegIoOffsetLast) {
+        const int win = (index_ - kRegIoOffsetFirst) >= 2 ? 1 : 0;
+        return ((index_ - kRegIoOffsetFirst) & 1u) ? io_off_hi_[win]
+                                                   : io_off_lo_[win];
+    }
+    if (index_ >= kRegTimingFirst && index_ <= kRegTimingLast) {
+        return timing_[index_ - kRegTimingFirst];
+    }
 
+    switch (index_) {
+        case kRegChipRevision:
+            return 0x83u;   /* the BSP driver expects this revision */
+
+        case kRegInterfaceStatus: {
+            uint8_t v = 0u;
+            if (slot_.HasCard()) {
+                v |= kIfsCd1 | kIfsCd2;
+                if (IsCardPoweredLocked()) v |= kIfsCardReady;
+            }
+            return v;
+        }
+
+        case kRegPowerControl:          return reg_power_control_;
+        case kRegInterruptAndGeneralCtrl: return reg_interrupt_and_gen_ctrl_;
+
+        case kRegCardStatusChange: {
+            const uint8_t v = reg_card_status_change_;
+            reg_card_status_change_ = 0u;   /* read clears */
+            return v;
+        }
+
+        case kRegStatusChangeIntConfig: return reg_status_change_int_cfg_;
+        case kRegWindowEnable:          return reg_window_enable_;
+        case kRegIoWindowControl:       return reg_io_window_control_;
+
+        case kRegGeneralControl:        return 1u;  /* 5.0 V → 16-bit card */
+        case kRegFifoControl:           return 0u;
+        case kRegGlobalControl:         return 0u;
+
+        case kRegChipInfo: {
+            const uint8_t v = reg_chip_info_;
+            reg_chip_info_ = static_cast<uint8_t>(reg_chip_info_ & ~0xC0u);
+            return v;
+        }
+
+        default:
+            LOG(Caution, "[PD6710] read of unmodeled INDEX 0x%02X\n", index_);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+}
+
+bool Pd6710Controller::WriteIndexedDataLocked(uint8_t value, bool* power_on) {
+    if (IsMemMapReg(index_)) {
+        mem_reg_[(index_ - kRegMemMapFirst) >> 3][index_ & 7u] = value;
+        return false;
+    }
+    if (index_ >= kRegIoMapFirst && index_ <= kRegIoMapLast) {
+        const int win = (index_ - kRegIoMapFirst) >= 4 ? 1 : 0;
+        switch ((index_ - kRegIoMapFirst) & 3u) {
+            case 0: io_start_lo_[win] = value; break;
+            case 1: io_start_hi_[win] = value; break;
+            case 2: io_end_lo_[win]   = value; break;
+            case 3: io_end_hi_[win]   = value; break;
+        }
+        return false;
+    }
+    if (index_ >= kRegIoOffsetFirst && index_ <= kRegIoOffsetLast) {
+        const int win = (index_ - kRegIoOffsetFirst) >= 2 ? 1 : 0;
+        if ((index_ - kRegIoOffsetFirst) & 1u) io_off_hi_[win] = value;
+        else                                   io_off_lo_[win] = value;
+        return false;
+    }
+    if (index_ >= kRegTimingFirst && index_ <= kRegTimingLast) {
+        timing_[index_ - kRegTimingFirst] = value;
+        return false;
+    }
+
+    switch (index_) {
+        case kRegPowerControl: {
+            const bool was = IsCardPoweredLocked();
+            reg_power_control_ = value;
+            const bool now = IsCardPoweredLocked();
+            *power_on = now;
+            return now != was;
+        }
+
+        case kRegInterruptAndGeneralCtrl:
+            reg_interrupt_and_gen_ctrl_ = value;
+            return false;
+        case kRegStatusChangeIntConfig:
+            reg_status_change_int_cfg_ = value;
+            return false;
+        case kRegWindowEnable:
+            reg_window_enable_ = value;
+            return false;
+        case kRegIoWindowControl:
+            reg_io_window_control_ = value;
+            return false;
+
+        /* FIFO flush / MISC controls: accepted, no emulated effect
+           (mirrors the DeviceEmulator host runtime). */
+        case kRegGeneralControl:
+        case kRegFifoControl:
+        case kRegGlobalControl:
+            return false;
+
+        case kRegChipInfo:
+            reg_chip_info_ = 0xC0u;
+            return false;
+
+        default:
+            LOG(Caution, "[PD6710] write of unmodeled INDEX 0x%02X "
+                    "(value 0x%02X)\n", index_, value);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+}
+
+bool Pd6710Controller::MapIo(uint32_t bus_io, uint32_t* card_io) {
     std::lock_guard<std::mutex> lk(state_mutex_);
 
-    /* REG_WINDOW_ENABLE: bit 6 = WIN_IO_MAP1_ENABLE, bit 7 =
-       WIN_IO_MAP0_ENABLE (matching the IOCONTROLPCMCIA REG_WINDOW_ENABLE
-       bitfield union in the DeviceEmulator host runtime). */
-    constexpr uint8_t kWinIoMap0Enable = 1u << 6;
-    constexpr uint8_t kWinIoMap1Enable = 1u << 7;
+    /* WIN_IO_MAP0_ENABLE = bit 6, WIN_IO_MAP1_ENABLE = bit 7 (BSP
+       pd6710.h). Window 1 checked first, matching the DeviceEmulator
+       host runtime's decode order. */
+    constexpr uint8_t kWinIoMap0Enable = 0x40u;
+    constexpr uint8_t kWinIoMap1Enable = 0x80u;
 
     auto u16 = [](uint8_t lo, uint8_t hi) -> uint32_t {
         return (uint32_t)lo | ((uint32_t)hi << 8);
     };
 
-    if (reg_window_enable_ & kWinIoMap1Enable) {
-        const uint32_t s = u16(reg_io_map1_start_lo_, reg_io_map1_start_hi_);
-        const uint32_t e = u16(reg_io_map1_end_lo_,   reg_io_map1_end_hi_);
-        if (addr >= s && addr <= e) {
-            *io_offset = addr - s;
-            return true;
-        }
-    }
-    if (reg_window_enable_ & kWinIoMap0Enable) {
-        const uint32_t s = u16(reg_io_map0_start_lo_, reg_io_map0_start_hi_);
-        const uint32_t e = u16(reg_io_map0_end_lo_,   reg_io_map0_end_hi_);
-        if (addr >= s && addr <= e) {
-            *io_offset = addr - s;
-            return true;
-        }
+    for (int win : {1, 0}) {
+        const uint8_t enable_bit =
+            (win == 1) ? kWinIoMap1Enable : kWinIoMap0Enable;
+        if (!(reg_window_enable_ & enable_bit)) continue;
+        const uint32_t start = u16(io_start_lo_[win], io_start_hi_[win]);
+        const uint32_t end   = u16(io_end_lo_[win],   io_end_hi_[win]);
+        if (bus_io < start || bus_io > end) continue;
+        /* Card I/O address = bus address + offset; offset bit 0 must
+           be 0 (PD6710 datasheet p52, §7.6). */
+        const uint32_t offset =
+            u16(io_off_lo_[win], io_off_hi_[win]) & 0xFFFEu;
+        *card_io = (bus_io + offset) & 0xFFFFu;
+        return true;
     }
     return false;
 }
 
-void Pd6710Controller::RaiseCardIrq() {
+bool Pd6710Controller::MapMem(uint32_t bus_off, uint32_t* card_addr,
+                              bool* attribute, bool* writable) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+
+    const uint32_t page = (bus_off >> 12) & 0xFFFu;   /* host bits 23:12 */
+
+    for (int win = 0; win < 5; ++win) {
+        if (!(reg_window_enable_ & (1u << win))) continue;
+        const uint8_t* r = mem_reg_[win];
+        const uint32_t start = (uint32_t)r[0] | ((uint32_t)(r[1] & 0x0Fu) << 8);
+        const uint32_t end   = (uint32_t)r[2] | ((uint32_t)(r[3] & 0x0Fu) << 8);
+        if (page < start || page > end) continue;
+        /* Card address = host address + (offset << 12), offset is
+           bits 25:12, card space 26 bits (PD6710 datasheet p56
+           §8.5-8.6: the offset is added to the host memory address
+           to form the PC Card memory address). */
+        const uint32_t offset =
+            (uint32_t)r[4] | ((uint32_t)(r[5] & 0x3Fu) << 8);
+        *card_addr = (bus_off + (offset << 12)) & 0x3FFFFFFu;
+        *attribute = (r[5] & kMohRegActive)    != 0u;
+        *writable  = (r[5] & kMohWriteProtect) == 0u;
+        return true;
+    }
+    return false;
+}
+
+void Pd6710Controller::OnCardDetectChanged(PcmciaSlot& slot) {
+    bool pulse;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        reg_card_status_change_ |= kCscDetectChange;
+        pulse = (reg_status_change_int_cfg_ & kCfgCardDetectEnable) != 0u;
+    }
+    if (!slot.HasCard()) {
+        /* Card removal drops the (level-triggered) card IRQ with it —
+           the DeviceEmulator host runtime clears EINT8 on RemoveCard. */
+        if (auto* line = emu_.TryGet<Pd6710CardIrqLine>()) line->Deassert();
+    }
+    if (pulse) {
+        if (auto* line = emu_.TryGet<Pd6710ManagementIrqLine>()) line->Pulse();
+    }
+}
+
+void Pd6710Controller::OnCardIrqAsserted(PcmciaSlot&) {
     bool enabled;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         enabled = (reg_interrupt_and_gen_ctrl_ & kCardIrqSelectMask) != 0u;
     }
     if (!enabled) return;
-    if (auto* line = ResolveIrqLine()) line->Assert();
+    if (auto* line = emu_.TryGet<Pd6710CardIrqLine>()) line->Assert();
 }
 
-void Pd6710Controller::ClearCardIrq() {
+void Pd6710Controller::OnCardIrqDeasserted(PcmciaSlot&) {
     bool enabled;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         enabled = (reg_interrupt_and_gen_ctrl_ & kCardIrqSelectMask) != 0u;
     }
     if (!enabled) return;
-    if (auto* line = ResolveIrqLine()) line->Deassert();
-}
-
-uint8_t Pd6710Controller::ReadIndexedData() {
-    switch (index_) {
-    case kRegChipRevision:
-        return 0x83u;  /* pcmcia.sys expects this revision */
-
-    case kRegInterfaceStatus: {
-        /* Report CD1 + CD2 + (CARD_READY when powered) when a card
-           is in the socket. With no card forced clear. */
-        constexpr uint8_t kFloatingBits = (kIfsCd1 | kIfsCd2 | kIfsCardReady);
-        uint8_t masked =
-            static_cast<uint8_t>(reg_interface_status_ & ~kFloatingBits);
-        if (IsCardInserted()) {
-            masked |= (kIfsCd1 | kIfsCd2);
-            if ((reg_power_control_ & kPowerOnPattern) == kPowerOnPattern) {
-                masked |= kIfsCardReady;
-            }
-        }
-        return masked;
-    }
-
-    case kRegPowerControl:              return reg_power_control_;
-    case kRegInterruptAndGeneralCtrl:   return reg_interrupt_and_gen_ctrl_;
-
-    case kRegCardStatusChange: {
-        const uint8_t value = reg_card_status_change_;
-        reg_card_status_change_ = 0u;
-        return value;
-    }
-
-    case kRegStatusChangeIntConfig:     return reg_status_change_int_cfg_;
-    case kRegWindowEnable:              return reg_window_enable_;
-    case kRegIoWindowControl:           return reg_io_window_control_;
-
-    case kRegMemMap0StartAddrLo:
-    case kRegMemMap0StartAddrHi:        return 0u;
-
-    case kRegGeneralControl:            return 1u;  /* 5.0V → 16-bit card */
-    case kRegFifoControl:               return 0u;
-
-    case kRegMemMap1StartAddrLo:
-    case kRegMemMap1StartAddrHi:        return 0u;
-
-    case kRegGlobalControl:             return 0u;
-
-    case kRegChipInfo: {
-        const uint8_t value = reg_chip_info_;
-        reg_chip_info_ = static_cast<uint8_t>(reg_chip_info_ & ~0xC0u);
-        return value;
-    }
-
-    case kRegMemMap2StartAddrLo:
-    case kRegMemMap2StartAddrHi:
-    case kRegMemMap3StartAddrLo:
-    case kRegMemMap3StartAddrHi:
-    case kRegMemMap4StartAddrLo:
-    case kRegMemMap4StartAddrHi:        return 0u;
-
-    case kRegIoMap0StartAddrLo: return reg_io_map0_start_lo_;
-    case kRegIoMap0StartAddrHi: return reg_io_map0_start_hi_;
-    case kRegIoMap0EndAddrLo:   return reg_io_map0_end_lo_;
-    case kRegIoMap0EndAddrHi:   return reg_io_map0_end_hi_;
-    case kRegIoMap1StartAddrLo: return reg_io_map1_start_lo_;
-    case kRegIoMap1StartAddrHi: return reg_io_map1_start_hi_;
-    case kRegIoMap1EndAddrLo:   return reg_io_map1_end_lo_;
-    case kRegIoMap1EndAddrHi:   return reg_io_map1_end_hi_;
-
-    default:
-        LOG(Caution, "[PD6710] unsupported INDEX 0x%02X on read\n", index_);
-        return 0u;
-    }
-}
-
-void Pd6710Controller::WriteIndexedData(uint8_t value) {
-    switch (index_) {
-    case kRegPowerControl: {
-        const bool was_powered =
-            (reg_power_control_ & kPowerOnPattern) == kPowerOnPattern;
-        reg_power_control_ = value;
-        const bool now_powered =
-            (reg_power_control_ & kPowerOnPattern) == kPowerOnPattern;
-        if (now_powered != was_powered) {
-            if (auto* c = ResolveCard()) {
-                if (now_powered) c->PowerOn();
-                else             c->PowerOff();
-            }
-        }
-        return;
-    }
-
-    case kRegInterruptAndGeneralCtrl:   reg_interrupt_and_gen_ctrl_ = value; return;
-    case kRegStatusChangeIntConfig:     reg_status_change_int_cfg_  = value; return;
-    case kRegWindowEnable:              reg_window_enable_          = value; return;
-    case kRegIoWindowControl:           reg_io_window_control_      = value; return;
-
-    case kRegIoMap0StartAddrLo: reg_io_map0_start_lo_ = value; return;
-    case kRegIoMap0StartAddrHi: reg_io_map0_start_hi_ = value; return;
-    case kRegIoMap0EndAddrLo:   reg_io_map0_end_lo_   = value; return;
-    case kRegIoMap0EndAddrHi:   reg_io_map0_end_hi_   = value; return;
-    case kRegIoMap1StartAddrLo: reg_io_map1_start_lo_ = value; return;
-    case kRegIoMap1StartAddrHi: reg_io_map1_start_hi_ = value; return;
-    case kRegIoMap1EndAddrLo:   reg_io_map1_end_lo_   = value; return;
-    case kRegIoMap1EndAddrHi:   reg_io_map1_end_hi_   = value; return;
-
-    case kRegMemMap0StartAddrLo:
-    case kRegMemMap0StartAddrHi:
-    case kRegMemMap0EndAddrLo:
-    case kRegMemMap0EndAddrHi:
-    case kRegMemMap0AddrOffsetLo:
-    case kRegMemMap0AddrOffsetHi:        return;
-
-    case kRegGeneralControl:
-    case kRegFifoControl:
-    case kRegGlobalControl:              return;
-
-    case kRegChipInfo:
-        reg_chip_info_ = 0xC0u;
-        return;
-
-    case kRegMemMap1StartAddrLo:
-    case kRegMemMap1StartAddrHi:
-    case kRegMemMap1EndAddrLo:
-    case kRegMemMap1EndAddrHi:
-    case kRegMemMap1AddrOffsetLo:
-    case kRegMemMap1AddrOffsetHi:
-    case kRegMemMap2StartAddrLo:
-    case kRegMemMap2StartAddrHi:
-    case kRegMemMap2EndAddrLo:
-    case kRegMemMap2EndAddrHi:
-    case kRegMemMap2AddrOffsetLo:
-    case kRegMemMap2AddrOffsetHi:
-    case kRegMemMap3StartAddrLo:
-    case kRegMemMap3StartAddrHi:
-    case kRegMemMap3EndAddrLo:
-    case kRegMemMap3EndAddrHi:
-    case kRegMemMap3AddrOffsetLo:
-    case kRegMemMap3AddrOffsetHi:
-    case kRegMemMap4StartAddrLo:
-    case kRegMemMap4StartAddrHi:
-    case kRegMemMap4EndAddrLo:
-    case kRegMemMap4EndAddrHi:
-    case kRegMemMap4AddrOffsetLo:
-    case kRegMemMap4AddrOffsetHi:
-    case kRegCardIoMap0OffsetLo:
-    case kRegCardIoMap0OffsetHi:
-    case kRegSetupTiming0:
-    case kRegCmdTiming0:
-    case kRegRecoveryTiming0:
-    case kRegSetupTiming1:
-    case kRegCmdTiming1:
-    case kRegRecoveryTiming1:           return;
-
-    default:
-        LOG(Caution, "[PD6710] unsupported INDEX 0x%02X on write "
-                "(value 0x%02X)\n", index_, value);
-        return;
-    }
+    if (auto* line = emu_.TryGet<Pd6710CardIrqLine>()) line->Deassert();
 }
 
 REGISTER_SERVICE(Pd6710Controller);

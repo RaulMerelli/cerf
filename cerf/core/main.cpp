@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     timeBeginPeriod(1);
 
     Log::InitDefaultLogFile();
+    Log::InstallCrashHandler();
 
     LOG(Cerf, "=== CERF ===\n");
     LOG(Cerf, "Built: %s %s\n\n", __DATE__, __TIME__);

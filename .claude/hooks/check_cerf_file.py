@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 PostToolUse hook for Write|Edit on C/C++ source files (.cpp/.h/.hpp/.cc/.c).
+Python files (.py) get check 1 (LINE-COUNT) only — every other check parses
+C/C++ comment syntax. .claude/hooks/ is exempt from the line cap, mirroring
+the pre-commit hook.
 Warns about:
   1. LINE-COUNT      — file > 500 lines (the pre-commit hook will reject it).
   2. BAILOUT-COMMENT — TODO / FIXME / HACK / XXX / "for now" / "temporary" /
@@ -201,6 +204,22 @@ def collect_checklist_filenames() -> list:
     return sorted(names)
 
 
+def emit_warnings(warnings: list, rel_path: str) -> int:
+    if not warnings:
+        return 0
+    full = "\n\n".join(warnings)
+    headline = warnings[0].split(":", 1)[0]
+    out = {
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": full,
+        },
+        "systemMessage": f"[CLAUDE.md hook] {headline} in {rel_path}",
+    }
+    json.dump(out, sys.stdout)
+    return 0
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -213,7 +232,10 @@ def main() -> int:
 
     if not file_path:
         return 0
-    if not file_path.lower().endswith((".cpp", ".h", ".hpp", ".cc", ".c")):
+    lower = file_path.lower()
+    is_cpp = lower.endswith((".cpp", ".h", ".hpp", ".cc", ".c"))
+    is_py = lower.endswith(".py")
+    if not (is_cpp or is_py):
         return 0
     if not os.path.isfile(file_path):
         return 0
@@ -231,8 +253,9 @@ def main() -> int:
 
     warnings = []
 
-    # Check 1: line-count cap. Skip trace files, mirroring .githooks/pre-commit.
-    if "tracing/" not in rel_path:
+    # Check 1: line-count cap. Skip trace files and .claude/hooks/,
+    # mirroring .githooks/pre-commit.
+    if "tracing/" not in rel_path and ".claude/hooks/" not in rel_path:
         line_count = content.count("\n")
         if content and not content.endswith("\n"):
             line_count += 1
@@ -244,6 +267,11 @@ def main() -> int:
                 f"refactor while it's still cheap. See agent_docs/code_style.md "
                 f'"File & Symbol Style".'
             )
+
+    # Python files get only the line-cap check — every other check below
+    # parses C/C++ comment syntax.
+    if is_py:
+        return emit_warnings(warnings, rel_path)
 
     bailout_hits = []
     dev_emu_hits = []
@@ -579,20 +607,7 @@ def main() -> int:
             f"Hits:\n{sample}"
         )
 
-    if not warnings:
-        return 0
-
-    full = "\n\n".join(warnings)
-    headline = warnings[0].split(":", 1)[0]
-    out = {
-        "hookSpecificOutput": {
-            "hookEventName": "PostToolUse",
-            "additionalContext": full,
-        },
-        "systemMessage": f"[CLAUDE.md hook] {headline} in {rel_path}",
-    }
-    json.dump(out, sys.stdout)
-    return 0
+    return emit_warnings(warnings, rel_path)
 
 
 if __name__ == "__main__":

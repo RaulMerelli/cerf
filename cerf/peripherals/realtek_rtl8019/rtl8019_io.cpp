@@ -1,11 +1,11 @@
 #include "rtl8019.h"
 
-#include "../cirrus_pd6710/pd6710_controller.h"
+#include "../pcmcia/pcmcia_slot.h"
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../net/network_backend.h"
 
-#include <cstring>
 #include <vector>
 
 namespace {
@@ -27,7 +27,7 @@ constexpr uint8_t kIsrXmitBit     = 0x02;
 constexpr uint8_t kIsrDmaDoneBit  = 0x40;
 constexpr uint8_t kIsrResetBit    = 0x80;
 
-/* Card RAM live at card-memory offset kRamBase, 16 KB. The DMA
+/* Card RAM lives at common-memory offset kRamBase, 16 KB. The DMA
    wrap target is NIC_PAGE_START * 256 (page→byte conversion). */
 constexpr uint32_t kRamBase = 0x4000;
 constexpr uint32_t kRamSize = 0x4000;
@@ -43,16 +43,39 @@ uint8_t PageOf(uint8_t cmd) {
 [[noreturn]] void HaltUnsupported(const char* op, uint32_t offset,
                                   uint8_t page, uint32_t value) {
     LOG(Caution, "[NE2000] %s offset 0x%02X page %u value 0x%X — "
-            "unsupported register access; halting (matches host "
-            "runtime TerminateWithMessage behavior)\n",
+            "unsupported register access; halting\n",
             op, offset, page, value);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
+/* The card's CIS CFTABLE entries 0x20-0x23 each decode 0x20 bytes of
+   I/O at 0x300 + (index - 0x20) * 0x20. */
+constexpr uint8_t  kCorIndexMask  = 0x3F;
+constexpr uint8_t  kCorIndexFirst = 0x20;
+constexpr uint8_t  kCorIndexLast  = 0x23;
+constexpr uint32_t kIoBlockBase   = 0x300;
+constexpr uint32_t kIoBlockSize   = 0x20;
+
 }  /* namespace */
 
-uint8_t Rtl8019::ReadByte(uint32_t offset) {
+bool Rtl8019::MapCardIoLocked(uint32_t card_io, uint32_t* reg) const {
+    const uint8_t index = cor_ & kCorIndexMask;
+    if (index < kCorIndexFirst || index > kCorIndexLast) return false;
+    const uint32_t base =
+        kIoBlockBase + (uint32_t)(index - kCorIndexFirst) * kIoBlockSize;
+    if (card_io < base || card_io >= base + kIoBlockSize) return false;
+    *reg = card_io - base;
+    return true;
+}
+
+uint8_t Rtl8019::ReadIo8(uint32_t card_io) {
     std::lock_guard<std::mutex> lk(state_mutex_);
+    uint32_t offset;
+    if (!MapCardIoLocked(card_io, &offset)) {
+        LOG(Caution, "[NE2000] read8 io 0x%X outside configured block "
+                "(COR=0x%02X); halting\n", card_io, cor_);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     const uint8_t page = PageOf(nic_command_);
 
     switch (offset) {
@@ -173,8 +196,14 @@ uint8_t Rtl8019::ReadByte(uint32_t offset) {
     }
 }
 
-uint16_t Rtl8019::ReadHalf(uint32_t offset) {
+uint16_t Rtl8019::ReadIo16(uint32_t card_io) {
     std::lock_guard<std::mutex> lk(state_mutex_);
+    uint32_t offset;
+    if (!MapCardIoLocked(card_io, &offset)) {
+        LOG(Caution, "[NE2000] read16 io 0x%X outside configured block "
+                "(COR=0x%02X); halting\n", card_io, cor_);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     if (offset != 0x10) {
         LOG(Caution, "[NE2000] read16 unsupported offset 0x%02X — only "
                 "NIC_RACK_NIC supports 16-bit reads; halting\n", offset);
@@ -204,22 +233,23 @@ uint16_t Rtl8019::ReadHalf(uint32_t offset) {
     return value;
 }
 
-void Rtl8019::WriteByte(uint32_t offset, uint8_t value) {
+void Rtl8019::WriteIo8(uint32_t card_io, uint8_t value) {
     std::vector<uint8_t> tx_pending;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        const uint8_t old_command = nic_command_;
+        uint32_t offset;
+        if (!MapCardIoLocked(card_io, &offset)) {
+            LOG(Caution, "[NE2000] write8 io 0x%X = 0x%02X outside "
+                    "configured block (COR=0x%02X); halting\n",
+                    card_io, value, cor_);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
         const uint8_t page = PageOf(nic_command_);
 
         switch (offset) {
             case 0x00: {
                 nic_command_ = value;
                 if (nic_command_ & kCrStart) {
-                    if ((old_command & kCrStop) && (nic_command_ & kCrStop) == 0u) {
-                        /* Exiting reset — NetworkBackend RX callback
-                           is already installed, no kickoff needed
-                           (slirp poll thread runs continuously). */
-                    }
                     if (nic_command_ & kCrNoDma) {
                         dma_count_ = 0u;
                     }
@@ -353,9 +383,9 @@ void Rtl8019::WriteByte(uint32_t offset, uint8_t value) {
                 if (page == 0) {
                     nic_intr_mask_ = value;
                     if (nic_intr_mask_ & nic_intr_status_) {
-                        if (pd_) pd_->RaiseCardIrq();
+                        slot_->RaiseIrq();
                     } else {
-                        if (pd_) pd_->ClearCardIrq();
+                        slot_->ClearIrq();
                     }
                 } else if (page == 1) {
                     nic_mc_addr_[7] = value;
@@ -388,9 +418,10 @@ void Rtl8019::WriteByte(uint32_t offset, uint8_t value) {
                 HaltUnsupported("write", offset, page, value);
         }
     }
-    if (!tx_pending.empty() && net_) {
-        net_->SendFrame(tx_pending.data(), tx_pending.size());
-        MarkTx();
+    if (!tx_pending.empty()) {
+        emu_.Get<NetworkBackend>().SendFrame(tx_pending.data(),
+                                             tx_pending.size());
+        slot_->MarkTx();
         std::lock_guard<std::mutex> lk(state_mutex_);
         if ((nic_command_ & kCrStop) == 0u) {
             nic_command_ &= ~kCrXmit;
@@ -399,8 +430,15 @@ void Rtl8019::WriteByte(uint32_t offset, uint8_t value) {
     }
 }
 
-void Rtl8019::WriteHalf(uint32_t offset, uint16_t value) {
+void Rtl8019::WriteIo16(uint32_t card_io, uint16_t value) {
     std::lock_guard<std::mutex> lk(state_mutex_);
+    uint32_t offset;
+    if (!MapCardIoLocked(card_io, &offset)) {
+        LOG(Caution, "[NE2000] write16 io 0x%X = 0x%04X outside "
+                "configured block (COR=0x%02X); halting\n",
+                card_io, value, cor_);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     if (offset != 0x10) {
         LOG(Caution, "[NE2000] write16 unsupported offset 0x%02X = 0x%04X — "
                 "only NIC_RACK_NIC supports 16-bit writes; halting\n",

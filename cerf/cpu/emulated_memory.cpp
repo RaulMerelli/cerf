@@ -180,20 +180,50 @@ void EmulatedMemory::WriteDword(uint32_t vaddr, uint64_t value) {
     std::memcpy(Translate(vaddr), &value, sizeof(value));
 }
 
-void EmulatedMemory::CopyIn(uint32_t vaddr, const void* host_src, size_t size) {
+EmulatedMemory::Region* EmulatedMemory::BulkRegionFor(uint32_t vaddr,
+                                                      size_t size,
+                                                      const char* op) {
     Region* r = FindRegion(vaddr);
     if (!r) {
-        LOG(Caution, "EmulatedMemory::CopyIn unmapped destination "
-                "0x%08X size 0x%zX\n", vaddr, size);
+        LOG(Caution, "EmulatedMemory::%s unmapped address "
+                "0x%08X size 0x%zX\n", op, vaddr, size);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     uint64_t end = static_cast<uint64_t>(vaddr) + size;
     if (end > static_cast<uint64_t>(r->base) + r->size) {
-        LOG(Caution, "EmulatedMemory::CopyIn crosses region boundary at "
+        LOG(Caution, "EmulatedMemory::%s crosses region boundary at "
                 "0x%08X size 0x%zX (region 0x%08X size 0x%X)\n",
-                vaddr, size, r->base, r->size);
+                op, vaddr, size, r->base, r->size);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
+    return r;
+}
+
+void EmulatedMemory::CopyIn(uint32_t vaddr, const void* host_src, size_t size) {
+    Region* r = BulkRegionFor(vaddr, size, "CopyIn");
     uint8_t* host = EnsureBacked(r);
     std::memcpy(host + (vaddr - r->base), host_src, size);
+}
+
+void EmulatedMemory::CopyOut(uint32_t vaddr, void* host_dst, size_t size) {
+    Region* r = BulkRegionFor(vaddr, size, "CopyOut");
+    uint8_t* host = EnsureBacked(r);
+    std::memcpy(host_dst, host + (vaddr - r->base), size);
+}
+
+void EmulatedMemory::WipeVolatileRegions() {
+    const size_t n = count_.load(std::memory_order_acquire);
+    for (size_t i = 0; i < n; ++i) {
+        Region& r = regions_[i];
+        if (r.page_protect == PAGE_READONLY ||
+            r.page_protect == PAGE_EXECUTE_READ) {
+            continue;
+        }
+        /* Unbacked regions are already zero on first touch. */
+        if (uint8_t* host = r.host_ptr.load(std::memory_order_acquire)) {
+            std::memset(host, 0, r.size);
+            LOG(Mem, "WipeVolatileRegions: region 0x%08X size 0x%X zeroed\n",
+                r.base, r.size);
+        }
+    }
 }

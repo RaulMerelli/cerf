@@ -15,6 +15,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     uint32_t MmioBase() const override { return 0x1000A000u; }
     uint32_t MmioSize() const override { return 0x20u; }
@@ -46,6 +47,7 @@ private:
     bool ShouldTouchAudioBeLiveLocked() const;
     void DoAdcSampleLocked(uint16_t io_adc_cntr_write);
     void PenTimerMain();
+    void StopPenTimerThread();
 
     mutable std::mutex state_mutex_;
     uint16_t io_adc_cntr_   = 0;

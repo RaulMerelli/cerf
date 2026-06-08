@@ -1,6 +1,7 @@
 #include <cstddef>
 
 #include "../../core/log.h"
+#include "../../cpu/arm_processor_config.h"
 #include "../arm_cpu.h"
 #include "../arm_jit.h"
 #include "../cpu_state.h"
@@ -275,14 +276,21 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
                 static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
                 kEax);
         } else if (!ctx->jit->CpuState()->cpsr.bits.thumb_mode) {
-            /* ARM-state data-proc Rd=PC without S: interworking branch
-               per ddi0406c §A2.3.1 line 2082. */
-            EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-                static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u));
-            cursor = EmitArmInterworkingMaskEax(cursor);
-            EmitMovBaseDisp32Reg(cursor, kStateReg,
-                static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
-                kEax);
+            if (ctx->jit->ProcessorConfig()->HasDataProcToPcInterworking()) {
+                /* ARM-state data-proc Rd=PC without S interworks only
+                   on v7 (ddi0406c §A2.3.1); earlier cores branch
+                   remaining in ARM state. */
+                EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
+                    static_cast<int32_t>(
+                        offsetof(ArmCpuState, gprs) + 15u * 4u));
+                cursor = EmitArmInterworkingMaskEax(cursor);
+                EmitMovBaseDisp32Reg(cursor, kStateReg,
+                    static_cast<int32_t>(
+                        offsetof(ArmCpuState, gprs) + 15u * 4u),
+                    kEax);
+            }
+            /* No-Thumb core: a data-proc PC write is a plain branch —
+               CPSR.T does not exist, bit 0 is not consumed. */
         } else {
             /* Thumb-state data-proc Rd=PC (Thumb hi-ops synthesized into
                ARM data-proc): halfword-align per ddi0406c §A2.3.1

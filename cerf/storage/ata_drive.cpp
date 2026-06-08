@@ -119,6 +119,7 @@ void AtaDrive::AbortCommand(uint8_t cmd) {
 }
 
 void AtaDrive::Reset() {
+    LOG(Periph, "[ATA] drive reset (SRST/power-on signature presented)\n");
     /* Post-reset ATA hard-disk signature (QEMU v8.2.0 ide_reset +
        ide_set_signature + cmd_exec_dev_diagnostic). The host reads ERROR +
        count/LBA to detect a present non-packet device; without 0x01/1/1/0/0 it

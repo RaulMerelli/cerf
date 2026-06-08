@@ -20,9 +20,17 @@ CerfEmulator::CerfEmulator(const CerfConfig& config, int argc, char** argv)
 {
 }
 
-CerfEmulator::~CerfEmulator() {
+void CerfEmulator::Shutdown() {
     for (auto it = owned_.rbegin(); it != owned_.rend(); ++it)
+        if (*it) (*it)->RunShutdown();
+}
+
+CerfEmulator::~CerfEmulator() {
+    Shutdown();
+    for (auto it = owned_.rbegin(); it != owned_.rend(); ++it) {
+        if (*it) LOG(Cerf, "[TEARDOWN] destroying %s\n", typeid(**it).name());
         it->reset();
+    }
     owned_.clear();
 }
 

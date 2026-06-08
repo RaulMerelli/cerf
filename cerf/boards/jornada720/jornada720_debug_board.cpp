@@ -7,11 +7,10 @@
 
 namespace {
 
-/* HP Jornada 720 optional debug board (Cirrus CL-CD1284 parallel port) at
-   PA 0x1A000000. Hardware doc §2: "ignore if you don't have debug board".
-   The emulated unit ships without it, so this models the absent device:
-   reads float (0xFF), writes drop. KernelStart writes boot-progress codes
-   to offset 0x400. */
+/* Absent Jornada 720 debug board (CL-CD1284) at PA 0x1A000000: reads
+   float 0xFF, writes drop. The range must stay mapped — KernelStart
+   writes boot-progress codes to +0x400 and the PCMCIA driver strobes
+   its power latch there; an unmapped range FATALs the boot. */
 class Jornada720DebugBoard : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -37,9 +36,14 @@ public:
 
 private:
     void LogProgress(uint32_t addr, uint32_t v) {
-        if (addr - MmioBase() == 0x400u) {
-            LOG(Boot, "[J720] firmware boot-progress code 0x%02X\n", v & 0xFFu);
+        if (addr - MmioBase() != 0x400u) return;
+        if ((v & 0xFF00u) == 0x7000u) {
+            /* The PCMCIA driver strobes 0x70n0/0x70nF command pairs
+               here on socket power changes. */
+            LOG(Pcmcia, "[J720] PCMCIA power latch 0x%04X\n", v & 0xFFFFu);
+            return;
         }
+        LOG(Boot, "[J720] firmware boot-progress code 0x%02X\n", v & 0xFFu);
     }
 };
 

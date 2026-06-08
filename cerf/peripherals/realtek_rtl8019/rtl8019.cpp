@@ -1,12 +1,9 @@
 #include "rtl8019.h"
 
-#include "../cirrus_pd6710/pd6710_controller.h"
+#include "../pcmcia/pcmcia_slot.h"
 
-#include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../host/host_widget_registry.h"
 #include "../../net/network_backend.h"
 
 #include <cstdio>
@@ -17,13 +14,11 @@ namespace {
 /* NIC_INTR_STATUS / NIC_INTR_MASK bits (NE2000 register set, matching
    the IONE2000 bitfield unions in the DeviceEmulator host runtime). */
 constexpr uint8_t kIsrRcvBit      = 0x01;
-constexpr uint8_t kIsrXmitBit     = 0x02;
 constexpr uint8_t kIsrOverflowBit = 0x10;
 constexpr uint8_t kIsrResetBit    = 0x80;
 
 /* NIC_COMMAND bits (NE2000 register set). */
 constexpr uint8_t kCrStop  = 0x01;
-constexpr uint8_t kCrStart = 0x02;
 
 /* NIC_RCV_CONFIG bits (RCR). */
 constexpr uint8_t kRcrBroadcast = 0x04;
@@ -32,34 +27,25 @@ constexpr uint8_t kRcrMonitor   = 0x20;
 
 /* IEEE 802.3 CRC32 polynomial (bit-reversed). Used by the NE2000
    multicast hash filter (NIC_MC_ADDR is an 8-byte = 64-bit hash
-   table indexed by bits 6..14 of the dest-MAC CRC32 — the chip
-   accepts a multicast frame iff its index bit is set). */
+   table indexed by bits of the dest-MAC CRC32 — the chip accepts a
+   multicast frame iff its index bit is set). */
 constexpr uint32_t kCrc32Poly = 0xEDB88320u;
 
 /* NIC_DATA_CONFIG bits (DCR). */
 constexpr uint8_t kDcrNormal = 0x08;
 
 /* NIC_RCV_STATUS bits (RSR). */
-constexpr uint8_t kRsrPacketOk  = 0x01;
+constexpr uint8_t kRsrPacketOk = 0x01;
 
 /* FCSR bits per PCMCIA function-control register spec. */
-constexpr uint8_t kFcsrIntrAck = 0x01;
-constexpr uint8_t kFcsrIntr    = 0x02;
+constexpr uint8_t kFcsrIntr = 0x02;
 
 constexpr std::size_t kMacLen = 6;
 
 }  /* namespace */
 
-bool Rtl8019::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
-    return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
-}
-
-void Rtl8019::OnReady() {
-    net_ = &emu_.Get<NetworkBackend>();
-    pd_  = &emu_.Get<Pd6710Controller>();
-
-    guest_mac_ = net_->GuestMacAddress();
+Rtl8019::Rtl8019(CerfEmulator& emu) : PcmciaCard(emu) {
+    guest_mac_ = emu_.Get<NetworkBackend>().GuestMacAddress();
     for (std::size_t i = 0; i < kMacLen; ++i) {
         card_rom_[i * 2] = guest_mac_[i];
     }
@@ -68,41 +54,55 @@ void Rtl8019::OnReady() {
     card_rom_[14] = 'W';
     card_rom_[15] = 'W';
 
-    /* Install RX callback. The lambda's `this` capture stays valid
-       for the lifetime of the Rtl8019; the NetworkBackend's poll
-       thread joins in ~SlirpBackend before any service is destroyed. */
-    net_->SetReceiveCallback(
+    /* get_prom() (pcnet_cs.c:389) binds a generic NE2000 only if the PROM
+       image has 'WW' at prom[28]/prom[30]; drop these and the driver falls
+       to get_dl10019(), which halts CERF probing the absent I/O reg 0x14. */
+    card_rom_[28] = 0x57;
+    card_rom_[30] = 0x57;
+
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    ResetLocked();
+}
+
+void Rtl8019::DetachRx() {
+    if (!rx_installed_) return;
+    /* SetReceiveCallback swaps under the backend's rx mutex, which the backend
+       also holds across delivery — after this returns no RX path can re-enter
+       the dying card. */
+    emu_.Get<NetworkBackend>().SetReceiveCallback(nullptr);
+    rx_installed_ = false;
+}
+
+/* Shutdown quiesce: NetworkBackend is still alive here. Clearing rx_installed_
+   makes the destructor's DetachRx a no-op at shutdown (when NetworkBackend,
+   readied in our ctor, is already gone); a runtime eject still detaches via
+   the destructor with the backend alive. */
+void Rtl8019::OnShutdown() { DetachRx(); }
+
+Rtl8019::~Rtl8019() { DetachRx(); }
+
+void Rtl8019::OnInserted() {
+    emu_.Get<NetworkBackend>().SetReceiveCallback(
         [this](const uint8_t* frame, std::size_t len) {
             OnRxFrame(frame, len);
         });
+    rx_installed_ = true;
 
-    emu_.Get<HostWidgetRegistry>().Register(this);
-
-    LOG(Net, "[NE2000] ready: MAC=%02X:%02X:%02X:%02X:%02X:%02X "
-             "(socket awaits power-on)\n",
+    LOG(Net, "[NE2000] inserted: MAC=%02X:%02X:%02X:%02X:%02X:%02X\n",
         guest_mac_[0], guest_mac_[1], guest_mac_[2],
         guest_mac_[3], guest_mac_[4], guest_mac_[5]);
 }
 
 void Rtl8019::PowerOn() {
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        ResetLocked();
-    }
-    if (!first_power_on_done_) {
-        /* The NE2000 is power-cycled several times during PCMCIA
-           enumeration; the host-side network setup only needs to
-           happen once. */
-        first_power_on_done_ = true;
-        LOG(Net, "[NE2000] first power-on complete\n");
-    } else {
-        LOG(Net, "[NE2000] power-on (re-cycle)\n");
-    }
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    ResetLocked();
+    LOG(Net, "[NE2000] power-on\n");
 }
 
 void Rtl8019::PowerOff() {
     std::lock_guard<std::mutex> lk(state_mutex_);
     nic_command_ = kCrStop;
+    cor_ = 0u;   /* Vcc off loses the attribute configuration */
     LOG(Net, "[NE2000] power-off\n");
 }
 
@@ -137,18 +137,18 @@ void Rtl8019::ResetLocked() {
 void Rtl8019::RaiseInterruptLocked(uint8_t bits) {
     nic_intr_status_ |= bits;
     fcsr_ |= kFcsrIntr;
-    /* Drive the PD6710 IRQ steering only when the bit is unmasked
-       AND we're not propagating ISR_RESET (the reset bit is a
-       status indicator, not a real interrupt source — pcmcia.sys
-       polls for it during init, doesn't want an IRQ). */
+    /* Drive the slot IRQ line only when the bit is unmasked AND we're
+       not propagating ISR_RESET (the reset bit is a status indicator,
+       not a real interrupt source — the PCMCIA driver polls for it
+       during init, doesn't want an IRQ). */
     if (bits != kIsrResetBit && (nic_intr_mask_ & bits) != 0u) {
-        if (pd_) pd_->RaiseCardIrq();
+        slot_->RaiseIrq();
     }
 }
 
 void Rtl8019::ClearInterruptIfDrainedLocked() {
     if ((nic_intr_status_ & nic_intr_mask_) != 0u) return;
-    if (pd_) pd_->ClearCardIrq();
+    slot_->ClearIrq();
 }
 
 void Rtl8019::OnRxFrame(const uint8_t* frame, std::size_t len) {
@@ -157,8 +157,8 @@ void Rtl8019::OnRxFrame(const uint8_t* frame, std::size_t len) {
 
     std::lock_guard<std::mutex> lk(state_mutex_);
 
-    if (nic_command_ & kCrStop)                         return;  /* card stopped */
-    if (!(nic_data_config_ & kDcrNormal))               return;  /* loopback mode */
+    if (nic_command_ & kCrStop)                         return;
+    if (!(nic_data_config_ & kDcrNormal))               return;  /* loopback */
     if (nic_rcv_config_ & kRcrMonitor)                  return;
 
     /* Multicast filter — when RCR_MULTICAST is set, a multicast
@@ -240,48 +240,27 @@ void Rtl8019::OnRxFrame(const uint8_t* frame, std::size_t len) {
 
     nic_current_ = next_page;
     nic_rcv_status_ = kRsrPacketOk;
-    MarkRx();
+    slot_->MarkRx();
     RaiseInterruptLocked(kIsrRcvBit);
 }
 
-std::wstring Rtl8019::Tooltip() const {
+std::wstring Rtl8019::TooltipDetail() const {
     wchar_t buf[64];
-    swprintf_s(buf, L"PCMCIA #1 — Ethernet  %02X:%02X:%02X:%02X:%02X:%02X",
+    swprintf_s(buf, L"Ethernet  %02X:%02X:%02X:%02X:%02X:%02X",
                guest_mac_[0], guest_mac_[1], guest_mac_[2],
                guest_mac_[3], guest_mac_[4], guest_mac_[5]);
     return buf;
 }
 
-std::vector<WidgetMenuItem> Rtl8019::BuildMenu() {
-    WidgetMenuItem hdr;
-    hdr.label   = L"NE2000 Ethernet (RTL8019)";
-    hdr.enabled = false;
-    return { std::move(hdr) };
-}
-
-bool Rtl8019::IsEnabled() const {
-    return emu_.Get<DeviceConfig>().network_enabled;
-}
-
-void Rtl8019::DrawIcon(HDC dc, const RECT& box) const {
-    const int cx = (box.left + box.right) / 2;
-    const int cy = (box.top + box.bottom) / 2;
-    RECT body = { cx - 8, cy - 6, cx + 8, cy + 6 };
-
-    HBRUSH  fill = CreateSolidBrush(RGB(36, 50, 44));
-    HPEN    pen  = CreatePen(PS_SOLID, 1, RGB(150, 160, 150));
-    HGDIOBJ ob   = SelectObject(dc, fill);
-    HGDIOBJ op   = SelectObject(dc, pen);
-    Rectangle(dc, body.left, body.top, body.right, body.bottom);
-    /* RJ45 connector notch on the left edge. */
-    HBRUSH conn = CreateSolidBrush(RGB(170, 175, 185));
-    RECT jack = { body.left - 2, cy - 3, body.left + 2, cy + 3 };
-    FillRect(dc, &jack, conn);
-    DeleteObject(conn);
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(fill);
-    DeleteObject(pen);
+std::vector<WidgetMenuItem> Rtl8019::BuildCardMenu() {
+    wchar_t buf[64];
+    swprintf_s(buf, L"MAC  %02X:%02X:%02X:%02X:%02X:%02X",
+               guest_mac_[0], guest_mac_[1], guest_mac_[2],
+               guest_mac_[3], guest_mac_[4], guest_mac_[5]);
+    WidgetMenuItem mac;
+    mac.label   = buf;
+    mac.enabled = false;
+    return { std::move(mac) };
 }
 
 bool Rtl8019::ShouldIndicateMulticastPacketLocked(const uint8_t* dest_mac) const {
@@ -322,5 +301,3 @@ void Rtl8019::TransmitFromCardRamLocked(std::vector<uint8_t>& out_frame) {
     out_frame.assign(card_ram_.begin() + (start - kRamBase),
                      card_ram_.begin() + (start - kRamBase) + count);
 }
-
-REGISTER_SERVICE_AS(Rtl8019, Pd6710Card);

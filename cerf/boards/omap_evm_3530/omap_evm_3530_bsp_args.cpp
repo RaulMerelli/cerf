@@ -1,5 +1,6 @@
 #include "../board_detector.h"
 
+#include "../../boot/guest_cold_boot.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/service.h"
@@ -34,6 +35,12 @@ public:
     }
 
     void OnReady() override {
+        WriteArgs();
+        emu_.Get<GuestColdBoot>().RegisterReplay([this] { WriteArgs(); });
+    }
+
+private:
+    void WriteArgs() {
         auto& mem = emu_.Get<EmulatedMemory>();
 
         mem.WriteWord(kBspArgsPa + kOffSignature,   kOalArgsSignature);

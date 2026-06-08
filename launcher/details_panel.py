@@ -1,0 +1,209 @@
+"""Right-side info panels: device metadata, feature icons, description and
+notes — plus the additional-package details view shown when a package row
+is selected in the device tree."""
+from __future__ import annotations
+
+import tkinter as tk
+from pathlib import Path
+from tkinter import ttk
+from typing import Callable, Dict, List, Optional
+
+from device_state import DeviceBundle, PackageStatus, format_size
+from supported_devices import (
+    FEATURE_SPECS,
+    board_extra_notes,
+    board_features,
+    dynamic_extra_notes,
+)
+from ui_dialogs import bind_tooltip
+
+
+class DetailsPanel:
+    def __init__(self, inner: ttk.Frame, icons_dir: Optional[Path],
+                 bind_wheel: Callable[[tk.Misc], None]):
+        self._icons_dir = icons_dir
+        self._bind_wheel = bind_wheel
+        self._icon_cache: Dict[tuple[str, bool], Optional[tk.PhotoImage]] = {}
+
+        meta = ttk.LabelFrame(inner, text="Device", padding=8)
+        meta.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        meta.columnconfigure(1, weight=1)
+        self.meta_frame = meta
+        self.meta_vars: Dict[str, tk.StringVar] = {}
+        rows = [("Display name", "device_name"),
+                ("Board",        "board_name"),
+                ("SoC family",   "soc_family"),
+                ("OS",           "os_version"),
+                ("Year",         "device_year"),
+                ("Size",         "size"),
+                ("Download",     "download_size"),
+                ("State",        "state")]
+        for i, (label, key) in enumerate(rows):
+            ttk.Label(meta, text=label + ":").grid(row=i, column=0, sticky="w", padx=(0, 8))
+            var = tk.StringVar(value="—")
+            self.meta_vars[key] = var
+            ttk.Label(meta, textvariable=var, wraplength=220,
+                      justify="left").grid(row=i, column=1, sticky="w")
+
+        package = ttk.LabelFrame(inner, text="Package", padding=8)
+        package.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        package.columnconfigure(1, weight=1)
+        self.package_frame = package
+        self.package_vars: Dict[str, tk.StringVar] = {}
+        pkg_rows = [("Name",     "name"),
+                    ("Device",   "device"),
+                    ("Category", "category"),
+                    ("Size",     "size"),
+                    ("Download", "download_size"),
+                    ("State",    "state")]
+        for i, (label, key) in enumerate(pkg_rows):
+            ttk.Label(package, text=label + ":").grid(row=i, column=0, sticky="w", padx=(0, 8))
+            var = tk.StringVar(value="—")
+            self.package_vars[key] = var
+            ttk.Label(package, textvariable=var, wraplength=220,
+                      justify="left").grid(row=i, column=1, sticky="w")
+
+        self.features_frame = ttk.LabelFrame(inner, text="Features", padding=8)
+        self.features_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        self.features_icons = ttk.Frame(self.features_frame)
+        self.features_icons.pack(anchor="w")
+
+        self.desc_frame = ttk.LabelFrame(inner, text="Description", padding=8)
+        self.desc_frame.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+        self.desc_frame.columnconfigure(0, weight=1)
+        self.desc_label = ttk.Label(self.desc_frame, text="", wraplength=260,
+                                    justify="left")
+        self.desc_label.grid(row=0, column=0, sticky="w")
+
+        self.notes_frame = ttk.LabelFrame(inner, text="⚠ Notes & quirks",
+                                          style="Warn.TLabelframe", padding=8)
+        self.notes_frame.grid(row=5, column=0, sticky="ew", pady=(0, 8))
+        self.notes_frame.columnconfigure(0, weight=1)
+        self.notes_label = ttk.Label(self.notes_frame, text="", wraplength=260,
+                                     justify="left")
+        self.notes_label.grid(row=0, column=0, sticky="w")
+
+        self.package_frame.grid_remove()
+        self.features_frame.grid_remove()
+        self.desc_frame.grid_remove()
+        self.notes_frame.grid_remove()
+
+    def set_wraplength(self, wrap: int) -> None:
+        self.desc_label.config(wraplength=wrap)
+        self.notes_label.config(wraplength=wrap)
+
+    def show_device(self, device: DeviceBundle) -> None:
+        self.package_frame.grid_remove()
+        self.meta_frame.grid()
+        self.meta_vars["device_name"].set(device.meta.device_name or device.name)
+        self.meta_vars["board_name"] .set(device.meta.board_name or "—")
+        self.meta_vars["soc_family"] .set(device.meta.soc_family or "—")
+        self.meta_vars["os_version"] .set(device.meta.os_version or "—")
+        self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "—")
+        remote = device.remote
+        self.meta_vars["size"].set(
+            (format_size(remote.unpacked_size) if remote else "") or "—")
+        self.meta_vars["download_size"].set(
+            (format_size(remote.archive_size) if remote else "") or "—")
+        self.meta_vars["state"].set(device.state_label)
+        self._update_features(device)
+        self._update_description(device)
+        self._update_notes(device)
+
+    def show_package(self, device: DeviceBundle, ps: PackageStatus) -> None:
+        self.meta_frame.grid_remove()
+        self.features_frame.grid_remove()
+        self.desc_frame.grid_remove()
+        self.notes_frame.grid_remove()
+        self.package_frame.grid()
+        self.package_vars["name"].set(ps.remote.name)
+        self.package_vars["device"].set(device.meta.device_name or device.name)
+        self.package_vars["category"].set(ps.category_label)
+        self.package_vars["size"].set(format_size(ps.remote.unpacked_size) or "—")
+        self.package_vars["download_size"].set(
+            format_size(ps.remote.archive_size) or "—")
+        state = ps.state_label
+        if not device.is_installed:
+            state += " (install device first)"
+        self.package_vars["state"].set(state)
+
+    def _update_description(self, device: DeviceBundle) -> None:
+        description = device.meta.description.strip()
+        if description:
+            self.desc_label.config(text=description)
+            self.desc_frame.grid()
+        else:
+            self.desc_frame.grid_remove()
+
+    def _update_notes(self, device: DeviceBundle) -> None:
+        # ROM-specific notes first, then board-wide quirks, then
+        # predicate-gated dynamic notes — both from supported_devices.py.
+        notes: List[str] = list(device.meta.notes)
+        notes += board_extra_notes(device.meta.board_name,
+                                   device.meta.board_prev_names)
+        notes += dynamic_extra_notes(device.meta.os_name,
+                                     device.meta.os_ver_major,
+                                     device.meta.os_ver_minor,
+                                     device.meta.board_name,
+                                     device.meta.board_prev_names)
+        if notes:
+            self.notes_label.config(text="\n".join(f"• {n}" for n in notes))
+            self.notes_frame.grid()
+        else:
+            self.notes_frame.grid_remove()
+
+    def _update_features(self, device: DeviceBundle) -> None:
+        for child in self.features_icons.winfo_children():
+            child.destroy()
+        features = board_features(device.meta.board_name,
+                                  device.meta.board_prev_names)
+        shown = 0
+        for key, filename, label in FEATURE_SPECS:
+            if key not in features:  # absent -> board has no such hardware
+                continue
+            supported = features[key]
+            icon = self._feature_icon(filename, gray=not supported)
+            if icon is None:
+                continue
+            lbl = ttk.Label(self.features_icons, image=icon)
+            lbl.image = icon  # keep a ref so Tk doesn't GC it
+            lbl.pack(side="left", padx=(0, 8))
+            tip = label if supported else f"{label} (unsupported)"
+            bind_tooltip(lbl, tip)
+            shown += 1
+        self._bind_wheel(self.features_icons)
+        if shown:
+            self.features_frame.grid()
+        else:
+            self.features_frame.grid_remove()
+
+    def _feature_icon(self, filename: str, gray: bool) -> Optional[tk.PhotoImage]:
+        cache_key = (filename, gray)
+        if cache_key in self._icon_cache:
+            return self._icon_cache[cache_key]
+        icon: Optional[tk.PhotoImage] = None
+        if self._icons_dir is not None:
+            path = self._icons_dir / filename
+            try:
+                base = tk.PhotoImage(file=str(path))
+                if base.width() > 24:  # source icons are 32px; show ~16px
+                    base = base.subsample(2, 2)
+                icon = self._grayscale_image(base) if gray else base
+            except tk.TclError:
+                icon = None
+        self._icon_cache[cache_key] = icon
+        return icon
+
+    def _grayscale_image(self, img: tk.PhotoImage) -> tk.PhotoImage:
+        # Desaturate in-place on a copy, preserving per-pixel transparency.
+        w, h = img.width(), img.height()
+        gray = img.copy()
+        tk_interp = img.tk
+        for y in range(h):
+            for x in range(w):
+                if tk_interp.call(img, "transparency", "get", x, y):
+                    continue
+                r, g, b = img.get(x, y)
+                lum = (r * 299 + g * 587 + b * 114) // 1000
+                gray.put(f"#{lum:02x}{lum:02x}{lum:02x}", to=(x, y))
+        return gray

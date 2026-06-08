@@ -9,9 +9,9 @@
 #include <atomic>
 #include <cstdint>
 
-/* Guest-additions auto-resize policy + its status-bar toggle. When enabled, a
-   user window resize publishes the new canvas size to the guest re-mode
-   channel (CerfVirtResize); the guest re-modes and acks. Off by default. */
+/* Guest-additions auto-resize policy + the Guest Additions status-bar
+   widget. When auto-resize is enabled, a user window resize publishes the
+   new canvas size to the guest re-mode channel (CerfVirtResize). */
 class HostAutoResize : public Service, public HostWidget {
 public:
     using Service::Service;
@@ -25,8 +25,8 @@ public:
     /* UI thread, on WM_EXITSIZEMOVE. No-op unless enabled. */
     void OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h);
 
-    std::wstring WidgetName() const override { return L"Auto-Resize"; }
-    WidgetGroup  Group() const override { return WidgetGroup::Indicator; }
+    std::wstring WidgetName() const override { return L"Guest Additions"; }
+    WidgetGroup  Group() const override { return WidgetGroup::GuestAdditions; }
     std::wstring Tooltip() const override;
     void OnPrimaryAction() override;
     std::vector<WidgetMenuItem> BuildMenu() override;
@@ -37,6 +37,7 @@ private:
     void Toggle();
 
     std::atomic<bool> enabled_{true};
+    HICON    icon_        = nullptr;   /* cerf.rc resource 1 */
     uint32_t last_w_      = 0;   /* last published size; UI-thread only */
     uint32_t last_h_      = 0;
     bool  last_drawn_on_  = false;

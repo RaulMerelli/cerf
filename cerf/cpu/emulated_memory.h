@@ -44,11 +44,20 @@ public:
     void     WriteWord(uint32_t vaddr, uint32_t value);
     void     WriteDword(uint32_t vaddr, uint64_t value);
 
-    /* Bulk copy from host buffer into emulated memory at vaddr.
-       The entire range must fall inside one declared region. Halts
-       on unmapped destination or boundary-crossing copy. Used to
-       load PE images into the emulated address space. */
+    /* Bulk copy from host buffer into emulated memory at vaddr. The
+       entire range must fall inside one declared region; halts on
+       unmapped destination or boundary-crossing copy. */
     void CopyIn(uint32_t vaddr, const void* host_src, size_t size);
+
+    /* Bulk copy out of emulated memory. Same one-region contract as
+       CopyIn. */
+    void CopyOut(uint32_t vaddr, void* host_dst, size_t size);
+
+    /* Power-cycle RAM loss: zero every backed volatile region. Flash
+       (PAGE_READONLY / PAGE_EXECUTE_READ) keeps its contents — guest NOR
+       writes survive a real power cycle. JIT thread at reset delivery
+       only; anywhere else the memset races guest stores. */
+    void WipeVolatileRegions();
 
 private:
     struct Region {
@@ -60,6 +69,9 @@ private:
 
     /* Lock-free read: load_acquire count_, linear scan regions_[0..n). */
     Region*  FindRegion(uint32_t vaddr);
+    /* Shared CopyIn/CopyOut gate: region containing [vaddr, vaddr+size)
+       or fatal (unmapped / boundary-crossing). */
+    Region*  BulkRegionFor(uint32_t vaddr, size_t size, const char* op);
     /* Atomic first-touch CAS on host_ptr. Halts on VirtualAlloc fail. */
     uint8_t* EnsureBacked(Region* r);
 

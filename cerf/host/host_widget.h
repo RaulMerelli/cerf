@@ -8,9 +8,10 @@
 #include <string>
 #include <vector>
 
-/* DO NOT make HostWidget derive Service — implementers already derive Service
-   (a peripheral via Peripheral), and a second Service base makes emu_ ambiguous
-   in them. Implementers self-register with HostWidgetRegistry from OnReady. */
+/* HostWidget is Service-free: implementers already derive Service (a
+   peripheral via Peripheral), so a Service base here would make emu_
+   ambiguous in them. Implementers self-register with HostWidgetRegistry
+   from OnReady. */
 
 enum class WidgetGroup : int {
     Storage   = 0,
@@ -22,8 +23,9 @@ enum class WidgetGroup : int {
     /* Terminal range — pinned to the right of the bar (always shown) and to the
        top of the Actions menu. The capture lock takes the highest rank so it is
        always the very last; other input widgets sort ahead of it. */
-    InputControl = 1000,   /* input-device widgets, e.g. the touch/pointer switch */
-    InputCapture = 1100,   /* the capture lock — always rightmost / menu-top */
+    GuestAdditions = 900,  /* always third from the right / third in Actions */
+    InputControl   = 1000, /* input-device widgets, e.g. the touch/pointer switch */
+    InputCapture   = 1100, /* the capture lock — always rightmost / menu-top */
 };
 
 struct WidgetMenuItem {

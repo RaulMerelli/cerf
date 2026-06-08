@@ -434,6 +434,12 @@ kernel-mode twins, filesys/gwes/devmgr internals — are constant
 across all guest processes. A hook here fires exactly when that
 specific code runs. Pick this whenever you can.
 
+**XIP ROM modules execute at their link VA, not the RomParser
+loadVA** — when hooking a ROM DLL/EXE with `OnPc`, use the raw IDA VA
+of the extracted module; computing `loadVA + (ida - base)` produces
+hooks that never fire, and a never-firing hook on an XIP module should
+be suspected of this before anything else.
+
 **User-VA hooks** (low addresses, e.g. `0x11B68` for an EXE entry,
 `0x40035C1C` for a coredll PSL stub) are not unambiguous: CE switches
 the currently-running process's address space into the low VAs of

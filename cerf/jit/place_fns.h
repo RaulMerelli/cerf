@@ -111,10 +111,12 @@ uint8_t* EmitRaiseUndAndReturn(uint8_t* cursor, DecodedInsn* d, BlockContext* ct
    that is architecturally valid on the core but not yet emitted. */
 uint8_t* EmitCoprocUnimplementedFatal(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
-/* In: EAX = raw target. Out: EAX masked, CPSR.T set iff bit 0 was set.
-   Do NOT call from Thumb-state emit — Thumb PC writes halfword-align
-   without ISA switch (ddi0406c §A2.3.1, lines 2062-2066). */
+/* In: EAX = raw target. Out: EAX masked, CPSR.T updated. MaskEax sets
+   T iff bit 0 set — ARM-state callers only (Thumb data-proc PC writes
+   halfword-align, no ISA switch, ddi0406c §A2.3.1). FullEax also
+   clears T on bit0==0: load-to-PC interworking, runs in either state. */
 uint8_t* EmitArmInterworkingMaskEax(uint8_t* cursor);
+uint8_t* EmitArmInterworkingFullEax(uint8_t* cursor);
 
 uint8_t* EmitCp15RegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
@@ -246,10 +248,10 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
 uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
-/* DO NOT reuse EDI for the writeback transient — EDI holds the
-   per-block PC-cache for consecutive LDR [PC+imm] reads in the
-   same 1 KB page and gets silently clobbered otherwise. EBP is
-   the writeback slot (callee-saved, survives MMU helper CALLs). */
+/* EBP is the writeback slot (callee-saved across MMU helper CALLs).
+   EDI is live here — it carries the per-block PC-cache for
+   consecutive LDR [PC+imm] reads; a transient in EDI silently
+   clobbers that cache. */
 uint8_t* PlaceSingleDataTransferOffset(uint8_t*           cursor,
                                        const DecodedInsn* d,
                                        BlockContext*      ctx,

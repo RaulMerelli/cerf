@@ -1,7 +1,7 @@
 #include "folder_share_files.h"
 
 #include "folder_share_path.h"
-#include "folder_share_mmu.h"
+#include "cerf_virt_guest_mem.h"
 #include "cerf_virt_folder_share_regs.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
@@ -158,7 +158,7 @@ uint16_t FolderShareFiles::Read(ServerPB& pb) {
     std::vector<uint8_t> buf(want ? want : 1);
     DWORD got = 0;
     if (!ReadFile(h, buf.data(), want, &got, nullptr)) return ErrFromLast();
-    if (got && !emu_.Get<FolderShareMmu>().WriteBlob(pb.fDTAPtr, buf.data(), got))
+    if (got && !emu_.Get<CerfVirtGuestMem>().WriteBlob(pb.fDTAPtr, buf.data(), got))
         return kErrorReadFault;
     pb.fSize = got;
     return kErrorNoError;
@@ -173,7 +173,7 @@ uint16_t FolderShareFiles::Write(ServerPB& pb) {
     if (want > kFolderShareMaxReadWriteSize) return kErrorWriteFault;
 
     std::vector<uint8_t> buf(want ? want : 1);
-    if (want && !emu_.Get<FolderShareMmu>().ReadBlob(pb.fDTAPtr, buf.data(), want))
+    if (want && !emu_.Get<CerfVirtGuestMem>().ReadBlob(pb.fDTAPtr, buf.data(), want))
         return kErrorWriteFault;
 
     LARGE_INTEGER pos; pos.QuadPart = pb.fPosition;

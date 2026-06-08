@@ -17,6 +17,12 @@ void ArmJit::ContextSwitchFlush() {
     shadow_stack_count_ = 0;
 }
 
+void ArmJit::OnTranslationRegimeChange() {
+    ContextSwitchFlush();
+    FlushNativeAddrCache();
+    tc_flush_pending_ = true;
+}
+
 void __fastcall ArmJit::ContextSwitchFlushHelper(ArmJit* jit) {
     jit->ContextSwitchFlush();
 }

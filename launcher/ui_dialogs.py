@@ -1,0 +1,154 @@
+"""Modal dialogs and tooltips: the generic dark-themed dialog plus every
+canned launcher dialog (ROM license, guest-additions help, ROM submission)."""
+from __future__ import annotations
+
+import tkinter as tk
+import webbrowser
+from tkinter import ttk
+from typing import Dict, Optional
+
+from ui_theme import BG, BG_FIELD, BORDER, FG, enable_dark_titlebar
+
+
+DISCORD_URL       = "https://discord.gg/QREE9Y2v2d"
+GITHUB_URL        = "https://github.com/gweslab/cerf"
+GITHUB_ISSUES_URL = "https://github.com/gweslab/cerf/issues"
+ROM_SUBMIT_EMAIL  = "cerf@dz3n.net"
+
+
+def show_dialog(parent: tk.Misc, title: str, message: str,
+                buttons: tuple[str, ...] = ("OK",),
+                default: Optional[str] = None) -> str:
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.configure(bg=BG)
+    dlg.transient(parent)
+    dlg.resizable(False, False)
+    result = {"value": default if default is not None else buttons[-1]}
+
+    body = ttk.Frame(dlg, padding=16)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text=message, wraplength=420, justify="left").pack(
+        anchor="w", pady=(0, 14))
+
+    btns = ttk.Frame(body)
+    btns.pack(anchor="e")
+    for i, label in enumerate(buttons):
+        def click(l=label):
+            result["value"] = l
+            dlg.destroy()
+        b = ttk.Button(btns, text=label, command=click)
+        b.pack(side="left", padx=(6, 0))
+        if i == 0:
+            b.focus_set()
+        dlg.bind("<Return>", lambda _e, l=label: click(l)) if i == 0 else None
+    dlg.bind("<Escape>", lambda _e: dlg.destroy())
+
+    dlg.update_idletasks()
+    enable_dark_titlebar(dlg)
+    w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+    x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+    dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    dlg.grab_set()
+    parent.wait_window(dlg)
+    return result["value"]
+
+
+def show_info(parent: tk.Misc, title: str, message: str) -> None:
+    show_dialog(parent, title, message)
+
+
+def show_error(parent: tk.Misc, title: str, message: str) -> None:
+    show_dialog(parent, title, message)
+
+
+def ask_yesno(parent: tk.Misc, title: str, message: str) -> bool:
+    return show_dialog(parent, title, message, ("Yes", "No"), default="No") == "Yes"
+
+
+def confirm_rom_license(parent: tk.Misc, display_name: str) -> bool:
+    return ask_yesno(
+        parent,
+        "Download confirmation",
+        "ROM bundles and add-on packages distributed by this launcher are "
+        "abandonware/released publicly by their respective OEMs. They remain "
+        "the property of those OEMs and are governed by whatever terms "
+        "the OEM applied when releasing them.\n\n"
+        f"By pressing Yes you take full personal responsibility for "
+        f"downloading {display_name} and accept whatever license, "
+        f"terms, or restrictions the OEM applied. The CERF project "
+        f"gives no warranty, grants no license, and accepts no "
+        f"liability for the contents.\n\n"
+        f"Download {display_name}?"
+    )
+
+
+def show_guest_additions_help(parent: tk.Misc) -> None:
+    show_info(
+        parent,
+        "Guest additions",
+        "CERF injects own ARM library into XIP/IMGFS and replaces stock video driver "
+        "with own OS version-agnostic driver. It fully replaces original video driver "
+        "and operates OS APIs to orchestrate the entire stack of features.\n\n"
+        "⚠️ Guest additions are experimental and unstable. Consider booting stock "
+        "ROM in case if there are any glitches/instabilities.\n\n"
+        "Supported features:\n"
+        "- 32bpp custom big resolution (boot CE3 into 4K!)\n"
+        "- Host-accelerated blitting - the driver routes blits to host which performs the "
+        "full set of graphical operations in native code\n"
+        "- Dynamic screen resolution (CE 4+)\n"
+        "- Shared storage with host\n"
+        "- Task manager in a host window\n"
+        "- Mouse pointer driver:\n"
+        "  - required to avoid stock touch limitations on custom res\n"
+        "  - guest OS cursor shape translated directly into host graphics\n"
+        "  - scroll wheel support for newer CE\n"
+        "  - use runtime switcher if you need to go back to stock touch"
+    )
+
+
+def show_rom_submit_dialog(parent: tk.Misc) -> None:
+    choice = show_dialog(
+        parent,
+        "Please submit ROMs!",
+        "CERF really needs Windows CE ROMs — dumps, backups, recovery "
+        "images, anything. Every submitted image helps preserve these "
+        "devices in history (at the very least), and more importantly "
+        "lets us bring them to CERF later.\n\n"
+        "Ways to submit a ROM:\n"
+        f"  •  Join our Discord:  {DISCORD_URL}\n"
+        f"  •  Email us:  {ROM_SUBMIT_EMAIL}\n"
+        f"  •  Open a GitHub issue:  {GITHUB_ISSUES_URL}",
+        buttons=("Join Discord", "GitHub issues", "Close"),
+        default="Close")
+    if choice == "Join Discord":
+        webbrowser.open(DISCORD_URL)
+    elif choice == "GitHub issues":
+        webbrowser.open(GITHUB_ISSUES_URL)
+
+
+def bind_tooltip(widget: tk.Widget, text: str) -> None:
+    state: Dict[str, Optional[tk.Toplevel]] = {"tip": None}
+
+    def show(_e: object) -> None:
+        if state["tip"] is not None:
+            return
+        tip = tk.Toplevel(widget)
+        tip.wm_overrideredirect(True)
+        tip.configure(bg=BORDER)
+        ttk.Label(tip, text=text, background=BG_FIELD, foreground=FG,
+                  padding=(6, 2)).pack(padx=1, pady=1)
+        x = widget.winfo_rootx()
+        y = widget.winfo_rooty() + widget.winfo_height() + 2
+        tip.wm_geometry(f"+{x}+{y}")
+        state["tip"] = tip
+
+    def hide(_e: object) -> None:
+        if state["tip"] is not None:
+            state["tip"].destroy()
+            state["tip"] = None
+
+    widget.bind("<Enter>", show)
+    widget.bind("<Leave>", hide)

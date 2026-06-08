@@ -94,16 +94,52 @@ $buildsSucceeded = 0
 $buildsFailed    = 0
 $failedNames     = @()
 
+# Launcher inputs change rarely; PyInstaller is slow. Skip the launcher build
+# when no input has changed since the last successful build. The signature is a
+# sorted list of "path|UTC-ticks" over every launcher source plus the two cerf
+# files launcher.spec pulls in (cerf.ico, version.h); it captures content edits,
+# adds, and removes. Stored in launcher/.launcher_timestamps (gitignored).
+function Get-LauncherInputSignature {
+    $launcherDir = Join-Path $PSScriptRoot "launcher"
+    $inputs = Get-ChildItem -Path $launcherDir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.FullName -notmatch '\\(build|dist|__pycache__)\\' -and
+            $_.Extension -ne ".pyc" -and
+            $_.Name -ne ".launcher_timestamps"
+        }
+    foreach ($rel in @("cerf\assets\cerf.ico", "cerf\version.h")) {
+        $p = Join-Path $PSScriptRoot $rel
+        if (Test-Path $p) { $inputs += Get-Item $p }
+    }
+    ($inputs |
+        ForEach-Object { "$($_.FullName)|$($_.LastWriteTimeUtc.Ticks)" } |
+        Sort-Object) -join "`n"
+}
+
 $launcherBuild = Join-Path $PSScriptRoot "launcher\build.ps1"
+$launcherStamp = Join-Path $PSScriptRoot "launcher\.launcher_timestamps"
+$launcherExe   = Join-Path $PSScriptRoot "bundled\launcher.exe"
 if (Test-Path $launcherBuild) {
-    Write-Host "[LAUNCHER]"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherBuild -Config $Config
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[LAUNCHER] build returned $LASTEXITCODE"
-        $buildsFailed++
-        $failedNames += "launcher"
-    } else {
+    $launcherSig = Get-LauncherInputSignature
+    $launcherStampOld = if (Test-Path $launcherStamp) { Get-Content $launcherStamp -Raw } else { "" }
+    $launcherUpToDate = (-not $Rebuild) -and (Test-Path $launcherExe) -and ($launcherStampOld -eq $launcherSig)
+
+    if ($launcherUpToDate) {
+        Write-Host "[LAUNCHER] up to date (no input changes) -- skipping"
         $buildsSucceeded++
+    } else {
+        Write-Host "[LAUNCHER]"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherBuild -Config $Config
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[LAUNCHER] build returned $LASTEXITCODE"
+            $buildsFailed++
+            $failedNames += "launcher"
+        } else {
+            # Re-snapshot after the build: the build itself may touch inputs, and
+            # only a successful build should refresh the stamp.
+            Set-Content -Path $launcherStamp -Value (Get-LauncherInputSignature) -NoNewline
+            $buildsSucceeded++
+        }
     }
 }
 

@@ -14,11 +14,12 @@
 #include "frame_renderer.h"
 #include "host_canvas.h"
 #include "host_dark_mode.h"
-#include "memory_visualizer.h"
 #include "host_input_capture.h"
-#include "host_screenshot.h"
+#include "host_menu.h"
 #include "host_status_bar.h"
 #include "host_widget_registry.h"
+#include "initial_window_size.h"
+#include "text_mode_boot_banner.h"
 
 REGISTER_SERVICE(HostWindow);
 
@@ -30,25 +31,25 @@ constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
 constexpr UINT     kShowUartMsg    = WM_APP + 3;
 constexpr UINT_PTR kResizeDebounceTimer = 1;
 constexpr UINT     kResizeDebounceMs    = 200;
-
-enum MenuId : int {
-    kIdCtrlAltDel    = 201,
-    kIdViewUart    = 100,
-    kIdViewFb      = 101,
-    kIdViewMemViz  = 102,
-    kIdVpOriginal  = 110,
-    kIdVpAspect    = 111,
-    kIdVpStretch   = 112,
-    kIdAliasing    = 113,
-    kIdSaveShot    = 120,
-    kIdCopyShot    = 121,
-    kIdMatchGuest  = 122,
-    kIdAbout       = 130,
-};
+constexpr UINT_PTR kCloseWatchdogTimer  = 2;
+constexpr UINT     kClosePollMs         = 100;
+constexpr ULONGLONG kCloseGraceMs       = 5000;
 
 }  /* namespace */
 
 HostWindow::~HostWindow() {
+    StopUiThread();
+}
+
+void HostWindow::OnShutdown() {
+    /* Stop the UI thread here, while CerfVirtFramebufferMem / FrameRenderer /
+       HostCanvas are still alive: the present timer calls FrameRenderer::
+       RenderInto on the UI thread, which reads those buffers. Joining only in
+       the destructor lets the thread present a freed framebuffer first. */
+    StopUiThread();
+}
+
+void HostWindow::StopUiThread() {
     if (ui_thread_.joinable()) {
         if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         ui_thread_.join();
@@ -56,12 +57,10 @@ HostWindow::~HostWindow() {
 }
 
 void HostWindow::OnReady() {
-    auto& dc = emu_.Get<DeviceConfig>();
-    uint32_t iw = dc.board_configurable_screen_width;
-    uint32_t ih = dc.board_configurable_screen_height;
-    initial_surface_w_ = iw;
-    initial_surface_h_ = ih;
-    LOG(Lcd, "HostWindow OnReady: opening at %ux%u\n", iw, ih);
+    const auto size = emu_.Get<InitialWindowSize>().Resolve();
+    initial_surface_w_ = size.width;
+    initial_surface_h_ = size.height;
+    LOG(Lcd, "HostWindow OnReady: opening at %ux%u\n", size.width, size.height);
 
     /* Per-Monitor-v2 DPI awareness comes from cerf.manifest: ConfigLoader reads
        host screen metrics for the adopt-resolution path before this window
@@ -79,6 +78,9 @@ void HostWindow::OnLcdEnabled(uint32_t fb_w, uint32_t fb_h) {
             "native %ux%u\n", fb_w, fb_h);
         return;
     }
+    if (auto* banner = emu_.TryGet<TextModeBootBanner>())
+        banner->OnScreenSizeChanged(fb_w, fb_h);
+
     uint32_t host_w = fb_w, host_h = fb_h;
     if (auto* fr = emu_.TryGet<FrameRenderer>()) {
         const auto [w, h] = fr->HostSizeFor(fb_w, fb_h);
@@ -101,84 +103,9 @@ void HostWindow::ShowUartTab(bool rearm_framebuffer) {
         PostMessageW(hwnd_, kShowUartMsg, rearm_framebuffer ? 1u : 0u, 0);
 }
 
-HMENU HostWindow::BuildMenu() {
-    HMENU bar = CreateMenu();
-
-    /* Filled on demand in WM_INITMENUPOPUP: the widget block (capture lock
-       first) then Send Ctrl+Alt+Del. */
-    HMENU actions = CreatePopupMenu();
-    AppendMenuW(bar, MF_POPUP, (UINT_PTR)actions, L"Actions");
-
-    HMENU view = CreatePopupMenu();
-    AppendMenuW(view, MF_STRING, kIdViewUart,   L"UART Screen");
-    AppendMenuW(view, MF_STRING, kIdViewFb,     L"Framebuffer");
-    if (emu_.TryGet<MemoryVisualizer>())
-        AppendMenuW(view, MF_STRING, kIdViewMemViz, L"Memory Visualizer (dev)");
-    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(view, MF_STRING, kIdVpOriginal, L"Original view");
-    AppendMenuW(view, MF_STRING, kIdVpAspect,   L"Resize + match aspect ratio");
-    AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
-    AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
-    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(view, MF_STRING, kIdSaveShot,   L"Save screenshot");
-    AppendMenuW(view, MF_STRING, kIdCopyShot,   L"Copy screenshot");
-    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(view, MF_STRING, kIdMatchGuest, L"Match guest size");
-    AppendMenuW(bar, MF_POPUP, (UINT_PTR)view, L"View");
-    AppendMenuW(bar, MF_STRING, kIdAbout, L"About");
-    return bar;
-}
-
-void HostWindow::SyncMenu() {
-    if (!hmenu_) return;
-
-    HMENU view = GetSubMenu(hmenu_, 1);
-    if (!view) return;
-    auto& canvas = emu_.Get<HostCanvas>();
-    int view_id = kIdViewUart;
-    switch (canvas.CurrentTab()) {
-        case HostCanvas::Tab::Uart:             view_id = kIdViewUart;   break;
-        case HostCanvas::Tab::Framebuffer:      view_id = kIdViewFb;     break;
-        case HostCanvas::Tab::MemoryVisualizer: view_id = kIdViewMemViz; break;
-    }
-    CheckMenuRadioItem(view, kIdViewUart, kIdViewMemViz, view_id, MF_BYCOMMAND);
-    int vp_id = kIdVpOriginal;
-    switch (canvas.Mode()) {
-        case HostCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
-        case HostCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
-        case HostCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
-    }
-    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpStretch, vp_id, MF_BYCOMMAND);
-    CheckMenuItem(view, kIdAliasing,
-                  MF_BYCOMMAND | (canvas.Antialias() ? MF_CHECKED : MF_UNCHECKED));
-    CheckMenuItem(view, kIdMatchGuest,
-                  MF_BYCOMMAND | (follow_guest_ ? MF_CHECKED : MF_UNCHECKED));
-}
-
-void HostWindow::HandleCommand(int id) {
-    auto& canvas = emu_.Get<HostCanvas>();
-    switch (id) {
-        case kIdCtrlAltDel:    emu_.Get<HostInputCapture>().SendCtrlAltDel(); break;
-        case kIdViewUart:   canvas.SetTab(HostCanvas::Tab::Uart, true);        break;
-        case kIdViewFb:     canvas.SetTab(HostCanvas::Tab::Framebuffer, true); break;
-        case kIdViewMemViz: canvas.SetTab(HostCanvas::Tab::MemoryVisualizer, true); break;
-        case kIdVpOriginal: canvas.SetViewportMode(HostCanvas::ViewportMode::Original); break;
-        case kIdVpAspect:   canvas.SetViewportMode(HostCanvas::ViewportMode::Aspect);   break;
-        case kIdVpStretch:  canvas.SetViewportMode(HostCanvas::ViewportMode::Stretch);  break;
-        case kIdAliasing:   canvas.SetAntialias(!canvas.Antialias()); break;
-        case kIdSaveShot:   emu_.Get<HostScreenshot>().Save(); break;
-        case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
-        case kIdMatchGuest:
-            follow_guest_ = true;
-            AutoResizeToGuest();
-            break;
-        case kIdAbout:
-            MessageBoxW(hwnd_,
-                L"CE Runtime Foundation v" CERF_VERSION_DISPLAY_WSTR
-                L"\nhttps://github.com/gweslab/cerf",
-                L"About CERF", MB_OK | MB_ICONINFORMATION);
-            break;
-    }
+void HostWindow::MatchGuestSize() {
+    follow_guest_ = true;
+    AutoResizeToGuest();
 }
 
 void HostWindow::WindowChromeExtent(UINT dpi, int& extra_w, int& extra_h) const {
@@ -236,17 +163,8 @@ void HostWindow::FitWindowToSurface(uint32_t sw, uint32_t sh) {
         if (outer_w > wa_w) outer_w = wa_w;
         if (outer_h > wa_h) outer_h = wa_h;
 
-        /* Nudge the origin in too: a surface larger than the work area would
-           otherwise grow the frame off its cascade top-left, landing the
-           right/bottom edges off-screen. */
-        RECT cur = {};
-        GetWindowRect(hwnd_, &cur);
-        x = (int)cur.left;
-        y = (int)cur.top;
-        if (x + outer_w > wa.right)  x = (int)wa.right  - outer_w;
-        if (y + outer_h > wa.bottom) y = (int)wa.bottom - outer_h;
-        if (x < (int)wa.left) x = (int)wa.left;
-        if (y < (int)wa.top)  y = (int)wa.top;
+        x = (int)wa.left + (wa_w - outer_w) / 2;
+        y = (int)wa.top  + (wa_h - outer_h) / 2;
         move = true;
     }
 
@@ -289,19 +207,19 @@ void HostWindow::UiThreadMain() {
     RECT r = { 0, 0, (LONG)initial_surface_w_, (LONG)initial_surface_h_ + th };
     AdjustWindowRectEx(&r, style, /*bMenu=*/TRUE, 0);
 
-    hmenu_ = BuildMenu();
+    HMENU menu = emu_.Get<HostMenu>().Build();
     hwnd_ = CreateWindowExW(0, kWindowClass, L"CERF " CERF_VERSION_DISPLAY_WSTR,
                             style, CW_USEDEFAULT, CW_USEDEFAULT,
                             r.right - r.left, r.bottom - r.top,
-                            nullptr, hmenu_, GetModuleHandleW(nullptr), this);
+                            nullptr, menu, GetModuleHandleW(nullptr), this);
     if (!hwnd_) {
         LOG(Caution, "HostWindow: CreateWindowExW failed (gle=%lu)\n",
             GetLastError());
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    /* DO NOT drop the 19 fallback — Windows 10 1809-1909 only accept the
-       predecessor attribute; 20 is 20H1+. */
+    /* DWMWA_USE_IMMERSIVE_DARK_MODE is 20 only on 20H1+; Windows 10
+       1809-1909 accept its predecessor attribute 19. */
     {
         const BOOL dark = TRUE;
         if (FAILED(DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark))))
@@ -314,9 +232,9 @@ void HostWindow::UiThreadMain() {
        dims (no re-mode needed). No-op unless adopt-resolution is enabled. */
     AdoptResolutionToWindowMonitor();
 
-    /* Clamp to the work area before building the canvas: the canvas takes the
-       window client size, so an oversized surface then scrolls instead of
-       spilling off-screen. */
+    /* Must run before the canvas is built — the canvas takes the window
+       client size, and an unclamped oversized surface would size it
+       off-screen with no scrollbars engaged. */
     FitWindowToSurface(initial_surface_w_, initial_surface_h_);
 
     RECT rc;
@@ -429,6 +347,25 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
 
         case WM_TIMER:
+            if (wp == kCloseWatchdogTimer) {
+                auto* jit = emu_.TryGet<JitRunner>();
+                if (!jit || jit->Stopped()) {
+                    KillTimer(hwnd, kCloseWatchdogTimer);
+                    DestroyWindow(hwnd);
+                } else if (GetTickCount64() - close_start_tick_ >= kCloseGraceMs) {
+                    /* The JIT thread didn't observe the cooperative stop within
+                       the grace period — wedged in a guest spin or host wait, it
+                       will never exit on its own. Force the process down so
+                       cerf.exe doesn't survive with a running JIT thread. */
+                    LOG(Caution, "HostWindow: JIT did not stop within %llums of "
+                        "close; forcing process exit\n",
+                        (unsigned long long)kCloseGraceMs);
+                    KillTimer(hwnd, kCloseWatchdogTimer);
+                    TerminateProcess(GetCurrentProcess(),
+                                     CERF_FATAL_RUNTIME_ERROR);
+                }
+                return 0;
+            }
             if (wp == kResizeDebounceTimer) {
                 KillTimer(hwnd, kResizeDebounceTimer);
                 if (auto* ar = emu_.TryGet<HostAutoResize>()) {
@@ -449,38 +386,31 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
 
-        case WM_INITMENUPOPUP: {
-            SyncMenu();
-            HMENU actions = GetSubMenu(hmenu_, 0);
-            if ((HMENU)wp == actions) {
-                /* Rebuilt each popup: widget block (capture lock first), then
-                   the static Send Ctrl+Alt+Del. DeleteMenu also frees the
-                   per-widget submenus it created last time. */
-                while (GetMenuItemCount(actions) > 0)
-                    DeleteMenu(actions, 0, MF_BYPOSITION);
-                emu_.Get<HostWidgetRegistry>().AppendAllToMenu(actions);
-                AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
-                AppendMenuW(actions, MF_STRING, kIdCtrlAltDel,
-                            L"Send Ctrl+Alt+Del\tRight Ctrl+Del");
-            }
+        case WM_INITMENUPOPUP:
+            emu_.Get<HostMenu>().OnInitMenuPopup((HMENU)wp);
             return 0;
-        }
 
         case WM_COMMAND:
             if (HIWORD(wp) == 0) {  /* menu item */
                 const int id = LOWORD(wp);
                 auto& reg = emu_.Get<HostWidgetRegistry>();
                 if (reg.OwnsCommand(id)) reg.Dispatch(id);
-                else                     HandleCommand(id);
+                else                     emu_.Get<HostMenu>().HandleCommand(id);
                 return 0;
             }
             break;
 
         case WM_CLOSE:
-            /* Without RequestStop the JIT thread keeps grinding ARM code
-               after the HWND is destroyed and orphans cerf.exe. */
-            if (auto* jit = emu_.TryGet<JitRunner>()) jit->RequestStop();
-            DestroyWindow(hwnd);
+            /* Keep the window on screen and stop the JIT cooperatively, then
+               poll until the CPU thread actually exits before destroying the
+               window. Destroying it while the JIT still grinds ARM code
+               orphans cerf.exe; the watchdog timer forces exit if it wedges. */
+            if (!closing_) {
+                closing_ = true;
+                if (auto* jit = emu_.TryGet<JitRunner>()) jit->RequestStop();
+                close_start_tick_ = GetTickCount64();
+                SetTimer(hwnd, kCloseWatchdogTimer, kClosePollMs, nullptr);
+            }
             return 0;
 
         case WM_DESTROY:

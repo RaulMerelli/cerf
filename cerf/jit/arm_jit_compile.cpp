@@ -148,6 +148,13 @@ void ArmJit::JitDecode(JitBlock* containing_block, uint32_t guest_pc) {
 }
 
 void* ArmJit::JitCompile(uint32_t guest_pc) {
+    if (tc_flush_pending_) {
+        /* Armed by OnTranslationRegimeChange. Safe here — compile is
+           reached from Run(), never from inside arena code. */
+        tc_flush_pending_ = false;
+        FlushTranslationCache(0, 0xFFFFFFFFu);
+    }
+
     uint32_t cached_fault_status  = mmu_->State()->fault_status.word;
     uint32_t cached_fault_address = mmu_->State()->fault_address;
 

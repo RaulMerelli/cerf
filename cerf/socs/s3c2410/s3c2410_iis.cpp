@@ -39,10 +39,19 @@ bool S3C2410Iis::ShouldRegister() {
     return bd && bd->GetSoc() == SocFamily::S3C2410;
 }
 
-S3C2410Iis::~S3C2410Iis() {
+void S3C2410Iis::StopAudioThread() {
     shutdown_.store(true, std::memory_order_release);
     if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
     if (audio_thread_.joinable()) audio_thread_.join();
+}
+
+/* Audio thread asserts INT_DMA2 via IrqController; stop it before any peer is
+   destroyed. waveOut/handle frees stay in the destructor — they run only after
+   the thread is joined here. */
+void S3C2410Iis::OnShutdown() { StopAudioThread(); }
+
+S3C2410Iis::~S3C2410Iis() {
+    StopAudioThread();
     if (out_device_) waveOutClose(out_device_);
     if (thread_ready_event_) CloseHandle(thread_ready_event_);
 }

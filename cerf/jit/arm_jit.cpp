@@ -16,6 +16,7 @@
 #include "../cpu/emulated_memory.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../boot/rom_parser_service.h"
+#include "../socs/guest_cpu_reset.h"
 #include "../boards/page_table_builder.h"
 #include "../host/guest_power_notifier.h"
 #include "arm_cp15_sctlr_handler.h"
@@ -129,6 +130,7 @@ void ArmJit::OnReady() {
     memory_           = &emu_.Get<EmulatedMemory>();
     peripheral_       = &emu_.Get<PeripheralDispatcher>();
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
+    has_thumb_        = processor_config_->HasThumb();
     coproc_emitter_   = &emu_.Get<CoprocEmitter>();
     decoder_          = &emu_.Get<ArmDecoder>();
     vfp_              = &emu_.Get<ArmVfp>();
@@ -293,6 +295,10 @@ void __fastcall ArmJit::WfiHelper(ArmJit* jit) {
 
 void __fastcall ArmJit::NotifyPowerDownHelper(ArmJit* jit) {
     jit->emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
+}
+
+void ArmJit::NotifyResetDelivered() {
+    emu_.Get<GuestCpuReset>().OnResetDelivered();
 }
 
 void ArmJit::SetResetPending() {

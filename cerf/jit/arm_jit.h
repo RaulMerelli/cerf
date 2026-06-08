@@ -55,6 +55,10 @@ public:
 
     ArmProcessorConfig* ProcessorConfig() { return processor_config_; }
 
+    /* Cached ArmProcessorConfig::HasThumb() — read on every guest
+       CPSR write, too hot for a virtual call. */
+    bool HasThumb() const { return has_thumb_; }
+
     CoprocEmitter* Coproc() { return coproc_emitter_; }
 
     ArmDecoder* Decoder() { return decoder_; }
@@ -146,6 +150,11 @@ public:
 
     void SetResetPending();
 
+    /* Reset-delivery hook: GuestCpuReset runs the reset-line listeners
+       and an armed GuestColdBoot hard reset (RAM wipe + replay + TC
+       flush) before the CPU re-enters at the reset vector. */
+    void NotifyResetDelivered();
+
     /* JIT-emitted MCR p15 c15 c2 op_2=2 (SA-1110 Wait-For-Interrupt)
        calls this. Blocks on idle_event_ until a peripheral asserts an
        IRQ. Advances guest_cycle_counter by wallclock-elapsed*divider so
@@ -177,8 +186,8 @@ public:
                                                     uint32_t guest_pc);
 
     /* One-byte naked RET — shadow-stack slots for "not yet jitted"
-       return addresses point here so the eventual BX LR / MOV PC,LR
-       RETs back to the dispatcher rather than JMPing into garbage. */
+       return addresses point here; the eventual BX LR / MOV PC,LR JMPs
+       to the slot value as a native address, so it must be executable. */
     static void NotJittedHelper();
 
     /* Self-modifying: patches [ESI] in place to JMP rel32 to the
@@ -216,6 +225,12 @@ public:
        to per-SoC cache-line size before the range-overlap check. */
     void FlushTranslationCache(uint32_t va, uint32_t length);
 
+    /* SCTLR.M 1→0 mid-block: drops host-side VA dispatch caches now,
+       defers the arena flush to the next JitCompile. An arena flush
+       here frees the block executing this call; no flush at all
+       dispatches stale MMU-on blocks under identity (SA-1110 §7.4). */
+    void OnTranslationRegimeChange();
+
     static void __cdecl FlushTranslationCacheStaticHelper(ArmJit*  jit,
                                                           uint32_t va,
                                                           uint32_t length);
@@ -247,6 +262,7 @@ private:
     EmulatedMemory*               memory_           = nullptr;
     class PeripheralDispatcher*   peripheral_       = nullptr;
     ArmProcessorConfig*           processor_config_ = nullptr;
+    bool                          has_thumb_        = true;
     CoprocEmitter*                coproc_emitter_   = nullptr;
     ArmDecoder*                   decoder_          = nullptr;
     class ArmVfp*                 vfp_              = nullptr;
@@ -314,6 +330,7 @@ private:
        cross-thread access would race. */
     ShadowStackEntry shadow_stack_[256]{};
     uint8_t          shadow_stack_count_ = 0;
+    bool             tc_flush_pending_   = false;
 
     void SetInterruptPendingLocked();
 

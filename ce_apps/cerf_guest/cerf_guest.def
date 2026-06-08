@@ -3,6 +3,7 @@ LIBRARY cerf_guest
 EXPORTS
     DrvEnableDriver
     HALInit
+    CerfSetCarrierName
     CDD_Init
     CDD_Deinit
     CDD_Open

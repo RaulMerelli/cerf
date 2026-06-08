@@ -115,7 +115,10 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
 
     if (!state_.control_register.bits.m) {
         uint8_t* host = memory_->TryTranslate(p);
-        if (host) return host;
+        if (host) {
+            if constexpr (kAccess != ArmMmuAccess::kExecute) last_data_pa_ = p;
+            return host;
+        }
         SetIoPending(p);
         return nullptr;
     }
@@ -133,11 +136,11 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
     /* ARM DDI 0406C.c B3.9.1: ASID is CONTEXTIDR[7:0]. */
     const uint8_t current_asid = static_cast<uint8_t>(state_.contextidr & 0xFFu);
 
-    /* DACR domain-0 = Manager(0b11) → AP attributes not checked (ARM
-       DDI0406C B3 "Domains", p.B3-1362). All PTEs are domain 0 (walk
-       faults non-zero domains); make this per-domain before mapping any
-       non-zero domain or every domain inherits domain 0's setting. */
-    const bool skip_ap = (state_.domain_access_control & 3u) == 3u;
+    /* Domain check happens on the VALID final-level descriptor, AP only for
+       Client domains (ARM DDI 0406C B3.12.3 p.B3-1398; B4.1.43 DACR fields:
+       00 fault, 01 Client, 10 reserved/UNPREDICTABLE = fault fail-closed,
+       11 Manager skips AP). Linux maps vectors/IO in domains 1/2. */
+    const uint32_t dacr = state_.domain_access_control;
     uint32_t effective_address = 0;
 
     /* Set-associative fast path: scan the set's ways for a live match (the
@@ -153,6 +156,7 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
         const ArmTlbEntry& fast = tlb_unit->entries[set_base];
         const uint32_t pa = fast.pa_page | (p & 0x0FFFu);
         if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
+        else last_data_pa_ = pa;
         NoteCodeTracking<kAccess>(state_, pa);
         return reinterpret_cast<uint8_t*>(
             static_cast<uintptr_t>(p) + fast.va_addend);
@@ -197,10 +201,8 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
             return nullptr;
 
         case ArmL1PteType::kCoarse: {
-            if (l1_pte.coarse.domain != 0u) {
-                RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
-                return nullptr;
-            }
+            const uint32_t dom_field =
+                (dacr >> (l1_pte.coarse.domain << 1)) & 3u;
             const uint32_t l2_pa = (l1_pte.coarse.page_table_base << 10) | (((p >> 12) & 0xFFu) << 2);
             uint8_t* l2_host = memory_->TryTranslateWrite(l2_pa);
             if (!l2_host) {
@@ -225,8 +227,12 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                     }
                     /* ARM1136 TRM Table 6-16/Fig 6-5: 4 KB extended small
                        page, single AP at bits[5:4], no nG (global). */
+                    if (!(dom_field & 1u)) {
+                        RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                        return nullptr;
+                    }
                     const uint32_t ap = (l2_pte.word >> 4) & 3u;
-                    if (!skip_ap && !ApPermits<kAccess>(ap, is_user_mode)) {
+                    if (dom_field == 1u && !ApPermits<kAccess>(ap, is_user_mode)) {
                         RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                         return nullptr;
                     }
@@ -234,6 +240,10 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                     new_slot.global          = true;
                     effective_address        = ArmExtSmallPagePa(l2_pte.word, p);
                     break;
+                }
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
                 }
                 if constexpr (kAccess == ArmMmuAccess::kExecute) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
@@ -245,6 +255,10 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                 }
                 [[fallthrough]];
             case 2: {
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
+                }
                 bool ap_ok;
                 if (modern_v6_fmt) {
                     const uint32_t ap = ((l2_pte.word >> 4) & 3u) |
@@ -254,7 +268,7 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                     const uint32_t ap = (l2_pte.small_page.aps >> ((p >> 9) & 6u)) & 3u;
                     ap_ok = ApPermits<kAccess>(ap, is_user_mode);
                 }
-                if (!skip_ap && !ap_ok) {
+                if (dom_field == 1u && !ap_ok) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                     return nullptr;
                 }
@@ -272,8 +286,12 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                         p, l2_pte.word);
                     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
                 }
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
+                }
                 const uint32_t ap = (l2_pte.large_page.aps >> ((p >> 13) & 6u)) & 3u;
-                if (!skip_ap && !ApPermits<kAccess>(ap, is_user_mode)) {
+                if (dom_field == 1u && !ApPermits<kAccess>(ap, is_user_mode)) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                     return nullptr;
                 }
@@ -288,7 +306,9 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
         }
 
         case ArmL1PteType::kSection: {
-            if (l1_pte.section.domain != 0u) {
+            const uint32_t dom_field =
+                (dacr >> (l1_pte.section.domain << 1)) & 3u;
+            if (!(dom_field & 1u)) {
                 RaiseAbort(p, ArmFaultStatus::kDomainSection, kIsWrite);
                 return nullptr;
             }
@@ -303,7 +323,7 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
             } else {
                 ap_ok = ApPermits<kAccess>(l1_pte.section.ap, is_user_mode);
             }
-            if (!skip_ap && !ap_ok) {
+            if (dom_field == 1u && !ap_ok) {
                 LOG(Caution, "MMU walk: L1 section permission denied "
                         "va=0x%08X L1_pte=0x%08X v7_ap=%u access=%u user=%u\n",
                     p, l1_pte.word, v7_ap,
@@ -327,10 +347,8 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                     p, l1_pa, l1_pte.word);
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
-            if (l1_pte.fine.domain != 0u) {
-                RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
-                return nullptr;
-            }
+            const uint32_t dom_field =
+                (dacr >> (l1_pte.fine.domain << 1)) & 3u;
             /* v4/v5 Fine page-table descriptors carry no nG bit (ARM
                DDI 0406C.c Appendix D15 §D15.6 Table D15-10), so v5
                entries populate global=true. */
@@ -348,8 +366,12 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                 RaiseAbort(p, ArmFaultStatus::kTranslationPage, kIsWrite);
                 return nullptr;
             case 1: {
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
+                }
                 const uint32_t ap = (l2_pte.large_page.aps >> ((p >> 13) & 6u)) & 3u;
-                if (!skip_ap && !ApPermits<kAccess>(ap, is_user_mode)) {
+                if (dom_field == 1u && !ApPermits<kAccess>(ap, is_user_mode)) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                     return nullptr;
                 }
@@ -359,8 +381,12 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                 break;
             }
             case 2: {
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
+                }
                 const uint32_t ap = (l2_pte.small_page.aps >> ((p >> 9) & 6u)) & 3u;
-                if (!skip_ap && !ApPermits<kAccess>(ap, is_user_mode)) {
+                if (dom_field == 1u && !ApPermits<kAccess>(ap, is_user_mode)) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                     return nullptr;
                 }
@@ -370,7 +396,12 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                 break;
             }
             case 3: {
-                if (!skip_ap && !ApPermits<kAccess>(l2_pte.extended_small_page.ap, is_user_mode)) {
+                if (!(dom_field & 1u)) {
+                    RaiseAbort(p, ArmFaultStatus::kDomainPage, kIsWrite);
+                    return nullptr;
+                }
+                if (dom_field == 1u &&
+                    !ApPermits<kAccess>(l2_pte.extended_small_page.ap, is_user_mode)) {
                     RaiseAbort(p, ArmFaultStatus::kPermissionPage, kIsWrite);
                     return nullptr;
                 }
@@ -391,6 +422,7 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
         const bool uniform = memory_->IsSlotRangeUniform(new_slot.pte, effective_address);
 
         if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = effective_address;
+        else last_data_pa_ = effective_address;
 
         if constexpr (kAccess == ArmMmuAccess::kWrite) {
             uint8_t* host_ptr = memory_->TryTranslateWrite(effective_address);

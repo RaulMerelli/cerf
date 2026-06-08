@@ -9,7 +9,6 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../host/frame_renderer.h"
 #include "../../host/host_window.h"
-#include "../../lcd/lcd_content_latch.h"
 
 #include <cstring>
 
@@ -115,7 +114,6 @@ public:
     }
 
 private:
-    LcdContentLatch latch_;
     bool dims_published_ = false;
 };
 

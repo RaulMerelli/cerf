@@ -4,10 +4,9 @@
 
 namespace {
 
-/* Fingerprint string is unique to the Odo SMC91C94 HAL
-   (HALETHER.C). Changing it without proving uniqueness across
-   references/WINCE300/ + references/extracted-roms/ risks false
-   positives on other CE3 ROMs. */
+/* Fingerprint string is unique to the Odo SMC91C94 HAL (HALETHER.C).
+   Changing it without proving uniqueness across the CE3 ROM set risks
+   false positives on other CE3 ROMs. */
 class OdoArm720Detector : public BoardDetector {
 public:
     using BoardDetector::BoardDetector;
@@ -23,7 +22,9 @@ public:
     const char* BoardName() const override {
         return "Microsoft Odo CE3 reference + Philips Poseidon ASIC, ARM720T";
     }
-
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{ 480, 240 };
+    }
 };
 
 }  /* namespace */

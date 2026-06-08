@@ -41,7 +41,7 @@ private:
     HBRUSH  bg_brush_   = nullptr;
     HPEN    sep_pen_    = nullptr;
 
-    /* UI-thread only. Right-to-left layout: InputControl-group widgets pin to
+    /* UI-thread only. Right-to-left layout: terminal-range widgets pin to
        the right edge and always show; device widgets fill the space to their
        left, leftmost dropping off into the Actions menu on overflow. */
     std::vector<std::pair<HostWidget*, RECT>> layout_;

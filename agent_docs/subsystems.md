@@ -120,6 +120,67 @@ itself the tech-debt shape this layout exists to prevent.
 
 — `cerf/socs/`, `cerf/boards/`, `cerf/peripherals/`
 
+## PCMCIA
+
+16-bit PC Card emulation, split framework/controller/card:
+
+- **`PcmciaCard`** (`cerf/peripherals/pcmcia/pcmcia_card.h`) — abstract
+  card: attribute/common/IO surface, PowerOn/Off, SocketReset, optional
+  `BuildCardMenu`. Cards are plain objects (NOT Services), created by
+  `PcmciaCardCatalog::Create()` and owned by their slot; one type may
+  occupy two slots at once. Concretes:
+  `cerf/peripherals/realtek_rtl8019/` (NE2000 NIC),
+  `cerf/peripherals/compactflash/` (PC Card ATA + FAT32 image builder +
+  insert submenu).
+- **`PcmciaSlot`** (`pcmcia_slot.{h,cpp}`) — one physical socket; owns
+  card lifetime + bus serialization, IS the HostWidget with the
+  universal Insert/Eject/Eject-and-insert menu. The owning controller
+  implements **`PcmciaSlotHost`** (card-detect / IRQ callbacks) and
+  routes guest accesses to the slot's Read/Write surface.
+- **`PcmciaCardCatalog`** (`pcmcia_card_catalog.{h,cpp}`) — the
+  insert-menu card registry; a new card type = one `PcmciaCard`
+  subclass + one catalog entry.
+- **`PcmciaSpaceRouter`** (`pcmcia_space_router.{h,cpp}`) — the shared
+  SA-1110/PXA255 static-window PC Card space decode (PA 0x20000000;
+  socket/region bits). Controllers call `ProvideSockets`; never
+  re-implement this decode per SoC.
+
+Wiring a new board = a socket controller in the proper tree
+(chip/board/vendor-part) that owns `PcmciaSlot` instances, implements
+`PcmciaSlotHost`, registers the slots with `HostWidgetRegistry`, and
+drives `SetPowered` from its power register — see `cirrus_pd6710/`
+(DevEmu), `intel_sa1111/sa1111_pcmcia.cpp` (Jornada),
+`ipaq_gen1_pcmcia_sleeve.cpp`, `falcon_pcmcia.cpp`.
+
+— `cerf/peripherals/pcmcia/`
+
+## CPU reset & cold boot
+
+**`GuestCpuReset`** is the funnel for every CERF-initiated CPU reset
+(host reset actions, watchdog expiry) — never call bare
+`ArmJit::SetResetPending`. The SoC peripheral owning the reset-cause
+register implements `ResetCauseLatch` (warm / cold / watchdog) so the
+re-entered guest boot path reads a true reset cause, and peripherals
+whose silicon resets with the system reset line (e.g. a drive
+re-presenting its power-on diagnostic signature) register reset
+listeners that run at reset delivery on the JIT thread. A board that
+skips this wiring boots fine but hangs on guest reboot: cause-checking
+startups take the sleep-resume path, and warm peripheral state fails
+driver re-probes.
+
+— `cerf/socs/guest_cpu_reset.{h,cpp}`
+
+**`GuestColdBoot`** implements hard reset (cold boot): at reset
+delivery it wipes every volatile RAM region (flash survives), replays
+registered boot-time guest-RAM writes in registration order, and
+flushes the translation cache. Every service that writes guest RAM
+during `OnReady` (ROM placement, BSP_ARGS blocks, image injection)
+MUST register a replay — or a byte-exact `RecordPatch` when the
+producing computation allocates and must not re-run — otherwise its
+bytes are silently absent after every hard reset on that board.
+
+— `cerf/boot/guest_cold_boot.{h,cpp}`
+
 ## Host window & presentation
 
 The Win32 window, its drawable area, and the render/input plumbing that
@@ -321,10 +382,11 @@ manifest, authors each installed bundle's `cerf.json` from the manifest's
 `cerf_json` and reconciles it on refresh, boots a selected device via
 `cerf.exe`, and runs a release self-update check
 against the repo-root `.last-release-version`. It owns the developer-editable
-supported-boards / board-quirk list (`boards.py`), whose per-board `notes`
-surface in the side panel and extend a ROM's own `cerf.json` notes.
+supported-boards / board-quirk list (`supported_devices.py`), whose per-board
+`notes` surface in the side panel and extend a ROM's own `cerf.json` notes.
 
-— `launcher/` (`launcher.py`, `bundles.py`, `operations.py`, `boards.py`)
+— `launcher/` (`launcher.py`, `bundles.py`, `operations.py`,
+`supported_devices.py`)
 
 ## CE Apps — CERF-built ARM CE binaries
 
@@ -357,3 +419,37 @@ Planned growth is host-side GPU acceleration, runtime screen resize, host↔gues
 shared storage / clipboard, and a guest-additions input path. Reference behavior
 for the blit pipeline is the CE6 GPE source under
 `references/WINCE600/.../DISPLAY/` (GPE `swblt.cpp`/`swconvrt.cpp`, EMUL `eb*.cpp`).
+
+## Guest Additions task manager — host UI + cerf_virt channel + guest pump
+
+The guest task manager (Guest Additions status-bar widget → non-modal host
+window) lists, kills, and switches to guest processes and runs guest
+executables. Three pieces: the MMIO command/response channel
+`cerf/peripherals/cerf_virt/cerf_virt_task_manager.{h,cpp}` (+ `_regs.h`
+contract — host publishes one command at a time via gen bump; guest answers
+with response regs + kick; LIST rows stream guest→host one record at a time
+through a register window), the host window + widget
+(`cerf/host/task_manager_window.{h,cpp}`, widget merged into
+`cerf/host/host_auto_resize.{h,cpp}`, pinned in the status bar's terminal
+range), and the guest-side pump
+`ce_apps/cerf_guest/cerf_task_manager_pump.cpp`.
+
+Channel-design rules this subsystem proved — they bind every future
+cerf_virt channel:
+
+- **No user API in a guest pump before full boot.** Pump start is
+  display-driver init, mid-boot; a user API there (LoadLibrary included)
+  corrupts gwes boot. Resolve dependencies lazily on first command —
+  commands can only arrive post-boot.
+- **Bulk guest→host data crosses through the MMIO regs page, never as a
+  guest table VA the host reads.** FCSE kernels lazily zero L2 entries
+  under TLB-resident pages, so a host-side walk fails for memory the guest
+  reads fine; `PeekVaToHost` is reliable only for small just-written
+  buffers (the gpe descriptors).
+- **cerf_guest.dll's virtual image must fit the ROM victim slot it is
+  injected into.** A large static array overflows the slot and the
+  in-place injection corrupts the adjacent kernel-space module; big
+  buffers are allocated at first use instead.
+- **Kernel-loaded guest code (CE6+ drivers) cannot use callback-marshaled
+  APIs** — gwes rejects caller-supplied function pointers from kernel
+  space (EnumWindows); use handle-walk equivalents (GetWindow chain).

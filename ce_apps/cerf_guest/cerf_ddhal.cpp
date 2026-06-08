@@ -1,4 +1,8 @@
 #include <windows.h>
+/* INITGUID: this TU instantiates the DEFINE_GUIDs from ddrawi.h
+   (GUID_GetDriverInfo_VidMemBase) that GetDriverInfo is matched against. */
+#define INITGUID
+#include <initguid.h>
 #include <winddi.h>
 #include <gpe.h>
 #include <ddgpe.h>   /* brings in ddrawi.h (DDHALINFO, DDHAL_DD*CALLBACKS) */

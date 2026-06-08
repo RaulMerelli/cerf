@@ -17,6 +17,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     uint32_t MmioBase() const override { return 0x55000000u; }
     uint32_t MmioSize() const override { return 0x00000014u; }
@@ -38,6 +39,7 @@ public:
 private:
     /* Audio loop, message-thread for waveOut callbacks. */
     void  AudioThreadMain();
+    void  StopAudioThread();
     DWORD audio_thread_id_ = 0;
 
     /* waveOut state. Two headers for double-buffering, mirrors

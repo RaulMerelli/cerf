@@ -3,6 +3,7 @@
 #include "../core/service.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -10,6 +11,9 @@ enum class SocFamily {
     Unknown,
     S3C2410,
     SA1110,
+    SA1100,    /* Intel SA-1100 StrongARM, ARMv4. Same peripheral silicon as
+                  SA-1110 (shares cerf/socs/sa11xx + cerf/cpu/sa11xx); differs
+                  only in CPU ID (proc-sa1100.S:276 = 0x4401a110). */
     PXA25x,    /* Intel XScale PXA255 ("Cotulla"), ARMv5TE */
     PXA27x,
     OMAP3530,
@@ -37,7 +41,14 @@ enum class Board {
     Jornada720,       /* HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM
                          + SA-1111 companion + EPSON SED1356 LCD + SSP MCU.
                          Windows CE 3.0 / HPC2000. */
+    Jornada820,       /* HP Jornada 820 Handheld PC, Intel SA-1100 StrongARM,
+                         integrated SA-1100 LCD controller (no SED1356, no
+                         SA-1111), keyboard + glidepad touchpad. Windows CE
+                         2.11 / Handheld PC Professional Edition. */
 };
+
+/* A board's fixed host-window open size, in guest-surface pixels. */
+struct PreferredWindowSize { uint32_t width; uint32_t height; };
 
 class BoardDetector : public Service {
 public:
@@ -47,6 +58,14 @@ public:
     virtual Board       GetBoard()    const = 0;
     virtual SocFamily   GetSoc()      const = 0;
     virtual const char* BoardName()   const = 0;
+
+    /* Cosmetic pre-boot window-size hint for boards with a single fixed LCD.
+       Never route actual sizing through this — the real resolution comes
+       solely from OnLcdEnabled, and overriding that here would ignore what
+       the guest LCD reports. nullopt (base default) = no hint. */
+    virtual std::optional<PreferredWindowSize> GetPreferredWindowSize() const {
+        return std::nullopt;
+    }
 
     static const char*  SocFamilyName(SocFamily f);
 

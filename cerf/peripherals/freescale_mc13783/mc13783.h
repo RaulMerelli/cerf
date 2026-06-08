@@ -15,6 +15,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     /* MC13783 datasheet §4.1.1.3.1 SPI Transfer Protocol. */
     uint32_t SpiExchange(uint32_t cmd);
@@ -49,4 +50,5 @@ private:
     uint32_t RtcTotalSecs() const;
     void     RebaseToCurrent();
     void     RebaseLoop();
+    void     StopRebaseThread();
 };

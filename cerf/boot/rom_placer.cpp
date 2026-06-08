@@ -2,6 +2,7 @@
 
 #include "rom_placer.h"
 
+#include "guest_cold_boot.h"
 #include "rom_parser_service.h"
 
 #include "../core/cerf_emulator.h"
@@ -15,15 +16,56 @@
 
 REGISTER_SERVICE(RomPlacer);
 
-namespace {
+bool RomPlacer::IsVolatilePa(uint32_t pa) {
+    for (const auto& r : emu_.Get<PageTableBuilder>().BackedMemoryRegions()) {
+        if (pa < r.pa_base || pa >= r.pa_base + r.size) continue;
+        return r.page_protect != PAGE_READONLY &&
+               r.page_protect != PAGE_EXECUTE_READ;
+    }
+    return true;
+}
 
-struct CopyClip {
-    uint32_t pa_start;
-    uint32_t file_off;
-    size_t   length;
-};
+void RomPlacer::PlaceRomXips(const ParsedRom& rom, bool volatile_only) {
+    auto& page_tables = emu_.Get<PageTableBuilder>();
+    auto& mem         = emu_.Get<EmulatedMemory>();
 
-}  /* namespace */
+    for (size_t i = 0; i < rom.xips.size(); ++i) {
+        const auto& xip = rom.xips[i];
+        const uint32_t physfirst = xip.toc.romhdr.physfirst;
+        const uint32_t physlast  = xip.toc.romhdr.physlast;
+        if (physlast <= physfirst) continue;
+
+        if (physfirst < xip.load_offset) {
+            LOG(Caution,
+                "RomPlacer %s: xip[%zu] physfirst=0x%08X below "
+                "load_offset=0x%08X — skipping\n",
+                rom.filename.c_str(), i, physfirst, xip.load_offset);
+            continue;
+        }
+
+        const size_t file_off = size_t(physfirst - xip.load_offset);
+        const size_t xip_len  = size_t(physlast - physfirst);
+        if (file_off >= rom.flat.size()) {
+            LOG(Caution,
+                "RomPlacer %s: xip[%zu] file_off=0x%zX past flat "
+                "size=%zu — skipping\n",
+                rom.filename.c_str(), i, file_off, rom.flat.size());
+            continue;
+        }
+        const size_t copy_len =
+            std::min(xip_len, rom.flat.size() - file_off);
+        const uint32_t pa_base = page_tables.VaToPa(physfirst);
+
+        if (volatile_only && !IsVolatilePa(pa_base)) continue;
+
+        mem.CopyIn(pa_base, rom.flat.data() + file_off, copy_len);
+        LOG(Boot,
+            "RomPlacer %s: xip[%zu] %zu bytes  file_off=0x%zX  "
+            "kva=0x%08X..0x%08X  pa=0x%08X\n",
+            rom.filename.c_str(), i, copy_len, file_off,
+            physfirst, uint32_t(physfirst + copy_len), pa_base);
+    }
+}
 
 void RomPlacer::OnReady() {
     auto& parser = emu_.Get<RomParserService>();
@@ -48,40 +90,7 @@ void RomPlacer::OnReady() {
     }
 
     for (const auto& rom : parser.Loaded()) {
-        for (size_t i = 0; i < rom.xips.size(); ++i) {
-            const auto& xip = rom.xips[i];
-            const uint32_t physfirst = xip.toc.romhdr.physfirst;
-            const uint32_t physlast  = xip.toc.romhdr.physlast;
-            if (physlast <= physfirst) continue;
-
-            if (physfirst < xip.load_offset) {
-                LOG(Caution,
-                    "RomPlacer %s: xip[%zu] physfirst=0x%08X below "
-                    "load_offset=0x%08X — skipping\n",
-                    rom.filename.c_str(), i, physfirst, xip.load_offset);
-                continue;
-            }
-
-            const size_t file_off = size_t(physfirst - xip.load_offset);
-            const size_t xip_len  = size_t(physlast - physfirst);
-            if (file_off >= rom.flat.size()) {
-                LOG(Caution,
-                    "RomPlacer %s: xip[%zu] file_off=0x%zX past flat "
-                    "size=%zu — skipping\n",
-                    rom.filename.c_str(), i, file_off, rom.flat.size());
-                continue;
-            }
-            const size_t copy_len =
-                std::min(xip_len, rom.flat.size() - file_off);
-            const uint32_t pa_base = page_tables.VaToPa(physfirst);
-
-            mem.CopyIn(pa_base, rom.flat.data() + file_off, copy_len);
-            LOG(Boot,
-                "RomPlacer %s: xip[%zu] %zu bytes  file_off=0x%zX  "
-                "kva=0x%08X..0x%08X  pa=0x%08X\n",
-                rom.filename.c_str(), i, copy_len, file_off,
-                physfirst, uint32_t(physfirst + copy_len), pa_base);
-        }
+        PlaceRomXips(rom, /*volatile_only=*/false);
 
         if (!rom.is_b000ff) {
             uint32_t flash_va_base = 0;
@@ -126,4 +135,9 @@ void RomPlacer::OnReady() {
             }
         }
     }
+
+    emu_.Get<GuestColdBoot>().RegisterReplay([this] {
+        for (const auto& rom : emu_.Get<RomParserService>().Loaded())
+            PlaceRomXips(rom, /*volatile_only=*/true);
+    });
 }

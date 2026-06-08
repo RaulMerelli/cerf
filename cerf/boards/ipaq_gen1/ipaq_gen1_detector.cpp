@@ -13,7 +13,8 @@ public:
            never "H3650"); H31xx ROMs carry only "Compaq iPAQ H3100".
            Dropping/narrowing either needle un-detects that ROM family. */
         return RomContainsString("Compaq iPAQ H3600") ||
-               RomContainsString("Compaq iPAQ H3100");
+               RomContainsString("Compaq iPAQ H3100") || 
+               RomContainsString("Compaq iPAQ H3700");
     }
 
     Board       GetBoard()  const override { return Board::IpaqGen1; }

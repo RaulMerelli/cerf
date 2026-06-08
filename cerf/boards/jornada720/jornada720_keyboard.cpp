@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_input.h"
-#include "../../socs/sa1110/sa1110_gpio.h"
+#include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_detector.h"
 
 namespace {
@@ -54,7 +54,7 @@ bool Jornada720Keyboard::ShouldRegister() {
 void Jornada720Keyboard::OnReady() {
     /* GPIO0 idles high; a key pulls it low (falling edge). Publish idle-high so
        the first key produces a clean falling edge (HP doc §4.3). */
-    emu_.Get<Sa1110Gpio>().DriveInputPin(0, /*level=*/true);
+    emu_.Get<Sa11xxGpio>().DriveInputPin(0, /*level=*/true);
 }
 
 void Jornada720Keyboard::OnHostKey(uint8_t vk, bool key_up) {
@@ -74,9 +74,9 @@ void Jornada720Keyboard::DrainScancodes(std::vector<uint8_t>& out) {
 }
 
 void Jornada720Keyboard::PulseKbdIrqLine() {
-    /* Drive the high->low edge that latches Sa1110Gpio GEDR bit0 -> INTC source
+    /* Drive the high->low edge that latches Sa11xxGpio GEDR bit0 -> INTC source
        0 (HP doc §4.3 falling-edge), then return to idle high for the next key. */
-    auto& gpio = emu_.Get<Sa1110Gpio>();
+    auto& gpio = emu_.Get<Sa11xxGpio>();
     gpio.DriveInputPin(0, false);
     gpio.DriveInputPin(0, true);
 }

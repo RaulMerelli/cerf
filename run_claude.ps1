@@ -21,24 +21,32 @@
 # its working set every $PollSeconds and force-kills it if it exceeds
 # $MemoryLimitGB, then offers a restart. The runspace runs in-process, so
 # it doesn't disturb the TUI.
+#
+# clangd watchdog: a second runspace sweeps ALL clangd.exe instances every
+# $PollSeconds and force-kills any whose private bytes exceed
+# $ClangdMemoryLimitGB. No prompt, no restart — the editor respawns clangd
+# on demand.
 
 # Parse our own flags out of $args manually instead of using a param() block.
 # A param() block makes PS reject unknown switches like --resume / --continue,
 # which we need to forward verbatim to claude. PS 5.1's
 # [Parameter(ValueFromRemainingArguments)] only captures POSITIONAL leftovers,
 # not switch-style args, so it doesn't help here.
-$MemoryLimitGB = 4.2
-$PollSeconds   = 3
-$claudeArgs    = @()
+$MemoryLimitGB       = 4.2
+$ClangdMemoryLimitGB = 1.5
+$PollSeconds         = 3
+$claudeArgs          = @()
 $i = 0
 while ($i -lt $args.Count) {
     $a = $args[$i]
     switch -CaseSensitive ($a) {
-        '-MemoryLimitGB'      { $MemoryLimitGB = [double]$args[$i+1]; $i += 2; continue }
-        '--memory-limit-gb'   { $MemoryLimitGB = [double]$args[$i+1]; $i += 2; continue }
-        '-PollSeconds'        { $PollSeconds   = [int]   $args[$i+1]; $i += 2; continue }
-        '--poll-seconds'      { $PollSeconds   = [int]   $args[$i+1]; $i += 2; continue }
-        default               { $claudeArgs += $a; $i += 1 }
+        '-MemoryLimitGB'        { $MemoryLimitGB       = [double]$args[$i+1]; $i += 2; continue }
+        '--memory-limit-gb'     { $MemoryLimitGB       = [double]$args[$i+1]; $i += 2; continue }
+        '-ClangdLimitGB'        { $ClangdMemoryLimitGB = [double]$args[$i+1]; $i += 2; continue }
+        '--clangd-limit-gb'     { $ClangdMemoryLimitGB = [double]$args[$i+1]; $i += 2; continue }
+        '-PollSeconds'          { $PollSeconds         = [int]   $args[$i+1]; $i += 2; continue }
+        '--poll-seconds'        { $PollSeconds         = [int]   $args[$i+1]; $i += 2; continue }
+        default                 { $claudeArgs += $a; $i += 1 }
     }
 }
 
@@ -199,6 +207,42 @@ do {
     })
     $async = $ps.BeginInvoke()
 
+    # clangd.exe watchdog. Unlike the claude watchdog there is no single target
+    # pid — every clangd.exe on the machine is fair game, and the sweep runs
+    # for the whole claude session (clangd instances come and go as editors
+    # restart them). Same private-bytes metric as above.
+    $rsClangd = [runspacefactory]::CreateRunspace()
+    $rsClangd.Open()
+    $rsClangd.SessionStateProxy.SetVariable('clangdLimitBytes', [long]($ClangdMemoryLimitGB * 1GB))
+    $rsClangd.SessionStateProxy.SetVariable('pollSeconds',      $PollSeconds)
+    $rsClangd.SessionStateProxy.SetVariable('watchdogLog',      $watchdogLog)
+    $rsClangd.SessionStateProxy.SetVariable('clangdLimitGB',    $ClangdMemoryLimitGB)
+
+    $psClangd = [powershell]::Create()
+    $psClangd.Runspace = $rsClangd
+    [void]$psClangd.AddScript({
+        function Log([string]$msg) {
+            try {
+                Add-Content -LiteralPath $watchdogLog `
+                    -Value ('[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss.fff'), $msg) `
+                    -ErrorAction SilentlyContinue
+            } catch {}
+        }
+        Log "----- clangd watchdog start, limit=$clangdLimitGB GB, poll=${pollSeconds}s -----"
+        while ($true) {
+            Start-Sleep -Seconds $pollSeconds
+            foreach ($p in (Get-Process -Name clangd -ErrorAction SilentlyContinue)) {
+                $bytes = $p.PrivateMemorySize64
+                if ($bytes -gt $clangdLimitBytes) {
+                    Log ("clangd OVER LIMIT -- killing pid={0} private={1:N0} bytes ({2:N2} GB)" -f `
+                        $p.Id, $bytes, ($bytes / 1GB))
+                    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    })
+    $asyncClangd = $psClangd.BeginInvoke()
+
     try {
         & claude --effort high `
                  --allow-dangerously-skip-permissions `
@@ -207,10 +251,14 @@ do {
                  @claudeArgs
     } finally {
         # Monitor exits on its own when claude.exe is gone. Stop+dispose to
-        # be safe in case it's still in Start-Sleep.
-        try { $ps.Stop()    } catch {}
-        try { $ps.Dispose() } catch {}
-        try { $rs.Dispose() } catch {}
+        # be safe in case it's still in Start-Sleep. The clangd sweep loops
+        # forever by design — Stop() is its only exit path.
+        try { $ps.Stop()          } catch {}
+        try { $ps.Dispose()       } catch {}
+        try { $rs.Dispose()       } catch {}
+        try { $psClangd.Stop()    } catch {}
+        try { $psClangd.Dispose() } catch {}
+        try { $rsClangd.Dispose() } catch {}
         Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
     }
 

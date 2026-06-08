@@ -1,4 +1,3 @@
-#include "pd6710_card.h"
 #include "pd6710_controller.h"
 
 #include "../../boards/board_detector.h"
@@ -11,8 +10,11 @@
 
 namespace {
 
+/* 16 MB PC Card memory space at nGCS2 (BSP pcc_smdk2410.reg
+   WindowEntry1: MemBase 0x10000000, two windows of MemMaxSize
+   0x800000). */
 constexpr uint32_t kBase = 0x10000000u;
-constexpr uint32_t kSize = 0x0000FFFFu;
+constexpr uint32_t kSize = 0x01000000u;
 
 class Pd6710MemWindow : public Peripheral {
 public:
@@ -20,9 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        if (!bd) return false;
-        const auto b = bd->GetBoard();
-        return b == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -42,39 +42,75 @@ public:
 uint8_t Pd6710MemWindow::ReadByte(uint32_t addr) {
     const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    Pd6710Card* card = ctl.IsCardPowered() ? ctl.Card() : nullptr;
-    const uint8_t value = card ? card->ReadMemoryByte(off) : 0u;
-    LOG(Pcmcia, "[MemWin] read8 +0x%X -> 0x%02X%s\n",
-        off, value, card ? "" : " (no card)");
-    return value;
+    uint32_t card_addr;
+    bool attribute, writable;
+    if (!ctl.MapMem(off, &card_addr, &attribute, &writable)) {
+        LOG(Pcmcia, "[MemWin] read8 +0x%X (no window) -> 0\n", off);
+        return 0u;
+    }
+    if (attribute) return ctl.Slot().ReadAttribute8(card_addr);
+    return ctl.Slot().ReadCommon8(card_addr);
 }
 
 uint16_t Pd6710MemWindow::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    Pd6710Card* card = ctl.IsCardPowered() ? ctl.Card() : nullptr;
-    const uint16_t value = card ? card->ReadMemoryHalf(off) : 0u;
-    LOG(Pcmcia, "[MemWin] read16 +0x%X -> 0x%04X%s\n",
-        off, value, card ? "" : " (no card)");
-    return value;
+    uint32_t card_addr;
+    bool attribute, writable;
+    if (!ctl.MapMem(off, &card_addr, &attribute, &writable)) {
+        LOG(Pcmcia, "[MemWin] read16 +0x%X (no window) -> 0\n", off);
+        return 0u;
+    }
+    if (attribute) {
+        /* Attribute memory drives even bytes only; the controller
+           images the even byte on both halves of the 16-bit bus. */
+        const uint8_t v = ctl.Slot().ReadAttribute8(card_addr & ~1u);
+        return static_cast<uint16_t>((v << 8) | v);
+    }
+    return ctl.Slot().ReadCommon16(card_addr);
 }
 
 void Pd6710MemWindow::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    Pd6710Card* card = ctl.IsCardPowered() ? ctl.Card() : nullptr;
-    LOG(Pcmcia, "[MemWin] write8 +0x%X = 0x%02X%s\n",
-        off, value, card ? "" : " (no card)");
-    if (card) card->WriteMemoryByte(off, value);
+    uint32_t card_addr;
+    bool attribute, writable;
+    if (!ctl.MapMem(off, &card_addr, &attribute, &writable)) {
+        LOG(Pcmcia, "[MemWin] write8 +0x%X = 0x%02X (no window)\n",
+            off, value);
+        return;
+    }
+    if (!writable) {
+        LOG(Pcmcia, "[MemWin] write8 +0x%X = 0x%02X (window write-"
+                "protected)\n", off, value);
+        return;
+    }
+    if (attribute) ctl.Slot().WriteAttribute8(card_addr, value);
+    else           ctl.Slot().WriteCommon8(card_addr, value);
 }
 
 void Pd6710MemWindow::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    Pd6710Card* card = ctl.IsCardPowered() ? ctl.Card() : nullptr;
-    LOG(Pcmcia, "[MemWin] write16 +0x%X = 0x%04X%s\n",
-        off, value, card ? "" : " (no card)");
-    if (card) card->WriteMemoryHalf(off, value);
+    uint32_t card_addr;
+    bool attribute, writable;
+    if (!ctl.MapMem(off, &card_addr, &attribute, &writable)) {
+        LOG(Pcmcia, "[MemWin] write16 +0x%X = 0x%04X (no window)\n",
+            off, value);
+        return;
+    }
+    if (!writable) {
+        LOG(Pcmcia, "[MemWin] write16 +0x%X = 0x%04X (window write-"
+                "protected)\n", off, value);
+        return;
+    }
+    if (attribute) {
+        /* Even byte carries the attribute data on a 16-bit write. */
+        ctl.Slot().WriteAttribute8(card_addr & ~1u,
+                                   static_cast<uint8_t>(value & 0xFFu));
+        return;
+    }
+    ctl.Slot().WriteCommon16(card_addr, value);
 }
 
 REGISTER_SERVICE(Pd6710MemWindow);

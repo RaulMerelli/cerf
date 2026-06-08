@@ -80,6 +80,10 @@ void* ArmCpuRaiseIrqException(ArmJit* jit, ArmCpuState* state, uint32_t inst_ptr
     /* Soft-reset is multiplexed onto IRQ delivery — dropping this
        branch silently breaks watchdog / OAL CPU-reset. */
     if (state->reset_pending) {
+        /* Reset-line effects must finish before the reset vector
+           executes — the cold-boot wipe + replay restore the RAM bytes
+           the entry code runs from. */
+        jit->NotifyResetDelivered();
         jit->Cpu()->RaiseResetException();
         return nullptr;
     }

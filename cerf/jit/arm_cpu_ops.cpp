@@ -26,6 +26,17 @@ inline void SwapBank(uint32_t* gprs,
     *spsr_bank         = tspsr;
 }
 
+/* On a core without Thumb (ArmProcessorConfig::HasThumb() == false,
+   e.g. SA-1110 = ARM V4 per SA-1110 Dev Manual §1.4) CPSR.T does not
+   exist: MSR / SPSR-restore writes leave it 0, as on real silicon.
+   jlime linexec's MSR CPSR_c, CPSR|0xEF relies on this. */
+template <typename Psr>
+inline void ClampThumbForCore(const ArmJit* jit, Psr* new_psr) {
+    if (!jit->HasThumb()) {
+        new_psr->bits.thumb_mode = 0;
+    }
+}
+
 }  // namespace
 
 void ArmCpuBankSwitch(ArmCpuState* state) {
@@ -90,6 +101,7 @@ void ArmCpuUpdateNzcvOnly(ArmCpuState* state, uint32_t new_flag_value) {
 }
 
 void ArmCpuUpdateCpsrWithFlags(ArmJit* jit, ArmCpuState* state, ArmPsrFull new_psr) {
+    ClampThumbForCore(jit, &new_psr);
     const bool mode_changed =
         state->cpsr.bits.mode != new_psr.bits.mode;
 
@@ -129,6 +141,7 @@ void ArmCpuUpdateCpsrWithFlags(ArmJit* jit, ArmCpuState* state, ArmPsrFull new_p
 }
 
 void ArmCpuUpdateCpsr(ArmJit* jit, ArmCpuState* state, ArmPsr new_psr) {
+    ClampThumbForCore(jit, &new_psr);
     const bool mode_changed =
         state->cpsr.bits.mode != new_psr.bits.mode;
 

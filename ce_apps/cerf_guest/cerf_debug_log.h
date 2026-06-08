@@ -19,8 +19,9 @@ void CerfDebugTxX(const char* msg, DWORD value);
 
 /* Log-channel ids passed to CERF_LOG_INIT; mirror host CerfVirt::kLogChannelId*. */
 enum {
-    CERF_LOG_CH_DISPLAY        = 0,   /* gwes display driver */
-    CERF_LOG_CH_SHARED_FOLDERS = 1,   /* device.exe shared-folders FSD carrier */
+    CERF_LOG_CH_STUB           = 0,   /* cerf_guest_stub injection carrier */
+    CERF_LOG_CH_DISPLAY        = 1,   /* gwes display driver */
+    CERF_LOG_CH_SHARED_FOLDERS = 2,   /* device.exe shared-folders FSD carrier */
 };
 
 /* Normal driver logs (init, activation, driver-in-driver entrypoint, FSD mount,

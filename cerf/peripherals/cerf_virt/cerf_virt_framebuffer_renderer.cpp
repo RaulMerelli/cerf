@@ -23,6 +23,10 @@ public:
         return emu_.Get<CerfVirtFramebuffer>().HasContent();
     }
 
+    void RearmContentLatch() override {
+        emu_.Get<CerfVirtFramebuffer>().ClearContentEdge();
+    }
+
     void RenderInto(uint32_t* dib_bgra32,
                     uint32_t  host_w,
                     uint32_t  host_h) override {

@@ -8,7 +8,6 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/frame_renderer.h"
-#include "../../lcd/lcd_content_latch.h"
 
 #include <cstdint>
 #include <cstring>
@@ -103,7 +102,6 @@ public:
     }
 
 private:
-    LcdContentLatch latch_;
 };
 
 }  /* namespace */

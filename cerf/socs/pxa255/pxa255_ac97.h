@@ -24,6 +24,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     uint32_t MmioBase() const override { return 0x40500000u; }
     uint32_t MmioSize() const override { return 0x00001000u; }
@@ -51,6 +52,7 @@ public:
 
 private:
     void AudioThreadMain();
+    void StopAudioThread();
 
     uint16_t CodecRead(uint32_t reg);
     void     CodecWrite(uint32_t reg, uint16_t value);

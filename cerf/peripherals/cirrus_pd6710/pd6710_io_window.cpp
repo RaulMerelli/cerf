@@ -1,4 +1,3 @@
-#include "pd6710_card.h"
 #include "pd6710_controller.h"
 
 #include "../../boards/board_detector.h"
@@ -11,8 +10,15 @@
 
 namespace {
 
-constexpr uint32_t kBase = 0x10010000u;
-constexpr uint32_t kSize = 0x00FF03DFu;
+/* 64 KB PC Card I/O space (BSP pcc_smdk2410.reg WindowEntry2:
+   0x11000000-0x1100FFFF). The PCIC index/data ports at 0x3E0/0x3E1
+   must decode ahead of the I/O windows — a window programmed over
+   0x3E0 would otherwise make the PCIC unreachable. */
+constexpr uint32_t kBase = 0x11000000u;
+constexpr uint32_t kSize = 0x00010000u;
+
+constexpr uint32_t kPcicIndexOffset = 0x3E0u;
+constexpr uint32_t kPcicDataOffset  = 0x3E1u;
 
 class Pd6710IoWindow : public Peripheral {
 public:
@@ -20,9 +26,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        if (!bd) return false;
-        const auto b = bd->GetBoard();
-        return b == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -40,51 +44,61 @@ public:
 }  /* namespace */
 
 uint8_t Pd6710IoWindow::ReadByte(uint32_t addr) {
-    uint32_t off = addr - kBase;
+    const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    if (!ctl.MapIoAddress(&off)) {
-        LOG(Pcmcia, "[IoWin] read8 +0x%X (no window) -> 0\n", addr - kBase);
+    if (off == kPcicIndexOffset || off == kPcicDataOffset) {
+        return ctl.ReadPcicByte(off - kPcicIndexOffset);
+    }
+    uint32_t card_io;
+    if (!ctl.MapIo(off, &card_io)) {
+        LOG(Pcmcia, "[IoWin] read8 +0x%X (no window) -> 0\n", off);
         return 0u;
     }
-    const uint8_t value = ctl.Card()->ReadByte(off);
-    LOG(Pcmcia, "[IoWin] read8 card+0x%X -> 0x%02X\n", off, value);
-    return value;
+    return ctl.Slot().ReadIo8(card_io);
 }
 
 uint16_t Pd6710IoWindow::ReadHalf(uint32_t addr) {
-    uint32_t off = addr - kBase;
+    const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    if (!ctl.MapIoAddress(&off)) {
-        LOG(Pcmcia, "[IoWin] read16 +0x%X (no window) -> 0\n", addr - kBase);
+    if (off == kPcicIndexOffset || off == kPcicDataOffset) {
+        HaltUnsupportedAccess("ReadHalf", addr, 0);
+    }
+    uint32_t card_io;
+    if (!ctl.MapIo(off, &card_io)) {
+        LOG(Pcmcia, "[IoWin] read16 +0x%X (no window) -> 0\n", off);
         return 0u;
     }
-    const uint16_t value = ctl.Card()->ReadHalf(off);
-    LOG(Pcmcia, "[IoWin] read16 card+0x%X -> 0x%04X\n", off, value);
-    return value;
+    return ctl.Slot().ReadIo16(card_io);
 }
 
 void Pd6710IoWindow::WriteByte(uint32_t addr, uint8_t value) {
-    uint32_t off = addr - kBase;
+    const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    if (!ctl.MapIoAddress(&off)) {
-        LOG(Pcmcia, "[IoWin] write8 +0x%X = 0x%02X (no window)\n",
-            addr - kBase, value);
+    if (off == kPcicIndexOffset || off == kPcicDataOffset) {
+        ctl.WritePcicByte(off - kPcicIndexOffset, value);
         return;
     }
-    LOG(Pcmcia, "[IoWin] write8 card+0x%X = 0x%02X\n", off, value);
-    ctl.Card()->WriteByte(off, value);
+    uint32_t card_io;
+    if (!ctl.MapIo(off, &card_io)) {
+        LOG(Pcmcia, "[IoWin] write8 +0x%X = 0x%02X (no window)\n", off, value);
+        return;
+    }
+    ctl.Slot().WriteIo8(card_io, value);
 }
 
 void Pd6710IoWindow::WriteHalf(uint32_t addr, uint16_t value) {
-    uint32_t off = addr - kBase;
+    const uint32_t off = addr - kBase;
     auto& ctl = emu_.Get<Pd6710Controller>();
-    if (!ctl.MapIoAddress(&off)) {
+    if (off == kPcicIndexOffset || off == kPcicDataOffset) {
+        HaltUnsupportedAccess("WriteHalf", addr, value);
+    }
+    uint32_t card_io;
+    if (!ctl.MapIo(off, &card_io)) {
         LOG(Pcmcia, "[IoWin] write16 +0x%X = 0x%04X (no window)\n",
-            addr - kBase, value);
+            off, value);
         return;
     }
-    LOG(Pcmcia, "[IoWin] write16 card+0x%X = 0x%04X\n", off, value);
-    ctl.Card()->WriteHalf(off, value);
+    ctl.Slot().WriteIo16(card_io, value);
 }
 
 REGISTER_SERVICE(Pd6710IoWindow);

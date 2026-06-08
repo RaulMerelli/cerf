@@ -40,10 +40,12 @@ class OdoArm720CpuTimer : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
-    ~OdoArm720CpuTimer() override {
-        stop_thread_.store(true, std::memory_order_release);
-        if (tick_thread_.joinable()) tick_thread_.join();
-    }
+    ~OdoArm720CpuTimer() override { StopTickThread(); }
+
+    /* Stop the tick thread here: it calls ArmJit::SetInterruptPending, so it
+       must not outlive the JIT. The quiesce phase runs before any destructor,
+       so the JIT is still alive when the thread is joined. */
+    void OnShutdown() override { StopTickThread(); }
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
@@ -71,6 +73,10 @@ private:
     uint32_t TicksPerPeriodLocked() const;
     uint32_t ComputeTvrLocked(Clock::time_point now) const;
     void     TickLoop();
+    void     StopTickThread() {
+        stop_thread_.store(true, std::memory_order_release);
+        if (tick_thread_.joinable()) tick_thread_.join();
+    }
 
     mutable std::mutex   state_mutex_;
     uint32_t             cpuisr_     = 0;

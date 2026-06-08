@@ -234,24 +234,33 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
                 Emit8(cursor, 0x8B);
                 EmitModRmReg(cursor, 1, kEbp, kEax);
                 Emit8(cursor, register_offset);
-                /* MOV EDX, ~1; MOV ECX, ~3; TEST [ESI+cpsr], 0x20;
-                   CMOVNZ ECX, EDX; AND EAX, ECX. Pick the PC mask
-                   based on CPSR.T. */
-                EmitMovRegImm32(cursor, kEdx, ~uint32_t{1});
-                EmitMovRegImm32(cursor, kEcx, ~uint32_t{3});
-                /* TEST DWORD PTR [ESI + offsetof(cpsr)], 0x20  —
-                   F7 /0 mod=10 r/m=ESI(6) reg=0 disp32 imm32. */
-                Emit8(cursor, 0xF7);
-                EmitModRmReg(cursor, 2, kStateReg, 0);
-                Emit32(cursor,
-                    static_cast<uint32_t>(offsetof(ArmCpuState, cpsr)));
-                Emit32(cursor, 0x20u);
-                /* CMOVNZ ECX, EDX — 0F 45 mod=11 r/m=EDX reg=ECX. */
-                Emit8(cursor, 0x0F); Emit8(cursor, 0x45);
-                EmitModRmReg(cursor, 3, kEdx, kEcx);
-                /* AND EAX, ECX — 23 mod=11 r/m=ECX reg=EAX. */
-                Emit8(cursor, 0x23);
-                EmitModRmReg(cursor, 3, kEcx, kEax);
+                if (!d->s &&
+                    jit->ProcessorConfig()->HasLoadToPcInterworking()) {
+                    /* v5T+ LDM/POP-to-PC interworks; LDM (exception
+                       return, S=1) is excluded — its state comes from
+                       the SPSR restore above (DDI0406C §A2.3.1). */
+                    cursor = EmitArmInterworkingFullEax(cursor);
+                } else {
+                    /* v4T / exception return: branch stays in the
+                       current ISA state; align per CPSR.T.
+                       MOV EDX, ~1; MOV ECX, ~3; TEST [ESI+cpsr], 0x20;
+                       CMOVNZ ECX, EDX; AND EAX, ECX. */
+                    EmitMovRegImm32(cursor, kEdx, ~uint32_t{1});
+                    EmitMovRegImm32(cursor, kEcx, ~uint32_t{3});
+                    /* TEST DWORD PTR [ESI + offsetof(cpsr)], 0x20  —
+                       F7 /0 mod=10 r/m=ESI(6) reg=0 disp32 imm32. */
+                    Emit8(cursor, 0xF7);
+                    EmitModRmReg(cursor, 2, kStateReg, 0);
+                    Emit32(cursor,
+                        static_cast<uint32_t>(offsetof(ArmCpuState, cpsr)));
+                    Emit32(cursor, 0x20u);
+                    /* CMOVNZ ECX, EDX — 0F 45 mod=11 r/m=EDX reg=ECX. */
+                    Emit8(cursor, 0x0F); Emit8(cursor, 0x45);
+                    EmitModRmReg(cursor, 3, kEdx, kEcx);
+                    /* AND EAX, ECX — 23 mod=11 r/m=ECX reg=EAX. */
+                    Emit8(cursor, 0x23);
+                    EmitModRmReg(cursor, 3, kEcx, kEax);
+                }
                 EmitMovBaseDisp32Reg(cursor, kStateReg,
                     static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
                     kEax);

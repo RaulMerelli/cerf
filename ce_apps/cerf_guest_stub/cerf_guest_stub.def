@@ -1,0 +1,14 @@
+LIBRARY cerf_guest_stub
+
+EXPORTS
+    DrvEnableDriver
+    CDD_Init
+    CDD_Deinit
+    CDD_Open
+    CDD_Close
+    CDD_Read
+    CDD_Write
+    CDD_Seek
+    CDD_IOControl
+    CDD_PowerUp
+    CDD_PowerDown

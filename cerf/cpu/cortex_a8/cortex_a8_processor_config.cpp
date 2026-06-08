@@ -36,6 +36,11 @@ public:
     bool     HasClz()                     const override { return true; }
     bool     HasBlxReg()                  const override { return true; }
     bool     HasArmv5UnconditionalSpace() const override { return true; }
+
+    /* v5T+ load-to-PC and v7 data-proc-to-PC interworking
+       (DDI0406C §A2.3.1). */
+    bool     HasLoadToPcInterworking()    const override { return true; }
+    bool     HasDataProcToPcInterworking() const override { return true; }
     bool     HasMovwMovt()                const override { return true; }
     bool     HasBitField()                const override { return true; }
     bool     HasRev()                     const override { return true; }

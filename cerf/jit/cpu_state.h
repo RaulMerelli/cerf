@@ -163,7 +163,7 @@ struct ArmCpuState {
 
     /* Incremented inline by per-instruction JIT emit (ADD imm8); wraps
        at 2^32. Consumer rebases against frequent polling (kPollInterval
-       in Sa1110OsTimer) so cycles between polls are always < 2^32. */
+       in Sa11xxOsTimer) so cycles between polls are always < 2^32. */
     uint32_t       guest_cycle_counter;
 
     /* XScale CP0 DSP 40-bit accumulator (acc0); low 40 bits used. Read/

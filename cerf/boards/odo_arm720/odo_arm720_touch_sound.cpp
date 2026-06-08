@@ -66,12 +66,18 @@ constexpr uint16_t kUcbRegisterPenState   = 0x1000u;
 
 REGISTER_SERVICE(OdoArm720TouchSound);
 
-OdoArm720TouchSound::~OdoArm720TouchSound() {
+void OdoArm720TouchSound::StopPenTimerThread() {
     shutdown_.store(true, std::memory_order_release);
     pen_timer_enabled_.store(true, std::memory_order_release);
     pen_timer_cv_.notify_all();
     if (pen_timer_thread_.joinable()) pen_timer_thread_.join();
 }
+
+/* Pen timer raises IRQs via IrqController and drives the audio player; stop it
+   before any peer is destroyed. */
+void OdoArm720TouchSound::OnShutdown() { StopPenTimerThread(); }
+
+OdoArm720TouchSound::~OdoArm720TouchSound() { StopPenTimerThread(); }
 
 bool OdoArm720TouchSound::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();

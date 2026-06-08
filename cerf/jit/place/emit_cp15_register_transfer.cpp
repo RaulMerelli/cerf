@@ -85,9 +85,8 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 EmitMovBaseDisp32Reg(cursor, kMmuReg, csselr_disp, kEax);
             }
         } else if (d->cp_opc == 0 && d->crm == 0) {
-            /* Legacy MIDR/CTR path. Both read-only constants pulled
-               from ArmProcessorConfig so the per-SoC strategy owns
-               them rather than the JIT body. */
+            /* Legacy MIDR/CTR path — read-only constants from
+               ArmProcessorConfig. */
             if (d->l) {
                 if (d->cp == 0) {
                     EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
@@ -201,20 +200,14 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
     }
 
     case 3: {
-        /* DACR domain-0 field must be Client(0b01) or Manager(0b11): the
-           walker enforces AP for Client and skips it for Manager. bit0
-           clear = No-access/reserved → UND (can't be honored). Other
-           domains' fields are unused (the walk faults non-zero domains). */
+        /* DACR is a plain 32-bit RW register (ARM DDI 0406C B4.1.43); the
+           walker enforces the per-domain fields at translation time. */
         if (d->l) {
             EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                 static_cast<int32_t>(offsetof(ArmMmuState, domain_access_control)));
             EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
         } else {
             EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
-            EmitTestRegImm32(cursor, kEax, 1u);
-            uint8_t* store_label = EmitJnzLabel(cursor);
-            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
-            FixupLabel(store_label, cursor);
             EmitMovBaseDisp32Reg(cursor, kMmuReg,
                 static_cast<int32_t>(offsetof(ArmMmuState, domain_access_control)), kEax);
             /* Flush both TLBs: a DACR change alters live AP enforcement, but the

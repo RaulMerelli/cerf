@@ -1,7 +1,7 @@
 #include "cerf_debug_log.h"
+#include "cerf_regs_map.h"
 
 #include <windows.h>
-#include <pkfuncs.h>   /* VirtualCopy */
 
 /* Guest debug-log transport: CerfInitLogging arms this process's log channel and
    CerfDebugTx / CerfDebugTxX stream characters to it. Always compiled — normal
@@ -38,13 +38,8 @@ extern "C" void CerfInitLogging(ULONG id) {
     for (i = 0; i < CERF_LOG_MAX_PROC; ++i)
         if (s_log_slot[i].pid == pid) return;   /* this process already armed */
     pa = CERF_VIRT_LOG_CH_BASE + id * CERF_VIRT_LOG_CH_STRIDE;
-    va = (volatile UCHAR*)VirtualAlloc(0, CERF_VIRT_LOG_CH_SZ, MEM_RESERVE, PAGE_NOACCESS);
+    va = (volatile UCHAR*)CerfMapRegsPage(pa, CERF_VIRT_LOG_CH_SZ);
     if (!va) return;
-    if (!VirtualCopy((LPVOID)va, (LPVOID)(pa >> 8), CERF_VIRT_LOG_CH_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)va, 0, MEM_RELEASE);
-        return;
-    }
     idx = InterlockedIncrement(&s_log_slot_next) - 1;
     if (idx < 0 || idx >= CERF_LOG_MAX_PROC) { VirtualFree((LPVOID)va, 0, MEM_RELEASE); return; }
     s_log_slot[idx].va  = va;

@@ -1,0 +1,53 @@
+"""Vertically scrollable column: a Canvas-hosted inner frame with a
+scrollbar, width-follow, and recursive mouse-wheel binding."""
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import ttk
+from typing import Callable, Optional
+
+from ui_theme import BG
+
+
+class ScrollColumn:
+    """A fixed-width, vertically scrollable content column. Build content
+    into `.inner`; call `bind_wheel(widget)` after adding dynamic children
+    so the mouse wheel keeps scrolling over them."""
+
+    def __init__(self, parent: tk.Misc, width: int,
+                 on_width_changed: Optional[Callable[[int], None]] = None):
+        self._canvas = tk.Canvas(parent, bg=BG, highlightthickness=0, width=width)
+        self.scrollbar = ttk.Scrollbar(parent, orient="vertical",
+                                       command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.inner = ttk.Frame(self._canvas)
+        self._inner_id = self._canvas.create_window((0, 0), window=self.inner,
+                                                    anchor="nw")
+        self.inner.columnconfigure(0, weight=1)
+
+        def _on_inner_config(_e: object) -> None:
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self.inner.bind("<Configure>", _on_inner_config)
+
+        def _on_canvas_config(e: object) -> None:
+            self._canvas.itemconfigure(self._inner_id, width=e.width)
+            if on_width_changed is not None:
+                on_width_changed(e.width)
+        self._canvas.bind("<Configure>", _on_canvas_config)
+
+        self.bind_wheel(self._canvas)
+        self.bind_wheel(self.inner)
+
+    def grid(self, row: int, column: int, **kwargs) -> None:
+        self._canvas.grid(row=row, column=column, **kwargs)
+        self.scrollbar.grid(row=row, column=column + 1, sticky="ns")
+
+    def _on_wheel(self, event: object) -> str:
+        self._canvas.yview_scroll(int(-event.delta / 120), "units")
+        return "break"
+
+    def bind_wheel(self, widget: tk.Misc) -> None:
+        widget.bind("<MouseWheel>", self._on_wheel)
+        for child in widget.winfo_children():
+            self.bind_wheel(child)

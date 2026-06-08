@@ -1,5 +1,6 @@
 #include "../board_detector.h"
 
+#include "../../boot/guest_cold_boot.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -28,6 +29,12 @@ public:
     }
 
     void OnReady() override {
+        WriteArgs();
+        emu_.Get<GuestColdBoot>().RegisterReplay([this] { WriteArgs(); });
+    }
+
+private:
+    void WriteArgs() {
         auto& cfg = emu_.Get<DeviceConfig>();
         auto& mem = emu_.Get<EmulatedMemory>();
 

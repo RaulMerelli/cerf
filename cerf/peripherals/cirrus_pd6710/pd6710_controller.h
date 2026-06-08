@@ -1,77 +1,79 @@
 #pragma once
 
-#include "../../peripherals/peripheral_base.h"
+#include "../../core/service.h"
+#include "../pcmcia/pcmcia_slot.h"
 
 #include <cstdint>
 #include <mutex>
 
-class Pd6710Card;
-class Pd6710CardIrqLine;
-
-class Pd6710Controller : public Peripheral {
+/* Cirrus PD6710 single-socket PCMCIA host adapter. The PCIC index/data
+   port pair and the window mapping registers live here; the I/O and
+   memory window peripherals decode guest accesses through MapIo /
+   MapMem and reach the card via Slot(). */
+class Pd6710Controller : public Service, public PcmciaSlotHost {
 public:
-    using Peripheral::Peripheral;
+    explicit Pd6710Controller(CerfEmulator& emu);
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override { slot_.OnShutdown(); }
 
-    uint32_t MmioBase() const override;
-    uint32_t MmioSize() const override;
+    PcmciaSlot& Slot() { return slot_; }
 
-    uint8_t  ReadByte (uint32_t addr) override;
-    uint16_t ReadHalf (uint32_t addr) override;
-    void     WriteByte (uint32_t addr, uint8_t  value) override;
-    void     WriteHalf (uint32_t addr, uint16_t value) override;
+    /* PCIC register file at I/O ports 0x3E0 (INDEX) / 0x3E1 (DATA). */
+    uint8_t ReadPcicByte (uint32_t port);
+    void    WritePcicByte(uint32_t port, uint8_t value);
 
-    bool IsCardInserted() const;
-    bool IsCardPowered () const;
-    bool MapIoAddress  (uint32_t* io_offset) const;
+    /* I/O window decode: bus_io is the 16-bit I/O bus address; on hit
+       *card_io receives the card-local I/O address. */
+    bool MapIo(uint32_t bus_io, uint32_t* card_io);
 
-    /* Returns the inserted card (nullptr if socket is empty). The
-       window peripherals call ReadByte / ReadMemory* / WriteByte /
-       WriteMemory* on the returned card directly. */
-    Pd6710Card* Card() const;
+    /* Memory window decode: bus_off is the offset into the 16 MB
+       PCMCIA memory space; on hit *card_addr receives the card-local
+       address, *attribute the REG bit, *writable the inverted
+       write-protect bit. */
+    bool MapMem(uint32_t bus_off, uint32_t* card_addr,
+                bool* attribute, bool* writable);
 
-    /* Card-side IRQ signaling. The card calls these from its own
-       state lock; thread-safe — RaiseCardIrq itself takes the
-       controller's state mutex only briefly to read the IRQ-enable
-       mask, then drops it before driving the line. */
-    void RaiseCardIrq();
-    void ClearCardIrq();
+    /* PcmciaSlotHost. */
+    void OnCardDetectChanged(PcmciaSlot& slot) override;
+    void OnCardIrqAsserted  (PcmciaSlot& slot) override;
+    void OnCardIrqDeasserted(PcmciaSlot& slot) override;
 
 private:
-    uint8_t ReadIndexedData();
-    void    WriteIndexedData(uint8_t value);
+    uint8_t ReadIndexedDataLocked();
+    /* Returns true when the write flipped socket power; *power_on is
+       the new state. Applied to the slot after the lock drops —
+       SetPowered takes the slot bus lock, which ranks above
+       state_mutex_. */
+    bool WriteIndexedDataLocked(uint8_t value, bool* power_on);
 
-    mutable Pd6710Card*        card_     = nullptr;
-    mutable Pd6710CardIrqLine* irq_line_ = nullptr;
-    Pd6710Card*        ResolveCard()    const;
-    Pd6710CardIrqLine* ResolveIrqLine() const;
+    bool IsCardPoweredLocked() const;
+
+    PcmciaSlot slot_;
 
     mutable std::mutex state_mutex_;
 
-    /* PD6710 internal-register file. INDEX selects which register
-       offset +0x01 reads / writes. */
     uint8_t index_ = 0u;
 
-    uint8_t reg_chip_info_              = 0u;
-    uint8_t reg_interface_status_       = 0u;
     uint8_t reg_power_control_          = 0u;
     uint8_t reg_card_status_change_     = 0u;
     uint8_t reg_status_change_int_cfg_  = 0u;
     uint8_t reg_window_enable_          = 0u;
     uint8_t reg_io_window_control_      = 0u;
     uint8_t reg_interrupt_and_gen_ctrl_ = 0u;
+    uint8_t reg_chip_info_              = 0u;
 
-    /* I/O window mapping registers. Each window has START and END
-       addresses as little-endian halfwords (Lo + Hi). Driver writes
-       these before enabling the window via REG_WINDOW_ENABLE. */
-    uint8_t reg_io_map0_start_lo_ = 0u;
-    uint8_t reg_io_map0_start_hi_ = 0u;
-    uint8_t reg_io_map0_end_lo_   = 0u;
-    uint8_t reg_io_map0_end_hi_   = 0u;
-    uint8_t reg_io_map1_start_lo_ = 0u;
-    uint8_t reg_io_map1_start_hi_ = 0u;
-    uint8_t reg_io_map1_end_lo_   = 0u;
-    uint8_t reg_io_map1_end_hi_   = 0u;
+    /* Window mapping register files, PD6710 datasheet §7-§8: I/O maps
+       0-1 start/end (index 0x08-0x0F) + offsets (0x36-0x39); memory
+       maps 0-4 start/end/offset (0x10-0x35, stride 8, low 6 of each
+       group). Each entry stores the raw programmed byte. */
+    uint8_t io_start_lo_[2] = {};
+    uint8_t io_start_hi_[2] = {};
+    uint8_t io_end_lo_  [2] = {};
+    uint8_t io_end_hi_  [2] = {};
+    uint8_t io_off_lo_  [2] = {};
+    uint8_t io_off_hi_  [2] = {};
+    uint8_t mem_reg_[5][6]  = {};   /* [win][start_lo,start_hi,end_lo,end_hi,off_lo,off_hi] */
+    uint8_t timing_[6]      = {};   /* setup/cmd/recovery × 2 timing sets */
 };

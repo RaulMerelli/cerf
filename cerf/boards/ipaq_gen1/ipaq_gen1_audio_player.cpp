@@ -6,7 +6,7 @@
 #include "../../core/service.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../socs/sa1110/sa1110_dma.h"
+#include "../../socs/sa11xx/sa11xx_dma.h"
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -65,8 +65,8 @@ public:
         audio_thread_ = std::thread([this] { AudioThreadMain(); });
         WaitForSingleObject(thread_ready_event_, INFINITE);
 
-        emu_.Get<Sa1110Dma>().RegisterSink(
-            [this](const Sa1110Dma::ChannelState& st) {
+        emu_.Get<Sa11xxDma>().RegisterSink(
+            [this](const Sa11xxDma::ChannelState& st) {
                 return OnDmaStart(st);
             });
     }
@@ -92,7 +92,7 @@ private:
     std::deque<PendingPage> page_queue_;
     bool                   waveout_open_attempted_ = false;
 
-    bool OnDmaStart(const Sa1110Dma::ChannelState& st) {
+    bool OnDmaStart(const Sa11xxDma::ChannelState& st) {
         if ((st.ddar & kDdarSspTxMask) != kDdarSspTxValue) return false;
         const uint32_t src_pa = st.buffer_b ? st.dbsb : st.dbsa;
         const uint32_t bytes  = st.buffer_b ? st.dbtb : st.dbta;
@@ -184,7 +184,7 @@ private:
                                           sizeof(WAVEHDR));
         if (r != MMSYSERR_NOERROR) {
             LOG(Caution, "IpaqGen1AudioPlayer: waveOutPrepareHeader failed %u\n", r);
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
+            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
             return;
         }
         {
@@ -199,13 +199,13 @@ private:
                 std::lock_guard<std::mutex> lk(slots_mtx_);
                 slot.in_flight = false;
             }
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
+            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
         }
     }
 
     void SubmitPage(const PendingPage& p) {
         if (!out_device_) {
-            emu_.Get<Sa1110Dma>().CompleteTransfer(p.dma_channel, p.buffer_b);
+            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
             return;
         }
         Slot* slot;
@@ -241,7 +241,7 @@ private:
 
         LOG(Periph, "[IpaqGen1AudioPlayer] waveOut DONE ch=%u buf=%c\n",
             completed_ch, completed_buf ? 'B' : 'A');
-        emu_.Get<Sa1110Dma>().CompleteTransfer(completed_ch, completed_buf);
+        emu_.Get<Sa11xxDma>().CompleteTransfer(completed_ch, completed_buf);
 
         if (have_next) LoadIntoSlot(*slot, next_page);
     }

@@ -42,12 +42,29 @@ public:
     virtual bool     HasDsp()                     const = 0;
     virtual bool     HasLoadStoreDouble()         const = 0;
 
+    /* Thumb ISA presence (v4T+). On a no-Thumb core CPSR.T is
+       unwritable and BX is undefined — guests rely on that:
+       jlime's linexec writes CPSR|0xEF (T set) on SA-1110 and
+       expects the T write ignored, as on real silicon. */
+    virtual bool     HasThumb()                   const { return true; }
+
+    /* DDI0406C §A2.3.1: LDR/POP/LDM with Rt==PC interwork (bit 0
+       selects the ISA state) from ARMv5T on; on v4T they branch
+       remaining in the current ISA state. */
+    virtual bool     HasLoadToPcInterworking()    const { return false; }
+
+    /* DDI0406C §A2.3.1: ARM-state data-processing with Rd==PC and
+       no flag-setting interworks only from ARMv7 on; earlier
+       versions branch remaining in the current ISA state. */
+    virtual bool     HasDataProcToPcInterworking() const { return false; }
+
     virtual bool     HasClz()                     const { return false; }
     virtual bool     HasBlxReg()                  const { return false; }
 
-    /* DO NOT override true on an ARMv4 SoC — CE kernel abort
-       handlers depend on cond=NV NOP fallthrough (ARM ARM v4
-       §A1.2: UNPREDICTABLE pre-ARMv5); UND-trapping cascades. */
+    /* On ARMv4, cond=NV falls through as a NOP (ARM ARM v4 §A1.2:
+       the 0xF space is UNPREDICTABLE pre-ARMv5) and CE kernel abort
+       handlers execute through it; v4 SoCs must report false here or
+       those handlers take spurious UND traps. */
     virtual bool     HasArmv5UnconditionalSpace() const { return false; }
 
     virtual bool     HasMovwMovt()                const { return false; }

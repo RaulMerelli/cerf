@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <pkfuncs.h>
+#include "cerf_regs_map.h"
 
 /* These offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_pointer_regs.h
    (the host peripheral); a mismatch reads the wrong reg and breaks the pointer.
@@ -20,18 +20,9 @@ static volatile ULONG* s_ptr_regs = NULL;
 
 static BOOL CerfMapPtrRegs(void) {
     if (s_ptr_regs) return TRUE;
-    s_ptr_regs = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_PTR_REGS_SZ,
-                                               MEM_RESERVE, PAGE_NOACCESS);
-    if (!s_ptr_regs) return FALSE;
-    if (!VirtualCopy((LPVOID)s_ptr_regs,
-                     (LPVOID)(CERF_VIRT_PTR_REGS_PA >> 8),
-                     CERF_VIRT_PTR_REGS_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_ptr_regs, 0, MEM_RELEASE);
-        s_ptr_regs = NULL;
-        return FALSE;
-    }
-    return TRUE;
+    s_ptr_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_PTR_REGS_PA,
+                                                  CERF_VIRT_PTR_REGS_SZ);
+    return s_ptr_regs != NULL;
 }
 
 /* mouse_event is a coredll export callable from any thread (CE3 WINUSER.H:2247).

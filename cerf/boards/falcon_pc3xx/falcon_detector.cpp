@@ -23,6 +23,9 @@ public:
         return "Datalogic Falcon 4220 (PC3xx), "
                "Intel XScale PXA255 (ARMv5TE), Windows CE .NET 4.2";
     }
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{ 240, 320 };
+    }
 };
 
 }  /* namespace */

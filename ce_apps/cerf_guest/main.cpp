@@ -3,6 +3,8 @@
 #include <winddi.h>
 #include <gpe.h>
 
+#include "cerf_regs_map.h"
+
 #define CERF_VIRT_FB_REGS_PA   0xD0001000u
 #define CERF_VIRT_FB_REGS_SZ   0x1000u
 #define CERF_VIRT_GPE_CMD_PA   0xD0002000u
@@ -37,20 +39,22 @@ static wchar_t s_module_name[MAX_PATH] = { 0 };
 static HMODULE s_hinst = NULL;   /* captured in DllMain, used by the display init */
 extern "C" const wchar_t* CerfInjectedModuleName(void) { return s_module_name; }
 
+/* A stub-mapped body has no real module handle, so its DllMain
+   GetModuleFileNameW yields nothing; the stub supplies its own (ROM, trusted)
+   name here for driver-in-driver to register as the Dll device.exe loads. */
+extern "C" void CerfSetCarrierName(const wchar_t* name) {
+    if (!name) return;
+    int i = 0;
+    for (; name[i] && i < MAX_PATH - 1; ++i) s_module_name[i] = name[i];
+    s_module_name[i] = 0;
+}
+
 void CerfReadFbRegs(void) {
     CERF_LOG("cerf_guest: CerfReadFbRegs entry");
     if (s_fb_regs) { CERF_LOG("cerf_guest: CerfReadFbRegs cached"); return; }
-    s_fb_regs = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_FB_REGS_SZ,
-                                               MEM_RESERVE, PAGE_NOACCESS);
+    s_fb_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_FB_REGS_PA,
+                                                 CERF_VIRT_FB_REGS_SZ);
     if (!s_fb_regs) return;
-    if (!VirtualCopy((LPVOID)s_fb_regs,
-                     (LPVOID)(CERF_VIRT_FB_REGS_PA >> 8),
-                     CERF_VIRT_FB_REGS_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_fb_regs, 0, MEM_RELEASE);
-        s_fb_regs = NULL;
-        return;
-    }
     g_FbWidth  = s_fb_regs[0];
     g_FbHeight = s_fb_regs[1];
     g_FbBpp    = s_fb_regs[2];
@@ -69,18 +73,9 @@ void CerfReadFbRegs(void) {
 BOOL CerfMapGpeCmd(void) {
     CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (s_gpe_cmd) return TRUE;
-    s_gpe_cmd = (volatile ULONG*)VirtualAlloc(0, CERF_VIRT_GPE_CMD_SZ,
-                                               MEM_RESERVE, PAGE_NOACCESS);
-    if (!s_gpe_cmd) return FALSE;
-    if (!VirtualCopy((LPVOID)s_gpe_cmd,
-                     (LPVOID)(CERF_VIRT_GPE_CMD_PA >> 8),
-                     CERF_VIRT_GPE_CMD_SZ,
-                     PAGE_READWRITE | PAGE_NOCACHE | PAGE_PHYSICAL)) {
-        VirtualFree((LPVOID)s_gpe_cmd, 0, MEM_RELEASE);
-        s_gpe_cmd = NULL;
-        return FALSE;
-    }
-    return TRUE;
+    s_gpe_cmd = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_GPE_CMD_PA,
+                                                 CERF_VIRT_GPE_CMD_SZ);
+    return s_gpe_cmd != NULL;
 }
 
 /* Publish the guest VA of a filled CerfBltDescriptor and kick; the host reads
@@ -283,6 +278,7 @@ extern "C" DHPDEV APIENTRY DrvEnablePDEV(DEVMODEW*, LPWSTR, ULONG, HSURF*,
 
 extern "C" void CerfStartPointerPump(void);
 extern "C" void CerfStartResizePump(void);
+extern "C" void CerfStartTaskManagerPump(void);
 extern "C" void CerfStartDriverInDriver(void);
 
 static DHPDEV APIENTRY CerfEnablePDEVWrap(
@@ -297,6 +293,7 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
     CERF_LOG_X("cerf_guest: CerfEnablePDEVWrap result", result);
     if (result) CerfStartPointerPump();
     if (result) CerfStartResizePump();
+    if (result) CerfStartTaskManagerPump();
     if (result) CerfStartDriverInDriver();
     if (!result || !pdevcaps || cjCaps < sizeof(ULONG) || g_EngineVersion == 0) {
         return result;

@@ -251,7 +251,7 @@ void Omap3530Gptimer1::AdvanceStateLocked(uint32_t cycles_now) {
 
 void Omap3530Gptimer1::TickLoop() {
     while (!stop_thread_.load(std::memory_order_acquire)) {
-        /* 100 µs host poll cadence — matches Sa1110OsTimer. State
+        /* 100 µs host poll cadence — matches Sa11xxOsTimer. State
            advance uses guest_cycle_counter, so the answer is
            deterministic per-run despite the host sleep's jitter. */
         std::this_thread::sleep_for(std::chrono::microseconds(100));

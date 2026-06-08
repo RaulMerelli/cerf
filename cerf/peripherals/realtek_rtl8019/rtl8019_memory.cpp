@@ -25,19 +25,16 @@ const uint8_t kCisData[] = {
 };
 constexpr std::size_t kCisSize = sizeof(kCisData);
 
-/* FCSR (Function Control / Status Register) at card-memory offset
-   0x3FA per PCMCIA card-services spec. */
+/* PCMCIA function configuration registers at attribute 0x3F8+ (the
+   CIS CONFIG tuple above declares register base 0x3F8): COR, CCSR,
+   then FCSR at 0x3FA. */
+constexpr uint32_t kCorOffset  = 0x3F8;
+constexpr uint32_t kCcsrOffset = 0x3F9;
 constexpr uint32_t kFcsrOffset = 0x3FA;
 
-/* The BSP's pcmcia.c reads/writes two bytes at 0x3F8 / 0x3F9 to put
-   the card into 16-bit-at-5V mode. The dev_emu chip accepts these
-   silently. */
-constexpr uint32_t kPwrCfgBase = 0x3F8;
-constexpr uint32_t kPwrCfgEnd  = 0x3FA;
-
-/* On-card RAM lives at card-memory offset 0x4000, 16 KB. Both the
-   memory window and the DMA path through I/O offset 0x10 reach the
-   same bytes here. */
+/* On-card RAM at common-memory offset 0x4000, 16 KB. Both the memory
+   window and the DMA path through I/O offset 0x10 reach the same
+   bytes. */
 constexpr uint32_t kRamBase = 0x4000;
 constexpr uint32_t kRamSize = 0x4000;
 
@@ -47,54 +44,31 @@ constexpr uint8_t kFcsrIntr    = 0x02;
 
 }  /* namespace */
 
-uint8_t Rtl8019::ReadMemoryByte(uint32_t offset) {
+uint8_t Rtl8019::ReadAttribute8(uint32_t offset) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
-        return card_ram_[offset - kRamBase];
-    }
     if (offset == kFcsrOffset) {
         return fcsr_;
     }
-    if (offset < kCisSize * 2u) {
-        /* CIS ROM is 8-bit but the card is accessed in 16-bit mode.
-           When that happens, each ROM byte appears at two
-           consecutive even addresses — the driver compensates by
-           multiplying ROM offsets by 2 before access. */
-        return kCisData[offset / 2u];
+    if (offset == kCorOffset) {
+        return cor_;
     }
-    if (offset >= kPwrCfgBase && offset < kPwrCfgEnd) {
+    if (offset == kCcsrOffset) {
         return 0u;
     }
-    LOG(Caution, "[NE2000] read mem unsupported offset 0x%X\n", offset);
-    return 0u;
-}
-
-uint16_t Rtl8019::ReadMemoryHalf(uint32_t offset) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
-        const uint32_t off = offset - kRamBase;
-        return static_cast<uint16_t>(card_ram_[off]) |
-               (static_cast<uint16_t>(card_ram_[off + 1]) << 8);
-    }
     if (offset < kCisSize * 2u) {
-        const uint16_t v = kCisData[offset / 2u];
-        /* Both bytes of the returned halfword carry the same CIS
-           byte — 8-bit ROM imaged on a 16-bit bus. */
-        return static_cast<uint16_t>((v << 8) | v);
+        /* CIS ROM is 8-bit but the card is accessed in 16-bit mode.
+           Each ROM byte appears at two consecutive even addresses —
+           the driver compensates by multiplying ROM offsets by 2
+           before access. */
+        return kCisData[offset / 2u];
     }
-    /* HwRamTest() probes 1 KB regions across the whole 64 KB window
-       looking for RAM by writing a test pattern and reading it back.
-       Off-range reads must return 0 (not halt) so the test correctly
-       concludes "this region isn't RAM" and moves on. */
+    LOG(Caution, "[NE2000] read attribute unsupported offset 0x%X\n",
+        offset);
     return 0u;
 }
 
-void Rtl8019::WriteMemoryByte(uint32_t offset, uint8_t value) {
+void Rtl8019::WriteAttribute8(uint32_t offset, uint8_t value) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
-        card_ram_[offset - kRamBase] = value;
-        return;
-    }
     if (offset == kFcsrOffset) {
         fcsr_ = value;
         /* Driver acks the interrupt by writing FCSR_INTR_ACK; we
@@ -105,14 +79,52 @@ void Rtl8019::WriteMemoryByte(uint32_t offset, uint8_t value) {
         }
         return;
     }
-    if (offset >= kPwrCfgBase && offset < kPwrCfgEnd) {
-        return;  /* 16-bit-at-5V config bytes — silently accepted */
+    if (offset == kCorOffset) {
+        cor_ = value;
+        LOG(Net, "[NE2000] COR = 0x%02X (config index 0x%02X)\n",
+            value, value & 0x3Fu);
+        return;
     }
-    LOG(Caution, "[NE2000] write mem unsupported offset 0x%X = 0x%02X\n",
-        offset, value);
+    if (offset == kCcsrOffset) {
+        return;
+    }
+    LOG(Caution, "[NE2000] write attribute unsupported offset 0x%X = "
+            "0x%02X\n", offset, value);
 }
 
-void Rtl8019::WriteMemoryHalf(uint32_t offset, uint16_t value) {
+uint8_t Rtl8019::ReadCommon8(uint32_t offset) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
+        return card_ram_[offset - kRamBase];
+    }
+    /* HwRamTest() probes 1 KB regions across the whole 64 KB window
+       looking for RAM by writing a test pattern and reading it back.
+       Off-range reads must return 0 (not halt) so the test correctly
+       concludes "this region isn't RAM" and moves on. */
+    return 0u;
+}
+
+uint16_t Rtl8019::ReadCommon16(uint32_t offset) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
+        const uint32_t off = offset - kRamBase;
+        return static_cast<uint16_t>(card_ram_[off]) |
+               (static_cast<uint16_t>(card_ram_[off + 1]) << 8);
+    }
+    /* See ReadCommon8 — HwRamTest probes outside RAM and expects 0. */
+    return 0u;
+}
+
+void Rtl8019::WriteCommon8(uint32_t offset, uint8_t value) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    if (offset >= kRamBase && offset < kRamBase + kRamSize) {
+        card_ram_[offset - kRamBase] = value;
+        return;
+    }
+    /* HwRamTest probes outside RAM and expects writes to no-op. */
+}
+
+void Rtl8019::WriteCommon16(uint32_t offset, uint16_t value) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     if (offset >= kRamBase && offset < kRamBase + kRamSize) {
         const uint32_t off = offset - kRamBase;
@@ -120,6 +132,5 @@ void Rtl8019::WriteMemoryHalf(uint32_t offset, uint16_t value) {
         card_ram_[off + 1] = static_cast<uint8_t>(value >> 8);
         return;
     }
-    /* See ReadMemoryHalf comment — HwRamTest probes outside RAM and
-       expects writes to silently no-op. */
+    /* See WriteCommon8 — off-range writes silently no-op. */
 }

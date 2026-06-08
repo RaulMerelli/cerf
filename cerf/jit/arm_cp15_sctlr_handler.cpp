@@ -101,6 +101,13 @@ int ArmCp15SctlrHandler::HandleWrite(ArmJit*  jit,
         return 0;
     }
 
+    if (state->control_register.bits.m && !reg.bits.m) {
+        /* The in-flight block finishes as the prefetch pipeline does on
+           silicon (SA-1110 Dev Manual §7.4: post-toggle instructions
+           execute as fetched under the old translation); every VA-keyed
+           dispatch cache is stale under the identity regime. */
+        jit->OnTranslationRegimeChange();
+    }
     state->control_register.word = reg.word;
     return 1;
 }

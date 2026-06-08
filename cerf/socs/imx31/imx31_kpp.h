@@ -18,6 +18,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     uint32_t MmioBase() const override { return 0x43FA8000u; }
     uint32_t MmioSize() const override { return 0x00004000u; }  /* AIPS slot */
@@ -33,6 +34,7 @@ public:
     void SetMatrixKey(uint8_t col, uint8_t row, bool pressed);
 
 private:
+    void     StopSyncThread();
     uint16_t ReadReg16Locked(uint32_t off);
     bool     WriteReg16Locked(uint32_t off, uint16_t value);  /* true => re-eval IRQ */
     uint16_t RowSenseLocked() const;
