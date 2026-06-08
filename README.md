@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v4.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v4.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
@@ -213,6 +213,13 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
   </thead>
   <tbody>
     <tr>
+          <td>v4.1 (WIP)</td>
+          <td>
+            <ul>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v4.0</td>
           <td>
             <ul>
@@ -238,15 +245,6 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>iPaq H3100,H3600 PPC2002 sound fixes</li>
               <li>Jornada 720 support</li>
               <li>JIT/MMU improvements</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v3.20</td>
-          <td>
-            <ul>
-              <li>Falcon 4220 board MVP support</li>
-              <li>Launcher updates</li>
             </ul>
           </td>
         </tr>
