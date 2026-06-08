@@ -41,6 +41,7 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 - **[README.md](README.md)** - basic project information, run commands.
 - **[agent_docs/workflow.md](agent_docs/workflow.md)** — Mental model discipline: how to investigate, verify, and implement. Core operating method for every task.
 - **[agent_docs/subsystems.md](agent_docs/subsystems.md)** — Surviving CERF subsystems.
+- **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** — Guest Additions: universal stub injector + manual-map body delivery, device.exe AFS-FSD shared storage, the cross-process writable-state invariant (pid-key + SHARED), display driver + blit pipeline, task manager.
 - **[agent_docs/jit.md](agent_docs/jit.md)** — JIT design notes: service set, `place_fn` contract, pinned-register dispatcher, compile pipeline, trampolines, shadow stack, FCSE fold, cross-thread interrupt delivery.
 - **[agent_docs/rules.md](agent_docs/rules.md)** — All project rules: WinCE accuracy, architecture, communication patterns, git, subagents.
 - **[agent_docs/code_style.md](agent_docs/code_style.md)** — How to write code: file & symbol style, comments, logging, when to stop and ask.

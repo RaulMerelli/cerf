@@ -397,57 +397,5 @@ test harness. Each directory has a `main.c` and a one-line `build.ps1` that
 delegates to `tools/build_ce_app.ps1`; the top-level `build.ps1` walks
 every `ce_apps/*/build.ps1` after msbuild succeeds. Outputs land at
 `build/<Config>/Win32/ce_apps/<name>.{exe,dll}`. Today it hosts the
-`cerf_guest` guest-additions display driver (below) alongside sample
+`cerf_guest` guest-additions display driver alongside sample
 binaries; it is the home for any CERF-built CE binary.
-
-## Guest Additions display driver — `ce_apps/cerf_guest/`
-
-The universal CERF display driver, injected into the guest ROM at load time by
-`--guest-additions` (the ROM parser swaps it in for the board's stock display
-driver). Built from real CE driver sources against the CE6 DDGPE/GPE libraries;
-a compatibility shim under `ce_apps/cerf_guest/shim/` reshapes the
-driver-interface data at the OS boundary so the single CE6-based driver runs
-unmodified across CE3 → CE7 and Windows Mobile 5/6 (each OS sees its own
-generation's shapes; the driver always sees CE6 shapes).
-
-It is the guest-side partner of the host `cerf/peripherals/cerf_virt/` virtual
-framebuffer + `gpe_cmd` accelerator channel: the driver routes blits over that
-channel and the host performs them natively (see `cerf_ddgpe.cpp` for the
-`BltPrepare` routing, `main.cpp` for the channel ABI). What it owns today is the
-universal display path — host-framebuffer rendering plus host-accelerated blits.
-Planned growth is host-side GPU acceleration, runtime screen resize, host↔guest
-shared storage / clipboard, and a guest-additions input path.
-
-## Guest Additions task manager — host UI + cerf_virt channel + guest pump
-
-The guest task manager (Guest Additions status-bar widget → non-modal host
-window) lists, kills, and switches to guest processes and runs guest
-executables. Three pieces: the MMIO command/response channel
-`cerf/peripherals/cerf_virt/cerf_virt_task_manager.{h,cpp}` (+ `_regs.h`
-contract — host publishes one command at a time via gen bump; guest answers
-with response regs + kick; LIST rows stream guest→host one record at a time
-through a register window), the host window + widget
-(`cerf/host/task_manager_window.{h,cpp}`, widget merged into
-`cerf/host/host_auto_resize.{h,cpp}`, pinned in the status bar's terminal
-range), and the guest-side pump
-`ce_apps/cerf_guest/cerf_task_manager_pump.cpp`.
-
-Channel-design rules this subsystem proved — they bind every future
-cerf_virt channel:
-
-- **No user API in a guest pump before full boot.** Pump start is
-  display-driver init, mid-boot; a user API there (LoadLibrary included)
-  corrupts gwes boot. Resolve dependencies lazily on first command —
-  commands can only arrive post-boot.
-- **Bulk guest→host data crosses through the MMIO regs page, never as a
-  guest table VA the host reads.** FCSE kernels lazily zero L2 entries
-  under TLB-resident pages, so a host-side walk fails for memory the guest
-  reads fine; `PeekVaToHost` is reliable only for small just-written
-  buffers (the gpe descriptors).
-- **cerf_guest.dll's virtual image must fit the ROM victim slot it is
-  injected into.** A large static array overflows the slot and the
-  in-place injection corrupts the adjacent kernel-space module; big
-  buffers are allocated at first use instead.
-- **Kernel-loaded guest code (CE6+ drivers) cannot use callback-marshaled
-  APIs** — gwes rejects caller-supplied function pointers from kernel
-  space (EnumWindows); use handle-walk equivalents (GetWindow chain).
