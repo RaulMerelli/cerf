@@ -21,11 +21,17 @@ constexpr auto kRebaseInterval = std::chrono::seconds(1);
 
 }  /* namespace */
 
-Mc13783::~Mc13783() {
+void Mc13783::StopRebaseThread() {
     stop_.store(true, std::memory_order_release);
     cv_.notify_all();
     if (rebase_thread_.joinable()) rebase_thread_.join();
 }
+
+/* Rebase thread reads ArmJit's cycle counter; stop it before any peer is
+   destroyed. */
+void Mc13783::OnShutdown() { StopRebaseThread(); }
+
+Mc13783::~Mc13783() { StopRebaseThread(); }
 
 bool Mc13783::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();

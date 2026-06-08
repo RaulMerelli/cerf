@@ -5,7 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
-#include "../../socs/sa1110/sa1110_gpio.h"
+#include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_detector.h"
 
 namespace {
@@ -54,7 +54,7 @@ void Jornada720Touch::OnReady() {
     sampler_ = std::thread([this] { SamplerLoop(); });
 }
 
-Jornada720Touch::~Jornada720Touch() {
+void Jornada720Touch::StopSampler() {
     {
         std::lock_guard<std::mutex> lk(mtx_);
         stop_ = true;
@@ -63,16 +63,22 @@ Jornada720Touch::~Jornada720Touch() {
     if (sampler_.joinable()) sampler_.join();
 }
 
+/* Sampler drives Sa11xxGpio / HostCanvas; stop it before any peer is
+   destroyed. */
+void Jornada720Touch::OnShutdown() { StopSampler(); }
+
+Jornada720Touch::~Jornada720Touch() { StopSampler(); }
+
 void Jornada720Touch::DrivePenLine(bool pen_down) {
     /* GPIO9: low = pen down (touch.dll collects), high = pen up. */
-    emu_.Get<Sa1110Gpio>().DriveInputPin(9, /*level=*/!pen_down);
+    emu_.Get<Sa11xxGpio>().DriveInputPin(9, /*level=*/!pen_down);
 }
 
 void Jornada720Touch::PulsePenLine() {
     /* HP doc §4.4: a new sample is signalled by pulsing GPIO9 (high then low).
        The rising edge latches the driver's armed GRER bit 9 -> IRQ; by the time
        its IST reads GPLR the line is low again -> it collects a fresh sample. */
-    auto& gpio = emu_.Get<Sa1110Gpio>();
+    auto& gpio = emu_.Get<Sa11xxGpio>();
     gpio.DriveInputPin(9, true);
     gpio.DriveInputPin(9, false);
 }

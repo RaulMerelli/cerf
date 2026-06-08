@@ -23,10 +23,15 @@ public:
        from any thread. */
     void RequestStop() { stop_requested_.store(true, std::memory_order_release); }
 
+    /* True once the JIT thread has left RunLoop. Lets a closing UI thread
+       poll for a clean CPU stop after RequestStop without blocking on Join. */
+    bool Stopped() const { return stopped_.load(std::memory_order_acquire); }
+
 private:
     void RunLoop();
 
     std::thread       thread_;
     std::atomic<bool> stop_requested_{false};
+    std::atomic<bool> stopped_{false};
     bool              started_ = false;
 };

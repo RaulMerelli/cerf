@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "ipaq_gen1_egpio_sink.h"
 
 namespace {
 
@@ -32,6 +33,12 @@ public:
     uint32_t Latched() const { return latched_; }
 
 private:
+    void NotifySink() {
+        if (auto* sink = emu_.TryGet<IpaqGen1EgpioSink>()) {
+            sink->OnEgpioChanged(latched_);
+        }
+    }
+
     uint32_t latched_ = 0;
 };
 
@@ -50,11 +57,13 @@ void IpaqGen1Egpio::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t shift  = 8 * off;
     const uint32_t mask   = 0xFFu << shift;
     latched_ = (latched_ & ~mask) | (static_cast<uint32_t>(value) << shift);
+    NotifySink();
 }
 
 void IpaqGen1Egpio::WriteWord(uint32_t addr, uint32_t value) {
     if (addr != MmioBase()) HaltUnsupportedAccess("WriteWord", addr, value);
     latched_ = value;
+    NotifySink();
 }
 
 }  /* namespace */

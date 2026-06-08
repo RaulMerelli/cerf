@@ -174,6 +174,102 @@ void Log::EmergencyPrintNativeStack(const char* tag) {
     }
 }
 
+/* ==== Top-level unhandled-exception filter =============================== */
+
+/* Symbolize one address under the dbghelp mutex (try_lock — a frozen thread
+   may hold it). Mirrors EmergencyPrintNativeStack's locking. */
+static void EmergencySymbolizeAddr(const char* tag, void* addr) {
+    std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
+    char line[512];
+    if (lk.owns_lock()) {
+        EnsureDbgHelpInited_Locked();
+        char sym_buf[sizeof(SYMBOL_INFO) + 256];
+        SYMBOL_INFO* sym = (SYMBOL_INFO*)sym_buf;
+        sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+        sym->MaxNameLen   = 255;
+        DWORD64 disp = 0;
+        if (SymFromAddr(GetCurrentProcess(), (DWORD64)addr, &disp, sym)) {
+            int n = wsprintfA(line, "%s fault at %s+0x%X (0x%p)\n",
+                              tag, sym->Name, (uint32_t)disp, addr);
+            if (n > 0) Log::Emergency("%s", line);
+            return;
+        }
+    }
+    Log::Emergency("%s fault at 0x%p (sym-locked)\n", tag, addr);
+}
+
+/* Walk the FAULTING thread's stack from its trap context. The UEF runs on
+   the faulting thread, but KiUserExceptionDispatcher breaks the EBP chain, so
+   CaptureStackBackTrace from here only sees the handler frames — StackWalk64
+   seeded from ContextRecord recovers the frames that actually faulted. */
+static void EmergencyWalkFaultingStack(const char* tag, CONTEXT* ctx_in) {
+    if (!ctx_in) return;
+    std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
+    if (!lk.owns_lock()) {  /* a frozen thread holds dbghelp; can't walk safely */
+        Log::Emergency("%s faulting-stack walk skipped (dbghelp locked)\n", tag);
+        return;
+    }
+    EnsureDbgHelpInited_Locked();
+
+    CONTEXT ctx = *ctx_in;  /* StackWalk64 mutates the context it walks */
+    STACKFRAME64 sf{};
+    sf.AddrPC.Offset    = ctx.Eip; sf.AddrPC.Mode    = AddrModeFlat;
+    sf.AddrFrame.Offset = ctx.Ebp; sf.AddrFrame.Mode = AddrModeFlat;
+    sf.AddrStack.Offset = ctx.Esp; sf.AddrStack.Mode = AddrModeFlat;
+
+    HANDLE proc = GetCurrentProcess();
+    HANDLE thr  = GetCurrentThread();
+    char line[512];
+    char sym_buf[sizeof(SYMBOL_INFO) + 256];
+    SYMBOL_INFO* sym = (SYMBOL_INFO*)sym_buf;
+    for (int i = 0; i < 40; ++i) {
+        if (!StackWalk64(IMAGE_FILE_MACHINE_I386, proc, thr, &sf, &ctx, NULL,
+                         SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+            break;
+        if (sf.AddrPC.Offset == 0) break;
+        sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+        sym->MaxNameLen   = 255;
+        DWORD64 disp = 0;
+        if (SymFromAddr(proc, sf.AddrPC.Offset, &disp, sym))
+            wsprintfA(line, "%s   [%d] %s+0x%X\n", tag, i, sym->Name, (uint32_t)disp);
+        else
+            wsprintfA(line, "%s   [%d] 0x%p\n", tag, i,
+                      (void*)(uintptr_t)sf.AddrPC.Offset);
+        Log::Emergency("%s", line);
+    }
+}
+
+static LONG WINAPI CerfTopLevelExceptionFilter(EXCEPTION_POINTERS* ep) {
+    Log::EmergencyStart();
+    if (ep && ep->ExceptionRecord) {
+        EXCEPTION_RECORD* er = ep->ExceptionRecord;
+        Log::Emergency("[UNHANDLED] code=0x%08X flags=0x%X at 0x%p\n",
+                       (unsigned)er->ExceptionCode, (unsigned)er->ExceptionFlags,
+                       er->ExceptionAddress);
+        if (er->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+            er->NumberParameters >= 2) {
+            Log::Emergency("[UNHANDLED] access violation: %s 0x%p\n",
+                           er->ExceptionInformation[0] ? "write to" : "read from",
+                           (void*)er->ExceptionInformation[1]);
+        }
+        EmergencySymbolizeAddr("[UNHANDLED]", er->ExceptionAddress);
+    }
+    if (ep && ep->ContextRecord) {
+        CONTEXT* c = ep->ContextRecord;
+        Log::Emergency("[UNHANDLED] EIP=0x%p ESP=0x%p EBP=0x%p tid=%lu\n",
+                       (void*)c->Eip, (void*)c->Esp, (void*)c->Ebp,
+                       (unsigned long)GetCurrentThreadId());
+    }
+    Log::EmergencyDumpAllThreadStacks();
+    EmergencyWalkFaultingStack("[UNHANDLED]", ep ? ep->ContextRecord : nullptr);
+    Log::Close();
+    ExitProcess((UINT)CERF_FATAL_RUNTIME_ERROR);  /* [[noreturn]] */
+}
+
+void Log::InstallCrashHandler() {
+    SetUnhandledExceptionFilter(CerfTopLevelExceptionFilter);
+}
+
 /* ==== Terminal exits ===================================================== */
 
 void CerfFatalExit(int code) {

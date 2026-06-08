@@ -1,0 +1,290 @@
+#include <windows.h>
+
+#include "cerf_regs_map.h"
+#include "cerf_debug_log.h"
+
+/* Must equal kGuestBodyBase / kGuestBodyHdrSize in cerf_virt_addr_map.h —
+   duplicated because the CE toolchain can't include the host C++ header. */
+#define CERF_VIRT_BODY_PA   0xD0010000u
+#define CERF_VIRT_BODY_HDR  0x1000u
+
+#define CERF_ORDINAL_FLAG   0x80000000u
+
+typedef BOOL  (APIENTRY *PFN_DrvEnableDriver)(ULONG, ULONG, void*, void*);
+typedef BOOL  (APIENTRY *PFN_DllEntry)(HANDLE, DWORD, LPVOID);
+typedef void  (*PFN_SetCarrierName)(const wchar_t*);
+typedef DWORD (*PFN_CddInit)(DWORD);
+typedef BOOL  (*PFN_CddDeinit)(DWORD);
+typedef DWORD (*PFN_CddOpen)(DWORD, DWORD, DWORD);
+typedef BOOL  (*PFN_CddClose)(DWORD);
+typedef DWORD (*PFN_CddRead)(DWORD, LPVOID, DWORD);
+typedef DWORD (*PFN_CddWrite)(DWORD, LPCVOID, DWORD);
+typedef DWORD (*PFN_CddSeek)(DWORD, LONG, WORD);
+typedef BOOL  (*PFN_CddIOControl)(DWORD, DWORD, PBYTE, DWORD, PBYTE, DWORD, PDWORD);
+typedef void  (*PFN_CddPower)(DWORD);
+
+static HMODULE s_hinst = NULL;
+
+/* CE3 ROMs have no DLL-RW reservation (ROMHDR.dllfirst<<16 == 0), so the
+   injected module's writable statics are one physical instance shared across
+   all loading processes. A body base is a VirtualAlloc VA valid only in its
+   creator — so map state is keyed by pid; gwes and device.exe map their own. */
+#define CERF_STUB_MAX_PROC 8
+typedef struct {
+    DWORD               pid;
+    void*               body_base;
+    PFN_DrvEnableDriver drv;
+    PFN_CddInit         cdd_init;
+    PFN_CddDeinit       cdd_deinit;
+    PFN_CddOpen         cdd_open;
+    PFN_CddClose        cdd_close;
+    PFN_CddRead         cdd_read;
+    PFN_CddWrite        cdd_write;
+    PFN_CddSeek         cdd_seek;
+    PFN_CddIOControl    cdd_ioctl;
+    PFN_CddPower        cdd_powerup;
+    PFN_CddPower        cdd_powerdown;
+} CerfStubSlot;
+static CerfStubSlot s_slot[CERF_STUB_MAX_PROC];
+static LONG         s_slot_next = 0;
+
+static CerfStubSlot* CerfStubCurSlot(void) {
+    DWORD pid = GetCurrentProcessId();
+    int i;
+    for (i = 0; i < CERF_STUB_MAX_PROC; ++i)
+        if (s_slot[i].pid == pid) return &s_slot[i];
+    return NULL;
+}
+
+static void CerfCopy(void* dst, const void* src, ULONG n) {
+    UCHAR* d = (UCHAR*)dst;
+    const UCHAR* s = (const UCHAR*)src;
+    while (n--) *d++ = *s++;
+}
+
+/* Relies on the body's shape: a single coredll import (by ordinal),
+   HIGHLOW-only relocations, no TLS. Rebuilding cerf_guest so it gains a second
+   import DLL, Thumb-MOV32 relocations, or a TLS directory silently breaks the
+   load here. Returns the image base, or NULL with a logged reason. */
+static void* CerfMapBody(const UCHAR* img) {
+    const IMAGE_DOS_HEADER* dos = (const IMAGE_DOS_HEADER*)img;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) { CERF_LOG("map: bad MZ"); return NULL; }
+    const IMAGE_NT_HEADERS* nt = (const IMAGE_NT_HEADERS*)(img + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) { CERF_LOG("map: bad PE"); return NULL; }
+    const IMAGE_OPTIONAL_HEADER* opt = &nt->OptionalHeader;
+
+    UCHAR* base = (UCHAR*)VirtualAlloc(NULL, opt->SizeOfImage,
+                                       MEM_RESERVE | MEM_COMMIT,
+                                       PAGE_EXECUTE_READWRITE);
+    if (!base) { CERF_LOG_X("map: VirtualAlloc FAILED gle", GetLastError()); return NULL; }
+    CERF_LOG_X("map: image base", (DWORD)base);
+
+    CerfCopy(base, img, opt->SizeOfHeaders);
+
+    const IMAGE_SECTION_HEADER* sec = (const IMAGE_SECTION_HEADER*)
+        ((const UCHAR*)&nt->OptionalHeader + nt->FileHeader.SizeOfOptionalHeader);
+    for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; ++i) {
+        ULONG vsz  = sec[i].Misc.VirtualSize;
+        ULONG rsz  = sec[i].SizeOfRawData;
+        ULONG copy = (rsz < vsz) ? rsz : vsz;   /* VirtualAlloc zero-fills the bss tail */
+        if (copy && sec[i].PointerToRawData)
+            CerfCopy(base + sec[i].VirtualAddress, img + sec[i].PointerToRawData, copy);
+    }
+
+    LONG delta = (LONG)((ULONG)base - opt->ImageBase);
+    if (delta) {
+        const IMAGE_DATA_DIRECTORY* rd =
+            &opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+        const IMAGE_BASE_RELOCATION* rb =
+            (const IMAGE_BASE_RELOCATION*)(base + rd->VirtualAddress);
+        ULONG done = 0;
+        while (done < rd->Size && rb->SizeOfBlock) {
+            ULONG cnt = (rb->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / 2;
+            const USHORT* ent = (const USHORT*)((const UCHAR*)rb + sizeof(IMAGE_BASE_RELOCATION));
+            for (ULONG j = 0; j < cnt; ++j) {
+                USHORT type = (USHORT)(ent[j] >> 12);
+                USHORT off  = (USHORT)(ent[j] & 0x0FFF);
+                if (type == IMAGE_REL_BASED_HIGHLOW)
+                    *(ULONG*)(base + rb->VirtualAddress + off) += (ULONG)delta;
+                else if (type != IMAGE_REL_BASED_ABSOLUTE) {
+                    CERF_LOG_X("map: unhandled reloc type", type);
+                    return NULL;
+                }
+            }
+            done += rb->SizeOfBlock;
+            rb = (const IMAGE_BASE_RELOCATION*)((const UCHAR*)rb + rb->SizeOfBlock);
+        }
+    }
+
+    const IMAGE_DATA_DIRECTORY* id = &opt->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (id->Size) {
+        const IMAGE_IMPORT_DESCRIPTOR* imp =
+            (const IMAGE_IMPORT_DESCRIPTOR*)(base + id->VirtualAddress);
+        for (; imp->Name; ++imp) {
+            const char* dll = (const char*)(base + imp->Name);
+            wchar_t wdll[64];
+            int k = 0;
+            for (; dll[k] && k < 63; ++k) wdll[k] = (wchar_t)(UCHAR)dll[k];
+            wdll[k] = 0;
+            HMODULE h = LoadLibraryW(wdll);
+            if (!h) { CERF_LOG_X("map: dep LoadLibrary FAILED gle", GetLastError()); return NULL; }
+
+            ULONG thunkRva = imp->OriginalFirstThunk ? imp->OriginalFirstThunk
+                                                     : imp->FirstThunk;
+            ULONG* oft = (ULONG*)(base + thunkRva);
+            ULONG* ft  = (ULONG*)(base + imp->FirstThunk);
+            for (; *oft; ++oft, ++ft) {
+                FARPROC fn;
+                if (*oft & CERF_ORDINAL_FLAG) {
+                    fn = GetProcAddressW(h, (LPCWSTR)(*oft & 0xFFFFu));
+                } else {
+                    const IMAGE_IMPORT_BY_NAME* ibn =
+                        (const IMAGE_IMPORT_BY_NAME*)(base + *oft);
+                    wchar_t wn[128];
+                    int m = 0;
+                    for (; ibn->Name[m] && m < 127; ++m) wn[m] = (wchar_t)(UCHAR)ibn->Name[m];
+                    wn[m] = 0;
+                    fn = GetProcAddressW(h, wn);
+                }
+                if (!fn) { CERF_LOG("map: import resolve FAILED"); return NULL; }
+                *ft = (ULONG)fn;
+            }
+        }
+    }
+
+    FlushInstructionCache(GetCurrentProcess(), base, opt->SizeOfImage);
+
+    if (opt->AddressOfEntryPoint) {
+        PFN_DllEntry ep = (PFN_DllEntry)(base + opt->AddressOfEntryPoint);
+        if (!ep((HANDLE)base, DLL_PROCESS_ATTACH, NULL)) {
+            CERF_LOG("map: body DllMain returned FALSE");
+            return NULL;
+        }
+    }
+    return base;
+}
+
+static void* CerfFindExport(const UCHAR* base, const char* name) {
+    const IMAGE_DOS_HEADER* dos = (const IMAGE_DOS_HEADER*)base;
+    const IMAGE_NT_HEADERS* nt = (const IMAGE_NT_HEADERS*)(base + dos->e_lfanew);
+    const IMAGE_DATA_DIRECTORY* ed =
+        &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!ed->Size) return NULL;
+    const IMAGE_EXPORT_DIRECTORY* exp =
+        (const IMAGE_EXPORT_DIRECTORY*)(base + ed->VirtualAddress);
+    const ULONG*  names = (const ULONG*)(base + exp->AddressOfNames);
+    const USHORT* ords  = (const USHORT*)(base + exp->AddressOfNameOrdinals);
+    const ULONG*  funcs = (const ULONG*)(base + exp->AddressOfFunctions);
+    for (ULONG i = 0; i < exp->NumberOfNames; ++i) {
+        const char* en = (const char*)(base + names[i]);
+        int k = 0;
+        while (en[k] && name[k] && en[k] == name[k]) ++k;
+        if (en[k] == 0 && name[k] == 0)
+            return (void*)(base + funcs[ords[i]]);
+    }
+    return NULL;
+}
+
+/* Idempotent: gwes loads this stub as the display driver, device.exe loads the
+   same stub as the CDD_* stream driver (driver-in-driver), and each maps the
+   one body into its own process here. */
+static BOOL CerfEnsureBody(void) {
+    DWORD pid = GetCurrentProcessId();
+    CerfStubSlot* slot = CerfStubCurSlot();
+    const ULONG* hdr;
+    const UCHAR* body;
+    ULONG size, mapped;
+    void* base;
+    LONG idx;
+    PFN_SetCarrierName set_name;
+
+    if (slot && slot->body_base) return TRUE;
+
+    hdr = (const ULONG*)CerfMapRegsPage(CERF_VIRT_BODY_PA, CERF_VIRT_BODY_HDR);
+    if (!hdr) { CERF_LOG("stub: body header map FAILED"); return FALSE; }
+    size = hdr[0];
+    CERF_LOG_X("stub: body size", size);
+    if (size == 0) {
+        CERF_LOG("stub: body size 0 - host did not stage cerf_guest");
+        return FALSE;
+    }
+
+    mapped = (size + 0xFFFu) & ~0xFFFu;
+    body = (const UCHAR*)CerfMapRegsPage(CERF_VIRT_BODY_PA + CERF_VIRT_BODY_HDR,
+                                         mapped);
+    if (!body) { CERF_LOG("stub: body map FAILED"); return FALSE; }
+
+    base = CerfMapBody(body);
+    if (!base) { CERF_LOG("stub: manual map FAILED"); return FALSE; }
+
+    idx = InterlockedIncrement(&s_slot_next) - 1;
+    if (idx < 0 || idx >= CERF_STUB_MAX_PROC) {
+        CERF_LOG("stub: out of per-process slots");
+        return FALSE;
+    }
+    slot = &s_slot[idx];
+
+    slot->drv           = (PFN_DrvEnableDriver)CerfFindExport((const UCHAR*)base, "DrvEnableDriver");
+    slot->cdd_init      = (PFN_CddInit)     CerfFindExport((const UCHAR*)base, "CDD_Init");
+    slot->cdd_deinit    = (PFN_CddDeinit)   CerfFindExport((const UCHAR*)base, "CDD_Deinit");
+    slot->cdd_open      = (PFN_CddOpen)     CerfFindExport((const UCHAR*)base, "CDD_Open");
+    slot->cdd_close     = (PFN_CddClose)    CerfFindExport((const UCHAR*)base, "CDD_Close");
+    slot->cdd_read      = (PFN_CddRead)     CerfFindExport((const UCHAR*)base, "CDD_Read");
+    slot->cdd_write     = (PFN_CddWrite)    CerfFindExport((const UCHAR*)base, "CDD_Write");
+    slot->cdd_seek      = (PFN_CddSeek)     CerfFindExport((const UCHAR*)base, "CDD_Seek");
+    slot->cdd_ioctl     = (PFN_CddIOControl)CerfFindExport((const UCHAR*)base, "CDD_IOControl");
+    slot->cdd_powerup   = (PFN_CddPower)    CerfFindExport((const UCHAR*)base, "CDD_PowerUp");
+    slot->cdd_powerdown = (PFN_CddPower)    CerfFindExport((const UCHAR*)base, "CDD_PowerDown");
+
+    set_name = (PFN_SetCarrierName)CerfFindExport((const UCHAR*)base, "CerfSetCarrierName");
+    if (set_name) {
+        wchar_t self[MAX_PATH];
+        if (GetModuleFileNameW(s_hinst, self, MAX_PATH) > 0) {
+            set_name(self);
+            CERF_LOG("stub: handed carrier name to body");
+        }
+    }
+
+    slot->body_base = base;
+    slot->pid = pid;   /* publish pid last: CerfStubCurSlot keys on it */
+    return TRUE;
+}
+
+extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion, ULONG cj,
+                                          void* pded, void* pCallbacks) {
+    CerfStubSlot* cs;
+    CERF_LOG_INIT(CERF_LOG_CH_STUB);
+    CERF_LOG_X("stub: DrvEnableDriver iEngineVersion", iEngineVersion);
+    if (!CerfEnsureBody() || !(cs = CerfStubCurSlot()) || !cs->drv) {
+        CERF_LOG("stub: body bring-up FAILED - display unavailable");
+        return FALSE;
+    }
+    return cs->drv(iEngineVersion, cj, pded, pCallbacks);
+}
+
+extern "C" DWORD CDD_Init(DWORD dwContext) {
+    CerfStubSlot* cs;
+    CERF_LOG_INIT(CERF_LOG_CH_STUB);
+    CERF_LOG("stub: CDD_Init (device.exe carrier)");
+    if (!CerfEnsureBody() || !(cs = CerfStubCurSlot()) || !cs->cdd_init) return 0;
+    return cs->cdd_init(dwContext);
+}
+extern "C" BOOL  CDD_Deinit(DWORD d)               { CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_deinit) ? cs->cdd_deinit(d) : FALSE; }
+extern "C" DWORD CDD_Open(DWORD d, DWORD a, DWORD s){ CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_open) ? cs->cdd_open(d, a, s) : 0; }
+extern "C" BOOL  CDD_Close(DWORD h)                { CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_close) ? cs->cdd_close(h) : FALSE; }
+extern "C" DWORD CDD_Read(DWORD h, LPVOID b, DWORD n)  { CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_read) ? cs->cdd_read(h, b, n) : 0; }
+extern "C" DWORD CDD_Write(DWORD h, LPCVOID b, DWORD n){ CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_write) ? cs->cdd_write(h, b, n) : 0; }
+extern "C" DWORD CDD_Seek(DWORD h, LONG a, WORD t) { CerfStubSlot* cs; return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_seek) ? cs->cdd_seek(h, a, t) : (DWORD)-1; }
+extern "C" BOOL  CDD_IOControl(DWORD h, DWORD code, PBYTE pi, DWORD il,
+                               PBYTE po, DWORD ol, PDWORD pa) {
+    CerfStubSlot* cs;
+    return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_ioctl) ? cs->cdd_ioctl(h, code, pi, il, po, ol, pa) : FALSE;
+}
+extern "C" void CDD_PowerUp(DWORD h)   { CerfStubSlot* cs; if (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_powerup)   cs->cdd_powerup(h); }
+extern "C" void CDD_PowerDown(DWORD h) { CerfStubSlot* cs; if (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_powerdown) cs->cdd_powerdown(h); }
+
+extern "C" BOOL APIENTRY DllEntryPoint(HANDLE hInst, DWORD reason, LPVOID reserved) {
+    (void)reserved;
+    if (reason == DLL_PROCESS_ATTACH) s_hinst = (HMODULE)hInst;
+    return TRUE;
+}

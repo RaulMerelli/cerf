@@ -18,6 +18,9 @@ public:
         return "Microsoft Zune 30 (codename Keel), "
                "Freescale i.MX31L (ARM1136JF-S)";
     }
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{ 240, 320 };
+    }
 };
 
 }  /* namespace */

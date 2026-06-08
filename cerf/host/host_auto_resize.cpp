@@ -5,8 +5,10 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
+#include "../core/log.h"
 #include "../peripherals/cerf_virt/cerf_virt_resize.h"
 #include "host_widget_registry.h"
+#include "task_manager_window.h"
 
 #include <string>
 #include <vector>
@@ -23,6 +25,14 @@ bool HostAutoResize::ShouldRegister() {
 }
 
 void HostAutoResize::OnReady() {
+    /* cerf.rc resource 1: the application icon. */
+    icon_ = (HICON)LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1),
+                              IMAGE_ICON, 16, 16, 0);
+    if (!icon_) {
+        LOG(Caution, "HostAutoResize: LoadImageW(icon 1) failed (gle=%lu)\n",
+            GetLastError());
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
@@ -43,18 +53,34 @@ void HostAutoResize::OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h) {
 
 std::wstring HostAutoResize::Tooltip() const {
     return Enabled()
-        ? L"Auto-resize ON — guest follows the window size (click to disable)"
-        : L"Auto-resize OFF — click to make the guest resolution follow the window";
+        ? L"Guest Additions — auto-resize ON (click to disable, right-click for tools)"
+        : L"Guest Additions — auto-resize OFF (click to enable, right-click for tools)";
 }
 
 void HostAutoResize::OnPrimaryAction() { Toggle(); }
 
 std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
-    WidgetMenuItem it;
-    it.label   = L"Resize guest to window";
-    it.checked = Enabled();
-    it.on_click = [this] { Toggle(); };
-    return { std::move(it) };
+    std::vector<WidgetMenuItem> items;
+
+    WidgetMenuItem header;
+    header.label   = L"CERF Guest Additions";
+    header.enabled = false;
+    items.push_back(std::move(header));
+
+    items.push_back(WidgetMenuItem{});   /* separator */
+
+    WidgetMenuItem taskmgr;
+    taskmgr.label    = L"Task manager…";
+    taskmgr.on_click = [this] { emu_.Get<TaskManagerWindow>().Show(); };
+    items.push_back(std::move(taskmgr));
+
+    WidgetMenuItem resize;
+    resize.label    = L"Resize guest to window";
+    resize.checked  = Enabled();
+    resize.on_click = [this] { Toggle(); };
+    items.push_back(std::move(resize));
+
+    return items;
 }
 
 void HostAutoResize::DrawIcon(HDC dc, const RECT& box) const {
@@ -76,6 +102,8 @@ void HostAutoResize::DrawIcon(HDC dc, const RECT& box) const {
     HBRUSH br = CreateSolidBrush(Enabled() ? kClrOn : kClrOff);
     for (const RECT& r : arms) FillRect(dc, &r, br);
     DeleteObject(br);
+
+    DrawIconEx(dc, cx - 5, cy - 5, icon_, 10, 10, 0, nullptr, DI_NORMAL);
 }
 
 bool HostAutoResize::PollDirty() {

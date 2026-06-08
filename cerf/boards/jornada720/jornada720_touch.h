@@ -17,6 +17,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
     ~Jornada720Touch() override;
 
     /* Host pointer events (guest-surface coords), from the TouchInput adapter. */
@@ -34,6 +35,7 @@ public:
 
 private:
     void     SamplerLoop();
+    void     StopSampler();
     void     MapHostToAdc(int hx, int hy, uint16_t* ax, uint16_t* ay) const;
     void     DrivePenLine(bool pen_down);
     void     PulsePenLine();

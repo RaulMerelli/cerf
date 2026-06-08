@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/service.h"
+#include "../lcd/lcd_content_latch.h"
 
 #include <cstdint>
 #include <optional>
@@ -18,13 +19,19 @@ public:
 
     virtual bool HasFrame() = 0;
 
+    /* Guest reset: drop the "frame seen" evidence; stale evidence flips
+       the UART tab back to the old framebuffer on the next UI tick.
+       Override when HasFrame is backed by something other than latch_
+       (e.g. CerfVirtFramebuffer's write edge). */
+    virtual void RearmContentLatch() { latch_.Rearm(); }
+
     virtual void RenderInto(uint32_t* dib_bgra32,
                             uint32_t  width,
                             uint32_t  height) = 0;
 
     /* Translate guest-FB dimensions to the host-window dimensions
        the renderer expects to draw into. Identity by default;
-       rotating renderers (e.g. Sa1110LcdRenderer) override to swap. */
+       rotating renderers (e.g. Sa11xxLcdRenderer) override to swap. */
     virtual std::pair<uint32_t, uint32_t>
     HostSizeFor(uint32_t fb_w, uint32_t fb_h) const {
         return {fb_w, fb_h};
@@ -40,4 +47,8 @@ public:
         bool     rgb565;
     };
     virtual std::optional<FbLayout> GetFbLayout() { return std::nullopt; }
+
+protected:
+    /* Content evidence for HasFrame, shared by every probing renderer. */
+    LcdContentLatch latch_;
 };

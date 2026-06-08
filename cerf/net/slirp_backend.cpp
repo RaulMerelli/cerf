@@ -1,9 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-/* libslirp.h is built as a static archive by vcpkg (manifest mode picks
-   the project triplet — currently x86-windows-static). Tell the header
-   to declare exports as plain symbols rather than __declspec(dllimport). */
+/* libslirp is a vcpkg static archive; without LIBSLIRP_STATIC the
+   header declares __declspec(dllimport) and the link fails on __imp_*
+   symbols. */
 #define LIBSLIRP_STATIC
 
 /* winsock2.h MUST come before any windows.h include (it defines socket types
@@ -111,9 +111,9 @@ void cb_notify(void* opaque) {
    libslirp's null-pointer checks pass and any internal fallback paths work. */
 void cb_register_poll_fd(int /*fd*/, void* /*opaque*/) { /* no-op */ }
 void cb_unregister_poll_fd(int /*fd*/, void* /*opaque*/) { /* no-op */ }
-/* libslirp v6 socket-aware variants — slirp_os_socket = SOCKET on Windows
-   (full 64-bit on x64). We don't track the set internally; the poll thread
-   re-collects fds via slirp_pollfds_fill_socket every iteration. */
+/* libslirp v6 socket-aware variants. No-op registration is safe: the
+   poll thread re-collects the fd set via slirp_pollfds_fill_socket
+   every iteration. */
 void cb_register_poll_socket(slirp_os_socket /*s*/, void* /*opaque*/) { /* no-op */ }
 void cb_unregister_poll_socket(slirp_os_socket /*s*/, void* /*opaque*/) { /* no-op */ }
 
@@ -256,10 +256,18 @@ void SlirpBackend::OnReady() {
     poll_thread_ = std::thread(&SlirpBackend::PollLoop, this);
 }
 
-SlirpBackend::~SlirpBackend() {
+void SlirpBackend::StopPollThread() {
     stop_.store(true, std::memory_order_release);
     OnSlirpNotify();
     if (poll_thread_.joinable()) poll_thread_.join();
+}
+
+/* Poll thread delivers RX frames into the NIC peer; stop it before any peer is
+   destroyed. libslirp/cbs frees stay in the destructor, after the join. */
+void SlirpBackend::OnShutdown() { StopPollThread(); }
+
+SlirpBackend::~SlirpBackend() {
+    StopPollThread();
     if (slirp_) {
         std::lock_guard<std::mutex> lk(slirp_mutex_);
         slirp_cleanup(slirp_);
@@ -303,21 +311,17 @@ std::array<uint8_t, 6> SlirpBackend::HostGatewayMacAddress() const {
 }
 
 void SlirpBackend::OnSlirpSendPacket(const void* buf, std::size_t len) {
-    /* Called from PollLoop under slirp_mutex_. Hand the frame to the
-       installed RX callback; the consumer (NDIS miniport) is responsible
-       for copying out before returning. */
-    RxFn cb;
-    {
-        std::lock_guard<std::mutex> lk(rx_cb_mutex_);
-        cb = rx_cb_;
-    }
+    /* Delivery runs UNDER rx_cb_mutex_: SetReceiveCallback(nullptr)
+       is the eject quiesce barrier — once it returns, no in-flight
+       frame can re-enter the destroyed card. */
     static std::atomic<uint64_t> rx_count{0};
     uint64_t n = rx_count.fetch_add(1, std::memory_order_relaxed) + 1;
     char tag[128] = {};
     ClassifyFrame(static_cast<const uint8_t*>(buf), len, tag, sizeof(tag));
     LOG(Net, "RX #%llu len=%zu %s\n",
         (unsigned long long)n, len, tag);
-    if (cb) cb(static_cast<const uint8_t*>(buf), len);
+    std::lock_guard<std::mutex> lk(rx_cb_mutex_);
+    if (rx_cb_) rx_cb_(static_cast<const uint8_t*>(buf), len);
 }
 
 int64_t SlirpBackend::OnSlirpClockGetNs() {

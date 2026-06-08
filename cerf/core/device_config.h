@@ -14,6 +14,14 @@ struct DeviceMeta {
     int         device_year  = 0;
 };
 
+/* One entry of cerf.json "additional_packages.compact_flash_cards": a CF
+   image file shipped inside the device directory plus its insert-menu
+   display name. */
+struct BundledCompactFlashCard {
+    std::string file;   /* image filename, relative to the device directory */
+    std::string name;   /* display name; menu shows "Insert bundled CF: <name>" */
+};
+
 struct DeviceConfig {
     std::string device_name;
 
@@ -21,6 +29,12 @@ struct DeviceConfig {
 
     uint32_t board_configurable_screen_width  = 800;
     uint32_t board_configurable_screen_height = 600;
+
+    /* True when the configurable screen size came from cerf.json
+       board.configurable_screen_* or --screen-width/height (not the bare
+       default above). The host window uses this to let an explicit size win
+       over a board's fixed-LCD preferred window size. */
+    bool board_configurable_screen_explicit = false;
 
     bool        network_enabled = true;
     std::string network_mac     = "02:CE:5F:00:00:01";
@@ -36,6 +50,11 @@ struct DeviceConfig {
        SSP/SPI EEPROM peripheral loads it from the device directory; empty
        when the device has none. */
     std::string              rom_eeprom;
+
+    /* Optional CF images bundled with the ROM (cerf.json
+       "additional_packages.compact_flash_cards"); the CF insert menu offers
+       each entry whose file is present in the device directory. */
+    std::vector<BundledCompactFlashCard> bundled_compact_flash_cards;
 
     bool boot_in_recovery = false;
     bool guest_additions = false;

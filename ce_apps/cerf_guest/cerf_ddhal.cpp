@@ -1,4 +1,6 @@
 #include <windows.h>
+#define INITGUID
+#include <initguid.h>
 #include <winddi.h>
 #include <gpe.h>
 #include <ddgpe.h>

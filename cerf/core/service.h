@@ -18,6 +18,7 @@ protected:
 
 private:
     std::atomic<bool>            ready_{false};
+    std::atomic<bool>            shutdown_ran_{false};
     std::mutex                   ready_mtx_;
     std::atomic<std::thread::id> owner_{};
 
@@ -27,6 +28,19 @@ public:
 
     virtual void OnReady() {}
     virtual bool ShouldRegister() { return true; }
+
+    /* Runs for every service before any destructor: stop worker threads /
+       detach from peers ONLY. Freeing a buffer another service's thread reads
+       must stay in the destructor — this phase is unordered, so a free here
+       can still race a peer thread that a later OnShutdown hasn't stopped yet. */
+    virtual void OnShutdown() {}
+
+    void RunShutdown() {
+        if (!ready_.load(std::memory_order_acquire)) return;
+        bool expected = false;
+        if (!shutdown_ran_.compare_exchange_strong(expected, true)) return;
+        OnShutdown();
+    }
 
     void EnsureReady() {
         if (ready_.load(std::memory_order_acquire)) return;

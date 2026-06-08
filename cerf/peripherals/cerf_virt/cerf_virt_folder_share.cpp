@@ -1,6 +1,6 @@
 #include "cerf_virt_addr_map.h"
 #include "cerf_virt_folder_share_regs.h"
-#include "folder_share_mmu.h"
+#include "cerf_virt_guest_mem.h"
 #include "folder_share_files.h"
 #include "folder_share_dir.h"
 
@@ -94,7 +94,7 @@ private:
     void HandleCode(uint32_t code) {
         if (code == kServerPollCompletion) return;   /* op already completed */
 
-        auto& mmu = emu_.Get<FolderShareMmu>();
+        auto& mmu = emu_.Get<CerfVirtGuestMem>();
         CerfVirt::ServerPB pb;
         if (!mmu.ReadBlob(serverpb_va_, &pb, sizeof(pb)) ||
             pb.fStructureSize != sizeof(pb)) {

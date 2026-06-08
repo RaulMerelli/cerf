@@ -20,6 +20,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;    /* construct libslirp + start thread */
+    void OnShutdown() override;
 
     ~SlirpBackend() override;
 
@@ -48,6 +49,7 @@ public:
 
 private:
     void PollLoop();
+    void StopPollThread();
     int64_t NowMs() const;
 
     std::array<uint8_t, 6> guest_mac_{};

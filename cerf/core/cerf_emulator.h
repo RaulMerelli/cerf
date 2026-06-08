@@ -128,6 +128,7 @@ public:
 
 private:
     void ResolveSlot(int slot, const char* requester_type_name);
+    void Shutdown();   /* quiesce every service before destroying any */
 
     struct CandidateEntry {
         std::unique_ptr<Service> instance;   /* owns lifetime, calls ~Service */

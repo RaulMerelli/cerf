@@ -1,0 +1,147 @@
+#define NOMINMAX
+
+#include "host_menu.h"
+
+#include "../boot/guest_cold_boot.h"
+#include "../core/cerf_emulator.h"
+#include "../socs/guest_cpu_reset.h"
+#include "../version.h"
+#include "host_canvas.h"
+#include "host_input_capture.h"
+#include "host_screenshot.h"
+#include "host_widget_registry.h"
+#include "host_window.h"
+#include "memory_visualizer.h"
+
+REGISTER_SERVICE(HostMenu);
+
+namespace {
+
+enum MenuId : int {
+    kIdCtrlAltDel  = 201,
+    kIdSoftReset   = 202,
+    kIdHardReset   = 203,
+    kIdViewUart    = 100,
+    kIdViewFb      = 101,
+    kIdViewMemViz  = 102,
+    kIdVpOriginal  = 110,
+    kIdVpAspect    = 111,
+    kIdVpStretch   = 112,
+    kIdAliasing    = 113,
+    kIdSaveShot    = 120,
+    kIdCopyShot    = 121,
+    kIdMatchGuest  = 122,
+    kIdAbout       = 130,
+};
+
+}  /* namespace */
+
+HMENU HostMenu::Build() {
+    HMENU bar = CreateMenu();
+
+    /* Filled on demand in OnInitMenuPopup: the widget block (capture lock
+       first) then the static commands. */
+    HMENU actions = CreatePopupMenu();
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)actions, L"Actions");
+
+    HMENU view = CreatePopupMenu();
+    AppendMenuW(view, MF_STRING, kIdViewUart,   L"UART Screen");
+    AppendMenuW(view, MF_STRING, kIdViewFb,     L"Framebuffer");
+    if (emu_.TryGet<MemoryVisualizer>())
+        AppendMenuW(view, MF_STRING, kIdViewMemViz, L"Memory Visualizer (dev)");
+    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(view, MF_STRING, kIdVpOriginal, L"Original view");
+    AppendMenuW(view, MF_STRING, kIdVpAspect,   L"Resize + match aspect ratio");
+    AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
+    AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
+    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(view, MF_STRING, kIdSaveShot,   L"Save screenshot");
+    AppendMenuW(view, MF_STRING, kIdCopyShot,   L"Copy screenshot");
+    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(view, MF_STRING, kIdMatchGuest, L"Match guest size");
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)view, L"View");
+    AppendMenuW(bar, MF_STRING, kIdAbout, L"About");
+
+    bar_ = bar;
+    return bar;
+}
+
+void HostMenu::Sync() {
+    if (!bar_) return;
+
+    HMENU view = GetSubMenu(bar_, 1);
+    if (!view) return;
+    auto& canvas = emu_.Get<HostCanvas>();
+    int view_id = kIdViewUart;
+    switch (canvas.CurrentTab()) {
+        case HostCanvas::Tab::Uart:             view_id = kIdViewUart;   break;
+        case HostCanvas::Tab::Framebuffer:      view_id = kIdViewFb;     break;
+        case HostCanvas::Tab::MemoryVisualizer: view_id = kIdViewMemViz; break;
+    }
+    CheckMenuRadioItem(view, kIdViewUart, kIdViewMemViz, view_id, MF_BYCOMMAND);
+    int vp_id = kIdVpOriginal;
+    switch (canvas.Mode()) {
+        case HostCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
+        case HostCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
+        case HostCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
+    }
+    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpStretch, vp_id, MF_BYCOMMAND);
+    CheckMenuItem(view, kIdAliasing,
+                  MF_BYCOMMAND | (canvas.Antialias() ? MF_CHECKED : MF_UNCHECKED));
+    CheckMenuItem(view, kIdMatchGuest,
+                  MF_BYCOMMAND | (emu_.Get<HostWindow>().FollowGuest()
+                                      ? MF_CHECKED : MF_UNCHECKED));
+}
+
+void HostMenu::OnInitMenuPopup(HMENU popup) {
+    Sync();
+    HMENU actions = bar_ ? GetSubMenu(bar_, 0) : nullptr;
+    if (popup == actions && actions) {
+        /* Rebuilt each popup: widget block (capture lock first), then the
+           static commands. DeleteMenu also frees the per-widget submenus
+           it created last time. */
+        while (GetMenuItemCount(actions) > 0)
+            DeleteMenu(actions, 0, MF_BYPOSITION);
+        emu_.Get<HostWidgetRegistry>().AppendAllToMenu(actions);
+        AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(actions, MF_STRING, kIdCtrlAltDel,
+                    L"Send Ctrl+Alt+Del\tRight Ctrl+Del");
+        AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(actions, MF_STRING, kIdSoftReset, L"Soft reset");
+        AppendMenuW(actions, MF_STRING, kIdHardReset, L"Hard reset...");
+    }
+}
+
+void HostMenu::HandleCommand(int id) {
+    auto& canvas = emu_.Get<HostCanvas>();
+    switch (id) {
+        case kIdCtrlAltDel: emu_.Get<HostInputCapture>().SendCtrlAltDel(); break;
+        case kIdSoftReset:  emu_.Get<GuestCpuReset>().WarmReset(); break;
+        case kIdHardReset:
+            if (MessageBoxW(emu_.Get<HostWindow>().Hwnd(),
+                    L"Hard reset clears all guest RAM.\n"
+                    L"Unsaved guest data and the object store are lost.\n\n"
+                    L"Continue?",
+                    L"CERF — Hard reset",
+                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES) {
+                emu_.Get<GuestColdBoot>().RequestHardReset();
+            }
+            break;
+        case kIdViewUart:   canvas.SetTab(HostCanvas::Tab::Uart, true);        break;
+        case kIdViewFb:     canvas.SetTab(HostCanvas::Tab::Framebuffer, true); break;
+        case kIdViewMemViz: canvas.SetTab(HostCanvas::Tab::MemoryVisualizer, true); break;
+        case kIdVpOriginal: canvas.SetViewportMode(HostCanvas::ViewportMode::Original); break;
+        case kIdVpAspect:   canvas.SetViewportMode(HostCanvas::ViewportMode::Aspect);   break;
+        case kIdVpStretch:  canvas.SetViewportMode(HostCanvas::ViewportMode::Stretch);  break;
+        case kIdAliasing:   canvas.SetAntialias(!canvas.Antialias()); break;
+        case kIdSaveShot:   emu_.Get<HostScreenshot>().Save(); break;
+        case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
+        case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
+        case kIdAbout:
+            MessageBoxW(emu_.Get<HostWindow>().Hwnd(),
+                L"CE Runtime Foundation v" CERF_VERSION_DISPLAY_WSTR
+                L"\nhttps://github.com/gweslab/cerf",
+                L"About CERF", MB_OK | MB_ICONINFORMATION);
+            break;
+    }
+}

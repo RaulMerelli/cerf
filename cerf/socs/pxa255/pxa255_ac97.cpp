@@ -16,10 +16,18 @@ bool Pxa255Ac97::ShouldRegister() {
     return bd && bd->GetSoc() == SocFamily::PXA25x;
 }
 
-Pxa255Ac97::~Pxa255Ac97() {
+void Pxa255Ac97::StopAudioThread() {
     shutdown_.store(true, std::memory_order_release);
     if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
     if (audio_thread_.joinable()) audio_thread_.join();
+}
+
+/* Audio thread drives DMA completion into peers; stop it before any peer is
+   destroyed. waveOut/handle frees stay in the destructor, after the join. */
+void Pxa255Ac97::OnShutdown() { StopAudioThread(); }
+
+Pxa255Ac97::~Pxa255Ac97() {
+    StopAudioThread();
     if (out_device_) waveOutClose(out_device_);
     if (thread_ready_event_) CloseHandle(thread_ready_event_);
 }

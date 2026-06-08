@@ -65,4 +65,5 @@ void JitRunner::RunLoop() {
     }
 
     LOG(Boot, "JitRunner: stop requested; thread exiting\n");
+    stopped_.store(true, std::memory_order_release);
 }

@@ -26,6 +26,10 @@ public:
        trigger for HostWindow's splash → boot-log rendering. */
     bool HasOutput() const;
 
+    /* Drop all buffered lines. HasOutput stays true (the splash→log
+       transition is one-way); callers repopulate immediately. */
+    void Clear();
+
     /* Render into the host DIB. dc is HostWindow's memory DC
        wrapping the same pixels; used for GDI text + icon drawing.
        dib_bgra32 / width / height describe the same surface in

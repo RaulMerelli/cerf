@@ -9,16 +9,18 @@ public:
     using BoardDetector::BoardDetector;
 
     bool ShouldRegister() override {
-        /* hpvgaout.dll + HPIrDA.dll each occur once in the 32MB flash and
-           on no other CERF-supported board's ROM. */
-        return RomContainsString("hpvgaout.dll")
-            && RomContainsString("HPIrDA.dll");
+        /* Device-identity string "Jornada 720" in the ROM (UTF-16);
+           occurs in no other CERF bundle. */
+        return RomContainsString("Jornada 720");
     }
 
     Board       GetBoard()  const override { return Board::Jornada720; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     const char* BoardName() const override {
         return "HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM";
+    }
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{ 640, 240 };
     }
 };
 

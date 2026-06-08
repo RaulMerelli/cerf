@@ -70,7 +70,8 @@ public:
         items.push_back(std::move(toggle));
 
         WidgetMenuItem change;
-        change.label    = root.empty() ? L"Choose folder…" : L"Change folder…";
+        change.label    = root.empty() ? L"Choose folder and enable…"
+                                       : L"Change folder and enable…";
         change.on_click = [this] { ChangeFolder(); };
         items.push_back(std::move(change));
 
@@ -181,7 +182,7 @@ void FolderShareWidget::ChangeFolder() {
     const std::wstring picked =
         PickFolder(emu_.Get<HostWindow>().Hwnd(), cfg.HostRoot());
     if (picked.empty()) return;            /* cancelled — keep current folder */
-    cfg.Set(cfg.Enabled(), picked, L"");   /* repoint, preserve on/off state */
+    cfg.Set(/*enabled=*/true, picked, L"");  /* repoint and enable in one step */
 }
 
 void FolderShareWidget::ApplyFromControls(HWND dlg) {

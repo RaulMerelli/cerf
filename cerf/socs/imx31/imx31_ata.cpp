@@ -11,9 +11,11 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../storage/ata_drive.h"
 #include "../../storage/disk_image.h"
+#include "../guest_cpu_reset.h"
 #include "imx31_avic.h"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -75,6 +77,14 @@ public:
         }
         emu_.Get<PeripheralDispatcher>().Register(this);
         emu_.Get<HostWidgetRegistry>().Register(this);
+        /* Drive RESET- rides the system reset line. The Zune pmc_atapi
+           probe reads ERROR expecting the power-on signature 0x01 and
+           never issues SRST — a warm error_=0x00 after a guest reboot
+           reads as "bay empty" and the disk never mounts. */
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this] {
+            drive_.Reset();
+            UpdateAvic();
+        });
     }
 
     uint32_t MmioBase() const override { return kBase; }
@@ -105,6 +115,7 @@ public:
         }
         if (auto idx = TaskFileIndex(off)) {
             const uint8_t v = drive_.ReadTaskFile(*idx);
+            LogTaskFileAccess("R", off, v);
             UpdateAvic();
             return v;
         }
@@ -121,6 +132,7 @@ public:
             case kFifoAlarm:  fifo_alarm_  = value; return;
         }
         if (auto idx = TaskFileIndex(off)) {
+            LogTaskFileAccess("W", off, value);
             drive_.WriteTaskFile(*idx, value);
             UpdateAvic();
             return;
@@ -189,6 +201,24 @@ public:
     }
 
 private:
+#if CERF_DEV_MODE
+    /* Task-file/control accesses only (data FIFO excluded); a status-poll
+       spin would otherwise bury the log — cap at 64 lines per second. */
+    void LogTaskFileAccess(const char* op, uint32_t off, uint8_t value) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - log_window_start_ > std::chrono::seconds(1)) {
+            log_window_start_ = now;
+            log_in_window_    = 0;
+        }
+        if (++log_in_window_ > 64u) return;
+        LOG(Periph, "[Imx31Ata] %s +0x%02X = 0x%02X\n", op, off, value);
+    }
+    std::chrono::steady_clock::time_point log_window_start_{};
+    uint32_t log_in_window_ = 0;
+#else
+    void LogTaskFileAccess(const char*, uint32_t, uint8_t) {}
+#endif
+
     /* Maps an MMIO byte offset onto the AtaDrive task-file index, or nullopt. */
     static std::optional<uint8_t> TaskFileIndex(uint32_t off) {
         if (off == kDriveControl) return uint8_t{8};

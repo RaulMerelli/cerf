@@ -5,9 +5,9 @@
 #include "disk_image.h"
 
 /* A single ATA-6 PIO hard drive, parameterized by a DiskImage*, reusable by any
-   ATA host controller. IDENTIFY advertises PIO + LBA28 only — do NOT add DMA or
-   LBA48 capability bits without first implementing the FIFO/SDMA bulk-data path,
-   or the host issues READ DMA / READ SECTORS EXT and reaches nonexistent code. */
+   ATA host controller. IDENTIFY capability bits are a contract: advertising DMA
+   or LBA48 makes the host issue READ DMA / READ SECTORS EXT, which have no
+   implementation until a FIFO/SDMA bulk-data path exists — PIO + LBA28 only. */
 class AtaDrive {
 public:
     explicit AtaDrive(DiskImage* disk) : disk_(disk) {}
@@ -39,6 +39,10 @@ public:
        active. The controller maps the inverse onto its controller_idle bit. */
     bool DataTransferActive() const { return buf_len_ != 0; }
 
+    /* RESET- pin: SRST and the system reset line both land here; presents
+       the post-reset ATA device signature. */
+    void Reset();
+
 private:
     /* ATA STATUS register bits (Linux include/linux/ata.h v6.6). */
     static constexpr uint8_t kStBusy = 0x80u;  /* ATA_BUSY = (1<<7) */
@@ -62,7 +66,6 @@ private:
        MULTIPLE MODE with this value and then drives READ MULTIPLE (0xC4). */
     static constexpr uint32_t kMaxMultiple = 16u;
 
-    void Reset();  /* present the post-reset ATA device signature */
     void ExecCommand(uint8_t cmd);
     void BuildIdentify();
     bool LoadNextReadBlock();

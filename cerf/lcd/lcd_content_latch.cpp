@@ -24,13 +24,44 @@ bool LcdContentLatch::ProbeAndLatch(const uint8_t* fb, size_t fb_bytes,
     if (latched_.load(std::memory_order_acquire)) return true;
     if (!fb || fb_bytes == 0 || stride == 0)      return false;
 
+    /* One walk computes both signals: any nonzero sample, and an
+       FNV-1a signature of the samples for the post-Rearm baseline
+       comparison. */
+    bool     nonzero = false;
+    uint64_t sig     = 14695981039346656037ull;
     for (size_t i = 0; i < fb_bytes; i += stride) {
-        if (fb[i] != 0) {
-            latched_.store(true, std::memory_order_release);
-            LOG(Lcd, "content latch: first non-zero byte at fb+0x%zX "
-                "(0x%02X)\n", i, (unsigned)fb[i]);
-            return true;
-        }
+        const uint8_t b = fb[i];
+        nonzero |= (b != 0);
+        sig = (sig ^ b) * 1099511628211ull;
     }
-    return false;
+
+    if (rearmed_.load(std::memory_order_acquire)) {
+        if (!have_baseline_.load(std::memory_order_acquire)) {
+            baseline_sig_.store(sig, std::memory_order_release);
+            have_baseline_.store(true, std::memory_order_release);
+            return false;
+        }
+        if (!nonzero) {
+            /* Content vanished (e.g. hard-reset RAM wipe landed after the
+               baseline was taken) — rebase so any future content latches. */
+            baseline_sig_.store(sig, std::memory_order_release);
+            return false;
+        }
+        if (sig == baseline_sig_.load(std::memory_order_acquire)) return false;
+        rearmed_.store(false, std::memory_order_release);
+        have_baseline_.store(false, std::memory_order_release);
+    }
+
+    if (!nonzero) return false;
+    latched_.store(true, std::memory_order_release);
+    LOG(Lcd, "content latch: fresh content latched (sig=0x%016llX)\n",
+        (unsigned long long)sig);
+    return true;
+}
+
+void LcdContentLatch::Rearm() {
+    have_baseline_.store(false, std::memory_order_release);
+    rearmed_.store(true, std::memory_order_release);
+    latched_.store(false, std::memory_order_release);
+    LOG(Lcd, "content latch: rearmed (guest reset)\n");
 }

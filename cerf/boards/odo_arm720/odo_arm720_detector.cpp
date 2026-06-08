@@ -19,7 +19,9 @@ public:
     const char* BoardName() const override {
         return "Microsoft Odo CE3 reference + Philips Poseidon ASIC, ARM720T";
     }
-
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{ 480, 240 };
+    }
 };
 
 }  /* namespace */

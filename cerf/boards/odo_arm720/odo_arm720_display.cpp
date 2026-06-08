@@ -3,7 +3,6 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../host/frame_renderer.h"
 #include "../../host/host_window.h"
-#include "../../lcd/lcd_content_latch.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
@@ -230,7 +229,6 @@ public:
     }
 
 private:
-    LcdContentLatch latch_;
 };
 
 }  /* namespace */

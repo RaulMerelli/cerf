@@ -16,6 +16,7 @@ public:
     using Service::Service;
     ~HostWindow() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     /* SoC LCD service calls on guest panel-enable edge. fb_(w|h) are raw
        LCD-controller dimensions; run through the FrameRenderer's HostSizeFor
@@ -33,14 +34,16 @@ public:
 
     HWND Hwnd() const { return hwnd_; }
 
+    /* HostMenu's "Match guest size" state + action. */
+    bool FollowGuest() const { return follow_guest_; }
+    void MatchGuestSize();
+
 private:
+    void StopUiThread();   /* idempotent: close window + join the UI thread */
     void UiThreadMain();
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
 
-    HMENU BuildMenu();
-    void  SyncMenu();
-    void  HandleCommand(int id);
     void  AutoResizeToGuest();
 
     /* Guest-additions: when adopt-resolution is enabled, size the guest surface
@@ -64,12 +67,14 @@ private:
     std::mutex              ui_ready_mutex_;
     std::condition_variable ui_ready_cv_;
 
-    HWND  hwnd_  = nullptr;
-    HMENU hmenu_ = nullptr;
+    HWND  hwnd_ = nullptr;
 
     uint32_t initial_surface_w_ = 0;
     uint32_t initial_surface_h_ = 0;
 
     bool follow_guest_  = true;   /* false once user resizes/maximizes */
     bool user_resizing_ = false;  /* between WM_ENTER/EXITSIZEMOVE */
+
+    bool      closing_          = false;  /* WM_CLOSE seen; waiting on JIT stop */
+    ULONGLONG close_start_tick_ = 0;      /* GetTickCount64 at WM_CLOSE */
 };

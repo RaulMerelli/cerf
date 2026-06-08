@@ -73,7 +73,7 @@ Use the Agent tool with:
 
 The prompt MUST include, in this order, and only these four items:
 
-1. **Point the subagent at the operating manual first.** The very first line of the prompt is: *"START WITH READING `.claude/VERIFY_INSTRUCTION.md` TO UNDERSTAND WHY YOU WERE SPAWNED AND WHAT IS YOUR OBJECTIVE. That file is your operating manual and is authoritative over anything in this prompt — if this prompt and the file disagree, the file wins."*
+1. **Point the subagent at the operating manual first.** The very first line of the prompt is: *"START WITH READING `.claude/VERIFY_INSTRUCTION.md` TO UNDERSTAND WHY YOU WERE SPAWNED AND WHAT IS YOUR OBJECTIVE. That file is your operating manual and is authoritative over anything in this prompt — if this prompt and the file disagree, the file wins. READING THAT FILE IS MANDATORY. Check pwd if not found. It is at repo root (INSERT PWD/REPO ROOT PATH)"*
 2. **The target material verbatim.** Claim text, file contents, diff, or all of the above — unmodified. No preface softening it, no "I think this is probably fine" framing.
 3. **Any context that cuts AGAINST the main agent's own claim.** If the main agent has noticed doubts, counter-evidence, or weak links in its own reasoning, include them plainly. If the main agent has prior reasoning that led to the claim, include that reasoning chain so the reviewer can spot the rationalization.
 4. **One neutral closing line.** *"Produce your finding in the required output format from the operating manual. Do not accept my framing on faith."*

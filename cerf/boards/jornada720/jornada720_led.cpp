@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
-#include "../../socs/sa1110/sa1110_gpio.h"
+#include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_detector.h"
 
 REGISTER_SERVICE(Jornada720Led);
@@ -21,7 +21,7 @@ bool Jornada720Led::ShouldRegister() {
 
 void Jornada720Led::OnReady() {
     /* Button line idles high; a press pulls it low (falling edge, GFER13). */
-    emu_.Get<Sa1110Gpio>().DriveInputPin(13, /*level=*/true);
+    emu_.Get<Sa11xxGpio>().DriveInputPin(13, /*level=*/true);
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
@@ -44,7 +44,7 @@ Jornada720Led::State Jornada720Led::CurrentState() const {
 }
 
 void Jornada720Led::PressButton() {
-    auto& gpio = emu_.Get<Sa1110Gpio>();
+    auto& gpio = emu_.Get<Sa11xxGpio>();
     gpio.DriveInputPin(13, false);
     gpio.DriveInputPin(13, true);
 }

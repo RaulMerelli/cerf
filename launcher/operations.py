@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import shutil
-import sys
 import tempfile
 import threading
-import traceback
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, Future
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from bundles import (
     BundleError,
@@ -18,24 +15,33 @@ from bundles import (
     DOWNLOAD_TIMEOUT,
     PARALLEL_WORKERS,
     USER_AGENT,
-    DeviceBundle,
-    DeviceMeta,
     RemoteBundle,
     fetch_last_release_version,
     is_safe_bundle_name,
-    load_local_manifest,
     load_remote_manifest,
+    _sha256_file,
+)
+from device_state import (
+    DeviceBundle,
+    DeviceMeta,
+    LocalBundleRecord,
+    LocalPackageRecord,
+    PackageStatus,
+    load_local_manifest,
+    package_artifact_present,
     parse_cerf_json,
     parse_cerf_json_object,
     save_local_manifest,
     write_cerf_json,
     write_cerf_json_if_changed,
-    _sha256_file,
 )
 
 
 ProgressFn = Callable[[str, int, Optional[int]], None]
-DoneFn = Callable[[Optional[BaseException]], None]
+
+
+class CancelledError(BundleError):
+    pass
 
 
 def _stream_download(url: str, destination: Path, label: str,
@@ -64,10 +70,6 @@ def _stream_download(url: str, destination: Path, label: str,
             except OSError:
                 pass
             raise
-
-
-class CancelledError(BundleError):
-    pass
 
 
 def _verify_download(path: Path, label: str,
@@ -107,6 +109,29 @@ def _prepared_bundle_root(extract_dir: Path) -> Path:
     return extract_dir
 
 
+def _remove_artifact(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    elif path.exists():
+        path.unlink()
+
+
+def _download_extract(url: str, label: str, tmp: Path,
+                      expected_size: Optional[int],
+                      expected_sha256: Optional[str],
+                      progress: ProgressFn,
+                      cancel_event: Optional[threading.Event]) -> Path:
+    archive = tmp / "archive.zip"
+    extract = tmp / "extract"
+    extract.mkdir()
+    _stream_download(url, archive, f"Downloading {label}",
+                     expected_size, progress, cancel_event)
+    _verify_download(archive, label, expected_size, expected_sha256)
+    progress(f"Extracting {label}", 0, None)
+    _safe_extract(archive, extract)
+    return _prepared_bundle_root(extract)
+
+
 class BundleManager:
     def __init__(self, devices_dir: Path):
         self.devices_dir: Path = devices_dir
@@ -114,7 +139,7 @@ class BundleManager:
         self._pool = ThreadPoolExecutor(max_workers=PARALLEL_WORKERS)
         self._manifest_lock = threading.Lock()
         self.remote_bundles: List[RemoteBundle] = []
-        self.installed: Dict[str, str] = {}
+        self.installed: Dict[str, LocalBundleRecord] = {}
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
@@ -150,6 +175,20 @@ class BundleManager:
             except OSError:
                 pass
 
+    def _package_statuses(self, rb: RemoteBundle,
+                          device_dir: Optional[Path]) -> List[PackageStatus]:
+        record = self.installed.get(rb.name)
+        statuses: List[PackageStatus] = []
+        for pkg in rb.packages:
+            present = device_dir is not None and package_artifact_present(device_dir, pkg)
+            local = record.find_package(pkg.category, pkg.key) if record else None
+            statuses.append(PackageStatus(
+                remote=pkg,
+                installed=present,
+                installed_sha256=local.sha256 if (local and present) else None,
+            ))
+        return statuses
+
     def list_devices(self) -> List[DeviceBundle]:
         result: Dict[str, DeviceBundle] = {}
 
@@ -162,13 +201,13 @@ class BundleManager:
                 if not is_safe_bundle_name(entry.name):
                     continue
                 meta, screen_supported, w, h = parse_cerf_json(entry / "cerf.json")
+                record = self.installed.get(entry.name)
                 result[entry.name] = DeviceBundle(
                     name=entry.name,
                     remote=None,
                     local_dir_exists=True,
-                    installed_at=self.installed.get(entry.name),
+                    installed_at=record.updated_at if record else None,
                     meta=meta,
-                    has_pdbs=_has_pdbs(entry),
                     screen_supported=screen_supported,
                     default_screen_width=w,
                     default_screen_height=h,
@@ -186,10 +225,14 @@ class BundleManager:
             existing = result.get(rb.name)
             if existing is not None:
                 existing.remote = rb
+                existing.packages = self._package_statuses(
+                    rb, self.devices_dir / rb.name)
                 if not existing.meta.device_name:
                     existing.meta.device_name = remote_meta.device_name
                 if not existing.meta.board_name:
                     existing.meta.board_name = remote_meta.board_name
+                if not existing.meta.board_prev_names:
+                    existing.meta.board_prev_names = remote_meta.board_prev_names
                 if not existing.meta.soc_family:
                     existing.meta.soc_family = remote_meta.soc_family
                 if not existing.meta.os_name:
@@ -213,39 +256,39 @@ class BundleManager:
                     local_dir_exists=False,
                     installed_at=None,
                     meta=remote_meta,
-                    has_pdbs=False,
                     screen_supported=remote_screen_supported,
                     default_screen_width=remote_w,
                     default_screen_height=remote_h,
+                    packages=self._package_statuses(rb, None),
                 )
 
         return sorted(result.values(), key=lambda b: b.name.lower())
 
-    def submit_install(self, name: str, with_pdbs: bool,
-                       progress: ProgressFn,
+    def submit_install(self, name: str, progress: ProgressFn,
                        cancel_event: Optional[threading.Event] = None) -> Future:
-        return self._pool.submit(self._do_install, name, with_pdbs, progress, cancel_event)
+        return self._pool.submit(self._do_install, name, progress, cancel_event)
 
-    def _do_install(self, name: str, with_pdbs: bool,
-                    progress: ProgressFn,
+    def _do_install(self, name: str, progress: ProgressFn,
                     cancel_event: Optional[threading.Event]) -> None:
         bundle = self._find_remote(name)
         target = self._bundle_dir(name)
         with tempfile.TemporaryDirectory(prefix=".sync_", dir=str(self.devices_dir)) as tmp_name:
             tmp = Path(tmp_name)
-            archive = tmp / f"{name}.zip"
-            extract = tmp / "extract"
-            extract.mkdir()
-            label = f"Downloading {name}"
-            _stream_download(bundle.archive_url, archive, label,
-                             bundle.archive_size, progress, cancel_event)
-            _verify_download(archive, name, bundle.archive_size, bundle.archive_sha256)
-            progress(f"Extracting {name}", 0, None)
-            _safe_extract(archive, extract)
-            prepared = _prepared_bundle_root(extract)
+            prepared = _download_extract(
+                bundle.archive_url, name, tmp,
+                bundle.archive_size, bundle.archive_sha256,
+                progress, cancel_event)
+            # Installed additional packages (a CF image may be the user's
+            # mutated persistent disk) survive a ROM update: stash their
+            # artifacts aside, wipe, restore after the new ROM is in place.
+            preserved = self._stash_installed_packages(name, target, tmp / "preserved")
             if target.exists():
                 shutil.rmtree(target)
             shutil.move(str(prepared), str(target))
+            for record, stash_path in preserved:
+                dest = target / record.key
+                _remove_artifact(dest)
+                shutil.move(str(stash_path), str(dest))
 
         # Manifest v2: cerf.json is not packed in the ROM zip; the launcher
         # writes it from the manifest's cerf_json after unpacking.
@@ -253,40 +296,88 @@ class BundleManager:
             write_cerf_json(target / "cerf.json", bundle.cerf_json)
 
         with self._manifest_lock:
-            self.installed[name] = bundle.updated_at
+            self.installed[name] = LocalBundleRecord(
+                updated_at=bundle.updated_at,
+                packages=[record for record, _ in preserved],
+            )
             save_local_manifest(self.local_manifest_path, self.installed)
 
-        if with_pdbs and bundle.pdbs_url:
-            self._do_install_pdbs(name, progress, cancel_event)
+    def _stash_installed_packages(
+            self, name: str, target: Path,
+            stash_dir: Path) -> List[Tuple[LocalPackageRecord, Path]]:
+        record = self.installed.get(name)
+        if record is None or not record.packages or not target.is_dir():
+            return []
+        preserved: List[Tuple[LocalPackageRecord, Path]] = []
+        for pkg_record in record.packages:
+            src = target / pkg_record.key
+            if not src.exists():
+                continue
+            stash_dir.mkdir(parents=True, exist_ok=True)
+            stash_path = stash_dir / f"{pkg_record.category}__{pkg_record.key}"
+            shutil.move(str(src), str(stash_path))
+            preserved.append((pkg_record, stash_path))
+        return preserved
 
-    def submit_install_pdbs(self, name: str, progress: ProgressFn,
-                            cancel_event: Optional[threading.Event] = None) -> Future:
-        return self._pool.submit(self._do_install_pdbs, name, progress, cancel_event)
+    def submit_install_package(self, name: str, category: str, key: str,
+                               progress: ProgressFn,
+                               cancel_event: Optional[threading.Event] = None) -> Future:
+        return self._pool.submit(self._do_install_package, name, category, key,
+                                 progress, cancel_event)
 
-    def _do_install_pdbs(self, name: str, progress: ProgressFn,
-                         cancel_event: Optional[threading.Event]) -> None:
+    def _do_install_package(self, name: str, category: str, key: str,
+                            progress: ProgressFn,
+                            cancel_event: Optional[threading.Event]) -> None:
         bundle = self._find_remote(name)
-        if not bundle.pdbs_url:
-            raise BundleError(f"{name}: remote has no PDBs")
+        pkg = bundle.find_package(category, key)
+        if pkg is None:
+            raise BundleError(f"{name}: unknown package {category}/{key}")
         target = self._bundle_dir(name)
         if not target.is_dir():
             raise BundleError(f"{name}: device not installed; install bundle first")
-        pdbs = target / "pdbs"
-        with tempfile.TemporaryDirectory(prefix=".pdbs_", dir=str(self.devices_dir)) as tmp_name:
+        label = f"{name} {pkg.name}"
+        with tempfile.TemporaryDirectory(prefix=".pkg_", dir=str(self.devices_dir)) as tmp_name:
             tmp = Path(tmp_name)
-            archive = tmp / f"{name}.pdbs.zip"
-            extract = tmp / "extract"
-            extract.mkdir()
-            label = f"Downloading {name} PDBs"
-            _stream_download(bundle.pdbs_url, archive, label,
-                             bundle.pdbs_size, progress, cancel_event)
-            _verify_download(archive, f"{name} PDBs", bundle.pdbs_size, bundle.pdbs_sha256)
-            progress(f"Extracting {name} PDBs", 0, None)
-            _safe_extract(archive, extract)
-            prepared = _prepared_bundle_root(extract)
-            if pdbs.exists():
-                shutil.rmtree(pdbs)
-            shutil.move(str(prepared), str(pdbs))
+            prepared = _download_extract(
+                pkg.archive_url, label, tmp,
+                pkg.archive_size, pkg.archive_sha256,
+                progress, cancel_event)
+            dest = target / pkg.key
+            if pkg.is_directory:
+                # Directory packages (e.g. PDBs) ship a flat archive whose
+                # root contents become devices/<name>/<directory>/.
+                _remove_artifact(dest)
+                shutil.move(str(prepared), str(dest))
+            else:
+                src = prepared / pkg.key
+                if not src.is_file():
+                    raise BundleError(
+                        f"{label}: archive does not contain {pkg.key}")
+                _remove_artifact(dest)
+                shutil.move(str(src), str(dest))
+
+        with self._manifest_lock:
+            record = self.installed.setdefault(name, LocalBundleRecord())
+            record.drop_package(category, key)
+            record.packages.append(LocalPackageRecord(
+                category=category, key=pkg.key,
+                is_directory=pkg.is_directory,
+                sha256=pkg.archive_sha256 or ""))
+            save_local_manifest(self.local_manifest_path, self.installed)
+
+    def submit_delete_package(self, name: str, category: str, key: str) -> Future:
+        return self._pool.submit(self._do_delete_package, name, category, key)
+
+    def _do_delete_package(self, name: str, category: str, key: str) -> None:
+        if not is_safe_bundle_name(key):
+            raise BundleError(f"unsafe package artifact name: {key!r}")
+        target = self._bundle_dir(name)
+        _remove_artifact(target / key)
+        with self._manifest_lock:
+            record = self.installed.get(name)
+            if record is not None:
+                record.drop_package(category, key)
+                save_local_manifest(self.local_manifest_path, self.installed)
 
     def submit_delete(self, name: str) -> Future:
         return self._pool.submit(self._do_delete, name)
@@ -315,12 +406,3 @@ class BundleManager:
             if b.name == name:
                 return b
         raise BundleError(f"unknown remote bundle: {name}")
-
-
-def _has_pdbs(device_dir: Path) -> bool:
-    pdbs = device_dir / "pdbs"
-    if not pdbs.is_dir():
-        return False
-    for _ in pdbs.iterdir():
-        return True
-    return False

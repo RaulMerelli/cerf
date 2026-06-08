@@ -1,8 +1,12 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v3.21 pre-alpha
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v4.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=LmfaXUNGFlU">
+    <img src="docs/cerf_youtube.png" alt="YouTube Preview" width="640" height="360" />
+  </a>
+</p>
 
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
@@ -10,12 +14,6 @@ A universal Windows CE emulator: a virtual ARM hardware platform that boots real
 > [!TIP]
 > Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
 
-<p align="center">
-  <img src="https://cerf.dz3n.net/promo1_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 1)" />
-</p>
-<p align="center">
-  <img src="https://cerf.dz3n.net/promo2_02062026_1900.gif" alt="CERF — Windows CE virtual platform (part 2)" />
-</p>
 
 ## Usage
 
@@ -52,6 +50,7 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
 - Host-accelerated blitting - the driver routes blits to host which performs the full set of graphical operations in native code
 - Dynamic screen resolution (CE 4+)
 - Shared storage with host
+- Task manager in a host window
 - Mouse pointer driver:
   - required to avoid stock touch limitations on custom resolutions
   - guest OS cursor shape translated directly into host graphics
@@ -66,83 +65,71 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
   <thead>
     <tr>
       <th>SoC</th>
-      <th>Board / Device ID / OS</th>
+      <th>Board / OS</th>
       <th>Features</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1110</b><br/><sub>StrongARM</sub></td>
-      <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Compaq iPAQ H3600 Series</b><br/>
-        <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000 <code>ipaq_h3600_ppc2000</code><br/>
-        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Pocket PC 2002 <code>ipaq_h3600_ppc2002</code><br/>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Compaq iPAQ H3100 Series</b> (monochrome)<br/>
-        <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000 <code>(rom needed!)</code><br/>
-        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Pocket PC 2002 <code>ipaq_h3100_ppc2002</code><br/>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 720</b><br/>
-        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE (Classic)" alt="Windows CE (Classic)"/> Handheld PC 2000 <code>jornada720</code>
-      </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
-    </tr>
-    <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel XScale PXA255</b><br/><sub>ARMv5TE</sub></td>
       <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Datalogic Falcon 4220</b> (Askey PC3xx)<br/>
-        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/> Windows CE .NET 4.2 <code>falcon_4220__4_10</code>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Falcon 4220</b><br/>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE .NET 4.2" alt="Windows CE .NET 4.2"/> Windows CE .NET 4.2
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1110</b><br/><sub>StrongARM</sub></td>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 720</b><br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 2000" alt="Handheld PC 2000"/> Handheld PC 2000
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+    </tr>
+    <tr>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>iPAQ H3100/H3600/H3700</b><br/>
+        <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000<br/>
+        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="Pocket PC 2002" alt="Pocket PC 2002"/> Pocket PC 2002
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Microsoft ODO (???)</b><br/><sub>ARM720T (1996 NDA board)</sub></td>
       <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>ODO/Poseidon</b> (???)<br/>
-        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE (Classic)" alt="Windows CE (Classic)"/> Windows CE 2.11 <code>odo_poseidon_ce2</code><br/>
-        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE (Classic)" alt="Windows CE (Classic)"/> Windows CE 3 <code>odo_poseidon_ce3</code>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>ODO/Poseidon</b><br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 2.11" alt="Windows CE 2.11"/> Windows CE 2.11<br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 3" alt="Windows CE 3"/> Windows CE 3
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> TI OMAP 3530</b><br/><sub>Cortex-A8</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>OMAP 3530 EVM</b><br/>
-        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/> Windows CE 7 <code>omap_3530_evm_ce7</code>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 7" alt="Windows CE 7"/> Windows CE 7
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Freescale i.MX31L</b><br/><sub>ARM1136</sub></td>
       <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Zune 30</b> (Pyxis Keel)<br/>
-        <img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Zune OS" alt="Zune OS"/> Windows CE 5 <code>zune_keel</code>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Zune 30</b><br/>
+        <img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
     </tr>
     <tr>
-      <td rowspan="3" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
+      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Device Emulator</b><br/>
-        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/> Windows CE 6 <code>devemu_ce6</code><br/>
-        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> Windows Mobile 5 <code>devemu_wm5</code><br/>
-        <img src="launcher/assets/icons/os_wm6.png" width="16" height="16" title="Windows Mobile 6+" alt="Windows Mobile 6+"/> Windows Mobile 6 <code>devemu_wm6</code><br/>
-        <p>...any many other WM5+/smartphone</p>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 6" alt="Windows CE 6"/> Windows CE 6<br/>
+        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="Windows Mobile 5" alt="Windows Mobile 5"/> Windows Mobile 5<br/>
+        <img src="launcher/assets/icons/os_wm6.png" width="16" height="16" title="Windows Mobile 6" alt="Windows Mobile 6"/> Windows Mobile 6<br/>
+        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="WM 2003 SE" alt="WM 2003 SE"/> WM 2003 SE<br/>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network Emulation" alt="Network Emulation"/></td>
-    </tr>
-    <tr>
-      <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Device Emulator (CE 4.2/5 branches)</b><br/>
-        <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="PPC2002+ Icon" alt="PPC2002+ Icon"/> WM 2003 SE <code>devemu_wm2003se</code><br/>
-        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/> Windows CE 5 <code>devemu_ce5</code><br/>
-      </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Graphics" alt="Graphics"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
-    </tr>
-    <tr>
-      <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>PB SMDK 2410 Sample</b><br/>
-        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE" alt="Windows CE"/> Windows CE 5 <code>smdk2410_sample_ce5</code>
-      </td>
-      <td>&mdash;</td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
     </tr>
   </tbody>
 </table>
@@ -213,7 +200,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ## Known Issues
 
-See [launcher's boards details database](launcher/boards.py) for per-board issues.
+See [launcher's boards details database](launcher/supported_devices.py) for per-board issues.
 
 ## Changelog
 
@@ -225,6 +212,24 @@ See [launcher's boards details database](launcher/boards.py) for per-board issue
     </tr>
   </thead>
   <tbody>
+    <tr>
+          <td>v4.0</td>
+          <td>
+            <ul>
+              <li>NE2000 is now hot pluggable in all boards that support PCMCIA</li>
+              <li>Compact Flash too with configurator/generator</li>
+              <li>iPaq 1st gen now has extensions sleeve emulated (for PCMCIA support)</li>
+              <li>iPaq H3100: monochrome screen inversion fixed</li>
+              <li>Soft/hard reset your device in Actions menu (might be broken for some SoCs) + corresponding SoC/peripheral updates</li>
+              <li>Guest additions: task manager on host - see process list, switch to processes, kill and run right from HOST window</li>
+              <li>NE2000 internet delivery hangs are fixed</li>
+              <li>Jornada720/SA1110/JIT updates to make it boot Linux-based OS</li>
+              <li>Launcher: optional packages feature</li>
+              <li>Guest additions: Complete overhaul of XIP injection (Now you can boot Jornada 720 in 4K. Also suddenly Zune 30 is in the game too)</li>
+              <li>Various UI/general fixes, improvements</li>
+            </ul>
+          </td>
+        </tr>
     <tr>
           <td>v3.21</td>
           <td>
@@ -242,19 +247,6 @@ See [launcher's boards details database](launcher/boards.py) for per-board issue
             <ul>
               <li>Falcon 4220 board MVP support</li>
               <li>Launcher updates</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v3.11 (For Workgroups)</td>
-          <td>
-            <ul>
-              <li>Guest Additions: various video driver improvements/fixes</li>
-              <li>Guest Additions: accelerated mouse pointer (configurable at runtime; scroll wheel on newer OS)</li>
-              <li>Guest Additions: shared folders with host</li>
-              <li>Guest Additions: auto screen resolution change on host window resize</li>
-              <li>Falcon 4220 board partial implementation (OS boots to UI but hangs)</li>
-              <li>Various bug fixes and improvements</li>
             </ul>
           </td>
         </tr>

@@ -1,4 +1,4 @@
-#include "../../socs/sa1110/sa1110_ssp_device.h"
+#include "../../socs/sa11xx/sa11xx_ssp_device.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -26,9 +26,9 @@ uint8_t BitRev8(uint8_t v) {
    sub_8004F244). Wire format: TX byte arrives bit-reversed in frame bits
    15:8, the response must go back bit-reversed in bits 7:0 — decoding the
    low byte or skipping BitRev8 re-hangs the OAL's SSSR.RNE poll. */
-class Jornada720Mcu : public Sa1110SspDevice {
+class Jornada720Mcu : public Sa11xxSspDevice {
 public:
-    using Sa1110SspDevice::Sa1110SspDevice;
+    using Sa11xxSspDevice::Sa11xxSspDevice;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
@@ -206,4 +206,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Jornada720Mcu, Sa1110SspDevice);
+REGISTER_SERVICE_AS(Jornada720Mcu, Sa11xxSspDevice);

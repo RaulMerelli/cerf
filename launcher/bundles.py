@@ -2,19 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
-import shutil
-import tempfile
-import threading
 import time
 import urllib.parse
 import urllib.request
-import zipfile
-from concurrent.futures import ThreadPoolExecutor, Future
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import List, Optional
 
 
 BASE_URL = "https://cerf.dz3n.net/cerf-bundles"
@@ -31,6 +25,17 @@ DEFAULT_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 120
 DOWNLOAD_CHUNK = 1024 * 1024
 PARALLEL_WORKERS = 4
+
+# Human-readable labels for additional-package categories. Categories without
+# a mapping are displayed under their raw manifest key.
+PACKAGE_CATEGORY_LABELS = {
+    "pdbs": "PDBs",
+    "compact_flash_cards": "Compact Flash Cards",
+}
+
+
+def package_category_label(category: str) -> str:
+    return PACKAGE_CATEGORY_LABELS.get(category, category)
 
 
 class BundleError(RuntimeError):
@@ -59,76 +64,51 @@ class ManifestVersionError(BundleError):
 
 
 @dataclass(frozen=True)
+class RemotePackage:
+    """One downloadable additional package of a bundle (PDBs, CF card
+    images, ...). `key` is the artifact name the package produces in the
+    device root: a single file when `is_directory` is False, a directory
+    whose contents come from the archive root when True."""
+
+    category: str
+    key: str
+    is_directory: bool
+    name: str
+    archive_path: str
+    archive_sha256: Optional[str] = None
+    archive_size: Optional[int] = None
+    unpacked_size: Optional[int] = None
+
+    @property
+    def archive_url(self) -> str:
+        base = urllib.parse.urljoin(BASE_URL + "/", self.archive_path)
+        # Packages carry no updated_at; the content hash is the cache-buster.
+        if self.archive_sha256:
+            return _append_query(base, "v", self.archive_sha256)
+        return base
+
+
+@dataclass(frozen=True)
 class RemoteBundle:
     name: str
     updated_at: str
     archive_path: str
     archive_sha256: Optional[str] = None
     archive_size: Optional[int] = None
-    pdbs_path: Optional[str] = None
-    pdbs_sha256: Optional[str] = None
-    pdbs_size: Optional[int] = None
+    unpacked_size: Optional[int] = None
     cerf_json: Optional[dict] = None
+    packages: tuple = ()
 
     @property
     def archive_url(self) -> str:
         base = urllib.parse.urljoin(BASE_URL + "/", self.archive_path)
         return _append_query(base, "v", self.updated_at)
 
-    @property
-    def pdbs_url(self) -> Optional[str]:
-        if not self.pdbs_path:
-            return None
-        base = urllib.parse.urljoin(BASE_URL + "/", self.pdbs_path)
-        return _append_query(base, "v", self.updated_at)
-
-
-@dataclass
-class DeviceMeta:
-    device_name: str = ""
-    board_name: str = ""
-    soc_family: str = ""
-    os_name: str = ""
-    os_ver_major: int = 0
-    os_ver_minor: int = 0
-    device_year: int = 0
-    description: str = ""
-    notes: List[str] = field(default_factory=list)
-
-    @property
-    def os_version(self) -> str:
-        if self.os_name and (self.os_ver_major or self.os_ver_minor):
-            return f"{self.os_name} {self.os_ver_major}.{self.os_ver_minor}"
-        if self.os_name:
-            return self.os_name
-        return ""
-
-
-@dataclass
-class DeviceBundle:
-    name: str
-    remote: Optional[RemoteBundle]
-    local_dir_exists: bool
-    installed_at: Optional[str]
-    meta: DeviceMeta = field(default_factory=DeviceMeta)
-    has_pdbs: bool = False
-    screen_supported: Optional[bool] = None
-    default_screen_width: Optional[int] = None
-    default_screen_height: Optional[int] = None
-
-    @property
-    def is_installed(self) -> bool:
-        return self.local_dir_exists
-
-    @property
-    def is_user_device(self) -> bool:
-        return self.local_dir_exists and self.remote is None
-
-    @property
-    def has_update(self) -> bool:
-        if not self.local_dir_exists or self.remote is None or self.installed_at is None:
-            return False
-        return self.installed_at != self.remote.updated_at
+    def find_package(self, category: str, key: str) -> Optional[RemotePackage]:
+        for pkg in self.packages:
+            if pkg.category == category and pkg.key == key:
+                return pkg
+        return None
 
 
 def _append_query(url: str, key: str, value: str) -> str:
@@ -154,89 +134,6 @@ def is_safe_bundle_name(name: str) -> bool:
     return bool(SAFE_BUNDLE_NAME.fullmatch(name)) and name not in {".", ".."}
 
 
-def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[int], Optional[int]]:
-    meta = DeviceMeta()
-    screen_supported: Optional[bool] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    if not isinstance(obj, dict):
-        return meta, None, None, None
-
-    m = obj.get("meta")
-    if isinstance(m, dict):
-        meta.device_name = _str_or_empty(m.get("device_name"))
-        meta.board_name = _str_or_empty(m.get("board_name"))
-        meta.soc_family = _str_or_empty(m.get("soc_family"))
-        meta.device_year = _int_or_zero(m.get("device_year"))
-        meta.description = _str_or_empty(m.get("description"))
-        meta.notes = _str_list(m.get("notes"))
-        os_block = m.get("os")
-        if isinstance(os_block, dict):
-            meta.os_name = _str_or_empty(os_block.get("name"))
-            meta.os_ver_major = _int_or_zero(os_block.get("ver_major"))
-            meta.os_ver_minor = _int_or_zero(os_block.get("ver_minor"))
-
-    board = obj.get("board")
-    if isinstance(board, dict):
-        s = board.get("configurable_screen_resolution_supported")
-        if isinstance(s, bool):
-            screen_supported = s
-        w = board.get("configurable_screen_width")
-        h = board.get("configurable_screen_height")
-        if isinstance(w, int) and w > 0:
-            width = w
-        if isinstance(h, int) and h > 0:
-            height = h
-
-    return meta, screen_supported, width, height
-
-
-def parse_cerf_json(path: Path) -> tuple[DeviceMeta, Optional[bool], Optional[int], Optional[int]]:
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            obj = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return DeviceMeta(), None, None, None
-    return parse_cerf_json_object(obj)
-
-
-def _str_or_empty(v) -> str:
-    return v if isinstance(v, str) else ""
-
-
-def _int_or_zero(v) -> int:
-    return v if isinstance(v, int) else 0
-
-
-def _str_list(v) -> List[str]:
-    if not isinstance(v, list):
-        return []
-    return [s for s in v if isinstance(s, str) and s.strip()]
-
-
-def write_cerf_json(path: Path, obj: dict) -> None:
-    tmp = path.with_suffix(".json.tmp")
-    with tmp.open("w", encoding="utf-8", newline="\n") as f:
-        json.dump(obj, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    os.replace(tmp, path)
-
-
-def write_cerf_json_if_changed(path: Path, obj: dict) -> bool:
-    """Rewrite cerf.json only when its parsed content differs from obj.
-    Comparison is semantic (parsed JSON), so reformatting / key reordering
-    on disk never triggers a spurious rewrite. Returns True if written."""
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            existing = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        existing = None
-    if existing == obj:
-        return False
-    write_cerf_json(path, obj)
-    return True
-
-
 def parse_version_tuple(text) -> Optional[tuple]:
     """Parse a dotted version ('3.20', '3.20.1') into a tuple of ints, taking
     the leading numeric components and stopping at the first non-numeric one.
@@ -256,6 +153,59 @@ def fetch_last_release_version(timeout: int = DEFAULT_TIMEOUT) -> str:
     url = _append_query(LAST_RELEASE_URL, "cb", str(int(time.time())))
     raw = _fetch_bytes(url, timeout)
     return raw.decode("utf-8").strip()
+
+
+def _parse_packages(bundle_name: str, raw) -> tuple:
+    if raw is None:
+        return ()
+    if not isinstance(raw, dict):
+        raise BundleError(f"bundle {bundle_name}: malformed additional_packages")
+    parsed: List[RemotePackage] = []
+    for category, entries in raw.items():
+        if not isinstance(category, str) or not category.strip():
+            raise BundleError(f"bundle {bundle_name}: malformed package category")
+        if not isinstance(entries, list):
+            raise BundleError(
+                f"bundle {bundle_name}: package category {category} is not a list")
+        for item in entries:
+            if not isinstance(item, dict):
+                raise BundleError(
+                    f"bundle {bundle_name}: malformed package entry in {category}")
+            file_key = item.get("file")
+            dir_key = item.get("directory")
+            if isinstance(file_key, str) and not isinstance(dir_key, str):
+                key, is_directory = file_key, False
+            elif isinstance(dir_key, str) and not isinstance(file_key, str):
+                key, is_directory = dir_key, True
+            else:
+                raise BundleError(
+                    f"bundle {bundle_name}: package in {category} needs exactly "
+                    f"one of file/directory")
+            # The key lands on the local filesystem inside the device dir;
+            # reject anything that could escape it.
+            if not is_safe_bundle_name(key):
+                raise BundleError(
+                    f"bundle {bundle_name}: unsafe package artifact name: {key!r}")
+            archive_path = item.get("archive_path")
+            if not isinstance(archive_path, str) or not archive_path:
+                raise BundleError(
+                    f"bundle {bundle_name}: package {category}/{key} has no "
+                    f"archive_path")
+            display = item.get("name")
+            parsed.append(RemotePackage(
+                category=category,
+                key=key,
+                is_directory=is_directory,
+                name=display if isinstance(display, str) and display else key,
+                archive_path=archive_path,
+                archive_sha256=item.get("archive_sha256")
+                if isinstance(item.get("archive_sha256"), str) else None,
+                archive_size=item.get("archive_size")
+                if isinstance(item.get("archive_size"), int) else None,
+                unpacked_size=item.get("unpacked_size")
+                if isinstance(item.get("unpacked_size"), int) else None,
+            ))
+    return tuple(parsed)
 
 
 def load_remote_manifest() -> List[RemoteBundle]:
@@ -295,50 +245,8 @@ def load_remote_manifest() -> List[RemoteBundle]:
             archive_path=archive_path,
             archive_sha256=item.get("archive_sha256") if isinstance(item.get("archive_sha256"), str) else None,
             archive_size=item.get("archive_size") if isinstance(item.get("archive_size"), int) else None,
-            pdbs_path=item.get("pdbs_path") if isinstance(item.get("pdbs_path"), str) and item.get("pdbs_path") else None,
-            pdbs_sha256=item.get("pdbs_sha256") if isinstance(item.get("pdbs_sha256"), str) else None,
-            pdbs_size=item.get("pdbs_size") if isinstance(item.get("pdbs_size"), int) else None,
+            unpacked_size=item.get("unpacked_size") if isinstance(item.get("unpacked_size"), int) else None,
             cerf_json=item.get("cerf_json") if isinstance(item.get("cerf_json"), dict) else None,
+            packages=_parse_packages(name, item.get("additional_packages")),
         ))
     return sorted(parsed, key=lambda b: b.name.lower())
-
-
-def load_local_manifest(local_manifest_path: Path) -> Dict[str, str]:
-    if not local_manifest_path.exists():
-        return {}
-    try:
-        with local_manifest_path.open("r", encoding="utf-8") as f:
-            manifest = json.load(f)
-    except Exception as exc:
-        raise BundleError(f"failed to read local manifest: {exc}") from exc
-
-    installed: Dict[str, str] = {}
-    bundles = manifest.get("bundles") if isinstance(manifest, dict) else None
-    if isinstance(bundles, list):
-        for item in bundles:
-            if isinstance(item, dict):
-                n = item.get("name")
-                u = item.get("updated_at")
-                if isinstance(n, str) and isinstance(u, str):
-                    installed[n] = u
-    elif isinstance(bundles, dict):
-        for n, v in bundles.items():
-            if isinstance(v, dict) and isinstance(v.get("updated_at"), str):
-                installed[str(n)] = v["updated_at"]
-            elif isinstance(v, str):
-                installed[str(n)] = v
-    return installed
-
-
-def save_local_manifest(local_manifest_path: Path, installed: Dict[str, str]) -> None:
-    payload = {
-        "bundles": [
-            {"name": name, "updated_at": installed[name]}
-            for name in sorted(installed, key=str.lower)
-        ]
-    }
-    tmp = local_manifest_path.with_suffix(".json.tmp")
-    with tmp.open("w", encoding="utf-8", newline="\n") as f:
-        json.dump(payload, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, local_manifest_path)

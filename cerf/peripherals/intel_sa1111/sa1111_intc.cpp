@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
-#include "../../socs/sa1110/sa1110_gpio.h"
+#include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../peripheral_dispatcher.h"
 
 bool Sa1111Intc::ShouldRegister() {
@@ -42,8 +42,10 @@ void Sa1111Intc::WriteWord(uint32_t addr, uint32_t value) {
         case 0x04: inttest1_  = value; return;
         case 0x08: enable0_   = value; DriveCascadeOutput(false); return;
         case 0x0C: enable1_   = value; DriveCascadeOutput(false); return;
-        case 0x10: polarity0_ = value; return;
-        case 0x14: polarity1_ = value; return;
+        case 0x10: polarity0_ = value; LatchEdges(false);
+                   DriveCascadeOutput(false); return;
+        case 0x14: polarity1_ = value; LatchEdges(true);
+                   DriveCascadeOutput(false); return;
         case 0x18: tstsel_    = value; return;
         case 0x1C: status0_  &= ~value;           /* INTSTATCLR0 W1C. */
                    DriveCascadeOutput(true); return;
@@ -66,20 +68,38 @@ void Sa1111Intc::WriteWord(uint32_t addr, uint32_t value) {
    remain pending — without that pulse_low_first re-edge on INTSTATCLR the
    guest ISR services one source and every later one hangs undelivered. */
 void Sa1111Intc::DriveCascadeOutput(bool pulse_low_first) {
-    auto& gpio = emu_.Get<Sa1110Gpio>();
+    auto& gpio = emu_.Get<Sa11xxGpio>();
     if (pulse_low_first) gpio.DriveInputPin(1, false);
     gpio.DriveInputPin(1, OutputAsserted());
 }
 
+/* Per-source edge latch (Dev Manual Fig 11-1): IntLatched sets on the rising
+   edge of (IntRaw ^ IntPol). MUST run on INTPOL writes too, not just raw
+   changes — sa1111_retrigger_*irq toggles INTPOL while the raw line is held
+   to manufacture the re-edge; skip it and that retrigger silently fails. */
+void Sa1111Intc::LatchEdges(bool bank1) {
+    if (bank1) {
+        const uint32_t detect = raw1_ ^ polarity1_;
+        status1_ |= detect & ~detect1_;
+        detect1_  = detect;
+    } else {
+        const uint32_t detect = raw0_ ^ polarity0_;
+        status0_ |= detect & ~detect0_;
+        detect0_  = detect;
+    }
+}
+
 void Sa1111Intc::RaiseInterrupt(uint8_t source) {
-    if (source < 32) status0_ |= 1u << source;
-    else             status1_ |= 1u << (source - 32);
+    if (source < 32) { raw0_ |= 1u << source;        LatchEdges(false);
+                       status0_ |= 1u << source; }
+    else             { raw1_ |= 1u << (source - 32); LatchEdges(true);
+                       status1_ |= 1u << (source - 32); }
     DriveCascadeOutput(false);
 }
 
 void Sa1111Intc::LowerInterrupt(uint8_t source) {
-    if (source < 32) status0_ &= ~(1u << source);
-    else             status1_ &= ~(1u << (source - 32));
+    if (source < 32) { raw0_ &= ~(1u << source);        LatchEdges(false); }
+    else             { raw1_ &= ~(1u << (source - 32)); LatchEdges(true);  }
     DriveCascadeOutput(false);
 }
 

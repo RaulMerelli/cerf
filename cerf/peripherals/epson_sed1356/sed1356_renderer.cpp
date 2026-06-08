@@ -7,7 +7,6 @@
 #include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../host/frame_renderer.h"
-#include "../../lcd/lcd_content_latch.h"
 
 #include <cstring>
 
@@ -188,7 +187,6 @@ private:
         }
     }
 
-    LcdContentLatch latch_;
 };
 
 }  /* namespace */

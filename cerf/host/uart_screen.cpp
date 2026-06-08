@@ -23,7 +23,7 @@ constexpr uint32_t kLogoMaxPx          = 256;
 
 /* Boot-log layout. */
 constexpr int      kEdgeMarginPx    = 1;
-constexpr COLORREF kLogTextColor    = RGB(255, 255, 255);
+constexpr COLORREF kLogTextColor    = RGB(205, 205, 205);
 constexpr COLORREF kBgTransparent   = 0;  /* unused — TRANSPARENT bk mode */
 
 constexpr int      kFontHeightSmall          = 14;
@@ -51,6 +51,11 @@ void UartScreen::AddLine(std::string_view line) {
 bool UartScreen::HasOutput() const {
     std::lock_guard<std::mutex> lk(mtx_);
     return has_output_;
+}
+
+void UartScreen::Clear() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    lines_.clear();
 }
 
 void UartScreen::RenderInto(HDC dc,

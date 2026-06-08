@@ -85,12 +85,14 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
         if (n < 1)
             Fatal(path, "board.configurable_screen_width must be >= 1");
         config.board_configurable_screen_width = (uint32_t)n;
+        config.board_configurable_screen_explicit = true;
     }
     if (b.contains("configurable_screen_height")) {
         int n = ReadOptInt(b, "configurable_screen_height", path, "board");
         if (n < 1)
             Fatal(path, "board.configurable_screen_height must be >= 1");
         config.board_configurable_screen_height = (uint32_t)n;
+        config.board_configurable_screen_explicit = true;
     }
 }
 
@@ -187,6 +189,38 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
     }
 }
 
+/* "additional_packages": { "compact_flash_cards": [{ "file", "name" }] } —
+   every level is optional. */
+void LoadAdditionalPackages(const json& root, DeviceConfig& config,
+                            const std::string& path) {
+    if (!root.contains("additional_packages")) return;
+    const auto& p = root["additional_packages"];
+    if (p.is_null()) return;
+    if (!p.is_object())
+        Fatal(path, "'additional_packages' must be an object");
+
+    const char* k = "compact_flash_cards";
+    if (!p.contains(k)) return;
+    const auto& a = p[k];
+    if (a.is_null()) return;
+    const std::string ctx = std::string("additional_packages.") + k;
+    if (!a.is_array())
+        Fatal(path, "'" + ctx + "' must be an array of "
+                    "{ \"file\": ..., \"name\": ... } objects");
+    config.bundled_compact_flash_cards.clear();
+    for (const auto& e : a) {
+        if (!e.is_object())
+            Fatal(path, ctx + "[] entries must be objects");
+        BundledCompactFlashCard card;
+        card.file = ReadOptString(e, "file", path, ctx);
+        card.name = ReadOptString(e, "name", path, ctx);
+        if (card.file.empty())
+            Fatal(path, ctx + "[].file is required");
+        if (card.name.empty()) card.name = card.file;
+        config.bundled_compact_flash_cards.push_back(std::move(card));
+    }
+}
+
 /* Global cerf.json guest-additions substitution map:
    "global_substitutions_inside_rom": { "romModule": "ceAppsDll", ... }. */
 void LoadGlobalSubstitutions(const json& root, DeviceConfig& config,
@@ -249,6 +283,7 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
         LoadNetwork (dev, config,      dev_path);
         LoadRom     (dev, config,      dev_path);
         LoadFeatures(dev, config,      dev_path);
+        LoadAdditionalPackages(dev, config, dev_path);
     }
 
     /* Device-config CLI overrides, applied after cerf.json so the command
@@ -265,12 +300,14 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
             int n = atoi(a + sizeof(kArgScreenWidth) - 1);
             if (n < 1) Fatal("(command line)", "--screen-width must be >= 1");
             config.board_configurable_screen_width = (uint32_t)n;
+            config.board_configurable_screen_explicit = true;
             /* An explicit size is authoritative over the host-screen fit. */
             config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenHeight) - 1);
             if (n < 1) Fatal("(command line)", "--screen-height must be >= 1");
             config.board_configurable_screen_height = (uint32_t)n;
+            config.board_configurable_screen_explicit = true;
             config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
             config.share_folder = a + sizeof(kArgShareFolder) - 1;

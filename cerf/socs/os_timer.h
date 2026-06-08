@@ -2,6 +2,8 @@
 
 #include "../peripherals/peripheral_base.h"
 
+#include "guest_cpu_reset.h"
+
 #include "../core/cerf_emulator.h"
 #include "../core/rate_probe.h"
 #include "../cpu/arm_processor_config.h"
@@ -24,11 +26,11 @@ class OsTimer : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
-    ~OsTimer() override {
-        stop_.store(true, std::memory_order_release);
-        NotifyMatchLoop();
-        if (match_thread_.joinable()) match_thread_.join();
-    }
+    ~OsTimer() override { StopMatchThread(); }
+
+    /* Stop the match thread before any peer is destroyed: it pushes IRQ levels
+       into the SoC INTC, so it must not outlive it. */
+    void OnShutdown() override { StopMatchThread(); }
 
     void OnReady() override {
         divider_ = emu_.Get<ArmJit>().ProcessorConfig()->CpuToOscrDivider();
@@ -320,7 +322,7 @@ private:
             if (!trigger_reset) PushMatchLevelLocked();
         }
         if (trigger_reset) {
-            emu_.Get<ArmJit>().SetResetPending();
+            emu_.Get<GuestCpuReset>().WatchdogReset();
             return;
         }
 #if CERF_DEV_MODE
@@ -342,6 +344,12 @@ private:
     void NotifyMatchLoop() {
         std::lock_guard<std::mutex> g(cv_mtx_);
         cv_.notify_all();
+    }
+
+    void StopMatchThread() {
+        stop_.store(true, std::memory_order_release);
+        NotifyMatchLoop();
+        if (match_thread_.joinable()) match_thread_.join();
     }
 
     void MatchLoop() {
