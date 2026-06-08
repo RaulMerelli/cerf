@@ -28,7 +28,7 @@ void CerfEmulator::Shutdown() {
 CerfEmulator::~CerfEmulator() {
     Shutdown();
     for (auto it = owned_.rbegin(); it != owned_.rend(); ++it) {
-        if (*it) LOG(Cerf, "[TEARDOWN] destroying %s\n", typeid(**it).name());
+        if (*it) LOG(Boot, "[TEARDOWN] destroying %s\n", typeid(**it).name());
         it->reset();
     }
     owned_.clear();
