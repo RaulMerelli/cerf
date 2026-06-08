@@ -33,8 +33,13 @@ public:
 
 private:
     static constexpr uint32_t kReservedIrdaPoke = 0x28u;  /* HPIrDA sub_EE4B88. */
+    static constexpr uint32_t kMccr1Offset      = 0x30u;  /* SA-1110 Dev Man: MCCR1 R/W. */
 
     uint32_t regs_[5] = {};  /* PPDR, PPSR, PPAR, PSDR, PPFR */
+
+    /* MCCR1 (MCP control reg 1) shares this block; the kernel disables the MCP
+       by writing 0 here during clock setup (nk.exe sub_80039150). Stored R/W. */
+    uint32_t mccr1_ = 0;
 
     static bool OffsetToIndex(uint32_t off, uint32_t* index_out) {
         if (off > 0x10 || (off & 0x3u) != 0) return false;
@@ -50,6 +55,8 @@ uint8_t Sa11xxPpc::ReadByte(uint32_t addr) {
     uint32_t index;
     if (OffsetToIndex(base, &index))
         return static_cast<uint8_t>((regs_[index] >> shift) & 0xFFu);
+    if (base == kMccr1Offset)
+        return static_cast<uint8_t>((mccr1_ >> shift) & 0xFFu);
     if (base == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved read +0x%02X -> 0\n", off);
         return 0;
@@ -61,6 +68,7 @@ uint32_t Sa11xxPpc::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
     if (OffsetToIndex(off, &index)) return regs_[index];
+    if (off == kMccr1Offset) return mccr1_;
     if (off == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved read +0x%02X -> 0\n", off);
         return 0;
@@ -79,6 +87,11 @@ void Sa11xxPpc::WriteByte(uint32_t addr, uint8_t value) {
         regs_[index] = cleared | (static_cast<uint32_t>(value) << shift);
         return;
     }
+    if (base == kMccr1Offset) {
+        const uint32_t cleared = mccr1_ & ~(0xFFu << shift);
+        mccr1_ = cleared | (static_cast<uint32_t>(value) << shift);
+        return;
+    }
     if (base == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved write +0x%02X (ignored)\n", base);
         return;
@@ -90,6 +103,7 @@ void Sa11xxPpc::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
     if (OffsetToIndex(off, &index)) { regs_[index] = value; return; }
+    if (off == kMccr1Offset) { mccr1_ = value; return; }
     if (off == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved write +0x%02X = 0x%08X (ignored)\n", off, value);
         return;

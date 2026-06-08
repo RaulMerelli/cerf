@@ -17,7 +17,8 @@ bool PcmciaSpaceRouter::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
     if (!bd) return false;
     const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::SA1110 || soc == SocFamily::PXA25x;
+    return soc == SocFamily::SA1110 || soc == SocFamily::PXA25x ||
+           soc == SocFamily::SA1100;
 }
 
 void PcmciaSpaceRouter::OnReady() {
