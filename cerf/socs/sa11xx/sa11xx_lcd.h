@@ -28,6 +28,7 @@ public:
     bool     IsEnabled() const { return (lccr0_ & 0x1u) != 0; }    /* LCCR0.LEN */
     bool     IsColor()   const { return (lccr0_ & 0x2u) == 0; }    /* LCCR0.CMS=0 */
     uint32_t GetFbPa()   const { return dbar1_; }
+    uint32_t GetDbar2Pa() const { return dbar2_; }  /* dual-panel lower half */
     uint32_t GetGuestW() const { return (lccr1_ & 0x3FFu) + 16u; } /* §11.7.4.1: PPL = pixels - 16 */
     uint32_t GetGuestH() const {
         const uint32_t lpp = (lccr2_ & 0x3FFu) + 1u;   /* §11.7.5.1: LPP = lines - 1 */

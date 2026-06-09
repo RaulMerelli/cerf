@@ -20,6 +20,7 @@ public:
 
     bool IsCaptured() const { return captured_.load(std::memory_order_acquire); }
     void Toggle();
+    void SetCaptured(bool on);   /* programmatic lock (click-to-lock) / unlock (focus loss) */
     void SendCtrlAltDel();
 
     /* Called from the LL hook proc; returns true to swallow the key. */

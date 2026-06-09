@@ -12,8 +12,8 @@ class HostCanvasInput : public Service {
 public:
     using Service::Service;
 
-    /* Returns true (with `out` set) when the message is consumed, so
-       HostCanvas::WndProc returns `out` instead of running its own switch. */
+    /* Returns true (with `out` set) when the message is consumed; `out` is
+       the WndProc result HostCanvas returns. */
     bool Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out);
 
     /* HostCanvas calls this when leaving the framebuffer tab so a captured
@@ -22,5 +22,16 @@ public:
 
 private:
     bool RoutePointerInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
-    bool pen_down_ = false;
+
+    /* Warp the cursor back to centre each move so motion reads as relative
+       deltas (RelativeMouseInput); without the warp it drifts to an edge and
+       stops generating motion. */
+    bool RouteCapturedMouse(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT& out);
+    void WarpToCentre(HWND hwnd);
+    void ShowLockHintOnce(HWND owner);   /* one-time "Right Ctrl to release" balloon */
+
+    bool pen_down_            = false;
+    bool mouse_locked_active_ = false;
+    bool lock_hint_shown_     = false;
+    HWND lock_hint_tip_       = nullptr;
 };

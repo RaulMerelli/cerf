@@ -361,6 +361,13 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if ((wp & 0xFFF0) == (WPARAM)SC_MAXIMIZE) follow_guest_ = false;
             break;
 
+        case WM_ACTIVATE:
+            /* Lost focus while the mouse is locked -> release it; the user can't
+               reach Right Ctrl from another app to unlock. */
+            if (LOWORD(wp) == WA_INACTIVE)
+                if (auto* cap = emu_.TryGet<HostInputCapture>()) cap->SetCaptured(false);
+            break;
+
         case WM_TIMER:
             if (wp == kCloseWatchdogTimer) {
                 auto* jit = emu_.TryGet<JitRunner>();
