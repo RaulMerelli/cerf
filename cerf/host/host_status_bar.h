@@ -27,6 +27,10 @@ public:
 
     HWND Hwnd() const { return hwnd_; }
 
+    /* Screen rect of the input-capture (lock) widget, for callers anchoring UI
+       to it (e.g. the click-to-lock hint balloon). False if not laid out. */
+    bool CaptureWidgetScreenRect(RECT& out) const;
+
 private:
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);

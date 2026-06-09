@@ -69,6 +69,7 @@ HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000", "os_old_ce.png")
 POCKET_PC_2000 = OperatingSystem("Pocket PC 2000", "os_ppc2000.png")
 POCKET_PC_2002 = OperatingSystem("Pocket PC 2002", "os_ppc2002.png")
 WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11", "os_old_ce.png")
+HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3 (CE 2.11)", "os_old_ce.png")
 WINDOWS_CE_3 = OperatingSystem("Windows CE 3", "os_old_ce.png")
 WINDOWS_CE_NET_42 = OperatingSystem("Windows CE .NET 4.2", "os_ce.png")
 WINDOWS_CE_5 = OperatingSystem("Windows CE 5", "os_ce.png")
@@ -79,6 +80,7 @@ WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5", "os_ppc2002.png")
 WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6", "os_wm6.png")
 ZUNE_OS_5 = OperatingSystem("Windows CE 5", "os_zune.png")
 
+SOC_SA1100 = Soc("Intel SA-1100", "StrongARM")
 SOC_SA1110 = Soc("Intel SA-1110", "StrongARM")
 SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE")
 SOC_ODO = Soc("Microsoft ODO (???)", "ARM720T (1996 NDA board)")
@@ -92,6 +94,7 @@ FEATURE_SPECS = [
     ("display", "display.png", "Display"),
     ("sound", "speaker.png", "Sound"),
     ("touch", "stylus.png", "Touch"),
+    ("mouse", "mouse.png", "Mouse"),
     ("keyboard", "keyboard.png", "Keyboard"),
     ("network", "internet.png", "Network"),
     ("pcmcia", "pcmcia.png", "PCMCIA"),
@@ -187,7 +190,15 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "HP Jornada 820",
-        "supported": False,
+        "supported": True,
+        "soc": SOC_SA1100,
+        "operating_systems": [HANDHELD_PC_PRO],
+        "features": {
+            "display": True,
+            "mouse": True,
+            "keyboard": True,
+            "pcmcia": True,
+        },
     },
     {
         "name": "HP Jornada 720",
@@ -236,7 +247,7 @@ BOARDS_INFORMATION = [
             "CERF auto-generates HDD on first boot if there was no (hdd.img in device dir)",
             "Guest additions produce black screen. You can open apps through shared storage + task manager, "
             "only extremely simple apps will run (like literally blank Win32 skeletons) and the screen will flicker",
-            "Guest additions task manager wont poll process list (but run works)"
+            "Guest additions task manager wont poll process list (but run works)",
         ],
     },
     {

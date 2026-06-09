@@ -39,15 +39,21 @@ def build_supported_devices():
     boards = sorted((b for b in BOARDS_INFORMATION if b.get('supported')),
                     key=lambda b: board_sort_key(b['name']))
 
-    # Consecutive boards on the same SoC share one rowspan SoC cell, in the
-    # same board order the launcher's device tree shows.
+    # All boards on the same SoC share one rowspan SoC cell. Grouping is by SoC
+    # globally (not just consecutive boards): the alphabetical board order can
+    # interleave SoCs (e.g. Jornada 820 / SA-1100 sorts between Jornada 720 and
+    # iPAQ / SA-1110), which would otherwise split one SoC across two cells. SoC
+    # groups appear in first-board order; boards stay in board order within each.
     groups = []
+    soc_index = {}
     for board in boards:
         soc = board['soc']
-        if groups and groups[-1][0] == soc:
-            groups[-1][1].append(board)
+        if soc in soc_index:
+            soc_index[soc].append(board)
         else:
-            groups.append((soc, [board]))
+            members = [board]
+            soc_index[soc] = members
+            groups.append((soc, members))
 
     lines = [
         '<table>',

@@ -65,8 +65,11 @@ void HostInputCapture::ForwardToGuest(uint32_t vk, bool key_up) {
 }
 
 void HostInputCapture::Toggle() {
-    captured_.store(!captured_.load(std::memory_order_acquire),
-                    std::memory_order_release);
+    SetCaptured(!captured_.load(std::memory_order_acquire));
+}
+
+void HostInputCapture::SetCaptured(bool on) {
+    captured_.store(on, std::memory_order_release);
     /* The status-bar lock widget reflects this via its PollDirty on the next
        UI tick — no direct poke needed. */
 }

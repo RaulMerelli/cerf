@@ -7,13 +7,16 @@
 
 namespace {
 
-class Jornada720BootBanner : public TextModeBootBanner {
+/* HP Jornada boot logo, shared by the SA-11x0 Jornada handhelds (720 + 820). */
+class JornadaBootBanner : public TextModeBootBanner {
 public:
     using TextModeBootBanner::TextModeBootBanner;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        if (!bd) return false;
+        const Board b = bd->GetBoard();
+        return b == Board::Jornada720 || b == Board::Jornada820;
     }
 
 protected:
@@ -29,6 +32,6 @@ protected:
         };
     }
 };
-REGISTER_SERVICE_AS(Jornada720BootBanner, TextModeBootBanner);
+REGISTER_SERVICE_AS(JornadaBootBanner, TextModeBootBanner);
 
 }  /* namespace */
