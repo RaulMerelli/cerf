@@ -4,9 +4,14 @@
 
 #include <dwmapi.h>
 
+#include <string>
+#include <vector>
+
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
+#include "../core/device_meta_label.h"
 #include "../core/log.h"
+#include "../core/string_utils.h"
 #include "../jit/jit_runner.h"
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
 #include "../version.h"
@@ -55,6 +60,25 @@ void HostWindow::StopUiThread() {
         if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         ui_thread_.join();
     }
+}
+
+std::wstring HostWindow::ComposeWindowTitle() const {
+    const DeviceMeta& meta = emu_.Get<DeviceConfig>().meta;
+
+    std::vector<std::wstring> parts;
+    if (!meta.device_name.empty())
+        parts.push_back(Utf8ToWide(meta.device_name.c_str()));
+    const std::string os = OsDisplayLabel(meta);
+    if (!os.empty())
+        parts.push_back(Utf8ToWide(os.c_str()));
+    parts.push_back(L"CERF " CERF_VERSION_DISPLAY_WSTR);
+
+    std::wstring title;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (i) title += L" • ";   /* bullet separator */
+        title += parts[i];
+    }
+    return title;
 }
 
 void HostWindow::OnReady() {
@@ -216,7 +240,8 @@ void HostWindow::UiThreadMain() {
     AdjustWindowRectEx(&r, style, /*bMenu=*/TRUE, 0);
 
     HMENU menu = emu_.Get<HostMenu>().Build();
-    hwnd_ = CreateWindowExW(0, kWindowClass, L"CERF " CERF_VERSION_DISPLAY_WSTR,
+    const std::wstring title = ComposeWindowTitle();
+    hwnd_ = CreateWindowExW(0, kWindowClass, title.c_str(),
                             style, CW_USEDEFAULT, CW_USEDEFAULT,
                             r.right - r.left, r.bottom - r.top,
                             nullptr, menu, GetModuleHandleW(nullptr), this);

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <thread>
 
 class HostWindow : public Service {
@@ -52,6 +53,10 @@ private:
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
 
     void  AutoResizeToGuest();
+
+    /* "{device_name} • {os} • CERF {ver}" from cerf.json meta; empty meta
+       fields are dropped, so an absent meta block yields just "CERF {ver}". */
+    std::wstring ComposeWindowTitle() const;
 
     /* Guest-additions: when adopt-resolution is enabled, size the guest surface
        to the work area of the monitor this window landed on, minus the exact
