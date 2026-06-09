@@ -22,7 +22,9 @@ public:
     const char* BoardName() const override {
         return "Compaq iPAQ 1st gen (H31xx/H36xx), Intel SA-1110 StrongARM";
     }
-
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{240u, 320u};
+    }
 };
 
 }  /* namespace */
