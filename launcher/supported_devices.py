@@ -198,6 +198,7 @@ BOARDS_INFORMATION = [
             "mouse": True,
             "keyboard": True,
             "pcmcia": True,
+            "network": True,
         },
     },
     {
