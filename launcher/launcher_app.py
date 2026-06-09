@@ -12,7 +12,7 @@ from tkinter import ttk
 from typing import Callable, List, Optional, Tuple
 
 from app_paths import resolve_icon, resolve_icons_dir, resolve_version
-from bundles import ManifestVersionError, RELEASE_TAG_URL, parse_version_tuple
+from bundles import ManifestVersionError, RELEASE_LATEST_URL, parse_version_tuple
 from device_state import DeviceBundle, PackageStatus
 from device_tree import DeviceTreePanel, TreeSelection
 from details_panel import DetailsPanel
@@ -235,7 +235,7 @@ class LauncherApp(tk.Tk):
         if remote_tuple > current:
             self.status_bar.set_update_status(
                 f"Download CERF v{remote}", UPDATE_LINK, link=True,
-                url=RELEASE_TAG_URL.format(tag=remote))
+                url=RELEASE_LATEST_URL)
         else:
             self.status_bar.set_update_status(
                 "No new releases of CERF available", FG_DIM, link=False)
