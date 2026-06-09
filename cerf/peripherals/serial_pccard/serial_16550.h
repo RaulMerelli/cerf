@@ -41,16 +41,34 @@ public:
 
     uint32_t BaudRate() const;   /* derived from the divisor latch + 115200 base */
 
+    /* Decoded line discipline (baud + framing) from the divisor latch + LCR
+       (hw16550.h: data-length mask 0x03, stop mask 0x04, parity mask 0x38), for
+       a personality that mirrors the guest's settings onto a real host port. */
+    struct LineConfig {
+        uint32_t baud      = 115200;
+        uint8_t  data_bits = 8;   /* 5..8 (LCR bits 1:0 + 5) */
+        enum class Parity { None, Odd, Even, Mark, Space } parity = Parity::None;
+        enum class Stop   { One, OnePointFive, Two }        stop   = Stop::One;
+    };
+    LineConfig GetLineConfig() const;
+
+    /* Fired off-lock when the guest changes baud (DLL/DLM under DLAB) or the LCR
+       framing, so a host-port forwarder can re-apply SetCommState live. */
+    using LineConfigFn = std::function<void(const LineConfig&)>;
+    void SetLineConfigCallback(LineConfigFn cb);
+
     void Reset();                /* power-on / socket-reset defaults */
 
 private:
-    bool    ComputeIrqLevelLocked() const;
-    uint8_t ReadIirLocked();              /* reading IIR clears the THRE source */
-    void    SettleAndFireIrq();           /* recompute level, call irq_line_ off-lock */
+    bool       ComputeIrqLevelLocked() const;
+    uint8_t    ReadIirLocked();           /* reading IIR clears the THRE source */
+    void       SettleAndFireIrq();        /* recompute level, call irq_line_ off-lock */
+    LineConfig GetLineConfigLocked() const;
 
     SerialEndpoint& endpoint_;
     IrqLineFn       irq_line_;
     RxDrainFn       rx_drain_;
+    LineConfigFn    line_cfg_cb_;
 
     mutable std::mutex mu_;
 

@@ -72,6 +72,40 @@ uint32_t Serial16550::BaudRate() const {
     return div ? (115200u / div) : 115200u;
 }
 
+/* Decode baud + framing from the divisor latch and LCR. Bit layout is the DDK
+   hw16550.h: SERIAL_DATA_MASK 0x03 (5..8 data bits), SERIAL_STOP_MASK 0x04,
+   SERIAL_PARITY_MASK 0x38 (NONE/ODD/EVEN/MARK/SPACE at 0x00/0x08/0x18/0x28/0x38). */
+Serial16550::LineConfig Serial16550::GetLineConfigLocked() const {
+    LineConfig c;
+    const uint32_t div = (uint32_t)dll_ | ((uint32_t)dlm_ << 8);
+    c.baud = div ? (115200u / div) : 115200u;
+    c.data_bits = (uint8_t)(5u + (lcr_ & 0x03u));
+    if (!(lcr_ & 0x08u)) {
+        c.parity = LineConfig::Parity::None;        /* parity disabled */
+    } else {
+        switch (lcr_ & 0x38u) {
+            case 0x08u: c.parity = LineConfig::Parity::Odd;   break;
+            case 0x18u: c.parity = LineConfig::Parity::Even;  break;
+            case 0x28u: c.parity = LineConfig::Parity::Mark;  break;
+            default:    c.parity = LineConfig::Parity::Space; break;   /* 0x38 */
+        }
+    }
+    if (!(lcr_ & 0x04u))      c.stop = LineConfig::Stop::One;
+    else if (c.data_bits == 5) c.stop = LineConfig::Stop::OnePointFive;
+    else                       c.stop = LineConfig::Stop::Two;
+    return c;
+}
+
+Serial16550::LineConfig Serial16550::GetLineConfig() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return GetLineConfigLocked();
+}
+
+void Serial16550::SetLineConfigCallback(LineConfigFn cb) {
+    std::lock_guard<std::mutex> lk(mu_);
+    line_cfg_cb_ = std::move(cb);
+}
+
 /* Highest-priority IER-enabled pending source, or kNoSource. */
 static uint8_t PendingSource(uint8_t ier, uint8_t lsr, uint8_t fcr,
                              size_t rx_avail, bool thre_armed, uint8_t msr) {
@@ -150,25 +184,28 @@ uint8_t Serial16550::ReadReg8(uint32_t offset) {
 void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
     uint8_t tx_byte = 0;
     bool do_tx = false, loop_tx = false, notify_lines = false, dtr = false,
-         rts = false;
+         rts = false, line_changed = false;
+    LineConfig   line_cfg;
+    LineConfigFn line_cfg_cb;
     {
         std::lock_guard<std::mutex> lk(mu_);
         switch (offset & 7u) {
             case kRbrThrDll:
-                if (lcr_ & LCR_DLAB) { dll_ = value; break; }
+                if (lcr_ & LCR_DLAB) { dll_ = value; line_changed = true; break; }
                 /* THR write: byte goes out, THR re-empties -> THRE re-arms. */
                 thre_armed_ = true;
                 tx_byte = value;
                 if (mcr_ & MCR_LOOP) loop_tx = true; else do_tx = true;
                 break;
             case kIerDlm:
-                if (lcr_ & LCR_DLAB) dlm_ = value; else ier_ = value & 0x0Fu;
+                if (lcr_ & LCR_DLAB) { dlm_ = value; line_changed = true; }
+                else                   ier_ = value & 0x0Fu;
                 break;
             case kIirFcr:
                 fcr_ = value;
                 if (value & FCR_RCVR_RESET) { rx_.clear(); rx_pos_ = 0; }
                 break;
-            case kLcr: lcr_ = value; break;
+            case kLcr: lcr_ = value; line_changed = true; break;
             case kMcr: {
                 const uint8_t old = mcr_;
                 mcr_ = value & 0x1Fu;
@@ -198,11 +235,13 @@ void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
             case kScr: scr_ = value; break;
         }
         SettleAndFireIrq();
+        if (line_changed) { line_cfg = GetLineConfigLocked(); line_cfg_cb = line_cfg_cb_; }
     }
     /* Off-lock: the endpoint may call back into PushRx (re-locks mu_). */
     if (do_tx)        endpoint_.OnGuestTx(&tx_byte, 1);
     if (loop_tx)      PushRx(&tx_byte, 1);
     if (notify_lines) endpoint_.OnControlLines(dtr, rts);
+    if (line_cfg_cb)  line_cfg_cb(line_cfg);
 }
 
 bool Serial16550::RxEmpty() const {

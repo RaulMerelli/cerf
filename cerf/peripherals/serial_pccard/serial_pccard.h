@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 class SerialEndpoint;
 
@@ -14,12 +15,17 @@ class SerialEndpoint;
    FCSR) + I/O map are verified against the WinCE6 DDK SERIAL/PCCARD source. */
 class SerialPcCard : public PcmciaCard {
 public:
-    static constexpr const wchar_t* kDisplayName = L"Serial / Modem PC Card";
+    static constexpr const wchar_t* kDisplayName        = L"Serial Modem PC Card";
+    static constexpr const wchar_t* kForwardDisplayName = L"Serial Port Forwarder";
 
-    explicit SerialPcCard(CerfEmulator& emu);
+    explicit SerialPcCard(CerfEmulator& emu);                    /* modem personality */
+    SerialPcCard(CerfEmulator& emu, std::wstring host_com_port); /* host-port forward */
     ~SerialPcCard() override;
 
-    std::wstring DisplayName() const override { return kDisplayName; }
+    std::wstring DisplayName() const override {
+        return mode_ == Mode::HostForward ? kForwardDisplayName : kDisplayName;
+    }
+    std::wstring TooltipDetail() const override;
 
     void OnInserted() override;
     void OnShutdown() override;
@@ -42,6 +48,7 @@ public:
 
 private:
     void OnUartIrq(bool asserted);
+    void BuildCis();   /* mode-dependent CIS (FUNCE present only for the modem) */
 
     /* Attribute config registers: ConfigBase from CISTPL_CONFIG, each register
        offset*2 apart (pcmcia.cpp config-register addressing; cardserv.h). */
@@ -55,6 +62,11 @@ private:
     uint8_t cor_      = 0;
     uint8_t fcsr_     = 0;
     bool    uart_irq_ = false;
+
+    enum class Mode { Modem, HostForward };
+    Mode         mode_ = Mode::Modem;
+    std::wstring host_port_;     /* host COM name when mode_ == HostForward */
+    std::vector<uint8_t> cis_;   /* attribute-memory CIS, built per mode */
 
     std::unique_ptr<SerialEndpoint> endpoint_;
     std::unique_ptr<Serial16550>    uart_;

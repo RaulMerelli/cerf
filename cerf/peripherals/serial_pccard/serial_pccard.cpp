@@ -2,6 +2,7 @@
 
 #include "serial_endpoint.h"
 #include "modem_personality.h"
+#include "host_serial_forward.h"
 
 #include "../pcmcia/pcmcia_slot.h"
 #include "../../core/cerf_emulator.h"
@@ -12,35 +13,55 @@ namespace {
 constexpr uint8_t FCR_COR_SRESET = 0x80;
 constexpr uint8_t FCR_FCSR_INTR  = 0x02;   /* the bus-driver shared-ISR check bit */
 
-/* Serial-card CIS: FUNCID/CONFIG/CFTABLE_ENTRY byte-verified against pcmcia.dll
-   ParseCfTable + ser_card.c FindComConfig (COR base attr 0x200, cfg index 1,
-   8-byte I/O window at 0x3F8); VERS_1 carries the product name shown by the
-   modem UI (tuple layout per the rtl8019 / hp_palmtop cards). */
-const uint8_t kCisData[] = {
-    0x21, 0x02, 0x02, 0x00,                       /* CISTPL_FUNCID: serial(2) */
-    /* FUNCE type 0x02 = SERIAL_SERV_DATA (data modem; Linux cistpl.h). CE6
-       serial.dll (SER_CARD2 DetectModem) binds a serial card as Modem
-       (DeviceType=3) only with a non-zero-type FUNCE here; drop it and the
-       card binds as a plain COM port (Serial, DeviceType=0), no modem. */
-    0x22, 0x01, 0x02,                             /* CISTPL_FUNCE: data modem */
-    0x15, 0x16, 0x04, 0x01,                       /* CISTPL_VERS_1 v4.1       */
-        'C', 'E', 'R', 'F', 0x00,
-        'V', 'i', 'r', 't', 'u', 'a', 'l', ' ', 'M', 'o', 'd', 'e', 'm', 0x00,
-        0xFF,
-    0x1A, 0x05, 0x01, 0x01, 0x00, 0x02, 0x03,     /* CISTPL_CONFIG            */
-    0x1B, 0x08, 0xC1, 0x01, 0x08, 0xAA, 0x60,
-        0xF8, 0x03, 0x07,                         /* CISTPL_CFTABLE_ENTRY     */
-    0xFF,                                         /* CISTPL_END               */
-};
-constexpr size_t kCisSize = sizeof(kCisData);
-
 }  /* namespace */
 
-SerialPcCard::SerialPcCard(CerfEmulator& emu) : PcmciaCard(emu) {}
+SerialPcCard::SerialPcCard(CerfEmulator& emu) : PcmciaCard(emu) { BuildCis(); }
+SerialPcCard::SerialPcCard(CerfEmulator& emu, std::wstring host_com_port)
+    : PcmciaCard(emu), mode_(Mode::HostForward),
+      host_port_(std::move(host_com_port)) { BuildCis(); }
 SerialPcCard::~SerialPcCard() = default;
 
+std::wstring SerialPcCard::TooltipDetail() const {
+    if (mode_ == Mode::HostForward)
+        return std::wstring(kForwardDisplayName) + L" → host " + host_port_;
+    return kDisplayName;
+}
+
+/* CIS verified vs pcmcia.dll ParseCfTable + ser_card.c FindComConfig (COR attr
+   0x200, cfg idx 1, I/O 0x3F8). FUNCE present => CE6 DetectModem binds Unimodem
+   (DeviceType=3); forward mode omits it for a plain serial COMx on CE6 (CE3
+   DetectModem hardcodes "Modem" either way - serial.dll!DetectModem 0xF95F98). */
+void SerialPcCard::BuildCis() {
+    cis_ = {0x21, 0x02, 0x02, 0x00};                  /* CISTPL_FUNCID: serial(2) */
+    if (mode_ == Mode::Modem) {
+        cis_.insert(cis_.end(), {0x22, 0x01, 0x02});  /* CISTPL_FUNCE: data modem */
+        cis_.insert(cis_.end(), {                     /* CISTPL_VERS_1 "Virtual Modem" */
+            0x15, 0x16, 0x04, 0x01,
+                'C', 'E', 'R', 'F', 0x00,
+                'V', 'i', 'r', 't', 'u', 'a', 'l', ' ', 'M', 'o', 'd', 'e', 'm', 0x00,
+                0xFF,
+        });
+    } else {
+        cis_.insert(cis_.end(), {                     /* CISTPL_VERS_1 "Serial Forwarder" */
+            0x15, 0x19, 0x04, 0x01,
+                'C', 'E', 'R', 'F', 0x00,
+                'S', 'e', 'r', 'i', 'a', 'l', ' ', 'F', 'o', 'r', 'w', 'a', 'r', 'd', 'e', 'r', 0x00,
+                0xFF,
+        });
+    }
+    cis_.insert(cis_.end(), {
+        0x1A, 0x05, 0x01, 0x01, 0x00, 0x02, 0x03,     /* CISTPL_CONFIG        */
+        0x1B, 0x08, 0xC1, 0x01, 0x08, 0xAA, 0x60,
+            0xF8, 0x03, 0x07,                         /* CISTPL_CFTABLE_ENTRY */
+        0xFF,                                         /* CISTPL_END           */
+    });
+}
+
 void SerialPcCard::OnInserted() {
-    endpoint_ = std::make_unique<ModemPersonality>(emu_);
+    if (mode_ == Mode::HostForward)
+        endpoint_ = std::make_unique<HostSerialForward>(host_port_);
+    else
+        endpoint_ = std::make_unique<ModemPersonality>(emu_);
     uart_ = std::make_unique<Serial16550>(*endpoint_,
                                           [this](bool a) { OnUartIrq(a); });
     endpoint_->BindUart(*uart_);
@@ -64,7 +85,7 @@ uint8_t SerialPcCard::ReadAttribute8(uint32_t offset) {
     /* CIS in attribute memory, 8-bit aliased across even bytes (tuple byte n at
        offset 2n), then the config registers. */
     uint8_t v = 0xFFu;
-    if (offset < kCisSize * 2u)      v = kCisData[offset / 2u];
+    if (offset < cis_.size() * 2u)   v = cis_[offset / 2u];
     else if (offset == kCorOffset)   v = cor_;
     else if (offset == kFcsrOffset)  v = fcsr_;
     return v;
