@@ -7,7 +7,8 @@ import webbrowser
 from tkinter import ttk
 from typing import Dict, Optional
 
-from ui_theme import BG, BG_FIELD, BORDER, FG, enable_dark_titlebar
+from device_state import DeviceSource
+from ui_theme import BG, BG_FIELD, BORDER, FG, LINK_FG, enable_dark_titlebar
 
 
 DISCORD_URL       = "https://discord.gg/QREE9Y2v2d"
@@ -127,6 +128,67 @@ def show_rom_submit_dialog(parent: tk.Misc) -> None:
         webbrowser.open(DISCORD_URL)
     elif choice == "GitHub issues":
         webbrowser.open(GITHUB_ISSUES_URL)
+
+
+def _link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
+    lbl = ttk.Label(parent, text=text, foreground=LINK_FG, cursor="hand2")
+    lbl.bind("<Button-1>", lambda _e: webbrowser.open(url))
+    return lbl
+
+
+def _maybe_link(parent: tk.Misc, text: str, url: str) -> ttk.Label:
+    """A clickable link when url is set, otherwise the same text as plain
+    (non-clickable) label."""
+    return _link_label(parent, text, url) if url else ttk.Label(parent, text=text)
+
+
+def show_source_thanks(parent: tk.Misc, source: DeviceSource) -> None:
+    """Modeless acknowledgement of the ROM's preservation source, shown right
+    after the abandonware license is accepted. Deliberately does NOT grab focus
+    or wait_window: the download the caller kicks off keeps running in the
+    background while this stays on screen. No-op when the source carries no
+    links (nothing to offer the user)."""
+    if source is None or not source.has_links:
+        return
+
+    dlg = tk.Toplevel(parent)
+    dlg.title("ROM preservation")
+    dlg.configure(bg=BG)
+    dlg.transient(parent)
+    dlg.resizable(False, False)
+
+    body = ttk.Frame(dlg, padding=16)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, wraplength=420, justify="left",
+              text=f"This ROM bundle was preserved and provided by "
+                   f"{source.name}.").pack(anchor="w")
+
+    ask = ttk.Frame(body)
+    ask.pack(anchor="w", pady=(10, 0))
+    ttk.Label(ask, text="Would you like to ").pack(side="left")
+    _maybe_link(ask, "pay them a visit", source.website).pack(side="left")
+    ttk.Label(ask, text=" or ").pack(side="left")
+    _maybe_link(ask, "support them", source.donate).pack(side="left")
+    ttk.Label(ask, text="?").pack(side="left")
+
+    if source.origin:
+        ttk.Label(body, text="").pack(anchor="w")  # one blank line
+        _link_label(body, "Source data link", source.origin).pack(anchor="w")
+
+    btns = ttk.Frame(body)
+    btns.pack(anchor="e", pady=(14, 0))
+    ok = ttk.Button(btns, text="OK", command=dlg.destroy)
+    ok.pack(side="left")
+    ok.focus_set()
+    dlg.bind("<Return>", lambda _e: dlg.destroy())
+    dlg.bind("<Escape>", lambda _e: dlg.destroy())
+
+    dlg.update_idletasks()
+    enable_dark_titlebar(dlg)
+    w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+    x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+    dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
 
 
 def bind_tooltip(widget: tk.Widget, text: str) -> None:
