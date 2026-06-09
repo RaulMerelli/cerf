@@ -227,6 +227,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>HP Jornada 820 support</li>
+              <li>PC Cards: Serial modem emulator and serial forwader</li>
             </ul>
           </td>
         </tr>

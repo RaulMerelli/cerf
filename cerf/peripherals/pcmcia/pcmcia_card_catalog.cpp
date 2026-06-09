@@ -8,12 +8,14 @@
 #include "../realtek_rtl8019/rtl8019.h"
 #include "../serial_pccard/serial_pccard.h"
 #include "../serial_pccard/serial_modem_card_menu.h"
+#include "../serial_pccard/serial_forward_card_menu.h"
 
 namespace {
 
-const char kIdNe2000[] = "ne2000";
-const char kIdHpVga[]  = "hpvga";
-const char kIdSerial[] = "serial";
+const char kIdNe2000[]    = "ne2000";
+const char kIdHpVga[]     = "hpvga";
+const char kIdSerial[]    = "serial";
+const char kIdSerialFwd[] = "serial_fwd";
 
 }  /* namespace */
 
@@ -43,10 +45,18 @@ void PcmciaCardCatalog::OnReady() {
         return emu_.Get<SerialModemCardMenu>().BuildInsertMenu(std::move(inserter));
     };
 
+    Entry serial_fwd;
+    serial_fwd.id           = kIdSerialFwd;
+    serial_fwd.display_name = SerialPcCard::kForwardDisplayName;
+    serial_fwd.insert_submenu = [this](CardInserter inserter) {
+        return emu_.Get<SerialForwardCardMenu>().BuildInsertMenu(std::move(inserter));
+    };
+
     entries_.push_back(std::move(ne2000));
     entries_.push_back(std::move(cf));
     entries_.push_back(std::move(hpvga));
     entries_.push_back(std::move(serial));
+    entries_.push_back(std::move(serial_fwd));
 }
 
 std::unique_ptr<PcmciaCard> PcmciaCardCatalog::Create(const std::string& id) {
