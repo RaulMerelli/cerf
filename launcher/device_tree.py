@@ -88,7 +88,7 @@ def _table_os_label(d: DeviceBundle) -> str:
         return name
     if _os_name_has_version(name, major, minor):
         return name
-    version = f"{major}.{minor}"
+    version = f"CE {major}.{minor}"
     return f"{name} ({version})" if name else f"Unknown OS ({version})"
 
 

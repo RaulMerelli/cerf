@@ -41,7 +41,7 @@ class DeviceMeta:
     @property
     def os_version(self) -> str:
         if self.os_name and (self.os_ver_major or self.os_ver_minor):
-            return f"{self.os_name} {self.os_ver_major}.{self.os_ver_minor}"
+            return f"{self.os_name} (CE {self.os_ver_major}.{self.os_ver_minor})"
         if self.os_name:
             return self.os_name
         return ""
