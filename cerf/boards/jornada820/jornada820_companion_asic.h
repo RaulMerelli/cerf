@@ -31,13 +31,45 @@ public:
         mouse_.QueueMotion(dx, dy, button_mask);
     }
 
+    /* Raise a PCMCIA card IREQ (socket 0 / 1). Called by Jornada820Pcmcia from
+       the card's signalling thread. */
+    void RaisePcmciaCardIrq(int socket);
+
+    /* Raise a PCMCIA card-detect / status-change (socket 0 / 1) so the PDD
+       detect poller re-scans on a runtime insert/eject. */
+    void RaisePcmciaStatusChange(int socket);
+
 private:
     static constexpr uint32_t kPs2Status = 0x1A0400u;
     static constexpr uint32_t kPs2Data   = 0x1A0800u;
 
-    void RaiseIrq();
+    /* PCMCIA socket status reg the CE PDD maps here (pcmcia.dll sub_12A1208:
+       off_12A9458 base 0x1E0000, status at +0x800). */
+    static constexpr uint32_t kPcmciaStatus = 0x1E0800u;
+
+    /* Companion interrupt controller per nk.exe OEMInterruptHandler sub_80059BB0
+       (reads/W1C-acks +0x166400) and OEMInterruptEnable sub_8005A858 (sets the
+       enable mask +0x162400). A source asserts -> set its pending bit (iff
+       masked) + pulse the aggregate output GPIO14. */
+    static constexpr uint32_t kIntrStatus = 0x166400u;  /* W1C pending */
+    static constexpr uint32_t kIntrMask   = 0x162400u;  /* enable mask  */
+    static constexpr uint32_t kSrcMouse   = 0x800u;       /* bit11 -> SYSINTR 29 */
+    static constexpr uint32_t kSrcCard0   = 0x2000000u;   /* bit25 -> SYSINTR 28 */
+    static constexpr uint32_t kSrcCard1   = 0x4000000u;   /* bit26 -> SYSINTR 28 */
+    static constexpr uint32_t kSrcStat0   = 0x8000000u;   /* bit27 -> SYSINTR 27 */
+    static constexpr uint32_t kSrcStat1   = 0x10000000u;  /* bit28 -> SYSINTR 27 */
+
+    void RaiseIrq();   /* mouse 8042 IRQ (bit11) */
+    void RaiseIntrSource(uint32_t bit);
+    void PulseGpio14();
+    uint32_t IntrMask() const {
+        return static_cast<uint32_t>(store_[kIntrMask]) |
+               (store_[kIntrMask + 1] << 8) | (store_[kIntrMask + 2] << 16) |
+               (store_[kIntrMask + 3] << 24);
+    }
     uint8_t Ps2StatusByte() { return 0x80u | (mouse_.HasData() ? 0x20u : 0u); }
 
     std::vector<uint8_t> store_;
+    uint32_t             intr_pending_ = 0;
     Ps2Mouse             mouse_;
 };

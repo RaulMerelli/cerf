@@ -67,6 +67,7 @@ void PppTerminator::Start() {
         lcp_open_ = lcp_peer_acked_ = lcp_we_acked_ = false;
         ipcp_open_ = ipcp_peer_acked_ = ipcp_we_acked_ = false;
         lcp_req_id_ = ipcp_req_id_ = 0;
+        negotiated_tx_accm_ = 0xFFFFFFFFu;
         next_id_ = 1;
         rts_ = true;
         rx_hold_.clear();
@@ -193,9 +194,8 @@ void PppTerminator::HandleLcpConfReq(uint8_t id, const uint8_t* opts,
             case kLcpMru: case kLcpPfc: case kLcpAcfc: break;          /* ACK */
             case kLcpAccm:
                 if (vlen == 4) {
-                    const uint32_t accm = ((uint32_t)val[0] << 24) |
+                    negotiated_tx_accm_ = ((uint32_t)val[0] << 24) |
                         ((uint32_t)val[1] << 16) | ((uint32_t)val[2] << 8) | val[3];
-                    hdlc_.SetTxAccm(accm);   /* escape what the guest needs */
                 }
                 break;
             case kLcpMagic:
@@ -258,6 +258,7 @@ void PppTerminator::HandleIpcpConfReq(uint8_t id, const uint8_t* opts,
 void PppTerminator::MaybeOpenLcp() {
     if (lcp_open_ || !lcp_peer_acked_ || !lcp_we_acked_) return;
     lcp_open_ = true;
+    hdlc_.SetTxAccm(negotiated_tx_accm_);   /* both ends Open: safe to relax */
     LOG(Net, "[PPP] LCP up\n");
 }
 

@@ -68,6 +68,11 @@ private:
     bool    lcp_we_acked_   = false;   /* we ACKed peer's LCP ConfReq */
     uint8_t lcp_req_id_     = 0;
 
+    /* Applied to hdlc_ only at LCP Open (MaybeOpenLcp); applying during
+       negotiation sends unescaped control chars the peer's default receive ACCM
+       discards -> FCS fails, LCP never opens (CE pppframe.c). */
+    uint32_t negotiated_tx_accm_ = 0xFFFFFFFFu;
+
     bool    ipcp_open_      = false;
     bool    ipcp_peer_acked_ = false;
     bool    ipcp_we_acked_   = false;
