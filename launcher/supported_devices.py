@@ -246,8 +246,8 @@ BOARDS_INFORMATION = [
         "notes": [
             "Main input is the keyboard: use arrows, enter, backspace, space",
             "CERF auto-generates HDD on first boot if there was no (hdd.img in device dir)",
-            "Guest additions produce black screen. You can open apps through shared storage + task manager, "
-            "only extremely simple apps will run (like literally blank Win32 skeletons) and the screen will flicker",
+            "Guest additions: You can open apps through shared storage + task manager, "
+            "only extremely simple apps will run (like literally blank Win32 skeletons)",
             "Guest additions task manager wont poll process list (but run works)",
         ],
     },
