@@ -1,20 +1,15 @@
 #pragma once
 
 #include "../../core/service.h"
-
-#define NOMINMAX
-#include <windows.h>
-#include <mmsystem.h>
+#include "../../host/wave_out_sink.h"
 
 #include <atomic>
 #include <cstdint>
 #include <mutex>
-#include <thread>
 
 class OdoArm720AudioPlayer : public Service {
 public:
     using Service::Service;
-    ~OdoArm720AudioPlayer() override;
 
     bool ShouldRegister() override;
     void OnReady() override;
@@ -23,8 +18,7 @@ public:
     void SetPlaybackEnabled(bool enabled);
 
 private:
-    void AudioThreadMain();
-    void StopAudioThread();
+    void OnThreadMessage(const MSG& msg);
     void SubmitNextPage();
 
     static constexpr uint32_t kSampleRate     = 44100u;
@@ -35,16 +29,12 @@ private:
     static constexpr uint32_t kPageSize       = 2048u;
     static constexpr uint32_t kPagesPerBuffer = 4u;
 
-    HWAVEOUT          out_device_     = nullptr;
-    DWORD             audio_thread_id_ = 0;
-    HANDLE            thread_ready_event_ = nullptr;
-    std::thread       audio_thread_;
-    std::atomic<bool> shutdown_{false};
+    WaveOutSink       sink_;
     std::atomic<bool> playback_enabled_{false};
 
     std::mutex state_mutex_;
-    uint32_t   current_page_index_  = 0;
-    uint32_t   submitted_pages_     = 0;
+    uint32_t   current_page_index_ = 0;
+    uint32_t   submitted_pages_    = 0;
 
     struct PageSlot {
         WAVEHDR hdr;

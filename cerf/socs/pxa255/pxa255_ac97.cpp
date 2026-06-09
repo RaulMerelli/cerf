@@ -16,70 +16,34 @@ bool Pxa255Ac97::ShouldRegister() {
     return bd && bd->GetSoc() == SocFamily::PXA25x;
 }
 
-void Pxa255Ac97::StopAudioThread() {
-    shutdown_.store(true, std::memory_order_release);
-    if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
-    if (audio_thread_.joinable()) audio_thread_.join();
-}
-
-/* Audio thread drives DMA completion into peers; stop it before any peer is
-   destroyed. waveOut/handle frees stay in the destructor, after the join. */
-void Pxa255Ac97::OnShutdown() { StopAudioThread(); }
-
-Pxa255Ac97::~Pxa255Ac97() {
-    StopAudioThread();
-    if (out_device_) waveOutClose(out_device_);
-    if (thread_ready_event_) CloseHandle(thread_ready_event_);
-}
+/* Stop the audio thread before any peer its completion callback re-enters is
+   destroyed. */
+void Pxa255Ac97::OnShutdown() { sink_.Stop(); }
 
 void Pxa255Ac97::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
-    thread_ready_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    audio_thread_ = std::thread([this] { AudioThreadMain(); });
-    WaitForSingleObject(thread_ready_event_, INFINITE);
+    sink_.Start(
+        [this] {
+            sink_.EnsureFormat(kSampleRate, kChannels, kBitsPerSamp,
+                               /*allow_resampler=*/false, /*busy=*/false);
+        },
+        [this](const MSG& msg) { OnThreadMessage(msg); },
+        "Pxa255Ac97");
 }
 
-void Pxa255Ac97::AudioThreadMain() {
-    audio_thread_id_ = GetCurrentThreadId();
-
-    /* Force the message queue to exist before any PostThreadMessage races us. */
-    MSG msg;
-    PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-    SetEvent(thread_ready_event_);
-
-    WAVEFORMATEX fmt{};
-    fmt.wFormatTag      = WAVE_FORMAT_PCM;
-    fmt.nChannels       = kChannels;
-    fmt.nSamplesPerSec  = kSampleRate;
-    fmt.wBitsPerSample  = kBitsPerSamp;
-    fmt.nBlockAlign     = static_cast<uint16_t>((fmt.wBitsPerSample / 8) * fmt.nChannels);
-    fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
-
-    const MMRESULT r = waveOutOpen(&out_device_, WAVE_MAPPER, &fmt,
-                                   audio_thread_id_, 0,
-                                   CALLBACK_THREAD | WAVE_FORMAT_DIRECT);
-    if (r != MMSYSERR_NOERROR) {
-        LOG(Caution, "Pxa255Ac97: waveOutOpen failed (mmresult=%u) — silent-mode "
-                "boot; DMA completion IRQ still paced\n", r);
-        out_device_ = nullptr;
-    }
-
-    while (!shutdown_.load(std::memory_order_acquire) &&
-           GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        if (msg.message != MM_WOM_DONE) continue;
-        std::function<void()> cb;
-        {
-            std::lock_guard<std::mutex> lk(audio_mutex_);
-            if (msg.lParam != 0 && out_device_ != nullptr) {
-                auto* h = reinterpret_cast<LPWAVEHDR>(msg.lParam);
-                waveOutUnprepareHeader(out_device_, h, sizeof(WAVEHDR));
-            }
-            if (output_active_.load(std::memory_order_acquire)) cb = on_block_done_;
+void Pxa255Ac97::OnThreadMessage(const MSG& msg) {
+    if (msg.message != MM_WOM_DONE) return;
+    std::function<void()> cb;
+    {
+        std::lock_guard<std::mutex> lk(audio_mutex_);
+        if (msg.lParam != 0 && sink_.IsOpen()) {
+            sink_.Unprepare(reinterpret_cast<LPWAVEHDR>(msg.lParam));
         }
-        /* Invoke without the lock: the callback re-enters QueueOutput (DMA ->
-           AC97 lock order); holding audio_mutex_ here would self-deadlock. */
-        if (cb) cb();
+        if (output_active_.load(std::memory_order_acquire)) cb = on_block_done_;
     }
+    /* Invoke without the lock: the callback re-enters QueueOutput (DMA ->
+       AC97 lock order); holding audio_mutex_ here would self-deadlock. */
+    if (cb) cb();
 }
 
 void Pxa255Ac97::BeginAudioOut(std::function<void()> on_block_done) {
@@ -92,7 +56,7 @@ void Pxa255Ac97::StopAudioOut() {
     std::lock_guard<std::mutex> lk(audio_mutex_);
     output_active_.store(false, std::memory_order_release);
     on_block_done_ = nullptr;
-    if (out_device_) waveOutReset(out_device_);   /* flush queued buffers. */
+    sink_.Reset();   /* flush queued buffers. */
 }
 
 void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
@@ -104,16 +68,16 @@ void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
 
     /* Silent mode (or device error): pace by posting completion immediately so
        the DMA delivers the next block and the ring keeps cycling. */
-    if (!out_device_) {
-        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+    if (!sink_.IsOpen()) {
+        sink_.Post(MM_WOM_DONE, 0, 0);
         return;
     }
 
-    /* One block in flight: the prior block's MM_WOM_DONE freed header_ before
-       the DMA paced this next call. If somehow still queued, post a synthetic
+    /* One block in flight: the prior block's MM_WOM_DONE freed header_ before the
+       DMA paced this next call. If somehow still queued, post a synthetic
        completion so the ring keeps cycling instead of stalling. */
     if (header_.dwFlags & WHDR_INQUEUE) {
-        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+        sink_.Post(MM_WOM_DONE, 0, 0);
         return;
     }
     std::memset(&header_, 0, sizeof(header_));
@@ -121,10 +85,8 @@ void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
     header_.lpData         = reinterpret_cast<LPSTR>(buffer_);
     header_.dwBufferLength = length;
 
-    if (waveOutPrepareHeader(out_device_, &header_, sizeof(header_)) != MMSYSERR_NOERROR ||
-        waveOutWrite(out_device_, &header_, sizeof(header_)) != MMSYSERR_NOERROR) {
-        if (header_.dwFlags & WHDR_PREPARED) waveOutUnprepareHeader(out_device_, &header_, sizeof(header_));
-        if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, MM_WOM_DONE, 0, 0);
+    if (!sink_.Play(&header_)) {
+        sink_.Post(MM_WOM_DONE, 0, 0);
     }
 }
 
@@ -172,10 +134,9 @@ void Pxa255Ac97::WriteWord(uint32_t addr, uint32_t value) {
         case kGCR:  gcr_  = value; return;
         case kMOCR: mocr_ = value; return;
         case kMICR: micr_ = value; return;
-        /* §13.8.3.7 Table 13-13: CAR.CAIP is HW-owned and no codec is modeled,
-           so CAR always reads CAIP=0 (free). Storing a write would let a stale
-           CAIP=1 read back BUSY and spin the driver's CODEC-access poll
-           (§13.6.3 operational flow). */
+        /* §13.8.3.7 Table 13-13: CAR.CAIP is HW-owned and no codec is modeled, so
+           CAR always reads CAIP=0 (free). Storing a write would let a stale CAIP=1
+           read back BUSY and spin the driver's CODEC-access poll (§13.6.3). */
         case kCAR:  return;
         default:    return;            /* GSR W1C status / FIFO writes. */
     }

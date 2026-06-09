@@ -121,19 +121,7 @@ bool OdoArm720AudioPlayer::ShouldRegister() {
     return bd && bd->GetBoard() == Board::OdoArm720;
 }
 
-void OdoArm720AudioPlayer::StopAudioThread() {
-    shutdown_.store(true, std::memory_order_release);
-    if (audio_thread_id_) PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
-    if (audio_thread_.joinable()) audio_thread_.join();
-}
-
-void OdoArm720AudioPlayer::OnShutdown() { StopAudioThread(); }
-
-OdoArm720AudioPlayer::~OdoArm720AudioPlayer() {
-    StopAudioThread();
-    if (out_device_) waveOutClose(out_device_);
-    if (thread_ready_event_) CloseHandle(thread_ready_event_);
-}
+void OdoArm720AudioPlayer::OnShutdown() { sink_.Stop(); }
 
 void OdoArm720AudioPlayer::OnReady() {
     for (uint32_t i = 0; i < kPagesPerBuffer; ++i) {
@@ -141,107 +129,75 @@ void OdoArm720AudioPlayer::OnReady() {
         pages_[i].hdr.dwBufferLength = kPageSize;
         pages_[i].hdr.dwUser         = i;
     }
-
-    thread_ready_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    audio_thread_ = std::thread([this] { AudioThreadMain(); });
-    WaitForSingleObject(thread_ready_event_, INFINITE);
+    sink_.Start(
+        [this] {
+            sink_.EnsureFormat(kSampleRate, kChannels, kBitsPerSample,
+                               /*allow_resampler=*/false, /*busy=*/false);
+        },
+        [this](const MSG& msg) { OnThreadMessage(msg); },
+        "OdoArm720Audio");
 }
 
-void OdoArm720AudioPlayer::AudioThreadMain() {
-    audio_thread_id_ = GetCurrentThreadId();
-
-    /* Force-create the message queue so PostThreadMessage from
-       SetPlaybackEnabled lands before our GetMessage call. */
-    MSG msg;
-    PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-    SetEvent(thread_ready_event_);
-
-    WAVEFORMATEX fmt{};
-    fmt.wFormatTag      = WAVE_FORMAT_PCM;
-    fmt.nChannels       = kChannels;
-    fmt.nSamplesPerSec  = kSampleRate;
-    fmt.wBitsPerSample  = kBitsPerSample;
-    fmt.nBlockAlign     = static_cast<uint16_t>(
-                            (fmt.wBitsPerSample / 8) * fmt.nChannels);
-    fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
-    fmt.cbSize          = 0;
-
-    const MMRESULT r = waveOutOpen(&out_device_, WAVE_MAPPER, &fmt,
-                                   audio_thread_id_, 0,
-                                   CALLBACK_THREAD | WAVE_FORMAT_DIRECT);
-    if (r != MMSYSERR_NOERROR) {
-        LOG(Caution, "OdoArm720AudioPlayer: waveOutOpen failed "
-                "(mmresult=%u) — silent-mode boot (IRQ delivery "
-                "still works, kernel just won't hear playback)\n", r);
-        out_device_ = nullptr;
+void OdoArm720AudioPlayer::OnThreadMessage(const MSG& msg) {
+    if (msg.message == kMsgStartPlayback) {
+        playback_enabled_.store(true, std::memory_order_release);
+        {
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            current_page_index_ = 0;
+            submitted_pages_    = 0;
+        }
+        for (uint32_t i = 0; i < kPagesPerBuffer; ++i) {
+            SubmitNextPage();
+        }
+        return;
     }
+    if (msg.message == kMsgStopPlayback) {
+        playback_enabled_.store(false, std::memory_order_release);
+        sink_.Reset();
+        return;
+    }
+    if (msg.message == MM_WOM_DONE) {
+        auto* hdr = reinterpret_cast<LPWAVEHDR>(msg.lParam);
+        if (hdr) sink_.Unprepare(hdr);
+        uint32_t done_page = hdr ? hdr->dwUser : 0;
 
-    while (!shutdown_.load(std::memory_order_acquire) &&
-           GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        if (msg.message == kMsgStartPlayback) {
-            playback_enabled_.store(true, std::memory_order_release);
-            {
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                current_page_index_ = 0;
-                submitted_pages_    = 0;
-            }
-            for (uint32_t i = 0; i < kPagesPerBuffer; ++i) {
-                SubmitNextPage();
-            }
-            continue;
+        uint16_t bits = kIoSoundStrPlaybackIntr;
+        if (done_page == kPagesPerBuffer - 1) {
+            bits |= kIoSoundStrPlaybackEndIntr;
         }
-        if (msg.message == kMsgStopPlayback) {
+        const bool already_set =
+            emu_.Get<OdoArm720TouchSound>().RaiseSoundStrBits(bits);
+
+        if (already_set) {
             playback_enabled_.store(false, std::memory_order_release);
-            if (out_device_) waveOutReset(out_device_);
-            continue;
+            emu_.Get<IrqController>().DeAssertIrq(kSourceTouchAudioAdcIntr);
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            if (submitted_pages_ > 0) --submitted_pages_;
+            return;
         }
-        if (msg.message == MM_WOM_DONE) {
-            auto* hdr = reinterpret_cast<LPWAVEHDR>(msg.lParam);
-            if (out_device_ && hdr) {
-                waveOutUnprepareHeader(out_device_, hdr, sizeof(WAVEHDR));
-            }
-            uint32_t done_page = hdr ? hdr->dwUser : 0;
 
-            uint16_t bits = kIoSoundStrPlaybackIntr;
-            if (done_page == kPagesPerBuffer - 1) {
-                bits |= kIoSoundStrPlaybackEndIntr;
-            }
-            const bool already_set =
-                emu_.Get<OdoArm720TouchSound>().RaiseSoundStrBits(bits);
+        if (emu_.Get<OdoArm720TouchSound>().SoundIntrEnabled()) {
+            emu_.Get<IrqController>().AssertIrq(kSourceTouchAudioAdcIntr);
+        }
 
-            if (already_set) {
-                playback_enabled_.store(false, std::memory_order_release);
-                emu_.Get<IrqController>().DeAssertIrq(kSourceTouchAudioAdcIntr);
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                if (submitted_pages_ > 0) --submitted_pages_;
-                continue;
-            }
-
-            if (emu_.Get<OdoArm720TouchSound>().SoundIntrEnabled()) {
-                emu_.Get<IrqController>().AssertIrq(
-                    kSourceTouchAudioAdcIntr);
-            }
-
-            {
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                if (submitted_pages_ > 0) --submitted_pages_;
-            }
-            if (playback_enabled_.load(std::memory_order_acquire)) {
-                SubmitNextPage();
-            }
-            continue;
+        {
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            if (submitted_pages_ > 0) --submitted_pages_;
+        }
+        if (playback_enabled_.load(std::memory_order_acquire)) {
+            SubmitNextPage();
         }
     }
 }
 
 void OdoArm720AudioPlayer::SubmitNextPage() {
-    if (!out_device_) return;
+    if (!sink_.IsOpen()) return;
 
-    auto&         dma = emu_.Get<OdoArm720AudioPlaybackDma>();
-    auto&         mem = emu_.Get<EmulatedMemory>();
+    auto&          dma     = emu_.Get<OdoArm720AudioPlaybackDma>();
+    auto&          mem     = emu_.Get<EmulatedMemory>();
     const uint32_t base_pa = dma.GetEffectivePa();
 
-    uint32_t page_index;
+    uint32_t  page_index;
     PageSlot* slot;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
@@ -262,30 +218,12 @@ void OdoArm720AudioPlayer::SubmitNextPage() {
     slot->hdr.dwBufferLength = kPageSize;
     slot->hdr.dwUser         = page_index;
 
-    MMRESULT r = waveOutPrepareHeader(out_device_, &slot->hdr,
-                                      sizeof(WAVEHDR));
-    if (r != MMSYSERR_NOERROR) {
-        LOG(Caution, "OdoArm720AudioPlayer: waveOutPrepareHeader "
-                "failed (mmresult=%u) — dropping page %u\n",
-                r, page_index);
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        if (submitted_pages_ > 0) --submitted_pages_;
-        return;
-    }
-    r = waveOutWrite(out_device_, &slot->hdr, sizeof(WAVEHDR));
-    if (r != MMSYSERR_NOERROR) {
-        LOG(Caution, "OdoArm720AudioPlayer: waveOutWrite failed "
-                "(mmresult=%u) — dropping page %u\n",
-                r, page_index);
-        waveOutUnprepareHeader(out_device_, &slot->hdr, sizeof(WAVEHDR));
+    if (!sink_.Play(&slot->hdr)) {
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (submitted_pages_ > 0) --submitted_pages_;
     }
 }
 
 void OdoArm720AudioPlayer::SetPlaybackEnabled(bool enabled) {
-    if (!audio_thread_id_) return;
-    PostThreadMessageW(audio_thread_id_,
-                       enabled ? kMsgStartPlayback : kMsgStopPlayback,
-                       0, 0);
+    sink_.Post(enabled ? kMsgStartPlayback : kMsgStopPlayback, 0, 0);
 }

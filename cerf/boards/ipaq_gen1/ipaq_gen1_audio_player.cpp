@@ -6,17 +6,13 @@
 #include "../../core/service.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../host/wave_out_sink.h"
 #include "../../socs/sa11xx/sa11xx_dma.h"
 
-#include <windows.h>
-#include <mmsystem.h>
-
-#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <deque>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 namespace {
@@ -42,15 +38,6 @@ struct PendingPage {
 class IpaqGen1AudioPlayer : public Service {
 public:
     using Service::Service;
-    ~IpaqGen1AudioPlayer() override {
-        shutdown_.store(true, std::memory_order_release);
-        if (audio_thread_id_) {
-            PostThreadMessageW(audio_thread_id_, WM_QUIT, 0, 0);
-        }
-        if (audio_thread_.joinable()) audio_thread_.join();
-        if (out_device_)        waveOutClose(out_device_);
-        if (thread_ready_event_) CloseHandle(thread_ready_event_);
-    }
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
@@ -61,14 +48,11 @@ public:
         for (uint32_t i = 0; i < kPagesQueued; ++i) {
             slots_[i].bytes.resize(kMaxPageBytes);
         }
-        thread_ready_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        audio_thread_ = std::thread([this] { AudioThreadMain(); });
-        WaitForSingleObject(thread_ready_event_, INFINITE);
-
+        sink_.Start(nullptr,
+                    [this](const MSG& msg) { OnThreadMessage(msg); },
+                    "IpaqGen1Audio");
         emu_.Get<Sa11xxDma>().RegisterSink(
-            [this](const Sa11xxDma::ChannelState& st) {
-                return OnDmaStart(st);
-            });
+            [this](const Sa11xxDma::ChannelState& st) { return OnDmaStart(st); });
     }
 
 private:
@@ -80,17 +64,12 @@ private:
         bool                 in_flight   = false;
     };
 
-    HWAVEOUT          out_device_         = nullptr;
-    DWORD             audio_thread_id_    = 0;
-    HANDLE            thread_ready_event_ = nullptr;
-    std::thread       audio_thread_;
-    std::atomic<bool> shutdown_{false};
+    WaveOutSink sink_;
 
-    std::mutex             slots_mtx_;
-    Slot                   slots_[kPagesQueued];
-    uint32_t               next_slot_ = 0;
+    std::mutex              slots_mtx_;
+    Slot                    slots_[kPagesQueued];
+    uint32_t                next_slot_ = 0;
     std::deque<PendingPage> page_queue_;
-    bool                   waveout_open_attempted_ = false;
 
     bool OnDmaStart(const Sa11xxDma::ChannelState& st) {
         if ((st.ddar & kDdarSspTxMask) != kDdarSspTxValue) return false;
@@ -102,57 +81,20 @@ private:
         auto* pending = new PendingPage{
             st.channel_index, st.buffer_b, src_pa, bytes,
         };
-        PostThreadMessageW(audio_thread_id_, kMsgSubmitPage,
-                           0, reinterpret_cast<LPARAM>(pending));
+        sink_.Post(kMsgSubmitPage, 0, reinterpret_cast<LPARAM>(pending));
 #if CERF_DEV_MODE
         emu_.Get<RateProbe>().Inc(RateProbe::Counter::AudioMsgs);
 #endif
         return true;
     }
 
-    void AudioThreadMain() {
-        audio_thread_id_ = GetCurrentThreadId();
-        MSG msg;
-        PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-        SetEvent(thread_ready_event_);
-
-        while (!shutdown_.load(std::memory_order_acquire) &&
-               GetMessageW(&msg, nullptr, 0, 0) > 0) {
-            if (msg.message == kMsgSubmitPage) {
-                if (!waveout_open_attempted_) OpenWaveOut();
-                auto* p = reinterpret_cast<PendingPage*>(msg.lParam);
-                SubmitPage(*p);
-                delete p;
-                continue;
-            }
-            if (msg.message == MM_WOM_DONE) {
-                auto* hdr = reinterpret_cast<LPWAVEHDR>(msg.lParam);
-                OnPageDone(hdr);
-                continue;
-            }
-        }
-    }
-
-    void OpenWaveOut() {
-        waveout_open_attempted_ = true;
-        WAVEFORMATEX fmt{};
-        fmt.wFormatTag      = WAVE_FORMAT_PCM;
-        fmt.nChannels       = kChannels;
-        fmt.nSamplesPerSec  = kSampleRate;
-        fmt.wBitsPerSample  = kBitsPerSample;
-        fmt.nBlockAlign     = static_cast<uint16_t>(
-                                (fmt.wBitsPerSample / 8) * fmt.nChannels);
-        fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
-
-        const MMRESULT r = waveOutOpen(&out_device_, WAVE_MAPPER, &fmt,
-                                       audio_thread_id_, 0,
-                                       CALLBACK_THREAD | WAVE_FORMAT_DIRECT);
-        if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "IpaqGen1AudioPlayer: waveOutOpen failed mmresult=%u\n", r);
-            out_device_ = nullptr;
-        } else {
-            LOG(Periph, "[IpaqGen1AudioPlayer] waveOut opened %u Hz x %u ch x %u bit\n",
-                kSampleRate, kChannels, kBitsPerSample);
+    void OnThreadMessage(const MSG& msg) {
+        if (msg.message == kMsgSubmitPage) {
+            auto* p = reinterpret_cast<PendingPage*>(msg.lParam);
+            SubmitPage(*p);
+            delete p;
+        } else if (msg.message == MM_WOM_DONE) {
+            OnPageDone(reinterpret_cast<LPWAVEHDR>(msg.lParam));
         }
     }
 
@@ -167,44 +109,10 @@ private:
         return nullptr;
     }
 
-    void LoadIntoSlot(Slot& slot, const PendingPage& p) {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        for (uint32_t i = 0; i < p.byte_count; ++i) {
-            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
-        }
-        slot.dma_channel = p.dma_channel;
-        slot.buffer_b    = p.buffer_b;
-
-        std::memset(&slot.hdr, 0, sizeof(slot.hdr));
-        slot.hdr.lpData         = reinterpret_cast<LPSTR>(slot.bytes.data());
-        slot.hdr.dwBufferLength = p.byte_count;
-        slot.hdr.dwUser         = reinterpret_cast<DWORD_PTR>(&slot);
-
-        MMRESULT r = waveOutPrepareHeader(out_device_, &slot.hdr,
-                                          sizeof(WAVEHDR));
-        if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "IpaqGen1AudioPlayer: waveOutPrepareHeader failed %u\n", r);
-            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
-            return;
-        }
-        {
-            std::lock_guard<std::mutex> lk(slots_mtx_);
-            slot.in_flight = true;
-        }
-        r = waveOutWrite(out_device_, &slot.hdr, sizeof(WAVEHDR));
-        if (r != MMSYSERR_NOERROR) {
-            LOG(Caution, "IpaqGen1AudioPlayer: waveOutWrite failed %u\n", r);
-            waveOutUnprepareHeader(out_device_, &slot.hdr, sizeof(WAVEHDR));
-            {
-                std::lock_guard<std::mutex> lk(slots_mtx_);
-                slot.in_flight = false;
-            }
-            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
-        }
-    }
-
     void SubmitPage(const PendingPage& p) {
-        if (!out_device_) {
+        sink_.EnsureFormat(kSampleRate, kChannels, kBitsPerSample,
+                           /*allow_resampler=*/false, /*busy=*/false);
+        if (!sink_.IsOpen()) {
             emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
             return;
         }
@@ -220,10 +128,36 @@ private:
         LoadIntoSlot(*slot, p);
     }
 
+    void LoadIntoSlot(Slot& slot, const PendingPage& p) {
+        auto& mem = emu_.Get<EmulatedMemory>();
+        for (uint32_t i = 0; i < p.byte_count; ++i) {
+            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+        }
+        slot.dma_channel = p.dma_channel;
+        slot.buffer_b    = p.buffer_b;
+
+        std::memset(&slot.hdr, 0, sizeof(slot.hdr));
+        slot.hdr.lpData         = reinterpret_cast<LPSTR>(slot.bytes.data());
+        slot.hdr.dwBufferLength = p.byte_count;
+        slot.hdr.dwUser         = reinterpret_cast<DWORD_PTR>(&slot);
+
+        {
+            std::lock_guard<std::mutex> lk(slots_mtx_);
+            slot.in_flight = true;
+        }
+        if (!sink_.Play(&slot.hdr)) {
+            {
+                std::lock_guard<std::mutex> lk(slots_mtx_);
+                slot.in_flight = false;
+            }
+            emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
+        }
+    }
+
     void OnPageDone(LPWAVEHDR hdr) {
-        if (!hdr || !out_device_) return;
+        if (!hdr || !sink_.IsOpen()) return;
         auto* slot = reinterpret_cast<Slot*>(hdr->dwUser);
-        waveOutUnprepareHeader(out_device_, &slot->hdr, sizeof(WAVEHDR));
+        sink_.Unprepare(&slot->hdr);
 
         const uint32_t completed_ch  = slot->dma_channel;
         const bool     completed_buf = slot->buffer_b;
