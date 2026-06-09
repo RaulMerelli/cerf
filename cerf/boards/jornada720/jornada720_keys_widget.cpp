@@ -1,6 +1,6 @@
+#include "../jornada/jornada_keys_widget.h"
+
 #include "../../core/cerf_emulator.h"
-#include "../../host/host_widget.h"
-#include "../../host/host_widget_registry.h"
 #include "../board_detector.h"
 #include "jornada720_keyboard.h"
 #include "jornada720_touch.h"
@@ -11,8 +11,7 @@ namespace {
 
 /* Labels = the app [HKLM\Software\Microsoft\Shell\Keys] binds to each VK
    (ROM default.reg); the VKs ride the normal MCU-scancode keyboard path. */
-struct KeyEntry { const wchar_t* label; uint8_t vk; };
-constexpr KeyEntry kAppRow[] = {
+constexpr JornadaKeyEntry kAppRow[] = {
     { L"Internet Explorer", 0xC1 }, { L"E-mail",         0xC2 },
     { L"Voice Recorder",    0xC3 }, { L"Contacts",       0xC4 },
     { L"Tasks",             0xC5 }, { L"Calendar",       0xC6 },
@@ -20,7 +19,7 @@ constexpr KeyEntry kAppRow[] = {
     { L"Pocket Access",     0xC9 }, { L"Pocket Excel",   0xCA },
     { L"Pocket Word",       0xCB },
 };
-constexpr KeyEntry kMediaKeys[] = {
+constexpr JornadaKeyEntry kMediaKeys[] = {
     { L"Volume up", 0xD1 }, { L"Volume down", 0xD2 }, { L"Play / pause", 0xD3 },
 };
 
@@ -36,29 +35,27 @@ constexpr BezelEntry kBezel[] = {
     { L"Media player (bezel 4)", 865 },
 };
 
-class Jornada720KeysWidget : public Service, public HostWidget {
+class Jornada720KeysWidget : public JornadaKeysWidget {
 public:
-    using Service::Service;
+    using JornadaKeysWidget::JornadaKeysWidget;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
-    void OnReady() override {
-        emu_.Get<HostWidgetRegistry>().Register(this);
-    }
 
-    std::wstring WidgetName() const override { return L"Jornada keys"; }
-    WidgetGroup  Group() const override { return WidgetGroup::InputControl; }
-    std::wstring Tooltip() const override {
-        return L"Jornada app / bezel keys — right-click for the key menu";
+protected:
+    std::vector<JornadaKeyEntry> AppKeys() const override {
+        return { std::begin(kAppRow), std::end(kAppRow) };
     }
-
-    std::vector<WidgetMenuItem> BuildMenu() override {
+    void InjectKey(uint8_t vk) override {
+        auto& kbd = emu_.Get<Jornada720Keyboard>();
+        kbd.OnHostKey(vk, /*key_up=*/false);
+        kbd.OnHostKey(vk, /*key_up=*/true);
+    }
+    std::vector<WidgetMenuItem> ExtraMenuItems() override {
         std::vector<WidgetMenuItem> items;
-        for (const auto& k : kAppRow)    items.push_back(KeyItem(k));
-        items.push_back(WidgetMenuItem{});               /* separator */
-        for (const auto& k : kMediaKeys) items.push_back(KeyItem(k));
+        for (const auto& k : kMediaKeys) items.push_back(MakeKeyItem(k.label, k.vk));
         items.push_back(WidgetMenuItem{});               /* separator */
         for (const auto& b : kBezel) {
             WidgetMenuItem it;
@@ -69,47 +66,6 @@ public:
             items.push_back(std::move(it));
         }
         return items;
-    }
-
-    void DrawIcon(HDC dc, const RECT& box) const override {
-        const int cx = (box.left + box.right) / 2;
-        const int cy = (box.top + box.bottom) / 2;
-        constexpr int kW = 18, kH = 12;
-        const RECT body = { cx - kW / 2, cy - kH / 2,
-                            cx + kW / 2, cy + kH / 2 };
-
-        HPEN    pen  = CreatePen(PS_SOLID, 1, RGB(170, 170, 180));
-        HBRUSH  dark = CreateSolidBrush(RGB(30, 32, 38));
-        HGDIOBJ op   = SelectObject(dc, pen);
-        HGDIOBJ ob   = SelectObject(dc, dark);
-        Rectangle(dc, body.left, body.top, body.right, body.bottom);
-
-        HBRUSH key = CreateSolidBrush(RGB(150, 160, 170));
-        for (int row = 0; row < 2; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                RECT k = { body.left + 2 + col * 5, body.top + 2 + row * 5,
-                           body.left + 5 + col * 5, body.top + 5 + row * 5 };
-                FillRect(dc, &k, key);
-            }
-        }
-        DeleteObject(key);
-
-        SelectObject(dc, ob);
-        SelectObject(dc, op);
-        DeleteObject(dark);
-        DeleteObject(pen);
-    }
-
-private:
-    WidgetMenuItem KeyItem(const KeyEntry& k) {
-        WidgetMenuItem it;
-        it.label    = k.label;
-        it.on_click = [this, vk = k.vk] {
-            auto& kbd = emu_.Get<Jornada720Keyboard>();
-            kbd.OnHostKey(vk, /*key_up=*/false);
-            kbd.OnHostKey(vk, /*key_up=*/true);
-        };
-        return it;
     }
 };
 
