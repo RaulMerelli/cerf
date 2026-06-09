@@ -65,6 +65,12 @@ static constexpr uint32_t kUtsr0Rid = 1u << 2;
 static constexpr uint32_t kUtsr0Tfs = 1u << 0;
 static constexpr uint32_t kUtcr3Tie = 1u << 4;
 
+/* SA-1110 §11.11.5.4: UTCR3 RIE = bit 3 gates the RFS/RID interrupt (RIE=0 ->
+   RFS/RID ignored by the INTC). The J820 OAL clears RIE to silence the SP1 source
+   while its IST drains (nk.exe 0x80059EB0); ignoring RIE keeps the source asserted,
+   the OAL re-enters before the IST runs, and it storms returning NOP. */
+static constexpr uint32_t kUtcr3Rie = 1u << 3;
+
 uint32_t Sa11xxUartBase::ComputeUtsr0Locked() const {
     uint32_t v = utsr0_pending_ | kUtsr0Tfs;
     if (!rx_fifo_.empty()) v |= kUtsr0Rfs;
@@ -75,7 +81,7 @@ void Sa11xxUartBase::RefreshIrqLocked() {
     const int bit = IntcSourceBit();
     if (bit < 0) return;
     const uint32_t utsr0 = ComputeUtsr0Locked();
-    const bool rx_irq = (utsr0 & (kUtsr0Rfs | kUtsr0Rid)) != 0;
+    const bool rx_irq = (utcr3_ & kUtcr3Rie) && (utsr0 & (kUtsr0Rfs | kUtsr0Rid));
     const bool tx_irq = (utcr3_ & kUtcr3Tie) && (utsr0 & kUtsr0Tfs);
     const bool want = rx_irq || tx_irq;
     if (want && !intc_asserted_) {
@@ -90,6 +96,13 @@ void Sa11xxUartBase::RefreshIrqLocked() {
 void Sa11xxUartBase::PushRxByte(uint8_t b) {
     std::lock_guard<std::mutex> lk(state_mtx_);
     rx_fifo_.push_back(b);
+    utsr0_pending_ |= kUtsr0Rid;
+    RefreshIrqLocked();
+}
+
+void Sa11xxUartBase::PushRxBurst(const uint8_t* data, size_t n) {
+    std::lock_guard<std::mutex> lk(state_mtx_);
+    for (size_t i = 0; i < n; ++i) rx_fifo_.push_back(data[i]);
     utsr0_pending_ |= kUtsr0Rid;
     RefreshIrqLocked();
 }

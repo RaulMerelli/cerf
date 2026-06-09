@@ -32,6 +32,11 @@ public:
     }
     void PushRxByte(uint8_t b);
 
+    /* Deliver a whole frame atomically (queue all bytes under one lock, raise the
+       IRQ once). A streaming source must use this: a mid-frame FIFO underrun can
+       leave the guest ISR's sticky RX status set and storm the interrupt. */
+    void PushRxBurst(const uint8_t* data, size_t n);
+
 protected:
     /* "UART1", "UART3", … — used as the log prefix on TX flush. */
     virtual const char* ChannelName() const = 0;
