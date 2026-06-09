@@ -21,10 +21,13 @@ constexpr uint32_t kModCodeBase  = 0x02000000u;
 constexpr uint32_t kModCodeEnd   = 0x04000000u;
 constexpr uint32_t kDllSlotAlign = 0x10000u;   /* XIP DLL 64K slot alignment */
 
-uint32_t AlignPageP(uint32_t v) { return (v + 0xFFFu) & ~0xFFFu; }
-bool IsRwPrivate(uint32_t f) { return (f & 0x80000000u) && !(f & 0x10000000u); }
-
 }  /* namespace */
+
+uint32_t GuestModulePlacer::EffSectionFlags(uint32_t flags) const {
+    constexpr uint32_t kImgScnMemShared = 0x10000000u;
+    constexpr uint32_t kImgScnMemWrite  = 0x80000000u;
+    return (flags & kImgScnMemWrite) ? (flags | kImgScnMemShared) : flags;
+}
 
 uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
                                           uint32_t orig_slot_base,
@@ -103,93 +106,3 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
     return new_vbase;
 }
 
-bool GuestModulePlacer::ExtendDllRwRegion(
-    const std::vector<ModuleSection>& units,
-    uint32_t base_vbase, uint32_t slot_base, uint32_t& out_data_base) {
-    out_data_base = 0;
-
-    uint32_t rw_total = 0;
-    for (const auto& u : units)
-        if (IsRwPrivate(u.flags))
-            rw_total += AlignPageP(u.vsize > u.psize ? u.vsize : u.psize);
-    if (rw_total == 0)
-        return false;
-
-    /* Writable data in the shared section-1 region [kModCodeBase, kModCodeEnd)
-       is a single copy across processes, so a second loader (the device.exe
-       carrier) would clobber gwes's copy; it needs a per-process slot-0 home.
-       ASID kernels base modules high, so their data is already per-process. */
-    const uint32_t natural_base = base_vbase + slot_base;
-    if (natural_base < kModCodeBase || natural_base >= kModCodeEnd)
-        return false;
-
-    auto& pt  = emu_.Get<PageTableBuilder>();
-    auto& mem = emu_.Get<EmulatedMemory>();
-    const auto& xips = emu_.Get<RomParserService>().Primary().xips;
-
-    /* A XIP has a per-process DLL-RW region only when dllfirst<<16 is non-zero
-       and below dlllast (loader.c ReserveDllRW). CE2.11/CE3 ROMs have none and
-       make section-1 DLL data per-process via the loader's ZeroPtr path; return
-       false there (synthesizing a reservation breaks the load). */
-    uint32_t romhdr_pa = 0, dll_load_base = 0;
-    int valid = 0;
-    for (size_t i = 0; i < xips.size(); ++i) {
-        const auto& toc = xips[i].toc;
-        const uint32_t pa       = pt.VaToPa(toc.romhdr_va);
-        const uint32_t dllfirst = mem.ReadWord(pa);
-        const uint32_t floor    = dllfirst << 16;
-        const bool ok = (floor != 0) && (floor < toc.romhdr.dlllast);
-        LOG(GuestAdditions, "ExtendDllRwRegion xip[%zu] dllfirst=0x%08X floor=0x%08X "
-                  "dlllast=0x%08X valid=%d\n",
-            i, dllfirst, floor, toc.romhdr.dlllast, ok);
-        if (ok) {
-            ++valid;
-            romhdr_pa     = pa;
-            dll_load_base = dllfirst & 0xFFFF0000u;
-        }
-    }
-    if (valid == 0)
-        return false;
-    if (valid > 1) {
-        LOG(Caution, "ExtendDllRwRegion: %d XIPs carry a DLL-RW region; need a "
-                  "containment rule to pick the governing one for victim base "
-                  "0x%08X\n", valid, natural_base);
-        CerfFatalExit();
-    }
-
-    const auto it = extended_floors_.find(romhdr_pa);
-    const uint32_t cur_floor = (it != extended_floors_.end())
-                             ? it->second : (mem.ReadWord(romhdr_pa) << 16);
-    const uint32_t data_base = (cur_floor - rw_total) & ~0xFFFFu;   /* 64K-aligned */
-    if (data_base <= dll_load_base) {
-        LOG(Caution, "ExtendDllRwRegion: injected rw 0x%X cannot extend DLL-RW floor "
-                  "0x%08X below DllLoadBase 0x%08X\n",
-            rw_total, cur_floor, dll_load_base);
-        CerfFatalExit();
-    }
-    const uint32_t new_dllfirst = dll_load_base | (data_base >> 16);
-    mem.WriteWord(romhdr_pa, new_dllfirst);   /* ROMHDR.dllfirst at offset 0 */
-    extended_floors_[romhdr_pa] = data_base;
-    out_data_base = data_base;
-    LOG(GuestAdditions, "ExtendDllRwRegion floor 0x%08X -> 0x%08X (dllfirst -> 0x%08X, "
-              "rw_total=0x%X, romhdr_pa=0x%08X)\n",
-        cur_floor, data_base, new_dllfirst, rw_total, romhdr_pa);
-    return true;
-}
-
-std::vector<uint32_t> GuestModulePlacer::ComputeSectionRealaddrs(
-    const std::vector<ModuleSection>& units,
-    uint32_t base_vbase, uint32_t slot_base, uint32_t data_base) {
-    std::vector<uint32_t> out(units.size());
-    uint32_t data_cursor = data_base;
-    for (size_t i = 0; i < units.size(); ++i) {
-        const auto& u = units[i];
-        if (data_base != 0 && IsRwPrivate(u.flags)) {
-            out[i] = data_cursor;
-            data_cursor += AlignPageP(u.vsize > u.psize ? u.vsize : u.psize);
-        } else {
-            out[i] = base_vbase + slot_base + u.rva;
-        }
-    }
-    return out;
-}

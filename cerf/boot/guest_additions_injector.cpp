@@ -35,16 +35,6 @@ constexpr const char* kStubDll = "cerf_guest_stub.dll";
 uint32_t AlignPage(uint32_t v) { return (v + kPageMask) & ~kPageMask; }
 uint32_t Align4(uint32_t v)    { return (v + 3u) & ~3u; }
 
-/* Flag a writable stub section SHARED: the CE5/WM5 loader per-processes only
-   WRITE & !SHARED sections, and without a DLL-RW reservation that per-process
-   copy's dest folds to the bare slot base and faults the device.exe carrier
-   load. The stub keeps its per-process state pid-keyed, so one copy is correct. */
-uint32_t EffSectionFlags(uint32_t f) {
-    constexpr uint32_t kImgScnMemShared = 0x10000000u;
-    constexpr uint32_t kImgScnMemWrite  = 0x80000000u;
-    return (f & kImgScnMemWrite) ? (f | kImgScnMemShared) : f;
-}
-
 class GuestAdditionsInjector : public Service {
 public:
     using Service::Service;
@@ -83,13 +73,12 @@ public:
         auto& imgfs = emu_.Get<ImgfsInjector>();
         int matched = 0;
         for (const auto& sub : subs) {
-            /* XIP: plant the tiny stub in the victim's TOC slot + footprint. */
+            /* IMGFS injects the SAME stub, not the full body: a kernel-loaded
+               full body shares one .data across gwes + the device.exe carrier at
+               the high victim vbase (the CE5 loader doesn't per-process it) and
+               corrupts gwes's globals; the stub manual-maps the body per-process. */
             if (Replace(sub.first.c_str(), stub_path)) ++matched;
-            /* IMGFS (WM6+): the full body still goes in directly (no size
-               wall in IMGFS); untouched separate path. */
-            const std::string body_path =
-                emu_.Get<GuestAdditionsBinaries>().StagedPath(sub.second);
-            if (imgfs.ReplaceVictim(sub.first.c_str(), body_path)) ++matched;
+            if (imgfs.ReplaceVictim(sub.first.c_str(), stub_path)) ++matched;
         }
         if (matched == 0) {
             LOG(Caution, "no display-driver victim matched\n");
@@ -185,7 +174,7 @@ void GuestAdditionsInjector::WriteO32Array(uint32_t pa, const PeImage& pe,
     for (size_t i = 0; i < pe.Sections().size(); ++i) {
         const auto& s = pe.Sections()[i];
         const uint32_t off = pa + uint32_t(i) * kO32RomSize;
-        const uint32_t flags = EffSectionFlags(s.flags);
+        const uint32_t flags = emu_.Get<GuestModulePlacer>().EffSectionFlags(s.flags);
         mem.WriteWord(off + kO32OffVsize,    s.vsize);
         mem.WriteWord(off + kO32OffRva,      s.rva);
         mem.WriteWord(off + kO32OffPsize,    s.psize);

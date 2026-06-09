@@ -12,27 +12,42 @@ C++ under `cerf/boot/` + `cerf/peripherals/cerf_virt/` and guest ARM code under
 
 `cerf_guest` is larger than a typical victim ROM slot, must survive boards that
 wipe DRAM at boot, and must not be rejected by Windows Mobile module
-authentication. One mechanism satisfies all three on every XIP/MultiXIP ROM,
-every CE version:
+authentication. One mechanism satisfies all three on every ROM class and every
+CE version. Two pieces are common to all ROMs:
 
 - A **tiny stub** (`ce_apps/cerf_guest_stub/`) is injected as the victim
-  display-driver module — the injector overwrites the victim's TOC entry in
-  place to repoint it at the stub (`cerf/boot/guest_additions_injector.cpp`).
-  Because the stub is tiny it fits any victim's slot on every CE version,
-  erasing the per-version placement differences the full body would hit.
+  display-driver module. Because it is tiny it fits any victim's slot regardless
+  of CE version, erasing the per-version placement differences the full body
+  would hit.
 - The **full cerf_guest body** is delivered separately over a `cerf_virt` MMIO
-  channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`; the binaries
-  are staged by `cerf/boot/guest_additions_binaries.{h,cpp}`). The stub pulls
-  the body bytes and **manual-maps the PE itself** — VirtualAlloc + section copy
-  + base relocation + import bind + entry — so the kernel's verified loader
-  never sees the unsigned body. This is what lets it load past WM5 / WM2003SE
-  module authentication and live in CERF-owned memory a firmware RAM wipe can't
-  reach.
-- **IMGFS ROMs (WM6+)** use a separate file-level path,
-  `cerf/boot/imgfs_injector.cpp` + `cerf/boot/ce_imgfs_patcher.{h,cpp}`.
-- Placement math (vbase relocation for an oversized or section-0 victim; the
-  per-process DLL-RW reservation) lives in
-  `cerf/boot/guest_module_placer.{h,cpp}`.
+  channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`; binaries staged
+  by `cerf/boot/guest_additions_binaries.{h,cpp}`). The stub pulls the body bytes
+  and **manual-maps the PE itself** — VirtualAlloc + section copy + base reloc +
+  coredll import bind + entry — so the kernel's verified loader never sees the
+  unsigned body. This loads past WM5 / WM2003SE module authentication, gives each
+  loading process its OWN body image (per-process by construction), and lives in
+  CERF-owned memory a firmware RAM wipe can't reach.
+
+Only **how the stub is placed into the ROM** differs by ROM class:
+
+- **XIP / MultiXIP** (`cerf/boot/guest_additions_injector.cpp`) — the ROM carries
+  a TOC of XIP modules, so the injector overwrites the victim module's TOC entry
+  in place (its e32/o32/load offsets) to repoint it at the stub, and hosts the
+  stub's bytes inside the victim's largest section. `GuestModulePlacer::
+  ComputeVbase` relocates the module below the lowest section-1 code when the
+  victim's vbase is in section 0 or the stub overflows the slot.
+- **IMGFS** (WM6+; `cerf/boot/imgfs_injector.cpp` + `ce_imgfs_patcher.{h,cpp}`) —
+  IMGFS is a flash filesystem (an FTL over the NOR/NAND image), not an XIP TOC,
+  so there is no slot to overwrite. The injector allocates fresh FTL flash pages
+  (writing each page's logical-sector-map entry so imgfs.dll adopts it), writes
+  the stub's `e32_rom` module header + per-section data into those pages, and
+  repoints the victim's IMGFS **dirent** module-index / section-index records at
+  the new pages. The SAME stub is injected; only the placement substrate is the
+  FTL instead of the TOC.
+
+Both paths flag the stub's writable sections SHARED
+(`GuestModulePlacer::EffSectionFlags`) and the stub keeps its per-process state
+pid-keyed — see § The cross-process writable-state invariant for why.
 
 The body's manual-map shape is a load-bearing contract: a single import DLL
 (coredll), HIGHLOW-only relocations, no TLS. Rebuilding `cerf_guest` so it gains
@@ -55,12 +70,19 @@ runs the FSD from `CDD_Init`. Guest side: `ce_apps/cerf_guest/cerf_fs_*.c` +
 
 ## The cross-process writable-state invariant
 
-The injected module is loaded by more than one process — gwes (display) and
-device.exe (the FSD carrier). On a guest kernel that gives the module no
-per-process RW home, the module's **writable statics are one physical instance
-shared across those processes**, and a per-process `VirtualAlloc` address stored
-in such a static is meaningless in the other process. Two rules follow, and both
-are mandatory for any injected guest module:
+The injected module is loaded by more than one process — gwes (display),
+device.exe (the FSD carrier), and any DirectDraw-HAL client that loads the
+display driver (`HALInit`). Whether the kernel gives each process its own
+writable copy depends on the module's vbase: a **CE5/FCSE kernel folds a
+`WRITE & !SHARED` section to a per-process slot copy (loader.c `ReadSection`
+ZeroPtr) only when the vbase is in a slot / section-1 region; a module at a high
+shared-region vbase keeps one physical `.data` shared across every loading
+process.** This is why a low-vbase IMGFS victim (WM6.0) tolerated a full
+kernel-loaded body but a high-vbase one (WM6.5) corrupted gwes's globals
+cross-process — and the reason the per-process manual-mapped stub body exists.
+Where the writable statics ARE shared, a per-process `VirtualAlloc` address
+stored in such a static is meaningless in the other process. Two rules follow,
+and both are mandatory for any injected guest module:
 
 - **Per-process runtime state must be keyed by process id.** A flat static one
   process initializes is read with that process's value by the next, which then
