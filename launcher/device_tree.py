@@ -133,13 +133,13 @@ class DeviceTreePanel:
                             selectmode="browse")
         tree.heading("#0", text="Device")
         tree.heading("os", text="OS")
-        tree.heading("year", text="Year")
+        tree.heading("year", text="Year / OS")
         tree.heading("board", text="Board")
         tree.heading("soc", text="SoC")
         tree.heading("status", text="Status")
         tree.column("#0", width=200, minwidth=140, anchor="w", stretch=True)
         tree.column("os", width=260, minwidth=180, anchor="w", stretch=True)
-        tree.column("year", width=55, minwidth=45, anchor="center", stretch=False)
+        tree.column("year", width=95, minwidth=80, anchor="center", stretch=False)
         tree.column("board", width=140, minwidth=95, anchor="w", stretch=True)
         tree.column("soc", width=105, minwidth=80, anchor="w", stretch=True)
         tree.column("status", width=100, minwidth=90, anchor="w", stretch=False)
@@ -226,7 +226,9 @@ class DeviceTreePanel:
                 self._payload[group_iid] = TreeSelection(kind="group")
                 group_iids[board] = group_iid
             state = d.state_label
-            year = str(d.meta.device_year) if d.meta.device_year else ""
+            dev_y = str(d.meta.device_year) if d.meta.device_year else "?"
+            os_y = str(d.meta.os_year) if d.meta.os_year else "?"
+            year = f"{dev_y} / {os_y}"
             os_label = _table_os_label(d)
             soc = d.meta.soc_family or ""
             display = d.meta.device_name or d.name
