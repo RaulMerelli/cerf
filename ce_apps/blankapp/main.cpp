@@ -133,7 +133,7 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
     w = r.right - r.left;
     h = r.bottom - r.top;
 
-    hwnd = CreateWindowExW(0, L"CerfBlankApp", L"CERF BlankApp",
+    hwnd = CreateWindowExW(WS_EX_TOPMOST, L"CerfBlankApp", L"CERF BlankApp",
                            WS_CAPTION | WS_SYSMENU | WS_BORDER,
                            20, 20, w, h,
                            NULL, NULL, hInstance, NULL);
