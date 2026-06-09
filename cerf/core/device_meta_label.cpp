@@ -51,6 +51,7 @@ std::string OsDisplayLabel(const DeviceMeta& meta) {
     if (!(major || minor)) return name;
     if (OsNameHasVersion(name, major, minor)) return name;
 
-    std::string version = std::to_string(major) + "." + std::to_string(minor);
-    return name.empty() ? version : (name + " " + version);
+    std::string tag = "(CE " + std::to_string(major) + "." +
+                      std::to_string(minor) + ")";
+    return name.empty() ? tag : (name + " " + tag);
 }
