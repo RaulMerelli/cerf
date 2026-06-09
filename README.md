@@ -217,6 +217,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
           <td>
             <ul>
               <li>Added HP Palmtop VGA (F1252A) card</li>
+              <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
             </ul>
           </td>
         </tr>
