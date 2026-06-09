@@ -271,6 +271,16 @@ BOARDS_INFORMATION = [
         "supported": False,
         "notes": [],
     },
+    {
+        "name": "Siemens SIMpad SL4",
+        "supported": False,
+        "notes": [],
+    },
+    {
+        "name": "Siemens KTP4 Mobile (ZEUS/etcha)",
+        "supported": False,
+        "notes": [],
+    },
 ]
 
 
