@@ -4,6 +4,7 @@ is selected in the device tree."""
 from __future__ import annotations
 
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Dict, List, Optional
@@ -16,6 +17,7 @@ from supported_devices import (
     dynamic_extra_notes,
 )
 from ui_dialogs import bind_tooltip
+from ui_theme import FG, LINK_FG
 
 
 class DetailsPanel:
@@ -44,6 +46,16 @@ class DetailsPanel:
             self.meta_vars[key] = var
             ttk.Label(meta, textvariable=var, wraplength=220,
                       justify="left").grid(row=i, column=1, sticky="w")
+
+        # Source credit row: shown only when a source name exists; the name
+        # becomes a clickable link when the source carries a URL.
+        src_row = len(rows)
+        self.source_caption = ttk.Label(meta, text="Source:")
+        self.source_caption.grid(row=src_row, column=0, sticky="w", padx=(0, 8))
+        self.source_value = ttk.Label(meta, wraplength=220, justify="left")
+        self.source_value.grid(row=src_row, column=1, sticky="w")
+        self._source_url: Optional[str] = None
+        self.source_value.bind("<Button-1>", self._on_source_click)
 
         package = ttk.LabelFrame(inner, text="Package", padding=8)
         package.grid(row=1, column=0, sticky="ew", pady=(0, 8))
@@ -106,6 +118,7 @@ class DetailsPanel:
         self.meta_vars["download_size"].set(
             (format_size(remote.archive_size) if remote else "") or "—")
         self.meta_vars["state"].set(device.state_label)
+        self._update_source(device)
         self._update_features(device)
         self._update_description(device)
         self._update_notes(device)
@@ -126,6 +139,26 @@ class DetailsPanel:
         if not device.is_installed:
             state += " (install device first)"
         self.package_vars["state"].set(state)
+
+    def _update_source(self, device: DeviceBundle) -> None:
+        src = device.meta.source
+        if src is None or not src.name:
+            self.source_caption.grid_remove()
+            self.source_value.grid_remove()
+            self._source_url = None
+            return
+        self.source_caption.grid()
+        self.source_value.grid()
+        self._source_url = src.website or src.origin or None
+        if self._source_url:
+            self.source_value.config(text=src.name, foreground=LINK_FG,
+                                     cursor="hand2")
+        else:
+            self.source_value.config(text=src.name, foreground=FG, cursor="")
+
+    def _on_source_click(self, _event: object) -> None:
+        if self._source_url:
+            webbrowser.open(self._source_url)
 
     def _update_description(self, device: DeviceBundle) -> None:
         description = device.meta.description.strip()

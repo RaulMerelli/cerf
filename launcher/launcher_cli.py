@@ -34,6 +34,21 @@ def _print_rom_license_notice(target: str) -> None:
     )
 
 
+def _print_source_notice(device: DeviceBundle) -> None:
+    """Non-blocking CLI equivalent of the GUI preservation-source dialog: just
+    credit the source and print its visit/support links. No-op without a
+    source block."""
+    src = device.meta.source
+    if src is None:
+        return
+    print(f"This ROM bundle was preserved and provided by {src.name}.")
+    if src.website:
+        print(f"  Visit them:   {src.website}")
+    if src.donate:
+        print(f"  Support them: {src.donate}")
+    print()
+
+
 def _run_in_cerf(bundle: str) -> None:
     cerf = resolve_cerf_exe()
     if cerf is None:
@@ -133,6 +148,7 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
             if targets:
                 _print_rom_license_notice(f"{len(targets)} bundle(s)")
             for d in targets:
+                _print_source_notice(d)
                 print(f"Updating {d.name}...")
                 manager.submit_install(d.name, _cli_progress, cancel).result()
                 print()
@@ -148,6 +164,7 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
             return 0
         if args.command in ("download", "update"):
             _print_rom_license_notice(args.bundle)
+            _print_source_notice(_find_device(manager, args.bundle))
             manager.submit_install(args.bundle, _cli_progress, cancel).result()
             if args.run_in_cerf:
                 print()
@@ -162,6 +179,7 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
             category, key = _parse_package_ref(args.package)
             if args.command == "download-package":
                 _print_rom_license_notice(f"{args.bundle} {args.package}")
+                _print_source_notice(_find_device(manager, args.bundle))
                 manager.submit_install_package(
                     args.bundle, category, key, _cli_progress, cancel).result()
             else:
