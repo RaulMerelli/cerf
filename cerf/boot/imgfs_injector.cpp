@@ -213,32 +213,21 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
         CerfFatalExit();
     }
 
-    /* Slot geometry is byte-independent; a writable slot goes on a per-process
-       slot-0 base so the device.exe carrier gets its own copy, via the same
-       ComputeSectionRealaddrs the XIP path uses. */
+    /* The injected stub's writable sections are flagged SHARED (EffSectionFlags
+       below), so the CE5 loader keeps one pid-keyed copy and never makes a
+       per-process copy — every section's realaddr is simply its vbase + rva. */
     const size_t K = victim->sections.size();
     auto geom = cerf::ce_imgfs_patcher::PackPeSections(
         pe, std::vector<uint8_t>(pe.Bytes().begin(), pe.Bytes().end()), K);
-    std::vector<ModuleSection> slot_units;
-    slot_units.reserve(geom.size());
-    for (const auto& g : geom)
-        slot_units.push_back({g.rva, g.vsize, g.psize, g.flags});
     auto& placer = emu_.Get<GuestModulePlacer>();
-    uint32_t data_base = 0;
-    placer.ExtendDllRwRegion(slot_units, orig_vbase, slot_base, data_base);
-    const std::vector<uint32_t> slot_realaddr =
-        placer.ComputeSectionRealaddrs(slot_units, orig_vbase, slot_base, data_base);
+    std::vector<uint32_t> slot_realaddr;
+    slot_realaddr.reserve(geom.size());
+    for (const auto& g : geom)
+        slot_realaddr.push_back(orig_vbase + slot_base + g.rva);
 
     std::vector<uint32_t> section_realaddr(pe.Sections().size());
-    for (size_t i = 0; i < pe.Sections().size(); ++i) {
-        const uint32_t rva = pe.Sections()[i].rva;
-        section_realaddr[i] = orig_vbase + rva;
-        for (size_t s = 0; s < geom.size(); ++s)
-            if (rva >= geom[s].rva && rva < geom[s].rva + geom[s].vsize) {
-                section_realaddr[i] = slot_realaddr[s] + (rva - geom[s].rva);
-                break;
-            }
-    }
+    for (size_t i = 0; i < pe.Sections().size(); ++i)
+        section_realaddr[i] = orig_vbase + slot_base + pe.Sections()[i].rva;
 
     std::vector<uint8_t> pe_bytes_relocated(pe.Bytes().begin(), pe.Bytes().end());
     const int32_t code_delta = int32_t(orig_vbase) - int32_t(pe.ImageBase());
@@ -259,6 +248,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
             victim_name, slots.size(), K);
         CerfFatalExit();
     }
+    for (auto& s : slots) s.flags = placer.EffSectionFlags(s.flags);
 
     auto new_hdr = cerf::ce_imgfs_patcher::BuildModuleHeader(
         kE32RomCE5plus, pe, orig_vbase, slot_realaddr, slots);
@@ -277,8 +267,8 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     constexpr uint32_t kErase  = 0x10000;
     constexpr uint32_t kPage   = 0x1000;
     constexpr uint32_t kDpb    = 15;
-    /* DO NOT use 0xFFFFFFFF — bit 18 set marks entry as deleted-pending
-       and imgfs.dll skips it; every live mapping uses 0xFFFBFFFF. */
+    /* IMGFS FTL flag word: imgfs.dll skips an entry whose bit 18 is set
+       (deleted-pending), so a live mapping clears it — 0xFFFBFFFF. */
     constexpr uint32_t kValidFlags = 0xFFFBFFFFu;
 
     auto allocate_pages = [&](uint32_t count, const char* what)
