@@ -17,20 +17,20 @@ std::vector<WidgetMenuItem> SerialModemCardMenu::BuildInsertMenu(
         it.enabled = false;   /* shown grayed: inline guidance, not clickable */
         items.push_back(std::move(it));
     };
-    note(L"After inserting, to get online:");
-    note(L"   1.  Open the dial-up / network connections app");
-    note(L"   2.  Create a new dial-up connection on this modem");
-    note(L"   3.  Dial any phone number (for example 555)");
-    note(L"   4.  User name and password can be left blank");
-
-    items.push_back({});   /* separator */
-
     WidgetMenuItem insert;
     insert.label    = L"Insert";
     insert.on_click = [this, inserter] {
         inserter(std::make_unique<SerialPcCard>(emu_));
     };
     items.push_back(std::move(insert));
+
+    items.push_back({});   /* separator */
+
+    note(L"After inserting, to get online:");
+    note(L"   1.  Open the dial-up / network connections app");
+    note(L"   2.  Create a new dial-up connection on this modem");
+    note(L"   3.  Dial any phone number (for example 555)");
+    note(L"   4.  User name and password can be left blank");
 
     return items;
 }

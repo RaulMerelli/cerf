@@ -20,24 +20,25 @@ std::vector<WidgetMenuItem> SerialForwardCardMenu::BuildInsertMenu(
         it.enabled = false;   /* shown grayed: inline guidance, not clickable */
         items.push_back(std::move(it));
     };
-    note(L"Bridges the guest serial port to a real host COM port.");
-    note(L"Open the guest COMx with a raw terminal (e.g. CE PuTTY).");
-    note(L"Pick the host port to forward to:");
-    items.push_back({});   /* separator */
-
     const std::vector<std::wstring> ports = EnumerateHostComPorts();
     if (ports.empty()) {
         note(L"   (no host serial ports found)");
-        return items;
+    } else {
+        for (const std::wstring& p : ports) {
+            WidgetMenuItem it;
+            it.label    = p;
+            it.on_click = [this, inserter, p] {
+                inserter(std::make_unique<SerialPcCard>(emu_, p));
+            };
+            items.push_back(std::move(it));
+        }
     }
-    for (const std::wstring& p : ports) {
-        WidgetMenuItem it;
-        it.label    = p;
-        it.on_click = [this, inserter, p] {
-            inserter(std::make_unique<SerialPcCard>(emu_, p));
-        };
-        items.push_back(std::move(it));
-    }
+
+    items.push_back({});   /* separator */
+
+    note(L"Bridges the guest serial port to a real host COM port.");
+    note(L"Pick a host port above to forward the guest serial port to.");
+    note(L"Open the guest COMx with a raw terminal (e.g. CE PuTTY).");
     return items;
 }
 

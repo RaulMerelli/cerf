@@ -17,18 +17,18 @@ std::vector<WidgetMenuItem> HpPalmtopVgaCardMenu::BuildInsertMenu(
         it.enabled = false;   /* shown grayed: inline guidance, not clickable */
         items.push_back(std::move(it));
     };
-    note(L"External VGA monitor output, in its own window.");
-    note(L"Works on the HP Jornada series.");
-    note(L"Verified on the HP Jornada 720.");
-
-    items.push_back({});   /* separator */
-
     WidgetMenuItem insert;
     insert.label    = L"Insert";
     insert.on_click = [this, inserter] {
         inserter(std::make_unique<HpPalmtopVgaCard>(emu_));
     };
     items.push_back(std::move(insert));
+
+    items.push_back({});   /* separator */
+
+    note(L"External VGA monitor output, in its own window.");
+    note(L"Works on the HP Jornada series.");
+    note(L"Verified on the HP Jornada 720.");
 
     return items;
 }
