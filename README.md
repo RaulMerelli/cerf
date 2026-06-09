@@ -228,6 +228,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>HP Jornada 820 support</li>
               <li>PC Cards: Serial modem emulator and serial forwader</li>
+              <li>DDraw path inside Guest Additions (now Zune and friends render, I hope)</li>
             </ul>
           </td>
         </tr>
