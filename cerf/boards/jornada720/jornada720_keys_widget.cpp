@@ -60,45 +60,53 @@ public:
     }
 
 protected:
-    std::vector<JornadaKeyEntry> AppKeys() const override {
-        return { std::begin(kAppRow), std::end(kAppRow) };
+    std::vector<MenuSection> MenuSections() override {
+        return {
+            FnHintSection(),
+            FnSymbolSection(),
+            KeyRow(std::begin(kAppRow),    std::end(kAppRow)),
+            KeyRow(std::begin(kMediaKeys), std::end(kMediaKeys)),
+            BezelSection(),
+        };
     }
     void InjectKey(uint8_t vk) override {
         auto& kbd = emu_.Get<Jornada720Keyboard>();
         kbd.OnHostKey(vk, /*key_up=*/false);
         kbd.OnHostKey(vk, /*key_up=*/true);
     }
-    std::vector<WidgetMenuItem> PrefixItems() override {
-        std::vector<WidgetMenuItem> items;
+
+private:
+    MenuSection FnHintSection() {
         WidgetMenuItem hint;
         hint.label   = L"Hint: F10 is mapped to guest's Fn key";
         hint.enabled = false;                            /* grayed static header */
-        items.push_back(std::move(hint));
-        items.push_back(WidgetMenuItem{});               /* separator */
+        MenuSection sec;
+        sec.push_back(std::move(hint));
+        return sec;
+    }
+    MenuSection FnSymbolSection() {
+        MenuSection sec;
         for (const auto& s : kFnSymbols) {
             WidgetMenuItem it;
             it.label    = s.label;
             it.on_click = [this, vk = s.base_vk] { InjectFnCombo(vk); };
-            items.push_back(std::move(it));
+            sec.push_back(std::move(it));
         }
-        return items;
+        return sec;
     }
-    std::vector<WidgetMenuItem> ExtraMenuItems() override {
-        std::vector<WidgetMenuItem> items;
-        for (const auto& k : kMediaKeys) items.push_back(MakeKeyItem(k.label, k.vk));
-        items.push_back(WidgetMenuItem{});               /* separator */
+    MenuSection BezelSection() {
+        MenuSection sec;
         for (const auto& b : kBezel) {
             WidgetMenuItem it;
             it.label    = b.label;
             it.on_click = [this, y = b.adc_y] {
                 emu_.Get<Jornada720Touch>().TapRawAdc(kBezelAdcX, y);
             };
-            items.push_back(std::move(it));
+            sec.push_back(std::move(it));
         }
-        return items;
+        return sec;
     }
 
-private:
     /* Hold-Fn + tap base + release-Fn, mirroring the verified host-F10 path:
        Fn-down latches the Fn layer, the base key resolves through col7, Fn-up
        clears it. */

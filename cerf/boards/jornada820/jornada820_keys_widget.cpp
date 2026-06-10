@@ -30,8 +30,8 @@ public:
     }
 
 protected:
-    std::vector<JornadaKeyEntry> AppKeys() const override {
-        return { std::begin(kAppRow), std::end(kAppRow) };
+    std::vector<MenuSection> MenuSections() override {
+        return { KeyRow(std::begin(kAppRow), std::end(kAppRow)) };
     }
     void InjectKey(uint8_t vk) override {
         auto& kbd = emu_.Get<Jornada820Keyboard>();

@@ -27,12 +27,16 @@ public:
     std::vector<WidgetMenuItem> BuildMenu() override;
 
 protected:
-    virtual std::vector<JornadaKeyEntry> AppKeys() const = 0;
-    virtual void InjectKey(uint8_t vk) = 0;            /* tap (down+up) via the board keyboard */
-    virtual std::vector<WidgetMenuItem> ExtraMenuItems() { return {}; }
-    /* Board-specific items shown at the top of the menu, ahead of the app keys
-       (e.g. the J720 Fn-symbol shortcuts). Default: none. */
-    virtual std::vector<WidgetMenuItem> PrefixItems() { return {}; }
+    using MenuSection = std::vector<WidgetMenuItem>;
 
+    /* Ordered menu sections; BuildMenu joins each non-empty section with a
+       separator (earlier sections render higher). A new block is one more entry
+       in the returned list — no new hook. */
+    virtual std::vector<MenuSection> MenuSections() = 0;
+
+    virtual void InjectKey(uint8_t vk) = 0;            /* tap (down+up) via the board keyboard */
+
+    /* One app-launch item / a section of them that InjectKey their VK. */
     WidgetMenuItem MakeKeyItem(const wchar_t* label, uint8_t vk);
+    MenuSection    KeyRow(const JornadaKeyEntry* first, const JornadaKeyEntry* last);
 };

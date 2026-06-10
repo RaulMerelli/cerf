@@ -14,18 +14,20 @@ WidgetMenuItem JornadaKeysWidget::MakeKeyItem(const wchar_t* label, uint8_t vk) 
     return it;
 }
 
+JornadaKeysWidget::MenuSection JornadaKeysWidget::KeyRow(
+        const JornadaKeyEntry* first, const JornadaKeyEntry* last) {
+    MenuSection sec;
+    for (const JornadaKeyEntry* k = first; k != last; ++k)
+        sec.push_back(MakeKeyItem(k->label, k->vk));
+    return sec;
+}
+
 std::vector<WidgetMenuItem> JornadaKeysWidget::BuildMenu() {
     std::vector<WidgetMenuItem> items;
-    auto prefix = PrefixItems();
-    if (!prefix.empty()) {
-        for (auto& p : prefix) items.push_back(std::move(p));
-        items.push_back(WidgetMenuItem{});               /* separator */
-    }
-    for (const auto& k : AppKeys()) items.push_back(MakeKeyItem(k.label, k.vk));
-    auto extra = ExtraMenuItems();
-    if (!extra.empty()) {
-        items.push_back(WidgetMenuItem{});               /* separator */
-        for (auto& e : extra) items.push_back(std::move(e));
+    for (auto& sec : MenuSections()) {
+        if (sec.empty()) continue;
+        if (!items.empty()) items.push_back(WidgetMenuItem{});   /* separator */
+        for (auto& it : sec) items.push_back(std::move(it));
     }
     return items;
 }
