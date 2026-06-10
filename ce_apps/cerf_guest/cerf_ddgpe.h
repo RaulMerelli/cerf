@@ -8,6 +8,7 @@
 #include "cerf/peripherals/cerf_virt/cerf_virt_line_descriptor.h"
 
 extern void* CerfMapFbMemory(void);
+extern "C" void* CerfMapFbGlobal(void);
 extern "C" ULONG CerfGpeFbMemBasePa(void);
 extern "C" ULONG CerfGpeBlt(ULONG desc_va);
 extern "C" ULONG CerfGpeLine(ULONG desc_va);
@@ -45,15 +46,27 @@ inline EDDGPEPixelFormat CerfFormatToDDGPE(EGPEFormat fmt) {
     }
 }
 
+/* Video-memory backing, selected once at driver construction by OS major (set via
+   CerfSetVidBackingByOsMajor), consumed by EnsureVideoHeap/SurfaceFbPa/the Lock. */
+enum CerfVidBacking { kCerfVidGuestRamHeap, kCerfVidGlobalFb };
+
 class CerfDDGPE : public DDGPE {
 public:
     CerfDDGPE();
+
+    void          SetVidBacking(CerfVidBacking b) { m_vidBacking = b; }
+    CerfVidBacking VidBacking() const             { return m_vidBacking; }
 
     bool EnsureVideoHeap();
     void GetVirtualVideoMemory(unsigned long* base, unsigned long* size,
                                unsigned long* freeBytes);
     bool SurfaceFbPa(GPESurf* s, ULONG* pa);
     SCODE ApplyFbMode();  /* (re)build the primary surface from g_Fb* */
+    /* The FB-PA primary is host-MMIO (not cross-process-mappable), so a client Lock of
+       it faults; back the Lock with a guest-RAM shadow carved from the cross-process
+       vidmem heap, and blit it to the FB-PA scanout on Unlock. */
+    DDGPESurf* EnsurePrimaryShadow();
+    void       PrimaryShadowPresent();
 
     virtual SCODE BltPrepare(GPEBltParms* p);
     static void RectToDesc(CerfVirt::CerfBltRect* r, const RECTL* s);
@@ -72,6 +85,7 @@ public:
     virtual SCODE Line(GPELineParms* pLineParms, EGPEPhase phase);
     virtual SCODE AllocSurface(GPESurf** ppSurf, int width, int height,
                                EGPEFormat format, int surfaceFlags);
+    virtual void SetVisibleSurface(GPESurf* pSurf, BOOL bWaitForVBlank = FALSE);
     virtual SCODE SetPointerShape(GPESurf* pMask, GPESurf*, int xHot, int yHot,
                                   int cx, int cy);
     virtual SCODE MovePointer(int, int);
@@ -95,7 +109,8 @@ private:
     PALETTEENTRY    m_palette[256];
     SurfaceHeap*    m_pVidHeap;
     BYTE*           m_vidBaseVa;
-    ULONG           m_vidBasePa;
     ULONG           m_vidSize;
+    CerfVidBacking  m_vidBacking;
+    DDGPESurf*      m_pPrimaryShadow;
     int             m_currentRotation;  /* DMDO_* last accepted via DrvEscape */
 };

@@ -45,6 +45,9 @@ enum class Board {
                          integrated SA-1100 LCD controller (no SED1356, no
                          SA-1111), keyboard + glidepad touchpad. Windows CE
                          2.11 / Handheld PC Professional Edition. */
+    SimpadSl4,        /* Siemens SIMpad SL4 ("Webpad"), Intel SA-1110 StrongARM.
+                         One board, two ROM generations: HPC2000 (CE 3.0) and
+                         Windows CE .NET 4.10. CE image physfirst=0x80080000. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
@@ -66,6 +69,12 @@ public:
     virtual std::optional<PreferredWindowSize> GetPreferredWindowSize() const {
         return std::nullopt;
     }
+
+    /* Guest-Additions framebuffer colour depth in bpp (the cerf_virt FB format
+       the guest's display/DDraw stack sees). Base = 32 (host-native BGRA). A
+       board overrides when its guest software hard-requires another depth — Zune
+       XUI/D3-Mobile only accepts 16bpp RGB565; CE3 imgdecmp rejects 32bpp. */
+    virtual uint32_t GetGuestAdditionsColorDepth() const { return 32u; }
 
     static const char*  SocFamilyName(SocFamily f);
 

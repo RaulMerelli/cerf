@@ -11,6 +11,7 @@
 #define CERF_ORDINAL_FLAG   0x80000000u
 
 typedef BOOL  (APIENTRY *PFN_DrvEnableDriver)(ULONG, ULONG, void*, void*);
+typedef BOOL  (APIENTRY *PFN_HALInit)(void*, BOOL, DWORD);
 typedef BOOL  (APIENTRY *PFN_DllEntry)(HANDLE, DWORD, LPVOID);
 typedef void  (*PFN_SetCarrierName)(const wchar_t*);
 typedef DWORD (*PFN_CddInit)(DWORD);
@@ -34,6 +35,7 @@ typedef struct {
     DWORD               pid;
     void*               body_base;
     PFN_DrvEnableDriver drv;
+    PFN_HALInit         halinit;
     PFN_CddInit         cdd_init;
     PFN_CddDeinit       cdd_deinit;
     PFN_CddOpen         cdd_open;
@@ -225,6 +227,7 @@ static BOOL CerfEnsureBody(void) {
     slot = &s_slot[idx];
 
     slot->drv           = (PFN_DrvEnableDriver)CerfFindExport((const UCHAR*)base, "DrvEnableDriver");
+    slot->halinit       = (PFN_HALInit)     CerfFindExport((const UCHAR*)base, "HALInit");
     slot->cdd_init      = (PFN_CddInit)     CerfFindExport((const UCHAR*)base, "CDD_Init");
     slot->cdd_deinit    = (PFN_CddDeinit)   CerfFindExport((const UCHAR*)base, "CDD_Deinit");
     slot->cdd_open      = (PFN_CddOpen)     CerfFindExport((const UCHAR*)base, "CDD_Open");
@@ -260,6 +263,20 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion, ULONG cj,
         return FALSE;
     }
     return cs->drv(iEngineVersion, cj, pded, pCallbacks);
+}
+
+/* GetProcAddress resolves against the stub, not the manual-mapped body, so a
+   by-name entry point unmirrored here returns NULL and the body's is unreachable
+   (as DrvEnableDriver already is). HALInit = the DirectDraw HAL entry. */
+extern "C" BOOL APIENTRY HALInit(void* lpddhi, BOOL bUnused, DWORD modeidx) {
+    CerfStubSlot* cs;
+    CERF_LOG_INIT(CERF_LOG_CH_STUB);
+    CERF_LOG("stub: HALInit");
+    if (!CerfEnsureBody() || !(cs = CerfStubCurSlot()) || !cs->halinit) {
+        CERF_LOG("stub: HALInit body unavailable - DirectDraw HAL FALSE");
+        return FALSE;
+    }
+    return cs->halinit(lpddhi, bUnused, modeidx);
 }
 
 extern "C" DWORD CDD_Init(DWORD dwContext) {

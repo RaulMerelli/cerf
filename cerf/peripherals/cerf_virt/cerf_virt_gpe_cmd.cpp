@@ -3,6 +3,8 @@
 #include "cerf_virt_grad_descriptor.h"
 #include "cerf_virt_line_descriptor.h"
 #include "cerf_virt_blitter.h"
+#include "cerf_virt_gradient_filler.h"
+#include "cerf_virt_line_drawer.h"
 #include "cerf_virt_addr_map.h"
 #include "cerf_virt_guest_mem.h"
 
@@ -75,7 +77,7 @@ private:
             regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
             return;
         }
-        const bool ok = emu_.Get<CerfVirt::CerfVirtBlitter>().ExecuteGradient(g);
+        const bool ok = emu_.Get<CerfVirt::CerfVirtGradientFiller>().Execute(g);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
     }
@@ -90,7 +92,7 @@ private:
             regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
             return;
         }
-        const bool ok = emu_.Get<CerfVirt::CerfVirtBlitter>().ExecuteLine(l);
+        const bool ok = emu_.Get<CerfVirt::CerfVirtLineDrawer>().Execute(l);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
     }

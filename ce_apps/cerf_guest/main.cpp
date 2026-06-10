@@ -5,6 +5,10 @@
 
 #include "cerf_regs_map.h"
 
+#ifndef GCAPS_GRAY16
+#define GCAPS_GRAY16 0x01000000u   /* winddi.h:294 */
+#endif
+
 #define CERF_VIRT_FB_REGS_PA   0xD0001000u
 #define CERF_VIRT_FB_REGS_SZ   0x1000u
 #define CERF_VIRT_GPE_CMD_PA   0xD0002000u
@@ -50,8 +54,7 @@ extern "C" void CerfSetCarrierName(const wchar_t* name) {
 }
 
 void CerfReadFbRegs(void) {
-    CERF_LOG("cerf_guest: CerfReadFbRegs entry");
-    if (s_fb_regs) { CERF_LOG("cerf_guest: CerfReadFbRegs cached"); return; }
+    if (s_fb_regs) return;
     s_fb_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_FB_REGS_PA,
                                                  CERF_VIRT_FB_REGS_SZ);
     if (!s_fb_regs) return;
@@ -62,12 +65,6 @@ void CerfReadFbRegs(void) {
     g_FbMemPa   = s_fb_regs[5];   /* kFbRegMemBasePa   (0x14 >> 2) */
     g_FbMemTotal = s_fb_regs[7];  /* kFbRegMemSizeTotal (0x1C >> 2) */
     g_FbPrimaryReserve = s_fb_regs[8];  /* kFbRegPrimaryReserve (0x20 >> 2) */
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs w",      g_FbWidth);
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs h",      g_FbHeight);
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs bpp",    g_FbBpp);
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs stride", g_FbStride);
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs mempa",  g_FbMemPa);
-    CERF_LOG_X("cerf_guest: CerfReadFbRegs memtotal", g_FbMemTotal);
 }
 
 BOOL CerfMapGpeCmd(void) {
@@ -110,15 +107,13 @@ extern "C" ULONG CerfGpeFbMemBasePa(void) { return CERF_VIRT_FB_MEM_PA; }
 /* The host accelerator addresses the framebuffer by physical address
    (SurfaceFbPa), so the surface base is the FB PA itself, not a mapped VA. */
 void* CerfMapFbMemory(void) {
-    CERF_LOG("cerf_guest: CerfMapFbMemory entry");
-    if (g_FbMemVa) { CERF_LOG_X("cerf_guest: CerfMapFbMemory cached va", g_FbMemVa); return g_FbMemVa; }
+    if (g_FbMemVa) return g_FbMemVa;
     if (g_FbMemPa == 0 || g_FbStride == 0 || g_FbHeight == 0) return NULL;
     if (g_FbMemTotal < g_FbStride * g_FbHeight) {
         CERF_LOG_X("cerf_guest: CerfMapFbMemory region too small for primary; total", g_FbMemTotal);
         return NULL;
     }
     g_FbMemVa = (void*)(ULONG_PTR)g_FbMemPa;
-    CERF_LOG_X("cerf_guest: CerfMapFbMemory PA-only base", g_FbMemPa);
     return g_FbMemVa;
 }
 
@@ -142,6 +137,22 @@ extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes) {
 
 extern "C" void CerfUnmapFbWindow(void* exact_va) {
     if (exact_va) VirtualFree((void*)((ULONG_PTR)exact_va & ~0xFFFu), 0, MEM_RELEASE);
+}
+
+/* The DirectDraw HAL is shared across processes (devemu_ce5 ddcore keeps one
+   driver object list, DDrawDriverObjectListMutex), so the surface Lock VA must be
+   valid in every process. A VirtualAlloc(MEM_RESERVE, PAGE_NOACCESS) of >= 2MB
+   lands in CE's user-writable large-memory region, mapped identically in all
+   processes (CE5 virtmem.c DoVirtualAlloc -> HugeVirtualReserve); the stock devemu
+   driver relies on the same threshold (gpeflat.cpp:273 VirtualAlloc(0,
+   max(fbSize, 2*1024*1024), ...)). The whole 32MB FB region clears it. */
+static void* g_FbGlobalVa = NULL;
+extern "C" void* CerfMapFbGlobal(void) {
+    if (g_FbGlobalVa) return g_FbGlobalVa;
+    const ULONG base = CerfGpeFbMemBasePa();
+    if (base == 0 || g_FbMemTotal < 0x200000u) return NULL;  /* < 2MB never global */
+    g_FbGlobalVa = CerfMapFbWindow(base, g_FbMemTotal);
+    return g_FbGlobalVa;
 }
 
 static ULONG s_RgbMasks_32bpp[3] = { 0x00FF0000u, 0x0000FF00u, 0x000000FFu };
@@ -280,21 +291,21 @@ extern "C" void CerfStartPointerPump(void);
 extern "C" void CerfStartResizePump(void);
 extern "C" void CerfStartTaskManagerPump(void);
 extern "C" void CerfStartDriverInDriver(void);
+extern "C" void CerfAdvertiseDisplayPower(void);
+extern "C" void CerfSetVidBackingByOsMajor(unsigned long os_major);
 
 static DHPDEV APIENTRY CerfEnablePDEVWrap(
     DEVMODEW* pdm, LPWSTR pwszLogAddress, ULONG cPat, HSURF* phsurfPatterns,
     ULONG cjCaps, ULONG* pdevcaps, ULONG cjDevInfo, DEVINFO* pdi,
     HDEV hdev, LPWSTR pwszDeviceName, HANDLE hDriver) {
-    CERF_LOG_X("cerf_guest: CerfEnablePDEVWrap cjCaps", cjCaps);
-    CERF_LOG_X("cerf_guest: CerfEnablePDEVWrap cjDevInfo", cjDevInfo);
     DHPDEV result = DrvEnablePDEV(pdm, pwszLogAddress, cPat, phsurfPatterns,
                                    cjCaps, pdevcaps, cjDevInfo, pdi,
                                    hdev, pwszDeviceName, hDriver);
-    CERF_LOG_X("cerf_guest: CerfEnablePDEVWrap result", result);
     if (result) CerfStartPointerPump();
     if (result) CerfStartResizePump();
     if (result) CerfStartTaskManagerPump();
     if (result) CerfStartDriverInDriver();
+    if (result) CerfAdvertiseDisplayPower();
     if (!result || !pdevcaps || cjCaps < sizeof(ULONG) || g_EngineVersion == 0) {
         return result;
     }
@@ -307,16 +318,20 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
         pdevcaps[4] = g_FbWidth;
         pdevcaps[5] = g_FbHeight;
     }
+    /* flTextCaps (GDIINFO word 12) GCAPS_GRAY16 makes GDI emit glyph coverage as a
+       0xAAF0 + 4bpp-mask blit the host gamma-blends; the GPE lib arms this from
+       AATextBltInit in its DrvEnableDriver (ddi_if.cpp:391/1279), which cerf_guest
+       replaces, so set it here. bpp>8 matches the lib's gate (ddi_if.cpp:1263). */
+    if (g_FbBpp > 8) {
+        if (cjCaps >= 13 * sizeof(ULONG)) pdevcaps[12] |= GCAPS_GRAY16;
+        if (pdi && cjDevInfo >= sizeof(DEVINFO)) pdi->flGraphicsCaps |= GCAPS_GRAY16;
+    }
     if (g_EngineVersion == 0x00020001u && cjCaps >= 20 * sizeof(ULONG)) {
         /* CE3 GPE lib's exact GDIINFO fill (WINCE300 PRIVATE GPE DDI_IF.CPP:801-817);
            the linked CE6 lib wrote CE6 values at CE6 offsets, and CE3 has no
            flShadeBlendCaps so offset 52+ is shifted. RC_* per ce3 wingdi.h:220-231. */
         pdevcaps[2]  = 64u;
         pdevcaps[3]  = 60u;
-        /* CE3 imgdecmp DecompressImageIndirect rejects bpp not in {2,4,8,16,24}
-           (imgdecmp.dll @ 0x1124300) -> blank shell bitmaps; report 24, FB stays 32.
-           A newer CE found rejecting 32 needs the same downgrade. */
-        if (g_FbBpp == 32u) pdevcaps[6] = 24u;
         pdevcaps[9]  = 0x801u | ((g_FbBpp <= 8) ? 0x100u : 0u);
         pdevcaps[13] = 0u;
         pdevcaps[14] = 0u;
@@ -335,7 +350,6 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
                                           PENGCALLBACKS pCallbacks) {
     CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);   /* arm before the first log */
     CERF_LOG_X("cerf_guest: DrvEnableDriver iEngineVersion", iEngineVersion);
-    CERF_LOG_X("cerf_guest: DrvEnableDriver cj", cj);
     if (pded == NULL || pCallbacks == NULL || cj < 27 * sizeof(void*)) return FALSE;
 
     if (!s_module_name[0]) {
@@ -351,6 +365,15 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
         }
     }
     CerfReadFbRegs();
+
+    /* Select the ddraw video-memory backing before any surface alloc: FCSE kernels
+       (CE<=5) share one HAL across processes and need a cross-process-global FB VA;
+       ASID kernels (CE6+) get a per-client-remapped guest-RAM heap. */
+    {
+        OSVERSIONINFOW ovi;
+        ovi.dwOSVersionInfoSize = sizeof(ovi);
+        CerfSetVidBackingByOsMajor(GetVersionExW(&ovi) ? ovi.dwMajorVersion : 5u);
+    }
 
     g_EngineVersion = iEngineVersion;
 

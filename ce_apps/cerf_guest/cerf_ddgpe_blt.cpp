@@ -172,6 +172,59 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     return (cgb == 2u) ? S_OK : SwFallback(p);
 }
 
+/* DirectDraw HAL Blt routed to the GPE host accelerator (HwBlt): the primary is
+   PA-only (no mapped VA), so ddraw blits must use the PA-addressing GPE path.
+   dst/src = DDRAWI_DDRAWSURFACE_LCL*; differing rects stretch on host. ddFlags
+   are ddraw.h DDBLT_*; the advertised caps (Ce5HALInit) are PATCOPY/SRCCOPY/
+   BLACKNESS/WHITENESS ROPs, COLORFILL, and DDCKEYCAPS_SRCBLT (source color key).
+   srcKeyOverride is bltFX.ddckSrcColorkey for DDBLT_KEYSRCOVERRIDE. */
+extern "C" int CerfDDrawBlt(void* dstLcl, void* srcLcl, const RECTL* rDest,
+                            const RECTL* rSrc, unsigned long ddFlags,
+                            unsigned long ropArg, unsigned long fillColor,
+                            unsigned long srcKeyOverride) {
+    if (!dstLcl || !rDest) return 0;
+    DDGPESurf* pDst = DDGPESurf::GetDDGPESurf((LPDDRAWI_DDRAWSURFACE_LCL)dstLcl);
+    if (!pDst) return 0;
+    DDGPESurf* pSrc = srcLcl
+        ? DDGPESurf::GetDDGPESurf((LPDDRAWI_DDRAWSURFACE_LCL)srcLcl) : NULL;
+
+    /* DDBLT_KEYDEST/KEYDESTOVERRIDE (0x2000/0x4000): dest color key is not an
+       advertised cap (Ce5HALInit exposes DDCKEYCAPS_SRCBLT only), so report failure. */
+    if (ddFlags & (0x2000u | 0x4000u)) return 0;
+
+    ULONG solidColor = 0, rop4, bltFlags = 0;
+    const RECT* prclSrc = NULL;
+    if (ddFlags & 0x400u) {                 /* DDBLT_COLORFILL */
+        solidColor = fillColor;
+        rop4 = 0xF0F0u;                     /* PATCOPY: solid color fill */
+        pSrc = NULL;
+    } else {
+        /* A NULL-lpDDBltFx source Blt (gemstone's present) reaches the HAL as
+           DDBLT_ROP with a zeroed dwROP; treating that 0 as ROP3 0 = BLACKNESS
+           fills the dest black. dwROP==0 is the runtime's no-explicit-ROP default
+           = SRCCOPY; a real ROP carries a nonzero GDI code (high byte = ROP3). */
+        const ULONG ropByte = ((ddFlags & 0x20000u) && ropArg != 0u)
+            ? ((ropArg >> 16) & 0xFFu) : 0xCCu;
+        rop4 = (ropByte << 8) | ropByte;
+        if (pSrc && rSrc) prclSrc = (const RECT*)rSrc;
+        /* DDBLT_KEYSRC 0x8000 / KEYSRCOVERRIDE 0x10000: source color-key transparency
+           via BLT_TRANSPARENT (winddi.h = 4); solid_color is the key the host skips. */
+        if ((ddFlags & 0x8000u) && pSrc) {
+            bltFlags |= 4u;
+            solidColor = pSrc->ColorKeyLow();
+        } else if ((ddFlags & 0x10000u) && pSrc) {
+            bltFlags |= 4u;
+            solidColor = srcKeyOverride;
+        }
+    }
+    CERF_LOG_X_DEV("cerf_guest: DDrawBlt ddFlags", ddFlags);
+    CERF_LOG_X_DEV("cerf_guest: DDrawBlt ropArg", ropArg);
+    CERF_LOG_X_DEV("cerf_guest: DDrawBlt rop4", rop4);
+    SCODE sc = ((CerfDDGPE*)GetGPE())->BltExpanded(
+        pDst, pSrc, NULL, (const RECT*)rDest, prclSrc, solidColor, bltFlags, (ROP4)rop4);
+    return (sc == S_OK) ? 1 : 0;
+}
+
 /* FB-resident dst (primary / video memory) → host line accelerator, addressed by
    PA; a system-memory dst uses EmulatedLine (CPU-drawn, small, mapped). */
 SCODE CerfDDGPE::HostLine(GPELineParms* p) {

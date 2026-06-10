@@ -6,6 +6,7 @@
 #include <winddi.h>
 #include <gpe.h>
 #include <ddgpe.h>   /* brings in ddrawi.h (DDHALINFO, DDHAL_DD*CALLBACKS) */
+#include "cerf_ddhal_wm.h"
 
 extern ULONG g_EngineVersion;
 extern "C" void CerfGetVideoMem(unsigned long* base, unsigned long* size,
@@ -23,48 +24,57 @@ extern "C" DWORD WINAPI DDGPEUnlock(LPDDHAL_UNLOCKDATA);
 extern "C" DWORD WINAPI DDGPESetColorKey(LPDDHAL_SETCOLORKEYDATA);
 extern "C" DWORD WINAPI DDGPEGetFlipStatus(LPDDHAL_GETFLIPSTATUSDATA);
 extern "C" DWORD WINAPI DDGPESetPalette(LPDDHAL_SETPALETTEDATA);
+extern "C" DWORD WINAPI DDGPEWaitForVerticalBlank(LPDDHAL_WAITFORVERTICALBLANKDATA);
+extern "C" DWORD WINAPI DDGPECreatePalette(LPDDHAL_CREATEPALETTEDATA);
 
-extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes);
-extern "C" void  CerfUnmapFbWindow(void* va);
+/* All cerf_guest blits complete synchronously on the host before the HAL call
+   returns, so a surface is never mid-blt — both DDGBS_CANBLT and DDGBS_ISBLTDONE
+   are satisfied. The GETBLTSTATUSDATA head (lpDD/lpDDSurface/dwFlags/ddRVal) is
+   identical CE5/CE6, so this one handler serves every DDHALINFO generation. */
+extern "C" DWORD WINAPI CerfGetBltStatus(LPDDHAL_GETBLTSTATUSDATA pd) {
+    pd->ddRVal = DD_OK;
+    return DDHAL_DRIVER_HANDLED;
+}
+
+extern "C" unsigned long CerfPrimaryShadowLockVa(unsigned long origin_pa);
+extern "C" void  CerfPrimaryShadowPresent(void);
+extern "C" ULONG CerfGpeFbMemBasePa(void);
+extern "C" void* CerfMapFbGlobal(void);
+extern "C" BOOL  CerfVidBackingIsGlobalFb(void);
 extern "C" BOOL  CerfDDSurfFbInfo(void* lcl, ULONG* pa, int* stride, int* bpp,
                                   int* height);
 
-/* Per-surface lock window so Unlock releases exactly what Lock mapped. */
-struct CerfLockWin { void* lcl; void* va; };
-static CerfLockWin s_lockWins[16] = { 0 };
-
-/* DirectDraw Lock/Unlock for PA-only FB surfaces (primary + video memory have no
-   standing VA): map the locked rect's rows on demand and hand the app / DDraw HEL
-   a real pointer. A system-memory surface delegates to the generic DDGPE lib. */
-static DWORD WINAPI CerfDDGPELockWrap(LPDDHAL_LOCKDATA pd) {
+/* An FB-PA surface has no standing cross-process VA, so the backing mode decides the
+   Lock VA: GlobalFb returns the permanent global map; GuestRamHeap a shadow presented
+   on Unlock. */
+extern "C" DWORD WINAPI CerfDDGPELockWrap(LPDDHAL_LOCKDATA pd) {
     ULONG pa; int stride = 0, bpp = 0, height = 0;
     if (!CerfDDSurfFbInfo(pd->lpDDSurface, &pa, &stride, &bpp, &height))
         return DDGPELock(pd);
     int x = pd->bHasRect ? pd->rArea.left : 0;
     int y = pd->bHasRect ? pd->rArea.top  : 0;
-    int h = pd->bHasRect ? (pd->rArea.bottom - pd->rArea.top) : height;
-    if (h <= 0) { h = height; x = 0; y = 0; }
     ULONG origin = pa + (ULONG)y * (ULONG)stride + (ULONG)x * ((ULONG)bpp / 8u);
-    void* va = CerfMapFbWindow(origin, (ULONG)h * (ULONG)stride);
+    unsigned long va;
+    if (CerfVidBackingIsGlobalFb()) {
+        void* g = CerfMapFbGlobal();
+        va = g ? (unsigned long)(ULONG_PTR)g + (origin - CerfGpeFbMemBasePa()) : 0;
+    } else {
+        va = CerfPrimaryShadowLockVa(origin);
+    }
     if (!va) { pd->ddRVal = DDERR_OUTOFMEMORY; return DDHAL_DRIVER_HANDLED; }
-    int slot = -1;
-    for (int i = 0; i < 16; ++i) if (!s_lockWins[i].va) { slot = i; break; }
-    if (slot < 0) { CerfUnmapFbWindow(va); pd->ddRVal = DDERR_OUTOFMEMORY; return DDHAL_DRIVER_HANDLED; }
-    s_lockWins[slot].lcl = pd->lpDDSurface;
-    s_lockWins[slot].va  = va;
-    pd->lpSurfData = va;
+    pd->lpSurfData = (void*)(ULONG_PTR)va;
     pd->ddRVal = DD_OK;
     return DDHAL_DRIVER_HANDLED;
 }
 
-static DWORD WINAPI CerfDDGPEUnlockWrap(LPDDHAL_UNLOCKDATA pd) {
-    for (int i = 0; i < 16; ++i)
-        if (s_lockWins[i].va && s_lockWins[i].lcl == pd->lpDDSurface) {
-            CerfUnmapFbWindow(s_lockWins[i].va);
-            s_lockWins[i].va = 0; s_lockWins[i].lcl = 0;
-            pd->ddRVal = DD_OK;
-            return DDHAL_DRIVER_HANDLED;
-        }
+extern "C" DWORD WINAPI CerfDDGPEUnlockWrap(LPDDHAL_UNLOCKDATA pd) {
+    ULONG pa; int stride = 0, bpp = 0, height = 0;
+    if (CerfDDSurfFbInfo(pd->lpDDSurface, &pa, &stride, &bpp, &height)) {
+        if (!CerfVidBackingIsGlobalFb())
+            CerfPrimaryShadowPresent();  /* blit client-written shadow to FB-PA scanout */
+        pd->ddRVal = DD_OK;
+        return DDHAL_DRIVER_HANDLED;
+    }
     return DDGPEUnlock(pd);
 }
 
@@ -94,11 +104,12 @@ static DWORD WINAPI CerfCanCreateSurface(LPDDHAL_CANCREATESURFACEDATA pd) {
    DDHAL_DDSURFACECALLBACKS:747. */
 static DDHAL_DDCALLBACKS g_cbDDCallbacks = {
     sizeof(DDHAL_DDCALLBACKS),
-    DDHAL_CB32_CREATESURFACE | DDHAL_CB32_CANCREATESURFACE,
+    DDHAL_CB32_CREATESURFACE | DDHAL_CB32_CANCREATESURFACE |
+        DDHAL_CB32_WAITFORVERTICALBLANK | DDHAL_CB32_CREATEPALETTE,
     CerfCreateSurface,         /* CreateSurface */
-    NULL,                      /* WaitForVerticalBlank */
+    DDGPEWaitForVerticalBlank, /* WaitForVerticalBlank */
     CerfCanCreateSurface,      /* CanCreateSurface */
-    NULL,                      /* CreatePalette */
+    DDGPECreatePalette,        /* CreatePalette */
     NULL                       /* GetScanLine */
 };
 
@@ -106,13 +117,14 @@ static DDHAL_DDSURFACECALLBACKS g_cbDDSurfaceCallbacks = {
     sizeof(DDHAL_DDSURFACECALLBACKS),
     DDHAL_SURFCB32_DESTROYSURFACE | DDHAL_SURFCB32_FLIP | DDHAL_SURFCB32_LOCK |
         DDHAL_SURFCB32_UNLOCK | DDHAL_SURFCB32_SETCOLORKEY |
-        DDHAL_SURFCB32_GETFLIPSTATUS | DDHAL_SURFCB32_SETPALETTE,
+        DDHAL_SURFCB32_GETFLIPSTATUS | DDHAL_SURFCB32_SETPALETTE |
+        DDHAL_SURFCB32_GETBLTSTATUS,
     DDGPEDestroySurface,       /* DestroySurface */
     DDGPEFlip,                 /* Flip */
     CerfDDGPELockWrap,         /* Lock */
     CerfDDGPEUnlockWrap,       /* Unlock */
     DDGPESetColorKey,          /* SetColorKey */
-    NULL,                      /* GetBltStatus */
+    CerfGetBltStatus,          /* GetBltStatus */
     DDGPEGetFlipStatus,        /* GetFlipStatus */
     NULL,                      /* UpdateOverlay */
     NULL,                      /* SetOverlayPosition */
@@ -121,7 +133,7 @@ static DDHAL_DDSURFACECALLBACKS g_cbDDSurfaceCallbacks = {
 
 /* Answers the DirectDraw VidMemBase query with the offscreen base the driver
    advertises (mirrors omap halcaps.cpp HalGetDriverInfo, VidMemBase arm). */
-static DWORD WINAPI CerfHalGetDriverInfo(LPDDHAL_GETDRIVERINFODATA lpInput) {
+extern "C" DWORD WINAPI CerfHalGetDriverInfo(LPDDHAL_GETDRIVERINFODATA lpInput) {
     lpInput->ddRVal = DDERR_CURRENTLYNOTAVAIL;
     if (IsEqualIID(lpInput->guidInfo, GUID_GetDriverInfo_VidMemBase)) {
         unsigned long base = 0, size = 0, freeBytes = 0;
@@ -164,8 +176,6 @@ EXTERN_C void buildDDHALInfo(LPDDHALINFO lpddhi, DWORD modeidx) {
     lpddhi->ddCaps.dwCKeyCaps    = DDCKEYCAPS_SRCBLT;
     lpddhi->ddCaps.dwAlphaCaps   = DDALPHACAPS_ALPHAPIXELS | DDALPHACAPS_ALPHACONSTANT;
     lpddhi->ddCaps.dwMiscCaps    = 0;
-
-    CERF_LOG_X("cerf_guest: buildDDHALInfo dwVidMemTotal", vidSize);
 }
 
 /* Software HEL caps (system memory only), copy of the lib's static
@@ -184,18 +194,68 @@ static void CerfFillHelCaps(DDCAPS* pDDCaps) {
     SETROPBIT(pDDCaps->dwRops, WHITENESS);
 }
 
-/* Version-gate the fill: below CE6 the DDHALINFO/DDCAPS layout differs from what
-   this fills (CE5 has extra surface callbacks), so filling it into a pre-CE6
-   caller corrupts the struct — decline instead. CE6 DDI_DRIVER_VERSION =
-   0x00040001 (main.cpp:279). */
-EXTERN_C BOOL WINAPI HALInit(LPDDHALINFO lpddhi, BOOL unused1, DWORD modeidx) {
-    CERF_LOG_X("cerf_guest: HALInit g_EngineVersion", g_EngineVersion);
-    if (g_EngineVersion < 0x00040001u) {
-        CERF_LOG("cerf_guest: HALInit declining (pre-CE6) -> software HEL");
-        return FALSE;
-    }
-    buildDDHALInfo(lpddhi, modeidx);
-    CerfFillHelCaps(&lpddhi->ddHelCaps);
-    CERF_LOG("cerf_guest: HALInit done");
+/* HEL caps filled inline at the WM 112-byte DDCAPS size — CerfFillHelCaps writes a
+   128-byte CE6 DDCAPS and would overrun ddHelCaps into lpdwFourCC. */
+extern "C" BOOL WmHALInit(void* lpddhi) {
+    unsigned long vidBase = 0, vidSize = 0, vidFree = 0;
+    CerfGetVideoMem(&vidBase, &vidSize, &vidFree);
+
+    Wm_DDHALINFO* h = (Wm_DDHALINFO*)lpddhi;
+    memset(h, 0, sizeof(Wm_DDHALINFO));
+    h->dwSize               = sizeof(Wm_DDHALINFO);
+    h->lpDDCallbacks        = &g_cbDDCallbacks;
+    h->lpDDSurfaceCallbacks = &g_cbDDSurfaceCallbacks;
+    h->lpDDPaletteCallbacks = NULL;
+    h->GetDriverInfo        = (PVOID)CerfHalGetDriverInfo;
+
+    h->ddCaps.dwSize        = sizeof(Wm_DDCAPS);
+    h->ddCaps.dwVidMemTotal = vidSize;
+    h->ddCaps.dwVidMemFree  = vidFree;
+    h->ddCaps.ddsCaps.dwCaps =
+        DDSCAPS_PRIMARYSURFACE | DDSCAPS_FRONTBUFFER | DDSCAPS_BACKBUFFER |
+        DDSCAPS_FLIP | DDSCAPS_SYSTEMMEMORY | DDSCAPS_VIDEOMEMORY;
+    h->ddCaps.dwBltCaps   = DDBLTCAPS_READSYSMEM | DDBLTCAPS_WRITESYSMEM;
+    h->ddCaps.dwCKeyCaps  = DDCKEYCAPS_SRCBLT;
+    h->ddCaps.dwAlphaCaps = DDALPHACAPS_ALPHAPIXELS | DDALPHACAPS_ALPHACONSTANT;
+    SETROPBIT(h->ddCaps.dwRops, SRCCOPY);
+    SETROPBIT(h->ddCaps.dwRops, PATCOPY);
+    SETROPBIT(h->ddCaps.dwRops, BLACKNESS);
+    SETROPBIT(h->ddCaps.dwRops, WHITENESS);
+
+    h->ddHelCaps.dwSize       = sizeof(Wm_DDCAPS);
+    h->ddHelCaps.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_SYSTEMMEMORY;
+    h->ddHelCaps.dwBltCaps    = DDBLTCAPS_READSYSMEM | DDBLTCAPS_WRITESYSMEM;
+    h->ddHelCaps.dwCKeyCaps   = DDCKEYCAPS_SRCBLT;
+    SETROPBIT(h->ddHelCaps.dwRops, SRCCOPY);
+    SETROPBIT(h->ddHelCaps.dwRops, PATCOPY);
+    SETROPBIT(h->ddHelCaps.dwRops, BLACKNESS);
+    SETROPBIT(h->ddHelCaps.dwRops, WHITENESS);
+
     return TRUE;
+}
+
+extern "C" BOOL Ce5HALInit(void* lpddhi);
+
+/* Discriminator is GetVersionEx (measured): 5.0=CE5/460, 5.1/5.2=WM/252,
+   >=6=CE6-CE7/284. NOT g_EngineVersion — WinCE5, Zune and WM5 all report engine
+   0x40001 yet split 460 vs 252, so keying on it picks the wrong DDHALINFO size. */
+EXTERN_C BOOL WINAPI HALInit(LPDDHALINFO lpddhi, BOOL unused1, DWORD modeidx) {
+    OSVERSIONINFOW ovi;
+    ovi.dwOSVersionInfoSize = sizeof(ovi);
+    GetVersionExW(&ovi);
+
+    if (ovi.dwMajorVersion >= 6) {
+        buildDDHALInfo(lpddhi, modeidx);
+        CerfFillHelCaps(&lpddhi->ddHelCaps);
+        CERF_LOG("cerf_guest: HALInit CE6/CE7 path done");
+        return TRUE;
+    }
+    if (ovi.dwMajorVersion == 5 && ovi.dwMinorVersion >= 1) {
+        BOOL ok = WmHALInit(lpddhi);
+        CERF_LOG_X("cerf_guest: HALInit WM path ok", ok);
+        return ok;
+    }
+    BOOL ok = Ce5HALInit(lpddhi);
+    CERF_LOG_X("cerf_guest: HALInit CE5 path ok", ok);
+    return ok;
 }

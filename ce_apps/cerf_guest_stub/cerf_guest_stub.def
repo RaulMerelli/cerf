@@ -2,6 +2,7 @@ LIBRARY cerf_guest_stub
 
 EXPORTS
     DrvEnableDriver
+    HALInit
     CDD_Init
     CDD_Deinit
     CDD_Open
