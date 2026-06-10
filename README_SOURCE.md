@@ -94,6 +94,21 @@ See [device_config.h](cerf/core/device_config.h) for the full schema.
 
 To determine what is the board, CERF looks inside of ROM and performs heuristic search by module names or binary blobs. CERF also replaces entire bootloader, therefore e.g. Zune 30 can boot OS without HDD (tho OS actually will hang without HDD), but in reality it seems that the bootloader spins the HDD and boots NK.BIN from HDD. Our synthed Zune 30 HDD lacks NK.BIN entirely.
 
+## <img src="gweslab.png" width="24" height="24" /> Claude Development Environment
+
+CERF ships a Claude Code-based development environment for working on the emulator — including bringing up brand-new boards from their ROMs. Launch it from the repo root with:
+
+```
+run_claude.cmd
+```
+
+It runs Claude Code with a custom system prompt that injects the **entire project documentation** (`CLAUDE.md` plus every `agent_docs/` reference page) into every agent, so each session starts fully briefed on the project's rules, architecture, and subsystems — no "please read the docs first" needed.
+
+The environment provides the **`/start-board-implementation`** skill: drop your ROM into `bundled/devices/` (or just point the agent at it) and run the skill. The agent identifies the board and SoC straight from the ROM, checks what CERF already supports, estimates the effort, and — on your go-ahead — starts the bring-up with a cross-session tracking document. So you can literally drop in your ROM and start the procedure of bringing it up.
+
+> [!WARNING]
+> The dev environment runs Claude in skip-permissions mode — it can execute anything on your machine without prompting. It also force-kills its own Claude instance, and **any** `clangd.exe`, that leaks memory past a threshold. The first launch shows a one-time explanation; press Enter to acknowledge it.
+
 ## Building
 
 Requires Visual Studio 2026 with the C++ desktop development workload.

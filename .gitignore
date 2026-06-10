@@ -293,6 +293,9 @@ __pycache__/
 
 run_claude.md
 
+# Per-machine first-run acknowledgement gate for run_claude (see run_claude.ps1)
+.claude_gate
+
 # AI-generated checklists (working docs, not source of truth)
 docs/ai_checklists/
 

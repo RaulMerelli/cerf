@@ -25,18 +25,21 @@ Every one of these is a leak, regardless of how technically-dressed it looks:
 - **Decision-defense / "don't undo my approach"** — the purest and most-missed shape. A comment whose entire reason to exist is to warn a future reader AWAY from an alternative the author considered or removed, or to justify why the current approach is the way it is: "Do NOT <thing the author tried and discarded>", "this MUST stay <X> or it breaks", framed as a caution about the author's own design. The code IS the design; nobody needs to be argued out of the path not taken, and that path is absent from git history anyway. **Tell:** the comment's value evaporates if the reader never knew an alternative was ever on the table — it is defending a decision, not describing the code. This is NOT the legitimate "DO NOT switch to Y — Z breaks because W" hazard note: that form names a non-obvious SYSTEM invariant a fresh reader would plausibly violate, stated as a property of the system. The leak form defends the author's journey. Test: would a fresh reader, with zero knowledge that any alternative was ever considered, write this exact warning from the code alone? If no, it leaks.
 - **Self-narration** — comments that describe what the author DID ("added for the fix", "moved here from", "refactored to") instead of what the code IS.
 - **Chat-shaped prose** — any comment/doc line that reads like a message to a person rather than a note about the code immediately below it.
+- **Source-of-truth duplication / rotting restatement** — copying rules, definitions, or behavior that already live in a durable source (CLAUDE.md, an `agent_docs/` page, a datasheet, ANOTHER skill or subsystem) into this artifact instead of pointing at the source. It rots the moment the source is edited, and bloats the artifact with content it does not own. **Tell:** the line would have to be re-edited every time the source changes, OR it could be replaced by "see `<source>`" with zero loss — and it often describes a DIFFERENT artifact's responsibility (a board skill restating the tracking skill's rules). Fix: delete it; if a reader genuinely needs it at this spot, leave a one-line pointer to the owning source, never a copy.
 
 ## Step 1 — Enumerate every leak
 
 Exhaustively, no aggregation, no softening:
 
 > "Narration-leak disclosure under `/leak`:
-> 1. `<file:line>` — leaked phrase: `<the exact text>` — shape: `<backstory | model-ref | conversation-echo | alternatives-history | self-narration | chat-prose>`.
+> 1. `<file:line>` — leaked phrase: `<the exact text>` — shape: `<backstory | model-ref | conversation-echo | alternatives-history | decision-defense | self-narration | chat-prose | source-duplication>`.
 > 2. `<file:line>` — leaked phrase: `<…>` — shape: `<…>`.
 > 3. … (continue until every leaking line in your recent stretch is named)
 > Total: N leaks."
 
 The bar is items with file + line + the exact leaked phrase, not categories. *"Some comments are too chatty"* is not a valid Step 1 output. Re-read every artifact you wrote or edited in your recent stretch — code comments, docstrings, hook `reason`/message strings, doc `.md` files, config-file comments, any commit bodies you authored.
+
+Test EVERY line against EVERY shape — most misses are not a missing shape but under-application: a line that is clearly a leak under one shape slips through because you only checked it against the one or two shapes you had in mind. Walk the full shape list against each candidate line.
 
 ## Step 2 — Fix each leak in the same reply
 
