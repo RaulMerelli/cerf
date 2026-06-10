@@ -104,6 +104,11 @@ void ArmCpu::DoRaiseReset() {
     {
         std::lock_guard<std::mutex> guard(jit_->InterruptLock());
         state_.cpsr.bits.irq_disable = 1;
+        /* SetResetPending force-set irq_interrupt_pending to wake the JIT for
+           reset delivery; leaving it set after the reset delivers phantom IRQs
+           (INTC line already deasserted, never re-clears it) and storms the
+           re-booting kernel's OEMInterruptHandler with SYSINTR_NOP. */
+        state_.irq_interrupt_pending = 0;
         jit_->UpdateInterruptOnPoll();
     }
 
