@@ -2,6 +2,7 @@
 
 #include "rom_placer.h"
 
+#include "board_boot_placer.h"
 #include "guest_cold_boot.h"
 #include "rom_parser_service.h"
 
@@ -54,16 +55,35 @@ void RomPlacer::PlaceRomXips(const ParsedRom& rom, bool volatile_only) {
         }
         const size_t copy_len =
             std::min(xip_len, rom.flat.size() - file_off);
-        const uint32_t pa_base = page_tables.VaToPa(physfirst);
 
-        if (volatile_only && !IsVolatilePa(pa_base)) continue;
-
-        mem.CopyIn(pa_base, rom.flat.data() + file_off, copy_len);
-        LOG(Boot,
-            "RomPlacer %s: xip[%zu] %zu bytes  file_off=0x%zX  "
-            "kva=0x%08X..0x%08X  pa=0x%08X\n",
-            rom.filename.c_str(), i, copy_len, file_off,
-            physfirst, uint32_t(physfirst + copy_len), pa_base);
+        /* One CopyIn per VA->PA-contiguous run, not one flat copy: a CE
+           image crossing non-contiguous OAT bands (SIMpad's DRAM head +
+           flash-XIP body) needs each run at its mapped PA; a single-band
+           image yields one run identical to the old behavior. */
+        const uint32_t img_end = physfirst + uint32_t(copy_len);
+        uint32_t run_va = physfirst;
+        while (run_va < img_end) {
+            const uint32_t run_pa = page_tables.VaToPa(run_va);
+            uint32_t va = run_va;
+            do {
+                va += 0x1000u;
+            } while (va < img_end &&
+                     page_tables.VaToPa(va) == run_pa + (va - run_va));
+            const uint32_t run_end = std::min(va, img_end);
+            const uint32_t run_len = run_end - run_va;
+            if (volatile_only && !IsVolatilePa(run_pa)) {
+                run_va = run_end;
+                continue;
+            }
+            const size_t src_off = file_off + size_t(run_va - physfirst);
+            mem.CopyIn(run_pa, rom.flat.data() + src_off, run_len);
+            LOG(Boot,
+                "RomPlacer %s: xip[%zu] run %u bytes  src_off=0x%zX  "
+                "kva=0x%08X..0x%08X  pa=0x%08X\n",
+                rom.filename.c_str(), i, run_len, src_off,
+                run_va, run_end, run_pa);
+            run_va = run_end;
+        }
     }
 }
 
@@ -135,6 +155,8 @@ void RomPlacer::OnReady() {
             }
         }
     }
+
+    if (auto* bp = emu_.TryGet<BoardBootPlacer>()) bp->PlaceAfterRom();
 
     emu_.Get<GuestColdBoot>().RegisterReplay([this] {
         for (const auto& rom : emu_.Get<RomParserService>().Loaded())

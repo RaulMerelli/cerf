@@ -73,6 +73,19 @@ public:
             }
             return EmitRaiseUndAndReturn(cursor, d, ctx);
         }
+        /* SA-1110 c14 = debug/breakpoint registers (Dev Man §5.2.13). CERF has
+           no breakpoint unit, so writes are no-ops and reads return 0 — enough
+           for the kernel sleep state-save (reads c14 at nk.exe 0x8008162C) to
+           round-trip. The shared cp15 dispatch UNDs c14, which corrupts suspend. */
+        if (d->crn == 14) {
+            if (d->l) {
+                using namespace x86;
+                const int32_t rd_disp = static_cast<int32_t>(
+                    offsetof(ArmCpuState, gprs) + d->rd * 4u);
+                EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp, 0u);
+            }
+            return cursor;
+        }
         return EmitCp15RegisterTransfer(cursor, d, ctx);
     }
 

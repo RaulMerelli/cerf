@@ -65,7 +65,7 @@ void MediaQMq1188::PublishScreenSizeOnEnableEdge() {
 
 uint32_t MediaQMq1188::RegRead(uint32_t addr) {
     const uint32_t roff = (addr - MmioBase()) - kRegBase;
-    if (roff == kCc01R) { ge_.FlushPending(); return MediaQMq1188Ge::StatusReady(); }
+    if (roff == kCc01R) { ge_.FlushPending(); return ge_.StatusReady(); }
     if (roff >= kGeRegLo && roff < kGeRegHi) return ge_.ReadReg((roff - kGeRegLo) / 4u);
     if (roff >= kGeCmdLo && roff < kGeCmdHi) return ge_.ReadReg((roff - kGeCmdLo) / 4u);
     if (IsUsbHost(roff)) {

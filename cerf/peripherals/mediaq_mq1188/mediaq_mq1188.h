@@ -10,7 +10,7 @@
    PA 0x08000000). Ref: MediaQ doc 12-00026 Rev D, Ch.4. The 512 KB aperture
    is frame-buffer SRAM except an 8 KB register window at +0x40000 (Table 4-1
    / Fig 4-1) — only that window has device semantics. */
-class MediaQMq1188 : public Peripheral {
+class MediaQMq1188 : public Peripheral, public MediaQGeHost {
 public:
     using Peripheral::Peripheral;
 
@@ -39,8 +39,8 @@ public:
     uint32_t Stride()         const;   /* GC0ER[17:0], bytes per scanline. */
     uint32_t PaletteEntry(uint32_t index) const;   /* Color Palette 0x800-0xBFF. */
     const uint8_t* FbBytes()  const { return sram_.data(); }
-    uint8_t*       FbMutableBytes()  { return sram_.data(); }   /* GE blit target. */
-    uint32_t       FbSize()   const { return kApertureSize; }
+    uint8_t*       FbMutableBytes() override { return sram_.data(); }   /* GE blit target. */
+    uint32_t       FbSize()   const override { return kApertureSize; }
 
 private:
     static constexpr uint32_t kApertureSize = 0x00080000u;  /* 512 KB total. */

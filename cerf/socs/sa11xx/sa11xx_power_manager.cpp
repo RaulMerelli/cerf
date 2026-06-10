@@ -3,12 +3,13 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../host/guest_power_notifier.h"
 
 namespace {
 
 /* SA-1110 Power Manager — Dev Man §9.5.7-9.5.8. PSSR (+0x4) bits 4:0
-   are W1C; POSR (+0x1C) bit 0 OOK = 32-kHz oscillator stable (always
-   true in CERF — we don't model power-up oscillator settling). */
+   are W1C; POSR (+0x1C) bit 0 OOK (32-kHz oscillator stable) reads 1 —
+   the emulated oscillator is stable from reset. */
 
 class Sa11xxPowerManager : public Peripheral {
 public:
@@ -69,7 +70,13 @@ uint32_t Sa11xxPowerManager::ReadReg(uint32_t off) const {
 
 void Sa11xxPowerManager::WriteReg(uint32_t off, uint32_t value) {
     switch (off) {
-        case 0x00: pmcr_ = value; break;
+        case 0x00:
+            /* PMCR bit0 SF forces sleep mode (Dev Man §9.5.7.1; HW clears it on
+               wake). With no wake path the guest spins forever after setting it,
+               so a set SF surfaces the power-down to the UI. */
+            if (value & 0x1u) emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
+            pmcr_ = value & ~0x1u;
+            break;
         case 0x04: pssr_ &= ~(value & 0x1Fu); break;  /* W1C on bits 4:0 */
         case 0x08: pspr_ = value; break;
         case 0x0C: pwer_ = value; break;
