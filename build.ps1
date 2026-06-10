@@ -20,7 +20,7 @@ if (-not (Test-Path "$env:LOCALAPPDATA\vcpkg\vcpkg.user.props")) {
     [Environment]::Exit(1)
 }
 
-$waitDeadline = (Get-Date).AddMinutes(7)
+$waitDeadline = (Get-Date).AddMinutes(15)
 while ($true) {
     $blockingProcs = @()
     foreach ($n in @("cerf","MSBuild","cl","link")) {
@@ -38,7 +38,7 @@ while ($true) {
 
     $names = ($blockingProcs | Select-Object -ExpandProperty Name -Unique) -join ", "
     if ((Get-Date) -ge $waitDeadline) {
-        Write-Host "[BUILD] FAILED! The user OR other agent has been building/running CERF for more than 7 minutes (processes: $names)."
+        Write-Host "[BUILD] FAILED! The user OR other agent has been building/running CERF for more than 15 minutes (processes: $names)."
         Write-Host "[BUILD] If you are 100% sure that this is yours stuck build, then re-run with: build.ps1 -ForceKill"
         Write-Host "[BUILD] Otherwise, WAIT for the process to be closed and +~1 minute (recommended). DONT CORRUPT SOMEONE'S WORK."
         [Environment]::Exit(1)
