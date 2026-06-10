@@ -2,8 +2,10 @@ Set-Location $PSScriptRoot
 
 $tools   = "$PSScriptRoot/../../references/WindowsCE-Build-Tools"
 $sources = @("main.cpp","cerf_regs_map.c","cerf_debug_log.cpp","cerf_ddgpe.cpp",
-             "cerf_ddgpe_blt.cpp","cerf_ddhal.cpp","cerf_gradient.cpp",
+             "cerf_ddgpe_vidmem.cpp",
+             "cerf_ddgpe_blt.cpp","cerf_ddhal.cpp","cerf_ddhal_ce5.cpp","cerf_gradient.cpp",
              "cerf_pointer_pump.cpp","cerf_resize_pump.cpp","cerf_task_manager_pump.cpp",
+             "cerf_power.cpp",
              "cerf_cursor.cpp","cerf_ctbltstub.cpp","cerf_drvfnstubs.cpp",
              "cerf_driver_in_driver.cpp","cerf_fs_afs.c","cerf_fs_transport.c",
              "cerf_fs_vol.c","cerf_fs_file.c","cerf_fs_find.c","cerf_fs_notify.c")

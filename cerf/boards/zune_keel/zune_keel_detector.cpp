@@ -21,6 +21,9 @@ public:
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 240, 320 };
     }
+    /* gemstone renders via XUI -> Direct3D Mobile, whose device init rejects any
+       display mode that is not 16bpp RGB565 (ddraw_ipu_sdc D3DM sub_34E8CDC). */
+    uint32_t GetGuestAdditionsColorDepth() const override { return 16u; }
 };
 
 }  /* namespace */

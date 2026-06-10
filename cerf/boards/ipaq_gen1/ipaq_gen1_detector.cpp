@@ -22,6 +22,9 @@ public:
     const char* BoardName() const override {
         return "Compaq iPAQ 1st gen (H31xx/H36xx), Intel SA-1110 StrongARM";
     }
+    /* CE3 imgdecmp DecompressImageIndirect rejects bpp not in {2,4,8,16,24}
+       (imgdecmp.dll 0x1124300) and blanks the shell bitmaps at 32bpp. */
+    uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{240u, 320u};
     }

@@ -42,14 +42,37 @@ public:
         const uint32_t copy_h = std::min(guest_h, host_h);
         if (copy_w == 0 || copy_h == 0) return;
 
+        /* The host DIB is always BGRA32; a board may run the GA framebuffer at a
+           shallower depth (BoardDetector::GetGuestAdditionsColorDepth — Zune 16bpp
+           RGB565, iPaq 24bpp BGR888), so convert per source bpp on scanout. */
         const uint32_t guest_stride = fb.Stride();
+        const uint32_t bpp = fb.Bpp();
         for (uint32_t y = 0; y < copy_h; ++y) {
-            const uint32_t* src_row = reinterpret_cast<const uint32_t*>(
-                src + static_cast<size_t>(y) * guest_stride);
-            uint32_t* dst_row =
-                dib_bgra32 + static_cast<size_t>(y) * host_w;
-            std::memcpy(dst_row, src_row,
-                        static_cast<size_t>(copy_w) * 4u);
+            const uint8_t* src_row = src + static_cast<size_t>(y) * guest_stride;
+            uint32_t* dst_row = dib_bgra32 + static_cast<size_t>(y) * host_w;
+            if (bpp == 32u) {
+                std::memcpy(dst_row, src_row, static_cast<size_t>(copy_w) * 4u);
+            } else if (bpp == 16u) {
+                const uint16_t* s = reinterpret_cast<const uint16_t*>(src_row);
+                for (uint32_t x = 0; x < copy_w; ++x) {
+                    const uint32_t p  = s[x];
+                    const uint32_t r5 = (p >> 11) & 0x1Fu;
+                    const uint32_t g6 = (p >> 5)  & 0x3Fu;
+                    const uint32_t b5 =  p        & 0x1Fu;
+                    dst_row[x] = 0xFF000000u
+                               | (((r5 << 3) | (r5 >> 2)) << 16)
+                               | (((g6 << 2) | (g6 >> 4)) << 8)
+                               |  ((b5 << 3) | (b5 >> 2));
+                }
+            } else if (bpp == 24u) {
+                for (uint32_t x = 0; x < copy_w; ++x) {
+                    const uint8_t* p = src_row + static_cast<size_t>(x) * 3u;
+                    dst_row[x] = 0xFF000000u
+                               | (static_cast<uint32_t>(p[2]) << 16)
+                               | (static_cast<uint32_t>(p[1]) << 8)
+                               |  static_cast<uint32_t>(p[0]);
+                }
+            }
         }
     }
 };
