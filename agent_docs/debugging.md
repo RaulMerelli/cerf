@@ -168,6 +168,10 @@ branch is named.
   unrecoverable-fault halt, and no device sleeps right after booting. Do
   NOT model it as suspend / resume; hunt the fault that triggered it
   (heavy aborts, a lock timeout) via the guest debug output above.
+  Invariants:
+   - Your GPIO or something emulates power button hold
+   - Emulated timer/clock is too fast and makes OS go to idle standard sleep mode
+   - Emulated battery is reporing low power (this one is reoccuring, complex to prevent, complex to debug)
 - **Any mystery?** Add hooks. Run. Read. The answer is always in
   the data, never in your head.
 
