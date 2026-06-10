@@ -48,6 +48,10 @@ enum class Board {
     SimpadSl4,        /* Siemens SIMpad SL4 ("Webpad"), Intel SA-1110 StrongARM.
                          One board, two ROM generations: HPC2000 (CE 3.0) and
                          Windows CE .NET 4.10. CE image physfirst=0x80080000. */
+    NecMobilePro900,  /* NEC MobilePro 900 / 900c (OEM board codename "P530"),
+                         Intel XScale PXA255 (ARMv5TE), 640x240 DSTN, QWERTY HPC
+                         clamshell. Two ROM generations: HPC2000 (CE 3.0) and
+                         Windows CE .NET 4.2. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
