@@ -30,6 +30,9 @@ protected:
     virtual std::vector<JornadaKeyEntry> AppKeys() const = 0;
     virtual void InjectKey(uint8_t vk) = 0;            /* tap (down+up) via the board keyboard */
     virtual std::vector<WidgetMenuItem> ExtraMenuItems() { return {}; }
+    /* Board-specific items shown at the top of the menu, ahead of the app keys
+       (e.g. the J720 Fn-symbol shortcuts). Default: none. */
+    virtual std::vector<WidgetMenuItem> PrefixItems() { return {}; }
 
     WidgetMenuItem MakeKeyItem(const wchar_t* label, uint8_t vk);
 };

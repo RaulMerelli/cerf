@@ -16,6 +16,11 @@ WidgetMenuItem JornadaKeysWidget::MakeKeyItem(const wchar_t* label, uint8_t vk) 
 
 std::vector<WidgetMenuItem> JornadaKeysWidget::BuildMenu() {
     std::vector<WidgetMenuItem> items;
+    auto prefix = PrefixItems();
+    if (!prefix.empty()) {
+        for (auto& p : prefix) items.push_back(std::move(p));
+        items.push_back(WidgetMenuItem{});               /* separator */
+    }
     for (const auto& k : AppKeys()) items.push_back(MakeKeyItem(k.label, k.vk));
     auto extra = ExtraMenuItems();
     if (!extra.empty()) {

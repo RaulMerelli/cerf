@@ -23,6 +23,21 @@ constexpr JornadaKeyEntry kMediaKeys[] = {
     { L"Volume up", 0xD1 }, { L"Volume down", 0xD2 }, { L"Play / pause", 0xD3 },
 };
 
+/* The Fn modifier is guest VK 0x79 (TSCkbdr.dll sub_FC2CE8 case 121 toggles the
+   Fn-active flag dword_FC5124; sub_FC2384 then selects word_FC10A0 col7). Host
+   F10 already reaches it via kVkToScancode[0x79]. */
+constexpr uint8_t kVkFn = 0x79;
+
+/* Fn-layer symbols (word_FC10A0 col7) that have no plain key on the J720:
+   label + the base VK whose Fn column carries the symbol. */
+struct FnSymEntry { const wchar_t* label; uint8_t base_vk; };
+constexpr FnSymEntry kFnSymbols[] = {
+    { L"{   (Fn + P)",  0x50 },   /* word_FC10A0 VK 0x50 col7 = 0x7B '{' */
+    { L"}   (Fn + \\)", 0xDC },   /* VK 0xDC col7 = 0x7D '}' */
+    { L"[   (Fn + ;)",  0xBA },   /* VK 0xBA col7 = 0x5B '[' */
+    { L"]   (Fn + ')",  0xDE },   /* VK 0xDE col7 = 0x5D ']' */
+};
+
 /* Bezel soft buttons: raw-ADC zone centers per touch.dll sub_FB1314 (gate
    X 31..67; Y zones 151-274 / 361-469 / 591-689 / 815-915; release in the
    zone injects Win+0xCC/CD/CE/D0). Labels = the bound apps in default.reg. */
@@ -53,6 +68,21 @@ protected:
         kbd.OnHostKey(vk, /*key_up=*/false);
         kbd.OnHostKey(vk, /*key_up=*/true);
     }
+    std::vector<WidgetMenuItem> PrefixItems() override {
+        std::vector<WidgetMenuItem> items;
+        WidgetMenuItem hint;
+        hint.label   = L"Hint: F10 is mapped to guest's Fn key";
+        hint.enabled = false;                            /* grayed static header */
+        items.push_back(std::move(hint));
+        items.push_back(WidgetMenuItem{});               /* separator */
+        for (const auto& s : kFnSymbols) {
+            WidgetMenuItem it;
+            it.label    = s.label;
+            it.on_click = [this, vk = s.base_vk] { InjectFnCombo(vk); };
+            items.push_back(std::move(it));
+        }
+        return items;
+    }
     std::vector<WidgetMenuItem> ExtraMenuItems() override {
         std::vector<WidgetMenuItem> items;
         for (const auto& k : kMediaKeys) items.push_back(MakeKeyItem(k.label, k.vk));
@@ -66,6 +96,18 @@ protected:
             items.push_back(std::move(it));
         }
         return items;
+    }
+
+private:
+    /* Hold-Fn + tap base + release-Fn, mirroring the verified host-F10 path:
+       Fn-down latches the Fn layer, the base key resolves through col7, Fn-up
+       clears it. */
+    void InjectFnCombo(uint8_t base_vk) {
+        auto& kbd = emu_.Get<Jornada720Keyboard>();
+        kbd.OnHostKey(kVkFn,   /*key_up=*/false);
+        kbd.OnHostKey(base_vk, /*key_up=*/false);
+        kbd.OnHostKey(base_vk, /*key_up=*/true);
+        kbd.OnHostKey(kVkFn,   /*key_up=*/true);
     }
 };
 
