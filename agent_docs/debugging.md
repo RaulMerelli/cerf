@@ -163,6 +163,11 @@ branch is named.
   for why.
 - **Missing call?** PC hook the function that should be called.
   No fire = trace backwards by hooking its expected caller.
+- **Guest powers off / "deep sleeps" seconds after booting?** That IS a
+  kernel panic — CE's PowerOffSystem / sleep path doubles as the
+  unrecoverable-fault halt, and no device sleeps right after booting. Do
+  NOT model it as suspend / resume; hunt the fault that triggered it
+  (heavy aborts, a lock timeout) via the guest debug output above.
 - **Any mystery?** Add hooks. Run. Read. The answer is always in
   the data, never in your head.
 
@@ -182,6 +187,15 @@ branch is named.
   file; confirm it was created before reading, and if `--log-file` didn't
   produce it, re-run with a corrected path rather than falling back to
   stdout.
+- **On every failure, scan the guest's own debug output with a WIDE net
+  first.** Before reverse-engineering, grep the log across all guest output
+  channels — UART / serial TX and NKDBG / OEM-debug strings — for the
+  guest's self-reported diagnosis: exception / abort register dumps,
+  semaphore / lock timeouts, power-off / "deep sleep", panic banners.
+  Re-scan after each failed run. A pre-narrowed keyword filter
+  (`abort|exception` only) hides the very line that names the failure — dump
+  the distinct message vocabulary (collapse high-frequency noise) and read
+  what the guest is actually saying.
 
 Filtering log channels with `--log=Boot,Mmu,Periph` (etc.) helps
 narrow output during a long boot, but `--log=ALL` (default) is what
