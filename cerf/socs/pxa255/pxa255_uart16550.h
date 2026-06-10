@@ -76,6 +76,16 @@ public:
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
 
+    /* 16550 registers are byte-wide at word stride; CE writes THR / reads LSR
+       with STRB / LDRB, so map byte access onto the aligned word register. */
+    uint8_t ReadByte(uint32_t addr) override {
+        const uint32_t shift = (addr & 0x3u) * 8;
+        return static_cast<uint8_t>((ReadWord(addr & ~0x3u) >> shift) & 0xFFu);
+    }
+    void WriteByte(uint32_t addr, uint8_t value) override {
+        WriteWord(addr & ~0x3u, value);
+    }
+
 protected:
     virtual uint32_t    IntcBit() const = 0;
     virtual const char* Name()    const = 0;

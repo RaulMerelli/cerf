@@ -26,6 +26,7 @@ public:
     uint32_t MmioSize() const override { return 0x00001000u; }
 
     uint32_t ReadWord (uint32_t addr) override;
+    uint8_t  ReadByte (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
 private:
@@ -62,6 +63,13 @@ uint32_t Pxa255PowerManager::ReadWord(uint32_t addr) {
     case kRCSR:  return rcsr_;
     }
     HaltUnsupportedAccess("ReadWord", addr, 0);
+}
+
+/* The CE boot OAL reads RCSR with LDRB (kernel start at nk.exe 0x90201004),
+   so serve byte reads by extracting from the word register. */
+uint8_t Pxa255PowerManager::ReadByte(uint32_t addr) {
+    const uint32_t shift = (addr & 0x3u) * 8;
+    return static_cast<uint8_t>((ReadWord(addr & ~0x3u) >> shift) & 0xFFu);
 }
 
 void Pxa255PowerManager::WriteWord(uint32_t addr, uint32_t value) {
