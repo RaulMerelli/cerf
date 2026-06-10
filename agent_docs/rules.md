@@ -188,6 +188,8 @@ In case if you built and there is non-yours error in code appeared, the best thi
 - at tick try to build again
 - once good kill the timer
 
+- **Never auto-loop a clean/full rebuild, and never loop builds keyed only on output freshness** — a full (`-Rebuild`) build is very expensive and holds a shared build lock that blocks every other agent, and a tree broken by parallel work never produces a newer binary, so a retry loop whose exit condition is "did the output get newer" rebuilds from scratch forever instead of stopping; build-retry loops must use the incremental build and must detect compile failure (not just output staleness) to terminate.
+
 Always use something like cerf.exe --log-file=repo_path/tmp/this_session_unique_name.log to prevent colliding with another log files. User usually runs cerf.exe and writes cerf.log in parallel. Other devs/agents always respect this rule and write into own unique .log file. It should always be repo dir, not systems's temp, because logs can draw GBs of disk space, and in localized directory it's easy to delete stale ones.
 
 The main developer dev env runs inside VBox VM and repo disk is a shared directory to host repo. The dev might run cerf.exe on host which won't be seen by build.ps1/system process list - you will hit most likely locked files error and the case is the same as this entire section.
