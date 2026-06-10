@@ -213,7 +213,11 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "network": True,
         },
-        "notes": ["Guest additions mouse is behaving weird"],
+        "notes": [
+            "Guest additions mouse is behaving weird",
+            "The guest Fn key is mapped to host F10 (e.g. hold F10 + P = '{'). "
+            "The keys widget menu lists the common Fn symbols.",
+        ],
     },
     {
         "name": "ODO/Poseidon",
