@@ -73,13 +73,17 @@ bool AssembleB000FFFlat(const std::vector<uint8_t>& raw,
 
 std::vector<size_t> FindAllEcec(std::span<const uint8_t> flat) {
     std::vector<size_t> out;
-    const size_t limit = std::min<size_t>(flat.size(), 0x800000);
-    for (size_t i = 0; i + 12 <= limit; ++i) {
+    /* Scan the whole flat — a multi-XIP ROM keeps the NK kernel region in the
+       file tail, far past any front window; a size cap drops that region and
+       the kernel never gets placed. Each hit is validated by ParseRomHdr
+       downstream, so a stray 'ECEC' byte match costs nothing. */
+    for (size_t i = 0; i + 12 <= flat.size(); ++i) {
         if (U32(flat.data(), i) != kRomSignature) continue;
-        const uint32_t ptoc_va    = U32(flat.data(), i + 4);
-        const uint32_t romhdr_off = U32(flat.data(), i + 8);
-        if (ptoc_va >= 0x80000000u && ptoc_va < 0xC0000000u
-            && romhdr_off < 0x10000000u) {
+        const uint32_t ptoc_va = U32(flat.data(), i + 4);
+        /* Gate on the ROMHDR VA only: ECEC+8 is an optional offset some BSPs
+           leave as garbage (NEC P530: 0xE1001D28), so requiring it small
+           rejects valid regions. */
+        if (ptoc_va >= 0x80000000u && ptoc_va < 0xC0000000u) {
             out.push_back(i);
         }
     }
@@ -138,22 +142,20 @@ bool ResolveRomhdrAtEcec(std::span<const uint8_t> flat,
         candidates.push_back({off, cand_load});
     };
 
-    if (ev_off) {
-        /* ECEC+8 (ROM_TOC_OFFSET_OFFSET) — explicit byte offset of the
-           ROMHDR relative to the XIP region's base in the file. CE5+ /
-           WM5+ always populate this. The XIP's file-base is the ECEC
-           marker minus 0x40 (ROM_SIGNATURE_OFFSET). */
+    /* ECEC+8 is the ROMHDR offset from the XIP base when populated, but some
+       BSPs leave it garbage (>=0x10000000); trusting it alone drops a region
+       whose ECEC+8 is junk. Try it only when sane, then always run the
+       candidate-base search (flat_base_va yields romhdr_off = ptoc - base). */
+    if (ev_off && ev_off < 0x10000000u) {
         const size_t xip_base_off =
             (ecec_off >= kRomSignatureOffset) ? ecec_off - kRomSignatureOffset : 0;
         const size_t off = xip_base_off + ev_off;
         candidates.push_back({off, ev_ptoc - uint32_t(off)});
-    } else {
-        /* CE3 leaves ECEC+8 zero — fall back to candidate-base search. */
-        add(flat_base_va);
-        add(flat_base_va | 0x80000000u);
-        add(ev_ptoc & 0xFF000000u);
-        add(ev_ptoc & 0xF0000000u);
     }
+    add(flat_base_va);
+    add(flat_base_va | 0x80000000u);
+    add(ev_ptoc & 0xFF000000u);
+    add(ev_ptoc & 0xF0000000u);
 
     for (const auto& c : candidates) {
         if (c.romhdr_off + kRomHdrSize > flat.size()) continue;
