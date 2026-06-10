@@ -55,6 +55,12 @@ register read, MMU/translate result, API return, or memory value — found
 by comparing CERF's actual value to what the decompiled guest at that hop
 expects.
 
+For a documented standard off-chip part (codec, NIC, PMIC), split the
+labor: use the guest driver only to pin WHAT it requires — the register or
+bit it polls, the dead branch — then ground the part's register map and bit
+semantics in its datasheet + the Linux driver + QEMU, rather than
+reverse-engineering the whole part from the guest.
+
 **The dead branch is always a CERF defect** — a JIT, MMU, or peripheral
 bug, or (rarely) a ROM-placement bug. It is never "the real device would
 fail here too" / "the app is buggy"; the ROM shipped and worked on
