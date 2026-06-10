@@ -53,6 +53,43 @@ while ($i -lt $args.Count) {
 Set-Location -LiteralPath $PSScriptRoot
 Clear-Host
 
+# First-run gate. Until the user has acknowledged what this launcher does, show
+# a one-time welcome + warnings and wait for Enter. The acknowledgement is
+# recorded by creating .claude_gate (gitignored, per-machine); once it exists
+# the intro never shows again and the launcher runs straight through.
+$gateFile = Join-Path $PSScriptRoot '.claude_gate'
+if (-not (Test-Path -LiteralPath $gateFile)) {
+    Write-Host ""
+    Write-Host "  Welcome to the CERF Claude development environment" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  run_claude launches Claude Code with a custom system prompt that injects"
+    Write-Host "  the ENTIRE project documentation (CLAUDE.md + every agent_docs reference"
+    Write-Host "  page) into every agent, so each session starts fully briefed on the"
+    Write-Host "  project's rules, architecture, and subsystems."
+    Write-Host ""
+    Write-Host "  WARNING: Claude runs in skip-permissions mode. It can execute ABSOLUTELY" -ForegroundColor Yellow
+    Write-Host "  ANYTHING on this machine without asking: edit files, run shell commands," -ForegroundColor Yellow
+    Write-Host "  delete data, hit the network." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  WARNING: this launcher polls for memory leaks. It will FORCE-KILL its own" -ForegroundColor Yellow
+    Write-Host "  Claude instance if it leaks past its limit, and it will FORCE-KILL ANY" -ForegroundColor Yellow
+    Write-Host "  clangd.exe on this machine that leaks past its limit - not just ones it" -ForegroundColor Yellow
+    Write-Host "  started." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Tip: once inside, start by running  /cerf  to see the special skills this" -ForegroundColor Green
+    Write-Host "  project provides (including /start-board-implementation to bring up a ROM)." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Press Enter to proceed (this message will never be shown again)." -ForegroundColor Cyan
+    [void](Read-Host)
+    try {
+        New-Item -ItemType File -Path $gateFile -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Error "Could not create gate file '$gateFile': $($_.Exception.Message)"
+        exit 1
+    }
+    Clear-Host
+}
+
 # Ordered list of mandatory documents. Matches CLAUDE.md's "Reference Pages"
 # section (the MANDATORY bullets — the lazy-read set is intentionally omitted).
 $files = @(
@@ -269,6 +306,8 @@ do {
         # `e is a PS 6+ escape; this script must work on Windows PowerShell 5.1.
         $esc = [char]27
         [Console]::Write("$esc[?1049l$esc[?25h$esc[0m")
+        # Wipe the dangling claude TUI output before showing the restart prompt.
+        Clear-Host
         Write-Host ""
         Write-Host ("[run_claude] claude.exe exceeded {0} GB and was killed (peak private bytes: {1:N2} GB, pid {2})." -f `
             $MemoryLimitGB, ($monitorState.PeakBytes / 1GB), $monitorState.TargetPid) `
