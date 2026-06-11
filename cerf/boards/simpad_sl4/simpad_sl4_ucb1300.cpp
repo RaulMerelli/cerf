@@ -2,6 +2,7 @@
 
 #include "simpad_sl4_touch_panel.h"
 #include "simpad_sl4_battery.h"
+#include "simpad_sl4_keypad.h"
 #include "../board_detector.h"
 #include "../../core/cerf_emulator.h"
 
@@ -12,7 +13,11 @@ namespace {
 
 
 /* UCB register indices + bit fields, Linux ucb1x00.h. */
+constexpr uint8_t  kRegIoData  = 0x00;
+constexpr uint8_t  kRegIeFal   = 0x03;   /* IE falling-edge enable */
+constexpr uint8_t  kRegIeStatus = 0x04;  /* IE status (read) / IE clear (write) */
 constexpr uint8_t  kRegTsCr    = 0x09;
+constexpr uint16_t kUcbIeTspx  = 1u << 12;   /* UCB_IE_TSPX pen-detect */
 constexpr uint8_t  kRegAdcCr   = 0x0A;
 constexpr uint8_t  kRegAdcData = 0x0B;
 constexpr uint8_t  kRegId      = 0x0C;
@@ -49,19 +54,32 @@ public:
 
     uint16_t ReadReg(uint8_t reg) override {
         switch (reg) {
-            case kRegId:      return kIdUcb1300;
-            case kRegAdcData: return adc_data_;
-            case kRegTsCr:    return PenDetectTsCr();
-            default:          return regs_[reg & 0xFu];
+            case kRegIoData:    return KeypadIoData();
+            case kRegIeStatus:  return emu_.Get<SimpadSl4TouchPanel>().PenIrqStatus();
+            case kRegId:        return kIdUcb1300;
+            case kRegAdcData:   return adc_data_;
+            case kRegTsCr:      return PenDetectTsCr();
+            default:            return regs_[reg & 0xFu];
         }
     }
 
     void WriteReg(uint8_t reg, uint16_t value) override {
         regs_[reg & 0xFu] = value;
         if (reg == kRegAdcCr && (value & kAdcStart)) Convert(value);
+        else if (reg == kRegIeFal)
+            emu_.Get<SimpadSl4TouchPanel>().SetPenIrqArmed((value & kUcbIeTspx) != 0);
+        else if (reg == kRegIeStatus)
+            emu_.Get<SimpadSl4TouchPanel>().ClearPenIrq(value);
     }
 
 private:
+    uint16_t KeypadIoData() const {
+        /* IO_DATA bits 0..5 are the keypad button lines (active-low); other IO
+           bits keep whatever the driver last drove. */
+        const uint8_t buttons = emu_.Get<SimpadSl4Keypad>().ReleasedIoBits();
+        return static_cast<uint16_t>((regs_[kRegIoData] & ~0x3Fu) | buttons);
+    }
+
     uint16_t PenDetectTsCr() const {
         uint16_t v = regs_[kRegTsCr];
         if (emu_.Get<SimpadSl4TouchPanel>().Down()) v |=  (kTsCrTspxLow | kTsCrTsmxLow);
