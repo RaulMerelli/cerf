@@ -155,6 +155,12 @@ public:
        starting at the module's ulLoadOffset; empty when not found. */
     std::span<const uint8_t> ModuleBytesByName(const char* name) const;
 
+    /* nk.exe's e32_rom subsystem version = the CE/OS generation the kernel
+       targets (CE 3.0 -> 3.x, Windows CE .NET -> 4.x); reads e32_subsysmajor
+       / e32_subsysminor (e32_rom offsets 0x0C / 0x0E per romldr.h). False if
+       nk.exe or its e32_rom is not locatable. */
+    bool KernelSubsystemVersion(uint16_t& major, uint16_t& minor) const;
+
 private:
     bool ParseOne(ParsedRom& rom);
 

@@ -311,6 +311,12 @@ void RomParserService::OnReady() {
     LOG(Boot, "RomParser: %zu partition(s) loaded (primary=%s%s)\n",
         loaded_.size(), loaded_[0].filename.c_str(),
         loaded_.size() > 1 ? ", +extensions" : "");
+
+    uint16_t ce_major = 0, ce_minor = 0;
+    if (KernelSubsystemVersion(ce_major, ce_minor))
+        LOG(Boot, "RomParser: kernel subsystem version %u.%u\n",
+            ce_major, ce_minor);
+
     ok_ = true;
 }
 
@@ -353,4 +359,23 @@ RomParserService::ModuleBytesByName(const char* name) const {
         }
     }
     return {};
+}
+
+bool RomParserService::KernelSubsystemVersion(uint16_t& major,
+                                              uint16_t& minor) const {
+    for (const auto& rom : loaded_) {
+        for (const auto& xip : rom.xips) {
+            for (const auto& m : xip.toc.modules) {
+                if (!EqualIgnoreCase(m.lpszFileName, "nk.exe")) continue;
+                if (m.ulE32Offset < xip.load_offset) return false;
+                const size_t e32_off = size_t(m.ulE32Offset - xip.load_offset);
+                if (e32_off + 0x10 > rom.flat.size()) return false;
+                const uint8_t* p = rom.flat.data() + e32_off;
+                major = uint16_t(p[0x0C] | (p[0x0D] << 8));
+                minor = uint16_t(p[0x0E] | (p[0x0F] << 8));
+                return true;
+            }
+        }
+    }
+    return false;
 }
