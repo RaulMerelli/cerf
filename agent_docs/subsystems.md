@@ -333,6 +333,18 @@ build via a `<ClCompile Remove="tracing\*\**\*.cpp">` rule in
 stays compiled; with no registered traces, every hook is a single
 empty-container check.
 
+**CRC32 / bundle gating is diagnostics-only — never runtime behavior.**
+Because this per-device trace tree is stripped from production builds, any
+emulation or board behavior placed behind a `RegisterForBundle` / bundle-CRC
+gate compiles OUT of the production binary: it works in a dev build and is
+silently dead for every user, with no error pointing at the absence. A CRC
+also matches ONE exact ROM image, never a class — a board has many ROMs
+(revisions, regions, generations, future user dumps), so CRC-gated behavior
+needs an unbounded checksum list and any unseen ROM gets nothing. Behavior
+that must hold for a class of ROMs uses a generalizing ROM-content fingerprint
+(the way `BoardDetector` does); CRC/bundle gating stays in diagnostics, where
+its single-image, dev-only nature is exactly correct.
+
 — `cerf/tracing/<bundle>/`
 
 ## Bundled device tree
