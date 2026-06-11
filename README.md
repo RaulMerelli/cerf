@@ -257,6 +257,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
             <ul>
               <li>HP Jornada 820 support</li>
               <li>Siemens SIMpad SL4 support</li>
+              <li>NEC MobilePro 900 support</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>PC Cards: Serial modem emulator and serial forwader</li>
