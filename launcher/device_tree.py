@@ -19,6 +19,7 @@ from ui_theme import BG_LIGHTER, FG, STATE_TINT
 GROUP_IID_PREFIX    = "board-group::"
 CATEGORY_IID_PREFIX = "pkgcat::"
 PACKAGE_IID_PREFIX  = "pkg::"
+OSNOTE_IID_PREFIX   = "osnote::"
 UNKNOWN_BOARD_LABEL = "Unknown board"
 
 
@@ -83,13 +84,22 @@ def _table_os_label(d: DeviceBundle) -> str:
     name = meta.os_name.strip() if isinstance(meta.os_name, str) else ""
     major = _int_metadata(meta.os_ver_major)
     minor = _int_metadata(meta.os_ver_minor)
-    has_version = bool(major or minor)
-    if not has_version:
-        return name
-    if _os_name_has_version(name, major, minor):
-        return name
-    version = f"CE {major}.{minor}"
-    return f"{name} ({version})" if name else f"Unknown OS ({version})"
+    year = _int_metadata(meta.os_year)
+    # Parenthetical gathers CE version then OS year: "(CE 4.2, 2003)",
+    # "(CE 4.2)", or "(2003)". The CE version is dropped when the name
+    # already spells it out (e.g. "Windows CE 4.2").
+    paren: List[str] = []
+    if (major or minor) and not _os_name_has_version(name, major, minor):
+        paren.append(f"CE {major}.{minor}")
+    if year:
+        paren.append(str(year))
+    base = name or ("Unknown OS" if paren else "")
+    return f"{base} ({', '.join(paren)})" if paren else base
+
+
+def _table_device_label(d: DeviceBundle) -> str:
+    display = d.meta.device_name or d.name
+    return f"{display} ({d.meta.device_year})" if d.meta.device_year else display
 
 
 class DeviceTreePanel:
@@ -128,18 +138,16 @@ class DeviceTreePanel:
                         command=self._filter_mode_changed).pack(side="left",
                                                                 padx=(8, 0))
 
-        columns = ("os", "year", "board", "soc", "status")
+        columns = ("os", "board", "soc", "status")
         tree = ttk.Treeview(frame, columns=columns, show="tree headings",
                             selectmode="browse")
         tree.heading("#0", text="Device")
         tree.heading("os", text="OS")
-        tree.heading("year", text="Year / OS")
         tree.heading("board", text="Board")
         tree.heading("soc", text="SoC")
         tree.heading("status", text="Status")
-        tree.column("#0", width=200, minwidth=140, anchor="w", stretch=True)
+        tree.column("#0", width=220, minwidth=140, anchor="w", stretch=True)
         tree.column("os", width=260, minwidth=180, anchor="w", stretch=True)
-        tree.column("year", width=95, minwidth=80, anchor="center", stretch=False)
         tree.column("board", width=140, minwidth=95, anchor="w", stretch=True)
         tree.column("soc", width=105, minwidth=80, anchor="w", stretch=True)
         tree.column("status", width=100, minwidth=90, anchor="w", stretch=False)
@@ -226,19 +234,17 @@ class DeviceTreePanel:
                 self._payload[group_iid] = TreeSelection(kind="group")
                 group_iids[board] = group_iid
             state = d.state_label
-            dev_y = str(d.meta.device_year) if d.meta.device_year else "?"
-            os_y = str(d.meta.os_year) if d.meta.os_year else "?"
-            year = f"{dev_y} / {os_y}"
             os_label = _table_os_label(d)
             soc = d.meta.soc_family or ""
-            display = d.meta.device_name or d.name
             tree.insert(group_iid, "end", iid=d.name,
-                        text=display if display != d.name else d.name,
-                        values=(os_label, year, board, soc, state),
-                        open=prior_open.get(d.name, bool(d.packages)),
+                        text=_table_device_label(d),
+                        values=(os_label, board, soc, state),
+                        open=prior_open.get(d.name,
+                                            bool(d.packages) or bool(d.meta.os_notes)),
                         tags=(state,))
             self._payload[d.name] = TreeSelection(kind="device", device=d)
             device_iids.append(d.name)
+            self._insert_os_note_rows(d)
             self._insert_package_rows(d, prior_open)
 
         if previous_iid and tree.exists(previous_iid):
@@ -247,6 +253,25 @@ class DeviceTreePanel:
         elif device_iids:
             tree.selection_set(device_iids[0])
             tree.see(device_iids[0])
+
+    def _insert_os_note_rows(self, d: DeviceBundle) -> None:
+        # meta.os.notes as indented child rows in the OS column, each led by
+        # the "↳" branch arrow pointing down-then-right from the OS name: <= 3
+        # notes collapse into one comma-separated row; > 3 get one row each.
+        # Selecting a note row resolves to the owning device.
+        notes = d.meta.os_notes
+        if not notes:
+            return
+        if len(notes) <= 3:
+            rows = [("all", "↳ " + ", ".join(notes))]
+        else:
+            rows = [(str(i), f"↳ {note}") for i, note in enumerate(notes)]
+        for suffix, text in rows:
+            note_iid = f"{OSNOTE_IID_PREFIX}{d.name}::{suffix}"
+            self.tree.insert(d.name, "end", iid=note_iid, text="",
+                             values=(text, "", "", ""),
+                             tags=("osnote",))
+            self._payload[note_iid] = TreeSelection(kind="device", device=d)
 
     def _insert_package_rows(self, d: DeviceBundle,
                              prior_open: Dict[str, bool]) -> None:
@@ -269,7 +294,7 @@ class DeviceTreePanel:
                        f"{ps.remote.category}::{ps.remote.key}")
             self.tree.insert(cat_iid, "end", iid=pkg_iid,
                              text=ps.remote.name,
-                             values=("", "", "", "", state),
+                             values=("", "", "", state),
                              tags=(state,))
             self._payload[pkg_iid] = TreeSelection(kind="package", device=d,
                                                    package=ps)

@@ -50,6 +50,7 @@ class DeviceMeta:
     os_ver_minor: int = 0
     device_year: int = 0
     os_year: int = 0
+    os_notes: List[str] = field(default_factory=list)
     description: str = ""
     notes: List[str] = field(default_factory=list)
     source: Optional[DeviceSource] = None
@@ -192,6 +193,7 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[in
             meta.os_ver_major = _int_or_zero(os_block.get("ver_major"))
             meta.os_ver_minor = _int_or_zero(os_block.get("ver_minor"))
             meta.os_year = _int_or_zero(os_block.get("year"))
+            meta.os_notes = _str_list(os_block.get("notes"))
 
     board = obj.get("board")
     if isinstance(board, dict):

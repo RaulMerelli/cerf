@@ -245,6 +245,8 @@ class BundleManager:
                     existing.meta.device_year = remote_meta.device_year
                 if not existing.meta.os_year:
                     existing.meta.os_year = remote_meta.os_year
+                if not existing.meta.os_notes:
+                    existing.meta.os_notes = remote_meta.os_notes
                 if existing.meta.source is None:
                     existing.meta.source = remote_meta.source
                 if existing.screen_supported is None and remote_screen_supported is not None:
