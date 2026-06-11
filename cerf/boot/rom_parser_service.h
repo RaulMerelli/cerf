@@ -146,6 +146,8 @@ public:
        starting at the module's ulLoadOffset; empty when not found. */
     std::span<const uint8_t> ModuleBytesByName(const char* name) const;
 
+    bool KernelSubsystemVersion(uint16_t& major, uint16_t& minor) const;
+
 private:
     bool ParseOne(ParsedRom& rom);
 
