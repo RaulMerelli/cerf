@@ -1,6 +1,7 @@
 #include "mediaq_ge.h"
 
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -80,4 +81,24 @@ void MediaQGe::ExecutePending() {
     if (pending_reg_[kGe00Command] & kCmdMonoSrc) BlitMonoSource(pending_reg_);
     else                                          BlitColorSource(pending_reg_);
     src_fifo_.clear();
+}
+
+void MediaQGe::SaveState(StateWriter& w) const {
+    w.WriteBytes(reg_, sizeof(reg_));
+    w.Write<uint64_t>(src_fifo_.size());
+    if (!src_fifo_.empty())
+        w.WriteBytes(src_fifo_.data(), src_fifo_.size() * sizeof(uint32_t));
+    w.WriteBytes(pending_reg_, sizeof(pending_reg_));
+    w.Write<uint8_t>(pending_active_ ? 1u : 0u);
+    w.Write(expected_dwords_);
+}
+
+void MediaQGe::RestoreState(StateReader& r) {
+    r.ReadBytes(reg_, sizeof(reg_));
+    uint64_t n = 0; r.Read(n);
+    src_fifo_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(src_fifo_.data(), static_cast<size_t>(n) * sizeof(uint32_t));
+    r.ReadBytes(pending_reg_, sizeof(pending_reg_));
+    uint8_t a = 0; r.Read(a); pending_active_ = (a != 0);
+    r.Read(expected_dwords_);
 }

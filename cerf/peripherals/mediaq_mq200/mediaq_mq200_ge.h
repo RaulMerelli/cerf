@@ -23,14 +23,16 @@ protected:
     uint32_t      ExpectedSourceDwords() const override;
     void          BlitColorSource(const uint32_t* r) override;
     void          BlitMonoSource(const uint32_t* r) override;
+    void          DrawLine(uint32_t cmd) override;
 
 private:
-    /* MQ-200 GE register dword indices. Mono/pattern colours live in the GE40
-       block (Data Book §5 register locator), not the GE07/08 of the MQ-1132. */
     enum : uint32_t {
-        kGe08FgColor = 0x08,  /* GE08R colour foreground / rectangle fill. */
-        kGe09SrcOff  = 0x09,  /* GE09R source stride / pack-mode. */
-        kGe42PatFg   = 0x42,  /* GE42R mono pattern / mono source foreground. */
-        kGe43PatBg   = 0x43,  /* GE43R mono pattern / mono source background. */
+        kGe07FgColor  = 0x07,  /* FG_COLOR: mono-source / solid-line foreground. */
+        kGe08BgColor  = 0x08,  /* BG_COLOR: mono-source background. */
+        kGe09SrcOff   = 0x09,  /* GE09R source stride / pack-mode. */
+        kGe40MonoPat0 = 0x40,
+        kGe41MonoPat1 = 0x41,
+        kGe42PatFg    = 0x42,  /* PAT_FG_COLOR: mono-pattern / solid-fill colour. */
+        kGe43PatBg    = 0x43,  /* PAT_BG_COLOR: mono-pattern background. */
     };
 };

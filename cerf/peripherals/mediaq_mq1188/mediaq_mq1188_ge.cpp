@@ -5,7 +5,11 @@
 const MediaQGe::Layout& MediaQMq1188Ge::Lyt() const {
     /* fg=GE07, bg=GE08, pat_fg=GE12, src_stride=GE09; GE0AR stride[9:0],
        GE0BR base[19:0] (Reg 4-93..4-98). */
-    static const Layout kL{7u, 8u, 18u, 9u, 0x3FFu, 0xFFFFFu};
+    /* mono pattern GE10R/GE11R (16/17), PAT_FG GE12R (18), PAT_BG GE13R (19);
+       color_pat_base=0 -> MQ-1132 has no colour-pattern array (GE ends at GE13R,
+       datasheet Reg 4-104..4-107). */
+    static const Layout kL{7u, 8u, 18u, 9u, 0x3FFu, 0xFFFFFu,
+                           19u, 16u, 17u, 0u};
     return kL;
 }
 

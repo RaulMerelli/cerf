@@ -29,7 +29,10 @@ private:
         kGe07FgColor   = 7,   /* foreground, mono source (Reg 4-93). */
         kGe08BgColor   = 8,   /* background, mono source (Reg 4-94). */
         kGe09SrcStride = 9,   /* source stride / pack-mode (Reg 4-95). */
-        kGe12PatFg     = 18,  /* solid-pattern colour (Reg 4-106). */
+        kGe10MonoPat0  = 16,  /* MONO_PATTERN0: 8x8 mono pattern rows 0-3 (GE10R Index 40h). */
+        kGe11MonoPat1  = 17,  /* MONO_PATTERN1: 8x8 mono pattern rows 4-7 (GE11R Index 44h). */
+        kGe12PatFg     = 18,  /* PAT_FG: mono-pattern foreground (GE12R Index 48h, Reg 4-106). */
+        kGe13PatBg     = 19,  /* PAT_BG: mono-pattern background (GE13R Index 4Ch, Reg 4-107). */
     };
     /* MQ-1132 selects a flat fill via the solid-pattern bit (Reg 4-83 [30]). */
     static constexpr uint32_t kCmdSolidPat = 1u << 30;

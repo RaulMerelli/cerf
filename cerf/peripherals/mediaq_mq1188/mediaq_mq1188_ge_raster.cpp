@@ -51,7 +51,7 @@ void MediaQMq1188Ge::BlitColorSource(const uint32_t* r) {
             if (addr + bpp > fbsize) continue;
             uint32_t d = 0u;
             std::memcpy(&d, fb + addr, bpp);
-            const uint32_t res = Rop3(rop, 0u, px, d) & 0xFFFFu;
+            const uint32_t res = Rop3(rop, PatternOperand(r, col, row), px, d) & 0xFFFFu;
             std::memcpy(fb + addr, &res, bpp);
         }
     }
@@ -100,6 +100,14 @@ void MediaQMq1188Ge::BlitMonoSource(const uint32_t* r) {
     const uint32_t dx = xy & 0xFFFu;
     const uint32_t dy = (xy >> 16) & 0xFFFu;
 
+    /* GE00R[15]=MONO_PATTERN supplies the ROP's P operand (PAT_FG/PAT_BG via the
+       8x8 pattern). Drop it and rop=0xB8 imagelist icons collapse to black
+       (ddi.dll sub_18437D4 programs MONO_PATTERN0/1 + PAT_FG for the brush). */
+    const bool     pat_en = (r[kGe00Command] & kCmdMonoPat) != 0u;
+    const uint32_t pat_fg = r[kGe12PatFg] & 0xFFFFu;
+    const uint32_t pat_bg = r[kGe13PatBg] & 0xFFFFu;
+    const uint32_t mono_pat[2] = { r[kGe10MonoPat0], r[kGe11MonoPat1] };
+
     uint8_t* const fb     = Fb();
     const uint32_t fbsize = FbBytes();
 
@@ -118,7 +126,9 @@ void MediaQMq1188Ge::BlitMonoSource(const uint32_t* r) {
             if (addr + bpp > fbsize) continue;
             uint32_t d = 0u;
             std::memcpy(&d, fb + addr, bpp);
-            const uint32_t res = Rop3(rop, 0u, color, d) & 0xFFFFu;
+            const uint32_t pat = pat_en
+                ? MonoPatternPixel(mono_pat[0], mono_pat[1], pat_fg, pat_bg, dx + col, dy + row) : 0u;
+            const uint32_t res = Rop3(rop, pat, color, d) & 0xFFFFu;
             std::memcpy(fb + addr, &res, bpp);
         }
     }

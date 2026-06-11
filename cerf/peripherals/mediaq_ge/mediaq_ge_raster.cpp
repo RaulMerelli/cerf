@@ -4,6 +4,38 @@
 
 #include <cstring>
 
+void MediaQGe::RopPixel(uint8_t* fb, uint32_t fbsize, uint64_t addr,
+                        uint32_t bpp, uint32_t pmask, uint8_t rop, uint32_t color) {
+    if (addr + bpp > fbsize) return;
+    uint32_t d = 0u;
+    std::memcpy(&d, fb + addr, bpp);
+    const uint32_t res = Rop3(rop, 0u, color, d) & pmask;
+    std::memcpy(fb + addr, &res, bpp);
+}
+
+uint32_t MediaQGe::MonoPatternPixel(uint32_t pat0, uint32_t pat1, uint32_t pat_fg,
+                                    uint32_t pat_bg, uint32_t x, uint32_t y) {
+    const uint32_t p[2] = { pat0, pat1 };
+    const uint32_t pr = y & 7u, pc = x & 7u;
+    return ((p[pr >> 2] >> ((pr & 3u) * 8u + (7u - pc))) & 1u) ? pat_fg : pat_bg;
+}
+
+uint32_t MediaQGe::PatternOperand(const uint32_t* r, uint32_t lx, uint32_t ly) const {
+    const Layout& L = Lyt();
+    const uint32_t col = ((r[kGe02DstXY] >> 13) + lx) & 7u;   /* GE02R[15:13] x-order */
+    const uint32_t row = ((r[kGe02DstXY] >> 29) + ly) & 7u;   /* GE02R[31:29] y-order */
+    if (r[kGe00Command] & kCmdMonoPat)
+        return MonoPatternPixel(r[L.mono_pat0_index], r[L.mono_pat1_index],
+                                r[L.pat_fg_index] & 0xFFFFu, r[L.pat_bg_index] & 0xFFFFu, col, row);
+    /* color_pat_base==0 = part has no colour-pattern register array (MQ-1132 GE
+       ends at GE13R); its pattern fills are mono, and a non-mono P here is only a
+       P-ignored screen copy, so 0 is harmless. */
+    if (L.color_pat_base == 0u) return 0u;
+    const uint32_t i  = row * 8u + col;
+    const uint32_t dw = r[L.color_pat_base + (i >> 1)];
+    return (i & 1u) ? (dw >> 16) & 0xFFFFu : dw & 0xFFFFu;
+}
+
 /* Flat rectangle fill: pattern and source are both the fill colour, so each
    pixel is Rop3(rop, color, color, dest) (MQ-200 Data Book Table 5-63 solid
    pattern/source). */
@@ -18,28 +50,30 @@ void MediaQGe::FillSolid(uint8_t rop, uint32_t color, uint32_t cmd) {
     }
 
     const uint32_t size = reg_[kGe01Size];
-    const uint32_t w = size & 0xFFFu;          /* GE01R width[11:0]. */
-    const uint32_t h = (size >> 16) & 0xFFFu;  /* GE01R height[27:16]. */
+    const int w = static_cast<int>(size & 0xFFFu);          /* GE01R width[11:0]. */
+    const int h = static_cast<int>((size >> 16) & 0xFFFu);  /* GE01R height[27:16]. */
     const uint32_t xy = reg_[kGe02DstXY];
-    const uint32_t x = xy & 0xFFFu;            /* GE02R dest X[11:0]. */
-    const uint32_t y = (xy >> 16) & 0xFFFu;    /* GE02R dest Y[27:16]. */
+    const int x = static_cast<int>(xy & 0xFFFu);            /* GE02R dest X[11:0]. */
+    const int y = static_cast<int>((xy >> 16) & 0xFFFu);    /* GE02R dest Y[27:16]. */
+    const int xdir = (cmd & kCmdXNeg) ? -1 : 1;
+    const int ydir = (cmd & kCmdYNeg) ? -1 : 1;
 
     const bool clip = (cmd & kCmdEnClip) != 0u;
-    const uint32_t cl = reg_[kGe05ClipLT] & 0xFFFu;
-    const uint32_t ct = (reg_[kGe05ClipLT] >> 16) & 0xFFFu;
-    const uint32_t cr = reg_[kGe06ClipRB] & 0xFFFu;
-    const uint32_t cb = (reg_[kGe06ClipRB] >> 16) & 0xFFFu;
+    const int cl = static_cast<int>(reg_[kGe05ClipLT] & 0xFFFu);
+    const int ct = static_cast<int>((reg_[kGe05ClipLT] >> 16) & 0xFFFu);
+    const int cr = static_cast<int>(reg_[kGe06ClipRB] & 0xFFFu);
+    const int cb = static_cast<int>((reg_[kGe06ClipRB] >> 16) & 0xFFFu);
 
     uint8_t* const fb     = Fb();
     const uint32_t fbsize = FbBytes();
     const uint32_t pmask  = (bpp >= 4u) ? 0xFFFFFFFFu : ((1u << (bpp * 8u)) - 1u);
 
-    for (uint32_t row = 0; row < h; ++row) {
-        const uint32_t yy = y + row;
-        if (clip && (yy < ct || yy > cb)) continue;
-        for (uint32_t col = 0; col < w; ++col) {
-            const uint32_t xx = x + col;
-            if (clip && (xx < cl || xx > cr)) continue;
+    for (int row = 0; row < h; ++row) {
+        const int yy = y + ydir * row;
+        if (yy < 0 || (clip && (yy < ct || yy > cb))) continue;
+        for (int col = 0; col < w; ++col) {
+            const int xx = x + xdir * col;
+            if (xx < 0 || (clip && (xx < cl || xx > cr))) continue;
             const uint64_t addr = static_cast<uint64_t>(base) +
                 static_cast<uint64_t>(yy) * stride + static_cast<uint64_t>(xx) * bpp;
             if (addr + bpp > fbsize) continue;
@@ -107,7 +141,9 @@ void MediaQGe::BlitColorFromDisplay(uint32_t cmd) {
             if (trans && (s & pmask) == key) continue;
             uint32_t d = 0u;
             std::memcpy(&d, fb + daddr, bpp);
-            const uint32_t res = Rop3(rop, 0u, s, d) & pmask;
+            const uint32_t p = PatternOperand(reg_, static_cast<uint32_t>(dxc - dx),
+                                              static_cast<uint32_t>(dyr - dy));
+            const uint32_t res = Rop3(rop, p, s, d) & pmask;
             std::memcpy(fb + daddr, &res, bpp);
         }
     }
@@ -237,16 +273,10 @@ void MediaQGe::DrawLine(uint32_t cmd) {
     const int count = dmaj + (no_last ? 0 : 1);
     int err = dmaj >> 1;
     for (int i = 0; i < count; ++i) {
-        if (x >= 0 && y >= 0 && !(clip && (x < cl || x > cr || y < ct || y > cb))) {
-            const uint64_t addr = static_cast<uint64_t>(base) +
-                static_cast<uint64_t>(y) * stride + static_cast<uint64_t>(x) * bpp;
-            if (addr + bpp <= fbsize) {
-                uint32_t d = 0u;
-                std::memcpy(&d, fb + addr, bpp);
-                const uint32_t res = Rop3(rop, 0u, color, d) & pmask;
-                std::memcpy(fb + addr, &res, bpp);
-            }
-        }
+        if (x >= 0 && y >= 0 && !(clip && (x < cl || x > cr || y < ct || y > cb)))
+            RopPixel(fb, fbsize, static_cast<uint64_t>(base) +
+                     static_cast<uint64_t>(y) * stride + static_cast<uint64_t>(x) * bpp,
+                     bpp, pmask, rop, color);
         if (y_major) y += step_y; else x += step_x;
         err -= dmin;
         if (err < 0) {

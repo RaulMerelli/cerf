@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <vector>
 
+class StateWriter;
+class StateReader;
+
 /* Shared MediaQ 2D GE, MQ-1100/1132 + MQ-200 (MQ-200 Data Book Table 5-63..5-74;
    MQ-1132 datasheet Reg 4-83..4-98). GE00R command + operands are family-uniform
    (here); colour register indices, field widths, solid-fill encoding, Source-FIFO
@@ -18,6 +21,9 @@ public:
 
 class MediaQGe {
 public:
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
+
     explicit MediaQGe(MediaQGeHost& host) : host_(host) {}
     virtual ~MediaQGe() = default;
 
@@ -70,6 +76,7 @@ protected:
     static constexpr uint32_t kCmdColorTrPol = 1u << 17;    /* colour transparency polarity. */
     static constexpr uint32_t kCmdMonoTrans  = 1u << 18;    /* mono transparency enable. */
     static constexpr uint32_t kCmdMonoTrPol  = 1u << 19;    /* mono transparency polarity. */
+    static constexpr uint32_t kCmdPacked     = 1u << 20;
     static constexpr uint32_t kCmdSolidSrc   = 1u << 23;    /* solid source/pattern = foreground colour. */
     static constexpr uint32_t kCmdRop2       = 1u << 25;    /* ROP2: [3:0] duplicated to [7:4]. */
     static constexpr uint32_t kCmdEnClip     = 1u << 26;    /* clipping enable. */
@@ -83,6 +90,10 @@ protected:
         uint32_t src_stride_idx; /* GE09R: source stride / pack-mode. */
         uint32_t stride_mask;    /* GE0AR destination line-stride field. */
         uint32_t base_mask;      /* GE0BR base-address field. */
+        uint32_t pat_bg_index;   /* mono-pattern background colour. */
+        uint32_t mono_pat0_index;/* 8x8 mono pattern rows 0-3. */
+        uint32_t mono_pat1_index;/* 8x8 mono pattern rows 4-7. */
+        uint32_t color_pat_base; /* 8x8 colour pattern tile base (16bpp, 2px/dword). */
     };
 
     /* Part-specific hooks. */
@@ -102,6 +113,20 @@ protected:
     /* 3-operand raster op: result bit = rop[(P<<2)|(S<<1)|D], bitwise. */
     static uint32_t Rop3(uint8_t rop, uint32_t p, uint32_t s, uint32_t d);
 
+    /* ROP pattern operand P for a MONO_PATTERN blit: the 8x8 mono pattern
+       (MONO_PATTERN0/1, two dwords = 8 rows x 8 bits, MSB-first per byte) tiled
+       to dest (x,y); set bit -> PAT_FG, clear -> PAT_BG. Per-part reg indices. */
+    static uint32_t MonoPatternPixel(uint32_t pat0, uint32_t pat1, uint32_t pat_fg,
+                                     uint32_t pat_bg, uint32_t x, uint32_t y);
+
+    uint32_t PatternOperand(const uint32_t* r, uint32_t lx, uint32_t ly) const;
+
+    /* One ROP'd line pixel into the framebuffer (shared by per-part DrawLine). */
+    static void RopPixel(uint8_t* fb, uint32_t fbsize, uint64_t addr,
+                         uint32_t bpp, uint32_t pmask, uint8_t rop, uint32_t color);
+
+    virtual void DrawLine(uint32_t cmd);
+
     uint8_t*      Fb()     { return host_.FbMutableBytes(); }
     uint32_t      FbBytes() const { return host_.FbSize(); }
     const uint32_t* Regs() const { return reg_; }
@@ -113,7 +138,6 @@ private:
     void Execute();
     void ExecutePending();
     void FillSolid(uint8_t rop, uint32_t color, uint32_t cmd);
-    void DrawLine(uint32_t cmd);
     void BlitColorFromDisplay(uint32_t cmd);
     void BlitMonoFromDisplay(uint32_t cmd);
 
