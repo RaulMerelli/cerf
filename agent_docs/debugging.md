@@ -365,13 +365,13 @@ Investigation:
 ## Crash shape #3 — peripheral MMIO halt
 
 ```
-[FATAL] EmulatedMemory::Translate unmapped 0xNNNNNNNN
+[CAUTION] EmulatedMemory::Translate unmapped 0xNNNNNNNN
 ```
 
 or
 
 ```
-[FATAL] <SocPeripheral>::<ReadWord|WriteWord> unsupported access at 0x…
+[CAUTION] <SocPeripheral>::<ReadWord|WriteWord> unsupported access at 0x…
 ```
 
 Means: the kernel / OAL / driver tried to access an MMIO address that
