@@ -65,6 +65,12 @@ public:
                 }
                 return cursor;
             }
+            /* Allocate Data Cache Line (c7, c2, opc2=5) — XScale-specific
+               (Core Dev Manual Table 7-12). No D-cache is modeled and the
+               line's backing memory is real, so emit nothing. */
+            if (d->crn == 7 && d->crm == 2 && d->cp == 5 && d->cp_opc == 0) {
+                return cursor;
+            }
             return EmitCp15RegisterTransfer(cursor, d, ctx);
         }
         if (d->cp_num == 14 && d->cp_opc == 0 && d->crm == 0 && d->cp == 0) {

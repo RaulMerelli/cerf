@@ -46,10 +46,11 @@ inline uint16_t U16(const uint8_t* p, size_t off) {
     return uint16_t(p[off]) | (uint16_t(p[off + 1]) << 8);
 }
 
-bool AssembleB000FFFlat(const std::vector<uint8_t>& raw,
-                        std::vector<uint8_t>& out_flat,
-                        uint32_t& out_base_va,
-                        uint32_t& out_entry_va);
+bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
+                        std::vector<uint8_t>&       out_flat,
+                        uint32_t&                   out_base_va,
+                        uint32_t&                   out_entry_va,
+                        std::vector<B000FFSection>& out_sections);
 
 /* Find every ECEC marker in the first 8 MB of `flat` whose
    ptoc_va / romhdr_off look plausible. Multi-XIP images

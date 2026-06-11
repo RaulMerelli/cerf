@@ -96,11 +96,21 @@ struct ParsedImgfsModule {
     std::vector<Section> sections;
 };
 
+/* A B000FF placement directive: `size` bytes of ParsedRom::raw at `data_off` go
+   to kernel-VA `base`. A multi-XIP image's XIPCHAIN table sits in a section
+   beyond every ROMHDR's physlast, so placing only physfirst..physlast drops it. */
+struct B000FFSection {
+    uint32_t base     = 0;
+    uint32_t size     = 0;
+    size_t   data_off = 0;
+};
+
 struct ParsedRom {
     std::string                  filename;       /* e.g. "NK.bin"      */
     std::string                  path;           /* absolute on disk   */
     std::vector<uint8_t>         raw;            /* file bytes         */
     std::vector<uint8_t>         flat_storage;   /* B000FF assembly    */
+    std::vector<B000FFSection>   b000ff_sections;/* B000FF placement directives */
     std::span<const uint8_t>     flat;           /* span over storage  */
     uint32_t                     flat_base_va = 0;
     uint32_t                     entry_va     = 0;

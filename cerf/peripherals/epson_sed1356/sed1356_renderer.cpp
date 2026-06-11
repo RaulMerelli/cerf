@@ -2,7 +2,7 @@
 
 #include "sed1356.h"
 
-#include "../../boards/board_detector.h"
+#include "sed1356_config.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -22,8 +22,7 @@ public:
 
     bool ShouldRegister() override {
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return emu_.TryGet<Sed1356Config>() != nullptr;
     }
 
     bool HasFrame() override {
@@ -32,7 +31,7 @@ public:
         if (latch_.Latched())    return true;
         const uint32_t bpp    = sed.LcdBpp();
         const uint32_t stride = sed.LcdStrideBytes();
-        const uint32_t start  = sed.LcdStartByte() & sed.VramMask();
+        const uint32_t start  = sed.VramWrap(sed.LcdStartByte());
         if (bpp == 0 || stride == 0) return false;
         const size_t bytes = (size_t)stride * sed.LcdGuestH();
         if (start + bytes > sed.VramSize()) return false;
@@ -56,7 +55,7 @@ public:
         const uint32_t gw     = sed.LcdGuestW(), gh = sed.LcdGuestH();
         const uint32_t bpp    = sed.LcdBpp();
         const uint32_t stride = sed.LcdStrideBytes();
-        const uint32_t start  = sed.LcdStartByte() & sed.VramMask();
+        const uint32_t start  = sed.VramWrap(sed.LcdStartByte());
         if (gw == 0 || gh == 0 || bpp == 0 || stride == 0) return;
 
         /* REG[048h] pans the display left; bits used per depth (Table 8-21):
@@ -66,17 +65,16 @@ public:
         else if (bpp >= 15u) pan = 0;
 
         const uint8_t* vram = sed.VramData();
-        const uint32_t vsz  = sed.VramSize();
 
         const uint32_t cw = (host_w < gw) ? host_w : gw;
         const uint32_t ch = (host_h < gh) ? host_h : gh;
         for (uint32_t y = 0; y < ch; ++y) {
             uint32_t* dst = dib + (size_t)y * host_w;
             const uint32_t sy = (swivel == 2u) ? gh - 1u - y : y;
-            const uint32_t line = (start + sy * stride) & sed.VramMask();
+            const uint32_t line = sed.VramWrap(start + sy * stride);
             for (uint32_t x = 0; x < cw; ++x) {
                 const uint32_t sx = ((swivel == 2u) ? gw - 1u - x : x) + pan;
-                dst[x] = DecodePixel(sed, vram, vsz, line, sx, bpp);
+                dst[x] = DecodePixel(sed, vram, line, sx, bpp);
             }
         }
 
@@ -109,26 +107,24 @@ private:
     }
 
     static uint32_t DecodePixel(Sed1356& sed, const uint8_t* vram,
-                                uint32_t vsz, uint32_t line, uint32_t x,
-                                uint32_t bpp) {
-        const uint32_t mask = vsz - 1u;   /* 512 KB replica aliasing (TM §10). */
+                                uint32_t line, uint32_t x, uint32_t bpp) {
         switch (bpp) {
             case 16u: {
                 const uint32_t at = line + x * 2u;
-                return Pack565((uint16_t)(vram[at & mask] |
-                                          vram[(at + 1u) & mask] << 8));
+                return Pack565((uint16_t)(vram[sed.VramWrap(at)] |
+                                          vram[sed.VramWrap(at + 1u)] << 8));
             }
             case 15u: {                        /* §11.1: 5-5-5. */
                 const uint32_t at = line + x * 2u;
-                const uint16_t p = (uint16_t)(vram[at & mask] |
-                                              vram[(at + 1u) & mask] << 8);
+                const uint16_t p = (uint16_t)(vram[sed.VramWrap(at)] |
+                                              vram[sed.VramWrap(at + 1u)] << 8);
                 return Pack(Expand5((p >> 10) & 0x1Fu),
                             Expand5((p >> 5) & 0x1Fu), Expand5(p & 0x1Fu));
             }
             case 8u:
-                return FromLut(sed, vram[(line + x) & mask]);
+                return FromLut(sed, vram[sed.VramWrap(line + x)]);
             default: {                         /* 4 bpp: pixel 0 in bits 7:4. */
-                const uint8_t b = vram[(line + x / 2u) & mask];
+                const uint8_t b = vram[sed.VramWrap(line + x / 2u)];
                 return FromLut(sed, (x & 1u) ? (b & 0xFu) : (b >> 4));
             }
         }
@@ -144,7 +140,6 @@ private:
 
         const uint32_t base = sed.LcdInkCursorStartByte();
         const uint8_t* vram = sed.VramData();
-        const uint32_t vsz  = sed.VramSize();
 
         uint8_t r5, g6, b5;
         sed.LcdInkColor(0, r5, g6, b5);
@@ -172,8 +167,7 @@ private:
             for (uint32_t ix = 0; ix < img_w; ++ix) {
                 const int32_t dx = ox + (int32_t)ix;
                 if (dx < 0 || (uint32_t)dx >= cw) continue;
-                const uint32_t at = (base + iy * line_bytes + ix / 4u)
-                                    & (vsz - 1u);
+                const uint32_t at = sed.VramWrap(base + iy * line_bytes + ix / 4u);
                 const uint32_t shift = (3u - (ix & 3u)) * 2u;
                 const uint32_t px = (vram[at] >> shift) & 0x3u;
                 uint32_t* d = dib + (size_t)dy * host_w + dx;

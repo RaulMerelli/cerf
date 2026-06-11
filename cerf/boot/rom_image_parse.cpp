@@ -22,15 +22,16 @@ std::string ReadAsciiZ(std::span<const uint8_t> flat, size_t off) {
 
 }  /* namespace */
 
-bool AssembleB000FFFlat(const std::vector<uint8_t>& raw,
-                        std::vector<uint8_t>& out_flat,
-                        uint32_t& out_base_va,
-                        uint32_t& out_entry_va) {
+bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
+                        std::vector<uint8_t>&       out_flat,
+                        uint32_t&                   out_base_va,
+                        uint32_t&                   out_entry_va,
+                        std::vector<B000FFSection>& out_sections) {
     if (raw.size() < 15) return false;
     if (std::memcmp(raw.data(), kB000FFSignature, 7) != 0) return false;
 
-    struct Section { uint32_t base; uint32_t size; size_t data_off; };
-    std::vector<Section> sections;
+    std::vector<B000FFSection>& sections = out_sections;
+    sections.clear();
     out_entry_va = 0;
 
     size_t off = 15;  /* sig (7) + image start (4) + image length (4) */

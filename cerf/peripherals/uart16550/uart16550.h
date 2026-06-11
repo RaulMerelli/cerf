@@ -1,0 +1,151 @@
+#pragma once
+
+#include "../peripheral_base.h"
+
+#include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
+#include "../../host/uart_screen.h"
+#include "../../state/state_stream.h"
+#include "../peripheral_dispatcher.h"
+
+#include <cstdint>
+#include <cstdio>
+#include <string>
+
+/* Generic 16550 UART core. Register offsets are reg-index*RegStride (PXA255 =4,
+   off-chip 16-bit-bus TL16C550 =2) — hardcoding word offsets here breaks the
+   x2-stride part. */
+class Uart16550 : public Peripheral {
+public:
+    using Peripheral::Peripheral;
+
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+    }
+
+    uint32_t MmioSize() const override { return 0x00001000u; }
+
+    uint32_t ReadWord(uint32_t addr) override {
+        switch ((addr - MmioBase()) / RegStride()) {
+        case 0: return dlab() ? dll_ : 0u;            /* RBR / DLL: no input source. */
+        case 1: return dlab() ? dlh_ : ier_;          /* IER / DLH. */
+        case 2: {                                      /* IIR (read). */
+            uint32_t iir = 0x01u;                      /* IP=1: no interrupt pending. */
+            if (TxIntPending()) { iir = 0x02u; tx_acked_ = true; RecomputeInterrupt(); }
+            if (fcr_ & 0x01u) iir |= 0xC0u;
+            return iir;
+        }
+        case 3: return lcr_;
+        case 4: return mcr_;
+        case 5: return kLsrTxReady;
+        case 6: return 0u;                             /* MSR: no modem inputs. */
+        case 7: return spr_;
+        default: return ReadExtReg((addr - MmioBase()) / RegStride());
+        }
+    }
+
+    void WriteWord(uint32_t addr, uint32_t value) override {
+        switch ((addr - MmioBase()) / RegStride()) {
+        case 0:
+            if (dlab()) { dll_ = value; return; }
+            EmitTxByte(static_cast<uint8_t>(value & 0xFFu));
+            tx_acked_ = false;       /* drained -> THRE=1 again -> re-assert if enabled. */
+            RecomputeInterrupt();
+            return;
+        case 1:
+            if (dlab()) { dlh_ = value; return; }
+            ier_ = value;
+            tx_acked_ = false;
+            RecomputeInterrupt();
+            return;
+        case 2: fcr_ = value; return;                  /* FCR (write side). */
+        case 3: lcr_ = value; return;
+        case 4: mcr_ = value; return;
+        case 5: case 6: return;                         /* LSR / MSR read-only. */
+        case 7: spr_ = value; return;
+        default: WriteExtReg((addr - MmioBase()) / RegStride(), value); return;
+        }
+    }
+
+    /* 16550 registers are byte-wide; CE writes THR / reads LSR with STRB / LDRB.
+       At word stride a byte access maps onto the aligned word register; the
+       in-between byte lanes are the register's zero upper bytes. */
+    uint8_t ReadByte(uint32_t addr) override {
+        if ((addr - MmioBase()) % RegStride() != 0u) return 0u;
+        return static_cast<uint8_t>(ReadWord(addr) & 0xFFu);
+    }
+    void WriteByte(uint32_t addr, uint8_t value) override {
+        if ((addr - MmioBase()) % RegStride() != 0u) return;
+        WriteWord(addr, value);
+    }
+
+    /* tx_line_ is a host-side console accumulator rebuilt as the guest writes,
+       not guest state — not serialized. A concrete with extra registers chains
+       its own fields after Uart16550::Save/RestoreState. */
+    void SaveState(StateWriter& w) override {
+        w.Write(ier_); w.Write(fcr_); w.Write(lcr_); w.Write(mcr_);
+        w.Write(spr_); w.Write(dll_); w.Write(dlh_); w.Write(tx_acked_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(ier_); r.Read(fcr_); r.Read(lcr_); r.Read(mcr_);
+        r.Read(spr_); r.Read(dll_); r.Read(dlh_); r.Read(tx_acked_);
+    }
+
+protected:
+    virtual uint32_t    RegStride() const = 0;
+    virtual const char* Name()      const = 0;
+
+    /* Drive (pending=true) or clear the UART interrupt line; the concrete routes
+       it to its controller (PXA255 INTC source, board GPIO, …). */
+    virtual void SetTxInterrupt(bool pending) = 0;
+
+    /* TX-interrupt enable gate. Baseline 16550 enables on TIE alone; the PXA255
+       UART additionally gates on UUE (IER.6). */
+    virtual bool TxInterruptUnitEnabled() const { return true; }
+
+    /* Chip registers beyond the 8 standard ones (e.g. PXA255 ISR at index 8).
+       Default: unsupported access halts. */
+    virtual uint32_t ReadExtReg(uint32_t idx) {
+        HaltUnsupportedAccess("ReadWord", MmioBase() + idx * RegStride(), 0);
+    }
+    virtual void WriteExtReg(uint32_t idx, uint32_t value) {
+        HaltUnsupportedAccess("WriteWord", MmioBase() + idx * RegStride(), value);
+    }
+
+    bool dlab() const { return (lcr_ & 0x80u) != 0u; }
+    uint32_t ier() const { return ier_; }
+
+private:
+    static constexpr uint32_t kLsrTxReady = 0x60u;  /* TEMT|THRE: TX always ready. */
+
+    bool TxIntPending() const {
+        return TxInterruptUnitEnabled() && (ier_ & 0x02u) && !tx_acked_;
+    }
+    void RecomputeInterrupt() { SetTxInterrupt(TxIntPending()); }
+
+    void EmitTxByte(uint8_t ch) {
+        if (ch == '\n') {
+            LOG(SocUart, "%s TX: %s\n", Name(), tx_line_.c_str());
+            emu_.Get<UartScreen>().AddLine(tx_line_);
+            tx_line_.clear();
+            return;
+        }
+        if (ch == '\r') return;  /* CE emits CRLF — drop CR, flush on LF. */
+        if (ch >= 0x20 && ch < 0x7F) {
+            tx_line_.push_back(static_cast<char>(ch));
+        } else {
+            char esc[8];
+            std::snprintf(esc, sizeof(esc), "\\x%02X", ch);
+            tx_line_.append(esc);
+        }
+        if (tx_line_.size() >= 256) {
+            LOG(SocUart, "%s TX (no LF, flushed at 256B): %s\n", Name(), tx_line_.c_str());
+            emu_.Get<UartScreen>().AddLine(tx_line_);
+            tx_line_.clear();
+        }
+    }
+
+    uint32_t ier_ = 0, fcr_ = 0, lcr_ = 0, mcr_ = 0, spr_ = 0, dll_ = 0, dlh_ = 0;
+    bool     tx_acked_ = false;
+    std::string tx_line_;
+};

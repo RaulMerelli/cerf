@@ -1,23 +1,27 @@
 #include "sed1356.h"
 
-#include "../../boards/board_detector.h"
+#include "sed1356_config.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
 bool Sed1356::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
-    return bd && bd->GetBoard() == Board::Jornada720;
+    return emu_.TryGet<Sed1356Config>() != nullptr;
 }
 
 void Sed1356::OnReady() {
-    vram_.assign(kVramSize, 0u);
-    /* §8.1: at reset Register/Memory Select = 1 — only REG[000h]/[001h]
-       are accessible until software clears it. */
-    reg_[0x01] = 0x80u;
+    auto& cfg = emu_.Get<Sed1356Config>();
+    mmio_base_        = cfg.HostWindowBase();
+    vram_size_        = cfg.DisplayBufferBytes();
+    vram_mask_        = (vram_size_ & (vram_size_ - 1u)) ? 0u : (vram_size_ - 1u);
+    product_rev_code_ = cfg.ProductRevCode();
+    vram_.assign(vram_size_, 0u);
+    /* §8.1 reset-lock, board-dependent (see Sed1356Config). */
+    reg_[0x01] = cfg.RegMemSelectLockedAtReset() ? 0x80u : 0x00u;
     boot_time_ = std::chrono::steady_clock::now();
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
@@ -46,7 +50,7 @@ void Sed1356::LcdLutRgb(uint32_t index, uint8_t& r4, uint8_t& g4,
 
 uint32_t Sed1356::LcdInkCursorStartByte() const {
     const uint32_t n = Reg(0x71);              /* Table 14-1 encoding. */
-    return n == 0 ? kVramSize - 1024u : kVramSize - n * 8192u;
+    return n == 0 ? vram_size_ - 1024u : vram_size_ - n * 8192u;
 }
 
 void Sed1356::LcdInkColor(uint32_t which, uint8_t& r5, uint8_t& g6,
@@ -92,7 +96,7 @@ namespace {
    manual; everything else in the 0x000..0x1FF window is unpopulated). */
 bool IsDocumentedReg(uint32_t off) {
     switch (off) {
-        case 0x000: case 0x001: case 0x004: case 0x008:
+        case 0x000: case 0x001: case 0x004: case 0x005: case 0x008: case 0x009:
         case 0x00C: case 0x00D:
         case 0x010: case 0x014: case 0x018: case 0x01C: case 0x01E:
         case 0x020: case 0x021: case 0x02A: case 0x02B:
@@ -131,7 +135,7 @@ uint8_t Sed1356::RegRead(uint32_t off) {
         HaltUnsupportedAccess("RegRead(locked)", MmioBase() + off, 0);
 
     switch (off) {
-        case 0x000: return 0x11u;   /* product code 000100b, revision 01b. */
+        case 0x000: return product_rev_code_;   /* per-board (Sed1356Config). */
         case 0x00C:                 /* MD[15:0] readback = board strap pins; */
         case 0x00D:                 /* Jornada strap values not grounded yet. */
             HaltUnsupportedAccess("RegRead(MD readback)", MmioBase() + off, 0);
@@ -169,10 +173,9 @@ void Sed1356::RegWrite(uint32_t off, uint8_t value) {
                    multi-byte stores spanning a register group (e.g. the
                    32-bit dest-address store covering 0x108..0x10B); the
                    chip ignores them. */
-#if CERF_DEV_MODE
-                LOG(Periph, "[Sed1356] dropped write to unpopulated reg "
-                    "0x%03X = 0x%02X\n", off, value);
-#endif
+                if (dropped_logged_.insert(off).second)
+                    LOG(Periph, "[Sed1356] dropped write to unpopulated reg "
+                        "0x%03X = 0x%02X\n", off, value);
                 return;
             }
             reg_[off] = value;
@@ -225,7 +228,7 @@ uint8_t Sed1356::ReadByte(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (off < kRegWindow) return RegRead(off);
     if (off >= kVramBase && off < kVramBase + kVramAperture)
-        return vram_[(off - kVramBase) & kVramMask];
+        return vram_[VramWrap(off - kVramBase)];
     /* §8.3.18: byte access to the BitBLT data registers is not allowed. */
     HaltUnsupportedAccess("ReadByte", addr, 0);
 }
@@ -236,13 +239,13 @@ uint16_t Sed1356::ReadHalf(uint32_t addr) {
         return (uint16_t)(RegRead(off) | (RegRead(off + 1) << 8));
     if (off >= kBltAperture && off < kBltApertureEnd) return blt_.DataRead();
     if (off >= kVramBase && off + 1 < kVramBase + kVramAperture) {
-        const uint32_t r = (off - kVramBase) & kVramMask;
-        if (r + 2u <= kVramSize) {
+        const uint32_t r = VramWrap(off - kVramBase);
+        if (r + 2u <= vram_size_) {
             uint16_t v;
             std::memcpy(&v, &vram_[r], sizeof(v));
             return v;
         }
-        return (uint16_t)(vram_[r] | vram_[(r + 1u) & kVramMask] << 8);
+        return (uint16_t)(vram_[r] | vram_[VramWrap(r + 1u)] << 8);
     }
     HaltUnsupportedAccess("ReadHalf", addr, 0);
 }
@@ -257,16 +260,16 @@ uint32_t Sed1356::ReadWord(uint32_t addr) {
         return lo | (uint32_t)blt_.DataRead() << 16;
     }
     if (off >= kVramBase && off + 3 < kVramBase + kVramAperture) {
-        const uint32_t r = (off - kVramBase) & kVramMask;
-        if (r + 4u <= kVramSize) {
+        const uint32_t r = VramWrap(off - kVramBase);
+        if (r + 4u <= vram_size_) {
             uint32_t v;
             std::memcpy(&v, &vram_[r], sizeof(v));
             return v;
         }
         return (uint32_t)vram_[r]                          |
-               (uint32_t)vram_[(r + 1u) & kVramMask] << 8  |
-               (uint32_t)vram_[(r + 2u) & kVramMask] << 16 |
-               (uint32_t)vram_[(r + 3u) & kVramMask] << 24;
+               (uint32_t)vram_[VramWrap(r + 1u)] << 8  |
+               (uint32_t)vram_[VramWrap(r + 2u)] << 16 |
+               (uint32_t)vram_[VramWrap(r + 3u)] << 24;
     }
     HaltUnsupportedAccess("ReadWord", addr, 0);
 }
@@ -275,7 +278,7 @@ void Sed1356::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t off = addr - MmioBase();
     if (off < kRegWindow) { RegWrite(off, value); return; }
     if (off >= kVramBase && off < kVramBase + kVramAperture) {
-        vram_[(off - kVramBase) & kVramMask] = value;
+        vram_[VramWrap(off - kVramBase)] = value;
         return;
     }
     HaltUnsupportedAccess("WriteByte", addr, value);
@@ -293,12 +296,12 @@ void Sed1356::WriteHalf(uint32_t addr, uint16_t value) {
         return;
     }
     if (off >= kVramBase && off + 1 < kVramBase + kVramAperture) {
-        const uint32_t r = (off - kVramBase) & kVramMask;
-        if (r + 2u <= kVramSize) {
+        const uint32_t r = VramWrap(off - kVramBase);
+        if (r + 2u <= vram_size_) {
             std::memcpy(&vram_[r], &value, sizeof(value));
         } else {
             vram_[r]                     = (uint8_t)value;
-            vram_[(r + 1u) & kVramMask]  = (uint8_t)(value >> 8);
+            vram_[VramWrap(r + 1u)]  = (uint8_t)(value >> 8);
         }
         return;
     }
@@ -320,18 +323,49 @@ void Sed1356::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     if (off >= kVramBase && off + 3 < kVramBase + kVramAperture) {
-        const uint32_t r = (off - kVramBase) & kVramMask;
-        if (r + 4u <= kVramSize) {
+        const uint32_t r = VramWrap(off - kVramBase);
+        if (r + 4u <= vram_size_) {
             std::memcpy(&vram_[r], &value, sizeof(value));
         } else {
             vram_[r]                     = (uint8_t)value;
-            vram_[(r + 1u) & kVramMask]  = (uint8_t)(value >> 8);
-            vram_[(r + 2u) & kVramMask]  = (uint8_t)(value >> 16);
-            vram_[(r + 3u) & kVramMask]  = (uint8_t)(value >> 24);
+            vram_[VramWrap(r + 1u)]  = (uint8_t)(value >> 8);
+            vram_[VramWrap(r + 2u)]  = (uint8_t)(value >> 16);
+            vram_[VramWrap(r + 3u)]  = (uint8_t)(value >> 24);
         }
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Sed1356::SaveState(StateWriter& w) {
+    w.WriteBytes(reg_, sizeof(reg_));
+    w.Write<uint64_t>(vram_.size());
+    if (!vram_.empty()) w.WriteBytes(vram_.data(), vram_.size());
+    w.WriteBytes(lcd_lut_, sizeof(lcd_lut_));
+    w.WriteBytes(crt_lut_, sizeof(crt_lut_));
+    w.Write(lut_index_);
+    w.Write(lut_component_);
+    w.WriteBytes(lut_rgb_latch_, sizeof(lut_rgb_latch_));
+    w.Write<uint8_t>(enable_published_ ? 1u : 0u);
+    w.Write(published_w_);
+    w.Write(published_h_);
+    blt_.SaveState(w);
+}
+
+void Sed1356::RestoreState(StateReader& r) {
+    r.ReadBytes(reg_, sizeof(reg_));
+    uint64_t n = 0; r.Read(n);
+    vram_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(vram_.data(), static_cast<size_t>(n));
+    r.ReadBytes(lcd_lut_, sizeof(lcd_lut_));
+    r.ReadBytes(crt_lut_, sizeof(crt_lut_));
+    r.Read(lut_index_);
+    r.Read(lut_component_);
+    r.ReadBytes(lut_rgb_latch_, sizeof(lut_rgb_latch_));
+    uint8_t en = 0; r.Read(en); enable_published_ = (en != 0);
+    r.Read(published_w_);
+    r.Read(published_h_);
+    blt_.RestoreState(r);
 }
 
 REGISTER_SERVICE(Sed1356);

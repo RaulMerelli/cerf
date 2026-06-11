@@ -294,9 +294,10 @@ BOARDS_INFORMATION = [
         "soc": SOC_PXA255,
         "operating_systems": [HANDHELD_PC_2000, WINDOWS_CE_NET],
         "features": {
-            "display": False,
+            "display": True,
             "sound": False,
             "touch": False,
+            "keyboard": False,
             "pcmcia": False,
             "network": False,
         },

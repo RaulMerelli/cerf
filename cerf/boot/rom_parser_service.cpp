@@ -92,7 +92,8 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 
     if (rom.is_b000ff) {
         if (!AssembleB000FFFlat(rom.raw, rom.flat_storage,
-                                rom.flat_base_va, rom.entry_va)) {
+                                rom.flat_base_va, rom.entry_va,
+                                rom.b000ff_sections)) {
             LOG(Caution, "RomParser %s: B000FF parse failed\n",
                 rom.filename.c_str());
             return false;
