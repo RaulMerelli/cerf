@@ -4,6 +4,8 @@
 #include <deque>
 
 class Sed1356;
+class StateWriter;
+class StateReader;
 
 /* S1D13506 2D BitBLT engine (Technical Manual §8.3.12, Programming Notes
    §10). Synchronous: CPU-sourced ops buffer data-port words until the op's
@@ -23,6 +25,9 @@ public:
     /* BitBLT data aperture (+0x100000, 16-bit). */
     void     DataWrite(uint16_t value);
     uint16_t DataRead();
+
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
 
 private:
     enum Op : uint8_t {                      /* Table 8-32 / Table 10-2. */

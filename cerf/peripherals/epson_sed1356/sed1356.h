@@ -5,11 +5,12 @@
 
 #include <chrono>
 #include <cstdint>
+#include <unordered_set>
 #include <vector>
 
-/* EPSON SED1356 / S1D13506 Color LCD/CRT/TV Controller (Technical Manual
-   X25B-A-001-12). Jornada 720: 640x240 16-bpp color STN at PA 0x48000000,
-   512 KB display buffer at +0x200000. */
+/* EPSON SED1356 / S1D13506 / S1D13806 Color LCD/CRT/TV Controller (Technical
+   Manual X25B-A-001-12). Per-board base / buffer size / product code via
+   Sed1356Config (Jornada 720 SED1356; NEC MobilePro 900 S1D13806). */
 class Sed1356 : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -17,7 +18,7 @@ public:
     bool ShouldRegister() override;
     void OnReady() override;
 
-    uint32_t MmioBase() const override { return 0x48000000u; }
+    uint32_t MmioBase() const override { return mmio_base_; }
     uint32_t MmioSize() const override { return 0x00400000u; }
 
     uint8_t  ReadByte (uint32_t addr) override;
@@ -58,11 +59,18 @@ public:
     /* Ink/cursor colors 0/1 as 5:6:5 components (REG[076h..07Ch]). */
     void     LcdInkColor(uint32_t which, uint8_t& r5, uint8_t& g6, uint8_t& b5) const;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* --- BitBLT engine surface (regs §8.3.12, latched by Sed1356BitBlt). --- */
     uint8_t  BltReg(uint32_t off) const { return Reg(off); }
     uint8_t* VramData()       { return vram_.data(); }
-    uint32_t VramSize() const { return kVramSize; }
-    uint32_t VramMask() const { return kVramMask; }
+    uint32_t VramSize() const { return vram_size_; }
+    /* Fold a display-buffer offset into the populated buffer: the 2 MB
+       aperture aliases it (TM X25B-A-001 §10) — mask if power-of-2, else mod. */
+    uint32_t VramWrap(uint32_t off) const {
+        return vram_mask_ ? (off & vram_mask_) : (off % vram_size_);
+    }
 
 private:
     static constexpr uint32_t kRegWindow      = 0x200u;
@@ -70,13 +78,8 @@ private:
     static constexpr uint32_t kMediaPlugEnd   = 0x100Au;
     static constexpr uint32_t kBltAperture    = 0x100000u;
     static constexpr uint32_t kBltApertureEnd = 0x200000u;
-    /* The display-buffer address space is always 2 MB (AB[20:0]); the Jornada's
-       512 KB physical buffer is replicated across it (TM X25B-A-001 §10,
-       Table 10-1 / Fig 10-1; HP doc §2) — accesses alias mod kVramSize. */
     static constexpr uint32_t kVramBase       = 0x200000u;
     static constexpr uint32_t kVramAperture   = 0x200000u;
-    static constexpr uint32_t kVramSize       = 0x80000u;
-    static constexpr uint32_t kVramMask       = kVramSize - 1u;
 
     uint8_t  Reg(uint32_t off) const { return reg_[off]; }
     uint8_t  RegRead (uint32_t off);
@@ -90,6 +93,11 @@ private:
     uint8_t reg_[kRegWindow] = {};
     std::vector<uint8_t> vram_;
 
+    uint32_t mmio_base_        = 0;
+    uint32_t vram_size_        = 0;
+    uint32_t vram_mask_        = 0;   /* size-1 if power-of-2, else 0 (use mod). */
+    uint8_t  product_rev_code_ = 0;
+
     /* Two 256-entry RGB LUTs of 4-bit components (§8.3.13: LCD + CRT/TV).
        lut_rgb_latch_ holds R,G written before the committing B write. */
     uint8_t lcd_lut_[256][3] = {};
@@ -100,6 +108,10 @@ private:
 
     bool     enable_published_ = false;
     uint32_t published_w_ = 0, published_h_ = 0;
+
+    /* Offsets whose dropped-write was already logged: log each undocumented
+       register once (--log=Periph-recoverable in the field), never per-write. */
+    std::unordered_set<uint32_t> dropped_logged_;
 
     std::chrono::steady_clock::time_point boot_time_{};
 

@@ -1,6 +1,7 @@
 #include "sed1356_bitblt.h"
 
 #include "sed1356.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 #include <vector>
@@ -92,9 +93,10 @@ void Sed1356BitBlt::DataWrite(uint16_t value) {
 }
 
 uint16_t Sed1356BitBlt::DataRead() {
-    if (out_fifo_.empty())
-        owner_.HaltUnsupportedAccess("BitBlt data read underflow",
-                                     owner_.MmioBase() + 0x100000u, 0);
+    /* Empty FIFO returns undefined bus data, not a fault (spec underflow;
+       Programming Notes §10.2, X25B-G-003-04). The S1D13806 driver relies on
+       it: ddi.dll sub_1C14C78 does a discarded post-blit sync read of it. */
+    if (out_fifo_.empty()) return 0u;
     const uint16_t v = out_fifo_.front();
     out_fifo_.pop_front();
     return v;
@@ -111,19 +113,19 @@ uint32_t Sed1356BitBlt::ExpectedWriteWords() const {
     return ((p_.width + (p_.src & 1u) + 1u) >> 1) * p_.height;
 }
 
-/* AB[20:0] addressing: a 512 KB buffer is replicated across the 2 MB
-   display-buffer space (TM X25B-A-001 §10 Fig 10-1) — alias, never fault. */
+/* AB[20:0] addressing: accesses alias within the populated buffer (TM
+   X25B-A-001 §10 Fig 10-1) via owner_.VramWrap — never fault. */
 uint16_t Sed1356BitBlt::ReadPxAt(uint32_t byte_addr) const {
     const uint8_t* m = owner_.vram_.data();
-    const uint8_t  lo = m[byte_addr & Sed1356::kVramMask];
+    const uint8_t  lo = m[owner_.VramWrap(byte_addr)];
     if (!p_.bpp16) return lo;
-    return (uint16_t)(lo | m[(byte_addr + 1u) & Sed1356::kVramMask] << 8);
+    return (uint16_t)(lo | m[owner_.VramWrap(byte_addr + 1u)] << 8);
 }
 
 void Sed1356BitBlt::WritePxAt(uint32_t byte_addr, uint16_t v) {
     uint8_t* m = owner_.vram_.data();
-    m[byte_addr & Sed1356::kVramMask] = (uint8_t)v;
-    if (p_.bpp16) m[(byte_addr + 1u) & Sed1356::kVramMask] = (uint8_t)(v >> 8);
+    m[owner_.VramWrap(byte_addr)] = (uint8_t)v;
+    if (p_.bpp16) m[owner_.VramWrap(byte_addr + 1u)] = (uint8_t)(v >> 8);
 }
 
 /* 8x8 pattern addressing, Programming Notes Table 10-3: the source start
@@ -300,13 +302,13 @@ void Sed1356BitBlt::ExecuteDisplayOp() {
                 const uint32_t line_base = p_.src + y * p_.src_stride;
                 const uint32_t skip = 8u * (line_base & 1u) + start_bit;
                 const uint32_t nwords = (skip + p_.width + 15u) >> 4;
-                const uint32_t wbase = (line_base & ~1u) & Sed1356::kVramMask;
+                const uint32_t wbase = owner_.VramWrap(line_base & ~1u);
                 std::vector<uint16_t> words(nwords);
-                const uint32_t tail = Sed1356::kVramSize - wbase;
+                const uint32_t tail = owner_.VramSize() - wbase;
                 if (nwords * 2u <= tail) {
                     std::memcpy(words.data(), owner_.vram_.data() + wbase,
                                 nwords * 2u);
-                } else {        /* run wraps the 512 KB replica boundary */
+                } else {        /* run wraps the populated buffer boundary */
                     std::memcpy(words.data(), owner_.vram_.data() + wbase,
                                 tail);
                     std::memcpy((uint8_t*)words.data() + tail,
@@ -327,4 +329,25 @@ void Sed1356BitBlt::ExecuteDisplayOp() {
         default:
             return;
     }
+}
+
+void Sed1356BitBlt::SaveState(StateWriter& w) const {
+    w.Write(p_);
+    w.Write<uint8_t>(cpu_op_active_ ? 1u : 0u);
+    w.Write(expected_words_);
+    w.Write<uint64_t>(in_fifo_.size());
+    for (uint16_t v : in_fifo_) w.Write<uint16_t>(v);
+    w.Write<uint64_t>(out_fifo_.size());
+    for (uint16_t v : out_fifo_) w.Write<uint16_t>(v);
+}
+
+void Sed1356BitBlt::RestoreState(StateReader& r) {
+    r.Read(p_);
+    uint8_t active = 0; r.Read(active); cpu_op_active_ = (active != 0);
+    r.Read(expected_words_);
+    uint64_t n = 0;
+    r.Read(n); in_fifo_.clear();
+    for (uint64_t i = 0; i < n; ++i) { uint16_t v = 0; r.Read(v); in_fifo_.push_back(v); }
+    r.Read(n); out_fifo_.clear();
+    for (uint64_t i = 0; i < n; ++i) { uint16_t v = 0; r.Read(v); out_fifo_.push_back(v); }
 }
