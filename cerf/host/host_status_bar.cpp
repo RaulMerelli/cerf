@@ -131,9 +131,9 @@ void HostStatusBar::RebuildTooltips() {
     for (auto& e : layout_) tip_texts_.push_back(e.first->Tooltip());
     tip_count_ = layout_.size();
 
-    /* cbSize MUST be TTTOOLINFOW_V1_SIZE — with no Common-Controls v6 manifest
-       CERF runs comctl32 v5, which rejects the larger modern sizeof(TTTOOLINFOW)
-       and silently fails TTM_ADDTOOL (the result: no tooltips). */
+    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE — accepted by every
+       comctl32 (v5 and the v6 the manifest now pulls in); avoids the larger
+       modern sizeof(TTTOOLINFOW) that older comctl32 rejects from TTM_ADDTOOL. */
     for (size_t i = 0; i < layout_.size(); ++i) {
         TTTOOLINFOW ti = { TTTOOLINFOW_V1_SIZE };
         ti.uFlags   = 0;

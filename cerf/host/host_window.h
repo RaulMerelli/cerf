@@ -54,6 +54,12 @@ private:
 
     void  AutoResizeToGuest();
 
+    /* Shutdown sequence, all UI-thread, none run inside WM_CLOSE: a posted
+       message shows the dialog, the save runs async, and teardown starts from
+       the save-completion callback. */
+    void  RunShutdownPrompt();
+    void  BeginShutdownTeardown();
+
     /* "{device_name} • {os} • CERF {ver}" from cerf.json meta; empty meta
        fields are dropped, so an absent meta block yields just "CERF {ver}". */
     std::wstring ComposeWindowTitle() const;
@@ -87,6 +93,7 @@ private:
     bool follow_guest_  = true;   /* false once user resizes/maximizes */
     bool user_resizing_ = false;  /* between WM_ENTER/EXITSIZEMOVE */
 
-    bool      closing_          = false;  /* WM_CLOSE seen; waiting on JIT stop */
-    ULONGLONG close_start_tick_ = 0;      /* GetTickCount64 at WM_CLOSE */
+    bool      shutdown_pending_ = false;  /* dialog/save in flight, before teardown */
+    bool      closing_          = false;  /* teardown started; waiting on JIT stop */
+    ULONGLONG close_start_tick_ = 0;      /* GetTickCount64 at teardown start */
 };

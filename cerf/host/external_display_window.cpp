@@ -2,8 +2,6 @@
 
 #include "external_display_window.h"
 
-#include <dwmapi.h>
-
 #include <vector>
 
 #include "../core/cerf_emulator.h"
@@ -160,12 +158,7 @@ void ExternalDisplayWindow::UiThreadMain(uint32_t surf_w, uint32_t surf_h) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    {
-        const BOOL dark = TRUE;
-        if (FAILED(DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark))))
-            DwmSetWindowAttribute(hwnd_, 19, &dark, sizeof(dark));
-    }
-    emu_.Get<HostDarkMode>().ApplyToWindow(hwnd_);
+    emu_.Get<HostDarkMode>().ApplyToWindow(hwnd_);  /* dark title bar + theme */
 
     FitToSurface(surf_w, surf_h);
 
