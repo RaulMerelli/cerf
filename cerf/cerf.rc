@@ -9,6 +9,7 @@
    CERF_LOGO is the 1024x1024 master so any on-screen size downscales cleanly. */
 CERF_LOGO     RCDATA "../gweslab.png"
 OEM_COMPAQ    RCDATA "assets/oem/logo_compaq.png"
+OEM_FORD      RCDATA "assets/oem/logo_ford.png"
 OEM_HP        RCDATA "assets/oem/logo_hp.png"
 OEM_MICROSOFT RCDATA "assets/oem/logo_microsoft.png"
 OEM_NEC       RCDATA "assets/oem/logo_nec.png"

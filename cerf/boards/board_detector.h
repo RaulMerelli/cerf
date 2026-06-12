@@ -20,6 +20,10 @@ enum class SocFamily {
     Poseidon,
     iMX31,
     iMX32,
+    iMX51,     /* Freescale i.MX51 (ARM Cortex-A8, ARMv7-A). IPUv3 display,
+                  TZIC interrupt controller, MC13892 PMIC. Confirmed from the
+                  ROM's OAL: BSP source path MX51_FSL_V2 + "i.MX51" string +
+                  silicon-register init in nk.exe start() (0x80101000). */
     TegraAPX,
 };
 
@@ -52,6 +56,10 @@ enum class Board {
                          Intel XScale PXA255 (ARMv5TE), 640x240 DSTN, QWERTY HPC
                          clamshell. Two ROM generations: HPC2000 (CE 3.0) and
                          Windows CE .NET 4.2. */
+    FordSyncGen2,     /* Ford SYNC Generation II (APIM, board id EA5T-14D544-BA),
+                         Freescale i.MX51 (ARM Cortex-A8), Windows Embedded
+                         Compact. Automotive head unit. ROM fingerprint: the
+                         "Ford Sync GenII" string in nk.exe. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
