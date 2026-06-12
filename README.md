@@ -264,6 +264,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>DDraw path inside Guest Additions (now Zune and friends render, I hope)</li>
               <li>Experimental hibernation/state saving system for all boards</li>
               <li>Soft/hard reset fixes for some SoCs</li>
+              <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
             </ul>
           </td>
         </tr>
