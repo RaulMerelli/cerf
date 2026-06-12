@@ -30,7 +30,7 @@ constexpr uint32_t kCerfLogoMaxPx = 220;
 constexpr int      kLabelFontPx      = 18;
 constexpr int      kDisclaimerFontPx = 12;
 const wchar_t*     kDisclaimer =
-    L"*Logos are property of their respective owners.";
+    L"Logos are property of their respective owners";
 
 Gdiplus::Bitmap* DecodeResourcePng(const wchar_t* name) {
     HMODULE hmod = GetModuleHandleW(nullptr);
