@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v4.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v5.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
@@ -119,9 +119,9 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
     </tr>
     <tr>
-      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Microsoft ODO (???)</b><br/><sub>ARM720T (1996 NDA board)</sub></td>
+      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> ARM720T</b><br/><sub>ARMv4T</sub></td>
       <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>ODO/Poseidon</b><br/>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Microsoft Windows CE Hardware Reference Platform</b><br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 2.11" alt="Windows CE 2.11"/> Windows CE 2.11<br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 3" alt="Windows CE 3"/> Windows CE 3
       </td>
@@ -252,7 +252,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
   </thead>
   <tbody>
     <tr>
-          <td>v4.1 (NOT RELEASED YET)</td>
+          <td>v5.0 (NOT RELEASED YET)</td>
           <td>
             <ul>
               <li>HP Jornada 820 support</li>
@@ -316,4 +316,4 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
 
 ## Downloads
 
-Download WIP build (4.1) from artifacs [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
