@@ -34,9 +34,9 @@ public:
 protected:
     uint32_t RegStride() const override { return 4u; }
 
-    bool TxInterruptUnitEnabled() const override { return (ier() & 0x40u) != 0u; }
+    bool UnitEnabled() const override { return (ier() & 0x40u) != 0u; }  /* UUE (IER.6). */
 
-    void SetTxInterrupt(bool pending) override {
+    void SetInterruptLine(bool pending) override {
         if (pending) emu_.Get<Pxa255Intc>().AssertSource(IntcBit());
         else         emu_.Get<Pxa255Intc>().DeassertSource(IntcBit());
     }
