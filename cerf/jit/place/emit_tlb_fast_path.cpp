@@ -1,6 +1,7 @@
 #include <cstddef>
 
 #include "../arm_jit.h"
+#include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../block_context.h"
 #include "../place_fns.h"
@@ -101,8 +102,55 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
     EmitAddRegBaseDisp32(cursor, kEax, kEdx, e_add);
     uint8_t* hit_done = EmitJmpLabel32(cursor);
 
-    /* Miss: slow path. ECX = EA already; EDX = jit (helper's __fastcall arg2). */
+    /* Before the page-table-walk helper, probe way 0 for a cached I/O entry
+       (tag = page | kArmTlbIoTagBit): a hit sets the io-pending slot and returns
+       null so the caller routes to PeripheralDispatcher, skipping the
+       Translate{Read,Write} C++ call. */
     for (int i = 0; i < nmiss; ++i) FixupLabel32(miss[i], cursor);
+
+    uint8_t* io_miss[3];
+    int      n_io_miss = 0;
+
+    /* EAX = (FCSE-folded EA page) | io tag bit. The page is 0xFFFFF000-aligned
+       so OR kArmTlbIoTagBit (bit 0) == ADD kArmTlbIoTagBit. */
+    EmitMovRegReg      (cursor, kEax, kEcx);
+    EmitTestRegImm32   (cursor, kEax, 0xFE000000u);
+    uint8_t* io_nf = EmitJnzLabel(cursor);
+    EmitOrRegBaseDisp32(cursor, kEax, kMmuReg, pid);
+    FixupLabel(io_nf, cursor);
+    EmitAndRegImm32    (cursor, kEax, 0xFFFFF000u);
+    EmitAddRegImm32    (cursor, kEax, kArmTlbIoTagBit);
+    EmitCmpRegBaseDisp32(cursor, kEax, kEdx, e_tag);
+    io_miss[n_io_miss++] = EmitJnzLabel32(cursor);
+
+    /* entry.global || entry.asid == CONTEXTIDR[7:0]. */
+    EmitMovRegBaseDisp32      (cursor, kEax, kMmuReg, ctxid);   /* AL = current ASID */
+    EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_glob, 0xFF);
+    uint8_t* io_ctx_ok = EmitJnzLabel(cursor);
+    EmitCmpReg8BaseDisp32     (cursor, kAl, kEdx, e_asid);
+    io_miss[n_io_miss++] = EmitJnzLabel32(cursor);
+    FixupLabel(io_ctx_ok, cursor);
+
+    if (is_write) {
+        /* Device write needs the entry's install-time write permission
+           (ArmTlbMatchIoWay need_write); a read-only device page falls to the
+           helper, which does the full permission check. */
+        EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_wr, 0xFF);
+        io_miss[n_io_miss++] = EmitJzLabel32(cursor);
+    }
+
+    /* I/O way-0 hit: io_pending = entry.pa_page | (EA & 0xFFF); EAX = null. EDX is
+       free now (the helper reloads it), so use it to build the page offset. */
+    EmitMovRegBaseDisp32(cursor, kEax, kEdx, e_pa);   /* EAX = pa_page */
+    EmitMovRegReg       (cursor, kEdx, kEcx);          /* EDX = EA */
+    EmitAndRegImm32     (cursor, kEdx, 0x00000FFFu);   /* EDX = EA & 0xFFF */
+    EmitOrReg32Reg32    (cursor, kEax, kEdx);          /* EAX = device PA */
+    EmitMovDwordPtrReg  (cursor, ctx->jit->Mmu()->IoPendingAddressPtr(), kEax);
+    EmitXorRegReg       (cursor, kEax, kEax);
+    uint8_t* io_done = EmitJmpLabel32(cursor);
+
+    /* Not a cached I/O way-0 entry: page-table-walk helper. */
+    for (int i = 0; i < n_io_miss; ++i) FixupLabel32(io_miss[i], cursor);
     EmitMovRegImm32(cursor, kEdx,
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
     void* helper =
@@ -114,5 +162,6 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
     EmitCall(cursor, helper);
 
     FixupLabel32(hit_done, cursor);
+    FixupLabel32(io_done, cursor);
     return cursor;
 }
