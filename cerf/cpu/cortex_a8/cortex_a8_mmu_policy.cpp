@@ -11,7 +11,9 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::OmapEvm3530;
+        if (!bd) return false;
+        const SocFamily soc = bd->GetSoc();
+        return soc == SocFamily::OMAP3530 || soc == SocFamily::iMX51;
     }
 
     uint32_t TtbrL1BaseMask() const override { return 0xFFFFC000u; }

@@ -25,6 +25,7 @@ const char* BoardDetector::SocFamilyName(SocFamily f) {
         case SocFamily::Poseidon:  return "Poseidon";
         case SocFamily::iMX31:     return "iMX31";
         case SocFamily::iMX32:     return "iMX32";
+        case SocFamily::iMX51:     return "iMX51";
         case SocFamily::TegraAPX:  return "TegraAPX";
     }
     return "Unknown";

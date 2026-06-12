@@ -12,7 +12,9 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::OmapEvm3530;
+        if (!bd) return false;
+        const SocFamily soc = bd->GetSoc();
+        return soc == SocFamily::OMAP3530 || soc == SocFamily::iMX51;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,
