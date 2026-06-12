@@ -3,16 +3,14 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../socs/sa11xx/sa11xx_gpio.h"
 
 #include <cstdint>
 
 namespace {
 
-/* SIMpad CS3 read-only status register (nCS3 @ PA 0x18000000). The PCMCIA socket
-   GetStatus (pcmcia.dll sub_12F2590) reads bit0/bit1 as card-sense only when a
-   card is present; presence is GPIO24 (CF_CD), which OnReady drives high for an
-   empty socket. */
+/* SIMpad CS3 read-only status register (nCS3 @ PA 0x18000000). PDCardSetAdapter
+   (pcmcia.dll sub_12F2D90) reads bits 2:3 as the Vcc voltage sense ((x&0xC)==0xC
+   -> 5V); 0xFFFF presents the 5V sense both catalog cards (NE2000, CF) use. */
 class SimpadSl4Cs3Status : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -24,9 +22,6 @@ public:
 
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
-        /* No CF card inserted: GPIO24 (CF_CD) idles high so sub_12F2590 reports
-           an empty socket (v5 & (1<<24) != 0 -> status 0). */
-        emu_.Get<Sa11xxGpio>().DriveInputPin(24u, true);
     }
 
     uint32_t MmioBase() const override { return 0x18000000u; }
