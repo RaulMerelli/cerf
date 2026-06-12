@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "../core/cerf_emulator.h"
+#include "../core/rate_probe.h"
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
 
@@ -10,6 +11,11 @@
    SMC (targeted phys-page block removal). */
 
 void ArmJit::ContextSwitchFlush() {
+#if CERF_DEV_MODE
+    auto& probe = emu_.Get<RateProbe>();
+    probe.Inc(RateProbe::Counter::CtxFlushes);
+    probe.RecordCtxSlot(mmu_->State()->process_id);
+#endif
     blocks_arm_.JumpCacheFlush();
     blocks_thumb_.JumpCacheFlush();
     /* Shadow-stack entries cache (folded return VA → native); on FCSE PID

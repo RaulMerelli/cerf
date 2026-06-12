@@ -10,6 +10,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "../core/rate_probe.h"
 #include "../cpu/arm_processor_config.h"
 #include "../cpu/emulated_memory.h"
 #include "../peripherals/peripheral_dispatcher.h"
@@ -148,6 +149,9 @@ void ArmJit::JitDecode(JitBlock* containing_block, uint32_t guest_pc) {
 }
 
 void* ArmJit::JitCompile(uint32_t guest_pc) {
+#if CERF_DEV_MODE
+    emu_.Get<RateProbe>().Inc(RateProbe::Counter::JitCompiles);
+#endif
     if (tc_flush_pending_) {
         /* Armed by OnTranslationRegimeChange. Safe here — compile is
            reached from Run(), never from inside arena code. */

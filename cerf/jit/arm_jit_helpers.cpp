@@ -220,6 +220,9 @@ void ArmJit::FlushTranslationCache(uint32_t va, uint32_t length) {
     if (length == 0xFFFFFFFFu ||
         blocks_arm_  .ContainsRange(va, va + length) ||
         blocks_thumb_.ContainsRange(va, va + length)) {
+#if CERF_DEV_MODE
+        emu_.Get<RateProbe>().Inc(RateProbe::Counter::TcFlushes);
+#endif
         FlushNativeAddrCache();
         /* Shadow-stack entries cache native destinations for guest
            return addresses — after a TC flush those native pointers
