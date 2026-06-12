@@ -79,6 +79,40 @@ int ArmJit::LocateEntrypoints() {
                     insn.cond != 14) {
                     insn.place_fn = &PlaceIdleLoop;
                 }
+                /* Generic busy-delay poll → idle-loop (timer spin, e.g. PXA255
+                   nk.exe sub_9023EB2C). Body = pure PlaceDataProcessing not writing
+                   R15 or the polled address Rn → side-effect-free (no store/2nd
+                   load) so PlaceIdleLoop's time-skip drops no write. DP 8..11: no Rd. */
+                else if (!processor_config_->GenerateSyscalls() &&
+                    insn.cond != 14 &&
+                    (i - off) >= 2 && (i - off) <= 8 &&
+                    block_ctx_.insns[off].place_fn == &PlaceSingleDataTransfer &&
+                    block_ctx_.insns[off].l == 1 &&
+                    block_ctx_.insns[off].b == 0 &&
+                    block_ctx_.insns[off].w == 0 &&
+                    block_ctx_.insns[off].p == 1 &&
+                    block_ctx_.insns[off].i == 0 &&
+                    block_ctx_.insns[off].rd != ArmGpr::kR15 &&
+                    block_ctx_.insns[off].rd != block_ctx_.insns[off].rn) {
+                    const auto addr_reg = block_ctx_.insns[off].rn;
+                    bool pure_poll = true;
+                    for (uint32_t j = off + 1; j < i; ++j) {
+                        const DecodedInsn& bj = block_ctx_.insns[j];
+                        if (bj.place_fn != &PlaceDataProcessing) {
+                            pure_poll = false;
+                            break;
+                        }
+                        const bool writes_rd = bj.opcode < 8 || bj.opcode > 11;
+                        if (writes_rd &&
+                            (bj.rd == ArmGpr::kR15 || bj.rd == addr_reg)) {
+                            pure_poll = false;
+                            break;
+                        }
+                    }
+                    if (pure_poll) {
+                        insn.place_fn = &PlaceIdleLoop;
+                    }
+                }
             }
         } else if (insn.place_fn == &PlaceDataProcessing &&
                    insn.opcode == 4 &&  /* ADD */

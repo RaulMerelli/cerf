@@ -434,8 +434,14 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
                 NoteCodeTracking<kAccess>(state_, effective_address);
                 return host_ptr;
             }
-            FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
-                          new_slot.global, /*writable=*/true);
+            /* Cache io only for a PA with no read backing. A read-backed flash/ROM
+               PA already holds a RAM read entry; adding an io entry gives the page
+               two TLB entry-types, and the way-0 inline io probe (one type per page)
+               then resolves the page's reads to MMIO. */
+            if (!memory_->TryTranslate(effective_address)) {
+                FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
+                              new_slot.global, /*writable=*/true);
+            }
             SetIoPending(effective_address);
             return nullptr;
         } else {
