@@ -278,6 +278,11 @@ void ArmJit::ClearInterruptPending() {
     UpdateInterruptOnPoll();
 }
 
+void ArmJit::ResyncInterruptPoll() {
+    std::lock_guard<std::mutex> guard(interrupt_lock_);
+    UpdateInterruptOnPoll();
+}
+
 void __fastcall ArmJit::WfiHelper(ArmJit* jit) {
     auto* state = jit->cpu_->State();
     if (state->irq_interrupt_pending != 0 || state->reset_pending != 0) return;

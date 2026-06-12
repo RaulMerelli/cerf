@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -31,6 +32,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     /* §9.3 reset states: RCNR / RTAR / RTTR are uninitialized after
@@ -114,6 +118,14 @@ void Sa11xxRtc::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Sa11xxRtc::SaveState(StateWriter& w) {
+    w.Write(rtar_);  w.Write(rcnr_);  w.Write(rttr_);  w.Write(rtsr_);
+}
+
+void Sa11xxRtc::RestoreState(StateReader& r) {
+    r.Read(rtar_);  r.Read(rcnr_);  r.Read(rttr_);  r.Read(rtsr_);
 }
 
 }  /* namespace */

@@ -2,6 +2,8 @@
 
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../state/state_stream.h"
+
 #include <cstdint>
 #include <mutex>
 
@@ -17,6 +19,27 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mtx_);
+        w.WriteBytes(regs_, sizeof(regs_));
+        w.WriteBytes(cpm_,  sizeof(cpm_));
+        w.Write(ima_mem_nu_);
+        w.Write(ima_row_nu_);
+        w.Write(ima_word_nu_);
+        w.Write(last_pub_w_);
+        w.Write(last_pub_h_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mtx_);
+        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes(cpm_,  sizeof(cpm_));
+        r.Read(ima_mem_nu_);
+        r.Read(ima_row_nu_);
+        r.Read(ima_word_nu_);
+        r.Read(last_pub_w_);
+        r.Read(last_pub_h_);
+    }
 
     enum class PfsKind { Unknown = 0, RgbPack = 4, Yuv422 = 6, Generic = 7 };
 

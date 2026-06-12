@@ -6,6 +6,7 @@
 #include "../../host/keyboard_input.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/irq_controller.h"
+#include "../../state/state_stream.h"
 #include "odo_arm720_board_intc.h"
 
 #include <cstdint>
@@ -150,6 +151,25 @@ public:
 
     uint16_t ReadHalf (uint32_t addr) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
+
+    /* State image: the two registers plus the PS/2 byte FIFO and its
+       ring indices. The scancode lookup table is constant data. */
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write<uint16_t>(kb_csr_);
+        w.Write<uint16_t>(kb_isr_);
+        w.WriteBytes(scancode_fifo_, sizeof(scancode_fifo_));
+        w.Write<int>(fifo_head_);
+        w.Write<int>(fifo_tail_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(kb_csr_);
+        r.Read(kb_isr_);
+        r.ReadBytes(scancode_fifo_, sizeof(scancode_fifo_));
+        r.Read(fifo_head_);
+        r.Read(fifo_tail_);
+    }
 
     void OnHostKey(uint8_t vk, bool key_up);
 

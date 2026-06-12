@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -58,6 +59,20 @@ public:
 
     uint32_t MmioBase() const override { return kParControlPaBase; }
     uint32_t MmioSize() const override { return kParControlSize; }
+
+    /* State image: the last kernel-written control word plus the
+       derived peer AUTOFD level, which together reproduce the next
+       ReadWord overlay exactly. */
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write<uint32_t>(kernel_wrote_);
+        w.Write<bool>(peer_autofd_high_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(kernel_wrote_);
+        r.Read(peer_autofd_high_);
+    }
 
     uint32_t ReadWord(uint32_t addr) override {
         if (addr != MmioBase()) HaltUnsupportedAccess("ReadWord", addr, 0);

@@ -6,6 +6,7 @@
 #include "../../boards/board_detector.h"
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool Sa11xxIntc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -152,6 +153,27 @@ void Sa11xxIntc::WriteWord(uint32_t addr, uint32_t value) {
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     std::lock_guard<std::mutex> guard(state_mtx_);
     WriteRegLocked(off, value);
+}
+
+void Sa11xxIntc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    w.Write(icpr_);
+    w.Write(icmr_);
+    w.Write(iclr_);
+    w.Write(iccr_);
+}
+
+void Sa11xxIntc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    r.Read(icpr_);
+    r.Read(icmr_);
+    r.Read(iclr_);
+    r.Read(iccr_);
+}
+
+void Sa11xxIntc::PostRestore() {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    NotifyLocked();   /* drive the JIT pending bit from the restored icpr_/icmr_ */
 }
 
 REGISTER_SERVICE(Sa11xxIntc);

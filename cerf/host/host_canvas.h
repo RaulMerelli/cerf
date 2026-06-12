@@ -70,6 +70,7 @@ public:
     bool RenderAltContent(HDC dc, uint32_t* bits, int w, int h) override;
     bool HandleInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
                      LRESULT& out) override;
+    bool ShouldDesaturatePresent() override;
 
 private:
     Tab  tab_  = Tab::Uart;

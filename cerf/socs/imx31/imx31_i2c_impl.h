@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -75,6 +76,15 @@ public:
                 return;
         }
         HaltUnsupportedAccess("WriteHalf", addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(iadr_); w.Write(ifdr_); w.Write(i2cr_);
+        w.Write(i2sr_); w.Write(i2dr_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(iadr_); r.Read(ifdr_); r.Read(i2cr_);
+        r.Read(i2sr_); r.Read(i2dr_);
     }
 
 private:

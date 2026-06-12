@@ -45,6 +45,10 @@ public:
 
     std::vector<WidgetMenuItem> BuildCardMenu() override;
 
+    const char* SaveId() const override { return "ne2000"; }
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     void DetachRx();
     void OnRxFrame(const uint8_t* frame, std::size_t len);

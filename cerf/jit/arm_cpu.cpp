@@ -14,8 +14,16 @@
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
 #include "decoded_insn.h"
+#include "../state/state_stream.h"
 
 REGISTER_SERVICE(ArmCpu);
+
+void ArmCpu::SaveState(StateWriter& w) { w.Write(state_); }
+
+/* ArmCpuState is a flat POD; at the run-loop pause boundary the lazy
+   x86 flags are already materialized into it, so a whole-struct blob
+   captures live NZCV. */
+void ArmCpu::RestoreState(StateReader& r) { r.Read(state_); }
 
 void ArmCpu::OnReady() {
     mmu_ = &emu_.Get<ArmMmu>();

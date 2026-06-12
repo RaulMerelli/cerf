@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/uart_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <string>
@@ -49,6 +50,11 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* Only the register file is machine state — tx_line_ is a host-side
+       console line accumulator, rebuilt as the guest writes. */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }
 
 private:
     void     EmitTxByte(int uart_idx, uint8_t ch);

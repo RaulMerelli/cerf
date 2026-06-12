@@ -5,6 +5,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_intc.h"
 #include "../../socs/sa11xx/sa11xx_sp1_uart.h"
+#include "../../state/emulation_freeze.h"
 #include "../board_detector.h"
 
 #include <array>
@@ -69,8 +70,9 @@ void Jornada820Battery::OnShutdown() {
 }
 
 void Jornada820Battery::StreamLoop() {
-    auto& sp1  = emu_.Get<Sa11xxSp1Uart>();
-    auto& intc = emu_.Get<Sa11xxIntc>();
+    auto& sp1    = emu_.Get<Sa11xxSp1Uart>();
+    auto& intc   = emu_.Get<Sa11xxIntc>();
+    auto& freeze = emu_.Get<EmulationFreeze>();
 #if CERF_DEV_MODE
     bool logged = false;
 #endif
@@ -78,15 +80,18 @@ void Jornada820Battery::StreamLoop() {
        the UI thread holds the widget mutex. Read the widget WITHOUT mtx_ held to
        keep the two locks unnested. */
     for (;;) {
-        if ((intc.GetIcmr() & kSp1IntcMask) != 0) {
+        {
+            auto frozen = freeze.WorkerSection();
+            if ((intc.GetIcmr() & kSp1IntcMask) != 0) {
 #if CERF_DEV_MODE
-            if (!logged) {
-                LOG(SocUart, "[J820BATT] SP1 IRQ unmasked (hplib ready) — streaming battery\n");
-                logged = true;
-            }
+                if (!logged) {
+                    LOG(SocUart, "[J820BATT] SP1 IRQ unmasked (hplib ready) — streaming battery\n");
+                    logged = true;
+                }
 #endif
-            const auto pkt = BuildPacket(battery_.FillPercent(), battery_.IsOnBattery());
-            sp1.PushRxBurst(pkt.data(), pkt.size());
+                const auto pkt = BuildPacket(battery_.FillPercent(), battery_.IsOnBattery());
+                sp1.PushRxBurst(pkt.data(), pkt.size());
+            }
         }
 
         std::unique_lock<std::mutex> lk(mtx_);

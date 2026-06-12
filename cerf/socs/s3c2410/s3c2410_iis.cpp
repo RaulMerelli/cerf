@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../irq_controller.h"
 
 #include <cstring>
@@ -199,4 +200,26 @@ void S3C2410Iis::WriteWord(uint32_t addr, uint32_t value) {
         default:
             HaltUnsupportedAccess("WriteWord", addr, value);  /* noreturn */
     }
+}
+
+void S3C2410Iis::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(iiscon_);
+    w.Write(iismod_);
+    w.Write(iispsr_);
+    w.Write(iisfcon_);
+    w.Write(iisfifo_);
+    w.Write<uint8_t>(output_dma_enabled_.load(std::memory_order_acquire) ? 1u : 0u);
+}
+
+void S3C2410Iis::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(iiscon_);
+    r.Read(iismod_);
+    r.Read(iispsr_);
+    r.Read(iisfcon_);
+    r.Read(iisfifo_);
+    uint8_t dma = 0;
+    r.Read(dma);
+    output_dma_enabled_.store(dma != 0, std::memory_order_release);
 }

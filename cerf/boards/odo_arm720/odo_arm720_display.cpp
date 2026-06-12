@@ -10,6 +10,7 @@
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -110,6 +111,19 @@ public:
     uint32_t XSize () const { std::lock_guard<std::mutex> lk(state_mutex_); return (uint32_t)xsize_ + 1u; }
     uint32_t YSize () const { std::lock_guard<std::mutex> lk(state_mutex_); return (uint32_t)ysize_ + 1u; }
 
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(csr_);
+        w.Write(xsize_);
+        w.Write(ysize_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(csr_);
+        r.Read(xsize_);
+        r.Read(ysize_);
+    }
+
 private:
     mutable std::mutex state_mutex_;
     uint16_t csr_   = 0;
@@ -163,6 +177,17 @@ public:
             (static_cast<uint32_t>(dma_high_ & 0xFFu) << 16) |
             static_cast<uint32_t>(dma_low_);
         return kDramPaBase + chip_addr;
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(dma_low_);
+        w.Write(dma_high_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(dma_low_);
+        r.Read(dma_high_);
     }
 
 private:

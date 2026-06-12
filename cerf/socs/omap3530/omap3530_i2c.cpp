@@ -1,19 +1,14 @@
-#include "../../peripherals/peripheral_base.h"
+#include "omap3530_i2c.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../peripherals/peripheral_dispatcher.h"
-#include "../../boards/board_detector.h"
 #include "omap3530_sdma.h"
-#include "twl4030.h"
 
 #include <cstdint>
 #include <deque>
 #include <mutex>
 
 namespace {
-
-constexpr uint32_t kI2cSize = 0x00001000u;
 
 constexpr uint32_t kOffRev      = 0x00;
 constexpr uint32_t kOffIe       = 0x04;
@@ -59,86 +54,7 @@ constexpr uint16_t kI2cBufRxFifoClr  = 1u << 14;
 constexpr uint16_t kI2cBufXdmaEn     = 1u << 7;
 constexpr uint16_t kI2cBufRdmaEn     = 1u << 15;
 
-class Omap3530I2cBank : public Peripheral {
-public:
-    using Peripheral::Peripheral;
-
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
-    }
-    void OnReady() override {
-        emu_.Get<PeripheralDispatcher>().Register(this);
-    }
-
-    uint32_t MmioSize() const override { return kI2cSize; }
-
-    uint8_t  ReadByte (uint32_t addr) override;
-    void     WriteByte(uint32_t addr, uint8_t  value) override;
-    uint16_t ReadHalf (uint32_t addr) override;
-    void     WriteHalf(uint32_t addr, uint16_t value) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
-
-protected:
-    /* Slave-side dispatch hooks. Caller (this base class) holds
-       state_mutex_ around both calls. The write hook drains
-       tx_fifo_; the read hook fills rx_fifo_ with `count` bytes.
-       Default (no slave): halt loudly with a diagnostic. */
-    virtual void DispatchWriteLocked (uint32_t guest_addr_for_diag,
-                                      uint8_t  slave_addr);
-    virtual void DispatchReadLocked  (uint32_t guest_addr_for_diag,
-                                      uint8_t  slave_addr,
-                                      uint16_t count);
-
-    /* Per-bank SDMA sync source IDs. Default 0 = no DMA wiring
-       (I2C3 high-speed bus is PIO-only on OMAP3530). */
-    virtual int TxSyncSource() const { return 0; }
-    virtual int RxSyncSource() const { return 0; }
-
-    mutable std::mutex  state_mutex_;
-    std::deque<uint8_t> tx_fifo_;
-    std::deque<uint8_t> rx_fifo_;
-
-    /* Pending-transaction state captured at CON.STT write,
-       consumed at STAT W1C (write) or at CNT write (read). */
-    bool    pending_active_     = false;
-    bool    pending_is_read_    = false;
-    uint8_t pending_slave_addr_ = 0;
-    bool    pending_tx_dma_req_ = false;
-    bool    pending_rx_dma_req_ = false;
-
-private:
-    bool     IsKnownOffset(uint32_t off) const;
-    uint16_t ReadHalfLocked (uint32_t off);
-    void     WriteHalfLocked(uint32_t guest_addr_for_diag,
-                             uint32_t off, uint16_t value);
-    void     ApplyResetLocked();
-    void     OnConStartLocked(uint32_t guest_addr_for_diag);
-    void     OnCntWriteLocked(uint32_t guest_addr_for_diag);
-    void     OnStatW1cLocked (uint32_t guest_addr_for_diag,
-                              uint16_t value);
-    void     FlushPendingDmaReqs(bool fire_tx, bool fire_rx);
-
-    uint16_t stat_    = 0;
-    uint16_t ie_      = 0;
-    uint16_t we_      = 0;
-    uint16_t buf_     = 0;
-    uint16_t cnt_     = 0;
-    uint16_t sysc_    = 0;
-    uint16_t con_     = 0;
-    uint16_t oa0_     = 0;
-    uint16_t sa_      = 0;
-    uint16_t psc_     = 0;
-    uint16_t scll_    = 0;
-    uint16_t sclh_    = 0;
-    uint16_t systest_ = 0;
-    uint16_t oa1_     = 0;
-    uint16_t oa2_     = 0;
-    uint16_t oa3_     = 0;
-    uint16_t actoa_   = 0;
-    uint16_t sblock_  = 0;
-};
+}  /* anonymous namespace */
 
 void Omap3530I2cBank::ApplyResetLocked() {
     stat_ = ie_ = we_ = buf_ = cnt_ = sysc_ = con_ = 0;
@@ -421,70 +337,3 @@ void Omap3530I2cBank::WriteWord(uint32_t addr, uint32_t value) {
         "WriteWord (I2C registers are 16-bit; no 32-bit write expected)",
         addr, value);
 }
-
-/* I2C1 — talks to the TWL4030 PMIC. Dispatch hooks routed to the
-   TWL4030 slave service. */
-class Omap3530I2c1 : public Omap3530I2cBank {
-public:
-    using Omap3530I2cBank::Omap3530I2cBank;
-    uint32_t MmioBase() const override { return 0x48070000u; }
-
-protected:
-    int TxSyncSource() const override { return Omap3530Sdma::kSyncI2c1Tx; }
-    int RxSyncSource() const override { return Omap3530Sdma::kSyncI2c1Rx; }
-    void DispatchWriteLocked(uint32_t guest_addr_for_diag,
-                             uint8_t  slave_addr) override;
-    void DispatchReadLocked (uint32_t guest_addr_for_diag,
-                             uint8_t  slave_addr,
-                             uint16_t count) override;
-};
-
-void Omap3530I2c1::DispatchWriteLocked(uint32_t guest_addr_for_diag,
-                                       uint8_t  slave_addr) {
-    auto& twl = emu_.Get<Twl4030>();
-    if (!twl.MatchesAddress(slave_addr)) {
-        Omap3530I2cBank::DispatchWriteLocked(guest_addr_for_diag,
-                                             slave_addr);
-    }
-    twl.TxnStart(slave_addr);
-    while (!tx_fifo_.empty()) {
-        twl.TxnWriteByte(slave_addr, tx_fifo_.front());
-        tx_fifo_.pop_front();
-    }
-}
-
-void Omap3530I2c1::DispatchReadLocked(uint32_t guest_addr_for_diag,
-                                      uint8_t  slave_addr,
-                                      uint16_t count) {
-    auto& twl = emu_.Get<Twl4030>();
-    if (!twl.MatchesAddress(slave_addr)) {
-        Omap3530I2cBank::DispatchReadLocked(guest_addr_for_diag,
-                                            slave_addr, count);
-    }
-    twl.TxnStart(slave_addr);
-    for (uint16_t i = 0; i < count; ++i) {
-        rx_fifo_.push_back(twl.TxnReadByte(slave_addr));
-    }
-}
-
-class Omap3530I2c2 : public Omap3530I2cBank {
-public:
-    using Omap3530I2cBank::Omap3530I2cBank;
-    uint32_t MmioBase() const override { return 0x48072000u; }
-protected:
-    int TxSyncSource() const override { return Omap3530Sdma::kSyncI2c2Tx; }
-    int RxSyncSource() const override { return Omap3530Sdma::kSyncI2c2Rx; }
-};
-class Omap3530I2c3 : public Omap3530I2cBank {
-public:
-    using Omap3530I2cBank::Omap3530I2cBank;
-    uint32_t MmioBase() const override { return 0x48060000u; }
-    /* I2C3 is high-speed I2C with no SDMA wiring on OMAP3530 — uses
-       its own internal FIFO and CPU-driven transfers. */
-};
-
-}  /* namespace */
-
-REGISTER_SERVICE(Omap3530I2c1);
-REGISTER_SERVICE(Omap3530I2c2);
-REGISTER_SERVICE(Omap3530I2c3);

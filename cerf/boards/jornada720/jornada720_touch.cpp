@@ -6,6 +6,7 @@
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
+#include "../../state/emulation_freeze.h"
 #include "../board_detector.h"
 
 namespace {
@@ -143,6 +144,7 @@ void Jornada720Touch::PenUp() {
 }
 
 void Jornada720Touch::SamplerLoop() {
+    auto& freeze = emu_.Get<EmulationFreeze>();
     std::unique_lock<std::mutex> lk(mtx_);
     while (!stop_) {
         if (pen_down_) {
@@ -150,7 +152,10 @@ void Jornada720Touch::SamplerLoop() {
                 if (--synthetic_pulses_ == 0) {
                     pen_down_ = false;
                     lk.unlock();
-                    DrivePenLine(/*pen_down=*/false);  /* end the bezel tap */
+                    {
+                        auto frozen = freeze.WorkerSection();
+                        DrivePenLine(/*pen_down=*/false);  /* end the bezel tap */
+                    }
                     lk.lock();
                     continue;
                 }
@@ -158,7 +163,10 @@ void Jornada720Touch::SamplerLoop() {
                 MapHostToAdc(last_x_, last_y_, &adc_x_, &adc_y_);
             }
             lk.unlock();
-            PulsePenLine();
+            {
+                auto frozen = freeze.WorkerSection();
+                PulsePenLine();
+            }
             lk.lock();
             cv_.wait_for(lk, kSamplePeriod, [&] { return stop_ || !pen_down_; });
         } else {

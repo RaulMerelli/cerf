@@ -5,6 +5,8 @@
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../jit/arm_jit.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 
 #include <atomic>
 #include <chrono>
@@ -65,6 +67,18 @@ public:
 
     uint16_t ReadHalf (uint32_t addr) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(cpuisr_);  w.Write(tir_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(cpuisr_);  r.Read(tir_);
+        /* Wall-clock timer: re-anchor the period to now so it continues
+           from the restored registers instead of a stale baseline. */
+        period_start_ = Clock::now();
+    }
 
 private:
     using Clock = std::chrono::steady_clock;
@@ -166,6 +180,7 @@ void OdoArm720CpuTimer::WriteWord(uint32_t addr, uint32_t value) {
 
 void OdoArm720CpuTimer::TickLoop() {
     using namespace std::chrono;
+    auto& freeze = emu_.Get<EmulationFreeze>();
 
     while (!stop_thread_.load(std::memory_order_acquire)) {
         uint32_t          period_ms = 0;
@@ -191,23 +206,26 @@ void OdoArm720CpuTimer::TickLoop() {
         if (stop_thread_.load(std::memory_order_acquire)) break;
 
         {
-            std::lock_guard<std::mutex> lk(state_mutex_);
-            /* If the kernel changed the mode while we slept,
-               period_start_ was already reset by the WriteWord
-               path; skip the fire and reload the local period_ms
-               view at the top of the loop. */
-            if (PeriodMsLocked() != period_ms) continue;
+            auto frozen = freeze.WorkerSection();
+            {
+                std::lock_guard<std::mutex> lk(state_mutex_);
+                /* If the kernel changed the mode while we slept,
+                   period_start_ was already reset by the WriteWord
+                   path; skip the fire and reload the local period_ms
+                   view at the top of the loop. */
+                if (PeriodMsLocked() != period_ms) continue;
 
-            /* Advance period_start_ by exactly period_duration
-               (not Clock::now()) so timing drift stays bounded
-               across many ticks. */
-            period_start_ += milliseconds(period_ms);
-            tir_ |= kTirSetBit;
+                /* Advance period_start_ by exactly period_duration
+                   (not Clock::now()) so timing drift stays bounded
+                   across many ticks. */
+                period_start_ += milliseconds(period_ms);
+                tir_ |= kTirSetBit;
+            }
+
+            /* Wake the JIT outside the lock — ArmJit::SetInterruptPending
+               takes its own interrupt_lock_. */
+            emu_.Get<ArmJit>().SetInterruptPending();
         }
-
-        /* Wake the JIT outside the lock — ArmJit::SetInterruptPending
-           takes its own interrupt_lock_. */
-        emu_.Get<ArmJit>().SetInterruptPending();
     }
 }
 

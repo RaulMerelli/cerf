@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 /* P2.H:267-301 — three mutually-disjoint CSR-A bit masks below;
    overlap clobbers in-flight kernel writes (W1C interrupt latches
    vs R/O input signals vs R/W control bits). */
@@ -27,6 +30,11 @@ public:
     bool Write(uint32_t slot_off, uint16_t value);
 
     void SetCsrABits(uint16_t bits);
+
+    /* Exact register snapshot: bypasses Write()'s W1C / read-only masking,
+       which would otherwise corrupt the restored csr_a_. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
     static bool IsValidOffset(uint32_t slot_off) {
         return slot_off == kSlotCsrA || slot_off == kSlotCsrB;

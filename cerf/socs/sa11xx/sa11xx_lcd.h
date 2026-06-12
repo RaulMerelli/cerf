@@ -37,6 +37,9 @@ public:
         return (lccr0_ & 0x4u) ? lpp * 2u : lpp;
     }
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     uint32_t lccr0_ = 0;
     uint32_t lcsr_  = 0;

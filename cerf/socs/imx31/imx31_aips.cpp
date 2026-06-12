@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -18,6 +19,10 @@ public:
     uint32_t MmioSize() const override { return kAipsRegionSize; }
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
 
 protected:
     uint32_t regs_[11] = {

@@ -3,6 +3,7 @@
 #include "cerf_emulator.h"
 #include "main_config.h"
 #include "log.h"
+#include "cerf_paths.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <cstring>
@@ -272,7 +273,7 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
     if (device_name.empty()) device_name = "cerfos";
     config.device_name = device_name;
 
-    const std::string dev_path = cerf_dir_ + "devices/" + device_name + "/cerf.json";
+    const std::string dev_path = GetDeviceDir(device_name) + "cerf.json";
     json dev = ReadJsonFile(dev_path);
     if (dev.is_null()) {
         LOG(Cfg, "No device config: %s (using DeviceConfig defaults)\n", dev_path.c_str());
@@ -311,6 +312,12 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
             config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
             config.share_folder = a + sizeof(kArgShareFolder) - 1;
+        } else if (strncmp(a, kArgBoot, sizeof(kArgBoot) - 1) == 0) {
+            const char* v = a + sizeof(kArgBoot) - 1;
+            if      (strcmp(v, "resume") == 0) config.boot_mode = StateBootMode::Resume;
+            else if (strcmp(v, "warm")   == 0) config.boot_mode = StateBootMode::Warm;
+            else if (strcmp(v, "cold")   == 0) config.boot_mode = StateBootMode::Cold;
+            else Fatal("(command line)", "--boot must be resume, warm, or cold");
         }
     }
 }

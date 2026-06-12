@@ -8,6 +8,8 @@
 
 class CerfEmulator;
 class PcmciaSlot;
+class StateWriter;
+class StateReader;
 
 /* One emulated 16-bit PC Card. Instances live from insert to eject and
    one card type may occupy two slots at once — multi-instance by
@@ -19,6 +21,17 @@ public:
     virtual ~PcmciaCard() = default;
 
     virtual std::wstring DisplayName() const = 0;
+
+    /* Stable hibernation type tag: the slot writes it so a saved card's
+       register state is applied only when the same card type is present. */
+    virtual const char* SaveId() const = 0;
+    /* Guest-visible register state. The slot length-frames this body so a
+       non-matching live card can be skipped on restore. */
+    virtual void SaveState(StateWriter&) {}
+    virtual void RestoreState(StateReader&) {}
+    /* Host binding needed to rebuild this card on restore (e.g. CF image
+       path, serial COM name). Empty for cards rebuildable from id alone. */
+    virtual std::wstring SaveBinding() const { return {}; }
 
     /* Status-bar tooltip detail (e.g. name + MAC). */
     virtual std::wstring TooltipDetail() const { return DisplayName(); }

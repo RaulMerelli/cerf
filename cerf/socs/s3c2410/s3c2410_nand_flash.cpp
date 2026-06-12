@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <cstring>
@@ -68,6 +69,11 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* The flash contents are runtime state (the guest's FAT/object store) and
+       live here, not in EmulatedMemory, so they must be serialized too. */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t nfconf_ = 0;
@@ -240,6 +246,24 @@ uint8_t S3C2410NandFlash::ReadByte(uint32_t addr) {
     default:
         HaltUnsupportedAccess("ReadByte NFDATA in unknown CMD", addr, 0);
     }
+}
+
+void S3C2410NandFlash::SaveState(StateWriter& w) {
+    w.Write(nfconf_);
+    w.Write(nfcmd_);
+    w.Write(nfaddr_);
+    w.Write(nfstat_);
+    w.Write(bytes_read_);
+    w.WriteBytes(flash_.data(), flash_.size());
+}
+
+void S3C2410NandFlash::RestoreState(StateReader& r) {
+    r.Read(nfconf_);
+    r.Read(nfcmd_);
+    r.Read(nfaddr_);
+    r.Read(nfstat_);
+    r.Read(bytes_read_);
+    r.ReadBytes(flash_.data(), flash_.size());  /* sized kFlashBytes in OnReady */
 }
 
 }  /* namespace */

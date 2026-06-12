@@ -8,6 +8,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <bit>
 #include <mutex>
@@ -32,6 +33,12 @@ public:
        (same TU; static_cast from IrqController& is safe). */
     uint32_t ReadReg (uint32_t offset);
     void     WriteReg(uint32_t offset, uint32_t value);
+
+    /* State image: the 8 register slots are the whole INTC state
+       (INTPND/INTOFFSET are recomputed from SRCPND/INTMSK but stored). */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+    void PostRestore();
 
 private:
     static constexpr size_t   kSlotCount       = 8;
@@ -252,6 +259,30 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
     else            jit.ClearInterruptPending();
 }
 
+void S3C2410Intc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(storage_, sizeof(storage_));
+}
+
+void S3C2410Intc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(storage_, sizeof(storage_));
+}
+
+void S3C2410Intc::PostRestore() {
+    /* Re-derive the JIT IRQ-pending latch from the restored SRCPND/INTMSK after
+       every peripheral's RestoreState has run — the INTC owns the CPU IRQ line.
+       Same lock-then-notify-outside-lock shape as WriteReg. */
+    bool pending = false;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        pending = HasPendingUnmasked();
+    }
+    auto& jit = emu_.Get<ArmJit>();
+    if (pending) jit.SetInterruptPending();
+    else         jit.ClearInterruptPending();
+}
+
 class S3C2410IntcMmio : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -274,6 +305,16 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         auto& concrete = static_cast<S3C2410Intc&>(emu_.Get<IrqController>());
         concrete.WriteReg(addr - MmioBase(), value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        static_cast<S3C2410Intc&>(emu_.Get<IrqController>()).SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        static_cast<S3C2410Intc&>(emu_.Get<IrqController>()).RestoreState(r);
+    }
+    void PostRestore() override {
+        static_cast<S3C2410Intc&>(emu_.Get<IrqController>()).PostRestore();
     }
 };
 

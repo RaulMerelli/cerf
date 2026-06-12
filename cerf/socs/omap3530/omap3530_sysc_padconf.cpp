@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <array>
 #include <cstdint>
@@ -33,6 +34,9 @@ public:
     uint32_t ReadWord  (uint32_t addr) override;
     void     WriteHalf (uint32_t addr, uint16_t value) override;
     void     WriteWord (uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     mutable std::mutex mu_;
@@ -84,6 +88,17 @@ void Omap3530SyscPadconf::WriteWord(uint32_t addr, uint32_t value) {
     if (off == kPadconfOffOffset && (value & kStartSaveBit)) {
         regs_[kGpStatusOffset / 2] |= kSaveDoneBit;
     }
+}
+
+/* The fixed register bank is the whole machine state. MMIO is JIT-thread
+   only (no cross-thread caller), and the JIT is paused during save/restore,
+   so no lock is needed. */
+void Omap3530SyscPadconf::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint16_t));
+}
+
+void Omap3530SyscPadconf::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint16_t));
 }
 
 }  /* namespace */

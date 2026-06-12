@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../board_detector.h"
 
 #include <cstdint>
@@ -33,6 +34,17 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(interrupt_mask_);
+        w.Write(interrupt_pending_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(interrupt_mask_);
+        r.Read(interrupt_pending_);
+    }
 
 private:
     mutable std::mutex state_mutex_;

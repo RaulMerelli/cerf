@@ -11,6 +11,8 @@
 class ArmJit;
 class ArmProcessorConfig;
 class EmulatedMemory;
+class StateWriter;
+class StateReader;
 
 class ArmMmu : public Service {
 public:
@@ -20,6 +22,11 @@ public:
     void OnReady() override;
 
     ArmMmuState* State() { return &state_; }
+
+    /* Persistent cp15 registers only. TLBs + SMC bitmaps are derived;
+       RestoreState flushes the TLBs, the JIT TC flush clears the rest. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
     /* On nullptr return, check io_pending_address(): zero ⇒ genuine
        fault (FAR/FSR set, caller raises abort); non-zero ⇒ PA lies

@@ -31,6 +31,9 @@ public:
     /* nullptr when no controller provided the socket. */
     PcmciaSlot* Socket(int n) const;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     enum class Region { Io, Reserved, Attribute, Common };
 

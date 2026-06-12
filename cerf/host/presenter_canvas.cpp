@@ -8,6 +8,16 @@ namespace {
 constexpr wchar_t  kCanvasClass[]     = L"CerfPresenterCanvas";
 constexpr UINT_PTR kPresentTimerId    = 1;
 constexpr UINT     kPresentIntervalMs = 16;  /* ~60 Hz */
+
+void DesaturatePresent(uint32_t* px, int count) {
+    for (int i = 0; i < count; ++i) {
+        const uint32_t p = px[i];
+        const uint32_t y = (((p >> 16) & 0xFFu) * 77u +
+                            ((p >> 8)  & 0xFFu) * 150u +
+                            ( p        & 0xFFu) * 29u) >> 8;  /* Rec.601 luma */
+        px[i] = (p & 0xFF000000u) | (y << 16) | (y << 8) | y;
+    }
+}
 }  /* namespace */
 
 PresenterCanvas::~PresenterCanvas() {
@@ -96,6 +106,9 @@ void PresenterCanvas::TickAndPresent() {
     const bool alt = host_ &&
         host_->RenderAltContent(present_dc_, present_bits_, canvas_w_, canvas_h_);
     if (!alt) presenter_.ComposeInto(present_dc_, present_bits_);
+
+    if (host_ && host_->ShouldDesaturatePresent())
+        DesaturatePresent(present_bits_, canvas_w_ * canvas_h_);
 }
 
 LRESULT CALLBACK PresenterCanvas::WndProcStatic(HWND hwnd, UINT msg,

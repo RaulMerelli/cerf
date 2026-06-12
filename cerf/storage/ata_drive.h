@@ -4,6 +4,9 @@
 
 #include "disk_image.h"
 
+class StateWriter;
+class StateReader;
+
 /* A single ATA-6 PIO hard drive, parameterized by a DiskImage*, reusable by any
    ATA host controller. IDENTIFY capability bits are a contract: advertising DMA
    or LBA48 makes the host issue READ DMA / READ SECTORS EXT, which have no
@@ -42,6 +45,12 @@ public:
     /* RESET- pin: SRST and the system reset line both land here; presents
        the post-reset ATA device signature. */
     void Reset();
+
+    /* In-flight transfer state (task-file + PIO block + cursors). The backing
+       DiskImage is file-backed and persists on its own, so it is not part of
+       this snapshot. */
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
 
 private:
     /* ATA STATUS register bits (Linux include/linux/ata.h v6.6). */

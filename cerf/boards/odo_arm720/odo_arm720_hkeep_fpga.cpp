@@ -6,6 +6,7 @@
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -43,6 +44,19 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* State image: the two guest-written LED registers. last_drawn_*
+       are UI-thread display latches, not guest state. */
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write<uint32_t>(led_discrete_value_);
+        w.Write<uint32_t>(led_alpha_value_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(led_discrete_value_);
+        r.Read(led_alpha_value_);
+    }
 
     /* HostWidget. The icon IS the LED — the discrete LED register lights it,
        the 4-char alpha display shows in the tooltip. No RX/TX. */

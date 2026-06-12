@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <array>
 #include <cstdint>
@@ -49,6 +50,10 @@ public:
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
 
 private:
     std::array<uint32_t, 15> regs_ = kReset;

@@ -29,6 +29,11 @@ public:
     FastReadFn  FastReader() override { return &FastReadThunk;  }
     FastWriteFn FastWriter() override { return &FastWriteThunk; }
 
+    /* The pixel region lives in the CerfVirtFramebuffer service, not this
+       window; delegate the snapshot to its owner. */
+    void SaveState(StateWriter& w) override { fb_->SaveState(w); }
+    void RestoreState(StateReader& r) override { fb_->RestoreState(r); }
+
 private:
     static uint32_t FastReadThunk(void* ctx, uint32_t off, uint32_t width_bytes) {
         auto* self = static_cast<CerfVirtFramebufferMem*>(ctx);

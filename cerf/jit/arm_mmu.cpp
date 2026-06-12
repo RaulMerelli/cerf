@@ -6,10 +6,55 @@
 #include "../cpu/emulated_memory.h"
 #include "arm_pte.h"
 #include "arm_tlb_ops.h"
+#include "../state/state_stream.h"
 
 REGISTER_SERVICE(ArmMmu);
 
 ArmMmu::~ArmMmu() = default;
+
+void ArmMmu::SaveState(StateWriter& w) {
+    w.Write(state_.control_register);
+    w.Write(state_.aux_control_register);
+    w.Write(state_.translation_table_base);
+    w.Write(state_.domain_access_control);
+    w.Write(state_.fault_status);
+    w.Write(state_.fault_address);
+    w.Write(state_.process_id);
+    w.Write(state_.coprocessor_access);
+    w.Write(state_.cssel_register);
+    w.Write(state_.ttbr1);
+    w.Write(state_.ttbcr);
+    w.Write(state_.prrr);
+    w.Write(state_.nmrr);
+    w.Write(state_.contextidr);
+    w.Write(state_.tpidrurw);
+    w.Write(state_.tpidruro);
+    w.Write(state_.tpidrprw);
+}
+
+void ArmMmu::RestoreState(StateReader& r) {
+    r.Read(state_.control_register);
+    r.Read(state_.aux_control_register);
+    r.Read(state_.translation_table_base);
+    r.Read(state_.domain_access_control);
+    r.Read(state_.fault_status);
+    r.Read(state_.fault_address);
+    r.Read(state_.process_id);
+    r.Read(state_.coprocessor_access);
+    r.Read(state_.cssel_register);
+    r.Read(state_.ttbr1);
+    r.Read(state_.ttbcr);
+    r.Read(state_.prrr);
+    r.Read(state_.nmrr);
+    r.Read(state_.contextidr);
+    r.Read(state_.tpidrurw);
+    r.Read(state_.tpidruro);
+    r.Read(state_.tpidrprw);
+    /* Restored TTBR0/process_id/contextidr differ from the live TLBs'
+       context; a stale entry would return the prior context's PA. */
+    ArmTlbFlushAll(&state_.data_tlb);
+    ArmTlbFlushAll(&state_.instruction_tlb);
+}
 
 void ArmMmu::OnReady() {
     memory_           = &emu_.Get<EmulatedMemory>();

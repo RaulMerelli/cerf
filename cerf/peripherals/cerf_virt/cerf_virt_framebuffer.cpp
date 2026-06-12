@@ -8,6 +8,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 REGISTER_SERVICE(CerfVirtFramebuffer);
 
@@ -78,6 +79,39 @@ void CerfVirtFramebuffer::OnReady() {
                 "fb_size=%u region=%u bytes (offscreen=%u bytes)\n",
         width_, height_, bpp_, Stride(), SizeBytes(),
         region_bytes_, region_bytes_ - SizeBytes());
+}
+
+void CerfVirtFramebuffer::SaveState(StateWriter& w) {
+    /* bpp_/region_bytes_/primary_reserve_ are boot-fixed from DeviceConfig +
+       host monitors and re-derived in OnReady, so only the live guest mode and
+       the pixel region travel in the image. */
+    w.Write(width_);
+    w.Write(height_);
+    w.Write<uint8_t>(any_write_ ? 1u : 0u);
+    w.Write<uint64_t>(bytes_.size());
+    if (!bytes_.empty()) w.WriteBytes(bytes_.data(), bytes_.size());
+}
+
+void CerfVirtFramebuffer::RestoreState(StateReader& r) {
+    r.Read(width_);
+    r.Read(height_);
+    uint8_t aw = 0;
+    r.Read(aw);
+    any_write_ = (aw != 0);
+    uint64_t n = 0;
+    r.Read(n);
+    if (n == bytes_.size()) {
+        if (n) r.ReadBytes(bytes_.data(), bytes_.size());
+    } else {
+        /* The saved video region was sized for a different host monitor set, so
+           it cannot map onto this run's region; consume the bytes to keep the
+           peripheral stream aligned and let the guest repaint. */
+        LOG(Caution, "[CerfVirtFramebuffer] saved FB region %llu B != live %zu B; "
+                     "FB content not restored\n",
+            static_cast<unsigned long long>(n), bytes_.size());
+        std::vector<uint8_t> discard(static_cast<size_t>(n));
+        if (n) r.ReadBytes(discard.data(), static_cast<size_t>(n));
+    }
 }
 
 void CerfVirtFramebuffer::ApplyGuestMode(uint32_t w, uint32_t h) {

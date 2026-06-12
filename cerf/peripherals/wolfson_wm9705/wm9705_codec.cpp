@@ -3,6 +3,7 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 namespace {
 /* AC'97 vendor/device-ID registers + WM9705 identity. Values from the Linux
@@ -75,6 +76,14 @@ void Wm9705Codec::WriteReg(uint32_t reg, uint16_t value) {
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     reg_[kRegDigitiser1] = static_cast<uint16_t>(value & ~kWmPoll);
+}
+
+void Wm9705Codec::SaveState(StateWriter& w) {
+    w.WriteBytes(reg_, sizeof(reg_));
+}
+
+void Wm9705Codec::RestoreState(StateReader& r) {
+    r.ReadBytes(reg_, sizeof(reg_));
 }
 
 REGISTER_SERVICE_AS(Wm9705Codec, Ac97Codec);

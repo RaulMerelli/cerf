@@ -5,6 +5,8 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../peripherals/pcmcia/pcmcia_slot.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -34,6 +36,15 @@ public:
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
+
+    /* The single forward site for the Cirrus slot (a Service off the walk);
+       the mem-window peripheral deliberately does not duplicate it. */
+    void SaveState(StateWriter& w) override {
+        emu_.Get<Pd6710Controller>().SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        emu_.Get<Pd6710Controller>().RestoreState(r);
+    }
 
     uint8_t  ReadByte (uint32_t addr) override;
     uint16_t ReadHalf (uint32_t addr) override;

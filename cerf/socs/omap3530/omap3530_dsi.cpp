@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -151,6 +152,21 @@ public:
             dsi_pll_[poff / 4u] = value;
             return;
         }
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.WriteBytes(dsi_,     sizeof(dsi_));
+        w.WriteBytes(dsi_phy_, sizeof(dsi_phy_));
+        w.WriteBytes(dsi_pll_, sizeof(dsi_pll_));
+        w.Write(pll_locked_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.ReadBytes(dsi_,     sizeof(dsi_));
+        r.ReadBytes(dsi_phy_, sizeof(dsi_phy_));
+        r.ReadBytes(dsi_pll_, sizeof(dsi_pll_));
+        r.Read(pll_locked_);
     }
 
 private:

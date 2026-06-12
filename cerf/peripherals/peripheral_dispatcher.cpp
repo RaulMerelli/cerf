@@ -16,6 +16,13 @@ void PeripheralDispatcher::OnReady() {
     mmu_ = &emu_.Get<ArmMmu>();
 }
 
+std::vector<Peripheral*> PeripheralDispatcher::RegisteredPeripherals() const {
+    std::vector<Peripheral*> out;
+    out.reserve(entries_.size());
+    for (const auto& e : entries_) out.push_back(e.p);
+    return out;
+}
+
 void PeripheralDispatcher::Register(Peripheral* p) {
     if (!p) {
         LOG(Caution, "PeripheralDispatcher::Register called with null\n");

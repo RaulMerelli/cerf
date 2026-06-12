@@ -7,6 +7,7 @@
 #include "../../core/device_config.h"
 #include "../../host/host_canvas.h"
 #include "../../host/pointer_input.h"
+#include "../../state/state_stream.h"
 
 REGISTER_SERVICE(CerfVirtPointer);
 
@@ -33,6 +34,23 @@ uint32_t CerfVirtPointer::ReadWord(uint32_t addr) {
 }
 
 void CerfVirtPointer::WriteWord(uint32_t, uint32_t) {}
+
+void CerfVirtPointer::SaveState(StateWriter& w) {
+    w.Write<uint32_t>(x_.load());
+    w.Write<uint32_t>(y_.load());
+    w.Write<uint32_t>(buttons_.load());
+    w.Write<uint32_t>(wheel_.load());
+    w.Write<uint32_t>(seq_.load());
+}
+
+void CerfVirtPointer::RestoreState(StateReader& r) {
+    uint32_t v;
+    r.Read(v); x_.store(v);
+    r.Read(v); y_.store(v);
+    r.Read(v); buttons_.store(v);
+    r.Read(v); wheel_.store(v);
+    r.Read(v); seq_.store(v);
+}
 
 /* Bump seq AFTER the data stores so the guest never reads a new seq with
    stale X/Y/buttons. */

@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -141,6 +142,27 @@ void MediaQMq1188::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (InRegWindow(off)) { RegWrite(addr, value); return; }
     std::memcpy(&sram_[off], &value, sizeof(value));
+}
+
+void MediaQMq1188::SaveState(StateWriter& w) {
+    w.Write<uint64_t>(sram_.size());
+    if (!sram_.empty()) w.WriteBytes(sram_.data(), sram_.size());
+    w.WriteBytes(reg_, sizeof(reg_));
+    w.Write<uint8_t>(enable_published_ ? 1u : 0u);
+    w.Write(published_w_);
+    w.Write(published_h_);
+    ge_.SaveState(w);
+}
+
+void MediaQMq1188::RestoreState(StateReader& r) {
+    uint64_t n = 0; r.Read(n);
+    sram_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(sram_.data(), static_cast<size_t>(n));
+    r.ReadBytes(reg_, sizeof(reg_));
+    uint8_t en = 0; r.Read(en); enable_published_ = (en != 0);
+    r.Read(published_w_);
+    r.Read(published_h_);
+    ge_.RestoreState(r);
 }
 
 REGISTER_SERVICE(MediaQMq1188);

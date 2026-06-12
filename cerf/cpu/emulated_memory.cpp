@@ -3,6 +3,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../boards/page_table_builder.h"
+#include "../state/state_stream.h"
 
 #include <cstring>
 
@@ -224,6 +225,113 @@ void EmulatedMemory::WipeVolatileRegions() {
             std::memset(host, 0, r.size);
             LOG(Mem, "WipeVolatileRegions: region 0x%08X size 0x%X zeroed\n",
                 r.base, r.size);
+        }
+    }
+}
+
+void EmulatedMemory::SaveState(StateWriter& w) {
+    const size_t n = count_.load(std::memory_order_acquire);
+    uint32_t volatile_count = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const Region& r = regions_[i];
+        if (r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ)
+            continue;
+        ++volatile_count;
+    }
+    w.Write(volatile_count);
+    for (size_t i = 0; i < n; ++i) {
+        Region& r = regions_[i];
+        if (r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ)
+            continue;
+        w.Write(r.base);
+        w.Write(r.size);
+        uint8_t* host = r.host_ptr.load(std::memory_order_acquire);
+        const uint8_t backed = host ? 1u : 0u;
+        w.Write(backed);
+        if (host) w.WriteBytes(host, r.size);
+    }
+}
+
+void EmulatedMemory::SaveFlashRegions(StateWriter& w) {
+    const size_t n = count_.load(std::memory_order_acquire);
+    uint32_t flash_count = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const Region& r = regions_[i];
+        if (r.page_protect != PAGE_READONLY && r.page_protect != PAGE_EXECUTE_READ)
+            continue;
+        if (r.host_ptr.load(std::memory_order_acquire) == nullptr)
+            continue;   /* never touched: nothing programmed, the ROM repopulates it */
+        ++flash_count;
+    }
+    w.Write(flash_count);
+    for (size_t i = 0; i < n; ++i) {
+        Region& r = regions_[i];
+        if (r.page_protect != PAGE_READONLY && r.page_protect != PAGE_EXECUTE_READ)
+            continue;
+        uint8_t* host = r.host_ptr.load(std::memory_order_acquire);
+        if (!host) continue;
+        w.Write(r.base);
+        w.Write(r.size);
+        w.WriteBytes(host, r.size);
+    }
+}
+
+void EmulatedMemory::RestoreFlashRegions(StateReader& r) {
+    uint32_t flash_count = 0;
+    r.Read(flash_count);
+    for (uint32_t k = 0; k < flash_count; ++k) {
+        uint32_t base = 0, size = 0;
+        r.Read(base);
+        r.Read(size);
+        if (!r.Ok()) return;
+        Region* reg = FindRegion(base);
+        if (!reg || reg->base != base || reg->size != size ||
+            (reg->page_protect != PAGE_READONLY &&
+             reg->page_protect != PAGE_EXECUTE_READ)) {
+            LOG(Caution, "EmulatedMemory::RestoreFlashRegions: region mismatch "
+                "base=0x%08X size=0x%X — image incompatible with memory map\n",
+                base, size);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        r.ReadBytes(EnsureBacked(reg), size);
+    }
+}
+
+uint64_t EmulatedMemory::VolatileByteCount() const {
+    const size_t n = count_.load(std::memory_order_acquire);
+    uint64_t total = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const Region& r = regions_[i];
+        if (r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ)
+            continue;
+        total += r.size;
+    }
+    return total;
+}
+
+void EmulatedMemory::RestoreState(StateReader& r) {
+    uint32_t volatile_count = 0;
+    r.Read(volatile_count);
+    for (uint32_t k = 0; k < volatile_count; ++k) {
+        uint32_t base = 0, size = 0;
+        uint8_t  backed = 0;
+        r.Read(base);
+        r.Read(size);
+        r.Read(backed);
+        if (!r.Ok()) return;
+        Region* reg = FindRegion(base);
+        if (!reg || reg->base != base || reg->size != size ||
+            reg->page_protect == PAGE_READONLY ||
+            reg->page_protect == PAGE_EXECUTE_READ) {
+            LOG(Caution, "EmulatedMemory::RestoreState: region mismatch "
+                "base=0x%08X size=0x%X — image incompatible with memory map\n",
+                base, size);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        if (backed) {
+            r.ReadBytes(EnsureBacked(reg), size);
+        } else if (uint8_t* host = reg->host_ptr.load(std::memory_order_acquire)) {
+            std::memset(host, 0, size);
         }
     }
 }

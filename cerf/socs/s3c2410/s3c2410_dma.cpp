@@ -5,6 +5,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
+#include "../../state/state_stream.h"
 #include "s3c2410_iis.h"
 
 #include <cstdint>
@@ -34,6 +35,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     static constexpr uint32_t kChannelStride = 0x40u;
@@ -179,6 +183,16 @@ void S3C2410Dma::WriteWord(uint32_t addr, uint32_t value) {
             iis.QueueOutput(src, queue_bytes);
         }
     }
+}
+
+void S3C2410Dma::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(channels_, sizeof(channels_));
+}
+
+void S3C2410Dma::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(channels_, sizeof(channels_));
 }
 
 }  /* namespace */

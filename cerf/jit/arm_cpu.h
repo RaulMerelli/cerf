@@ -7,6 +7,8 @@
 
 class ArmJit;
 struct DecodedInsn;
+class StateWriter;
+class StateReader;
 
 class ArmCpu : public Service {
 public:
@@ -15,6 +17,9 @@ public:
     void OnReady() override;
 
     ArmCpuState* State() { return &state_; }
+
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
     /* Called by ArmJit::OnReady — wires the back-pointer to the
        owning ArmJit. Resolving ArmJit inside ArmCpu::OnReady would

@@ -7,6 +7,7 @@
 #include "../../boards/board_detector.h"
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <atomic>
 
@@ -50,6 +51,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     /* Atomic: latched from host/timer threads while the JIT thread
@@ -118,6 +122,18 @@ void Sa11xxResetController::WriteWord(uint32_t addr, uint32_t value) {
     if (off == 0x4) { ApplyRcsrW1c(value); return; }
     if (off == 0x8) { tucr_ = value; return; }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Sa11xxResetController::SaveState(StateWriter& w) {
+    w.Write(rcsr_.load(std::memory_order_acquire));
+    w.Write(tucr_);
+}
+
+void Sa11xxResetController::RestoreState(StateReader& r) {
+    uint32_t rcsr = 0;
+    r.Read(rcsr);
+    rcsr_.store(rcsr, std::memory_order_release);
+    r.Read(tucr_);
 }
 
 }  /* namespace */

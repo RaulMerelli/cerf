@@ -98,6 +98,7 @@ $files = @(
     @{ Name = 'agent_docs/workflow.md';   Path = 'agent_docs\workflow.md' },
     @{ Name = 'agent_docs/subsystems.md'; Path = 'agent_docs\subsystems.md' },
     @{ Name = 'agent_docs/guest_additions.md'; Path = 'agent_docs\guest_additions.md' },
+    @{ Name = 'agent_docs/hibernation.md'; Path = 'agent_docs\hibernation.md' },
     @{ Name = 'agent_docs/jit.md';        Path = 'agent_docs\jit.md' },
     @{ Name = 'agent_docs/rules.md';      Path = 'agent_docs\rules.md' },
     @{ Name = 'agent_docs/code_style.md'; Path = 'agent_docs\code_style.md' },

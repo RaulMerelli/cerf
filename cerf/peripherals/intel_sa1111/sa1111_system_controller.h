@@ -20,6 +20,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* §5.2.3: SKAUD bits 6:0 hold (audio clock divider - 1); fs =
        143.7696 MHz / (256 * divider) reproduces Table 5-1 / Table 7-6
        (divider 25 -> 22.46 kHz actual). */

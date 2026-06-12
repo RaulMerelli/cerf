@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <ctime>
@@ -31,6 +32,11 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* The BCD calendar fields are read from the host clock (HostBcdField),
+       not stored, so only the control/alarm registers are state. */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     static uint32_t ToBcd(uint32_t v) {
@@ -115,6 +121,22 @@ void S3C2410Rtc::WriteWord(uint32_t addr, uint32_t value) {
                 HaltUnsupportedAccess("WriteWord", addr, value);  /* noreturn */
         }
     }
+}
+
+void S3C2410Rtc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(rtccon_);  w.Write(ticint_);  w.Write(rtcalm_);
+    w.Write(almsec_);  w.Write(almmin_);  w.Write(almhour_);
+    w.Write(almdate_); w.Write(almmon_);  w.Write(almyear_);
+    w.Write(rtcrst_);
+}
+
+void S3C2410Rtc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(rtccon_);  r.Read(ticint_);  r.Read(rtcalm_);
+    r.Read(almsec_);  r.Read(almmin_);  r.Read(almhour_);
+    r.Read(almdate_); r.Read(almmon_);  r.Read(almyear_);
+    r.Read(rtcrst_);
 }
 
 }  /* namespace */

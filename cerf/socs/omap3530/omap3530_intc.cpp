@@ -7,6 +7,7 @@
 #include "../../jit/cpu_state.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../../boards/board_detector.h"
 
 #include <bit>
@@ -248,6 +249,42 @@ void Omap3530Intc::WriteReg(uint32_t off, uint32_t value) {
     }
 }
 
+void Omap3530Intc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(banks_, sizeof(banks_));
+    w.WriteBytes(ilr_,   sizeof(ilr_));
+    w.Write(sysconfig_);
+    w.Write(control_);
+    w.Write(protection_);
+    w.Write(idle_);
+    w.Write(threshold_);
+}
+
+void Omap3530Intc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(banks_, sizeof(banks_));
+    r.ReadBytes(ilr_,   sizeof(ilr_));
+    r.Read(sysconfig_);
+    r.Read(control_);
+    r.Read(protection_);
+    r.Read(idle_);
+    r.Read(threshold_);
+}
+
+void Omap3530Intc::PostRestore() {
+    /* Re-derive the JIT IRQ-pending latch from the restored banks_/ilr_ after every
+       peripheral's RestoreState has run — the INTC owns the CPU IRQ line. Same
+       lock-then-notify-outside-lock shape as WriteReg's re-evaluation. */
+    bool pending = false;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        pending = HasPendingUnmasked();
+    }
+    auto& jit = emu_.Get<ArmJit>();
+    if (pending) jit.SetInterruptPending();
+    else         jit.ClearInterruptPending();
+}
+
 namespace {
 
 constexpr uint32_t kIntcMmioBasePa = 0x48200000u;
@@ -280,6 +317,16 @@ public:
         const uint32_t off = addr - MmioBase();
         LOG(Periph, "[INTC] W off=0x%03X <- 0x%08X\n", off, value);
         concrete.WriteReg(off, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        static_cast<Omap3530Intc&>(emu_.Get<IrqController>()).SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        static_cast<Omap3530Intc&>(emu_.Get<IrqController>()).RestoreState(r);
+    }
+    void PostRestore() override {
+        static_cast<Omap3530Intc&>(emu_.Get<IrqController>()).PostRestore();
     }
 };
 

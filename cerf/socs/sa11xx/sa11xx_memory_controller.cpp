@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -30,6 +31,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
 
 private:
     /* §10.2 Table 10-2 (offsets 0x00-0x2C) + §10.3 SMCNFG (+0x30). */

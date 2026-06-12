@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 class EmulatedMemory : public Service {
 public:
     using Service::Service;
@@ -58,6 +61,21 @@ public:
        writes survive a real power cycle. JIT thread at reset delivery
        only; anywhere else the memset races guest stores. */
     void WipeVolatileRegions();
+
+    /* State image: snapshot / restore every volatile region (the set
+       WipeVolatileRegions touches). Flash regions go through the separate
+       SaveFlashRegions/RestoreFlashRegions pair below. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+
+    /* State image: snapshot / restore the backed flash regions (PAGE_READONLY /
+       PAGE_EXECUTE_READ). A cold boot re-populates these from the ROM image, so
+       without this capture a restore reverts guest NOR/NAND writes to ROM. */
+    void SaveFlashRegions(StateWriter& w);
+    void RestoreFlashRegions(StateReader& r);
+
+    /* Total bytes across volatile regions — the save-progress denominator. */
+    uint64_t VolatileByteCount() const;
 
 private:
     struct Region {

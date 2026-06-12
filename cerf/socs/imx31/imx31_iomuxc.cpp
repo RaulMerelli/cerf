@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <array>
 #include <cstdint>
@@ -33,6 +34,10 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         regs_[(addr - kBase) >> 2] = value;
     }
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_.data(), sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_.data(), sizeof(regs_)); }
 
 private:
     std::array<uint32_t, kSize / 4> regs_{};

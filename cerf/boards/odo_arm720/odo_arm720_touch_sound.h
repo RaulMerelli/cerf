@@ -38,6 +38,9 @@ public:
     void OnPenMove(int host_x, int host_y);
     void OnPenUp  ();
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     static const char* SlotName(uint32_t off);
     static uint16_t HostPixelToRaw(int host_v);

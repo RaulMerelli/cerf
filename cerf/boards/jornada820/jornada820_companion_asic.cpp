@@ -4,6 +4,7 @@
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
+#include "../../state/state_stream.h"
 #include "jornada820_pcmcia.h"
 
 namespace {
@@ -91,6 +92,22 @@ void Jornada820CompanionAsic::RaisePcmciaCardIrq(int socket) {
 
 void Jornada820CompanionAsic::RaisePcmciaStatusChange(int socket) {
     RaiseIntrSource(socket == 0 ? kSrcStat0 : kSrcStat1);
+}
+
+void Jornada820CompanionAsic::SaveState(StateWriter& w) {
+    w.Write<uint64_t>(store_.size());
+    w.WriteBytes(store_.data(), store_.size());
+    w.Write(intr_pending_);
+    mouse_.SaveState(w);
+}
+
+void Jornada820CompanionAsic::RestoreState(StateReader& r) {
+    uint64_t n = 0;
+    r.Read(n);
+    store_.assign(static_cast<size_t>(n), 0u);
+    r.ReadBytes(store_.data(), static_cast<size_t>(n));
+    r.Read(intr_pending_);
+    mouse_.RestoreState(r);
 }
 
 REGISTER_SERVICE(Jornada820CompanionAsic);

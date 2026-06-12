@@ -36,6 +36,10 @@ public:
     uint32_t GetIclr() const;
     uint32_t GetIcIp() const;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+    void PostRestore() override;
+
 private:
     /* Drop and host-thread AssertSource racing JIT-thread WriteReg
        commits a stale jit.SetInterruptPending after the mask write

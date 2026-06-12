@@ -10,6 +10,7 @@
 #include "../../core/device_config.h"
 #include "../../core/folder_share_config.h"
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -75,6 +76,21 @@ public:
             case kFsResult:       result_ = value; break;
             default: break;   /* Enabled/Generation/MountPoint are read-only */
         }
+    }
+
+    /* serverpb_va_ is guest-registered and not re-sent on a resume, so a
+       mounted share breaks without it. mount_* is a lazy cache of
+       FolderShareConfig (host config, persists across restart) — left
+       uninited so the next read rebuilds it from the live config. */
+    void SaveState(StateWriter& w) override {
+        w.Write(serverpb_va_);
+        w.Write(last_code_);
+        w.Write(result_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(serverpb_va_);
+        r.Read(last_code_);
+        r.Read(result_);
     }
 
 private:

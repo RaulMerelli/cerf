@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "pxa255_intc.h"
 
 #include <cstdint>
@@ -32,6 +33,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     /* §9.9 register offsets within the 0x40300000 block. */
@@ -111,6 +115,16 @@ void Pxa255I2c::UpdateIrq() {
         ((isr_ & kIsrIRF) && (icr_ & kIcrIRFIE));
     if (active) emu_.Get<Pxa255Intc>().AssertSource(kIntcI2cBit);
     else        emu_.Get<Pxa255Intc>().DeassertSource(kIntcI2cBit);
+}
+
+void Pxa255I2c::SaveState(StateWriter& w) {
+    w.Write(icr_); w.Write(isr_); w.Write(idbr_); w.Write(isar_);
+    w.Write(reading_);
+}
+
+void Pxa255I2c::RestoreState(StateReader& r) {
+    r.Read(icr_); r.Read(isr_); r.Read(idbr_); r.Read(isar_);
+    r.Read(reading_);
 }
 
 }  /* namespace */

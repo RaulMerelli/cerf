@@ -20,6 +20,11 @@ public:
 
     PcmciaSlot& Slot() { return slot_; }
 
+    /* PCIC register file + the resident card (forwarded from the I/O window
+       peripheral, which is on the hibernation walk; the controller is not). */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+
     /* PCIC register file at I/O ports 0x3E0 (INDEX) / 0x3E1 (DATA). */
     uint8_t ReadPcicByte (uint32_t port);
     void    WritePcicByte(uint32_t port, uint8_t value);

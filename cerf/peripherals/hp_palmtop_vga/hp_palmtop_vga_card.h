@@ -37,6 +37,10 @@ public:
     void OnShutdown() override;
 
     void PowerOn () override;
+
+    const char* SaveId() const override { return "hpvga"; }
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
     void PowerOff() override;
 
     uint8_t  ReadAttribute8 (uint32_t offset)                override;

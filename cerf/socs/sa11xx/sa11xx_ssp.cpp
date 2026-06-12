@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa11xx_ssp_device.h"
 
 namespace {
@@ -31,6 +32,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t sscr0_ = 0;
@@ -108,6 +112,14 @@ void Sa11xxSsp::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxSsp::SaveState(StateWriter& w) {
+    w.Write(sscr0_);  w.Write(sscr1_);  w.Write(ssdr_);  w.Write(sssr_);
+}
+
+void Sa11xxSsp::RestoreState(StateReader& r) {
+    r.Read(sscr0_);  r.Read(sscr1_);  r.Read(ssdr_);  r.Read(sssr_);
 }
 
 }  /* namespace */

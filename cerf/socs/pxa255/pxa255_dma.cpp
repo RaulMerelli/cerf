@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "pxa255_ac97.h"
 #include "pxa255_intc.h"
 
@@ -49,6 +50,37 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
         WriteRegLocked(addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.WriteBytes(dcsr_,  sizeof(dcsr_));
+        w.WriteBytes(ddadr_, sizeof(ddadr_));
+        w.WriteBytes(dsadr_, sizeof(dsadr_));
+        w.WriteBytes(dtadr_, sizeof(dtadr_));
+        w.WriteBytes(dcmd_,  sizeof(dcmd_));
+        w.WriteBytes(drcmr_, sizeof(drcmr_));
+        w.WriteBytes(audio_active_, sizeof(audio_active_));
+        w.WriteBytes(touch_active_, sizeof(touch_active_));
+    }
+
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.ReadBytes(dcsr_,  sizeof(dcsr_));
+        r.ReadBytes(ddadr_, sizeof(ddadr_));
+        r.ReadBytes(dsadr_, sizeof(dsadr_));
+        r.ReadBytes(dtadr_, sizeof(dtadr_));
+        r.ReadBytes(dcmd_,  sizeof(dcmd_));
+        r.ReadBytes(drcmr_, sizeof(drcmr_));
+        r.ReadBytes(audio_active_, sizeof(audio_active_));
+        r.ReadBytes(touch_active_, sizeof(touch_active_));
+        /* The AC'97 host coupling these flags track is gone after a snapshot; a
+           channel left audio/touch-active would never get its AudioTick/TouchTick,
+           so clear them and let a RUN channel re-arm on the guest's next DCSR. */
+        for (uint32_t ch = 0; ch < kNumChannels; ++ch) {
+            audio_active_[ch] = false;
+            touch_active_[ch] = false;
+        }
     }
 
 private:

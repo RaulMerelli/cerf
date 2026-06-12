@@ -12,6 +12,9 @@ class SerialEndpoint;
    hw16550.h) so the in-ROM ser16550 MDD/PDD drives it unmodified; a
    SerialEndpoint personality sits behind it. RX arrives via PushRx from the
    personality's thread, so state is mutex-protected (IRQ callback fires off-lock). */
+class StateWriter;
+class StateReader;
+
 class Serial16550 {
 public:
     /* Level-triggered card IRQ. true -> raise the slot IRQ, false -> clear. */
@@ -22,6 +25,8 @@ public:
     /* Guest register access at I/O-window byte offset 0..7 (hw16550.h). Runs on
        the JIT thread under the slot bus lock. */
     uint8_t ReadReg8 (uint32_t offset);
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
     void    WriteReg8(uint32_t offset, uint8_t value);
 
     /* Personality -> RX. Any thread. Asserts the RX interrupt per IER/trigger. */

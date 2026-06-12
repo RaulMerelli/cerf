@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -42,6 +43,14 @@ public:
     void WriteHalf(uint32_t addr, uint16_t value) override { Latch(addr, value); }
 
     uint16_t Shadow() const { return shadow_; }
+
+    /* State image: the latch shadow is the entire guest-writable state. */
+    void SaveState(StateWriter& w) override {
+        w.Write(shadow_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(shadow_);
+    }
 
 private:
     void Latch(uint32_t addr, uint32_t value) {

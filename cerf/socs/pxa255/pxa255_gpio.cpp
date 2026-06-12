@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "pxa255_intc.h"
 
 bool Pxa255Gpio::ShouldRegister() {
@@ -83,6 +84,28 @@ void Pxa255Gpio::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Pxa255Gpio::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> g(mtx_);
+    w.WriteBytes(in_,   sizeof(in_));
+    w.WriteBytes(out_,  sizeof(out_));
+    w.WriteBytes(gpdr_, sizeof(gpdr_));
+    w.WriteBytes(grer_, sizeof(grer_));
+    w.WriteBytes(gfer_, sizeof(gfer_));
+    w.WriteBytes(gedr_, sizeof(gedr_));
+    w.WriteBytes(gafr_, sizeof(gafr_));
+}
+
+void Pxa255Gpio::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> g(mtx_);
+    r.ReadBytes(in_,   sizeof(in_));
+    r.ReadBytes(out_,  sizeof(out_));
+    r.ReadBytes(gpdr_, sizeof(gpdr_));
+    r.ReadBytes(grer_, sizeof(grer_));
+    r.ReadBytes(gfer_, sizeof(gfer_));
+    r.ReadBytes(gedr_, sizeof(gedr_));
+    r.ReadBytes(gafr_, sizeof(gafr_));
 }
 
 REGISTER_SERVICE(Pxa255Gpio);

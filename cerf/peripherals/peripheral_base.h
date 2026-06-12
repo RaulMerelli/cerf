@@ -4,10 +4,22 @@
 
 #include <cstdint>
 
+class StateWriter;
+class StateReader;
+
 class Peripheral : public Service {
 public:
     using Service::Service;
     ~Peripheral() override = default;
+
+    virtual void SaveState(StateWriter&) {}
+    virtual void RestoreState(StateReader&) {}
+
+    /* Second pass, after every peripheral's RestoreState has run. Re-assert
+       computed interrupt lines here (a source into its INTC, an INTC's JIT
+       notify) — done in RestoreState the peer being driven may not be restored
+       yet, so the assertion is clobbered. */
+    virtual void PostRestore() {}
 
     /* MMIO range. Stable for the lifetime of the peripheral. Both
        must be set before OnReady runs, since OnReady is where

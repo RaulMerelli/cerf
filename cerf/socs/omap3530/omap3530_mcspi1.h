@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -29,6 +30,40 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     void RegisterSlave(uint32_t channel, McspiSlave* slave);
+
+    /* RegisterSlave is a cross-thread caller, so the same mutex guards
+       state in both methods. The McspiSlave* pointers are host wiring,
+       re-established by RegisterSlave at construction — not serialized. */
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        w.Write(sysconfig_);
+        w.Write(irqstatus_);
+        w.Write(irqenable_);
+        w.Write(wakeupenable_);
+        w.Write(syst_);
+        w.Write(modulctrl_);
+        for (const Channel& c : channels_) {
+            w.Write(c.chconf);
+            w.Write(c.chctrl);
+            w.Write(c.rx);
+            w.Write(c.rx_full);
+        }
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        r.Read(sysconfig_);
+        r.Read(irqstatus_);
+        r.Read(irqenable_);
+        r.Read(wakeupenable_);
+        r.Read(syst_);
+        r.Read(modulctrl_);
+        for (Channel& c : channels_) {
+            r.Read(c.chconf);
+            r.Read(c.chctrl);
+            r.Read(c.rx);
+            r.Read(c.rx_full);
+        }
+    }
 
 private:
     struct Channel {

@@ -29,6 +29,11 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    /* Register/codec-shadow state only; the host audio/touch coupling is
+       transient and re-armed by the DMA after a restore (see the .cpp). */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* Audio-output coupling driven by the Pxa255Dma AC'97 channel. A missed block
        completion hangs the guest audio DMA thread, so on_block_done fires even
        with no audio device present (silent boots still post it). */

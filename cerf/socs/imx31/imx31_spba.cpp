@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -33,6 +34,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     /* Per-PRR latched state. RAR is the 3-bit access mask the owner
@@ -75,6 +79,23 @@ void Imx31Spba::WriteWord(uint32_t addr, uint32_t value) {
     p.owned_by_arm = (p.rar != 0u);
     LOG(Periph, "[SPBA] write PRR%u (0x%08X) := 0x%08X (RAR=%u owned_by_arm=%d)\n",
         idx, addr, value, p.rar, p.owned_by_arm);
+}
+
+/* Per-PRR latch is the only state. Serialize each Prr field-by-field rather
+   than blitting the struct array, since Prr's uint8_t+bool layout carries
+   padding that should not leak into the saved image. */
+void Imx31Spba::SaveState(StateWriter& w) {
+    for (const Prr& p : prrs_) {
+        w.Write(p.rar);
+        w.Write(p.owned_by_arm);
+    }
+}
+
+void Imx31Spba::RestoreState(StateReader& r) {
+    for (Prr& p : prrs_) {
+        r.Read(p.rar);
+        r.Read(p.owned_by_arm);
+    }
 }
 
 }  /* namespace */

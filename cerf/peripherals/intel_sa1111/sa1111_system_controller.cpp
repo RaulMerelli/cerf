@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool Sa1111SystemController::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -23,6 +24,14 @@ void Sa1111SystemController::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (off <= 0x20u && (off & 3u) == 0) { regs_[off >> 2] = value; return; }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Sa1111SystemController::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_, sizeof(regs_));
+}
+
+void Sa1111SystemController::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_, sizeof(regs_));
 }
 
 REGISTER_SERVICE(Sa1111SystemController);

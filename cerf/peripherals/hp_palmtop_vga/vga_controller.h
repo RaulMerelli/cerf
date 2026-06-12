@@ -20,6 +20,9 @@
    common-memory register window (card offset 0) to ReadReg8/WriteReg8 and its
    framebuffer window (card offset 0x200000) to the framebuffer. It implements
    FrameSource so the card's external-monitor window renders it. */
+class StateWriter;
+class StateReader;
+
 class VgaController : public FrameSource {
 public:
     VgaController();
@@ -28,6 +31,8 @@ public:
        byte sub-offset IS the classic VGA port (0x3C0..0x3DF, plus the card's
        0x43C8/0x43C9 pixel-clock extension). */
     uint8_t ReadReg8 (uint32_t port);
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
     void    WriteReg8(uint32_t port, uint8_t value);
 
     /* Linear framebuffer (card common-memory offset 0x200000). 8bpp covers up

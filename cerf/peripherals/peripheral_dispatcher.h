@@ -23,6 +23,10 @@ public:
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
+    /* Every registered peripheral, in registration order. Drives the
+       Hibernation uniform SaveState/RestoreState walk. */
+    std::vector<Peripheral*> RegisteredPeripherals() const;
+
     uint8_t  ReadByte (uint32_t addr);
     uint16_t ReadHalf (uint32_t addr);
     uint32_t ReadWord (uint32_t addr);

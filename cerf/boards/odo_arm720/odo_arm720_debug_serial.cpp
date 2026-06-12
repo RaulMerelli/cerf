@@ -8,6 +8,7 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../host/uart_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -71,6 +72,17 @@ public:
             (static_cast<uint32_t>(dma_high_ & 0xFFu) << 16) |
             static_cast<uint32_t>(dma_low_);
         return kDramPaBase + chip_addr;
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(dma_low_);
+        w.Write(dma_high_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(dma_low_);
+        r.Read(dma_high_);
     }
 
 protected:
@@ -165,6 +177,9 @@ public:
         const bool tx_en_rising = core_.Write(off, value);
         if (tx_en_rising) DispatchTx();
     }
+
+    void SaveState(StateWriter& w) override { core_.SaveState(w); }
+    void RestoreState(StateReader& r) override { core_.RestoreState(r); }
 
 private:
     void DispatchTx() {

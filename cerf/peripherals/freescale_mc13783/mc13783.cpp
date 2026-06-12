@@ -6,6 +6,8 @@
 #include "../../cpu/arm_processor_config.h"
 #include "../../jit/arm_jit.h"
 #include "../../jit/cpu_state.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 
 #include <chrono>
 
@@ -67,14 +69,31 @@ void Mc13783::RebaseToCurrent() {
 }
 
 void Mc13783::RebaseLoop() {
+    auto& freeze = emu_.Get<EmulationFreeze>();
     std::unique_lock<std::mutex> lk(cv_mtx_);
     while (!stop_.load(std::memory_order_acquire)) {
         lk.unlock();
-        RebaseToCurrent();
+        {
+            auto frozen = freeze.WorkerSection();
+            RebaseToCurrent();
+        }
         lk.lock();
         if (stop_.load(std::memory_order_acquire)) break;
         cv_.wait_for(lk, kRebaseInterval);
     }
+}
+
+void Mc13783::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_, sizeof(regs_));
+    w.Write<uint32_t>(RtcTotalSecs());   /* live RTC seconds; re-anchored on restore */
+}
+
+void Mc13783::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_, sizeof(regs_));
+    uint32_t secs = 0; r.Read(secs);
+    /* Re-anchor the RTC epoch to the restored cycle counter so RtcTotalSecs()
+       resumes from the saved second instead of a stale baseline (os_timer pattern). */
+    baseline_packed_.store(PackBaseline(secs, GuestCycles()), std::memory_order_release);
 }
 
 uint32_t Mc13783::SpiExchange(uint32_t cmd) {

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -42,6 +43,15 @@ public:
             case 0x04: smcr_ = value; return;
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(skcr_);
+        w.Write(smcr_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(skcr_);
+        r.Read(smcr_);
     }
 
 private:

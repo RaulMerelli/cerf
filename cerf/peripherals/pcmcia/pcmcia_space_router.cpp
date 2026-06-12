@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "pcmcia_slot.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -33,6 +34,23 @@ void PcmciaSpaceRouter::ProvideSockets(PcmciaSlot* socket0,
 
 PcmciaSlot* PcmciaSpaceRouter::Socket(int n) const {
     return (n == 0 || n == 1) ? sockets_[n] : nullptr;
+}
+
+/* Socket wiring is board-deterministic (same ROM -> same ProvideSockets),
+   so the present/absent pattern is symmetric across save and restore. */
+void PcmciaSpaceRouter::SaveState(StateWriter& w) {
+    for (int i = 0; i < 2; ++i) {
+        PcmciaSlot* s = sockets_[i];
+        w.Write<uint8_t>(s ? 1u : 0u);
+        if (s) s->SaveState(w);
+    }
+}
+
+void PcmciaSpaceRouter::RestoreState(StateReader& r) {
+    for (int i = 0; i < 2; ++i) {
+        uint8_t present = 0; r.Read(present);
+        if (present && sockets_[i]) sockets_[i]->RestoreState(r);
+    }
 }
 
 PcmciaSlot* PcmciaSpaceRouter::Decode(uint32_t addr, Region* region,

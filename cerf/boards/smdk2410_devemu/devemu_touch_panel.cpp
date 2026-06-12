@@ -8,9 +8,32 @@
 #include "../../host/touch_input.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/irq_controller.h"
+#include "../../state/state_stream.h"
 #include "../board_detector.h"
 
 REGISTER_SERVICE(DevEmuTouchPanel);
+
+void DevEmuTouchPanel::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(adccon_);
+    w.Write(adctsc_);
+    w.Write(adcdly_);
+    w.Write(adcdat0_);
+    w.Write(adcdat1_);
+    w.Write(sample_x_);
+    w.Write(sample_y_);
+}
+
+void DevEmuTouchPanel::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(adccon_);
+    r.Read(adctsc_);
+    r.Read(adcdly_);
+    r.Read(adcdat0_);
+    r.Read(adcdat1_);
+    r.Read(sample_x_);
+    r.Read(sample_y_);
+}
 
 namespace {
 

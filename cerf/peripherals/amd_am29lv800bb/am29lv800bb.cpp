@@ -7,6 +7,7 @@
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <cstring>
@@ -99,6 +100,12 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JEDEC command-FSM latch. The autoselect path temporarily overwrites
+       flash word0 with the ident (captured by the Flash section); only the
+       restored cmd_ + cached_word0_ let the guest reset undo it. */
+    void SaveState(StateWriter& w) override { w.Write(cmd_); w.Write(cached_word0_); }
+    void RestoreState(StateReader& r) override { r.Read(cmd_); r.Read(cached_word0_); }
 
 private:
     void DoWriteHalf(uint32_t io_addr, uint16_t value);

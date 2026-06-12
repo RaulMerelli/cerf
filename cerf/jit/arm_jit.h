@@ -225,6 +225,12 @@ public:
        to per-SoC cache-line size before the range-overlap check. */
     void FlushTranslationCache(uint32_t va, uint32_t length);
 
+    /* Re-derive the interrupt-poll trampoline byte from current CPU state.
+       After a bulk CPU-state restore the byte is stale (only Set/Clear-
+       InterruptPending update it), so a restored-pending IRQ goes
+       undelivered until the next peripheral event without this. */
+    void ResyncInterruptPoll();
+
     /* SCTLR.M 1→0 mid-block: drops host-side VA dispatch caches now,
        defers the arena flush to the next JitCompile. An arena flush
        here frees the block executing this call; no flush at all

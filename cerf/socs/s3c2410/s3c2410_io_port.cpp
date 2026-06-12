@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../irq_controller.h"
 
 namespace {
@@ -176,6 +177,18 @@ void S3C2410IoPort::ClearEint(int n) {
     if (report) {
         emu_.Get<IrqController>().AssertIrq(MainSourceBitForEint(n));
     }
+}
+
+void S3C2410IoPort::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(storage_, sizeof(storage_));
+    w.Write(eint_level_);
+}
+
+void S3C2410IoPort::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(storage_, sizeof(storage_));
+    r.Read(eint_level_);
 }
 
 REGISTER_SERVICE(S3C2410IoPort);

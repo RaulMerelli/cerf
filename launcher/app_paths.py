@@ -15,18 +15,9 @@ def exe_dir() -> Path:
 
 
 def resolve_devices_dir() -> Path:
-    sibling = exe_dir() / "devices"
-    if sibling.is_dir():
-        return sibling
-    current = exe_dir()
-    for _ in range(6):
-        candidate = current / "bundled" / "devices"
-        if candidate.is_dir():
-            return candidate
-        if current.parent == current:
-            break
-        current = current.parent
-    return sibling
+    # The launcher and cerf.exe are co-located; cerf.exe reads/writes its ROMs
+    # and state.img under "<exe dir>/devices", so the launcher uses the same tree.
+    return exe_dir() / "devices"
 
 
 def resolve_cerf_exe() -> Optional[Path]:

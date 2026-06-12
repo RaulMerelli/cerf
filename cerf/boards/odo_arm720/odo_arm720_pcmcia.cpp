@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -43,6 +44,21 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(pcmcia_reg0_);
+        w.Write(pcmcia_intr_reg0_);
+        w.Write(pcmcia_reg1_);
+        w.Write(pcmcia_intr_reg1_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(pcmcia_reg0_);
+        r.Read(pcmcia_intr_reg0_);
+        r.Read(pcmcia_reg1_);
+        r.Read(pcmcia_intr_reg1_);
+    }
 
 private:
     static bool IsControlSlot(uint32_t off) {

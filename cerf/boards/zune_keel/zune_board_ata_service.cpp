@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../core/cerf_paths.h"
 #include "../../core/string_utils.h"
 #include "../../storage/disk_image.h"
 
@@ -57,8 +58,7 @@ public:
     }
 
     std::string GetImagePath() override {
-        return GetCerfDir() + "devices/" +
-               emu_.Get<DeviceConfig>().device_name + "/hdd.img";
+        return GetDeviceDir(emu_.Get<DeviceConfig>().device_name) + "hdd.img";
     }
     uint64_t GetCapacityBytes() const override { return kCapacityBytes; }
 

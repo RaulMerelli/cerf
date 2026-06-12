@@ -7,9 +7,40 @@
 #include "../../host/keyboard_input.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/irq_controller.h"
+#include "../../state/state_stream.h"
 #include "../board_detector.h"
 
 REGISTER_SERVICE(DevEmuPs2Keyboard);
+
+void DevEmuPs2Keyboard::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(spcon_);
+    w.Write(spsta_);
+    w.Write(sppin_);
+    w.Write(sppre_);
+    w.Write(sptdat_);
+    w.Write(sprdat_);
+    w.WriteBytes(queue_, sizeof(queue_));
+    w.Write<int32_t>(queue_head_);
+    w.Write<int32_t>(queue_tail_);
+    w.Write<uint8_t>(num_lock_state_ ? 1u : 0u);
+}
+
+void DevEmuPs2Keyboard::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(spcon_);
+    r.Read(spsta_);
+    r.Read(sppin_);
+    r.Read(sppre_);
+    r.Read(sptdat_);
+    r.Read(sprdat_);
+    r.ReadBytes(queue_, sizeof(queue_));
+    int32_t v;
+    r.Read(v); queue_head_ = v;
+    r.Read(v); queue_tail_ = v;
+    uint8_t b;
+    r.Read(b); num_lock_state_ = (b != 0);
+}
 
 namespace {
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -20,6 +21,10 @@ public:
 
     void AssertSource(uint32_t source_num);
     void DeassertSource(uint32_t source_num);
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
 private:
     mutable std::mutex state_mtx_;

@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../irq_controller.h"
 #include "omap3530_gpio_bus.h"
 
@@ -31,9 +32,27 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
 
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        SaveRegsLocked(w);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        RestoreRegsLocked(r);
+    }
+
 protected:
     virtual const char* Label() const = 0;
     virtual const char* RegisterName(uint32_t off) const = 0;
+
+    /* regs_ is sized in OnReady (MmioSize/4), which runs before restore, so
+       the blob length matches on both sides for the same concrete. */
+    void SaveRegsLocked(StateWriter& w) const {
+        w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint32_t));
+    }
+    void RestoreRegsLocked(StateReader& r) {
+        r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint32_t));
+    }
 
     uint32_t PeekReg(uint32_t off) const {
         std::lock_guard<std::mutex> lk(mu_);
@@ -196,6 +215,17 @@ public:
         LOG(Periph, "[%s] W %s (0x%02X) <- 0x%08X\n",
             Label(), name ? name : "?", off, value);
         if (need_recompute) RecomputeIrqLineLocked();
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        SaveRegsLocked(w);
+        w.Write(irq_line_high_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        RestoreRegsLocked(r);
+        r.Read(irq_line_high_);
     }
 
 protected:

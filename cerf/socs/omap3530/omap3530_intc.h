@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 class Omap3530Intc : public IrqController {
 public:
     using IrqController::IrqController;
@@ -18,6 +21,12 @@ public:
 
     uint32_t ReadReg (uint32_t offset);
     void     WriteReg(uint32_t offset, uint32_t value);
+
+    /* Called by the sibling Omap3530IntcMmio Peripheral's SaveState/RestoreState/
+       PostRestore (the registered Peripheral is stateless and delegates here). */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+    void PostRestore();
 
 private:
     /* Per-bank state. */

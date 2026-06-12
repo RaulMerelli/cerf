@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
 
 bool Sa11xxGpio::ShouldRegister() {
@@ -102,6 +103,35 @@ void Sa11xxGpio::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (off > 0x1C || (off & 0x3u) != 0) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxGpio::SaveState(StateWriter& w) {
+    std::unique_lock<std::mutex> lk(mtx_);
+    w.Write(output_state_);
+    w.Write(input_state_);
+    w.Write(gpdr_);
+    w.Write(grer_);
+    w.Write(gfer_);
+    w.Write(gedr_);
+    w.Write(gafr_);
+}
+
+void Sa11xxGpio::RestoreState(StateReader& r) {
+    std::unique_lock<std::mutex> lk(mtx_);
+    r.Read(output_state_);
+    r.Read(input_state_);
+    r.Read(gpdr_);
+    r.Read(grer_);
+    r.Read(gfer_);
+    r.Read(gedr_);
+    r.Read(gafr_);
+}
+
+void Sa11xxGpio::PostRestore() {
+    /* Re-establish the GEDR->ICPR source levels into the INTC, which the
+       INTC's own RestoreState can't know about. */
+    std::unique_lock<std::mutex> lk(mtx_);
+    PublishEdgeSourcesLocked();
 }
 
 REGISTER_SERVICE(Sa11xxGpio);

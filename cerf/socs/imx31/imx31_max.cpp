@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -33,6 +34,18 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override {
+        w.WriteBytes(mpr_,   sizeof(mpr_));
+        w.WriteBytes(sgpcr_, sizeof(sgpcr_));
+        w.WriteBytes(mgpcr_, sizeof(mgpcr_));
+    }
+    void RestoreState(StateReader& r) override {
+        r.ReadBytes(mpr_,   sizeof(mpr_));
+        r.ReadBytes(sgpcr_, sizeof(sgpcr_));
+        r.ReadBytes(mgpcr_, sizeof(mgpcr_));
+    }
 
 private:
     uint32_t mpr_   [kSlavePorts]  = {};   /* offset 0x000 + N*0x100 */

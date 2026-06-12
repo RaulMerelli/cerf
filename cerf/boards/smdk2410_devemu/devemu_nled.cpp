@@ -5,6 +5,7 @@
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../board_detector.h"
 
 #include <array>
@@ -56,6 +57,15 @@ public:
 
     uint8_t ReadByte (uint32_t addr) override;
     void    WriteByte(uint32_t addr, uint8_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.WriteBytes(regs_.data(), regs_.size());
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.ReadBytes(regs_.data(), regs_.size());
+    }
 
     /* HostWidget. The icon IS the LED state; no data path -> no RX/TX. */
     std::wstring WidgetName() const override { return L"Notification LED"; }

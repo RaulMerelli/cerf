@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool S3C2410Lcd::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -80,6 +81,16 @@ uint32_t S3C2410Lcd::GetGuestW() {
 uint32_t S3C2410Lcd::GetGuestH() {
     /* LCDCON2[23:14] = LINEVAL = height - 1. */
     return ((ctrl_[kIdxLCDCON2] >> 14) & 0x3FFu) + 1u;
+}
+
+void S3C2410Lcd::SaveState(StateWriter& w) {
+    w.WriteBytes(ctrl_, sizeof(ctrl_));
+    w.WriteBytes(pal_,  sizeof(pal_));
+}
+
+void S3C2410Lcd::RestoreState(StateReader& r) {
+    r.ReadBytes(ctrl_, sizeof(ctrl_));
+    r.ReadBytes(pal_,  sizeof(pal_));
 }
 
 REGISTER_SERVICE(S3C2410Lcd);

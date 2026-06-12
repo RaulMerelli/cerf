@@ -12,6 +12,10 @@
 #include "host_widget_registry.h"
 #include "host_window.h"
 #include "memory_visualizer.h"
+#include "emulation_pause.h"
+#include "../state/hibernation.h"
+
+#include <commdlg.h>
 
 REGISTER_SERVICE(HostMenu);
 
@@ -21,6 +25,9 @@ enum MenuId : int {
     kIdCtrlAltDel  = 201,
     kIdSoftReset   = 202,
     kIdHardReset   = 203,
+    kIdSaveState   = 204,
+    kIdLoadState   = 205,
+    kIdPause       = 206,
     kIdViewUart    = 100,
     kIdViewFb      = 101,
     kIdViewMemViz  = 102,
@@ -102,6 +109,13 @@ void HostMenu::OnInitMenuPopup(HMENU popup) {
            it created last time. */
         while (GetMenuItemCount(actions) > 0)
             DeleteMenu(actions, 0, MF_BYPOSITION);
+        AppendMenuW(actions, MF_STRING, kIdSaveState, L"Save state...");
+        AppendMenuW(actions, MF_STRING, kIdLoadState, L"Load state...");
+        AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(actions, MF_STRING, kIdPause,
+                    emu_.Get<EmulationPause>().IsPaused()
+                        ? L"Resume\tRight Ctrl+P" : L"Pause\tRight Ctrl+P");
+        AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
         emu_.Get<HostWidgetRegistry>().AppendAllToMenu(actions);
         AppendMenuW(actions, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(actions, MF_STRING, kIdCtrlAltDel,
@@ -114,7 +128,35 @@ void HostMenu::OnInitMenuPopup(HMENU popup) {
 
 void HostMenu::HandleCommand(int id) {
     auto& canvas = emu_.Get<HostCanvas>();
+
+    auto pick_state_path = [this](bool save) -> std::wstring {
+        wchar_t path[MAX_PATH];
+        lstrcpynW(path, emu_.Get<Hibernation>().DefaultStatePath().c_str(), MAX_PATH);
+        OPENFILENAMEW ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner   = emu_.Get<HostWindow>().Hwnd();
+        ofn.lpstrFilter = L"State image (*.img)\0*.img\0All files (*.*)\0*.*\0";
+        ofn.lpstrFile   = path;
+        ofn.nMaxFile    = MAX_PATH;
+        ofn.lpstrDefExt = L"img";
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR |
+                    (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+        const BOOL ok = save ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn);
+        return ok ? std::wstring(path) : std::wstring();
+    };
+
     switch (id) {
+        case kIdSaveState: {
+            const std::wstring p = pick_state_path(true);
+            if (!p.empty()) emu_.Get<Hibernation>().SaveAsync(p);
+            break;
+        }
+        case kIdLoadState: {
+            const std::wstring p = pick_state_path(false);
+            if (!p.empty()) emu_.Get<Hibernation>().RestoreAsync(p, false);
+            break;
+        }
+        case kIdPause:      emu_.Get<EmulationPause>().Toggle(); break;
         case kIdCtrlAltDel: emu_.Get<HostInputCapture>().SendCtrlAltDel(); break;
         case kIdSoftReset:  emu_.Get<GuestCpuReset>().WarmReset(); break;
         case kIdHardReset:

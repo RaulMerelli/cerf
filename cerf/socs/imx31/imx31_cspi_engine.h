@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -25,6 +26,17 @@ public:
 
     uint32_t ReadWord(uint32_t addr) override;
     void WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        w.Write(conreg_);    w.Write(intreg_);      w.Write(dmareg_);
+        w.Write(statreg_);   w.Write(periodreg_);   w.Write(testreg_);
+        w.Write(last_txdata_); w.Write(last_rxdata_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(conreg_);    r.Read(intreg_);      r.Read(dmareg_);
+        r.Read(statreg_);   r.Read(periodreg_);   r.Read(testreg_);
+        r.Read(last_txdata_); r.Read(last_rxdata_);
+    }
 
 protected:
     /* Exchange one word on chip-select cs, returning the slave's response.

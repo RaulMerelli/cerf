@@ -7,6 +7,7 @@
 #include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../jit/arm_mmu.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -76,6 +77,40 @@ void CerfVirtCursor::WriteWord(uint32_t addr, uint32_t value) {
         has_shape_ = true;
     }
     seq_.fetch_add(1u);
+}
+
+void CerfVirtCursor::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(shape_mutex_);
+    w.Write<uint32_t>(desc_va_.load());
+    w.Write<uint32_t>(seq_.load());
+    w.Write<uint8_t>(has_shape_ ? 1u : 0u);
+    w.Write<uint8_t>(shape_.visible ? 1u : 0u);
+    w.Write(shape_.cx);
+    w.Write(shape_.cy);
+    w.Write(shape_.xhot);
+    w.Write(shape_.yhot);
+    w.Write(shape_.stride);
+    w.Write<uint64_t>(shape_.bits.size());
+    if (!shape_.bits.empty()) w.WriteBytes(shape_.bits.data(), shape_.bits.size());
+}
+
+void CerfVirtCursor::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(shape_mutex_);
+    uint32_t v;
+    r.Read(v); desc_va_.store(v);
+    r.Read(v); seq_.store(v);
+    uint8_t b;
+    r.Read(b); has_shape_ = (b != 0);
+    r.Read(b); shape_.visible = (b != 0);
+    r.Read(shape_.cx);
+    r.Read(shape_.cy);
+    r.Read(shape_.xhot);
+    r.Read(shape_.yhot);
+    r.Read(shape_.stride);
+    uint64_t n = 0;
+    r.Read(n);
+    shape_.bits.resize(static_cast<size_t>(n));
+    if (n) r.ReadBytes(shape_.bits.data(), static_cast<size_t>(n));
 }
 
 bool CerfVirtCursor::GetShape(GuestCursorShape& out) {

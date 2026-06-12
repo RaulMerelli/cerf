@@ -22,6 +22,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     bool     IsEnabled();
     uint32_t GetFbPa();
     uint32_t GetGuestW();

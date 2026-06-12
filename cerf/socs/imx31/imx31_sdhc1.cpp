@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "imx31_avic.h"
 
 #include <cstdint>
@@ -100,6 +101,19 @@ public:
             case kBufAccess:  return;  /* no data transfer */
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(str_stp_clk_);  w.Write(status_);    w.Write(clk_rate_);
+        w.Write(cmd_dat_cont_); w.Write(res_to_);    w.Write(read_to_);
+        w.Write(blk_len_);      w.Write(nob_);       w.Write(int_cntr_);
+        w.Write(cmd_);          w.Write(arg_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(str_stp_clk_);  r.Read(status_);    r.Read(clk_rate_);
+        r.Read(cmd_dat_cont_); r.Read(res_to_);    r.Read(read_to_);
+        r.Read(blk_len_);      r.Read(nob_);       r.Read(int_cntr_);
+        r.Read(cmd_);          r.Read(arg_);
     }
 
 private:

@@ -4,7 +4,9 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "emulation_pause.h"
 #include "host_canvas.h"
+#include "host_key_prompt.h"
 #include "keyboard_input.h"
 
 REGISTER_SERVICE(HostInputCapture);
@@ -93,6 +95,15 @@ bool HostInputCapture::OnHookKey(WPARAM wParam, const KBDLLHOOKSTRUCT* k) {
     const bool  key_up = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
     const DWORD vk      = k->vkCode;
 
+    /* A UART-screen key prompt (boot prompt, restore-failure hold) owns the
+       keyboard while it is showing. */
+    if (!key_up) {
+        if (auto* kp = emu_.TryGet<HostKeyPrompt>(); kp && kp->Armed()) {
+            kp->OnKey(vk);
+            return true;
+        }
+    }
+
     if (vk == VK_RCONTROL) {
         if (!key_up) {
             rctrl_down_ = true;
@@ -109,6 +120,11 @@ bool HostInputCapture::OnHookKey(WPARAM wParam, const KBDLLHOOKSTRUCT* k) {
 
     if (rctrl_down_ && vk == VK_DELETE) {
         if (!key_up) SendCtrlAltDel();
+        return true;
+    }
+
+    if (rctrl_down_ && vk == 'P') {
+        if (!key_up) emu_.Get<EmulationPause>().Toggle();
         return true;
     }
 

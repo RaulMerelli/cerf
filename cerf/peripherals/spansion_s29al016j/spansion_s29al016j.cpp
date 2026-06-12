@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <vector>
@@ -153,6 +154,21 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        w.Write<uint64_t>(backing_.size());
+        if (!backing_.empty()) w.WriteBytes(backing_.data(), backing_.size());
+        w.Write(mode_);
+        w.Write(stage_);
+    }
+    void RestoreState(StateReader& r) override {
+        uint64_t n = 0;
+        r.Read(n);
+        backing_.assign(static_cast<size_t>(n), 0u);
+        if (n) r.ReadBytes(backing_.data(), static_cast<size_t>(n));
+        r.Read(mode_);
+        r.Read(stage_);
+    }
 
 private:
     uint16_t AutoSelectAt(uint32_t word_off) const;

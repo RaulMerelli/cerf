@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -28,6 +29,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     uint8_t  ReadByte (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     enum : uint32_t {
@@ -89,6 +93,18 @@ void Pxa255PowerManager::WriteWord(uint32_t addr, uint32_t value) {
     case kRCSR:  rcsr_ &= ~(value & 0xFu); return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Pxa255PowerManager::SaveState(StateWriter& w) {
+    w.Write(pmcr_);  w.Write(pssr_);  w.Write(pspr_);  w.Write(pwer_);
+    w.Write(prer_);  w.Write(pfer_);  w.Write(pedr_);  w.Write(pcfr_);
+    w.Write(pgsr0_); w.Write(pgsr1_); w.Write(pgsr2_); w.Write(rcsr_);
+}
+
+void Pxa255PowerManager::RestoreState(StateReader& r) {
+    r.Read(pmcr_);  r.Read(pssr_);  r.Read(pspr_);  r.Read(pwer_);
+    r.Read(prer_);  r.Read(pfer_);  r.Read(pedr_);  r.Read(pcfr_);
+    r.Read(pgsr0_); r.Read(pgsr1_); r.Read(pgsr2_); r.Read(rcsr_);
 }
 
 }  /* namespace */

@@ -27,6 +27,9 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     void SetTxListener(std::function<void(uint8_t)> fn) {
         tx_listener_ = std::move(fn);
     }

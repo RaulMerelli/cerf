@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../board_detector.h"
 
 #include <cstdint>
@@ -32,6 +33,15 @@ public:
 
     uint8_t ReadByte (uint32_t addr) override;
     void    WriteByte(uint32_t addr, uint8_t value) override;
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(speaker_phone_state_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(speaker_phone_state_);
+    }
 
 private:
     mutable std::mutex state_mutex_;

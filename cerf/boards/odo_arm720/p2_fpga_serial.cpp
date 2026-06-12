@@ -1,5 +1,7 @@
 #include "p2_fpga_serial.h"
 
+#include "../../state/state_stream.h"
+
 uint16_t P2FpgaSerial::Read(uint32_t slot_off) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     if (slot_off == kSlotCsrA) return csr_a_;
@@ -27,4 +29,16 @@ bool P2FpgaSerial::Write(uint32_t slot_off, uint16_t value) {
 void P2FpgaSerial::SetCsrABits(uint16_t bits) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     csr_a_ |= bits;
+}
+
+void P2FpgaSerial::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(csr_a_);
+    w.Write(csr_b_);
+}
+
+void P2FpgaSerial::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(csr_a_);
+    r.Read(csr_b_);
 }

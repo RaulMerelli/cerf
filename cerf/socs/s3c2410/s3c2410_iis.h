@@ -21,6 +21,11 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    /* Only the registers + the DMA-enable flag are machine state; the WAVEHDR
+       ring, host buffers, and waveOut handles are transient host audio. */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* S3C2410Dma DMA2 ON_OFF=1: buffers BLOCK_SIZE bytes into the active WAVEHDR
        and submits on full. Always posts MM_WOM_DONE so the audio thread fires
        INT_DMA2 even in a silent-mode boot. */

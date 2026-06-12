@@ -3,6 +3,7 @@
 #include "host_canvas.h"
 
 #include "../core/cerf_emulator.h"
+#include "emulation_pause.h"
 #include "frame_renderer.h"
 #include "host_canvas_input.h"
 #include "lcd_scan_tick.h"
@@ -64,6 +65,10 @@ bool HostCanvas::RenderAltContent(HDC dc, uint32_t* bits, int w, int h) {
     }
     emu_.Get<UartScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
     return true;
+}
+
+bool HostCanvas::ShouldDesaturatePresent() {
+    return tab_ == Tab::Framebuffer && emu_.Get<EmulationPause>().IsPaused();
 }
 
 bool HostCanvas::HandleInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,

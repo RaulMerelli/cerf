@@ -27,6 +27,9 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t v) override;
     void     WriteWord(uint32_t addr, uint32_t v) override;
 
+    void     SaveState(StateWriter& w) override;
+    void     RestoreState(StateReader& r) override;
+
     void QueuePs2Motion(int dx, int dy, uint32_t button_mask) {
         mouse_.QueueMotion(dx, dy, button_mask);
     }

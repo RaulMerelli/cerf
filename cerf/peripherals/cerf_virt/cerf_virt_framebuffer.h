@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <vector>
 
+class StateWriter;
+class StateReader;
+
 /* Shared state for the CERF virtual framebuffer. Resolution comes from
    DeviceConfig (board_configurable_screen_width/height); bpp pinned to
    32 (BGRA, host-native). The regs / mem peripherals and the renderer
@@ -48,6 +51,12 @@ public:
        SizeBytes exceeds the boot-fixed region_bytes_ is rejected, else the
        renderer reads past bytes_. */
     void ApplyGuestMode(uint32_t w, uint32_t h);
+
+    /* Snapshot the guest mode + the full host-backed video region (primary +
+       offscreen DDraw surfaces). Not an EmulatedMemory region, so the Ram
+       section does not cover it; the FB-mem peripheral delegates here. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
 private:
     uint32_t ComputeRegionBytes();

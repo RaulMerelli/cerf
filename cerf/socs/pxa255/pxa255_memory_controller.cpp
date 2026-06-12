@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -30,6 +31,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     static constexpr uint32_t kBootDef  = 0x44u;  /* read-only. */
     static constexpr uint32_t kLastReg  = 0x58u;  /* MDMRSLP. */
@@ -53,6 +57,14 @@ void Pxa255MemoryController::WriteWord(uint32_t addr, uint32_t value) {
     if (off == kBootDef) HaltUnsupportedAccess("WriteWord(BOOT_DEF read-only)", addr, value);
     if (off <= kLastReg && (off & 3u) == 0u) { regs_[off / 4u] = value; return; }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Pxa255MemoryController::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_, sizeof(regs_));
+}
+
+void Pxa255MemoryController::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_, sizeof(regs_));
 }
 
 }  /* namespace */

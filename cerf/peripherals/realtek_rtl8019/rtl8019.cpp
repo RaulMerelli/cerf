@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../net/network_backend.h"
+#include "../../state/state_stream.h"
 
 #include <cstdio>
 #include <cstring>
@@ -149,6 +150,48 @@ void Rtl8019::RaiseInterruptLocked(uint8_t bits) {
 void Rtl8019::ClearInterruptIfDrainedLocked() {
     if ((nic_intr_status_ & nic_intr_mask_) != 0u) return;
     slot_->ClearIrq();
+}
+
+/* rx_installed_ is host-coupling re-established at insert (OnInserted), not
+   guest state; the NIC register file + 16 KB card RAM (queued RX frames) is. */
+void Rtl8019::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(guest_mac_.data(), guest_mac_.size());
+    w.Write(nic_command_);
+    w.Write(nic_page_start_); w.Write(nic_page_stop_); w.Write(nic_boundary_);
+    w.Write(nic_xmit_status_); w.Write(nic_xmit_start_); w.Write(nic_xmit_count_);
+    w.Write(nic_fifo_); w.Write(nic_intr_status_); w.Write(nic_crda_);
+    w.Write(nic_rmt_addr_); w.Write(nic_rmt_count_); w.Write(nic_rcv_config_);
+    w.Write(nic_rcv_status_); w.Write(nic_xmit_config_); w.Write(nic_fae_err_);
+    w.Write(nic_data_config_); w.Write(nic_crc_err_); w.Write(nic_intr_mask_);
+    w.Write(nic_missed_cnt_);
+    w.WriteBytes(nic_phys_addr_.data(), nic_phys_addr_.size());
+    w.WriteBytes(nic_mc_addr_.data(), nic_mc_addr_.size());
+    w.Write(nic_current_);
+    w.Write(dma_count_); w.Write(dma_offset_);
+    w.Write(fcsr_); w.Write(cor_);
+    w.WriteBytes(card_rom_.data(), card_rom_.size());
+    w.WriteBytes(card_ram_.data(), card_ram_.size());
+}
+
+void Rtl8019::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(guest_mac_.data(), guest_mac_.size());
+    r.Read(nic_command_);
+    r.Read(nic_page_start_); r.Read(nic_page_stop_); r.Read(nic_boundary_);
+    r.Read(nic_xmit_status_); r.Read(nic_xmit_start_); r.Read(nic_xmit_count_);
+    r.Read(nic_fifo_); r.Read(nic_intr_status_); r.Read(nic_crda_);
+    r.Read(nic_rmt_addr_); r.Read(nic_rmt_count_); r.Read(nic_rcv_config_);
+    r.Read(nic_rcv_status_); r.Read(nic_xmit_config_); r.Read(nic_fae_err_);
+    r.Read(nic_data_config_); r.Read(nic_crc_err_); r.Read(nic_intr_mask_);
+    r.Read(nic_missed_cnt_);
+    r.ReadBytes(nic_phys_addr_.data(), nic_phys_addr_.size());
+    r.ReadBytes(nic_mc_addr_.data(), nic_mc_addr_.size());
+    r.Read(nic_current_);
+    r.Read(dma_count_); r.Read(dma_offset_);
+    r.Read(fcsr_); r.Read(cor_);
+    r.ReadBytes(card_rom_.data(), card_rom_.size());
+    r.ReadBytes(card_ram_.data(), card_ram_.size());
 }
 
 void Rtl8019::OnRxFrame(const uint8_t* frame, std::size_t len) {

@@ -5,6 +5,8 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 #include "../../socs/irq_controller.h"
 
 #include "odo_arm720_audio_player.h"
@@ -380,6 +382,7 @@ void OdoArm720TouchSound::OnPenUp() {
 }
 
 void OdoArm720TouchSound::PenTimerMain() {
+    auto& freeze = emu_.Get<EmulationFreeze>();
     while (!shutdown_.load(std::memory_order_acquire)) {
         {
             std::unique_lock<std::mutex> lk(pen_timer_cv_mtx_);
@@ -395,10 +398,37 @@ void OdoArm720TouchSound::PenTimerMain() {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             if (!pen_timer_enabled_.load(std::memory_order_acquire)) break;
             {
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                io_adc_str_ |= kPenTimingIntr;
+                auto frozen = freeze.WorkerSection();
+                {
+                    std::lock_guard<std::mutex> lk(state_mutex_);
+                    io_adc_str_ |= kPenTimingIntr;
+                }
+                RecomputeTouchAudioIrq();
             }
-            RecomputeTouchAudioIrq();
         }
     }
+}
+
+void OdoArm720TouchSound::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(io_adc_cntr_);  w.Write(io_adc_str_);
+    w.Write(ucb_cntr_);     w.Write(ucb_str_);  w.Write(ucb_register_);
+    w.Write(io_sound_cntr_); w.Write(io_sound_str_);
+    w.Write(intr_mask_);
+    w.WriteBytes(ucb_regs_, sizeof(ucb_regs_));
+    w.Write(adc_x_);  w.Write(adc_y_);
+}
+
+void OdoArm720TouchSound::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(io_adc_cntr_);  r.Read(io_adc_str_);
+    r.Read(ucb_cntr_);     r.Read(ucb_str_);  r.Read(ucb_register_);
+    r.Read(io_sound_cntr_); r.Read(io_sound_str_);
+    r.Read(intr_mask_);
+    r.ReadBytes(ucb_regs_, sizeof(ucb_regs_));
+    r.Read(adc_x_);  r.Read(adc_y_);
+    /* No host pen is held after a restore; drop the touch coupling so a saved
+       pen-down doesn't stick. */
+    pen_down_.store(false, std::memory_order_release);
+    pen_timer_enabled_.store(false, std::memory_order_release);
 }

@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -24,6 +25,11 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JIT-thread-only register file (no worker thread) — the JIT is paused
+       during save/restore, so no lock is needed. */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }
 
 private:
     static constexpr size_t kSlotCount = 3;  /* WTCON / WTDAT / WTCNT */

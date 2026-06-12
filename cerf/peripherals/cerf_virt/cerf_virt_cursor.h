@@ -31,6 +31,9 @@ public:
     uint32_t ReadWord(uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     uint32_t Seq() const { return seq_.load(); }
     bool GetShape(GuestCursorShape& out);   /* false until a shape arrives */
 

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -51,6 +52,13 @@ public:
         v = (addr & 1u) ? ((v & 0x00FFu) | (uint16_t(value) << 8))
                         : ((v & 0xFF00u) | value);
         WriteReg16(off, v);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(control_); w.Write(time_divider_); w.Write(reset_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(control_); r.Read(time_divider_); r.Read(reset_);
     }
 
 private:

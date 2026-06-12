@@ -62,6 +62,11 @@ public:
        call this from their Service::OnShutdown. */
     void OnShutdown();
 
+    /* Hibernation: powered flag + present-card identity + length-framed
+       card body. Forwarded from the walked Peripheral holding the slot. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+
     /* HostWidget. */
     std::wstring WidgetName() const override { return label_; }
     WidgetGroup  Group() const override { return WidgetGroup::Pcmcia; }

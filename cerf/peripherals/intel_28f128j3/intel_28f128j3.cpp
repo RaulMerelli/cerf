@@ -2,6 +2,7 @@
 
 #include "../../cpu/emulated_memory.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -31,6 +32,32 @@ const uint8_t Intel28F128J3::kCfi[] = {
     /* 0x3B */ 0x01, 0x00,                   /* block status register mask     */
     /* 0x3D */ 0x33, 0x00,                   /* Vcc/Vpp optimum 3.3 V / none   */
 };
+
+/* mode_ = CFI command-FSM latch; shadow_ = ID/CFI/lock-presentation undo log
+   (the backing is mutated to present those, captured by the Flash section, and
+   undone on read-array — so the undo log must survive a mid-presentation save);
+   block_locked_ = persistent per-block lock bits (datasheet Table 5). */
+void Intel28F128J3::SaveState(StateWriter& w) {
+    w.Write(mode_);
+    w.Write<uint64_t>(shadow_.size());
+    for (const auto& pr : shadow_) { w.Write(pr.first); w.Write(pr.second); }
+    w.Write<uint64_t>(block_locked_.size());
+    if (!block_locked_.empty())
+        w.WriteBytes(block_locked_.data(), block_locked_.size());
+}
+
+void Intel28F128J3::RestoreState(StateReader& r) {
+    r.Read(mode_);
+    uint64_t n = 0; r.Read(n);
+    shadow_.clear();
+    for (uint64_t i = 0; i < n; ++i) {
+        uint32_t a = 0; uint8_t b = 0; r.Read(a); r.Read(b);
+        shadow_.push_back({a, b});
+    }
+    uint64_t m = 0; r.Read(m);
+    block_locked_.assign(static_cast<size_t>(m), 0u);
+    if (m) r.ReadBytes(block_locked_.data(), static_cast<size_t>(m));
+}
 
 void Intel28F128J3::OnReady() {
     (void)emu_.Get<EmulatedMemory>().Translate(MmioBase());   /* ensure backing */

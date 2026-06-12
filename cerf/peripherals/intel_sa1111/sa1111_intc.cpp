@@ -4,6 +4,7 @@
 #include "../../boards/board_detector.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool Sa1111Intc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -100,6 +101,39 @@ void Sa1111Intc::RaiseInterrupt(uint8_t source) {
 void Sa1111Intc::LowerInterrupt(uint8_t source) {
     if (source < 32) { raw0_ &= ~(1u << source);        LatchEdges(false); }
     else             { raw1_ &= ~(1u << (source - 32)); LatchEdges(true);  }
+    DriveCascadeOutput(false);
+}
+
+/* Whole register/latch image — every member is a guest-observable
+   integer (raw lines, edge-detect latches, enable/polarity/test/status/
+   wake registers). Order mirrors the field declaration order in the .h. */
+void Sa1111Intc::SaveState(StateWriter& w) {
+    w.Write(raw0_);      w.Write(raw1_);
+    w.Write(detect0_);   w.Write(detect1_);
+    w.Write(inttest0_);  w.Write(inttest1_);
+    w.Write(enable0_);   w.Write(enable1_);
+    w.Write(polarity0_); w.Write(polarity1_);
+    w.Write(tstsel_);
+    w.Write(status0_);   w.Write(status1_);
+    w.Write(wake_en0_);  w.Write(wake_en1_);
+    w.Write(wake_pol0_); w.Write(wake_pol1_);
+}
+
+void Sa1111Intc::RestoreState(StateReader& r) {
+    r.Read(raw0_);      r.Read(raw1_);
+    r.Read(detect0_);   r.Read(detect1_);
+    r.Read(inttest0_);  r.Read(inttest1_);
+    r.Read(enable0_);   r.Read(enable1_);
+    r.Read(polarity0_); r.Read(polarity1_);
+    r.Read(tstsel_);
+    r.Read(status0_);   r.Read(status1_);
+    r.Read(wake_en0_);  r.Read(wake_en1_);
+    r.Read(wake_pol0_); r.Read(wake_pol1_);
+}
+
+void Sa1111Intc::PostRestore() {
+    /* Re-drive the cascade line to the SA-1110 GPIO from the restored status,
+       which RestoreState alone leaves stale. */
     DriveCascadeOutput(false);
 }
 

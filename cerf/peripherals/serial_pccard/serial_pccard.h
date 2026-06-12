@@ -28,6 +28,15 @@ public:
     std::wstring TooltipDetail() const override;
 
     void OnInserted() override;
+
+    const char* SaveId() const override {
+        return mode_ == Mode::HostForward ? "serial_fwd" : "serial";
+    }
+    std::wstring SaveBinding() const override {
+        return mode_ == Mode::HostForward ? host_port_ : std::wstring();
+    }
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
     void OnShutdown() override;
 
     void PowerOn () override;

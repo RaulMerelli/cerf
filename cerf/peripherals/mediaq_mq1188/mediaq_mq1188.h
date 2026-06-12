@@ -27,6 +27,9 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* Getters consumed by MediaQMq1188Renderer. All values come from the
        Graphics Controller register block (Table 4-9) and Device Config
        (Table 4-2); register identities confirmed against ddi.dll's mode-set

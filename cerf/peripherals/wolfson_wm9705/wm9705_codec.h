@@ -18,6 +18,9 @@ public:
     uint16_t ReadReg(uint32_t reg) override;
     void     WriteReg(uint32_t reg, uint16_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     static constexpr uint32_t kNumRegs = 512u;  /* controller codec window 0x200..0x600. */
     uint16_t reg_[kNumRegs] = {};

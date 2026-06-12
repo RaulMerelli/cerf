@@ -31,6 +31,9 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 protected:
     /* Per-bank interleave geometry. A "lane" is one chip on the shared bus. */
     virtual uint32_t Parallel()    const = 0;  /* chips wired in parallel */

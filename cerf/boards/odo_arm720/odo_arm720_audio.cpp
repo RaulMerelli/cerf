@@ -11,6 +11,7 @@
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../../socs/irq_controller.h"
 
 #include <cstdint>
@@ -88,6 +89,15 @@ public:
             (static_cast<uint32_t>(dma_high_ & 0xFFu) << 16) |
             static_cast<uint32_t>(dma_low_);
         return kDramPaBase + chip_addr;
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(dma_low_);  w.Write(dma_high_);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(dma_low_);  r.Read(dma_high_);
     }
 
 private:

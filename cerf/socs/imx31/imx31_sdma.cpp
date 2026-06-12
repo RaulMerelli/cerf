@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../state/state_stream.h"
 #include "imx31_avic.h"
 
 #include <cstdint>
@@ -80,6 +81,27 @@ public:
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(mc0ptr_);    w.Write(intr_);      w.Write(stop_stat_);  w.Write(hstart_);
+        w.Write(evtovr_);    w.Write(dspovr_);    w.Write(hostovr_);    w.Write(evtpend_);
+        w.Write(reset_);     w.Write(evterr_);    w.Write(intrmask_);   w.Write(psw_);
+        w.Write(evterrdbg_); w.Write(config_);    w.Write(once_enb_);   w.Write(once_data_);
+        w.Write(once_instr_);w.Write(once_stat_); w.Write(once_cmd_);   w.Write(evt_mirror_);
+        w.Write(illinstaddr_);w.Write(chn0addr_); w.Write(xtrig_conf1_);w.Write(xtrig_conf2_);
+        w.WriteBytes(chnenbl_, sizeof(chnenbl_));
+        w.WriteBytes(chnpri_,  sizeof(chnpri_));
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(mc0ptr_);    r.Read(intr_);      r.Read(stop_stat_);  r.Read(hstart_);
+        r.Read(evtovr_);    r.Read(dspovr_);    r.Read(hostovr_);    r.Read(evtpend_);
+        r.Read(reset_);     r.Read(evterr_);    r.Read(intrmask_);   r.Read(psw_);
+        r.Read(evterrdbg_); r.Read(config_);    r.Read(once_enb_);   r.Read(once_data_);
+        r.Read(once_instr_);r.Read(once_stat_); r.Read(once_cmd_);   r.Read(evt_mirror_);
+        r.Read(illinstaddr_);r.Read(chn0addr_); r.Read(xtrig_conf1_);r.Read(xtrig_conf2_);
+        r.ReadBytes(chnenbl_, sizeof(chnenbl_));
+        r.ReadBytes(chnpri_,  sizeof(chnpri_));
+    }
 
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;

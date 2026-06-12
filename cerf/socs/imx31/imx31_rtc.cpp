@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -58,6 +59,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     uint32_t regs_[kSlotCount] = {};
 };
@@ -88,6 +92,14 @@ void Imx31Rtc::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     regs_[slot] = value;
+}
+
+void Imx31Rtc::SaveState(StateWriter& w) {
+    for (uint32_t i = 0; i < kSlotCount; ++i) w.Write(regs_[i]);
+}
+
+void Imx31Rtc::RestoreState(StateReader& r) {
+    for (uint32_t i = 0; i < kSlotCount; ++i) r.Read(regs_[i]);
 }
 
 }  /* namespace */

@@ -8,6 +8,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
+#include "../core/cerf_paths.h"
 #include "../core/string_utils.h"
 
 #include <windows.h>
@@ -264,8 +265,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 
 void RomParserService::OnReady() {
     const auto&       cfg         = emu_.Get<DeviceConfig>();
-    const std::string device_dir  = GetCerfDir() + "devices/"
-                                  + cfg.device_name + "/";
+    const std::string device_dir  = GetDeviceDir(cfg.device_name);
 
     std::vector<std::string> filenames;
     if (cfg.boot_in_recovery) {

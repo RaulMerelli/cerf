@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../pcmcia/pcmcia_slot.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -445,6 +446,32 @@ void CompactFlashCard::WriteData16Locked(uint16_t value) {
 void CompactFlashCard::WriteIo8(uint32_t offset, uint8_t value) {
     std::lock_guard<std::mutex> lk(mtx_);
     WriteRegLocked(DecodeIoLocked(offset), value);
+}
+
+/* file_/image_path_/total_sectors_ are the host-file binding (the disk
+   content persists on disk); the ATA task-file + PIO buffer is card state. */
+void CompactFlashCard::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(mtx_);
+    w.Write(feature_); w.Write(error_); w.Write(sect_cnt_); w.Write(sect_num_);
+    w.Write(cyl_low_); w.Write(cyl_high_); w.Write(drv_head_); w.Write(status_);
+    w.Write(dev_ctrl_); w.Write(chs_heads_); w.Write(chs_sectors_);
+    w.WriteBytes(buf_.data(), buf_.size());
+    w.Write(buf_pos_); w.Write(sectors_left_);
+    w.Write<uint8_t>(writing_ ? 1u : 0u);
+    w.Write(cor_);
+    w.Write<uint8_t>(irq_line_ ? 1u : 0u);
+}
+
+void CompactFlashCard::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(mtx_);
+    r.Read(feature_); r.Read(error_); r.Read(sect_cnt_); r.Read(sect_num_);
+    r.Read(cyl_low_); r.Read(cyl_high_); r.Read(drv_head_); r.Read(status_);
+    r.Read(dev_ctrl_); r.Read(chs_heads_); r.Read(chs_sectors_);
+    r.ReadBytes(buf_.data(), buf_.size());
+    r.Read(buf_pos_); r.Read(sectors_left_);
+    uint8_t wr = 0; r.Read(wr); writing_ = (wr != 0);
+    r.Read(cor_);
+    uint8_t irq = 0; r.Read(irq); irq_line_ = (irq != 0);
 }
 
 void CompactFlashCard::WriteIo16(uint32_t offset, uint16_t value) {

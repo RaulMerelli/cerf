@@ -7,6 +7,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -329,6 +330,48 @@ void Pd6710Controller::OnCardIrqDeasserted(PcmciaSlot&) {
     }
     if (!enabled) return;
     if (auto* line = emu_.TryGet<Pd6710CardIrqLine>()) line->Deassert();
+}
+
+/* state_mutex_ is dropped before slot_.SaveState: the slot takes bus_mutex_,
+   which ranks above state_mutex_ (see WriteIndexedDataLocked). */
+void Pd6710Controller::SaveState(StateWriter& w) {
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(index_);
+        w.Write(reg_power_control_); w.Write(reg_card_status_change_);
+        w.Write(reg_status_change_int_cfg_); w.Write(reg_window_enable_);
+        w.Write(reg_io_window_control_); w.Write(reg_interrupt_and_gen_ctrl_);
+        w.Write(reg_chip_info_);
+        w.WriteBytes(io_start_lo_, sizeof(io_start_lo_));
+        w.WriteBytes(io_start_hi_, sizeof(io_start_hi_));
+        w.WriteBytes(io_end_lo_, sizeof(io_end_lo_));
+        w.WriteBytes(io_end_hi_, sizeof(io_end_hi_));
+        w.WriteBytes(io_off_lo_, sizeof(io_off_lo_));
+        w.WriteBytes(io_off_hi_, sizeof(io_off_hi_));
+        w.WriteBytes(mem_reg_, sizeof(mem_reg_));
+        w.WriteBytes(timing_, sizeof(timing_));
+    }
+    slot_.SaveState(w);
+}
+
+void Pd6710Controller::RestoreState(StateReader& r) {
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(index_);
+        r.Read(reg_power_control_); r.Read(reg_card_status_change_);
+        r.Read(reg_status_change_int_cfg_); r.Read(reg_window_enable_);
+        r.Read(reg_io_window_control_); r.Read(reg_interrupt_and_gen_ctrl_);
+        r.Read(reg_chip_info_);
+        r.ReadBytes(io_start_lo_, sizeof(io_start_lo_));
+        r.ReadBytes(io_start_hi_, sizeof(io_start_hi_));
+        r.ReadBytes(io_end_lo_, sizeof(io_end_lo_));
+        r.ReadBytes(io_end_hi_, sizeof(io_end_hi_));
+        r.ReadBytes(io_off_lo_, sizeof(io_off_lo_));
+        r.ReadBytes(io_off_hi_, sizeof(io_off_hi_));
+        r.ReadBytes(mem_reg_, sizeof(mem_reg_));
+        r.ReadBytes(timing_, sizeof(timing_));
+    }
+    slot_.RestoreState(r);
 }
 
 REGISTER_SERVICE(Pd6710Controller);

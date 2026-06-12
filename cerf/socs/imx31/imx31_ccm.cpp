@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -75,6 +76,10 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
 
 private:
     uint32_t regs_[kSlotCount] = {};

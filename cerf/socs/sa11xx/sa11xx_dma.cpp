@@ -5,6 +5,7 @@
 #include "../../core/rate_probe.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
 
 namespace {
@@ -255,6 +256,20 @@ void Sa11xxDma::WriteWord(uint32_t addr, uint32_t value) {
     if (!DecodeOffset(off, ch, reg)) HaltUnsupportedAccess("WriteWord", addr, value);
     std::lock_guard<std::mutex> lk(state_mtx_);
     WriteRegLocked(off, value);
+}
+
+void Sa11xxDma::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mtx_);
+    w.WriteBytes(ch_, sizeof(ch_));
+}
+
+void Sa11xxDma::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mtx_);
+    r.ReadBytes(ch_, sizeof(ch_));
+    /* No host sink owns a buffer after a restore; clearing the in-flight
+       flags lets a paused channel re-submit on the next RUN edge instead
+       of waiting forever for a CompleteTransfer that won't arrive. */
+    for (auto& c : ch_) { c.in_flight_a = false; c.in_flight_b = false; }
 }
 
 REGISTER_SERVICE(Sa11xxDma);

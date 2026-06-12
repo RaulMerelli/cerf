@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -36,6 +37,13 @@ public:
     void WriteByte(uint32_t addr, uint8_t  v) override { WriteReg(addr - MmioBase(), v); }
     void WriteHalf(uint32_t addr, uint16_t v) override { WriteReg(addr - MmioBase(), v); }
     void WriteWord(uint32_t addr, uint32_t v) override { WriteReg(addr - MmioBase(), v); }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(hscr0_);  w.Write(hscr1_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(hscr0_);  r.Read(hscr1_);
+    }
 
 private:
     uint32_t ReadReg(uint32_t off) {

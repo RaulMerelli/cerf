@@ -38,6 +38,47 @@ public:
        instead of 2. */
     void PushPrefetchByte8 (uint32_t cs, uint8_t  value);
 
+    void SaveState(StateWriter& w) override {
+        Omap3530PrcmStubBlock::SaveState(w);   /* GPMC config regs_ */
+        {
+            std::lock_guard<std::mutex> lk(nand_mu_);
+            for (const NandChip& c : nand_) {
+                w.Write<uint32_t>(static_cast<uint32_t>(c.state));
+                w.Write<int32_t>(c.id_byte_index);
+                w.WriteBytes(c.addr_bytes, sizeof(c.addr_bytes));
+                w.Write<int32_t>(c.addr_idx);
+                w.Write<uint64_t>(static_cast<uint64_t>(c.data_offset));
+                w.Write<uint64_t>(static_cast<uint64_t>(c.data_remaining));
+                w.Write<uint64_t>(static_cast<uint64_t>(c.storage.size()));
+                w.WriteBytes(c.storage.data(), c.storage.size());
+            }
+        }
+        std::lock_guard<std::mutex> lk(irq_mu_);
+        w.Write(irq_status_);
+        w.Write(irq_enable_);
+    }
+    void RestoreState(StateReader& r) override {
+        Omap3530PrcmStubBlock::RestoreState(r);
+        {
+            std::lock_guard<std::mutex> lk(nand_mu_);
+            for (NandChip& c : nand_) {
+                uint32_t st = 0; r.Read(st); c.state = static_cast<NandState>(st);
+                int32_t  iv = 0;
+                r.Read(iv); c.id_byte_index = iv;
+                r.ReadBytes(c.addr_bytes, sizeof(c.addr_bytes));
+                r.Read(iv); c.addr_idx = iv;
+                uint64_t uv = 0;
+                r.Read(uv); c.data_offset    = static_cast<size_t>(uv);
+                r.Read(uv); c.data_remaining = static_cast<size_t>(uv);
+                r.Read(uv); c.storage.assign(static_cast<size_t>(uv), 0u);
+                r.ReadBytes(c.storage.data(), c.storage.size());
+            }
+        }
+        std::lock_guard<std::mutex> lk(irq_mu_);
+        r.Read(irq_status_);
+        r.Read(irq_enable_);
+    }
+
 private:
     static constexpr int    kCsCount       = 8;
     static constexpr size_t kPageDataSize  = 2048;

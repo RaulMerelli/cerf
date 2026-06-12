@@ -8,6 +8,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <mutex>
 
@@ -191,6 +192,18 @@ void OdoArm720BoardIntc::WriteReg16(uint32_t offset, uint16_t value) {
     NotifyJitInterruptState();
 }
 
+void OdoArm720BoardIntc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write<uint32_t>(cpu_isr_);
+    w.Write<uint32_t>(cpu_mr_);
+}
+
+void OdoArm720BoardIntc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(cpu_isr_);
+    r.Read(cpu_mr_);
+}
+
 REGISTER_SERVICE_AS(OdoArm720BoardIntc, IrqController);
 
 
@@ -226,6 +239,13 @@ public:
     void WriteHalf(uint32_t addr, uint16_t value) override {
         auto& intc = static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>());
         intc.WriteReg16(addr - MmioBase(), value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>()).SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>()).RestoreState(r);
     }
 };
 

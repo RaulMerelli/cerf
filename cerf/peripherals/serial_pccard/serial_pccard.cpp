@@ -6,6 +6,8 @@
 
 #include "../pcmcia/pcmcia_slot.h"
 #include "../../core/cerf_emulator.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -59,7 +61,8 @@ void SerialPcCard::BuildCis() {
 
 void SerialPcCard::OnInserted() {
     if (mode_ == Mode::HostForward)
-        endpoint_ = std::make_unique<HostSerialForward>(host_port_);
+        endpoint_ = std::make_unique<HostSerialForward>(
+            host_port_, emu_.Get<EmulationFreeze>());
     else
         endpoint_ = std::make_unique<ModemPersonality>(emu_);
     uart_ = std::make_unique<Serial16550>(*endpoint_,
@@ -123,6 +126,21 @@ void SerialPcCard::WriteIo8(uint32_t offset, uint8_t value) {
 uint16_t SerialPcCard::ReadIo16(uint32_t offset) {
     return (uint16_t)(ReadIo8(offset) | (ReadIo8(offset + 1u) << 8));
 }
+/* mode_/host_port_/cis_/endpoint_ are identity / host binding; the PCMCIA
+   config regs + the 16550 UART register file are the card state. uart_ is
+   built in OnInserted so it always exists while the card sits in a slot. */
+void SerialPcCard::SaveState(StateWriter& w) {
+    w.Write(cor_); w.Write(fcsr_);
+    w.Write<uint8_t>(uart_irq_ ? 1u : 0u);
+    uart_->SaveState(w);
+}
+
+void SerialPcCard::RestoreState(StateReader& r) {
+    r.Read(cor_); r.Read(fcsr_);
+    uint8_t irq = 0; r.Read(irq); uart_irq_ = (irq != 0);
+    uart_->RestoreState(r);
+}
+
 void SerialPcCard::WriteIo16(uint32_t offset, uint16_t value) {
     WriteIo8(offset, (uint8_t)(value & 0xFFu));
     WriteIo8(offset + 1u, (uint8_t)(value >> 8));

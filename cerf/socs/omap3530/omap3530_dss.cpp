@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../irq_controller.h"
 
 bool Omap3530Dss::ShouldRegister() {
@@ -236,6 +237,24 @@ uint32_t Omap3530Dss::GetGuestH() {
 uint32_t Omap3530Dss::GetGfxFormat() {
     std::lock_guard<std::mutex> lk(state_mutex_);
     return (dispc_[kDispcGfxAttribs / 4u] >> 1) & 0xFu;
+}
+
+void Omap3530Dss::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.WriteBytes(dss_top_, sizeof(dss_top_));
+    w.WriteBytes(dispc_,   sizeof(dispc_));
+    w.WriteBytes(rfbi_,    sizeof(rfbi_));
+    w.WriteBytes(venc_,    sizeof(venc_));
+    w.Write(irq_line_high_);
+}
+
+void Omap3530Dss::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.ReadBytes(dss_top_, sizeof(dss_top_));
+    r.ReadBytes(dispc_,   sizeof(dispc_));
+    r.ReadBytes(rfbi_,    sizeof(rfbi_));
+    r.ReadBytes(venc_,    sizeof(venc_));
+    r.Read(irq_line_high_);
 }
 
 REGISTER_SERVICE(Omap3530Dss);

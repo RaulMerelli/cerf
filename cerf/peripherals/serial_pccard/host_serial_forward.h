@@ -15,12 +15,14 @@
 #include <thread>
 #include <vector>
 
+class EmulationFreeze;
+
 /* SerialEndpoint that bridges the guest's 16550 to a real host COM port: raw
    bytes and control/status lines pass through both ways; the host port's baud +
    framing track the guest's Serial16550::LineConfig. No AT / no modem logic. */
 class HostSerialForward : public SerialEndpoint {
 public:
-    explicit HostSerialForward(std::wstring host_port);
+    HostSerialForward(std::wstring host_port, EmulationFreeze& freeze);
     ~HostSerialForward() override;
 
     void OnGuestTx(const uint8_t* data, size_t n) override;
@@ -34,6 +36,7 @@ private:
     void ApplyLineConfig(const Serial16550::LineConfig& c);
     void StopThreads();
 
+    EmulationFreeze&  freeze_;
     std::wstring      port_name_;        /* e.g. "COM3" */
     HANDLE            handle_ = INVALID_HANDLE_VALUE;
     std::atomic<bool> running_{false};

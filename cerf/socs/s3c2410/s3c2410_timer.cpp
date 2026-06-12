@@ -5,6 +5,8 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
 #include "../../boards/board_detector.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 
 #include <atomic>
 #include <chrono>
@@ -56,6 +58,13 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* Field-by-field: TimerState::last_load_time is a steady_clock
+       time_point whose epoch can't survive a save→restore, so the live
+       remaining count is stored and last_load_time re-based on restore.
+       Holds state_mutex_ because the tick thread runs concurrently. */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     using Clock = std::chrono::steady_clock;
@@ -244,11 +253,13 @@ void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void S3C2410Timer::TickLoop() {
-    auto& irq = emu_.Get<IrqController>();
+    auto& irq    = emu_.Get<IrqController>();
+    auto& freeze = emu_.Get<EmulationFreeze>();
 
     while (!stop_thread_.load(std::memory_order_acquire)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
+        auto frozen = freeze.WorkerSection();
         /* Decide which timers underflowed under the lock; AssertIrq
            outside the lock so the intc's mutex isn't taken under ours
            (avoids any future cross-locking surprise). */
@@ -287,6 +298,59 @@ void S3C2410Timer::TickLoop() {
 
         for (size_t k = 0; k < fire_count; ++k) {
             irq.AssertIrq(fires[k].irq_source);
+        }
+    }
+}
+
+void S3C2410Timer::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    const auto now = Clock::now();
+    w.Write(tcfg0_);
+    w.Write(tcfg1_);
+    w.Write(tcon_);
+    for (int i = 0; i < 5; ++i) {
+        const TimerState& t = timers_[i];
+        w.Write(t.tcntb);
+        w.Write(t.tcmpb);
+        w.Write<uint8_t>(t.running ? 1u : 0u);
+        w.Write<uint8_t>(t.auto_reload ? 1u : 0u);
+        w.Write(t.stopped_value);
+        /* Live remaining count survives the save; last_load_time does not. */
+        w.Write<uint32_t>(ComputeTcntoLocked(i, now));
+    }
+}
+
+void S3C2410Timer::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    const auto now = Clock::now();
+    r.Read(tcfg0_);
+    r.Read(tcfg1_);
+    r.Read(tcon_);
+    for (int i = 0; i < 5; ++i) {
+        TimerState& t = timers_[i];
+        r.Read(t.tcntb);
+        r.Read(t.tcmpb);
+        uint8_t running = 0, auto_reload = 0;
+        r.Read(running);
+        r.Read(auto_reload);
+        r.Read(t.stopped_value);
+        uint32_t remaining = 0;
+        r.Read(remaining);
+        t.running     = (running != 0);
+        t.auto_reload = (auto_reload != 0);
+        if (t.running) {
+            /* Re-base so ComputeTcntoLocked returns `remaining` at now:
+               it derives elapsed_counts = tcntb - (current count), so
+               last_load_time must sit (tcntb - remaining) counts in the past. */
+            const uint64_t freq = TimerFreqHz(i);
+            const uint64_t elapsed_counts =
+                (t.tcntb > remaining) ? (t.tcntb - remaining) : 0ull;
+            const uint64_t elapsed_ns =
+                elapsed_counts * 1'000'000'000ull / freq;
+            t.last_load_time =
+                now - std::chrono::nanoseconds(static_cast<int64_t>(elapsed_ns));
+        } else {
+            t.last_load_time = now;
         }
     }
 }
