@@ -21,6 +21,10 @@ STATE_UPDATE    = "Update available"
 STATE_AVAILABLE = "Available"
 STATE_USER      = "User device"
 
+# Mirrors CERF's kDefaultStateFile (cerf/state/state_image_format.h): the
+# hibernation .img cerf.exe writes/reads in each device directory.
+STATE_IMAGE_FILENAME = "state.img"
+
 
 @dataclass
 class DeviceSource:
@@ -144,6 +148,24 @@ def package_artifact_present(device_dir: Path, pkg: RemotePackage) -> bool:
             return True
         return False
     return path.is_file()
+
+
+@dataclass
+class SavedStateInfo:
+    saved_at: float  # state.img mtime, epoch seconds
+    size: int        # state.img size in bytes
+
+
+def saved_state_info(device_dir: Path) -> Optional[SavedStateInfo]:
+    """Hibernation snapshot for a device, or None when no state.img exists."""
+    path = device_dir / STATE_IMAGE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return SavedStateInfo(saved_at=st.st_mtime, size=st.st_size)
 
 
 def format_size(n: Optional[int]) -> str:

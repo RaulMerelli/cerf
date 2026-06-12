@@ -94,8 +94,8 @@ class LauncherApp(tk.Tk):
         self.scroll.grid(row=0, column=0, sticky="nsew")
 
         inner = self.scroll.inner
-        self.details = DetailsPanel(inner, resolve_icons_dir(),
-                                    bind_wheel=self.scroll.bind_wheel)
+        self.details = DetailsPanel(inner, resolve_icons_dir(), self.manager.devices_dir,
+                                    bind_wheel=self.scroll.bind_wheel, on_state_changed=lambda: self.split.refresh())
 
         actions = ttk.LabelFrame(inner, text="Bundle actions", padding=8)
         actions.grid(row=3, column=0, sticky="ew", pady=(0, 8))
