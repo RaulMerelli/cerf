@@ -69,6 +69,34 @@ void RateProbe::LogTopMmioPcs() {
     }
 }
 
+void RateProbe::LogTopCtxSlots() {
+    struct Entry { uint32_t slot; uint64_t count; };
+    Entry snap[128];
+    uint32_t live = 0;
+    uint64_t total = 0;
+    for (uint32_t i = 0; i < 128; ++i) {
+        const uint64_t c = ctx_slot_[i].exchange(0, std::memory_order_relaxed);
+        if (c == 0) continue;
+        snap[live].slot = i;
+        snap[live].count = c;
+        ++live;
+        total += c;
+    }
+    if (total == 0) return;
+    constexpr uint32_t kTop = 4;
+    const uint32_t n = (live < kTop) ? live : kTop;
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t best = i;
+        for (uint32_t j = i + 1; j < live; ++j) {
+            if (snap[j].count > snap[best].count) best = j;
+        }
+        if (best != i) { Entry t = snap[i]; snap[i] = snap[best]; snap[best] = t; }
+        LOG(Perf, "  ctx_slot top%u: slot=%u (pid=0x%08X) switches=%llu\n",
+            i + 1, snap[i].slot, snap[i].slot << 25,
+            (unsigned long long)snap[i].count);
+    }
+}
+
 void RateProbe::LogLoop() {
     using namespace std::chrono;
     auto next_tick = steady_clock::now() + seconds(1);
@@ -107,12 +135,13 @@ void RateProbe::LogLoop() {
         const uint64_t native_ms =
             (run_ms > io_ms + mmu_ms) ? run_ms - io_ms - mmu_ms : 0;
         LogTopMmioPcs();
+        LogTopCtxSlots();
         LOG(Perf,
             "jit_runs=%llu ost_rd=%llu ost_poll=%llu ost_fire=%llu "
             "intc_assert=%llu intc_deassert=%llu jit_pend_set=%llu "
             "jit_pend_clr=%llu dma_w=%llu audio_msg=%llu rd_per_run=%llu "
             "run_ms=%llu ost_ms=%llu io_ms=%llu mmu_ms=%llu native_ms=%llu "
-            "mmu_calls=%llu\n",
+            "mmu_calls=%llu jit_compile=%llu tc_flush=%llu ctx_flush=%llu\n",
             (unsigned long long)s[static_cast<uint8_t>(Counter::JitRuns)],
             (unsigned long long)s[static_cast<uint8_t>(Counter::OstReadOscr)],
             (unsigned long long)s[static_cast<uint8_t>(Counter::OstPolls)],
@@ -129,6 +158,9 @@ void RateProbe::LogLoop() {
             (unsigned long long)io_ms,
             (unsigned long long)mmu_ms,
             (unsigned long long)native_ms,
-            (unsigned long long)s[static_cast<uint8_t>(Counter::MmuXlateCalls)]);
+            (unsigned long long)s[static_cast<uint8_t>(Counter::MmuXlateCalls)],
+            (unsigned long long)s[static_cast<uint8_t>(Counter::JitCompiles)],
+            (unsigned long long)s[static_cast<uint8_t>(Counter::TcFlushes)],
+            (unsigned long long)s[static_cast<uint8_t>(Counter::CtxFlushes)]);
     }
 }

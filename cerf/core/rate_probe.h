@@ -31,6 +31,9 @@ public:
         DmaWrites,
         AudioMsgs,
         MmuXlateCalls,
+        JitCompiles,      /* block translations/sec — high = TC thrash / cold cache. */
+        TcFlushes,        /* full translation-cache flushes/sec (FlushAll+arena). */
+        CtxFlushes,       /* context-switch jump-cache flushes/sec (FCSE PID switch). */
         Count,
     };
 
@@ -55,6 +58,13 @@ public:
     void AddTsc(TimeCounter c, uint64_t ticks) {
         time_counters_[static_cast<uint8_t>(c)]
             .fetch_add(ticks, std::memory_order_relaxed);
+    }
+
+    /* Per-FCSE-slot context-switch histogram. process_id bits[31:25] = the
+       process slot (0..127); the dumper prints the busiest slots so a
+       context-switch storm names the ping-ponging processes. */
+    void RecordCtxSlot(uint32_t process_id) {
+        ctx_slot_[(process_id >> 25) & 0x7Fu].fetch_add(1, std::memory_order_relaxed);
     }
 
     /* Per-guest-PC MMIO call histogram. Linear-probe open-addressed hash;
@@ -91,11 +101,13 @@ public:
     void Inc(Counter)                    {}
     void AddTsc(TimeCounter, uint64_t)   {}
     void RecordMmioPc(uint32_t, uint32_t){}
+    void RecordCtxSlot(uint32_t)         {}
 #endif
 
 private:
     void LogLoop();
     void LogTopMmioPcs();
+    void LogTopCtxSlots();
     void CalibrateTscPerSec();
 
     static constexpr uint8_t kCount     = static_cast<uint8_t>(Counter::Count);
@@ -106,6 +118,7 @@ private:
     std::atomic<uint32_t>   mmio_pc_[kMmioHistSize]{};
     std::atomic<uint32_t>   mmio_addr_[kMmioHistSize]{};
     std::atomic<uint64_t>   mmio_count_[kMmioHistSize]{};
+    std::atomic<uint64_t>   ctx_slot_[128]{};
     uint64_t                tsc_per_sec_{1};
     std::atomic<bool>       stop_{false};
     std::thread             thread_;
