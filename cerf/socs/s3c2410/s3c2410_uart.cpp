@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -105,7 +105,7 @@ void S3C2410Uart::EmitTxByte(int uart_idx, uint8_t ch) {
     if (ch == '\n') {
         LOG(SocUart, "UART%d TX: %s\n", uart_idx, buf.c_str());
         if (uart_idx == 1) {
-            emu_.Get<UartScreen>().AddLine(buf);
+            emu_.Get<HwScreen>().AddLine(buf);
         }
         buf.clear();
         return;
@@ -125,7 +125,7 @@ void S3C2410Uart::EmitTxByte(int uart_idx, uint8_t ch) {
     if (buf.size() >= 256) {
         LOG(SocUart, "UART%d TX (no LF, flushed at 256B): %s\n",
             uart_idx, buf.c_str());
-            emu_.Get<UartScreen>().AddLine(buf);
+            emu_.Get<HwScreen>().AddLine(buf);
         buf.clear();
     }
 }

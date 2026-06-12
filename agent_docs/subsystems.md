@@ -195,7 +195,7 @@ concretes (strategy pattern, selected by `BoardDetector`).
   — `cerf/host/host_window.{h,cpp}`
 
 - **`HostCanvas`** — the child window for the drawable area. Owns the two
-  **tabs** (`Tab::Uart` = boot/debug-console screen, `Tab::Framebuffer` =
+  **tabs** (`Tab::Hw` = hardware/boot/debug-console screen, `Tab::Framebuffer` =
   the live guest framebuffer), the viewport mode (Original / Aspect /
   Stretch, optional antialias), the scrollbars, and the single
   host-pixel↔guest-surface coordinate transform (`HostToGuest`) so taps
@@ -209,10 +209,20 @@ concretes (strategy pattern, selected by `BoardDetector`).
   under `cerf/boards/<board>/`, and the guest-additions virtual framebuffer
   under `cerf/peripherals/cerf_virt/`. — `cerf/host/frame_renderer.h`
 
-- **`UartScreen`** — the bounded debug-console line buffer behind the Uart
-  tab; `AddLine` from the SoC UART, `RenderInto` paints the boot log + boot
-  bar. `HasOutput` is the splash→boot-log transition trigger.
-  — `cerf/host/uart_screen.{h,cpp}`
+- **`HwScreen`** — the hardware screen behind the `Tab::Hw` tab: the bounded
+  text-mode RX/TX line buffer for guest UART / OEM-debug output and CERF's own
+  notices (power events, save/restore progress). `AddLine` appends a line,
+  `RenderInto` orchestrates the frame (delegating the logo/boot animation to
+  `HwBootAnimation`, then the scrolling log + boot bar). — `cerf/host/hw_screen.{h,cpp}`
+
+- **`HwBootAnimation`** — the `HwScreen` boot-visual owner: the CERF-logo
+  fade-in/hold/fade-out intro, the optional OEM-logo fade-in ("Starting
+  <board>…", logo + short name from `BoardDetector::GetBootLogoResource` /
+  `GetShortBoardName`), and the held / dimmed-center final states. Time-driven
+  off the 60 Hz present loop (no thread); `Restart` (guest reboot →
+  "Restarting…"), `Abort` (restore failure), and `OnFramebufferLatched`
+  ("Switched to LCD") are its cross-thread control hooks.
+  — `cerf/host/hw_boot_animation.{h,cpp}`
 
 - **`TouchInput`** (abstract) — `OnPenDown/Move/Up` + `OnCaptureLost` in
   guest-surface coordinates; the board's touch peripheral concrete turns

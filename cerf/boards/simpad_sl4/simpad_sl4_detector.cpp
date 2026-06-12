@@ -21,6 +21,8 @@ public:
     const char* BoardName() const override {
         return "Siemens SIMpad SL4 (Webpad), Intel SA-1110 StrongARM";
     }
+    const char*    GetShortBoardName()  const override { return "SIMpad SL4"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_SIEMENS"; }
 
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{800, 600};

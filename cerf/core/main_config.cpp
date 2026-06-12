@@ -21,6 +21,7 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
                    strncmp(argv[i], kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0 ||
                    strncmp(argv[i], kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0 ||
                    strncmp(argv[i], kArgBoot, sizeof(kArgBoot) - 1) == 0 ||
+                   strncmp(argv[i], kArgBootAnim, sizeof(kArgBootAnim) - 1) == 0 ||
                    strcmp(argv[i], kArgDisableNetwork) == 0 ||
                    strcmp(argv[i], kArgGuestAdditions) == 0 ||
                    strcmp(argv[i], kArgRecovery) == 0) {

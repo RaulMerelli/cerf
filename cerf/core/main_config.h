@@ -20,5 +20,6 @@ inline constexpr char kArgGuestAdditions[] = "--guest-additions";
 inline constexpr char kArgRecovery[]       = "--recovery";
 inline constexpr char kArgShareFolder[]    = "--share-folder=";
 inline constexpr char kArgBoot[]           = "--boot=";
+inline constexpr char kArgBootAnim[]       = "--boot-anim=";
 
 bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg);

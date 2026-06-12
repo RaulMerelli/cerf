@@ -23,6 +23,8 @@ public:
         return "Datalogic Falcon 4220 (PC3xx), "
                "Intel XScale PXA255 (ARMv5TE), Windows CE .NET 4.2";
     }
+    const char*    GetShortBoardName()  const override { return "Falcon 4220"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_PSC"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 240, 320 };
     }

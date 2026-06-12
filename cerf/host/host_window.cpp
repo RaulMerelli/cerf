@@ -23,7 +23,6 @@
 #include "host_status_bar.h"
 #include "host_widget_registry.h"
 #include "initial_window_size.h"
-#include "text_mode_boot_banner.h"
 #include "../state/hibernation.h"
 
 REGISTER_SERVICE(HostWindow);
@@ -33,7 +32,7 @@ namespace {
 constexpr wchar_t  kWindowClass[]  = L"CerfHostWindow";
 constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
 constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
-constexpr UINT     kShowUartMsg    = WM_APP + 3;
+constexpr UINT     kShowHwMsg    = WM_APP + 3;
 constexpr UINT     kRunJobMsg      = WM_APP + 4;   /* lParam = heap std::function */
 constexpr UINT     kShutdownMsg    = WM_APP + 5;   /* posted from WM_CLOSE */
 constexpr UINT_PTR kResizeDebounceTimer = 1;
@@ -104,8 +103,6 @@ void HostWindow::OnLcdEnabled(uint32_t fb_w, uint32_t fb_h) {
             "native %ux%u\n", fb_w, fb_h);
         return;
     }
-    if (auto* banner = emu_.TryGet<TextModeBootBanner>())
-        banner->OnScreenSizeChanged(fb_w, fb_h);
 
     uint32_t host_w = fb_w, host_h = fb_h;
     if (auto* fr = emu_.TryGet<FrameRenderer>()) {
@@ -124,9 +121,9 @@ void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
         PostMessageW(hwnd_, kGuestRemodeMsg, (WPARAM)guest_w, (LPARAM)guest_h);
 }
 
-void HostWindow::ShowUartTab(bool rearm_framebuffer) {
+void HostWindow::ShowHwScreenTab(bool rearm_framebuffer) {
     if (hwnd_)
-        PostMessageW(hwnd_, kShowUartMsg, rearm_framebuffer ? 1u : 0u, 0);
+        PostMessageW(hwnd_, kShowHwMsg, rearm_framebuffer ? 1u : 0u, 0);
 }
 
 void HostWindow::RunOnUiThread(std::function<void()> job) {
@@ -222,7 +219,7 @@ void HostWindow::RunShutdownPrompt() {
         return;
     }
     if (c == ShutdownChoice::ExitSave) {
-        ShowUartTab(false);          /* render the save-progress screen */
+        ShowHwScreenTab(false);          /* render the save-progress screen */
         emu_.Get<Hibernation>().SaveAsync(L"", [this] {
             RunOnUiThread([this] { BeginShutdownTeardown(); });
         });
@@ -349,9 +346,9 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
-    if (msg == kShowUartMsg) {
+    if (msg == kShowHwMsg) {
         auto& canvas = emu_.Get<HostCanvas>();
-        canvas.SetTab(HostCanvas::Tab::Uart, /*user_initiated=*/false);
+        canvas.SetTab(HostCanvas::Tab::Hw, /*user_initiated=*/false);
         if (wp) canvas.RearmFramebufferAutoSwitch();
         return 0;
     }

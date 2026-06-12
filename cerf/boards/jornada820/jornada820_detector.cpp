@@ -19,6 +19,8 @@ public:
     const char* BoardName() const override {
         return "HP Jornada 820 Handheld PC, Intel SA-1100 StrongARM";
     }
+    const char*    GetShortBoardName()  const override { return "Jornada 820"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
 
     /* Fixed 640x480 VGA dual-panel STN; size the window to it pre-boot. */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

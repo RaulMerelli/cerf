@@ -5,7 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 
 REGISTER_SERVICE(CerfLogChannelPeripheral);
 
@@ -66,5 +66,5 @@ void CerfLogChannelPeripheral::AppendChar(uint32_t id, char c) {
         }
     }
     LOG(GuestDriver, "%s%s\n", ChannelTag(id), flush.c_str());
-    emu_.Get<UartScreen>().AddLine(ChannelTag(id) + flush);
+    emu_.Get<HwScreen>().AddLine(ChannelTag(id) + flush);
 }

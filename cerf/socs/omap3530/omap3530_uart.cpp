@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
 #include "../../state/state_stream.h"
@@ -195,11 +195,11 @@ void Omap3530UartBank::WriteByteLocked(uint32_t addr, uint32_t off,
 }
 
 void Omap3530UartBank::EmitTxByte(uint8_t ch) {
-    /* Caller holds state_mutex_; LOG / UartScreen calls below do
+    /* Caller holds state_mutex_; LOG / HwScreen calls below do
        not nest back into UART writes. */
     if (ch == '\n') {
         LOG(SocUart, "UART%d TX: %s\n", LogTag(), tx_line_.c_str());
-        emu_.Get<UartScreen>().AddLine(tx_line_);
+        emu_.Get<HwScreen>().AddLine(tx_line_);
         tx_line_.clear();
         return;
     }
@@ -214,7 +214,7 @@ void Omap3530UartBank::EmitTxByte(uint8_t ch) {
     if (tx_line_.size() >= 256) {
         LOG(SocUart, "UART%d TX (no LF, flushed at 256B): %s\n",
             LogTag(), tx_line_.c_str());
-        emu_.Get<UartScreen>().AddLine(tx_line_);
+        emu_.Get<HwScreen>().AddLine(tx_line_);
         tx_line_.clear();
     }
 }

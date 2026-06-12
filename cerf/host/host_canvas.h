@@ -8,7 +8,7 @@
 
 /* The main host window's drawable. Owns a shared PresenterCanvas (the
    present-DIB + scaling + scrollbars, also used by VGA card windows) and
-   layers on the main-window-only concerns: the UART / Framebuffer /
+   layers on the main-window-only concerns: the HwScreen / Framebuffer /
    MemoryVisualizer tabs, the LCD scan tick, and stylus input — supplied to
    the canvas through the PresenterCanvasHost hooks. Runs on HostWindow's UI
    thread. */
@@ -16,7 +16,7 @@ class HostCanvas : public Service, public PresenterCanvasHost {
 public:
     using Service::Service;
 
-    enum class Tab { Uart, Framebuffer, MemoryVisualizer };
+    enum class Tab { Hw, Framebuffer, MemoryVisualizer };
     using ViewportMode = PresenterCanvas::ViewportMode;
 
     /* UI thread. Create the child window inside `parent` at `rect`, with the
@@ -73,7 +73,7 @@ public:
     bool ShouldDesaturatePresent() override;
 
 private:
-    Tab  tab_  = Tab::Uart;
+    Tab  tab_  = Tab::Hw;
     bool user_picked_view_ = false;
     bool latched_once_     = false;
 

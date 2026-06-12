@@ -8,7 +8,8 @@
 #include "host_canvas_input.h"
 #include "lcd_scan_tick.h"
 #include "memory_visualizer.h"
-#include "uart_screen.h"
+#include "hw_boot_animation.h"
+#include "hw_screen.h"
 
 REGISTER_SERVICE(HostCanvas);
 
@@ -49,6 +50,7 @@ void HostCanvas::OnPresentTick() {
     const bool has_frame = canvas_.SourceHasFrame();
     if (has_frame && !latched_once_) {
         latched_once_ = true;
+        emu_.Get<HwBootAnimation>().OnFramebufferLatched();
         if (!user_picked_view_) {
             tab_ = Tab::Framebuffer;
             canvas_.SetFramebufferActive(true);
@@ -63,7 +65,7 @@ bool HostCanvas::RenderAltContent(HDC dc, uint32_t* bits, int w, int h) {
             mv->RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
         return true;
     }
-    emu_.Get<UartScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
+    emu_.Get<HwScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
     return true;
 }
 

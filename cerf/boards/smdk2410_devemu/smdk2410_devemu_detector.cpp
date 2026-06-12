@@ -21,6 +21,8 @@ public:
     const char* BoardName() const override {
         return "SMDK2410 + Microsoft DeviceEmulator BSP";
     }
+    const char*    GetShortBoardName()  const override { return "Device Emulator"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_MICROSOFT"; }
 };
 
 }  /* namespace */

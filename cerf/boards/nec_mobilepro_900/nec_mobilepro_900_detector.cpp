@@ -20,6 +20,8 @@ public:
     const char* BoardName() const override {
         return "NEC MobilePro 900 (P530), Intel XScale PXA255 (ARMv5TE)";
     }
+    const char*    GetShortBoardName()  const override { return "MobilePro 900"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_NEC"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 240 };
     }
