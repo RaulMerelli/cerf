@@ -284,8 +284,8 @@ BOARDS_INFORMATION = [
             "display": True,
             "sound": False,
             "touch": True,
-            "pcmcia": False,
-            "network": False,
+            "pcmcia": True,
+            "network": True,
         },
     },
     {
