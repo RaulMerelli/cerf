@@ -28,7 +28,7 @@ enum MenuId : int {
     kIdSaveState   = 204,
     kIdLoadState   = 205,
     kIdPause       = 206,
-    kIdViewUart    = 100,
+    kIdViewHw    = 100,
     kIdViewFb      = 101,
     kIdViewMemViz  = 102,
     kIdVpOriginal  = 110,
@@ -52,7 +52,7 @@ HMENU HostMenu::Build() {
     AppendMenuW(bar, MF_POPUP, (UINT_PTR)actions, L"Actions");
 
     HMENU view = CreatePopupMenu();
-    AppendMenuW(view, MF_STRING, kIdViewUart,   L"UART Screen");
+    AppendMenuW(view, MF_STRING, kIdViewHw,   L"Hardware Screen");
     AppendMenuW(view, MF_STRING, kIdViewFb,     L"Framebuffer");
     if (emu_.TryGet<MemoryVisualizer>())
         AppendMenuW(view, MF_STRING, kIdViewMemViz, L"Memory Visualizer (dev)");
@@ -79,13 +79,13 @@ void HostMenu::Sync() {
     HMENU view = GetSubMenu(bar_, 1);
     if (!view) return;
     auto& canvas = emu_.Get<HostCanvas>();
-    int view_id = kIdViewUart;
+    int view_id = kIdViewHw;
     switch (canvas.CurrentTab()) {
-        case HostCanvas::Tab::Uart:             view_id = kIdViewUart;   break;
+        case HostCanvas::Tab::Hw:             view_id = kIdViewHw;   break;
         case HostCanvas::Tab::Framebuffer:      view_id = kIdViewFb;     break;
         case HostCanvas::Tab::MemoryVisualizer: view_id = kIdViewMemViz; break;
     }
-    CheckMenuRadioItem(view, kIdViewUart, kIdViewMemViz, view_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdViewHw, kIdViewMemViz, view_id, MF_BYCOMMAND);
     int vp_id = kIdVpOriginal;
     switch (canvas.Mode()) {
         case HostCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
@@ -169,7 +169,7 @@ void HostMenu::HandleCommand(int id) {
                 emu_.Get<GuestColdBoot>().RequestHardReset();
             }
             break;
-        case kIdViewUart:   canvas.SetTab(HostCanvas::Tab::Uart, true);        break;
+        case kIdViewHw:   canvas.SetTab(HostCanvas::Tab::Hw, true);        break;
         case kIdViewFb:     canvas.SetTab(HostCanvas::Tab::Framebuffer, true); break;
         case kIdViewMemViz: canvas.SetTab(HostCanvas::Tab::MemoryVisualizer, true); break;
         case kIdVpOriginal: canvas.SetViewportMode(HostCanvas::ViewportMode::Original); break;

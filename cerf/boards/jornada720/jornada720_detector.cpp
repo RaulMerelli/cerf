@@ -19,6 +19,8 @@ public:
     const char* BoardName() const override {
         return "HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM";
     }
+    const char*    GetShortBoardName()  const override { return "Jornada 720"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 240 };
     }

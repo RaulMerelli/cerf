@@ -18,6 +18,8 @@ public:
         return "Microsoft Zune 30 (codename Keel), "
                "Freescale i.MX31L (ARM1136JF-S)";
     }
+    const char*    GetShortBoardName()  const override { return "Zune 30"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_ZUNE"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 240, 320 };
     }

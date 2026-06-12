@@ -67,6 +67,16 @@ struct DeviceConfig {
     bool boot_in_recovery = false;
     bool guest_additions = false;
 
+    /* HwScreen boot animation (CERF/OEM logo intro). Dev builds default OFF so
+       debug output shows instantly; production defaults ON. --boot-anim=
+       enable|disable overrides either way. */
+    bool boot_anim =
+#if CERF_DEV_MODE
+        false;
+#else
+        true;
+#endif
+
     /* Dev builds default to cold so iteration never auto-resumes a stale
        image; production resumes a saved state. --boot overrides either. */
     StateBootMode boot_mode =

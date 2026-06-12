@@ -20,8 +20,10 @@ public:
     Board       GetBoard()  const override { return Board::OdoArm720; }
     SocFamily   GetSoc()    const override { return SocFamily::Poseidon; }
     const char* BoardName() const override {
-        return "Microsoft Odo CE3 reference + Philips Poseidon ASIC, ARM720T";
+        return "Microsoft Windows CE Hardware Reference Platform, Philips Poseidon ASIC, ARM720T";
     }
+    const char*    GetShortBoardName()  const override { return "Reference Platform"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_MICROSOFT"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 480, 240 };
     }

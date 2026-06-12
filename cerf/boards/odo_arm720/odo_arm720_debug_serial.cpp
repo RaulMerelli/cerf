@@ -6,7 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -141,7 +141,7 @@ public:
 
 /* DEBUG_SER CSR peripheral — owns CSR A / CSR B state through the
    shared P2FpgaSerial helper. Detects SERB_TX_EN rising-edge on CSR
-   B writes and dispatches one byte via UartScreen + LOG. */
+   B writes and dispatches one byte via HwScreen + LOG. */
 class OdoArm720DebugSerial : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -153,7 +153,7 @@ public:
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
         LOG(SocUart, "Odo DEBUG_SER: TX implemented "
-                "(UartScreen + cerf.log); RX not implemented; "
+                "(HwScreen + cerf.log); RX not implemented; "
                 "OEMReadDebugByte halts on RX DMA read.\n");
     }
 
@@ -213,7 +213,7 @@ private:
 
     void FlushLine() {
         if (tx_line_.empty()) return;
-        emu_.Get<UartScreen>().AddLine(tx_line_);
+        emu_.Get<HwScreen>().AddLine(tx_line_);
         LOG(SocUart, "DEBUG_SER TX: %s\n", tx_line_.c_str());
         tx_line_.clear();
     }

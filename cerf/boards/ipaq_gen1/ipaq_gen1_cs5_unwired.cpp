@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 #include <cstdio>
@@ -55,7 +55,7 @@ private:
         std::string ascii;
         for (uint8_t c : line_) ascii.push_back((c >= 0x20 && c < 0x7F) ? char(c) : '.');
         LOG(SocUart, "PPSH: %s\n", ascii.c_str());
-        if (!ascii.empty()) emu_.Get<UartScreen>().AddLine(ascii);
+        if (!ascii.empty()) emu_.Get<HwScreen>().AddLine(ascii);
         line_.clear();
     }
 };

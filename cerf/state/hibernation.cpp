@@ -13,7 +13,8 @@
 #include "../host/host_canvas.h"
 #include "../host/host_key_prompt.h"
 #include "../host/host_window.h"
-#include "../host/uart_screen.h"
+#include "../host/hw_boot_animation.h"
+#include "../host/hw_screen.h"
 #include "../jit/arm_cpu.h"
 #include "../jit/arm_jit.h"
 #include "../jit/arm_mmu.h"
@@ -73,11 +74,14 @@ void Hibernation::Progress(const char* fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    emu_.Get<UartScreen>().AddLine(buf);
+    emu_.Get<HwScreen>().AddLine(buf);
     LOG(Cerf, "[HIBERNATE] %s\n", buf);
 }
 
 void Hibernation::AwaitFailureAck() {
+    /* Restore failed: the screen must show this text immediately, not after the
+       boot animation would otherwise finish. */
+    emu_.Get<HwBootAnimation>().Abort();
     Progress("Press any key to continue.");
     auto& kp = emu_.Get<HostKeyPrompt>();
     kp.Arm();
@@ -154,7 +158,7 @@ bool Hibernation::Save(const std::wstring& path_in) {
     const std::wstring path = path_in.empty() ? DefaultStatePath() : path_in;
     auto& runner = emu_.Get<JitRunner>();
 
-    emu_.Get<HostWindow>().ShowUartTab(false);
+    emu_.Get<HostWindow>().ShowHwScreenTab(false);
     Progress("Saving state...");
 
     runner.Pause();
@@ -209,7 +213,7 @@ bool Hibernation::Save(const std::wstring& path_in) {
     Progress(ok ? "State saved." : "Save FAILED.");
     /* Re-arm the framebuffer auto-switch so guest video returns on its
        next presented frame. */
-    emu_.Get<HostWindow>().ShowUartTab(true);
+    emu_.Get<HostWindow>().ShowHwScreenTab(true);
     return ok;
 }
 
@@ -254,14 +258,14 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
     const std::wstring path = path_in.empty() ? DefaultStatePath() : path_in;
     auto& runner = emu_.Get<JitRunner>();
 
-    emu_.Get<HostWindow>().ShowUartTab(false);
+    emu_.Get<HostWindow>().ShowHwScreenTab(false);
     Progress(ram_only ? "Warm boot: restoring RAM..." : "Restoring state...");
 
     StateReader r(path);
     if (!r.Ok()) {
         Progress("Cannot open state image.");
         AwaitFailureAck();
-        emu_.Get<HostWindow>().ShowUartTab(true);
+        emu_.Get<HostWindow>().ShowHwScreenTab(true);
         return false;
     }
 
@@ -315,6 +319,6 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
     }
     runner.Resume();
 
-    emu_.Get<HostWindow>().ShowUartTab(true);
+    emu_.Get<HostWindow>().ShowHwScreenTab(true);
     return ok;
 }

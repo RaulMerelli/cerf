@@ -318,6 +318,11 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
             else if (strcmp(v, "warm")   == 0) config.boot_mode = StateBootMode::Warm;
             else if (strcmp(v, "cold")   == 0) config.boot_mode = StateBootMode::Cold;
             else Fatal("(command line)", "--boot must be resume, warm, or cold");
+        } else if (strncmp(a, kArgBootAnim, sizeof(kArgBootAnim) - 1) == 0) {
+            const char* v = a + sizeof(kArgBootAnim) - 1;
+            if      (strcmp(v, "enable")  == 0) config.boot_anim = true;
+            else if (strcmp(v, "disable") == 0) config.boot_anim = false;
+            else Fatal("(command line)", "--boot-anim must be enable or disable");
         }
     }
 }

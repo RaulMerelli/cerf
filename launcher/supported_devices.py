@@ -83,7 +83,7 @@ ZUNE_OS_5 = OperatingSystem("Windows CE 5", "os_zune.png")
 SOC_SA1100 = Soc("Intel SA-1100", "StrongARM")
 SOC_SA1110 = Soc("Intel SA-1110", "StrongARM")
 SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE")
-SOC_ODO = Soc("Microsoft ODO (???)", "ARM720T (1996 NDA board)")
+SOC_ODO = Soc("ARM720T", "ARMv4T")
 SOC_OMAP3530 = Soc("TI OMAP 3530", "Cortex-A8")
 SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136")
 SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T")
@@ -220,7 +220,7 @@ BOARDS_INFORMATION = [
         ],
     },
     {
-        "name": "ODO/Poseidon",
+        "name": "Microsoft Windows CE Hardware Reference Platform",
         "supported": True,
         "soc": SOC_ODO,
         "operating_systems": [WINDOWS_CE_211, WINDOWS_CE_3],

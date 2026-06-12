@@ -6,7 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/uart_screen.h"
+#include "../../host/hw_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -138,7 +138,7 @@ public:
 /* CSR base for the two ports. Owns CSR A/B state via composition
    on P2FpgaSerial; on SERB_TX_EN rising-edge in CSR B, dispatches
    a byte through the per-port virtual GetTxDmaEffectivePa hook
-   and routes the resulting byte to UartScreen + LOG. */
+   and routes the resulting byte to HwScreen + LOG. */
 class P2SerialCsrWithTx : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -221,7 +221,7 @@ private:
 
     void FlushLine() {
         if (tx_line_.empty()) return;
-        emu_.Get<UartScreen>().AddLine(tx_line_);
+        emu_.Get<HwScreen>().AddLine(tx_line_);
         LOG(SocUart, "%s TX: %s\n", PortName(), tx_line_.c_str());
         tx_line_.clear();
     }

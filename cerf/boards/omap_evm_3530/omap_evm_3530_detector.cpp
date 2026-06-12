@@ -19,7 +19,8 @@ public:
     const char* BoardName() const override {
         return "TI OMAP 3530 EVM (Cortex-A8) + ti_evm_3530 BSP (CE 7)";
     }
-
+    const char*    GetShortBoardName()  const override { return "OMAP3530 EVM"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_TI"; }
 };
 
 }  /* namespace */
