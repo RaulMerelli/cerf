@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 
+#include <dwmapi.h>
 #include <uxtheme.h>
 
 REGISTER_SERVICE(HostDarkMode);
@@ -28,6 +29,8 @@ constexpr COLORREF kClrHot      = RGB(60, 60, 60);
 constexpr COLORREF kClrSel      = RGB(70, 70, 70);
 constexpr COLORREF kClrText     = RGB(230, 230, 230);
 constexpr COLORREF kClrDisabled = RGB(120, 120, 120);
+constexpr COLORREF kClrDlg      = RGB(32, 32, 32);   /* dialog client background */
+constexpr COLORREF kClrEdit     = RGB(45, 45, 45);   /* edit/list field background */
 
 using SetPreferredAppMode_t           = int  (WINAPI*)(int);
 using AllowDarkModeForWindow_t        = BOOL (WINAPI*)(HWND, BOOL);
@@ -42,21 +45,34 @@ RefreshImmersiveColorPolicy_t g_RefreshImmersivePolicy   = nullptr;
 }  /* namespace */
 
 HostDarkMode::~HostDarkMode() {
-    if (bar_brush_) DeleteObject(bar_brush_);
-    if (hot_brush_) DeleteObject(hot_brush_);
-    if (sel_brush_) DeleteObject(sel_brush_);
-    if (menu_font_) DeleteObject(menu_font_);
+    if (bar_brush_)  DeleteObject(bar_brush_);
+    if (hot_brush_)  DeleteObject(hot_brush_);
+    if (sel_brush_)  DeleteObject(sel_brush_);
+    if (dlg_brush_)  DeleteObject(dlg_brush_);
+    if (edit_brush_) DeleteObject(edit_brush_);
+    if (menu_font_)  DeleteObject(menu_font_);
+    if (ui_font_)    DeleteObject(ui_font_);
 }
 
 void HostDarkMode::EnsureResources() {
-    if (!bar_brush_) bar_brush_ = CreateSolidBrush(kClrBar);
-    if (!hot_brush_) hot_brush_ = CreateSolidBrush(kClrHot);
-    if (!sel_brush_) sel_brush_ = CreateSolidBrush(kClrSel);
+    if (!bar_brush_)  bar_brush_  = CreateSolidBrush(kClrBar);
+    if (!hot_brush_)  hot_brush_  = CreateSolidBrush(kClrHot);
+    if (!sel_brush_)  sel_brush_  = CreateSolidBrush(kClrSel);
+    if (!dlg_brush_)  dlg_brush_  = CreateSolidBrush(kClrDlg);
+    if (!edit_brush_) edit_brush_ = CreateSolidBrush(kClrEdit);
     if (!menu_font_) {
         NONCLIENTMETRICSW ncm = { sizeof(ncm) };
         if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0))
             menu_font_ = CreateFontIndirectW(&ncm.lfMenuFont);
     }
+    EnsureUiFont();
+}
+
+void HostDarkMode::EnsureUiFont() {
+    if (ui_font_) return;
+    NONCLIENTMETRICSW ncm = { sizeof(ncm) };
+    if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0))
+        ui_font_ = CreateFontIndirectW(&ncm.lfMessageFont);
 }
 
 void HostDarkMode::Init() {
@@ -80,7 +96,85 @@ void HostDarkMode::ApplyToWindow(HWND h) {
     if (!inited_ || !h) return;
     if (g_AllowDarkModeForWindow) g_AllowDarkModeForWindow(h, TRUE);
     SetWindowTheme(h, L"DarkMode_Explorer", nullptr);
+    /* Dark non-client caption via DWMWA_USE_IMMERSIVE_DARK_MODE (20 on 20H1+;
+       Windows 10 1809-1909 accept its predecessor attribute 19). */
+    const BOOL dark = TRUE;
+    if (FAILED(DwmSetWindowAttribute(h, 20, &dark, sizeof(dark))))
+        DwmSetWindowAttribute(h, 19, &dark, sizeof(dark));
     if (g_FlushMenuThemes) g_FlushMenuThemes();
+}
+
+BOOL CALLBACK HostDarkMode::ThemeChildProc(HWND child, LPARAM self_lp) {
+    auto* self = reinterpret_cast<HostDarkMode*>(self_lp);
+
+    if (self->ui_font_)
+        SendMessageW(child, WM_SETFONT, (WPARAM)self->ui_font_, TRUE);
+
+    if (self->inited_) {
+        if (g_AllowDarkModeForWindow) g_AllowDarkModeForWindow(child, TRUE);
+        /* Edit/combo fields take the CFD dark theme (dark frame + field);
+           buttons/checkboxes/lists take the Explorer dark theme. */
+        wchar_t cls[64] = {};
+        GetClassNameW(child, cls, 63);
+        const bool is_edit = (lstrcmpiW(cls, L"Edit") == 0 ||
+                              lstrcmpiW(cls, L"ComboBox") == 0);
+        SetWindowTheme(child, is_edit ? L"DarkMode_CFD" : L"DarkMode_Explorer",
+                       nullptr);
+    }
+    return TRUE;
+}
+
+void HostDarkMode::ApplyToDialog(HWND dlg) {
+    if (!dlg) return;
+    EnsureUiFont();             /* modern font even when the OS has no dark mode */
+    if (inited_) {
+        EnsureResources();
+        ApplyToWindow(dlg);     /* dark title bar */
+    }
+    EnumChildWindows(dlg, &HostDarkMode::ThemeChildProc,
+                     reinterpret_cast<LPARAM>(this));
+}
+
+bool HostDarkMode::HandleCtlColor(UINT msg, WPARAM wp, LRESULT& out) {
+    if (!inited_) return false;
+    EnsureResources();
+    HDC hdc = reinterpret_cast<HDC>(wp);
+    SetTextColor(hdc, kClrText);
+    switch (msg) {
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX:
+            SetBkColor(hdc, kClrEdit);
+            out = reinterpret_cast<LRESULT>(edit_brush_);
+            return true;
+        case WM_CTLCOLORDLG:
+        case WM_CTLCOLORSTATIC:
+        case WM_CTLCOLORBTN:
+            SetBkColor(hdc, kClrDlg);
+            out = reinterpret_cast<LRESULT>(dlg_brush_);
+            return true;
+    }
+    return false;
+}
+
+bool HostDarkMode::EraseBackground(HDC hdc, HWND hwnd) {
+    if (!inited_) return false;
+    EnsureResources();
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    FillRect(hdc, &rc, dlg_brush_);
+    return true;
+}
+
+HBRUSH HostDarkMode::BgBrush() {
+    EnsureResources();
+    return dlg_brush_;
+}
+
+COLORREF HostDarkMode::TextColor() const { return kClrText; }
+
+HFONT HostDarkMode::UiFont() {
+    EnsureUiFont();
+    return ui_font_;
 }
 
 bool HostDarkMode::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,

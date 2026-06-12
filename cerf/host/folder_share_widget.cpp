@@ -6,6 +6,7 @@
 #include "../core/device_config.h"
 #include "../core/folder_share_config.h"
 #include "../core/service.h"
+#include "host_dark_mode.h"
 #include "host_widget.h"
 #include "host_widget_registry.h"
 #include "host_window.h"
@@ -218,14 +219,11 @@ void FolderShareWidget::ShowConfigDialog() {
     const int y = orc.top  + ((orc.bottom - orc.top) - win_h) / 2;
     SetWindowPos(dlg, nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-    HFONT gui = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
                   int cx, int cy, int cw, int ch, int id) {
-        HWND h = CreateWindowExW(0, cls, text, WS_CHILD | WS_VISIBLE | style,
-                                 cx, cy, cw, ch, dlg, (HMENU)(INT_PTR)id,
-                                 GetModuleHandleW(nullptr), nullptr);
-        SendMessageW(h, WM_SETFONT, (WPARAM)gui, TRUE);
-        return h;
+        return CreateWindowExW(0, cls, text, WS_CHILD | WS_VISIBLE | style,
+                               cx, cy, cw, ch, dlg, (HMENU)(INT_PTR)id,
+                               GetModuleHandleW(nullptr), nullptr);
     };
     mk(L"BUTTON", L"Enable shared folder",
        BS_AUTOCHECKBOX | WS_TABSTOP, 16, 14, 280, 22, IDC_ENABLE);
@@ -241,6 +239,9 @@ void FolderShareWidget::ShowConfigDialog() {
 
     CheckDlgButton(dlg, IDC_ENABLE,
                    cfg.Enabled() ? BST_CHECKED : BST_UNCHECKED);
+
+    /* Dark title bar + dark-theme every child + modern UI font, one call. */
+    emu_.Get<HostDarkMode>().ApplyToDialog(dlg);
 
     EnableWindow(owner, FALSE);
     ShowWindow(dlg, SW_SHOW);
@@ -282,6 +283,19 @@ LRESULT CALLBACK FolderShareWidget::DlgProcStatic(HWND hwnd, UINT msg,
         case WM_CLOSE:
             DestroyWindow(hwnd);
             return 0;
+        case WM_ERASEBKGND:
+            if (self->emu_.Get<HostDarkMode>().EraseBackground((HDC)wp, hwnd))
+                return 1;
+            break;
+        case WM_CTLCOLORDLG:
+        case WM_CTLCOLORSTATIC:
+        case WM_CTLCOLORBTN:
+        case WM_CTLCOLOREDIT: {
+            LRESULT br;
+            if (self->emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br))
+                return br;
+            break;
+        }
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }

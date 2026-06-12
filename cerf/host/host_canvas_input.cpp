@@ -84,9 +84,9 @@ void HostCanvasInput::ShowLockHintOnce(HWND owner) {
     if (!lock_hint_tip_) return;
 
     wchar_t text[] = L"Mouse locked — press Right Ctrl to release";
-    /* cbSize MUST be TTTOOLINFOW_V1_SIZE: with no Common-Controls v6 manifest
-       CERF runs comctl32 v5, which rejects modern sizeof(TTTOOLINFOW) and
-       silently fails TTM_ADDTOOL — no tool, no balloon (see HostStatusBar). */
+    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE — accepted by every
+       comctl32 (v5 and the manifest's v6); the larger modern sizeof(TTTOOLINFOW)
+       is rejected by older comctl32 from TTM_ADDTOOL (see HostStatusBar). */
     TTTOOLINFOW ti = { TTTOOLINFOW_V1_SIZE };
     ti.uFlags   = TTF_TRACK | TTF_IDISHWND;
     ti.hwnd     = owner;

@@ -2,8 +2,6 @@
 
 #include "host_window.h"
 
-#include <dwmapi.h>
-
 #include <string>
 #include <vector>
 
@@ -14,6 +12,7 @@
 #include "../core/string_utils.h"
 #include "../jit/jit_runner.h"
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
+#include "../state/shutdown_dialog.h"
 #include "../version.h"
 #include "host_auto_resize.h"
 #include "frame_renderer.h"
@@ -25,6 +24,7 @@
 #include "host_widget_registry.h"
 #include "initial_window_size.h"
 #include "text_mode_boot_banner.h"
+#include "../state/hibernation.h"
 
 REGISTER_SERVICE(HostWindow);
 
@@ -35,6 +35,7 @@ constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
 constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
 constexpr UINT     kShowUartMsg    = WM_APP + 3;
 constexpr UINT     kRunJobMsg      = WM_APP + 4;   /* lParam = heap std::function */
+constexpr UINT     kShutdownMsg    = WM_APP + 5;   /* posted from WM_CLOSE */
 constexpr UINT_PTR kResizeDebounceTimer = 1;
 constexpr UINT     kResizeDebounceMs    = 200;
 constexpr UINT_PTR kCloseWatchdogTimer  = 2;
@@ -214,6 +215,32 @@ void HostWindow::AutoResizeToGuest() {
     LOG(Lcd, "HostWindow: matched guest size %ux%u\n", sw, sh);
 }
 
+void HostWindow::RunShutdownPrompt() {
+    const ShutdownChoice c = emu_.Get<ShutdownDialog>().Show();
+    if (c == ShutdownChoice::Cancel) {
+        shutdown_pending_ = false;   /* user aborted close; allow a later one */
+        return;
+    }
+    if (c == ShutdownChoice::ExitSave) {
+        ShowUartTab(false);          /* render the save-progress screen */
+        emu_.Get<Hibernation>().SaveAsync(L"", [this] {
+            RunOnUiThread([this] { BeginShutdownTeardown(); });
+        });
+        return;
+    }
+    BeginShutdownTeardown();
+}
+
+void HostWindow::BeginShutdownTeardown() {
+    if (closing_) return;
+    /* Stop the CPU cooperatively first — destroying the window with the JIT
+       still grinding ARM code orphans cerf.exe; the watchdog destroys it once parked. */
+    closing_ = true;
+    if (auto* jit = emu_.TryGet<JitRunner>()) jit->RequestStop();
+    close_start_tick_ = GetTickCount64();
+    SetTimer(hwnd_, kCloseWatchdogTimer, kClosePollMs, nullptr);
+}
+
 void HostWindow::UiThreadMain() {
     WNDCLASSEXW wc = {};
     wc.cbSize        = sizeof(wc);
@@ -251,14 +278,7 @@ void HostWindow::UiThreadMain() {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    /* DWMWA_USE_IMMERSIVE_DARK_MODE is 20 only on 20H1+; Windows 10
-       1809-1909 accept its predecessor attribute 19. */
-    {
-        const BOOL dark = TRUE;
-        if (FAILED(DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark))))
-            DwmSetWindowAttribute(hwnd_, 19, &dark, sizeof(dark));
-    }
-    emu_.Get<HostDarkMode>().ApplyToWindow(hwnd_);
+    emu_.Get<HostDarkMode>().ApplyToWindow(hwnd_);  /* dark title bar + theme */
 
     /* The window now has a monitor, so the guest surface can be fitted to it
        before the canvas is built and before the guest reads its framebuffer
@@ -340,6 +360,11 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         auto* heap = reinterpret_cast<std::function<void()>*>(lp);
         (*heap)();
         delete heap;
+        return 0;
+    }
+
+    if (msg == kShutdownMsg) {
+        RunShutdownPrompt();
         return 0;
     }
 
@@ -448,15 +473,11 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
 
         case WM_CLOSE:
-            /* Keep the window on screen and stop the JIT cooperatively, then
-               poll until the CPU thread actually exits before destroying the
-               window. Destroying it while the JIT still grinds ARM code
-               orphans cerf.exe; the watchdog timer forces exit if it wedges. */
-            if (!closing_) {
-                closing_ = true;
-                if (auto* jit = emu_.TryGet<JitRunner>()) jit->RequestStop();
-                close_start_tick_ = GetTickCount64();
-                SetTimer(hwnd, kCloseWatchdogTimer, kClosePollMs, nullptr);
+            /* Never block/pump in the window proc: post and return so the UI
+               loop keeps running; prompt + async save run from kShutdownMsg. */
+            if (!closing_ && !shutdown_pending_) {
+                shutdown_pending_ = true;
+                PostMessageW(hwnd, kShutdownMsg, 0, 0);
             }
             return 0;
 
