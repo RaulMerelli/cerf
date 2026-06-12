@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
+#include "../../state/state_stream.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -32,6 +33,32 @@ public:
 
     /* Host input toggles a matrix cell (col 0..3, row 0..4). */
     void SetMatrixKey(uint8_t col, uint8_t row, bool pressed);
+
+    /* SetMatrixKey runs on the host-input thread under mtx_, so the
+       register snapshot is taken under the same lock. The synchronizer
+       thread / condition variable / stop_ flag are host-side control
+       and are re-created on restore, not serialized. */
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(mtx_);
+        w.Write(kpcr_);
+        w.Write(kpsr_);
+        w.Write(kddr_);
+        w.Write(kpdr_col_);
+        w.WriteBytes(pressed_, sizeof(pressed_));
+        const uint8_t irq = irq_on_.load(std::memory_order_acquire) ? 1u : 0u;
+        w.Write(irq);
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(mtx_);
+        r.Read(kpcr_);
+        r.Read(kpsr_);
+        r.Read(kddr_);
+        r.Read(kpdr_col_);
+        r.ReadBytes(pressed_, sizeof(pressed_));
+        uint8_t irq = 0;
+        r.Read(irq);
+        irq_on_.store(irq != 0, std::memory_order_release);
+    }
 
 private:
     void     StopSyncThread();

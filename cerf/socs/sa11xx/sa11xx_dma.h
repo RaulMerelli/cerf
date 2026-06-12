@@ -42,6 +42,9 @@ public:
 
     void CompleteTransfer(uint32_t channel_index, bool buffer_b);
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     static constexpr uint32_t kChannelCount  = 6;
     static constexpr uint32_t kChannelStride = 0x20u;
 

@@ -6,6 +6,7 @@
 #include "../../boards/board_detector.h"
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool Pxa255Intc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -146,6 +147,29 @@ void Pxa255Intc::WriteWord(uint32_t addr, uint32_t value) {
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     std::lock_guard<std::mutex> guard(state_mtx_);
     WriteRegLocked(off, value);
+}
+
+void Pxa255Intc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    w.Write(icpr_);
+    w.Write(icmr_);
+    w.Write(iclr_);
+    w.Write(iccr_);
+}
+
+void Pxa255Intc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    r.Read(icpr_);
+    r.Read(icmr_);
+    r.Read(iclr_);
+    r.Read(iccr_);
+}
+
+void Pxa255Intc::PostRestore() {
+    /* Re-derive the JIT IRQ-pending latch from the restored ICPR/ICMR/ICLR after
+       every peripheral's RestoreState has run — the INTC owns the CPU IRQ line. */
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    NotifyLocked();
 }
 
 REGISTER_SERVICE(Pxa255Intc);

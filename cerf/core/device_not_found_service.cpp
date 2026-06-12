@@ -4,6 +4,7 @@
 #include "device_config.h"
 #include "log.h"
 #include "service.h"
+#include "cerf_paths.h"
 #include "string_utils.h"
 
 #include <windows.h>
@@ -65,7 +66,7 @@ private:
 
     bool IsDevicePresent() {
         const auto& cfg = emu_.Get<DeviceConfig>();
-        const std::string dir = GetCerfDir() + "devices/" + cfg.device_name + "/";
+        const std::string dir = GetDeviceDir(cfg.device_name);
         if (!cfg.rom_primary.empty())
             return FileExists(dir + cfg.rom_primary);
         return DirHasRom(dir);

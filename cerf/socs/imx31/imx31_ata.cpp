@@ -9,6 +9,7 @@
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "../../storage/ata_drive.h"
 #include "../../storage/disk_image.h"
 #include "../guest_cpu_reset.h"
@@ -89,6 +90,21 @@ public:
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
+
+    void SaveState(StateWriter& w) override {
+        drive_.SaveState(w);
+        w.WriteBytes(timing_.data(), timing_.size());
+        w.Write(ata_control_);
+        w.Write(int_enable_);
+        w.Write(fifo_alarm_);
+    }
+    void RestoreState(StateReader& r) override {
+        drive_.RestoreState(r);
+        r.ReadBytes(timing_.data(), timing_.size());
+        r.Read(ata_control_);
+        r.Read(int_enable_);
+        r.Read(fifo_alarm_);
+    }
 
     /* HostWidget. RX = sector data read from the drive (kDriveData read),
        TX = sector data written to the drive (kDriveData write). */

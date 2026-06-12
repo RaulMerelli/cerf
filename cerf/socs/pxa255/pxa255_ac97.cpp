@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../peripherals/ac97_codec.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <algorithm>
 #include <cstring>
@@ -88,6 +89,35 @@ void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
     if (!sink_.Play(&header_)) {
         sink_.Post(MM_WOM_DONE, 0, 0);
     }
+}
+
+void Pxa255Ac97::SaveState(StateWriter& w) {
+    w.Write(pocr_);
+    w.Write(picr_);
+    w.Write(mccr_);
+    w.Write(gcr_);
+    w.Write(mocr_);
+    w.Write(micr_);
+    w.WriteBytes(codec_, sizeof(codec_));
+    /* When a real codec is registered (e.g. Wm9705Codec) it holds the live
+       register file; codec_ above is only the no-codec shadow. */
+    if (auto* codec = emu_.TryGet<Ac97Codec>()) codec->SaveState(w);
+}
+
+void Pxa255Ac97::RestoreState(StateReader& r) {
+    r.Read(pocr_);
+    r.Read(picr_);
+    r.Read(mccr_);
+    r.Read(gcr_);
+    r.Read(mocr_);
+    r.Read(micr_);
+    r.ReadBytes(codec_, sizeof(codec_));
+    if (auto* codec = emu_.TryGet<Ac97Codec>()) codec->RestoreState(r);
+    /* No host sink buffer or DMA pacing callback survives a snapshot; a still-
+       active audio/touch coupling would block the guest DMA thread on a
+       completion that never arrives, so reset it for the guest to re-arm. */
+    StopAudioOut();
+    StopTouchCapture();
 }
 
 uint16_t Pxa255Ac97::CodecRead(uint32_t reg) {

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -30,6 +31,11 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    /* CCCR/CKEN storage + the OON write-once latch are guest state.
+       JIT-thread-only — no lock. */
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     static constexpr uint32_t kCccrMask = 0x000003FFu;  /* N[9:7] M[6:5] L[4:0] */
     static constexpr uint32_t kCkenMask = 0x00017BFFu;  /* CKEN R/W bits (15,10 reserved) */
@@ -55,6 +61,14 @@ void Pxa255ClockManager::WriteWord(uint32_t addr, uint32_t value) {
         case 0x08: if (value & 0x2u) oon_ = true; return;  /* OON write-once; OOK is RO. */
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Pxa255ClockManager::SaveState(StateWriter& w) {
+    w.Write(cccr_); w.Write(cken_); w.Write(oon_);
+}
+
+void Pxa255ClockManager::RestoreState(StateReader& r) {
+    r.Read(cccr_); r.Read(cken_); r.Read(oon_);
 }
 
 }  /* namespace */

@@ -22,6 +22,8 @@ void PrintUsage(const char* prog) {
     printf("  --share-folder=PATH      Pre-enable the guest-additions shared folder on a host\n");
     printf("                           directory at boot (requires --guest-additions)\n");
     printf("  --recovery               Boot the device's recovery ROM (rom.recovery) instead of primary\n");
+    printf("  --boot=resume|cold|warm  Saved-state boot action when state.img exists\n");
+    printf("                           (resume=full restore, warm=RAM+flash only, cold=ignore)\n");
     printf("  --help                   Show this help\n");
     printf("\n");
     Log::PrintCategoryList();

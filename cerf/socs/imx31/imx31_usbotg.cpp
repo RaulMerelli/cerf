@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -173,6 +174,45 @@ public:
             case kEndptStat:      return;
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    /* Every member is a plain register (scalar or fixed register-file array);
+       all are guest-observable. No host pointers, FIFOs, or rebase-time state. */
+    void SaveState(StateWriter& w) override {
+        w.WriteBytes(portsc_, sizeof(portsc_));
+        w.Write(usbcmd_);
+        w.Write(usbintr_);
+        w.Write(usb_ctrl_);
+        w.Write(otg_mirror_);
+        w.Write(usbmode_);
+        w.Write(configflag_);
+        w.Write(otgsc_);
+        w.Write(ulpiview_);
+        w.Write(frindex_);
+        w.Write(ctrl_ds_seg_);
+        w.Write(periodic_base_);
+        w.Write(async_addr_);
+        w.Write(tx_fill_tune_);
+        w.Write(endpt_stat_);
+        w.WriteBytes(endptctrl_, sizeof(endptctrl_));
+    }
+    void RestoreState(StateReader& r) override {
+        r.ReadBytes(portsc_, sizeof(portsc_));
+        r.Read(usbcmd_);
+        r.Read(usbintr_);
+        r.Read(usb_ctrl_);
+        r.Read(otg_mirror_);
+        r.Read(usbmode_);
+        r.Read(configflag_);
+        r.Read(otgsc_);
+        r.Read(ulpiview_);
+        r.Read(frindex_);
+        r.Read(ctrl_ds_seg_);
+        r.Read(periodic_base_);
+        r.Read(async_addr_);
+        r.Read(tx_fill_tune_);
+        r.Read(endpt_stat_);
+        r.ReadBytes(endptctrl_, sizeof(endptctrl_));
     }
 
 private:

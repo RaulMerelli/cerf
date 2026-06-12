@@ -7,6 +7,7 @@
 #include "../../jit/cpu_state.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <mutex>
@@ -40,6 +41,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t GuestCycles() const {
@@ -82,6 +86,22 @@ void Omap3530Synctimer::WriteWord(uint32_t addr, uint32_t value) {
     case kOffCr:        return;              /* counter is read-only */
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Omap3530Synctimer::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(sysconfig_);
+    w.Write(ComputeCounter());
+}
+
+void Omap3530Synctimer::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(sysconfig_);
+    uint32_t counter = 0;
+    r.Read(counter);
+    /* Re-anchor so ComputeCounter() yields the saved counter against the
+       restored guest_cycle_counter; divider_ is set in OnReady (pre-restore). */
+    start_cycles_ = GuestCycles() - counter * divider_;
 }
 
 }  /* namespace */

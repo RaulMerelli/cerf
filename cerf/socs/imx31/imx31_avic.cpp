@@ -202,6 +202,40 @@ void Imx31Avic::WriteRegLocked(uint32_t off, uint32_t value) {
     }
 }
 
+void Imx31Avic::SaveState(StateWriter& w) {
+    /* src_hw_ is mutated from peripheral worker threads via AssertSource/
+       DeassertSource, so all reads of AVIC state require state_mtx_. */
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    w.Write(src_hw_);
+    w.Write(intcntl_);
+    w.Write(nimask_);
+    w.Write(intenable_);
+    w.Write(inttype_);
+    w.Write(intfrc_);
+    w.WriteBytes(niprio_, sizeof(niprio_));
+    w.WriteBytes(vector_, sizeof(vector_));
+}
+
+void Imx31Avic::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    r.Read(src_hw_);
+    r.Read(intcntl_);
+    r.Read(nimask_);
+    r.Read(intenable_);
+    r.Read(inttype_);
+    r.Read(intfrc_);
+    r.ReadBytes(niprio_, sizeof(niprio_));
+    r.ReadBytes(vector_, sizeof(vector_));
+}
+
+void Imx31Avic::PostRestore() {
+    /* Re-derive the JIT IRQ-pending latch from the restored src_hw_/intenable_/
+       intcntl_ after every peripheral's RestoreState has run — the INTC owns the
+       CPU IRQ line. */
+    std::lock_guard<std::mutex> guard(state_mtx_);
+    NotifyLocked();
+}
+
 uint32_t Imx31Avic::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnownOffset(off)) HaltUnsupportedAccess("ReadWord", addr, 0);

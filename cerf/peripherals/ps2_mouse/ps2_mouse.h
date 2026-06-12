@@ -5,6 +5,9 @@
 #include <functional>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 /* Generic PS/2 mouse device: the standard command/response handshake and
    3-byte motion packet, independent of any host controller. A board maps its
    controller's data/status registers onto WriteCommand / HasData / ReadData,
@@ -26,6 +29,11 @@ public:
 
     /* Host motion -> a 3-byte packet + the data IRQ. dx>0 right, dy>0 down. */
     void QueueMotion(int dx, int dy, uint32_t button_mask);
+
+    /* reporting_/expect_param_ are guest-set modes that persist; the motion
+       packet queue is transient host input and is cleared on restore. */
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
 
 private:
     void PushLocked(uint8_t b) { out_.push_back(b); }

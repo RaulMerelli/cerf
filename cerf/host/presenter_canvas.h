@@ -31,6 +31,10 @@ public:
        with `out` set to consume it. */
     virtual bool HandleInput(HWND /*hwnd*/, UINT /*msg*/, WPARAM /*wp*/,
                              LPARAM /*lp*/, LRESULT& /*out*/) { return false; }
+
+    /* When true, the composed present DIB is desaturated before blit (paused
+       look). Evaluated each present tick after composition. */
+    virtual bool ShouldDesaturatePresent() { return false; }
 };
 
 /* The shared drawable child window: owns the present-DIB backbuffer, a

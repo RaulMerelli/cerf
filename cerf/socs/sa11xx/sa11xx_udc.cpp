@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -30,6 +31,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t udccr_  = 0;
@@ -119,6 +123,32 @@ void Sa11xxUdc::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxUdc::SaveState(StateWriter& w) {
+    w.Write(udccr_);
+    w.Write(udcar_);
+    w.Write(udcomp_);
+    w.Write(udcimp_);
+    w.Write(udccs0_);
+    w.Write(udccs1_);
+    w.Write(udccs2_);
+    w.Write(udcd0_);
+    w.Write(udcdr_);
+    w.Write(udcsr_);
+}
+
+void Sa11xxUdc::RestoreState(StateReader& r) {
+    r.Read(udccr_);
+    r.Read(udcar_);
+    r.Read(udcomp_);
+    r.Read(udcimp_);
+    r.Read(udccs0_);
+    r.Read(udccs1_);
+    r.Read(udccs2_);
+    r.Read(udcd0_);
+    r.Read(udcdr_);
+    r.Read(udcsr_);
 }
 
 }  /* namespace */

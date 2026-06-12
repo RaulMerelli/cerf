@@ -1,14 +1,15 @@
 #include "host_serial_forward.h"
 
 #include "../../core/log.h"
+#include "../../state/emulation_freeze.h"
 
 namespace {
 constexpr DWORD kReadTimeoutMs  = 50;     /* reader wakes to poll status + stop */
 constexpr DWORD kWriteTimeoutMs = 2000;   /* a wedged device can't hang shutdown */
 }  /* namespace */
 
-HostSerialForward::HostSerialForward(std::wstring host_port)
-    : port_name_(std::move(host_port)) {}
+HostSerialForward::HostSerialForward(std::wstring host_port, EmulationFreeze& freeze)
+    : freeze_(freeze), port_name_(std::move(host_port)) {}
 
 HostSerialForward::~HostSerialForward() { OnClose(); }
 
@@ -118,16 +119,20 @@ void HostSerialForward::ReaderLoop() {
             const uint8_t cur = (uint8_t)(ms & 0xF0u);   /* CTS/DSR/RI/DCD levels */
             if (cur != last_ms_) {
                 last_ms_ = cur;
-                if (uart_)
+                if (uart_) {
+                    auto frozen = freeze_.WorkerSection();
                     uart_->SetModemInputs((ms & MS_CTS_ON)  != 0,
                                           (ms & MS_DSR_ON)  != 0,
                                           (ms & MS_RING_ON) != 0,
                                           (ms & MS_RLSD_ON) != 0);
+                }
             }
         }
         DWORD got = 0;
-        if (ReadFile(handle_, buf, sizeof buf, &got, nullptr) && got > 0 && uart_)
+        if (ReadFile(handle_, buf, sizeof buf, &got, nullptr) && got > 0 && uart_) {
+            auto frozen = freeze_.WorkerSection();
             uart_->PushRx(buf, got);
+        }
     }
 }
 

@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstring>
 
@@ -150,6 +151,30 @@ void MediaQMq200::WriteWord(uint32_t addr, uint32_t value) {
     if (off < kFbSize) { std::memcpy(&fb_[off], &value, sizeof(value)); return; }
     if (off >= kRegWinOff && off < kRegWinOff + kRegSize) { RegWrite(off - kRegWinOff, value); return; }
     HaltUnsupportedAccess("MQ200 WriteWord", addr, value);
+}
+
+void MediaQMq200::SaveState(StateWriter& w) {
+    w.Write<uint64_t>(fb_.size());
+    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
+    w.Write<uint64_t>(reg_.size());
+    if (!reg_.empty()) w.WriteBytes(reg_.data(), reg_.size() * sizeof(uint32_t));
+    w.Write<uint8_t>(enable_published_ ? 1u : 0u);
+    w.Write(published_w_);
+    w.Write(published_h_);
+    ge_.SaveState(w);
+}
+
+void MediaQMq200::RestoreState(StateReader& r) {
+    uint64_t n = 0; r.Read(n);
+    fb_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(fb_.data(), static_cast<size_t>(n));
+    r.Read(n);
+    reg_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(reg_.data(), static_cast<size_t>(n) * sizeof(uint32_t));
+    uint8_t en = 0; r.Read(en); enable_published_ = (en != 0);
+    r.Read(published_w_);
+    r.Read(published_h_);
+    ge_.RestoreState(r);
 }
 
 REGISTER_SERVICE(MediaQMq200);

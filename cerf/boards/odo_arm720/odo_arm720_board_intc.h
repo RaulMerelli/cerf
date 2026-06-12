@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 constexpr int kSourceSystemIntr        = 0;
 constexpr int kSourceLcdIntr           = 2;
 constexpr int kSourceProdSerialIntr    = 3;
@@ -28,6 +31,10 @@ public:
     uint16_t ReadReg16 (uint32_t offset);
     void     WriteReg32(uint32_t offset, uint32_t value);
     void     WriteReg16(uint32_t offset, uint16_t value);
+
+    /* State image: cpuIsr + cpuMr are the whole INTC state. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
 private:
     bool HasPendingUnmaskedLocked() const;

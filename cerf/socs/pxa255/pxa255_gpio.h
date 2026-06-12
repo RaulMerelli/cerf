@@ -26,6 +26,9 @@ public:
        from a host input thread, so all GPIO state is guarded by mtx_. */
     void SetInputLevel(uint32_t gpio, bool high);
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     mutable std::mutex mtx_;
 

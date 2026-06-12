@@ -6,6 +6,7 @@
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -46,6 +47,9 @@ public:
         for (int i = 0; i < 4; ++i) regs_[off + i] = static_cast<uint8_t>(value >> (8 * i));
         if (off == kReboot && (value & 0xFFu) == kRebootCmd) TriggerReset();
     }
+
+    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
 
 private:
     static constexpr uint32_t kReboot    = 0x80Cu;  /* PA 0xA3CC380C - base 0xA3CC3000. */

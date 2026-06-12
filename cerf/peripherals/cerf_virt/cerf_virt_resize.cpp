@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/host_window.h"
+#include "../../state/state_stream.h"
 
 REGISTER_SERVICE(CerfVirtResize);
 
@@ -46,6 +47,27 @@ void CerfVirtResize::WriteWord(uint32_t addr, uint32_t value) {
             break;
         default: break;
     }
+}
+
+void CerfVirtResize::SaveState(StateWriter& w) {
+    w.Write<uint32_t>(want_w_.load());
+    w.Write<uint32_t>(want_h_.load());
+    w.Write<uint32_t>(want_bpp_.load());
+    w.Write<uint32_t>(want_gen_.load());
+    w.Write<uint32_t>(applied_w_.load());
+    w.Write<uint32_t>(applied_h_.load());
+    w.Write<uint32_t>(applied_gen_.load());
+}
+
+void CerfVirtResize::RestoreState(StateReader& r) {
+    uint32_t v;
+    r.Read(v); want_w_.store(v);
+    r.Read(v); want_h_.store(v);
+    r.Read(v); want_bpp_.store(v);
+    r.Read(v); want_gen_.store(v);
+    r.Read(v); applied_w_.store(v);
+    r.Read(v); applied_h_.store(v);
+    r.Read(v); applied_gen_.store(v);
 }
 
 void CerfVirtResize::RequestResize(uint32_t w, uint32_t h, uint32_t bpp) {

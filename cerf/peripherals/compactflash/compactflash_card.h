@@ -35,6 +35,11 @@ public:
     void     WriteIo8 (uint32_t offset, uint8_t  value)      override;
     void     WriteIo16(uint32_t offset, uint16_t value)      override;
 
+    const char* SaveId() const override { return "cf"; }
+    std::wstring SaveBinding() const override { return image_path_; }
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* A failed-open card still inserts and reports ATA not-ready (status
        without READY), so the OS sees a failed disk, not an empty socket. */
     bool ImageOk() const { return file_ != nullptr; }

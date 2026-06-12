@@ -7,7 +7,10 @@
 #include "../../jit/arm_jit.h"
 #include "../../jit/cpu_state.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 #include "imx31_avic.h"
+#include "imx31_gpt_regs.h"
 
 #include <atomic>
 #include <chrono>
@@ -18,53 +21,7 @@
 
 namespace {
 
-/* MCIMX31RM §34.3.1 Table 34-3 (PDF p1474). */
-constexpr uint32_t kBase   = 0x53F90000u;
-constexpr uint32_t kSize   = 0x00004000u;
-constexpr uint32_t kRegEnd = 0x28u;
-
-constexpr uint32_t kOffGptcr   = 0x00u;
-constexpr uint32_t kOffGptpr   = 0x04u;
-constexpr uint32_t kOffGptsr   = 0x08u;
-constexpr uint32_t kOffGptir   = 0x0Cu;
-constexpr uint32_t kOffGptocr1 = 0x10u;
-constexpr uint32_t kOffGptocr2 = 0x14u;
-constexpr uint32_t kOffGptocr3 = 0x18u;
-constexpr uint32_t kOffGpticr1 = 0x1Cu;
-constexpr uint32_t kOffGpticr2 = 0x20u;
-constexpr uint32_t kOffGptcnt  = 0x24u;
-
-/* MCIMX31RM §34.3.3.1 Table 34-6 GPTCR bits (PDF p1477..1480). */
-constexpr uint32_t kGptcrEn        = 1u << 0;
-constexpr uint32_t kGptcrEnmod     = 1u << 1;
-constexpr uint32_t kGptcrClksrcSh  = 6;
-constexpr uint32_t kGptcrClksrcM   = 7u << kGptcrClksrcSh;
-constexpr uint32_t kGptcrFrr       = 1u << 9;
-constexpr uint32_t kGptcrSwr       = 1u << 15;
-constexpr uint32_t kGptcrFo1       = 1u << 29;
-constexpr uint32_t kGptcrFo2       = 1u << 30;
-constexpr uint32_t kGptcrFo3       = 1u << 31;
-constexpr uint32_t kGptcrSelfClear = kGptcrSwr | kGptcrFo1 | kGptcrFo2 | kGptcrFo3;
-/* SWR preserves EN/ENMOD/DBGEN/WAITEN/DOZEN/STOPEN/CLKSRC (§34.4.1[15]). */
-constexpr uint32_t kGptcrSwrPreserve = 0x000003FFu;
-
-/* MCIMX31RM §34.3.3.3 Table 34-8 GPTSR (PDF p1481) — w1c bits. */
-constexpr uint32_t kGptOf1 = 1u << 0;
-constexpr uint32_t kGptOf2 = 1u << 1;
-constexpr uint32_t kGptOf3 = 1u << 2;
-constexpr uint32_t kGptIf1 = 1u << 3;
-constexpr uint32_t kGptIf2 = 1u << 4;
-constexpr uint32_t kGptRov = 1u << 5;
-constexpr uint32_t kGptStatusMask = 0x3Fu;
-
-constexpr uint32_t kClksrcNone   = 0u;
-constexpr uint32_t kClksrcIpgClk = 1u;
-
-/* MCIMX31RM §2.2 Table 2-3 (PDF p190): AVIC source 29 = GPT. */
-constexpr uint32_t kAvicSourceGpt = 29u;
-
-constexpr auto kPollInterval = std::chrono::microseconds(100);
-constexpr uint32_t kNotifyForwardLimit = 10000u;
+using namespace cerf_imx31_gpt_regs;
 
 class Imx31Gpt : public Peripheral {
 public:
@@ -125,6 +82,36 @@ public:
             HaltUnsupportedAccess("FastWrite", kBase + off, value);
         }
         WriteReg(off, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(gptcr_.load(std::memory_order_acquire));
+        w.Write(gptpr_.load(std::memory_order_acquire));
+        w.Write(gptsr_.load(std::memory_order_acquire));
+        w.Write(gptir_.load(std::memory_order_acquire));
+        for (int n = 0; n < 3; ++n) w.Write(gptocr_[n].load(std::memory_order_acquire));
+        for (int n = 0; n < 2; ++n) w.Write(gpticr_[n].load(std::memory_order_acquire));
+        for (int n = 0; n < 3; ++n) w.Write(ocr_anchor_[n].load(std::memory_order_acquire));
+        w.Write(frozen_count_.load(std::memory_order_acquire));
+        w.Write(last_seen_count_);
+        w.Write<uint32_t>(ReadCounter());   /* current count; re-anchored on restore */
+    }
+    void RestoreState(StateReader& r) override {
+        uint32_t v = 0;
+        uint64_t u = 0;
+        r.Read(v); gptcr_.store(v, std::memory_order_release);
+        r.Read(v); gptpr_.store(v, std::memory_order_release);
+        r.Read(v); gptsr_.store(v, std::memory_order_release);
+        r.Read(v); gptir_.store(v, std::memory_order_release);
+        for (int n = 0; n < 3; ++n) { r.Read(v); gptocr_[n].store(v, std::memory_order_release); }
+        for (int n = 0; n < 2; ++n) { r.Read(v); gpticr_[n].store(v, std::memory_order_release); }
+        for (int n = 0; n < 3; ++n) { r.Read(u); ocr_anchor_[n].store(u, std::memory_order_release); }
+        r.Read(v); frozen_count_.store(v, std::memory_order_release);
+        r.Read(last_seen_count_);
+        uint32_t cnt = 0;
+        r.Read(cnt);
+        baseline_packed_.store(PackPair(cnt, GuestCycles()), std::memory_order_release);
+        cv_.notify_all();
     }
 
 private:
@@ -453,11 +440,15 @@ private:
     }
 
     void MatchLoop() {
+        auto& freeze = emu_.Get<EmulationFreeze>();
         std::unique_lock<std::mutex> lk(cv_mtx_);
         while (!stop_.load(std::memory_order_acquire)) {
             lk.unlock();
-            RebaseToCurrent();
-            CheckAndFire();
+            {
+                auto frozen = freeze.WorkerSection();
+                RebaseToCurrent();
+                CheckAndFire();
+            }
             lk.lock();
             if (stop_.load(std::memory_order_acquire)) break;
             if (AnyChannelArmed()) {

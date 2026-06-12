@@ -4,6 +4,7 @@
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
 #include "../../socs/sa11xx/sa11xx_sp1_uart.h"
+#include "../../state/emulation_freeze.h"
 
 #include <atomic>
 #include <chrono>
@@ -248,6 +249,7 @@ private:
     }
 
     void SamplerLoop() {
+        auto& freeze = emu_.Get<EmulationFreeze>();
         std::unique_lock<std::mutex> lk(mtx_);
         bool was_down = false;
         while (!stop_) {
@@ -255,7 +257,10 @@ private:
                 const int x = last_x_;
                 const int y = last_y_;
                 lk.unlock();
-                EmitPress(x, y);
+                {
+                    auto frozen = freeze.WorkerSection();
+                    EmitPress(x, y);
+                }
                 lk.lock();
                 was_down = true;
                 cv_.wait_for(lk, kSamplePeriod,
@@ -264,7 +269,10 @@ private:
                 if (was_down) {
                     was_down = false;
                     lk.unlock();
-                    emu_.Get<IpaqGen1MicroP>().SendTouchRelease();
+                    {
+                        auto frozen = freeze.WorkerSection();
+                        emu_.Get<IpaqGen1MicroP>().SendTouchRelease();
+                    }
                     lk.lock();
                 }
                 cv_.wait(lk, [&] { return stop_ || pen_down_; });
@@ -272,6 +280,7 @@ private:
         }
         if (was_down) {
             lk.unlock();
+            auto frozen = freeze.WorkerSection();
             emu_.Get<IpaqGen1MicroP>().SendTouchRelease();
         }
     }

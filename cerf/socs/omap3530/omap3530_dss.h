@@ -19,6 +19,9 @@ public:
     uint16_t ReadHalf (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* Called from HostWindow::TickAndPresent (UI thread, ~60 Hz)
        via the LcdScanTick concrete. Sets VSYNC in IRQSTATUS,
        clears GOLCD/GODIGITAL, recomputes INTC line. */

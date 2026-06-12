@@ -6,6 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -44,6 +45,12 @@ public:
     void WriteByte(uint32_t a, uint8_t  v) override { Wr(a - kBase, v, (a & 3u) * 8u, 0xFFu); }
     void WriteHalf(uint32_t a, uint16_t v) override { Wr(a - kBase, v, (a & 2u) * 8u, 0xFFFFu); }
     void WriteWord(uint32_t a, uint32_t v) override { Wr(a - kBase, v, 0u, 0xFFFFFFFFu); }
+
+    /* Only the control/baud register file is machine state. tx_line_ is a
+       host-side console line accumulator (rebuilt as the guest writes UTXD),
+       so it is skipped. */
+    void SaveState(StateWriter& w) override    { w.WriteBytes(ctrl_, sizeof(ctrl_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(ctrl_, sizeof(ctrl_)); }
 
 private:
     static constexpr uint32_t kURXD = 0x00u, kUTXD = 0x40u;

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa1111_gpio_port_a_sink.h"
 
 namespace {
@@ -25,6 +26,19 @@ public:
 
     uint32_t MmioBase() const override { return 0x40001000u; }
     uint32_t MmioSize() const override { return 0x00000200u; }
+
+    void SaveState(StateWriter& w) override {
+        w.WriteBytes(ddr_, sizeof(ddr_));
+        w.WriteBytes(dwr_, sizeof(dwr_));
+        w.WriteBytes(sdr_, sizeof(sdr_));
+        w.WriteBytes(ssr_, sizeof(ssr_));
+    }
+    void RestoreState(StateReader& r) override {
+        r.ReadBytes(ddr_, sizeof(ddr_));
+        r.ReadBytes(dwr_, sizeof(dwr_));
+        r.ReadBytes(sdr_, sizeof(sdr_));
+        r.ReadBytes(ssr_, sizeof(ssr_));
+    }
 
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - MmioBase();

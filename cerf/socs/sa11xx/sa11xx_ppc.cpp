@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -30,6 +31,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     static constexpr uint32_t kReservedIrdaPoke = 0x28u;  /* HPIrDA sub_EE4B88. */
@@ -109,6 +113,16 @@ void Sa11xxPpc::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Sa11xxPpc::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_, sizeof(regs_));
+    w.Write(mccr1_);
+}
+
+void Sa11xxPpc::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_, sizeof(regs_));
+    r.Read(mccr1_);
 }
 
 }  /* namespace */

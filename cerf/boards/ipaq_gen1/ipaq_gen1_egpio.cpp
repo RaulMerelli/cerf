@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "ipaq_gen1_egpio_sink.h"
 
 namespace {
@@ -29,6 +30,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override { w.Write(latched_); }
+    void RestoreState(StateReader& r) override { r.Read(latched_); }
 
     uint32_t Latched() const { return latched_; }
 

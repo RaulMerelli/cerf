@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -24,6 +25,9 @@ public:
        (CFS=0 on the J820 — wavedev sets MCCR1=0). Returns the wavedev default
        11025 Hz until MCCR0 is programmed. */
     uint32_t GetAudioSampleRateHz() const;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     void RouteCodecCommand(uint32_t cmd);

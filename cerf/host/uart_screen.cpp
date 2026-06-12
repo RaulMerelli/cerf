@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "emulation_pause.h"
 #include "uart_boot_bar_data.h"
 
 #include <algorithm>
@@ -203,7 +204,8 @@ void UartScreen::DrawBootBar(uint32_t* dib_bgra32,
     if (height < kUartBootBarHeight || width == 0) return;
 
     const uint64_t cycle_ms = 4000;
-    const uint32_t phase_ms = (uint32_t)(GetTickCount64() % cycle_ms);
+    const uint32_t phase_ms =
+        (uint32_t)(emu_.Get<EmulationPause>().AnimationTickMs() % cycle_ms);
     const int      x_origin = (int)(((uint64_t)phase_ms * width) / cycle_ms);
     const int      y_origin = (int)height - (int)kUartBootBarHeight;
 

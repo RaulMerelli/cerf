@@ -5,8 +5,10 @@
 #include "compactflash_fat32.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/cerf_paths.h"
 #include "../../core/device_config.h"
 #include "../../core/string_utils.h"
+#include "../../host/host_dark_mode.h"
 #include "../../host/host_window.h"
 
 #include <algorithm>
@@ -23,25 +25,49 @@ namespace {
 
 constexpr int kIdSizeEdit = 1001;
 
-/* Modal dialog proc for the card-size prompt. min_mb arrives via lParam at
-   WM_INITDIALOG; the chosen size is returned through EndDialog (0 = cancel).
+/* Passed to SizeDlgProc via the DialogBoxIndirectParam lParam: the minimum the
+   entered value is floored to, plus the dark-theme service the proc themes the
+   dialog with. Lives on PromptSizeMb's stack for the modal call's duration. */
+struct SizeDlgCtx {
+    UINT          min_mb;
+    HostDarkMode* dm;
+};
+
+/* Modal dialog proc for the card-size prompt. A SizeDlgCtx* arrives via lParam
+   at WM_INITDIALOG; the chosen size is returned through EndDialog (0 = cancel).
    Win32 dialog callback — a C function pointer, the sanctioned free-function
    exception. */
 INT_PTR CALLBACK SizeDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_INITDIALOG: {
-        SetWindowLongPtrW(dlg, DWLP_USER, static_cast<LONG_PTR>(lp));
-        SetDlgItemInt(dlg, kIdSizeEdit, static_cast<UINT>(lp), FALSE);
+        auto* ctx = reinterpret_cast<SizeDlgCtx*>(lp);
+        SetWindowLongPtrW(dlg, DWLP_USER, reinterpret_cast<LONG_PTR>(ctx));
+        SetDlgItemInt(dlg, kIdSizeEdit, ctx->min_mb, FALSE);
+        if (ctx->dm) ctx->dm->ApplyToDialog(dlg);
         HWND edit = GetDlgItem(dlg, kIdSizeEdit);
         SetFocus(edit);
         SendMessageW(edit, EM_SETSEL, 0, -1);
         return FALSE;   /* focus set explicitly */
     }
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLORBTN:
+    case WM_CTLCOLOREDIT: {
+        /* A dialog proc returns the CTLCOLOR brush by returning it directly cast
+           to INT_PTR — DWLP_MSGRESULT is ignored for these messages.
+           https://learn.microsoft.com/windows/win32/dlgbox/wm-ctlcolordlg */
+        auto* ctx = reinterpret_cast<SizeDlgCtx*>(GetWindowLongPtrW(dlg, DWLP_USER));
+        LRESULT br;
+        if (ctx && ctx->dm && ctx->dm->HandleCtlColor(msg, wp, br))
+            return static_cast<INT_PTR>(br);
+        return FALSE;
+    }
     case WM_COMMAND:
         if (LOWORD(wp) == IDOK) {
+            auto* ctx = reinterpret_cast<SizeDlgCtx*>(GetWindowLongPtrW(dlg, DWLP_USER));
             BOOL ok = FALSE;
             UINT v = GetDlgItemInt(dlg, kIdSizeEdit, &ok, FALSE);
-            UINT min_mb = static_cast<UINT>(GetWindowLongPtrW(dlg, DWLP_USER));
+            UINT min_mb = ctx ? ctx->min_mb : 0;
             if (!ok || v < min_mb) v = min_mb;
             EndDialog(dlg, static_cast<INT_PTR>(v));
             return TRUE;
@@ -146,8 +172,8 @@ uint32_t CompactFlashMenu::PromptSizeMb(uint32_t min_mb) const {
     t.W16(0);                       /* no menu              */
     t.W16(0);                       /* default class        */
     t.Str(L"Generate CompactFlash image");
-    t.W16(8);                       /* DS_SETFONT point size*/
-    t.Str(L"MS Shell Dlg");
+    t.W16(9);                       /* DS_SETFONT point size*/
+    t.Str(L"Segoe UI");             /* ApplyToDialog re-applies the live UI font */
 
     /* Static label (caption baked with the live minimum). */
     t.Align();
@@ -189,11 +215,12 @@ uint32_t CompactFlashMenu::PromptSizeMb(uint32_t min_mb) const {
     t.Str(L"Cancel");
     t.W16(0);
 
+    SizeDlgCtx ctx{ min_mb, &emu_.Get<HostDarkMode>() };
     const INT_PTR r = DialogBoxIndirectParamW(
         GetModuleHandleW(nullptr),
         reinterpret_cast<LPCDLGTEMPLATEW>(t.b.data()),
         emu_.Get<HostWindow>().Hwnd(), SizeDlgProc,
-        static_cast<LPARAM>(min_mb));
+        reinterpret_cast<LPARAM>(&ctx));
     return r > 0 ? static_cast<uint32_t>(r) : 0;
 }
 
@@ -207,8 +234,7 @@ std::vector<WidgetMenuItem> CompactFlashMenu::BuildInsertMenu(
     const auto& cfg = emu_.Get<DeviceConfig>();
     for (const auto& card : cfg.bundled_compact_flash_cards) {
         const std::wstring path = Utf8ToWide(
-            (GetCerfDir() + "devices/" + cfg.device_name + "/" + card.file)
-                .c_str());
+            (GetDeviceDir(cfg.device_name) + card.file).c_str());
         if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
             continue;
         WidgetMenuItem it;

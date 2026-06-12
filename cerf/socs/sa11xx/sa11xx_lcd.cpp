@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 bool Sa11xxLcd::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -91,6 +92,26 @@ void Sa11xxLcd::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxLcd::SaveState(StateWriter& w) {
+    w.Write(lccr0_);
+    w.Write(lcsr_);
+    w.Write(dbar1_);
+    w.Write(dbar2_);
+    w.Write(lccr1_);
+    w.Write(lccr2_);
+    w.Write(lccr3_);
+}
+
+void Sa11xxLcd::RestoreState(StateReader& r) {
+    r.Read(lccr0_);
+    r.Read(lcsr_);
+    r.Read(dbar1_);
+    r.Read(dbar2_);
+    r.Read(lccr1_);
+    r.Read(lccr2_);
+    r.Read(lccr3_);
 }
 
 REGISTER_SERVICE(Sa11xxLcd);

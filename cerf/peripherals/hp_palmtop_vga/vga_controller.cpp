@@ -1,6 +1,7 @@
 #include "vga_controller.h"
 
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 #include <algorithm>
 #include <cstring>
@@ -162,6 +163,33 @@ void VgaController::WriteReg8(uint32_t port, uint8_t value) {
 #endif
             return;
     }
+}
+
+void VgaController::SaveState(StateWriter& w) const {
+    w.WriteBytes(cr_, sizeof(cr_));
+    w.WriteBytes(sr_, sizeof(sr_));
+    w.WriteBytes(gr_, sizeof(gr_));
+    w.WriteBytes(ar_, sizeof(ar_));
+    w.Write(misc_);
+    w.Write(crtc_index_); w.Write(seq_index_); w.Write(gc_index_); w.Write(attr_index_);
+    w.Write<uint8_t>(attr_flipflop_ ? 1u : 0u);
+    w.WriteBytes(dac_pal_, sizeof(dac_pal_));
+    w.Write<uint64_t>(fb_.size());
+    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
+}
+
+void VgaController::RestoreState(StateReader& r) {
+    r.ReadBytes(cr_, sizeof(cr_));
+    r.ReadBytes(sr_, sizeof(sr_));
+    r.ReadBytes(gr_, sizeof(gr_));
+    r.ReadBytes(ar_, sizeof(ar_));
+    r.Read(misc_);
+    r.Read(crtc_index_); r.Read(seq_index_); r.Read(gc_index_); r.Read(attr_index_);
+    uint8_t ff = 0; r.Read(ff); attr_flipflop_ = (ff != 0);
+    r.ReadBytes(dac_pal_, sizeof(dac_pal_));
+    uint64_t n = 0; r.Read(n);
+    fb_.assign(static_cast<size_t>(n), 0u);
+    if (n) r.ReadBytes(fb_.data(), static_cast<size_t>(n));
 }
 
 void VgaController::RenderInto(uint32_t* dib, uint32_t dst_w, uint32_t dst_h) {

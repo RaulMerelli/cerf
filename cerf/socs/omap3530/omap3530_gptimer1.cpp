@@ -8,6 +8,8 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
 #include "../../boards/board_detector.h"
+#include "../../state/emulation_freeze.h"
+#include "../../state/state_stream.h"
 #include "omap3530_intc.h"
 
 #include <atomic>
@@ -82,6 +84,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     /* TCRR derived from guest_cycle_counter (NOT host wall-clock);
@@ -250,12 +255,14 @@ void Omap3530Gptimer1::AdvanceStateLocked(uint32_t cycles_now) {
 }
 
 void Omap3530Gptimer1::TickLoop() {
+    auto& freeze = emu_.Get<EmulationFreeze>();
     while (!stop_thread_.load(std::memory_order_acquire)) {
         /* 100 µs host poll cadence — matches Sa11xxOsTimer. State
            advance uses guest_cycle_counter, so the answer is
            deterministic per-run despite the host sleep's jitter. */
         std::this_thread::sleep_for(std::chrono::microseconds(100));
 
+        auto frozen = freeze.WorkerSection();
         std::lock_guard<std::mutex> lk(state_mutex_);
         AdvanceStateLocked(GuestCycles());
         RecomputeIrqLineLocked();
@@ -406,6 +413,42 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
             addr, value);
     }
     HaltUnsupportedAccess("WriteWord", addr, value);  /* noreturn */
+}
+
+void Omap3530Gptimer1::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    const uint32_t cycles_now = GuestCycles();
+    AdvanceStateLocked(cycles_now);   /* bring tisr_/tcrr current before snapshot */
+    w.Write(tiocp_);
+    w.Write(tisr_);
+    w.Write(tier_);
+    w.Write(twer_);
+    w.Write(tclr_);
+    w.Write(tldr_);
+    w.Write(ttgr_);
+    w.Write(tmar_);
+    w.Write(tsicr_);
+    w.Write<uint32_t>(ComputeTcrrLocked(cycles_now));  /* re-anchored on restore */
+    w.Write(irq_line_high_);
+}
+
+void Omap3530Gptimer1::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(tiocp_);
+    r.Read(tisr_);
+    r.Read(tier_);
+    r.Read(twer_);
+    r.Read(tclr_);
+    r.Read(tldr_);
+    r.Read(ttgr_);
+    r.Read(tmar_);
+    r.Read(tsicr_);
+    uint32_t tcrr = 0;
+    r.Read(tcrr);
+    r.Read(irq_line_high_);
+    /* Re-anchor the TCRR interpolation base to the restored cycle counter so
+       ComputeTcrrLocked yields the saved TCRR and continues from there. */
+    SampleTcrrBaseLocked(tcrr, GuestCycles());
 }
 
 }  /* namespace */

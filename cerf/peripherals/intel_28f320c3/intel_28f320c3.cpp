@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -36,6 +37,10 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* CFI command-FSM latch (mode_) + status register. */
+    void SaveState(StateWriter& w) override { w.Write(mode_); w.Write(status_); }
+    void RestoreState(StateReader& r) override { r.Read(mode_); r.Read(status_); }
 
 private:
     /* Intel CFI command set (subset documented for Advanced+ Boot

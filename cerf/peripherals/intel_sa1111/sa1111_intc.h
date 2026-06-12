@@ -21,6 +21,10 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+    void PostRestore() override;
+
     /* Source 0..31 → bank 0, 32..63 → bank 1; Raise/Lower drive the raw
        input line, Raise also sets status. Lower must NOT clear status — the
        latch is edge-triggered (Dev Manual Fig 11-1), cleared only by

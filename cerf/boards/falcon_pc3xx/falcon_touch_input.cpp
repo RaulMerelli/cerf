@@ -8,6 +8,7 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pxa255/pxa255_ac97.h"
+#include "../../state/emulation_freeze.h"
 #include "../board_detector.h"
 
 #include <algorithm>
@@ -84,13 +85,19 @@ private:
     /* Dedicated thread (like Pxa255Ac97's audio thread): delivers WM9705 samples
        at the codec rate while the pen is down; parks otherwise. */
     void PacerMain() {
+        auto& freeze = emu_.Get<EmulationFreeze>();
         while (!shutdown_.load(std::memory_order_acquire)) {
             if (pen_down_.load(std::memory_order_acquire)) {
-                DeliverSample();
+                {
+                    auto frozen = freeze.WorkerSection();
+                    DeliverSample();
+                }
                 WaitForSingleObject(wake_, kSamplePeriodMs);   /* pace, wake on state change. */
             } else {
-                if (pen_up_pending_.exchange(false, std::memory_order_acq_rel))
+                if (pen_up_pending_.exchange(false, std::memory_order_acq_rel)) {
+                    auto frozen = freeze.WorkerSection();
                     DeliverPenUp();
+                }
                 WaitForSingleObject(wake_, INFINITE);
             }
         }

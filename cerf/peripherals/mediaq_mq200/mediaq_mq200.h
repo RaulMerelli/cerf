@@ -27,6 +27,9 @@ public:
     void     WriteHalf(uint32_t addr, uint16_t value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* Display-state getters consumed by MediaQMq200Renderer. Values come from
        the Graphics Controller 1 register block (MQ-200 Data Book §5); the
        SIMpad driver writes them in sub_1343898/sub_13431F8/sub_1343798. */

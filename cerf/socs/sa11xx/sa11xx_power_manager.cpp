@@ -4,6 +4,7 @@
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../host/guest_power_notifier.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -30,6 +31,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t pmcr_ = 0;
@@ -116,6 +120,26 @@ void Sa11xxPowerManager::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxPowerManager::SaveState(StateWriter& w) {
+    w.Write(pmcr_);
+    w.Write(pssr_);
+    w.Write(pspr_);
+    w.Write(pwer_);
+    w.Write(pcfr_);
+    w.Write(ppcr_);
+    w.Write(pgsr_);
+}
+
+void Sa11xxPowerManager::RestoreState(StateReader& r) {
+    r.Read(pmcr_);
+    r.Read(pssr_);
+    r.Read(pspr_);
+    r.Read(pwer_);
+    r.Read(pcfr_);
+    r.Read(ppcr_);
+    r.Read(pgsr_);
 }
 
 }  /* namespace */

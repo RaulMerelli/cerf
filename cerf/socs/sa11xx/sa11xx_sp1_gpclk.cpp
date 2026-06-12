@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -28,6 +29,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     uint32_t gpclkr0_ = 0;  /* SUS=0 reset state per §11.9.2. */
@@ -91,6 +95,20 @@ void Sa11xxSp1Gpclk::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsGpclkOffset(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxSp1Gpclk::SaveState(StateWriter& w) {
+    w.Write(gpclkr0_);
+    w.Write(gpclkr1_);
+    w.Write(gpclkr2_);
+    w.Write(gpclkr3_);
+}
+
+void Sa11xxSp1Gpclk::RestoreState(StateReader& r) {
+    r.Read(gpclkr0_);
+    r.Read(gpclkr1_);
+    r.Read(gpclkr2_);
+    r.Read(gpclkr3_);
 }
 
 }  /* namespace */

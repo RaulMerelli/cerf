@@ -3,9 +3,11 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../core/cerf_paths.h"
 #include "../../core/string_utils.h"
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <fstream>
@@ -29,8 +31,7 @@ public:
     void OnReady() override {
         const auto& cfg = emu_.Get<DeviceConfig>();
         if (!cfg.rom_eeprom.empty()) {
-            const std::string path = GetCerfDir() + "devices/" + cfg.device_name
-                                   + "/" + cfg.rom_eeprom;
+            const std::string path = GetDeviceDir(cfg.device_name) + cfg.rom_eeprom;
             std::ifstream f(path, std::ios::binary | std::ios::ate);
             if (f) {
                 const std::streamsize n = f.tellg();
@@ -74,6 +75,33 @@ public:
         const uint32_t cur   = ReadReg(off & ~0x3u);
         WriteReg(off & ~0x3u,
                  (cur & ~(0xFFu << shift)) | ((uint32_t)value << shift));
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write<uint64_t>(eeprom_.size());
+        if (!eeprom_.empty()) w.WriteBytes(eeprom_.data(), eeprom_.size());
+        w.Write(cr0_);
+        w.Write(cr1_);
+        w.Write(phase_);
+        w.Write(addr_);
+        w.Write(rx_);
+        w.Write(status_reg_);
+        w.Write(rx_ready_);
+        w.Write(wel_);
+    }
+    void RestoreState(StateReader& r) override {
+        uint64_t n = 0;
+        r.Read(n);
+        eeprom_.resize(static_cast<size_t>(n));
+        if (n) r.ReadBytes(eeprom_.data(), static_cast<size_t>(n));
+        r.Read(cr0_);
+        r.Read(cr1_);
+        r.Read(phase_);
+        r.Read(addr_);
+        r.Read(rx_);
+        r.Read(status_reg_);
+        r.Read(rx_ready_);
+        r.Read(wel_);
     }
 
 private:

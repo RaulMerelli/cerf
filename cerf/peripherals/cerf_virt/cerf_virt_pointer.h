@@ -20,6 +20,9 @@ public:
     uint32_t ReadWord(uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     void SetPointer(uint32_t nx, uint32_t ny, uint32_t buttons);
     void AddWheel(int delta);
     void ClearButtons();

@@ -4,6 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 namespace {
 
@@ -112,6 +113,22 @@ uint16_t HpPalmtopVgaCard::ReadCommon16(uint32_t offset) {
         return (uint16_t)(fb[r] | (fb[r + 1u] << 8));
     }
     return (uint16_t)(ReadCommon8(offset) | (ReadCommon8(offset + 1u) << 8));
+}
+
+/* window_ is the host external-display window (re-derived from the restored
+   mode); the VGA register file + framebuffer is the card state. */
+void HpPalmtopVgaCard::SaveState(StateWriter& w) {
+    controller_.SaveState(w);
+}
+
+void HpPalmtopVgaCard::RestoreState(StateReader& r) {
+    controller_.RestoreState(r);
+    /* last_w_/last_h_ is the window-resize dedup cache, not guest state.
+       OnInserted opened the window at the boot-default 640x480; reset the
+       cache so SyncWindowToMode re-applies the restored mode to it. */
+    last_w_ = 0;
+    last_h_ = 0;
+    SyncWindowToMode();
 }
 
 void HpPalmtopVgaCard::WriteCommon16(uint32_t offset, uint16_t value) {

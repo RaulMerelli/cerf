@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 #include "../peripheral_dispatcher.h"
 
 #include <array>
@@ -32,6 +33,15 @@ public:
     uint8_t ReadByte(uint32_t addr) override { return regs_[RegIndex(addr, 0)]; }
     void    WriteByte(uint32_t addr, uint8_t value) override {
         regs_[RegIndex(addr, value)] = value;
+    }
+
+    /* The 16 byte registers are the whole SCR state — writes land here,
+       reads come straight back. No host-only members to skip. */
+    void SaveState(StateWriter& w) override {
+        w.WriteBytes(regs_.data(), regs_.size());
+    }
+    void RestoreState(StateReader& r) override {
+        r.ReadBytes(regs_.data(), regs_.size());
     }
 
 private:

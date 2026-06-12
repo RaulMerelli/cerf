@@ -8,6 +8,7 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
+#include "../../state/state_stream.h"
 
 #include <mutex>
 
@@ -99,6 +100,19 @@ public:
             }
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        w.Write(pccr_);
+        w.Write(pcssr_);
+        w.WriteBytes(irq_asserted_, sizeof(irq_asserted_));
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        r.Read(pccr_);
+        r.Read(pcssr_);
+        r.ReadBytes(irq_asserted_, sizeof(irq_asserted_));
     }
 
     /* PcmciaSlotHost. */

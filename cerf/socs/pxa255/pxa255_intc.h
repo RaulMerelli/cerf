@@ -31,6 +31,10 @@ public:
        (used by the OS timer, whose §4.4 interrupt follows OSSR&OIER as a level). */
     void SetSourceLevel(uint32_t mask, uint32_t level);
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+    void PostRestore() override;
+
 private:
     /* NotifyLocked must run under this lock: a mask write racing an
        AssertSource would otherwise commit a stale SetInterruptPending and

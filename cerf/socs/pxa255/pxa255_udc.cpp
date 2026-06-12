@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -33,6 +34,9 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 private:
     static constexpr uint32_t kUdccrRwMask = 0xA5u;  /* REM|SRM|RSM|UDE */
@@ -94,6 +98,16 @@ void Pxa255Udc::WriteWord(uint32_t addr, uint32_t value) {
         case 0x5C: return;  /* USIR1 W1C. */
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
+}
+
+void Pxa255Udc::SaveState(StateWriter& w) {
+    w.Write(udccr_); w.Write(udccfr_); w.Write(uicr0_); w.Write(uicr1_);
+    w.WriteBytes(udccs_, sizeof(udccs_));
+}
+
+void Pxa255Udc::RestoreState(StateReader& r) {
+    r.Read(udccr_); r.Read(udccfr_); r.Read(uicr0_); r.Read(uicr1_);
+    r.ReadBytes(udccs_, sizeof(udccs_));
 }
 
 }  /* namespace */

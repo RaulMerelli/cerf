@@ -5,6 +5,7 @@
 #include "../../host/uart_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 #include "omap3530_sdma.h"
 
 #include <cstdint>
@@ -65,6 +66,9 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
 
 protected:
     /* Per-bank log tag used in "UART<N> TX: <line>" output. */
@@ -251,6 +255,45 @@ void Omap3530UartBank::WriteWord(uint32_t addr, uint32_t value) {
         fire_rx = pending_rx_dma_req_; pending_rx_dma_req_ = false;
     }
     FlushPendingDmaReqs(fire_tx, fire_rx);
+}
+
+void Omap3530UartBank::SaveState(StateWriter& w) {
+    /* tx_line_ is a host-side console line accumulator, rebuilt as the
+       guest writes — not machine state. state_mutex_ is held (the bank
+       drives a cross-thread RaiseSyncEvent path into the SDMA). */
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write(ier_);
+    w.Write(fcr_);
+    w.Write(lcr_);
+    w.Write(mcr_);
+    w.Write(mdr1_);
+    w.Write(scr_);
+    w.Write(msr_);
+    w.Write(spr_);
+    w.Write(dll_);
+    w.Write(dlh_);
+    w.Write(sysc_);
+    w.Write(wer_);
+    w.Write(pending_tx_dma_req_);
+    w.Write(pending_rx_dma_req_);
+}
+
+void Omap3530UartBank::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    r.Read(ier_);
+    r.Read(fcr_);
+    r.Read(lcr_);
+    r.Read(mcr_);
+    r.Read(mdr1_);
+    r.Read(scr_);
+    r.Read(msr_);
+    r.Read(spr_);
+    r.Read(dll_);
+    r.Read(dlh_);
+    r.Read(sysc_);
+    r.Read(wer_);
+    r.Read(pending_tx_dma_req_);
+    r.Read(pending_rx_dma_req_);
 }
 
 class Omap3530Uart1 : public Omap3530UartBank {

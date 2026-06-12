@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -30,6 +31,9 @@ public:
                 kAdcDataValid | ((kNominalSample & 0x3FFu) << 5));
         }
     }
+
+    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
 
 private:
     static constexpr uint8_t  kAdcControl    = 0x0Au;

@@ -16,6 +16,7 @@ from bundles import ManifestVersionError, RELEASE_LATEST_URL, parse_version_tupl
 from device_state import DeviceBundle, DeviceSource, PackageStatus
 from device_tree import DeviceTreePanel, TreeSelection
 from details_panel import DetailsPanel
+from launch_button import LaunchSplitButton
 from launch_options import LaunchOptionsPanel
 from operations import BundleManager, CancelledError
 from status_bar import StatusBar
@@ -119,10 +120,9 @@ class LauncherApp(tk.Tk):
         launch_bar = ttk.Frame(right)
         launch_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self.launch_bar = launch_bar
-        self.btn_launch = ttk.Button(launch_bar, text="Launch CERF",
-                                     command=self._launch,
-                                     style="Launch.TButton")
-        self.btn_launch.pack(side="right")
+        self.split = LaunchSplitButton(launch_bar, self.manager.devices_dir,
+                                       self._launch)
+        self.split.frame.pack(side="right")
 
         self.scroll.bind_wheel(inner)
 
@@ -132,9 +132,9 @@ class LauncherApp(tk.Tk):
         self.busy = busy
         state = "disabled" if busy else "normal"
         self.tree_panel.set_busy(busy)
-        for b in (self.btn_download, self.btn_update, self.btn_delete,
-                  self.btn_launch):
+        for b in (self.btn_download, self.btn_update, self.btn_delete):
             b.config(state=state)
+        self.split.set_enabled(not busy)
         if busy:
             self.status_bar.set_status(label or "Working…")
         else:
@@ -251,6 +251,7 @@ class LauncherApp(tk.Tk):
         if sel.kind == "device" and sel.device is not None:
             self.details.show_device(sel.device)
             self.launch_options.set_device(sel.device)
+            self.split.set_device(sel.device)
             self._show_launch_surface(True)
         elif sel.kind == "package" and sel.device is not None and sel.package is not None:
             # A package is not launchable: the panel shows only the package
@@ -296,7 +297,7 @@ class LauncherApp(tk.Tk):
             for b in (self.btn_download, self.btn_update, self.btn_delete):
                 b.config(state="disabled")
         launchable = d is not None and self.cerf_exe is not None
-        self.btn_launch.config(state=("normal" if launchable else "disabled"))
+        self.split.set_enabled(launchable)
 
     # ---------------------------------------------------------- operations
 
@@ -431,7 +432,7 @@ class LauncherApp(tk.Tk):
 
     # -------------------------------------------------------------- launch
 
-    def _launch(self) -> None:
+    def _launch(self, boot: Optional[str] = None) -> None:
         sel = self.tree_panel.selection()
         d = sel.device
         if d is None or self.busy:
@@ -455,7 +456,7 @@ class LauncherApp(tk.Tk):
                                             cancel_event=self.cancel_event)
             self._await_future(f, lambda exc: self._after_download_for_launch(name, exc))
             return
-        self._spawn_cerf(d)
+        self._spawn_cerf(d, boot)
 
     def _after_download_for_launch(self, name: str,
                                    exc: Optional[BaseException]) -> None:
@@ -478,10 +479,13 @@ class LauncherApp(tk.Tk):
         self.status_bar.set_status(f"Downloaded {name}; launching…")
         self._spawn_cerf(fresh)
 
-    def _spawn_cerf(self, d: DeviceBundle) -> None:
+    def _spawn_cerf(self, d: DeviceBundle, boot: Optional[str] = None) -> None:
         tail = self.launch_options.collect_args(d)
         if tail is None:
             return
+        # Always explicit so a dev build (which defaults to cold) still resumes
+        # on a normal launch; the dropdown overrides with warm/cold.
+        tail.append(f"--boot={boot or 'resume'}")
         argv: List[str] = [str(self.cerf_exe)] + tail
         try:
             subprocess.Popen(argv, cwd=str(self.cerf_exe.parent),

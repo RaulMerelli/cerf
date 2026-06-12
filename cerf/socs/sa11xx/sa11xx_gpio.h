@@ -24,6 +24,10 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  value) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+    void PostRestore() override;
+
     /* Board peripherals drive external input pins here (any thread).
        Level changes on input-configured pins latch GEDR per GRER/GFER
        and update the INTC sources. */

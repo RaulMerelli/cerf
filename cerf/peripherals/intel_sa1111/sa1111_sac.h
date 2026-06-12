@@ -41,6 +41,9 @@ public:
        buffer while TDEN holds. */
     void CompleteTransmit(bool buffer_b);
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
 private:
     enum : uint32_t {                  /* SADTCS bits, Table 7-19. */
         kTden  = 1u << 0,

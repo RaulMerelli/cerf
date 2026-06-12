@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -99,6 +100,22 @@ public:
             case kOffSrmsk: srmsk_ = value; return;
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    /* The TX/RX FIFOs are stubbed (always empty, no real audio samples), so
+       there is no heap data to serialize — only the plain control registers
+       and the W1C error-flag latch are guest-observable state. */
+    void SaveState(StateWriter& w) override {
+        w.Write(scr_);    w.Write(sier_);   w.Write(stcr_);   w.Write(srcr_);
+        w.Write(stccr_);  w.Write(srccr_);  w.Write(sfcsr_);  w.Write(sacnt_);
+        w.Write(sacadd_); w.Write(sacdat_); w.Write(satag_);  w.Write(stmsk_);
+        w.Write(srmsk_);  w.Write(sisr_err_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(scr_);    r.Read(sier_);   r.Read(stcr_);   r.Read(srcr_);
+        r.Read(stccr_);  r.Read(srccr_);  r.Read(sfcsr_);  r.Read(sacnt_);
+        r.Read(sacadd_); r.Read(sacdat_); r.Read(satag_);  r.Read(stmsk_);
+        r.Read(srmsk_);  r.Read(sisr_err_);
     }
 
 private:

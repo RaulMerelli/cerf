@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <mutex>
 
+class StateWriter;
+class StateReader;
+
 
 inline constexpr uint32_t kSlotCsrA          = 0x00u;
 inline constexpr uint32_t kSlotCsrB          = 0x04u;
@@ -24,6 +27,11 @@ public:
     bool Write(uint32_t slot_off, uint16_t value);
 
     void SetCsrABits(uint16_t bits);
+
+    /* Exact register snapshot: bypasses Write()'s W1C / read-only masking,
+       which would otherwise corrupt the restored csr_a_. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
     static bool IsValidOffset(uint32_t slot_off) {
         return slot_off == kSlotCsrA || slot_off == kSlotCsrB;

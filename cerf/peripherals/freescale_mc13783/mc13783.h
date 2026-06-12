@@ -8,6 +8,9 @@
 #include <mutex>
 #include <thread>
 
+class StateWriter;
+class StateReader;
+
 class Mc13783 : public Service {
 public:
     using Service::Service;
@@ -19,6 +22,11 @@ public:
 
     /* MC13783 datasheet §4.1.1.3.1 SPI Transfer Protocol. */
     uint32_t SpiExchange(uint32_t cmd);
+
+    /* Service (not a walked Peripheral): the owning CSPI forwards these.
+       regs_ are guest-written PMIC control fields; the RTC is re-anchored. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
 
 private:
     /* MC13783 datasheet Table 5: 64 control fields of 24 bits each. */

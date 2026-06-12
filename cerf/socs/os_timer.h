@@ -5,11 +5,14 @@
 #include "guest_cpu_reset.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/log.h"
 #include "../core/rate_probe.h"
 #include "../cpu/arm_processor_config.h"
 #include "../jit/arm_cpu.h"
 #include "../jit/arm_jit.h"
 #include "../peripherals/peripheral_dispatcher.h"
+#include "../state/emulation_freeze.h"
+#include "../state/state_stream.h"
 
 #include <atomic>
 #include <chrono>
@@ -99,6 +102,42 @@ public:
 #if CERF_DEV_MODE
         emu_.Get<RateProbe>().AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
 #endif
+    }
+
+    void SaveState(StateWriter& w) override {
+        for (int n = 0; n < 4; ++n)
+            w.Write<uint64_t>(osmr_arm_[n].load(std::memory_order_acquire));
+        w.Write<uint32_t>(ossr_.load(std::memory_order_acquire));
+        w.Write<uint32_t>(ower_.load(std::memory_order_acquire));
+        w.Write<uint32_t>(oier_.load(std::memory_order_acquire));
+        w.Write<uint32_t>(ReadOscr());   /* live OSCR; re-anchored on restore */
+    }
+
+    void RestoreState(StateReader& r) override {
+        uint64_t m[4];
+        uint32_t ossr, ower, oier, oscr;
+        for (int n = 0; n < 4; ++n) r.Read(m[n]);
+        r.Read(ossr);
+        r.Read(ower);
+        r.Read(oier);
+        r.Read(oscr);
+        for (int n = 0; n < 4; ++n)
+            osmr_arm_[n].store(m[n], std::memory_order_release);
+        ossr_.store(ossr, std::memory_order_release);
+        ower_.store(ower, std::memory_order_release);
+        oier_.store(oier, std::memory_order_release);
+        /* Re-anchor OSCR to the restored guest cycle counter so ReadOscr()
+           yields the saved value; OSMR anchors live in the same OSCR domain. */
+        baseline_packed_.store(PackBaseline(oscr, GuestCycles()),
+                               std::memory_order_release);
+        NotifyMatchLoop();
+    }
+
+    /* Re-push the match level only after the INTC has been restored (the
+       restore pass runs RestoreState on every peripheral first). */
+    void PostRestore() override {
+        std::lock_guard<std::mutex> g(irq_mtx_);
+        PushMatchLevelLocked();
     }
 
 protected:
@@ -353,14 +392,18 @@ private:
     }
 
     void MatchLoop() {
+        auto& freeze = emu_.Get<EmulationFreeze>();
         std::unique_lock<std::mutex> lk(cv_mtx_);
         while (!stop_.load(std::memory_order_acquire)) {
             lk.unlock();
 #if CERF_DEV_MODE
             emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstPolls);
 #endif
-            RebaseToCurrent();
-            CheckAndFire();
+            {
+                auto frozen = freeze.WorkerSection();
+                RebaseToCurrent();
+                CheckAndFire();
+            }
             lk.lock();
             if (stop_.load(std::memory_order_acquire)) break;
             if (AnyMatchArmed()) {

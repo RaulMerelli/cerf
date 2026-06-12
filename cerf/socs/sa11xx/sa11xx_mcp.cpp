@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa11xx_mcp_codec.h"
 
 /* MCDR2 (+0x10) command: reg=bits 20:17, bit16=R/W, data=15:0; MCSR (+0x18)
@@ -56,6 +57,20 @@ void Sa11xxMcp::RouteCodecCommand(uint32_t cmd) {
         mcdr2_read_ = codec ? codec->ReadReg(reg) : 0u;
     }
     mcsr_ |= 0x3000u;   /* synchronous codec: CWC (b12) + CRC (b13) done. */
+}
+
+void Sa11xxMcp::SaveState(StateWriter& w) {
+    w.Write(mccr0_);
+    w.Write(mcsr_);
+    w.Write(mcdr2_read_);
+    if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->SaveState(w);
+}
+
+void Sa11xxMcp::RestoreState(StateReader& r) {
+    r.Read(mccr0_);
+    r.Read(mcsr_);
+    r.Read(mcdr2_read_);
+    if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->RestoreState(r);
 }
 
 REGISTER_SERVICE(Sa11xxMcp);

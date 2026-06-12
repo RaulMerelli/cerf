@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -32,6 +33,26 @@ public:
 
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    /* JIT-thread-only register file (no worker thread). */
+    void SaveState(StateWriter& w) override {
+        w.Write(control_);
+        w.Write(aux_control_);
+        w.Write(debug_control_);
+        w.Write(lockdown_d_);
+        w.Write(lockdown_i_);
+        w.Write(line_data_);
+        w.Write(line_tag_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(control_);
+        r.Read(aux_control_);
+        r.Read(debug_control_);
+        r.Read(lockdown_d_);
+        r.Read(lockdown_i_);
+        r.Read(line_data_);
+        r.Read(line_tag_);
+    }
 
 private:
     uint32_t control_       = 0u;

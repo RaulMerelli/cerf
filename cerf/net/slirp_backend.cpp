@@ -20,6 +20,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
+#include "../state/emulation_freeze.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -376,6 +377,7 @@ void SlirpBackend::PollLoop() {
     std::vector<WSAPOLLFD> fds;
     LOG(Net, "SlirpBackend poll thread started (tid=%u)\n",
         (unsigned)GetCurrentThreadId());
+    auto& freeze = emu_.Get<EmulationFreeze>();
 
     while (!stop_.load(std::memory_order_acquire)) {
         fds.clear();
@@ -413,6 +415,10 @@ void SlirpBackend::PollLoop() {
             notified_ = false;
         }
         if (stop_.load(std::memory_order_acquire)) break;
+
+        /* Freeze across the RX-delivering steps (4+5) so a snapshot can't
+           capture a torn NIC RX state. */
+        auto frozen = freeze.WorkerSection();
 
         /* Step 4 — let libslirp consume any ready fds. */
         {

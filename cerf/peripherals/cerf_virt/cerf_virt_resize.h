@@ -18,6 +18,9 @@ public:
     uint32_t ReadWord(uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
     /* UI thread. Publish a target resolution and bump want-gen last so the
        guest never reads a fresh gen with stale W/H/Bpp. */
     void RequestResize(uint32_t w, uint32_t h, uint32_t bpp);

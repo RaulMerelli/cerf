@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/emulation_freeze.h"
 #include "imx31_avic.h"
 
 #include <chrono>
@@ -103,15 +104,21 @@ bool Imx31Kpp::AnyPressedLocked() const {
    needs a scan finding the key still down >=40 ms after the first, which one
    IRQ-per-press edge can't supply. (KEYUP injects on the release edge, scan-once.) */
 void Imx31Kpp::SyncDetectLoop() {
+    auto& freeze = emu_.Get<EmulationFreeze>();
     std::unique_lock<std::mutex> lk(mtx_);
     while (!stop_) {
         sync_cv_.wait(lk, [this] { return stop_ || AnyPressedLocked(); });
         while (!stop_ && AnyPressedLocked()) {
             if (kpsr_ & kKdie) {
-                kpsr_ |= kKpkd;
-                const bool desired = IrqDesiredLocked();
                 lk.unlock();
-                ApplyIrq(desired);
+                {
+                    auto frozen = freeze.WorkerSection();
+                    lk.lock();
+                    kpsr_ |= kKpkd;
+                    const bool desired = IrqDesiredLocked();
+                    lk.unlock();
+                    ApplyIrq(desired);
+                }
                 lk.lock();
             }
             sync_cv_.wait_for(lk, kSyncDetectInterval);

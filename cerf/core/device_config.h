@@ -22,6 +22,14 @@ struct BundledCompactFlashCard {
     std::string name;   /* display name; menu shows "Insert bundled CF: <name>" */
 };
 
+/* Boot action when a saved state image exists in the device directory
+   (--boot=resume|cold|warm). */
+enum class StateBootMode {
+    Resume,   /* full restore from state.img if present, else cold boot */
+    Warm,     /* RAM + flash only (OS reboots) if present, else cold boot */
+    Cold,     /* ignore state.img, cold boot */
+};
+
 struct DeviceConfig {
     std::string device_name;
 
@@ -58,6 +66,15 @@ struct DeviceConfig {
 
     bool boot_in_recovery = false;
     bool guest_additions = false;
+
+    /* Dev builds default to cold so iteration never auto-resumes a stale
+       image; production resumes a saved state. --boot overrides either. */
+    StateBootMode boot_mode =
+#if CERF_DEV_MODE
+        StateBootMode::Cold;
+#else
+        StateBootMode::Resume;
+#endif
 
     /* --share-folder=<host path>: pre-enables the guest-additions folder share
        on a host directory at boot (the widget still toggles it live). Empty when

@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/uart_screen.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
 
 #include <cstdio>
@@ -188,4 +189,36 @@ void Sa11xxUartBase::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
     WriteReg(off, value);
+}
+
+void Sa11xxUartBase::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(state_mtx_);
+    w.Write(utcr0_);
+    w.Write(utcr1_);
+    w.Write(utcr2_);
+    w.Write(utcr3_);
+    w.Write(utcr4_);
+    w.Write(utsr0_pending_);
+    w.Write(intc_asserted_);
+    w.Write<uint32_t>(static_cast<uint32_t>(rx_fifo_.size()));
+    for (uint8_t b : rx_fifo_) w.Write(b);
+}
+
+void Sa11xxUartBase::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(state_mtx_);
+    r.Read(utcr0_);
+    r.Read(utcr1_);
+    r.Read(utcr2_);
+    r.Read(utcr3_);
+    r.Read(utcr4_);
+    r.Read(utsr0_pending_);
+    r.Read(intc_asserted_);
+    rx_fifo_.clear();
+    uint32_t n = 0;
+    r.Read(n);
+    for (uint32_t i = 0; i < n; ++i) {
+        uint8_t b = 0;
+        r.Read(b);
+        rx_fifo_.push_back(b);
+    }
 }

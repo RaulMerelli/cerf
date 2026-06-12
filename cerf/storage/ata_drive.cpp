@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "../core/log.h"
+#include "../state/state_stream.h"
 
 uint32_t AtaDrive::CurrentLba28() const {
     return (static_cast<uint32_t>(device_ & 0x0Fu) << 24) |
@@ -304,4 +305,28 @@ void AtaDrive::BuildIdentify() {
     buf_[86] = (1u << 12);              /* FLUSH CACHE enabled */
     buf_[87] = (1u << 14);
     buf_[93] = 1u | (1u << 14) | 0x2000u;  /* hw reset / single device */
+}
+
+void AtaDrive::SaveState(StateWriter& w) const {
+    w.Write(features_); w.Write(error_);   w.Write(sector_cnt_);
+    w.Write(lba_low_);  w.Write(lba_mid_); w.Write(lba_high_);
+    w.Write(device_);   w.Write(status_);
+    w.Write(nien_);     w.Write(irq_);
+    w.WriteBytes(buf_, sizeof(buf_));
+    w.Write(buf_pos_);  w.Write(buf_len_); w.Write(buf_out_);
+    w.Write(xfer_lba_); w.Write(xfer_remaining_);
+    w.Write(multiple_block_); w.Write(cur_block_);
+    w.Write(logged_id_); w.Write(logged_rd_); w.Write(logged_wr_);
+}
+
+void AtaDrive::RestoreState(StateReader& r) {
+    r.Read(features_); r.Read(error_);   r.Read(sector_cnt_);
+    r.Read(lba_low_);  r.Read(lba_mid_); r.Read(lba_high_);
+    r.Read(device_);   r.Read(status_);
+    r.Read(nien_);     r.Read(irq_);
+    r.ReadBytes(buf_, sizeof(buf_));
+    r.Read(buf_pos_);  r.Read(buf_len_); r.Read(buf_out_);
+    r.Read(xfer_lba_); r.Read(xfer_remaining_);
+    r.Read(multiple_block_); r.Read(cur_block_);
+    r.Read(logged_id_); r.Read(logged_rd_); r.Read(logged_wr_);
 }

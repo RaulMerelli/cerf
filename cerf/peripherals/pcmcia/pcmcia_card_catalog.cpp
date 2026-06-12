@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../compactflash/compactflash_card.h"
 #include "../compactflash/compactflash_menu.h"
 #include "../hp_palmtop_vga/hp_palmtop_vga_card.h"
 #include "../hp_palmtop_vga/hp_palmtop_vga_card_menu.h"
@@ -59,10 +60,13 @@ void PcmciaCardCatalog::OnReady() {
     entries_.push_back(std::move(serial_fwd));
 }
 
-std::unique_ptr<PcmciaCard> PcmciaCardCatalog::Create(const std::string& id) {
-    if (id == kIdNe2000) {
-        return std::make_unique<Rtl8019>(emu_);
-    }
+std::unique_ptr<PcmciaCard> PcmciaCardCatalog::Create(const std::string& id,
+                                                      const std::wstring& binding) {
+    if (id == kIdNe2000)    return std::make_unique<Rtl8019>(emu_);
+    if (id == "cf")         return std::make_unique<CompactFlashCard>(emu_, binding);
+    if (id == kIdHpVga)     return std::make_unique<HpPalmtopVgaCard>(emu_);
+    if (id == kIdSerial)    return std::make_unique<SerialPcCard>(emu_);
+    if (id == kIdSerialFwd) return std::make_unique<SerialPcCard>(emu_, binding);
     LOG(Caution, "PcmciaCardCatalog::Create: unknown card id '%s'\n",
         id.c_str());
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -33,6 +34,11 @@ public:
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
+
+    /* WRSR is read-only (cold power-on signature) and recomputed, not
+       stored; WCR and WSR are the whole writable state. */
+    void SaveState(StateWriter& w) override    { w.Write(wcr_); w.Write(wsr_); }
+    void RestoreState(StateReader& r) override { r.Read(wcr_); r.Read(wsr_); }
 
     uint8_t ReadByte(uint32_t addr) override {
         const uint16_t v = ReadReg16((addr - kBase) & ~1u);

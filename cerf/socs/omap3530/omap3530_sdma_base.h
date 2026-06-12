@@ -2,6 +2,8 @@
 
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../state/state_stream.h"
+
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -16,6 +18,27 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     void RaiseSyncEvent(uint32_t source);
+
+    void SaveState(StateWriter& w) override {
+        std::lock_guard<std::recursive_mutex> lk(state_mu_);
+        w.WriteBytes(irqstatus_l_, sizeof(irqstatus_l_));
+        w.WriteBytes(irqenable_l_, sizeof(irqenable_l_));
+        w.Write(sysstatus_);
+        w.Write(ocp_sysconfig_);
+        w.Write(gcr_);
+        w.WriteBytes(channels_.data(), channels_.size() * sizeof(Channel));
+        w.WriteBytes(irq_line_high_, sizeof(irq_line_high_));
+    }
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::recursive_mutex> lk(state_mu_);
+        r.ReadBytes(irqstatus_l_, sizeof(irqstatus_l_));
+        r.ReadBytes(irqenable_l_, sizeof(irqenable_l_));
+        r.Read(sysstatus_);
+        r.Read(ocp_sysconfig_);
+        r.Read(gcr_);
+        r.ReadBytes(channels_.data(), channels_.size() * sizeof(Channel));
+        r.ReadBytes(irq_line_high_, sizeof(irq_line_high_));
+    }
 
 protected:
     virtual uint32_t ChannelCount() const = 0;

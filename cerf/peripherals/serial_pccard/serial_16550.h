@@ -8,6 +8,9 @@
 
 class SerialEndpoint;
 
+class StateWriter;
+class StateReader;
+
 class Serial16550 {
 public:
     /* Level-triggered card IRQ. true -> raise the slot IRQ, false -> clear. */
@@ -16,6 +19,8 @@ public:
     Serial16550(SerialEndpoint& endpoint, IrqLineFn irq_line);
 
     uint8_t ReadReg8 (uint32_t offset);
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
     void    WriteReg8(uint32_t offset, uint8_t value);
 
     /* Personality -> RX. Any thread. Asserts the RX interrupt per IER/trigger. */

@@ -104,6 +104,19 @@ def apply_dark_theme(root: tk.Tk) -> None:
               foreground=[("disabled", FG_DIM)],
               bordercolor=[("focus", "#168a16")])
 
+    # The boot-mode dropdown half of the launch split button: same green and
+    # height as Launch.TButton, narrow so it reads as a chevron beside it.
+    style.configure("LaunchArrow.TButton",
+                    background="#107c10", foreground="#ffffff",
+                    bordercolor="#0b5a0b", padding=(2, 8),
+                    borderwidth=1, font=("Segoe UI", 10, "bold"))
+    style.map("LaunchArrow.TButton",
+              background=[("pressed",  "#0b5a0b"),
+                          ("active",   "#168a16"),
+                          ("disabled", BG_FIELD)],
+              foreground=[("disabled", FG_DIM)],
+              bordercolor=[("focus", "#168a16")])
+
     style.configure("Accent.TButton",
                     background="#0e639c", foreground="#ffffff",
                     bordercolor="#0a4d7a", padding=4, borderwidth=1)

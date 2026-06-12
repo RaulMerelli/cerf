@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -44,6 +45,17 @@ public:
         case kPERVAL: perval_ = value & 0x03FFu; return;  /* PV (Table 4-48). */
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(ctrl_);
+        w.Write(duty_);
+        w.Write(perval_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(ctrl_);
+        r.Read(duty_);
+        r.Read(perval_);
     }
 
 private:
