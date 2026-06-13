@@ -1,6 +1,7 @@
 #include <winver.h>
 #include "version.h"
 
+APPICON ICON "assets/cerf.ico"
 1 ICON "assets/cerf.ico"
 2 ICON "assets/shutdown.ico"
 
