@@ -46,6 +46,7 @@ public:
 
     virtual void OnPrimaryAction() {}                /* left-click */
     virtual std::vector<WidgetMenuItem> BuildMenu() { return {}; }  /* right-click + menu replica */
+    virtual bool PrimaryActionOpensMenu() const { return false; }
 
     /* false => the icon is dimmed to read as a disabled peripheral. */
     virtual bool IsEnabled() const { return true; }
