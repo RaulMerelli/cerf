@@ -46,7 +46,7 @@ const wchar_t* ActionName(uint32_t code) {
         case CerfVirt::kTmCmdKill:     return L"kill";
         case CerfVirt::kTmCmdSwitchTo: return L"switch to";
         case CerfVirt::kTmCmdRun:      return L"run";
-        case CerfVirt::kTmCmdList:     return L"process list";
+        case CerfVirt::kTmCmdList:     return L"list";
         default:                       return L"command";
     }
 }
@@ -213,8 +213,7 @@ void TaskManagerWindow::OnTick() {
         } else if (r->code == CerfVirt::kTmCmdList) {
             if (!r->ok) {
                 _snwprintf_s(buf, _TRUNCATE,
-                             L"process list failed (error %u)", r->guest_err);
-                SetStatus(buf, kClrFail);
+                             L"list failed (error %u)", r->guest_err);
             }
         } else if (r->ok) {
             _snwprintf_s(buf, _TRUNCATE, L"%s: done", ActionName(r->code));
