@@ -77,6 +77,9 @@ public:
     virtual bool     HasCp15V7()                  const { return false; }
     virtual bool     HasVmsav7()                  const { return false; }
 
+    /* c9,c0,2 op1=1 L2 Cache Auxiliary Control Register present (Cortex-A8). */
+    virtual bool     HasL2CacheAuxControl()       const { return false; }
+
     virtual uint32_t Clidr()                      const { return 0; }
     virtual uint32_t Ccsidr(uint32_t /*csselr*/)  const { return 0; }
 

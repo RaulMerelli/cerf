@@ -266,8 +266,24 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         break;
 
     case 9:
-        /* Cache / TLB lockdown — not modeled. */
-        cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+        /* c9,c0,2 op1=1: L2 Cache Auxiliary Control Register (Cortex-A8, ARM
+           DDI0344K §3.2.55). CERF models no L2 → config latch (read/write field).
+           HW restricts the write to Secure state; CERF has no NS world and the
+           guest boots Secure, so the write is always taken. */
+        if (jit->ProcessorConfig()->HasL2CacheAuxControl() && d->cp_opc == 1 &&
+            d->crm == 0 && d->cp == 2) {
+            const int32_t disp =
+                static_cast<int32_t>(offsetof(ArmMmuState, l2_aux_control));
+            if (d->l) {
+                EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, disp);
+                EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
+            } else {
+                EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
+                EmitMovBaseDisp32Reg(cursor, kMmuReg, disp, kEax);
+            }
+        } else {
+            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+        }
         break;
 
     case 10: {

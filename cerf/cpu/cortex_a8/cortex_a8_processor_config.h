@@ -38,6 +38,7 @@ public:
     bool     HasCp15V6()                  const override { return true; }
     bool     HasCp15V7()                  const override { return true; }
     bool     HasVmsav7()                  const override { return true; }
+    bool     HasL2CacheAuxControl()       const override { return true; }
 
     bool     HasVfp()  const override { return true; }
     bool     HasNeon() const override { return true; }

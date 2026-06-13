@@ -8,6 +8,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "../cpu/arm_processor_config.h"
 #include "arm_cpu_exceptions.h"
 #include "arm_cpu_ops.h"
 #include "arm_jit.h"
@@ -125,6 +126,10 @@ void ArmCpu::DoRaiseReset() {
     ArmMmuState* mmu_state = mmu_->State();
     mmu_state->control_register.word = 0;
     mmu_state->process_id            = 0;
+    if (jit_->ProcessorConfig()->HasL2CacheAuxControl()) {
+        /* L2 Cache Auxiliary Control Register reset value (ARM DDI0344K §3.2.55). */
+        mmu_state->l2_aux_control = 0x00000042u;
+    }
 }
 
 uint32_t* ArmCpu::GetUserModeRegisterAddress(int reg_num) {

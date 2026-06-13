@@ -30,6 +30,7 @@ void ArmMmu::SaveState(StateWriter& w) {
     w.Write(state_.tpidrurw);
     w.Write(state_.tpidruro);
     w.Write(state_.tpidrprw);
+    w.Write(state_.l2_aux_control);
 }
 
 void ArmMmu::RestoreState(StateReader& r) {
@@ -50,6 +51,7 @@ void ArmMmu::RestoreState(StateReader& r) {
     r.Read(state_.tpidrurw);
     r.Read(state_.tpidruro);
     r.Read(state_.tpidrprw);
+    r.Read(state_.l2_aux_control);
     /* Restored TTBR0/process_id/contextidr differ from the live TLBs'
        context; a stale entry would return the prior context's PA. */
     ArmTlbFlushAll(&state_.data_tlb);

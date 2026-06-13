@@ -216,6 +216,7 @@ struct ArmMmuState {
     uint32_t                     tpidrurw;     /* c13 CRm=0 op2=2 */
     uint32_t                     tpidruro;     /* c13 CRm=0 op2=3 */
     uint32_t                     tpidrprw;     /* c13 CRm=0 op2=4 */
+    uint32_t                     l2_aux_control; /* c9 CRm=0 op1=1 op2=2 (Cortex-A8) */
 
     ArmTlbUnit                   data_tlb;
     ArmTlbUnit                   instruction_tlb;
