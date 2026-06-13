@@ -6,7 +6,9 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "audio_out_sink.h"
 #include "pxa255_ac97.h"
+#include "pxa255_i2s.h"
 #include "pxa255_intc.h"
 
 #include <cstdint>
@@ -80,6 +82,7 @@ public:
         for (uint32_t ch = 0; ch < kNumChannels; ++ch) {
             audio_active_[ch] = false;
             touch_active_[ch] = false;
+            audio_sink_[ch]   = nullptr;
         }
     }
 
@@ -102,14 +105,16 @@ private:
     /* Modem-in FIFO data register: a channel sourcing from here carries WM9705
        touch slot-5 samples (Linux pxa2xx-ac97-regs.h MODR). */
     static constexpr uint32_t kAc97Modr = 0x40500140u;
+    static constexpr uint32_t kI2sSadr  = 0x40400080u;  /* I2S Tx data reg (SADR, Ch.14). */
 
     std::mutex state_mutex_;   /* channel state is touched by the JIT thread (reg
                                   access) and the AC'97 audio thread (AudioTick). */
     uint32_t dcsr_[kNumChannels] = {}, ddadr_[kNumChannels] = {},
              dsadr_[kNumChannels] = {}, dtadr_[kNumChannels] = {},
              dcmd_[kNumChannels] = {}, drcmr_[kNumDrcmr] = {};
-    bool     audio_active_[kNumChannels] = {};
-    bool     touch_active_[kNumChannels] = {};
+    bool          audio_active_[kNumChannels] = {};
+    bool          touch_active_[kNumChannels] = {};
+    AudioOutSink* audio_sink_[kNumChannels]   = {};   /* sink for an active audio-out channel. */
 
     uint32_t ReadRegLocked(uint32_t addr) {
         const uint32_t off = addr - MmioBase();
@@ -185,13 +190,16 @@ private:
 
     static bool IsAc97Target(uint32_t pa) { return pa >= kAc97Base && pa < kAc97End; }
 
-    /* True iff the channel's first descriptor targets the AC'97 PCM-out FIFO. */
-    bool PeekAudioOutLocked(uint32_t ch) {
-        if (dcsr_[ch] & NODESCFETCH) return false;
-        if (ddadr_[ch] & DDADR_STOP) return false;
+    /* Paced audio-out sink for a channel whose first descriptor targets an audio Tx
+       FIFO (AC'97 PCM-out or I2S SADR); null for a non-audio channel. */
+    AudioOutSink* AudioSinkForChannelLocked(uint32_t ch) {
+        if (dcsr_[ch] & NODESCFETCH) return nullptr;
+        if (ddadr_[ch] & DDADR_STOP) return nullptr;
         uint32_t dtadr = 0;
-        if (!ReadPhys32((ddadr_[ch] & ~0xFu) + 8u, &dtadr)) return false;
-        return IsAc97Target(dtadr);
+        if (!ReadPhys32((ddadr_[ch] & ~0xFu) + 8u, &dtadr)) return nullptr;
+        if (IsAc97Target(dtadr)) return &emu_.Get<Pxa255Ac97>();
+        if (dtadr == kI2sSadr)   return &emu_.Get<Pxa255I2s>();
+        return nullptr;
     }
 
     /* True iff the channel's first descriptor sources from the modem-in FIFO
@@ -208,10 +216,11 @@ private:
         dcsr_[ch] &= ~STOPSTATE;
         LOG(SocDma, "ch%u RUN DDADR=0x%08X DCSR=0x%08X nodesc=%u\n", ch, ddadr_[ch],
             dcsr_[ch], (dcsr_[ch] & NODESCFETCH) ? 1u : 0u);
-        if (PeekAudioOutLocked(ch)) {
+        if (AudioOutSink* sink = AudioSinkForChannelLocked(ch)) {
             audio_active_[ch] = true;
-            emu_.Get<Pxa255Ac97>().BeginAudioOut([this, ch] { AudioTick(ch); });
-            LOG(SocDma, "ch%u -> AC'97 audio-out (paced playback)\n", ch);
+            audio_sink_[ch]   = sink;
+            sink->BeginAudioOut([this, ch] { AudioTick(ch); });
+            LOG(SocDma, "ch%u -> paced audio-out\n", ch);
             if (!DeliverNextAudioBlockLocked(ch)) StopAudioLocked(ch);
             return;
         }
@@ -239,7 +248,7 @@ private:
         const uint32_t len  = dcmd_[ch] & kDcmdLengthMask;
         const uint8_t* src = emu_.Get<EmulatedMemory>().TryTranslate(dsadr_[ch]);
         if (!src) { dcsr_[ch] |= BUSERRINTR; return false; }
-        emu_.Get<Pxa255Ac97>().QueueOutput(src, len);
+        audio_sink_[ch]->QueueOutput(src, len);
         return true;
     }
 
@@ -258,8 +267,8 @@ private:
         if (!audio_active_[ch]) return;
         audio_active_[ch] = false;
         dcsr_[ch] = (dcsr_[ch] & ~RUN) | STOPSTATE;
-        emu_.Get<Pxa255Ac97>().StopAudioOut();
-        LOG(SocDma, "ch%u AC'97 audio-out stop DCSR=0x%08X\n", ch, dcsr_[ch]);
+        if (audio_sink_[ch]) { audio_sink_[ch]->StopAudioOut(); audio_sink_[ch] = nullptr; }
+        LOG(SocDma, "ch%u audio-out stop DCSR=0x%08X\n", ch, dcsr_[ch]);
     }
 
     /* Invoked by Pxa255Ac97 when the board pushes a pen sample into the modem-in

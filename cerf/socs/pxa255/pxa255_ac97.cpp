@@ -19,76 +19,22 @@ bool Pxa255Ac97::ShouldRegister() {
 
 /* Stop the audio thread before any peer its completion callback re-enters is
    destroyed. */
-void Pxa255Ac97::OnShutdown() { sink_.Stop(); }
+void Pxa255Ac97::OnShutdown() { audio_out_.Stop(); }
 
 void Pxa255Ac97::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
-    sink_.Start(
-        [this] {
-            sink_.EnsureFormat(kSampleRate, kChannels, kBitsPerSamp,
-                               /*allow_resampler=*/false, /*busy=*/false);
-        },
-        [this](const MSG& msg) { OnThreadMessage(msg); },
-        "Pxa255Ac97");
-}
-
-void Pxa255Ac97::OnThreadMessage(const MSG& msg) {
-    if (msg.message != MM_WOM_DONE) return;
-    std::function<void()> cb;
-    {
-        std::lock_guard<std::mutex> lk(audio_mutex_);
-        if (msg.lParam != 0 && sink_.IsOpen()) {
-            sink_.Unprepare(reinterpret_cast<LPWAVEHDR>(msg.lParam));
-        }
-        if (output_active_.load(std::memory_order_acquire)) cb = on_block_done_;
-    }
-    /* Invoke without the lock: the callback re-enters QueueOutput (DMA ->
-       AC97 lock order); holding audio_mutex_ here would self-deadlock. */
-    if (cb) cb();
+    audio_out_.Start("Pxa255Ac97", kSampleRate, kChannels, kBitsPerSamp,
+                     /*allow_resampler=*/false);
 }
 
 void Pxa255Ac97::BeginAudioOut(std::function<void()> on_block_done) {
-    std::lock_guard<std::mutex> lk(audio_mutex_);
-    on_block_done_ = std::move(on_block_done);
-    output_active_.store(true, std::memory_order_release);
+    audio_out_.BeginAudioOut(std::move(on_block_done));
 }
 
-void Pxa255Ac97::StopAudioOut() {
-    std::lock_guard<std::mutex> lk(audio_mutex_);
-    output_active_.store(false, std::memory_order_release);
-    on_block_done_ = nullptr;
-    sink_.Reset();   /* flush queued buffers. */
-}
+void Pxa255Ac97::StopAudioOut() { audio_out_.StopAudioOut(); }
 
 void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
-    if (length == 0) return;
-    if (length > kMaxBlock) length = kMaxBlock;
-
-    std::lock_guard<std::mutex> lk(audio_mutex_);
-    if (!output_active_.load(std::memory_order_acquire)) return;
-
-    /* Silent mode (or device error): pace by posting completion immediately so
-       the DMA delivers the next block and the ring keeps cycling. */
-    if (!sink_.IsOpen()) {
-        sink_.Post(MM_WOM_DONE, 0, 0);
-        return;
-    }
-
-    /* One block in flight: the prior block's MM_WOM_DONE freed header_ before the
-       DMA paced this next call. If somehow still queued, post a synthetic
-       completion so the ring keeps cycling instead of stalling. */
-    if (header_.dwFlags & WHDR_INQUEUE) {
-        sink_.Post(MM_WOM_DONE, 0, 0);
-        return;
-    }
-    std::memset(&header_, 0, sizeof(header_));
-    std::memcpy(buffer_, host_bytes, length);
-    header_.lpData         = reinterpret_cast<LPSTR>(buffer_);
-    header_.dwBufferLength = length;
-
-    if (!sink_.Play(&header_)) {
-        sink_.Post(MM_WOM_DONE, 0, 0);
-    }
+    audio_out_.QueueOutput(host_bytes, length);
 }
 
 void Pxa255Ac97::SaveState(StateWriter& w) {

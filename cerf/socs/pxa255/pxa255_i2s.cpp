@@ -1,6 +1,28 @@
 #include "pxa255_i2s.h"
 
+#include <utility>
+
 REGISTER_SERVICE(Pxa255I2s);
+
+void Pxa255I2s::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+    /* rate 0: defer opening the host device until the guest starts I2S audio
+       (BeginAudioOut -> SetFormat), so AC'97-only boards hold no idle I2S device. */
+    audio_out_.Start("Pxa255I2s", /*rate=*/0, 0, 0, /*allow_resampler=*/true);
+}
+
+void Pxa255I2s::OnShutdown() { audio_out_.Stop(); }
+
+void Pxa255I2s::BeginAudioOut(std::function<void()> on_block_done) {
+    audio_out_.SetFormat(SampleRateHz(), 2, 16);
+    audio_out_.BeginAudioOut(std::move(on_block_done));
+}
+
+void Pxa255I2s::QueueOutput(const void* host_bytes, uint32_t length) {
+    audio_out_.QueueOutput(host_bytes, length);
+}
+
+void Pxa255I2s::StopAudioOut() { audio_out_.StopAudioOut(); }
 
 uint32_t Pxa255I2s::ReadWord(uint32_t addr) {
     switch (addr - MmioBase()) {
@@ -39,4 +61,6 @@ void Pxa255I2s::SaveState(StateWriter& w) {
 
 void Pxa255I2s::RestoreState(StateReader& r) {
     r.Read(sacr0_); r.Read(sacr1_); r.Read(saimr_); r.Read(sadiv_);
+    /* No host sink / DMA pacing callback survives a snapshot; reset so the guest re-arms. */
+    audio_out_.StopAudioOut();
 }
