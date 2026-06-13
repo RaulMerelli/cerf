@@ -33,10 +33,9 @@ void NecMobilePro900BoardWindow::WriteByte(uint32_t addr, uint8_t value) {
     uint32_t w = regs_.count(off) ? regs_[off] : 0u;
     w = (w & ~(0xFFu << shift)) | (static_cast<uint32_t>(value) << shift);
     regs_[off] = w;
-    if (FirstTouch(addr))
-        LOG(Caution, "NecBoardWindow[%s]: WriteByte PA 0x%08X (off 0x%X) = 0x%02X "
-                     "(unmodeled, needs per-driver RE)\n",
-            WindowName(), addr, off, value);
+    LOG(Caution, "NecBoardWindow[%s]: WriteByte PA 0x%08X (off 0x%X) = 0x%02X "
+                 "(unmodeled, needs per-driver RE)\n",
+        WindowName(), addr, off, value);
 }
 
 void NecMobilePro900BoardWindow::WriteHalf(uint32_t addr, uint16_t value) {
@@ -45,28 +44,25 @@ void NecMobilePro900BoardWindow::WriteHalf(uint32_t addr, uint16_t value) {
     uint32_t w = regs_.count(off) ? regs_[off] : 0u;
     w = (w & ~(0xFFFFu << shift)) | (static_cast<uint32_t>(value) << shift);
     regs_[off] = w;
-    if (FirstTouch(addr))
-        LOG(Caution, "NecBoardWindow[%s]: WriteHalf PA 0x%08X (off 0x%X) = 0x%04X "
-                     "(unmodeled, needs per-driver RE)\n",
-            WindowName(), addr, off, value);
+    LOG(Caution, "NecBoardWindow[%s]: WriteHalf PA 0x%08X (off 0x%X) = 0x%04X "
+                 "(unmodeled, needs per-driver RE)\n",
+        WindowName(), addr, off, value);
 }
 
 void NecMobilePro900BoardWindow::WriteWord(uint32_t addr, uint32_t value) {
     regs_[addr - MmioBase()] = value;
-    if (FirstTouch(addr))
-        LOG(Caution, "NecBoardWindow[%s]: WriteWord PA 0x%08X (off 0x%X) = 0x%08X "
-                     "(unmodeled, needs per-driver RE)\n",
-            WindowName(), addr, addr - MmioBase(), value);
+    LOG(Caution, "NecBoardWindow[%s]: WriteWord PA 0x%08X (off 0x%X) = 0x%08X "
+                 "(unmodeled, needs per-driver RE)\n",
+        WindowName(), addr, addr - MmioBase(), value);
 }
 
 uint32_t NecMobilePro900BoardWindow::ReadReg(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     auto it = regs_.find(off);
     const uint32_t v = (it != regs_.end()) ? it->second : 0u;
-    if (FirstTouch(addr))
-        LOG(Caution, "NecBoardWindow[%s]: read PA 0x%08X (off 0x%X) -> 0x%08X "
-                     "(unmodeled, needs per-driver RE)\n",
-            WindowName(), addr, off, v);
+    LOG(Caution, "NecBoardWindow[%s]: read PA 0x%08X (off 0x%X) -> 0x%08X "
+                 "(unmodeled, needs per-driver RE)\n",
+        WindowName(), addr, off, v);
     return v;
 }
 

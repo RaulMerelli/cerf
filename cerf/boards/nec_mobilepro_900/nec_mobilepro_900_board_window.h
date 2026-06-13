@@ -4,11 +4,11 @@
 
 #include <cstdint>
 #include <unordered_map>
-#include <unordered_set>
 
-/* Logged scaffold (NOT a device model) for an NEC P530 board-device MMIO window
-   on a static chip-select: stores writes, returns stored/0 on reads, and logs
-   unmodeled accesses. A concrete supplies MmioBase() (the OAT PA) + WindowName(). */
+/* Unmodeled-device scaffold (NOT a model): stores writes, returns stored/0 on
+   reads, logs every access loud (CAUTION). Each access is a peripheral CERF does
+   not model; a flood of one offset is a guest busy-waiting on a status bit this
+   scaffold never sets — a hang. Concrete supplies MmioBase()+WindowName(). */
 class NecMobilePro900BoardWindow : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -37,11 +37,5 @@ protected:
 private:
     uint32_t ReadReg(uint32_t addr);
 
-    /* First access to each PA logs once (production-visible Caution), then
-       stays quiet — surfaces the unmodeled board-device registers in field
-       logs without flooding on polled access. */
-    bool FirstTouch(uint32_t addr) { return logged_.insert(addr).second; }
-
     std::unordered_map<uint32_t, uint32_t> regs_;
-    std::unordered_set<uint32_t> logged_;
 };
