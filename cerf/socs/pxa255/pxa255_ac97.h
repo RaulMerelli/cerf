@@ -1,7 +1,8 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
-#include "../../host/wave_out_sink.h"
+#include "../../host/paced_wave_out.h"
+#include "audio_out_sink.h"
 
 #include <atomic>
 #include <cstdint>
@@ -13,7 +14,7 @@
    (GSR codec-ready, CAR link-free) so codec init doesn't hang. Audio output is
    real and MUST pace the DMA's per-block completion via on_block_done — without
    it the guest audio thread blocks on missing DMA completions, deadlocking the UI. */
-class Pxa255Ac97 : public Peripheral {
+class Pxa255Ac97 : public Peripheral, public AudioOutSink {
 public:
     using Peripheral::Peripheral;
 
@@ -37,9 +38,9 @@ public:
     /* Audio-output coupling driven by the Pxa255Dma AC'97 channel. A missed block
        completion hangs the guest audio DMA thread, so on_block_done fires even
        with no audio device present (silent boots still post it). */
-    void BeginAudioOut(std::function<void()> on_block_done);
-    void StopAudioOut();
-    void QueueOutput(const void* host_bytes, uint32_t length);
+    void BeginAudioOut(std::function<void()> on_block_done) override;
+    void StopAudioOut() override;
+    void QueueOutput(const void* host_bytes, uint32_t length) override;
 
     /* Touch RX: board TouchInput pushes WM9705 readback words (bit15 pen-down,
        [14:12] adcsel 0x1000 X/0x2000 Y/0x3000 P, [11:0] value) into the modem-in
@@ -51,15 +52,12 @@ public:
     uint32_t TouchFifoCount();
 
 private:
-    void OnThreadMessage(const MSG& msg);
-
     uint16_t CodecRead(uint32_t reg);
     void     CodecWrite(uint32_t reg, uint16_t value);
 
     static constexpr uint32_t kSampleRate  = 48000u;   /* AC-link PCM 48 kHz. */
     static constexpr uint16_t kChannels    = 2u;
     static constexpr uint16_t kBitsPerSamp = 16u;
-    static constexpr uint32_t kMaxBlock    = 0x2000u;  /* DMA LENGTH < 8 KB. */
 
     static constexpr uint32_t kPOCR = 0x00u, kPICR = 0x04u, kMCCR = 0x08u,
                               kGCR  = 0x0Cu, kGSR  = 0x1Cu, kCAR  = 0x20u,
@@ -78,13 +76,7 @@ private:
     uint32_t pocr_ = 0, picr_ = 0, mccr_ = 0, gcr_ = 0, mocr_ = 0, micr_ = 0;
     uint16_t codec_[(kCodecEnd - kCodecBase) / 2] = {};
 
-    /* One block in flight, DMA-paced. */
-    WaveOutSink           sink_;
-    WAVEHDR               header_ = {};
-    uint8_t               buffer_[kMaxBlock] = {};
-    std::mutex            audio_mutex_;            /* guards header + callback. */
-    std::function<void()> on_block_done_;
-    std::atomic<bool>     output_active_{false};
+    PacedWaveOut          audio_out_;
 
     /* Touch modem-in FIFO, drained by the touch DMA; separate lock (other threads). */
     std::mutex            touch_mutex_;
