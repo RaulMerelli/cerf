@@ -179,6 +179,17 @@ HostWidget* HostStatusBar::WidgetAt(int x) const {
     return nullptr;
 }
 
+void HostStatusBar::PopWidgetMenu(HostWidget* w, int x, int y, UINT button_flag) {
+    auto& reg = emu_.Get<HostWidgetRegistry>();
+    HMENU m = reg.BuildContextMenu(w);
+    POINT pt = { x, y };
+    ClientToScreen(hwnd_, &pt);
+    const int id = (int)TrackPopupMenu(m, TPM_RETURNCMD | TPM_LEFTALIGN | button_flag,
+                                       pt.x, pt.y, 0, hwnd_, nullptr);
+    DestroyMenu(m);
+    if (id) reg.Dispatch(id);
+}
+
 LRESULT CALLBACK HostStatusBar::WndProcStatic(HWND hwnd, UINT msg,
                                               WPARAM wp, LPARAM lp) {
     HostStatusBar* self = nullptr;
@@ -253,23 +264,19 @@ LRESULT HostStatusBar::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_LBUTTONDOWN: {
             const int x = (int)(short)LOWORD(lp);
-            if (HostWidget* w = WidgetAt(x)) w->OnPrimaryAction();
+            HostWidget* w = WidgetAt(x);
+            if (!w) return 0;
+            if (w->PrimaryActionOpensMenu())
+                PopWidgetMenu(w, x, (int)(short)HIWORD(lp), TPM_LEFTBUTTON);
+            else
+                w->OnPrimaryAction();
             return 0;
         }
 
         case WM_RBUTTONUP: {
             const int x = (int)(short)LOWORD(lp);
-            HostWidget* w = WidgetAt(x);
-            if (!w) return 0;
-            auto& reg = emu_.Get<HostWidgetRegistry>();
-            HMENU m = reg.BuildContextMenu(w);
-            POINT pt = { x, (int)(short)HIWORD(lp) };
-            ClientToScreen(hwnd, &pt);
-            const int id = (int)TrackPopupMenu(
-                m, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTALIGN,
-                pt.x, pt.y, 0, hwnd, nullptr);
-            DestroyMenu(m);
-            if (id) reg.Dispatch(id);
+            if (HostWidget* w = WidgetAt(x))
+                PopWidgetMenu(w, x, (int)(short)HIWORD(lp), TPM_RIGHTBUTTON);
             return 0;
         }
 

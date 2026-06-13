@@ -1,0 +1,41 @@
+#include "../../core/cerf_emulator.h"
+#include "../../host/keyboard_map.h"
+#include "../board_detector.h"
+
+#include <vector>
+
+namespace {
+
+/* device_code = SIMpad keypad button 0..5. Each button's guest action is the
+   device's observed nav behavior: 0=F1, 1=Alt, 2=Up, 3=Down, 4=Esc(Back),
+   5=Enter(OK). Host arrows land on the arrow buttons directly (identity); host
+   PgUp/PgDn are bonus keys routed to the same Up/Down buttons. */
+const std::vector<KeyBinding> kBindings = {
+    { 0x70, 0, nullptr,  0, 0 },   /* F1     -> PROG1 (guest F1)        */
+    { 0x12, 1, nullptr,  0, 0 },   /* Alt    -> PROG2 (guest Alt)       */
+    { 0x71, 1, L"Alt",   0, 0 },   /* F2     -> PROG2 (guest Alt)       */
+    { 0x26, 2, nullptr,  0, 0 },   /* Up     -> UP    (guest Up)        */
+    { 0x21, 2, L"↑",     0, 0 },   /* PageUp -> UP    (guest Up)        */
+    { 0x28, 3, nullptr,  0, 0 },   /* Down   -> DOWN  (guest Down)      */
+    { 0x22, 3, L"↓",     0, 0 },   /* PageDn -> DOWN  (guest Down)      */
+    { 0x25, 4, L"Esc",   0, 0 },   /* Left   -> LEFT  (guest Esc/Back)  */
+    { 0x1B, 4, nullptr,  0, 0 },   /* Esc    -> LEFT  (guest Esc/Back)  */
+    { 0x27, 5, L"Enter", 0, 0 },   /* Right  -> RIGHT (guest Enter/OK)  */
+    { 0x0D, 5, nullptr,  0, 0 },   /* Enter  -> RIGHT (guest Enter/OK)  */
+};
+
+class SimpadSl4KeyboardMap : public KeyboardMap {
+public:
+    using KeyboardMap::KeyboardMap;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        return bd && bd->GetBoard() == Board::SimpadSl4;
+    }
+
+    const std::vector<KeyBinding>& Bindings() const override { return kBindings; }
+};
+
+}  /* namespace */
+
+REGISTER_SERVICE_AS(SimpadSl4KeyboardMap, KeyboardMap);
