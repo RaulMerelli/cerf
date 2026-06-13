@@ -1,0 +1,15 @@
+# What to do with boot loaders in CERF?
+
+The boot loader part is the separate board's boot loader, usually - some original OEM blob - EBOOT.BIN, ZBOOT.BIN, SBOOT.BIN, etc. Either another XIP containing some parent nk.exe or some other arbitrary machine code that does pre-kernel setup.
+
+Historically for most boards (at the moment of June 2026) CERF skips the boot loader part fully and boots the XIP blob itself. The Windows CE images are usually happy for this and are greatly decoupled from bootloaders. And the bootloader themselves do barely nothing. Zune 30 is a good candidate, from what it seems it has NK.BIN on HDD. The bootloader most likely spins HDD, loads NK.BIN and starts kernel execution. CERF skips this part fully, because CERF had only NK.BIN from extracted from the OS update tool, and we didnt know the architecture while were building the emulation layer for Zune 30. The OS itself needs the HDD with OsPartition anyway, so CERF synths blank HDD with that partition, and it has no NK.BIN of course, because the OS itself doesn't need to read that. So this is the good and beatiful case, boot loader was entirely skipped, OS was booted from unusual place, yet it all works very well.
+
+This is how it should work in a perfect world! But look at NEC MobilePro 900 Series: it has two known (at least to me) ROMs, one is CE .NET upgrade package with a new boot loader (SABOOT.NB0) and one is what I assume the original HPC2000 re-flashing utility without boot loader. The situation here is exactly where pattern fails: boot loader doesnt do anything too special, but it writes into specific address the struct. And this struct is some display configuration table which has 3 resolutions and only one of them works (640x240). OS wont boot if it's 0 (640x480). 
+
+So we first found what is the exact failure on CE4, then went into boot loader code and found what it writes. And it worked. But not for CE3 version. So we went into same ddi.dll, into same place, and found out that chain is identical, and it reads identical data, however it reads it from different address. This is bootloader doing pre-setup and worse - this is bootloader fully coupled with the specific ROM. 
+
+So at this point CERF could boot the bootloader instead, however the situation is still unclear: CE3 has no bootloader publically avaiable (at least from what I know). The solution here was to rely on absence of other ROMs and just do nk.exe subsystem version comparison to write same data at two places. 
+
+But this still a perfect world picture: nobody denies a bootloader to do more stuff, and in more obscure/complex systems the bootloader does so much that that it's just unavoidable.
+
+The lesson here is CERF doesnt use bootloaders only for ROMs which are fully happy with this. For some ROMs CERF can model the bootloader if it's ROM-blob agnostic. If bootloader does too much complex stuff and is super ROM-image coupled, then CERF has no choice but to fully organize bootloader execution hardware faithfully.
