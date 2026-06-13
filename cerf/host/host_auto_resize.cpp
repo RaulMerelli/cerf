@@ -7,16 +7,13 @@
 #include "../core/device_config.h"
 #include "../core/log.h"
 #include "../peripherals/cerf_virt/cerf_virt_resize.h"
+#include "change_resolution_dialog.h"
+#include "host_icon_cache.h"
 #include "host_widget_registry.h"
 #include "task_manager_window.h"
 
 #include <string>
 #include <vector>
-
-namespace {
-constexpr COLORREF kClrOn  = RGB(78, 201, 90);    /* green */
-constexpr COLORREF kClrOff = RGB(140, 140, 140);  /* gray */
-}  /* namespace */
 
 REGISTER_SERVICE(HostAutoResize);
 
@@ -25,14 +22,6 @@ bool HostAutoResize::ShouldRegister() {
 }
 
 void HostAutoResize::OnReady() {
-    /* cerf.rc resource 1: the application icon. */
-    icon_ = (HICON)LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1),
-                              IMAGE_ICON, 16, 16, 0);
-    if (!icon_) {
-        LOG(Caution, "HostAutoResize: LoadImageW(icon 1) failed (gle=%lu)\n",
-            GetLastError());
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
@@ -74,6 +63,11 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
     taskmgr.on_click = [this] { emu_.Get<TaskManagerWindow>().Show(); };
     items.push_back(std::move(taskmgr));
 
+    WidgetMenuItem chres;
+    chres.label    = L"Change resolution…";
+    chres.on_click = [this] { emu_.Get<ChangeResolutionDialog>().Show(); };
+    items.push_back(std::move(chres));
+
     WidgetMenuItem resize;
     resize.label    = L"Resize guest to window";
     resize.checked  = Enabled();
@@ -84,26 +78,8 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
 }
 
 void HostAutoResize::DrawIcon(HDC dc, const RECT& box) const {
-    const int cx = (box.left + box.right) / 2;
-    const int cy = (box.top + box.bottom) / 2;
-    constexpr int e = 7;  /* half-extent of the bracket square */
-    constexpr int a = 5;  /* bracket arm length */
-    constexpr int t = 2;  /* bracket arm thickness */
-    const RECT arms[8] = {
-        { cx - e,     cy - e,     cx - e + a, cy - e + t },  /* top-left */
-        { cx - e,     cy - e,     cx - e + t, cy - e + a },
-        { cx + e - a, cy - e,     cx + e,     cy - e + t },  /* top-right */
-        { cx + e - t, cy - e,     cx + e,     cy - e + a },
-        { cx - e,     cy + e - t, cx - e + a, cy + e     },  /* bottom-left */
-        { cx - e,     cy + e - a, cx - e + t, cy + e     },
-        { cx + e - a, cy + e - t, cx + e,     cy + e     },  /* bottom-right */
-        { cx + e - t, cy + e - a, cx + e,     cy + e     },
-    };
-    HBRUSH br = CreateSolidBrush(Enabled() ? kClrOn : kClrOff);
-    for (const RECT& r : arms) FillRect(dc, &r, br);
-    DeleteObject(br);
-
-    DrawIconEx(dc, cx - 5, cy - 5, icon_, 10, 10, 0, nullptr, DI_NORMAL);
+    emu_.Get<HostIconCache>().DrawCentered(
+        dc, box, Enabled() ? L"ICON_GA" : L"ICON_GA_DISABLED");
 }
 
 bool HostAutoResize::PollDirty() {

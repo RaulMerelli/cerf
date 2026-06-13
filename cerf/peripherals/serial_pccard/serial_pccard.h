@@ -26,6 +26,10 @@ public:
         return mode_ == Mode::HostForward ? kForwardDisplayName : kDisplayName;
     }
     std::wstring TooltipDetail() const override;
+    const wchar_t* IconResource() const override {
+        return mode_ == Mode::HostForward ? L"ICON_PCMCIA_SERIAL_COM"
+                                          : L"ICON_PCMCIA_SERIAL_MODEM";
+    }
 
     void OnInserted() override;
 

@@ -4,9 +4,22 @@
 1 ICON "assets/cerf.ico"
 2 ICON "assets/shutdown.ico"
 
-/* CERF + OEM boot logos shown on the HwScreen boot animation (PNG, decoded at
-   runtime via GDI+). OEM names match BoardDetector::GetBootLogoResource().
-   CERF_LOGO is the 1024x1024 master so any on-screen size downscales cleanly. */
+/* built from assets/icons_sources/*.svg by tools/make_icons.py. */
+ICON_GA                  ICON "assets/ga_autoresize.ico"
+ICON_GA_DISABLED         ICON "assets/ga_autoresize_disabled.ico"
+ICON_LOCK_ON             ICON "assets/lock_on.ico"
+ICON_LOCK_OFF            ICON "assets/lock_off.ico"
+ICON_INPUT_POINTER       ICON "assets/cursor.ico"
+ICON_INPUT_TOUCH         ICON "assets/stylus.ico"
+ICON_KEYBOARD            ICON "assets/keyboard.ico"
+ICON_PCMCIA_EMPTY        ICON "assets/pcmcia.ico"
+ICON_PCMCIA_CARD         ICON "assets/pcmcia_enabled.ico"
+ICON_PCMCIA_CF           ICON "assets/pcmcia_enabled_cf.ico"
+ICON_PCMCIA_ETHERNET     ICON "assets/pcmcia_enabled_ethernet.ico"
+ICON_PCMCIA_VGA          ICON "assets/pcmcia_enabled_vga.ico"
+ICON_PCMCIA_SERIAL_COM   ICON "assets/pcmcia_enabled_serial_com.ico"
+ICON_PCMCIA_SERIAL_MODEM ICON "assets/pcmcia_enabled_serial_modem.ico"
+
 CERF_LOGO     RCDATA "../gweslab.png"
 OEM_COMPAQ    RCDATA "assets/oem/logo_compaq.png"
 OEM_FORD      RCDATA "assets/oem/logo_ford.png"

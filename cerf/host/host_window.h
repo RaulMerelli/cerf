@@ -29,6 +29,16 @@ public:
        marshals to the UI thread to repoint the framebuffer + canvas surface. */
     void NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h);
 
+    /* UI thread. Point the host framebuffer + canvas surface at a new guest
+       mode. Shared by the guest re-mode ack (kGuestRemodeMsg) and the
+       Change-resolution dialog's reset paths (where no guest ack arrives). */
+    void SetGuestResolution(uint32_t w, uint32_t h);
+
+    /* UI thread. Fit the window to a new sw x sh guest surface, unless the
+       window is maximized — then keep it as-is and let the canvas viewport /
+       scrollbars adapt. Used by the Change-resolution dialog. */
+    void FitToResolution(uint32_t sw, uint32_t sh);
+
     /* Any thread. Marshal a switch to the UART tab to the UI thread (so a guest
        power-down / reboot banner is visible). rearm_framebuffer re-arms the
        framebuffer auto-switch so a rebooting guest's video returns to it. */

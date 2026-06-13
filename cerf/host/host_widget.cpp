@@ -9,7 +9,7 @@ constexpr COLORREF kTxColor   = RGB(229, 80, 80);  /* red */
 constexpr int      kDotR      = 3;
 constexpr BYTE     kDisabledAlpha = 150;           /* gray blended over a disabled icon */
 
-void DimRect(HDC dc, const RECT& box) {
+void DimRect(HDC dc, const RECT& box, COLORREF bar_bg) {
     HDC mdc = CreateCompatibleDC(dc);
     if (!mdc) return;
     BITMAPINFO bi = {};
@@ -22,7 +22,10 @@ void DimRect(HDC dc, const RECT& box) {
     void* bits = nullptr;
     HBITMAP dib = CreateDIBSection(mdc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
     if (dib && bits) {
-        *static_cast<uint32_t*>(bits) = 0x00202020u;   /* bar-background gray */
+        /* BGRA32 DIB pixel = 0x00RRGGBB; fade the icon toward the bar bg. */
+        *static_cast<uint32_t*>(bits) = ((uint32_t)GetRValue(bar_bg) << 16) |
+                                        ((uint32_t)GetGValue(bar_bg) << 8) |
+                                        (uint32_t)GetBValue(bar_bg);
         HGDIOBJ ob = SelectObject(mdc, dib);
         BLENDFUNCTION bf = { AC_SRC_OVER, 0, kDisabledAlpha, 0 };
         AlphaBlend(dc, box.left, box.top, box.right - box.left,
@@ -46,11 +49,11 @@ bool HostWidget::SampleActivity() {
     return repaint;
 }
 
-void HostWidget::DrawComposited(HDC dc, const RECT& box) {
+void HostWidget::DrawComposited(HDC dc, const RECT& box, COLORREF bar_bg) {
     DrawIcon(dc, box);
 
     if (!IsEnabled()) {
-        DimRect(dc, box);
+        DimRect(dc, box, bar_bg);
         return;   /* disabled => no activity dots */
     }
 
