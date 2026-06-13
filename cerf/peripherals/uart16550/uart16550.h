@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <functional>
 #include <string>
 
 /* Generic 16550 UART core. Register offsets are reg-index*RegStride (PXA255 =4,
@@ -60,12 +61,15 @@ public:
 
     void WriteWord(uint32_t addr, uint32_t value) override {
         switch ((addr - MmioBase()) / RegStride()) {
-        case 0:
+        case 0: {
             if (dlab()) { dll_ = value; return; }
-            EmitTxByte(static_cast<uint8_t>(value & 0xFFu));
+            const uint8_t b = static_cast<uint8_t>(value & 0xFFu);
+            if (tx_observer_) tx_observer_(b);   /* board transport may answer a guest command. */
+            EmitTxByte(b);
             tx_acked_ = false;       /* drained -> THRE=1 again -> re-assert if enabled. */
             RecomputeInterrupt();
             return;
+        }
         case 1:
             if (dlab()) { dlh_ = value; return; }
             ier_ = value;
@@ -106,6 +110,12 @@ public:
         rx_fifo_.push_back(byte);
         RecomputeInterrupt();
     }
+
+    /* Observe each guest-written TX byte (THR). A board transport that must
+       answer a guest command synchronously (e.g. the NEC PCO battery request,
+       where the guest writes 0x70 to BTUART THR and waits for the reply over RX)
+       registers here and pushes its response via PushRx. Unset by default. */
+    void SetTxObserver(std::function<void(uint8_t)> cb) { tx_observer_ = std::move(cb); }
 
     /* tx_line_ is a host-side console accumulator rebuilt as the guest writes,
        not guest state — not serialized. A concrete with extra registers chains
@@ -188,4 +198,5 @@ private:
     bool     tx_acked_ = false;
     std::deque<uint8_t> rx_fifo_;
     std::string tx_line_;
+    std::function<void(uint8_t)> tx_observer_;
 };

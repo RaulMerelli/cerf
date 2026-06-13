@@ -12,6 +12,7 @@
 #include "../cpu/emulated_memory.h"
 #include "../host/host_canvas.h"
 #include "../host/host_key_prompt.h"
+#include "../host/host_widget_registry.h"
 #include "../host/host_window.h"
 #include "../host/hw_boot_animation.h"
 #include "../host/hw_screen.h"
@@ -168,7 +169,7 @@ bool Hibernation::Save(const std::wstring& path_in) {
         StateWriter w(path);
         if (w.Ok()) {
             WriteHeader(w);
-            w.Write<uint32_t>(6u);   /* section count */
+            w.Write<uint32_t>(7u);   /* section count */
 
             auto section = [&w](StateSection id, const std::function<void()>& body) {
                 const uint64_t hdr_off = w.BytesWritten();
@@ -204,6 +205,12 @@ bool Hibernation::Save(const std::wstring& path_in) {
                 auto& canvas = emu_.Get<HostCanvas>();
                 w.Write<uint32_t>(canvas.GuestSurfaceWidth());
                 w.Write<uint32_t>(canvas.GuestSurfaceHeight());
+            });
+
+            /* After Periph (GPIO/MCU state restored): re-driving from the
+               restored widget then lands consistently. */
+            section(StateSection::Widget, [&] {
+                emu_.Get<HostWidgetRegistry>().SaveState(w);
             });
             ok = w.Ok() && w.Commit();
         }
@@ -295,6 +302,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
                     case StateSection::Flash:  emu_.Get<EmulatedMemory>().RestoreFlashRegions(r); break;
                     case StateSection::Periph: RestorePeripherals(r); break;
                     case StateSection::Presentation: RestorePresentation(r); break;
+                    case StateSection::Widget: emu_.Get<HostWidgetRegistry>().RestoreState(r); break;
                     default: break;
                 }
             }

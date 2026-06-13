@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+class StateWriter;
+class StateReader;
+
 /* HostWidget is Service-free: implementers already derive Service (a
    peripheral via Peripheral), so a Service base here would make emu_
    ambiguous in them. Implementers self-register with HostWidgetRegistry
@@ -68,6 +71,13 @@ public:
     /* Per-tick repaint check for indicators that change without RX/TX (e.g. an
        LED). Return true when the drawn appearance changed. UI-thread only. */
     virtual bool PollDirty() { return false; }
+
+    /* Hibernation: a widget whose state drives guest-visible hardware (the
+       battery's charge/AC) serializes it so a restore reproduces it; the
+       RestoreState override re-applies it (re-fires its change handler).
+       Default no-op for widgets that hold no guest-visible state. */
+    virtual void SaveState(StateWriter&) const {}
+    virtual void RestoreState(StateReader&) {}
 
 private:
     std::atomic<bool> rx_pending_{false};
