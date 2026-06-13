@@ -35,6 +35,7 @@ public:
        client area: dark when the OS supports it, else caller keeps light. */
     bool     IsDark() const { return inited_; }
     HBRUSH   BgBrush();            /* dialog background brush (dark) */
+    COLORREF BgColor() const;     /* dialog background colour (dark) */
     COLORREF TextColor() const;   /* dark-mode foreground text colour */
     HFONT    UiFont();            /* modern UI font (system message font) */
 

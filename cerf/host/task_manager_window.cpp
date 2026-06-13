@@ -8,6 +8,7 @@
 #include "../core/device_config.h"
 #include "../peripherals/cerf_virt/cerf_virt_task_manager.h"
 #include "../peripherals/cerf_virt/cerf_virt_task_manager_regs.h"
+#include "host_dark_mode.h"
 #include "host_window.h"
 
 #include <cstdio>
@@ -102,6 +103,15 @@ void TaskManagerWindow::Show() {
 
     BuildControls();
     LayoutControls();
+
+    auto& dm = emu_.Get<HostDarkMode>();
+    dm.ApplyToDialog(hwnd_);
+    if (dm.IsDark()) {
+        ListView_SetBkColor(list_, dm.BgColor());
+        ListView_SetTextBkColor(list_, dm.BgColor());
+        ListView_SetTextColor(list_, dm.TextColor());
+    }
+
     ShowWindow(hwnd_, SW_SHOW);
     SetTimer(hwnd_, kRefreshTimerId, kRefreshMs, nullptr);
 
@@ -393,13 +403,35 @@ LRESULT TaskManagerWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         }
 
-        case WM_CTLCOLORSTATIC:
+        case WM_CTLCOLORSTATIC: {
+            auto& dm = emu_.Get<HostDarkMode>();
             if ((HWND)lp == status_) {
                 HDC dc = (HDC)wp;
                 SetTextColor(dc, status_clr_);
                 SetBkMode(dc, TRANSPARENT);
+                if (dm.IsDark()) {
+                    SetBkColor(dc, dm.BgColor());
+                    return (LRESULT)dm.BgBrush();
+                }
                 return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
             }
+            LRESULT br;
+            if (dm.HandleCtlColor(msg, wp, br)) return br;
+            break;
+        }
+
+        case WM_CTLCOLORDLG:
+        case WM_CTLCOLORBTN:
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX: {
+            LRESULT br;
+            if (emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br)) return br;
+            break;
+        }
+
+        case WM_ERASEBKGND:
+            if (emu_.Get<HostDarkMode>().EraseBackground((HDC)wp, hwnd))
+                return 1;
             break;
 
         case WM_CLOSE:

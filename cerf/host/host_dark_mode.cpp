@@ -180,6 +180,8 @@ HBRUSH HostDarkMode::BgBrush() {
     return dlg_brush_;
 }
 
+COLORREF HostDarkMode::BgColor() const { return kClrDlg; }
+
 COLORREF HostDarkMode::TextColor() const { return kClrText; }
 
 HFONT HostDarkMode::UiFont() {
