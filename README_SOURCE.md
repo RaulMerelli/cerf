@@ -92,8 +92,6 @@ Each device under `devices/<name>/` contains a Windows CE ROM image (`*.nb0` or 
 
 See [device_config.h](cerf/core/device_config.h) for the full schema.
 
-To determine what is the board, CERF looks inside of ROM and performs heuristic search by module names or binary blobs. CERF also replaces entire bootloader, therefore e.g. Zune 30 can boot OS without HDD (tho OS actually will hang without HDD), but in reality it seems that the bootloader spins the HDD and boots NK.BIN from HDD. Our synthed Zune 30 HDD lacks NK.BIN entirely.
-
 ## <img src="gweslab.png" width="24" height="24" /> Claude Development Environment
 
 CERF ships a Claude Code-based development environment for working on the emulator — including bringing up brand-new boards from their ROMs. Launch it from the repo root with:

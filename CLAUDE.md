@@ -47,7 +47,8 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 - **[agent_docs/rules.md](agent_docs/rules.md)** — All project rules: WinCE accuracy, architecture, communication patterns, git, subagents.
 - **[agent_docs/code_style.md](agent_docs/code_style.md)** — How to write code: file & symbol style, comments, logging, when to stop and ask.
 - **[agent_docs/debugging.md](agent_docs/debugging.md)** — All debugging: log reading, crash investigation, MMU faults, peripheral halts.
-- **[agent_docs/psychological_support.md](agent_docs.psychological_support.md)** — Emotional control instructions for agent.
+- **[agent_docs/boot_loaders.md](agent_docs/boot_loaders.md)** — What CERF does with boot loaders.
+- **[agent_docs/psychological_support.md](agent_docs/psychological_support.md)** — Emotional control instructions for agent.
 
 ## Build
 
