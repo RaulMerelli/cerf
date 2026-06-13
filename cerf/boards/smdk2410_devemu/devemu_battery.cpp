@@ -28,6 +28,7 @@ public:
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
+        battery_.BindEmulator(emu_);
         emu_.Get<HostWidgetRegistry>().Register(&battery_);
     }
 

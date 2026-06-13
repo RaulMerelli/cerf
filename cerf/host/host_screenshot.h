@@ -17,9 +17,6 @@
 class HostScreenshot : public Service {
 public:
     using Service::Service;
-    ~HostScreenshot() override;
-
-    void OnReady() override;
 
     void Save();   /* main window -> <exe_dir>\screenshots\<device>_<ts>.png */
     void Copy();   /* main window -> clipboard as CF_DIB */
@@ -29,7 +26,4 @@ public:
                     const std::wstring& name_hint);
     void CopyPixels(const std::vector<uint32_t>& px, uint32_t w, uint32_t h,
                     HWND clipboard_owner);
-
-private:
-    ULONG_PTR gdiplus_token_ = 0;
 };

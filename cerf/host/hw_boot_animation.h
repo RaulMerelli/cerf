@@ -62,7 +62,6 @@ private:
                        bool show_disclaimer,
                        bool cerf_native_size = false);
 
-    ULONG_PTR        gdiplus_token_ = 0;
     Gdiplus::Bitmap* cerf_logo_     = nullptr;
     Gdiplus::Bitmap* oem_logo_      = nullptr;
     bool             logos_loaded_  = false;

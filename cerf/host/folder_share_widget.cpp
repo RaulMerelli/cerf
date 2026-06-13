@@ -7,6 +7,7 @@
 #include "../core/folder_share_config.h"
 #include "../core/service.h"
 #include "host_dark_mode.h"
+#include "host_gdiplus.h"
 #include "host_widget.h"
 #include "host_widget_registry.h"
 #include "host_window.h"
@@ -94,15 +95,7 @@ public:
             { cx - 8, cy + 6 }, { cx - 8, cy - 6 }, { cx - 2, cy - 6 },
             { cx,     cy - 3 }, { cx + 8, cy - 3 }, { cx + 8, cy + 6 },
         };
-        HBRUSH  fill = CreateSolidBrush(clr);
-        HPEN    pen  = CreatePen(PS_SOLID, 1, clr);
-        HGDIOBJ ob   = SelectObject(dc, fill);
-        HGDIOBJ op   = SelectObject(dc, pen);
-        Polygon(dc, folder, 6);
-        SelectObject(dc, ob);
-        SelectObject(dc, op);
-        DeleteObject(fill);
-        DeleteObject(pen);
+        emu_.Get<HostGdiPlus>().FillPolygonAA(dc, folder, 6, clr, clr);
     }
     bool PollDirty() override {
         const bool on = emu_.Get<FolderShareConfig>().Enabled();

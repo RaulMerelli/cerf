@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/host_gdiplus.h"
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -170,16 +171,9 @@ void DevEmuNotificationLed::DrawIcon(HDC dc, const RECT& box) const {
     }
 
     /* Notification LED dot (LED 0). A brighter ring marks blink mode. */
-    HBRUSH  fill = CreateSolidBrush(draw_led0_lit_ ? kClrLit : kClrDark);
-    HPEN    pen  = CreatePen(PS_SOLID, 1,
-                             draw_led0_blink_ ? RGB(120, 230, 130) : RGB(90, 95, 90));
-    HGDIOBJ ob = SelectObject(dc, fill);
-    HGDIOBJ op = SelectObject(dc, pen);
-    Ellipse(dc, cx - r, cy - r, cx + r, cy + r);
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(fill);
-    DeleteObject(pen);
+    emu_.Get<HostGdiPlus>().FillCircleAA(
+        dc, cx, cy, r, draw_led0_lit_ ? kClrLit : kClrDark,
+        draw_led0_blink_ ? RGB(120, 230, 130) : RGB(90, 95, 90));
 }
 
 bool DevEmuNotificationLed::PollDirty() {

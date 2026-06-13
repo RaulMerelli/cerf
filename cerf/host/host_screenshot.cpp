@@ -56,15 +56,6 @@ std::wstring TimestampNow() {
 
 }  /* namespace */
 
-HostScreenshot::~HostScreenshot() {
-    if (gdiplus_token_) Gdiplus::GdiplusShutdown(gdiplus_token_);
-}
-
-void HostScreenshot::OnReady() {
-    Gdiplus::GdiplusStartupInput in;
-    Gdiplus::GdiplusStartup(&gdiplus_token_, &in, nullptr);
-}
-
 void HostScreenshot::Save() {
     std::vector<uint32_t> px;
     uint32_t w = 0, h = 0;
