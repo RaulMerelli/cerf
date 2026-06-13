@@ -108,7 +108,7 @@ void BatteryWidget::DrawIcon(HDC dc, const RECT& box) const {
             { cx,     cy - 5 }, { cx - 3, cy + 1 }, { cx,     cy + 1 },
             { cx - 1, cy + 5 }, { cx + 3, cy - 1 }, { cx,     cy - 1 },
         };
-        emu_->Get<HostGdiPlus>().FillPolygonAA(
+        emu_.Get<HostGdiPlus>().FillPolygonAA(
             dc, bolt, (int)(sizeof(bolt) / sizeof(bolt[0])),
             RGB(120, 220, 255), RGB(40, 60, 80));
     }

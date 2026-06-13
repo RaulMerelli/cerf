@@ -56,7 +56,6 @@ void Jornada820Battery::OnReady() {
         }
         cv_.notify_all();
     });
-    battery_.BindEmulator(emu_);
     emu_.Get<HostWidgetRegistry>().Register(&battery_);
     thread_ = std::thread([this] { StreamLoop(); });
 }

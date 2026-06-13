@@ -8,7 +8,7 @@
    and IsOnBattery into the AD2 AC-line sample. */
 class SimpadSl4Battery : public Service {
 public:
-    using Service::Service;
+    explicit SimpadSl4Battery(CerfEmulator& e) : Service(e), battery_(e) {}
     bool ShouldRegister() override;
     void OnReady() override;
 

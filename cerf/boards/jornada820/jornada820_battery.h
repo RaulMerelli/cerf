@@ -13,7 +13,7 @@
    gauge DRAM itself. Packet layout + guest decode chain in BuildPacket. */
 class Jornada820Battery : public Service {
 public:
-    using Service::Service;
+    explicit Jornada820Battery(CerfEmulator& e) : Service(e), battery_(e) {}
 
     bool ShouldRegister() override;
     void OnReady() override;

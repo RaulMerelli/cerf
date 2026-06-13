@@ -14,9 +14,8 @@ class CerfEmulator;
    to drive its hardware model. */
 class BatteryWidget : public HostWidget {
 public:
-    /* Owner calls this once (where it registers the widget) so DrawIcon can
-       resolve HostGdiPlus for anti-aliased rendering. */
-    void BindEmulator(CerfEmulator& emu) { emu_ = &emu; }
+    /* emu is held to resolve HostGdiPlus when DrawIcon renders the bolt. */
+    explicit BatteryWidget(CerfEmulator& emu) : emu_(emu) {}
 
     /* Read on the JIT/peripheral thread, mutated on the UI thread via the menu. */
     int  FillPercent() const;   /* 0..100, 100 = full */
@@ -46,5 +45,5 @@ private:
     uint8_t last_drawn_on_battery_ = 0xFF;
     int     last_drawn_fill_       = -1;
 
-    CerfEmulator* emu_ = nullptr;   /* bound by the owner via BindEmulator */
+    CerfEmulator& emu_;
 };

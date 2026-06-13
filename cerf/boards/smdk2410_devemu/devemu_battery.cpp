@@ -20,7 +20,7 @@ constexpr uint32_t kRegTemperature   = 0x02u;
 
 class DevEmuBattery : public Peripheral {
 public:
-    using Peripheral::Peripheral;
+    explicit DevEmuBattery(CerfEmulator& e) : Peripheral(e), battery_(e) {}
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
@@ -28,7 +28,6 @@ public:
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
-        battery_.BindEmulator(emu_);
         emu_.Get<HostWidgetRegistry>().Register(&battery_);
     }
 

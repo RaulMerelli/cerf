@@ -10,7 +10,6 @@ bool SimpadSl4Battery::ShouldRegister() {
 }
 
 void SimpadSl4Battery::OnReady() {
-    battery_.BindEmulator(emu_);
     emu_.Get<HostWidgetRegistry>().Register(&battery_);
 }
 

@@ -8,7 +8,7 @@
    ADC the CE battery driver expects. */
 class Jornada720Battery : public Service {
 public:
-    using Service::Service;
+    explicit Jornada720Battery(CerfEmulator& e) : Service(e), battery_(e) {}
 
     bool ShouldRegister() override;
     void OnReady() override;
