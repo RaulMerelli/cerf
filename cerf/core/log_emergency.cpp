@@ -273,7 +273,7 @@ void Log::InstallCrashHandler() {
 /* ==== Terminal exits ===================================================== */
 
 void CerfFatalExit(int code) {
-    LOG(Caution, "CERF is halting (fatal code = %d)", code);
+    LOG(Caution, "CERF is halting (fatal code = %d)\n", code);
 
     if (code == CERF_FATAL_USER_ERROR) {
         /* Not a crash — skip the thread-freeze + crash.log + native-stack
