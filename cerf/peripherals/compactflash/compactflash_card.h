@@ -18,6 +18,7 @@ public:
 
     std::wstring DisplayName() const override;
     std::wstring TooltipDetail() const override;
+    const wchar_t* IconResource() const override { return L"ICON_PCMCIA_CF"; }
 
     void PowerOn () override;
     void PowerOff() override;

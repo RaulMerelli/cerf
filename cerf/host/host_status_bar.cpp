@@ -4,23 +4,28 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "host_dark_mode.h"
 #include "host_widget.h"
 #include "host_widget_registry.h"
 
 REGISTER_SERVICE(HostStatusBar);
 
 namespace {
-constexpr wchar_t  kStatusClass[] = L"CerfHostStatusBar";
-constexpr int      kIconBoxW      = 26;
-constexpr UINT     kTickTimerId   = 1;
-constexpr UINT     kTickMs        = 100;
-constexpr COLORREF kClrBg         = RGB(32, 32, 32);
-constexpr COLORREF kClrSep        = RGB(60, 60, 60);
+constexpr wchar_t  kStatusClass[]  = L"CerfHostStatusBar";
+constexpr int      kIconBoxW       = 26;
+constexpr UINT     kTickTimerId    = 1;
+constexpr UINT     kTickMs         = 100;
+constexpr COLORREF kClrBg          = RGB(32, 32, 32);
+constexpr COLORREF kClrSep         = RGB(60, 60, 60);
+constexpr COLORREF kClrBgLight     = RGB(240, 240, 240);
+constexpr COLORREF kClrSepLight    = RGB(200, 200, 200);
 }  /* namespace */
 
 HostStatusBar::~HostStatusBar() {
-    if (bg_brush_) DeleteObject(bg_brush_);
-    if (sep_pen_)  DeleteObject(sep_pen_);
+    if (bg_brush_)       DeleteObject(bg_brush_);
+    if (sep_pen_)        DeleteObject(sep_pen_);
+    if (bg_brush_light_) DeleteObject(bg_brush_light_);
+    if (sep_pen_light_)  DeleteObject(sep_pen_light_);
 }
 
 void HostStatusBar::OnReady() {
@@ -39,8 +44,10 @@ void HostStatusBar::OnReady() {
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
     }
-    bg_brush_ = CreateSolidBrush(kClrBg);
-    sep_pen_  = CreatePen(PS_SOLID, 1, kClrSep);
+    bg_brush_       = CreateSolidBrush(kClrBg);
+    sep_pen_        = CreatePen(PS_SOLID, 1, kClrSep);
+    bg_brush_light_ = CreateSolidBrush(kClrBgLight);
+    sep_pen_light_  = CreatePen(PS_SOLID, 1, kClrSepLight);
 }
 
 void HostStatusBar::CreateOn(HWND parent, const RECT& rect) {
@@ -205,15 +212,17 @@ LRESULT HostStatusBar::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HDC dc = BeginPaint(hwnd, &ps);
             RECT rc;
             GetClientRect(hwnd, &rc);
-            FillRect(dc, &rc, bg_brush_);
+            const bool dark = emu_.Get<HostDarkMode>().IsDark();
+            const COLORREF bar_bg = dark ? kClrBg : kClrBgLight;
+            FillRect(dc, &rc, dark ? bg_brush_ : bg_brush_light_);
 
             /* 1px top separator from the canvas. */
-            HGDIOBJ old_pen = SelectObject(dc, sep_pen_);
+            HGDIOBJ old_pen = SelectObject(dc, dark ? sep_pen_ : sep_pen_light_);
             MoveToEx(dc, rc.left, rc.top, nullptr);
             LineTo(dc, rc.right, rc.top);
             SelectObject(dc, old_pen);
 
-            for (auto& e : layout_) e.first->DrawComposited(dc, e.second);
+            for (auto& e : layout_) e.first->DrawComposited(dc, e.second, bar_bg);
 
             EndPaint(hwnd, &ps);
             return 0;

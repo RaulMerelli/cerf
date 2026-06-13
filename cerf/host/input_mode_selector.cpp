@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
+#include "host_icon_cache.h"
 #include "host_widget_registry.h"
 #include "touch_input.h"
 
@@ -48,40 +49,9 @@ std::vector<WidgetMenuItem> InputModeSelector::BuildMenu() {
 }
 
 void InputModeSelector::DrawIcon(HDC dc, const RECT& box) const {
-    const int cx = (box.left + box.right) / 2;
-    const int cy = (box.top + box.bottom) / 2;
-
-    const COLORREF body    = RGB(226, 229, 234);
-    const COLORREF outline = RGB(96, 100, 106);
-    HPEN    pen = CreatePen(PS_SOLID, 1, outline);
-    HBRUSH  br  = CreateSolidBrush(body);
-    HGDIOBJ op  = SelectObject(dc, pen);
-    HGDIOBJ ob  = SelectObject(dc, br);
-
-    if (drawn_mode_ == InputMode::Pointer) {
-        /* Cursor arrow, tip up-left. */
-        const POINT a[7] = {
-            { cx - 4, cy - 7 }, { cx - 4, cy + 5 }, { cx - 1, cy + 2 },
-            { cx + 1, cy + 7 }, { cx + 3, cy + 6 }, { cx + 1, cy + 1 },
-            { cx + 5, cy + 1 },
-        };
-        Polygon(dc, a, 7);
-    } else {
-        /* Thin stylus, tip down-right, above a surface line. */
-        const POINT s[5] = {
-            { cx + 5, cy + 6 },                       /* tip */
-            { cx + 4, cy + 3 }, { cx - 5, cy - 6 },   /* upper edge */
-            { cx - 7, cy - 4 }, { cx + 2, cy + 5 },   /* lower edge */
-        };
-        Polygon(dc, s, 5);
-        MoveToEx(dc, cx + 1, cy + 8, nullptr);
-        LineTo(dc, cx + 9, cy + 8);
-    }
-
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(br);
-    DeleteObject(pen);
+    emu_.Get<HostIconCache>().DrawCentered(
+        dc, box, Mode() == InputMode::Pointer ? L"ICON_INPUT_POINTER"
+                                              : L"ICON_INPUT_TOUCH");
 }
 
 bool InputModeSelector::PollDirty() {

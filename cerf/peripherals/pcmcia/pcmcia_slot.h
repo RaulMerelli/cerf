@@ -98,5 +98,5 @@ private:
     bool                        powered_ = false;
     uint64_t                    generation_ = 0;
 
-    bool ui_last_has_card_ = false;   /* UI thread only (PollDirty) */
+    std::wstring ui_last_res_;   /* last-drawn icon resource; UI thread only (PollDirty) */
 };

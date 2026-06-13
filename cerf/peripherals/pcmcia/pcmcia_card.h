@@ -36,6 +36,10 @@ public:
     /* Status-bar tooltip detail (e.g. name + MAC). */
     virtual std::wstring TooltipDetail() const { return DisplayName(); }
 
+    /* Status-bar icon: a cerf.rc ICON resource name. Defaults to the generic
+       inserted-card icon; specific card types override. */
+    virtual const wchar_t* IconResource() const { return L"ICON_PCMCIA_CARD"; }
+
     /* Socket Vcc edges, driven by the slot when the controller's power
        register flips. */
     virtual void PowerOn()  = 0;

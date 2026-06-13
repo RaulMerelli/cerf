@@ -37,7 +37,6 @@ private:
     void Toggle();
 
     std::atomic<bool> enabled_{true};
-    HICON    icon_        = nullptr;   /* cerf.rc resource 1 */
     uint32_t last_w_      = 0;   /* last published size; UI-thread only */
     uint32_t last_h_      = 0;
     bool  last_drawn_on_  = false;

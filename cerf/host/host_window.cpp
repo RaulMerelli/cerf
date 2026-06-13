@@ -121,6 +121,18 @@ void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
         PostMessageW(hwnd_, kGuestRemodeMsg, (WPARAM)guest_w, (LPARAM)guest_h);
 }
 
+void HostWindow::SetGuestResolution(uint32_t w, uint32_t h) {
+    if (w == 0 || h == 0) return;
+    emu_.Get<CerfVirtFramebuffer>().ApplyGuestMode(w, h);
+    emu_.Get<HostCanvas>().SetGuestSurfaceSize(w, h);
+}
+
+void HostWindow::FitToResolution(uint32_t sw, uint32_t sh) {
+    if (!hwnd_ || sw == 0 || sh == 0) return;
+    if (IsZoomed(hwnd_)) return;   /* maximized: keep window, canvas adapts */
+    FitWindowToSurface(sw, sh);
+}
+
 void HostWindow::ShowHwScreenTab(bool rearm_framebuffer) {
     if (hwnd_)
         PostMessageW(hwnd_, kShowHwMsg, rearm_framebuffer ? 1u : 0u, 0);
@@ -366,12 +378,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 
     if (msg == kGuestRemodeMsg) {
-        const uint32_t w = (uint32_t)wp;
-        const uint32_t h = (uint32_t)lp;
-        if (w != 0 && h != 0) {
-            emu_.Get<CerfVirtFramebuffer>().ApplyGuestMode(w, h);
-            emu_.Get<HostCanvas>().SetGuestSurfaceSize(w, h);
-        }
+        SetGuestResolution((uint32_t)wp, (uint32_t)lp);
         return 0;
     }
 

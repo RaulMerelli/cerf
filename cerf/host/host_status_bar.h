@@ -40,10 +40,12 @@ private:
     void UpdateTipText(size_t idx, std::wstring text);       /* flicker-free live refresh */
     HostWidget* WidgetAt(int x) const;
 
-    HWND    hwnd_       = nullptr;
-    HWND    tip_hwnd_   = nullptr;
-    HBRUSH  bg_brush_   = nullptr;
-    HPEN    sep_pen_    = nullptr;
+    HWND    hwnd_            = nullptr;
+    HWND    tip_hwnd_        = nullptr;
+    HBRUSH  bg_brush_        = nullptr;   /* dark theme */
+    HPEN    sep_pen_         = nullptr;
+    HBRUSH  bg_brush_light_  = nullptr;   /* light theme */
+    HPEN    sep_pen_light_   = nullptr;
 
     /* UI-thread only. Right-to-left layout: terminal-range widgets pin to
        the right edge and always show; device widgets fill the space to their

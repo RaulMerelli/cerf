@@ -62,7 +62,7 @@ public:
     /* Returns true while a repaint is still needed — including the tick after
        going idle, else the activity dot is never cleared. UI-thread only. */
     bool SampleActivity();
-    void DrawComposited(HDC dc, const RECT& box);
+    void DrawComposited(HDC dc, const RECT& box, COLORREF bar_bg);
 
     /* Per-tick repaint check for indicators that change without RX/TX (e.g. an
        LED). Return true when the drawn appearance changed. UI-thread only. */

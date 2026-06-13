@@ -36,11 +36,13 @@ using SetPreferredAppMode_t           = int  (WINAPI*)(int);
 using AllowDarkModeForWindow_t        = BOOL (WINAPI*)(HWND, BOOL);
 using FlushMenuThemes_t               = void (WINAPI*)();
 using RefreshImmersiveColorPolicy_t   = void (WINAPI*)();
+using ShouldAppsUseDarkMode_t         = bool (WINAPI*)();
 
 SetPreferredAppMode_t         g_SetPreferredAppMode      = nullptr;
 AllowDarkModeForWindow_t      g_AllowDarkModeForWindow   = nullptr;
 FlushMenuThemes_t             g_FlushMenuThemes          = nullptr;
 RefreshImmersiveColorPolicy_t g_RefreshImmersivePolicy   = nullptr;
+ShouldAppsUseDarkMode_t       g_ShouldAppsUseDarkMode    = nullptr;
 
 }  /* namespace */
 
@@ -84,10 +86,18 @@ void HostDarkMode::Init() {
     g_AllowDarkModeForWindow = (AllowDarkModeForWindow_t)GetProcAddress(ux, MAKEINTRESOURCEA(133));
     g_FlushMenuThemes        = (FlushMenuThemes_t)GetProcAddress(ux, MAKEINTRESOURCEA(136));
     g_RefreshImmersivePolicy = (RefreshImmersiveColorPolicy_t)GetProcAddress(ux, MAKEINTRESOURCEA(104));
+    g_ShouldAppsUseDarkMode  = (ShouldAppsUseDarkMode_t)GetProcAddress(ux, MAKEINTRESOURCEA(132));
     if (!g_SetPreferredAppMode) return;  /* OS too old; leave light */
 
-    g_SetPreferredAppMode(2);  /* PreferredAppMode::ForceDark */
+    /* Follow the user's Windows app theme. ShouldAppsUseDarkMode (ordinal 132)
+       reads HKCU Personalize\AppsUseLightTheme; ForceLight when the system is
+       light keeps the dark caption/menu/control paths off (all gated on
+       inited_). */
+    const bool sys_dark = g_ShouldAppsUseDarkMode && g_ShouldAppsUseDarkMode();
+    g_SetPreferredAppMode(sys_dark ? 2 /*ForceDark*/ : 3 /*ForceLight*/);
     if (g_RefreshImmersivePolicy) g_RefreshImmersivePolicy();
+    if (!sys_dark) return;  /* light system: leave inited_ = false */
+
     EnsureResources();
     inited_ = true;
 }

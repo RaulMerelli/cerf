@@ -4,6 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/host_icon_cache.h"
 #include "../../state/state_stream.h"
 
 #include <utility>
@@ -336,40 +337,21 @@ std::wstring PcmciaSlot::Tooltip() const {
 }
 
 void PcmciaSlot::DrawIcon(HDC dc, const RECT& box) const {
-    bool has;
+    const wchar_t* res;
     {
         std::lock_guard<std::mutex> lk(bus_mutex_);
-        has = card_ != nullptr;
+        res = card_ ? card_->IconResource() : L"ICON_PCMCIA_EMPTY";
     }
-
-    const int cx = (box.left + box.right) / 2;
-    const int cy = (box.top + box.bottom) / 2;
-    RECT body = { cx - 8, cy - 6, cx + 8, cy + 6 };
-
-    HBRUSH  fill = CreateSolidBrush(has ? RGB(46, 58, 74) : RGB(28, 28, 30));
-    HPEN    pen  = CreatePen(PS_SOLID, 1,
-                             has ? RGB(160, 175, 195) : RGB(105, 105, 110));
-    HGDIOBJ ob   = SelectObject(dc, fill);
-    HGDIOBJ op   = SelectObject(dc, pen);
-    Rectangle(dc, body.left, body.top, body.right, body.bottom);
-
-    /* 68-pin connector strip on the left edge. */
-    HBRUSH conn = CreateSolidBrush(has ? RGB(190, 175, 110)
-                                       : RGB(90, 88, 70));
-    RECT strip = { body.left + 1, body.top + 2,
-                   body.left + 3, body.bottom - 2 };
-    FillRect(dc, &strip, conn);
-    DeleteObject(conn);
-
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(fill);
-    DeleteObject(pen);
+    emu_.Get<HostIconCache>().DrawCentered(dc, box, res);
 }
 
 bool PcmciaSlot::PollDirty() {
-    const bool has = HasCard();
-    if (has == ui_last_has_card_) return false;
-    ui_last_has_card_ = has;
+    std::wstring res;
+    {
+        std::lock_guard<std::mutex> lk(bus_mutex_);
+        res = card_ ? card_->IconResource() : L"ICON_PCMCIA_EMPTY";
+    }
+    if (res == ui_last_res_) return false;
+    ui_last_res_ = std::move(res);
     return true;
 }
