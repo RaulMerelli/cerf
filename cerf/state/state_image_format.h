@@ -6,7 +6,7 @@
    validated by the Hibernation orchestrator via StateWriter/StateReader. */
 
 inline constexpr char     kStateMagic[8]      = {'C','E','R','F','I','M','G','1'};
-inline constexpr uint32_t kStateFormatVersion = 1;
+inline constexpr uint32_t kStateFormatVersion = 2;
 
 inline constexpr wchar_t  kDefaultStateFile[] = L"state.img";
 
@@ -45,6 +45,11 @@ enum class StateSection : uint32_t {
     /* Backed flash regions (guest NOR/NAND writes). Applied on warm boot too —
        flash survives a reboot on real hardware. */
     Flash        = 6,
+    /* Host-widget state that drives guest-visible hardware (the battery
+       widget's charge level / AC, which a board service feeds into GPIO/MCU
+       lines the CE driver reads). Full restore only — a warm boot re-asserts
+       it when the board service re-drives at startup. */
+    Widget       = 7,
 };
 
 #pragma pack(push, 1)

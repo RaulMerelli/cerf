@@ -11,6 +11,26 @@ bool NecMobilePro900PcoCompanion::ShouldRegister() {
     return bd && bd->GetBoard() == Board::NecMobilePro900;
 }
 
+void NecMobilePro900PcoCompanion::OnReady() {
+    /* The CE battery driver reads the main battery synchronously: pco.dll
+       sub_1BC2368 writes 0x70 to BTUART THR and waits <=200ms for the reply on
+       RX. Observe THR so we can answer it. */
+    emu_.Get<Pxa255Btuart>().SetTxObserver([this](uint8_t b) { OnBtuartTx(b); });
+}
+
+void NecMobilePro900PcoCompanion::OnBtuartTx(uint8_t b) {
+    /* 0x70 = PIC_MAIN_BAT_STATE_REQUEST. Reply with PIC_BATTERY_STATE (0x70)
+       followed by the 16-bit value, high byte first — pco.dll's parser
+       (sub_1BC28B4 states 2->3) reassembles (hi<<8)|lo and hands it to
+       sub_1BC1E80, which caches it and signals the request's wait event. */
+    if (b != 0x70u) return;
+    const uint16_t raw = main_battery_raw_.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lk(report_mtx_);
+    PushByte(0x70u);
+    PushByte(static_cast<uint8_t>(raw >> 8));
+    PushByte(static_cast<uint8_t>(raw & 0xFFu));
+}
+
 void NecMobilePro900PcoCompanion::PushByte(uint8_t b) {
     emu_.Get<Pxa255Btuart>().PushRx(b);
 }

@@ -2,6 +2,7 @@
 
 #include "../../core/service.h"
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 
@@ -13,6 +14,13 @@ class NecMobilePro900PcoCompanion : public Service {
 public:
     using Service::Service;
     bool ShouldRegister() override;
+    void OnReady() override;
+
+    /* Main-battery raw value the PCO returns for an IOCTL-0xE main read. The CE
+       battery driver (battery.dll sub_1BC2368) writes 0x70 to BTUART THR and waits
+       for a [0x70][hi][lo] reply over RX; battery.dll maps the 16-bit value through
+       a voltage table. The board battery service computes this from the widget %. */
+    void SetMainBatteryRaw(uint16_t raw) { main_battery_raw_.store(raw, std::memory_order_release); }
 
     /* Stream a 13-byte (104-bit) key-matrix snapshot: opcode 0x13, the 13 matrix
        bytes (pco accumulates them via sub_1BC1C54), then 0x12 (pco signals
@@ -28,6 +36,10 @@ public:
 
 private:
     void PushByte(uint8_t b);
+    /* BTUART TX observer: the guest writes a single PIC command byte to THR.
+       0x70 = main-battery-state request -> answer with a [0x70][hi][lo] packet. */
+    void OnBtuartTx(uint8_t b);
 
     std::mutex report_mtx_;   /* serializes a full report's bytes into the RX FIFO */
+    std::atomic<uint16_t> main_battery_raw_{0};
 };

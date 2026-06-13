@@ -1,6 +1,7 @@
 #include "battery_widget.h"
 
 #include "../core/cerf_emulator.h"
+#include "../state/state_stream.h"
 #include "host_gdiplus.h"
 
 #include <cstdint>
@@ -163,4 +164,28 @@ bool BatteryWidget::PollDirty() {
     last_drawn_on_battery_ = on;
     last_drawn_fill_       = fill_percent_;
     return true;
+}
+
+void BatteryWidget::SaveState(StateWriter& w) const {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    w.Write<uint8_t>(on_battery_ ? 1u : 0u);
+    w.Write<int32_t>(fill_percent_);
+}
+
+void BatteryWidget::RestoreState(StateReader& r) {
+    uint8_t on = 0;
+    int32_t fill = 100;
+    r.Read(on);
+    r.Read(fill);
+    if (fill < 0)   fill = 0;
+    if (fill > 100) fill = 100;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        on_battery_   = (on != 0u);
+        fill_percent_ = fill;
+    }
+    /* Re-apply onto the owner's hardware model (GPIO/MCU lines), outside the
+       lock since the handler re-reads the getters. Pull-based owners have no
+       handler and read the restored state live. */
+    if (on_change_) on_change_();
 }

@@ -36,6 +36,12 @@ public:
     /* Run the callback bound to a menu id (no-op if unknown). */
     void Dispatch(int id);
 
+    /* Hibernation: persist each widget's guest-visible state. Widgets register
+       lazily (on first Get<>), so the set and order can differ between save and
+       restore; each entry is keyed by name and length-framed for lookup + skip. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+
 private:
     void ResetIds();
     void AppendItems(HMENU menu, const std::vector<WidgetMenuItem>& items);

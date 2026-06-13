@@ -32,6 +32,9 @@ public:
     std::vector<WidgetMenuItem> BuildMenu() override;
     bool PollDirty() override;
 
+    void SaveState(StateWriter& w) const override;
+    void RestoreState(StateReader& r) override;
+
 private:
     void SetOnBattery(bool on_battery);
     void SetFillPercent(int fill);
