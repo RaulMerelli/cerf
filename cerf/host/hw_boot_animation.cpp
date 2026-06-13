@@ -6,6 +6,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/string_utils.h"
+#include "host_gdiplus.h"
 
 #include <algorithm>
 #include <objbase.h>
@@ -32,26 +33,6 @@ constexpr int      kDisclaimerFontPx = 12;
 const wchar_t*     kDisclaimer =
     L"Logos are property of their respective owners";
 
-Gdiplus::Bitmap* DecodeResourcePng(const wchar_t* name) {
-    HMODULE hmod = GetModuleHandleW(nullptr);
-    HRSRC hr = FindResourceW(hmod, name, RT_RCDATA);
-    if (!hr) return nullptr;
-    HGLOBAL res = LoadResource(hmod, hr);
-    void*   data = res ? LockResource(res) : nullptr;
-    DWORD   sz   = SizeofResource(hmod, hr);
-    if (!data || sz == 0) return nullptr;
-
-    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, sz);
-    if (!hg) return nullptr;
-    if (void* p = GlobalLock(hg)) { memcpy(p, data, sz); GlobalUnlock(hg); }
-    IStream* stm = nullptr;
-    if (CreateStreamOnHGlobal(hg, TRUE, &stm) != S_OK) { GlobalFree(hg); return nullptr; }
-    Gdiplus::Bitmap* bmp = Gdiplus::Bitmap::FromStream(stm);
-    stm->Release();  /* fDeleteOnRelease=TRUE frees hg */
-    if (bmp && bmp->GetLastStatus() != Gdiplus::Ok) { delete bmp; return nullptr; }
-    return bmp;
-}
-
 }  /* namespace */
 
 HwBootAnimation::~HwBootAnimation() {
@@ -59,13 +40,9 @@ HwBootAnimation::~HwBootAnimation() {
     delete oem_logo_;
     if (label_font_)      DeleteObject(label_font_);
     if (disclaimer_font_) DeleteObject(disclaimer_font_);
-    if (gdiplus_token_)   Gdiplus::GdiplusShutdown(gdiplus_token_);
 }
 
 void HwBootAnimation::OnReady() {
-    Gdiplus::GdiplusStartupInput in;
-    Gdiplus::GdiplusStartup(&gdiplus_token_, &in, nullptr);
-
     auto& bd      = emu_.Get<BoardDetector>();
     oem_resource_ = bd.GetBootLogoResource();
     short_name_   = Utf8ToWide(bd.GetShortBoardName());
@@ -75,8 +52,9 @@ void HwBootAnimation::OnReady() {
 void HwBootAnimation::EnsureLogosLoaded() {
     if (logos_loaded_) return;
     logos_loaded_ = true;
-    cerf_logo_ = DecodeResourcePng(L"CERF_LOGO");
-    if (oem_resource_) oem_logo_ = DecodeResourcePng(oem_resource_);
+    auto& gdip = emu_.Get<HostGdiPlus>();
+    cerf_logo_ = gdip.DecodeResourcePng(L"CERF_LOGO");
+    if (oem_resource_) oem_logo_ = gdip.DecodeResourcePng(oem_resource_);
 }
 
 void HwBootAnimation::EnsureFonts() {

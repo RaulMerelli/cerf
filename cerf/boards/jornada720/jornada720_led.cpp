@@ -1,6 +1,7 @@
 #include "jornada720_led.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../host/host_gdiplus.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_detector.h"
@@ -76,15 +77,8 @@ void Jornada720Led::DrawIcon(HDC dc, const RECT& box) const {
     const int cy = (box.top + box.bottom) / 2;
     constexpr int kR = 6;
 
-    HPEN    pen  = CreatePen(PS_SOLID, 1, kClrRim);
-    HBRUSH  fill = CreateSolidBrush(lit ? kClrLit : kClrDark);
-    HGDIOBJ op   = SelectObject(dc, pen);
-    HGDIOBJ ob   = SelectObject(dc, fill);
-    Ellipse(dc, cx - kR, cy - kR, cx + kR, cy + kR);
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(fill);
-    DeleteObject(pen);
+    emu_.Get<HostGdiPlus>().FillCircleAA(dc, cx, cy, kR, lit ? kClrLit : kClrDark,
+                                         kClrRim);
 }
 
 bool Jornada720Led::PollDirty() {

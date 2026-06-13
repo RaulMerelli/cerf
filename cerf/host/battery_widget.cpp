@@ -1,5 +1,8 @@
 #include "battery_widget.h"
 
+#include "../core/cerf_emulator.h"
+#include "host_gdiplus.h"
+
 #include <cstdint>
 
 namespace {
@@ -105,15 +108,9 @@ void BatteryWidget::DrawIcon(HDC dc, const RECT& box) const {
             { cx,     cy - 5 }, { cx - 3, cy + 1 }, { cx,     cy + 1 },
             { cx - 1, cy + 5 }, { cx + 3, cy - 1 }, { cx,     cy - 1 },
         };
-        HBRUSH boltfill = CreateSolidBrush(RGB(120, 220, 255));
-        HPEN   boltpen  = CreatePen(PS_SOLID, 1, RGB(40, 60, 80));
-        HGDIOBJ pob = SelectObject(dc, boltfill);
-        HGDIOBJ pop = SelectObject(dc, boltpen);
-        Polygon(dc, bolt, (int)(sizeof(bolt) / sizeof(bolt[0])));
-        SelectObject(dc, pob);
-        SelectObject(dc, pop);
-        DeleteObject(boltfill);
-        DeleteObject(boltpen);
+        emu_->Get<HostGdiPlus>().FillPolygonAA(
+            dc, bolt, (int)(sizeof(bolt) / sizeof(bolt[0])),
+            RGB(120, 220, 255), RGB(40, 60, 80));
     }
 
     SelectObject(dc, ob);
