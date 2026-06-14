@@ -148,7 +148,13 @@ static void* CerfMapBody(const UCHAR* img) {
                     wn[m] = 0;
                     fn = GetProcAddressW(h, wn);
                 }
-                if (!fn) { CERF_LOG("map: import resolve FAILED"); return NULL; }
+                if (!fn) {
+                    if (*oft & CERF_ORDINAL_FLAG)
+                        CERF_LOG_X("map: import resolve FAILED, coredll ordinal", *oft & 0xFFFFu);
+                    else
+                        CERF_LOG("map: import resolve FAILED, by-name");
+                    return NULL;
+                }
                 *ft = (ULONG)fn;
             }
         }

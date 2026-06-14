@@ -57,6 +57,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion>   CachedDramRegions()   const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    std::vector<DramRegion>   MappedVaSpans()       const override;
 };
 
 uint32_t FordSyncGen2PageTableBuilder::VaToPa(uint32_t va) const {
@@ -88,6 +89,19 @@ FordSyncGen2PageTableBuilder::BackedMemoryRegions() const {
         const DWORD protect =
             (e.kind == OatKind::Flash) ? PAGE_READONLY : PAGE_READWRITE;
         regions.push_back({ e.va_base, e.pa_base, e.size, protect });
+    }
+    /* NFC internal-RAM main buffers (RM Table 45-7, 8x512 B = 4 KB): page 0 is
+       backed RAM (mask ROM stages the first NAND page here + the stub executes
+       in place). Page 1 (spare + AXI registers, 0xCFFF1000) stays unbacked so it
+       reaches Imx51NfcAxiWindow. */
+    regions.push_back({ 0x9F5F0000u, 0xCFFF0000u, 0x1000u, PAGE_READWRITE });
+    return regions;
+}
+
+std::vector<DramRegion> FordSyncGen2PageTableBuilder::MappedVaSpans() const {
+    std::vector<DramRegion> regions;
+    for (const auto& e : kOat) {
+        regions.push_back({ e.va_base, e.pa_base, e.size });
     }
     return regions;
 }

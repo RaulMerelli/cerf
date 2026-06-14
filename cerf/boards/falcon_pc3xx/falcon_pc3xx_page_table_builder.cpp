@@ -57,6 +57,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion>   CachedDramRegions()   const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    std::vector<DramRegion>   MappedVaSpans()       const override;
 };
 
 uint32_t FalconPc3xxPageTableBuilder::VaToPa(uint32_t va) const {
@@ -106,6 +107,14 @@ FalconPc3xxPageTableBuilder::BackedMemoryRegions() const {
     std::vector<BackedRegion> regions;
     for (const auto& t : CarvedDramTriples())
         regions.push_back({ t.va, t.pa, t.size, PAGE_READWRITE });
+    return regions;
+}
+
+std::vector<DramRegion> FalconPc3xxPageTableBuilder::MappedVaSpans() const {
+    std::vector<DramRegion> regions;
+    for (const auto& e : kOat) {
+        regions.push_back({ e.va_base, e.pa_base, e.size });
+    }
     return regions;
 }
 

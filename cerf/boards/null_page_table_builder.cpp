@@ -17,6 +17,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override { return va; }
     std::vector<DramRegion>   CachedDramRegions()   const override { return {}; }
     std::vector<BackedRegion> BackedMemoryRegions() const override { return {}; }
+    std::vector<DramRegion>   MappedVaSpans()       const override { return {}; }
 };
 
 }  /* namespace */
