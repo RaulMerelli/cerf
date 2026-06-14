@@ -110,10 +110,13 @@
   </ItemGroup>
   <!-- Per-device trace files live in cerf/tracing/<device>/. The
        TraceManager framework at cerf/tracing/*.cpp stays always-built;
-       only the per-device subdirectories are excluded in production
-       mode. Passed by build.ps1 via /p:CerfMode=production. -->
+       per-device subdirectories are excluded in production mode, EXCEPT
+       cerf/tracing/<device>/nkdbg/ which carries production NKDBG hooks
+       (guest OS debug output) and is re-included. Passed by build.ps1 via
+       /p:CerfMode=production. -->
   <ItemGroup Condition="'$(CerfMode)' == 'production'">
     <ClCompile Remove="tracing\*\**\*.cpp" />
+    <ClCompile Include="tracing\*\nkdbg\*.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="cerf.rc" />

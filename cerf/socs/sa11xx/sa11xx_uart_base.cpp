@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
-#include "../../host/hw_screen.h"
+#include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
@@ -26,9 +26,7 @@ void Sa11xxUartBase::FlushLine() {
     for (uint8_t b : tx_line_) {
         ascii.push_back((b >= 0x20 && b < 0x7F) ? char(b) : '.');
     }
-    LOG(SocUart, "%s TX (%zu bytes): %s\n",
-        ChannelName(), tx_line_.size(), ascii.c_str());
-    if (!ascii.empty()) emu_.Get<HwScreen>().AddLine(ascii);
+    emu_.Get<KernelDebugSink>().EmitLine(ascii, ChannelName());
     tx_line_.clear();
 }
 

@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/hw_screen.h"
+#include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_detector.h"
 #include "../../state/state_stream.h"
@@ -195,28 +195,9 @@ void Omap3530UartBank::WriteByteLocked(uint32_t addr, uint32_t off,
 }
 
 void Omap3530UartBank::EmitTxByte(uint8_t ch) {
-    /* Caller holds state_mutex_; LOG / HwScreen calls below do
-       not nest back into UART writes. */
-    if (ch == '\n') {
-        LOG(SocUart, "UART%d TX: %s\n", LogTag(), tx_line_.c_str());
-        emu_.Get<HwScreen>().AddLine(tx_line_);
-        tx_line_.clear();
-        return;
-    }
-    if (ch == '\r') return;  /* CE emits CRLF — drop CR, flush on LF. */
-    if (ch >= 0x20 && ch < 0x7F) {
-        tx_line_.push_back(static_cast<char>(ch));
-    } else {
-        char esc[8];
-        std::snprintf(esc, sizeof(esc), "\\x%02X", ch);
-        tx_line_.append(esc);
-    }
-    if (tx_line_.size() >= 256) {
-        LOG(SocUart, "UART%d TX (no LF, flushed at 256B): %s\n",
-            LogTag(), tx_line_.c_str());
-        emu_.Get<HwScreen>().AddLine(tx_line_);
-        tx_line_.clear();
-    }
+    char tag[8];
+    std::snprintf(tag, sizeof(tag), "UART%d", LogTag());
+    emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_, tag);
 }
 
 uint8_t Omap3530UartBank::ReadByte(uint32_t addr) {

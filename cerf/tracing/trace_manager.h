@@ -5,15 +5,10 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
-
-#if CERF_DEV_MODE
 #include <unordered_map>
 #include <vector>
-#endif
 
 class CerfEmulator;
-
-#if CERF_DEV_MODE
 
 /* TraceContext — read-only snapshot the JIT hands to a trace handler.
    `regs[15] == pc`; `regs[13]` SP; `regs[14]` LR. ReadVa* peek the
@@ -33,18 +28,13 @@ struct TraceContext {
 using TraceHandler   = std::function<void(const TraceContext&)>;
 using TracePredicate = std::function<bool(const TraceContext&)>;
 
-#endif  /* CERF_DEV_MODE */
-
 class TraceManager : public Service {
 public:
     using Service::Service;
     void OnReady() override;
 
-#if CERF_DEV_MODE
-    /* Registration entry point for a device-specific trace file. The
-       closure is invoked iff `expected_crc32` equals the computed
-       bundle CRC32; otherwise the closure is discarded. Inside the
-       closure, call OnPc / OnRunLoopIter. */
+    /* Runs `register_fn` (which calls OnPc) iff `expected_crc32` matches the
+       computed bundle CRC32; otherwise discards it. */
     void RegisterForBundle(uint32_t expected_crc32,
                            const std::function<void()>& register_fn);
 
@@ -53,18 +43,19 @@ public:
                       TracePredicate predicate,
                       TraceHandler   handler);
 
-    void OnRunLoopIter(TraceHandler handler);
-
     /* Hot-path predicate. Single map lookup; empty map = single
        branch on size(). */
     bool HasPcTrace (uint32_t pc) const;
 
-    /* Dispatch sites called from the JIT translator / JitRunner. */
-    void DispatchPc       (uint32_t pc,
-                           const uint32_t* regs, uint32_t cpsr);
-    void DispatchRunLoopIter(const uint32_t* regs, uint32_t cpsr);
+    /* Dispatch site called from the JIT translator. */
+    void DispatchPc(uint32_t pc, const uint32_t* regs, uint32_t cpsr);
 
     uint32_t BundleCrc32() const { return bundle_crc32_; }
+
+#if CERF_DEV_MODE
+    void OnRunLoopIter(TraceHandler handler);
+    void DispatchRunLoopIter(const uint32_t* regs, uint32_t cpsr);
+#endif
 
 private:
     /* Computes CRC32 over concatenated RomParserService::Loaded()[i].raw
@@ -80,6 +71,8 @@ private:
         TraceHandler                  handler;
     };
     std::unordered_map<uint32_t, std::vector<PcEntry>> pc_traces_;
-    std::vector<TraceHandler>                          iter_handlers_;
-#endif  /* CERF_DEV_MODE */
+
+#if CERF_DEV_MODE
+    std::vector<TraceHandler> iter_handlers_;
+#endif
 };

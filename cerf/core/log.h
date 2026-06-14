@@ -27,6 +27,7 @@ namespace Log {
         X(SocIoport,   "SOC_IOPORT",  "any SoC GPIO / I-O port")                    \
         X(SocMemc,     "SOC_MEMC",    "any SoC memory controller")                  \
         X(SocUart,     "SOC_UART",    "any SoC UART / debug serial")                \
+        X(Nkdbg,       "NKDBG",       "guest OS debug output: UART/serial TX + hooked OEM debug") \
         X(SocTimer,    "SOC_TIMER",   "any SoC PWM / system tick timer")            \
         X(SocDma,      "SOC_DMA",     "any SoC DMA controller")                     \
         X(SocRtc,      "SOC_RTC",     "any SoC real-time clock")                    \

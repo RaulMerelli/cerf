@@ -2,20 +2,17 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-
-REGISTER_SERVICE(TraceManager);
-
-#if CERF_DEV_MODE
-
 #include "../boot/rom_parser_service.h"
 #include "../jit/arm_mmu.h"
+
+REGISTER_SERVICE(TraceManager);
 
 namespace {
 
 /* CRC-32 / zlib (polynomial 0xEDB88320, init 0xFFFFFFFF, final XOR
    0xFFFFFFFF). Compatible with `python -c "import zlib;
    print(hex(zlib.crc32(open('x','rb').read())))"` so callers can
-   pre-compute the bundle CRC offline and embed it in trace files. */
+   pre-compute the bundle CRC offline and embed it in hook files. */
 uint32_t Crc32Update(uint32_t crc, const uint8_t* data, size_t n) {
     crc = ~crc;
     for (size_t i = 0; i < n; ++i) {
@@ -49,7 +46,7 @@ std::optional<uint32_t> TraceContext::ReadVa32(uint32_t va) const {
 
 void TraceManager::OnReady() {
     bundle_crc32_ = ComputeBundleCrc32();
-    LOG(Trace, "bundle CRC32 = 0x%08X (awaiting trace registrations)\n",
+    LOG(Trace, "bundle CRC32 = 0x%08X (awaiting hook registrations)\n",
         bundle_crc32_);
 }
 
@@ -66,7 +63,7 @@ void TraceManager::RegisterForBundle(
         const std::function<void()>& register_fn) {
     if (expected_crc32 != bundle_crc32_) {
         ++bundles_skipped_;
-        LOG(Trace, "skipping trace file (expected CRC 0x%08X, bundle is 0x%08X)\n",
+        LOG(Trace, "skipping hook file (expected CRC 0x%08X, bundle is 0x%08X)\n",
             expected_crc32, bundle_crc32_);
         return;
     }
@@ -96,10 +93,6 @@ void TraceManager::OnPcFiltered(uint32_t       runtime_va,
          std::move(handler)});
 }
 
-void TraceManager::OnRunLoopIter(TraceHandler handler) {
-    iter_handlers_.push_back(std::move(handler));
-}
-
 bool TraceManager::HasPcTrace(uint32_t pc) const {
     if (pc_traces_.empty()) return false;
     return pc_traces_.count(pc) > 0;
@@ -116,17 +109,16 @@ void TraceManager::DispatchPc(uint32_t pc,
     }
 }
 
+#if CERF_DEV_MODE
+
+void TraceManager::OnRunLoopIter(TraceHandler handler) {
+    iter_handlers_.push_back(std::move(handler));
+}
+
 void TraceManager::DispatchRunLoopIter(const uint32_t* regs, uint32_t cpsr) {
     if (iter_handlers_.empty()) return;
     TraceContext ctx{regs, cpsr, regs[15], emu_};
     for (auto& h : iter_handlers_) h(ctx);
-}
-
-#else  /* production build */
-
-void TraceManager::OnReady() {
-    LOG(Trace, "cerf built for production; tracing disabled\n");
-    return;
 }
 
 #endif  /* CERF_DEV_MODE */

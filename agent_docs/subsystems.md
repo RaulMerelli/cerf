@@ -269,7 +269,10 @@ Always-built developer debugging facility for putting in-host C++ handlers
 behind specific guest PC addresses, guest memory addresses, and per-JIT-Run
 iteration ticks — without polluting permanent code with bug-specific
 diagnostics. Hot paths are zero-overhead when no traces are registered
-(empty-container short-circuit; production builds register nothing).
+(empty-container short-circuit). The PC-trace surface and CRC gate
+compile in every configuration; the RunLoop-iter surface is dev-only.
+Production registers only the kernel-debug (`nkdbg/`) hooks; dev
+additionally registers bug-specific trace files.
 
 Two hook surfaces:
 
@@ -285,7 +288,7 @@ Two hook surfaces:
   emit — for conditional ARM instructions, the trace fires iff the
   condition is true at runtime, the same condition under which the
   guarded instruction itself executes.
-- **RunLoop iter** (`OnRunLoopIter(handler)`) — handler fires after each
+- **RunLoop iter** (`OnRunLoopIter(handler)`, dev builds only) — handler fires after each
   `ArmJit::Run()` return in `JitRunner::RunLoop`. Used for value-change
   pollers and one-shot startup audits.
 
@@ -320,7 +323,7 @@ a `CerfEmulator&` for service access. `ReadVa8 / 16 / 32` are read-only
 GuestTlb-fast-path peeks (no MMU side effects, return `std::nullopt` for
 pages not currently fast-path-mapped).
 
-— `cerf/tracing/trace_manager.{h,cpp}` + new `Trace` log channel.
+— `cerf/tracing/trace_manager.{h,cpp}`, `Trace` log channel.
 
 ## Device-specific trace files
 
@@ -339,9 +342,10 @@ gives you the value to paste into the trace file's `bundle.h`.
 
 `build.ps1 -Mode production` excludes the per-device trace files from the
 build via a `<ClCompile Remove="tracing\*\**\*.cpp">` rule in
-`cerf/cerf.vcxproj`. The framework (`cerf/tracing/trace_manager.{h,cpp}`)
-stays compiled; with no registered traces, every hook is a single
-empty-container check.
+`cerf/cerf.vcxproj`, then re-includes `tracing\*\nkdbg\*.cpp` so the
+kernel-debug hooks stay in production builds. The framework
+(`cerf/tracing/trace_manager.{h,cpp}`) stays compiled; with no registered
+traces, every hook is a single empty-container check.
 
 **CRC32 / bundle gating is diagnostics-only — never runtime behavior.**
 Because this per-device trace tree is stripped from production builds, any
@@ -355,7 +359,34 @@ that must hold for a class of ROMs uses a generalizing ROM-content fingerprint
 (the way `BoardDetector` does); CRC/bundle gating stays in diagnostics, where
 its single-image, dev-only nature is exactly correct.
 
+The one production-built CRC-gated exception is the kernel-debug (`nkdbg/`)
+hooks: they are OBSERVATION-ONLY (read guest debug text, emit it to the log +
+HwScreen — never altering emulation or board behavior) and fail benignly (a
+CRC mismatch installs no hook, costing only absent debug output, never a
+misbehaving device). Anything that changes how the guest runs stays out of
+CRC gates.
+
 — `cerf/tracing/<bundle>/`
+
+## Kernel debug output
+
+`KernelDebugSink` (`cerf/tracing/kernel_debug_sink.{h,cpp}`) is the single
+funnel for guest OS debug text. Every producer routes finished lines to it: a
+live SoC/board UART or serial peripheral's TX, and a hook on a nulled OEM debug
+sink (`cerf/tracing/<bundle>/nkdbg/`). It emits each line to the `Nkdbg` log
+channel (`[NKDBG]`) and to the `HwScreen` debug console.
+
+- `EmitLine(line, source, to_screen)` — the output primitive; `source` is an
+  optional tag (e.g. `"UART1"`).
+- `EmitChar(ch, buf, …)` — the common CRLF / hex-escape / cap accumulator over a
+  caller-owned buffer (concurrent producers never share state).
+- `EmitWideStringAt(ctx, va, …)` — read a guest wide string and emit it.
+
+A UART/serial peripheral never open-codes `LOG` + `HwScreen::AddLine`; it calls
+the sink. Register-access logging stays on its own SoC channel (e.g. `SocUart`)
+and is gated like any other channel — only the assembled debug line is `Nkdbg`.
+
+— `cerf/tracing/kernel_debug_sink.{h,cpp}`, `Nkdbg` log channel
 
 ## Bundled device tree
 

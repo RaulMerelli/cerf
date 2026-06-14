@@ -5,7 +5,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../boards/board_detector.h"
-#include "../host/hw_screen.h"
+#include "../tracing/kernel_debug_sink.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 
@@ -117,25 +117,9 @@ private:
     }
 
     void EmitTx(uint8_t ch) {
-        if (ch == '\n') {
-            LOG(SocUart, "UART%d TX: %s\n", kUartNum, tx_line_.c_str());
-            emu_.Get<HwScreen>().AddLine(tx_line_);
-            tx_line_.clear();
-            return;
-        }
-        if (ch == '\r') return;
-        if (ch >= 0x20 && ch < 0x7F) {
-            tx_line_.push_back(static_cast<char>(ch));
-        } else {
-            char esc[8];
-            std::snprintf(esc, sizeof(esc), "\\x%02X", ch);
-            tx_line_.append(esc);
-        }
-        if (tx_line_.size() >= 256) {
-            LOG(SocUart, "UART%d TX (256B flush): %s\n", kUartNum, tx_line_.c_str());
-            emu_.Get<HwScreen>().AddLine(tx_line_);
-            tx_line_.clear();
-        }
+        char tag[8];
+        std::snprintf(tag, sizeof(tag), "UART%d", kUartNum);
+        emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_, tag);
     }
 };
 

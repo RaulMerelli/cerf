@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
-#include "../../host/hw_screen.h"
+#include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -101,33 +101,11 @@ void S3C2410Uart::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void S3C2410Uart::EmitTxByte(int uart_idx, uint8_t ch) {
-    auto& buf = tx_line_[uart_idx];
-    if (ch == '\n') {
-        LOG(SocUart, "UART%d TX: %s\n", uart_idx, buf.c_str());
-        if (uart_idx == 1) {
-            emu_.Get<HwScreen>().AddLine(buf);
-        }
-        buf.clear();
-        return;
-    }
-    if (ch == '\r') {
-        return;  /* CE emits CRLF — drop CR, flush on LF. */
-    }
-    if (ch >= 0x20 && ch < 0x7F) {
-        buf.push_back((char)ch);
-    } else {
-        /* Non-printable byte. Render as hex so it stays visible
-           without breaking up the line. */
-        char esc[8];
-        std::snprintf(esc, sizeof(esc), "\\x%02X", ch);
-        buf.append(esc);
-    }
-    if (buf.size() >= 256) {
-        LOG(SocUart, "UART%d TX (no LF, flushed at 256B): %s\n",
-            uart_idx, buf.c_str());
-            emu_.Get<HwScreen>().AddLine(buf);
-        buf.clear();
-    }
+    char tag[8];
+    std::snprintf(tag, sizeof(tag), "UART%d", uart_idx);
+    /* UART1 is the debug console — only it mirrors to HwScreen. */
+    emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_[uart_idx],
+                                         tag, /*to_screen=*/uart_idx == 1);
 }
 
 }  /* namespace */

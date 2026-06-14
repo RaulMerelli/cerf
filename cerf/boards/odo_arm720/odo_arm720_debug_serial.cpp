@@ -6,7 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/hw_screen.h"
+#include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -202,8 +202,7 @@ private:
 
     void FlushLine() {
         if (tx_line_.empty()) return;
-        emu_.Get<HwScreen>().AddLine(tx_line_);
-        LOG(SocUart, "DEBUG_SER TX: %s\n", tx_line_.c_str());
+        emu_.Get<KernelDebugSink>().EmitLine(tx_line_, "DEBUG_SER");
         tx_line_.clear();
     }
 

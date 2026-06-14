@@ -86,9 +86,9 @@ branch is named.
 
 1. **Find the divergence.** Diff CERF's runtime output against the
    reference. Identify the last common line and the first missing
-   line CERF never produces. That gap is your target. For UART
-   divergence specifically, grep `cerf.log` for `[SOC_UART] UART1
-   TX:` lines and compare line-for-line.
+   line CERF never produces. That gap is your target. For guest
+   debug-output divergence specifically, grep `cerf.log` for
+   `[NKDBG]` lines and compare line-for-line.
 
 2. **Name the suspect chain in IDA.** Map the first missing line
    back to the function that emits it. Walk callers / branches up
@@ -396,9 +396,10 @@ Investigation:
 
 ## Crash shape #4 — kernel debug serial says something useful
 
-The OAL writes diagnostic strings to UART1. CERF's S3C2410 UART
-peripheral routes those bytes to a `SocUart` channel line buffer and
-logs each line. Search `cerf.log` for `[SOC_UART]` and `UART1 TX:` to
+The OAL writes diagnostic strings to a UART, or — when the OEM nulls
+the debug path — to a sink hooked by a `cerf/tracing/<bundle>/nkdbg/`
+file. CERF routes all such guest debug text through `KernelDebugSink`
+to the `Nkdbg` channel. Search `cerf.log` for `[NKDBG]` to
 find the kernel's own boot trace, which often names the function that
 crashed shortly before the fault.
 
