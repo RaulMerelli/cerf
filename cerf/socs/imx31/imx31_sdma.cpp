@@ -103,6 +103,10 @@ public:
         r.ReadBytes(chnpri_,  sizeof(chnpri_));
     }
 
+    /* Re-assert the AVIC line from restored intr_ & intrmask_ — the SDMA AP
+       interrupt is a level the source re-drives after restore. */
+    void PostRestore() override { RefreshIrq(); }
+
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
         switch (off) {

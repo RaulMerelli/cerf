@@ -114,6 +114,15 @@ public:
         cv_.notify_all();
     }
 
+    /* Re-assert the AVIC line from restored GPTSR&GPTIR — the compare/rollover
+       output is a level the source re-drives after restore. */
+    void PostRestore() override {
+        const uint32_t pending = gptsr_.load(std::memory_order_acquire) &
+                                 gptir_.load(std::memory_order_acquire);
+        if (pending != 0) emu_.Get<Imx31Avic>().AssertSource(kAvicSourceGpt);
+        else              emu_.Get<Imx31Avic>().DeassertSource(kAvicSourceGpt);
+    }
+
 private:
     std::mutex              cv_mtx_;
     std::condition_variable cv_;

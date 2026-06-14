@@ -106,6 +106,10 @@ public:
         r.Read(fifo_alarm_);
     }
 
+    /* Re-assert the AVIC line from restored int_enable_ + drive state — the ATA
+       IRQ is a level the source re-drives after restore. */
+    void PostRestore() override { UpdateAvic(); }
+
     /* HostWidget. RX = sector data read from the drive (kDriveData read),
        TX = sector data written to the drive (kDriveData write). */
     std::wstring WidgetName() const override { return L"Hard Disk"; }

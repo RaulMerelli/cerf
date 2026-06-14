@@ -116,6 +116,10 @@ public:
         r.Read(cmd_);          r.Read(arg_);
     }
 
+    /* Re-assert the AVIC line from restored status_ & int_cntr_ — END_CMD_RESP
+       is a level the source re-drives after restore. */
+    void PostRestore() override { UpdateIrq(); }
+
 private:
     /* AVIC source 9 is asserted while END_CMD_RESP is set and its INT_CNTR[2]
        enable is on; the ISR W1C-clears END_CMD_RESP, which deasserts it. */
