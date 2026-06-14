@@ -266,6 +266,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
               <li>Guest additions: XIP injection improvements</li>
+              <li>SA-1110 RTC implementation</li>
             </ul>
           </td>
         </tr>
