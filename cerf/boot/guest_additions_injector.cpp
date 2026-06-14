@@ -2,6 +2,7 @@
 #define NOMINMAX
 
 #include "ce_image_relocator.h"
+#include "cerf_injection_region.h"
 #include "guest_additions_binaries.h"
 #include "guest_cold_boot.h"
 #include "guest_module_placer.h"
@@ -31,6 +32,9 @@ constexpr uint32_t kPageMask = 0xFFFu;
 /* The tiny carrier injected as the victim; the full cerf_guest body is served
    separately over the cerf_virt body channel and LoadLibrary'd by the stub. */
 constexpr const char* kStubDll = "cerf_guest_stub.dll";
+
+constexpr uint32_t kImgScnMemShared = 0x10000000u;
+constexpr uint32_t kImgScnMemWrite  = 0x80000000u;
 
 uint32_t AlignPage(uint32_t v) { return (v + kPageMask) & ~kPageMask; }
 uint32_t Align4(uint32_t v)    { return (v + 3u) & ~3u; }
@@ -96,7 +100,8 @@ private:
     void WriteE32Rom(uint32_t pa, const PeImage& pe, uint32_t target_vbase);
     void WriteO32Array(uint32_t pa, const PeImage& pe,
                        const std::vector<uint32_t>& dataptr_kva,
-                       const std::vector<uint32_t>& realaddr);
+                       const std::vector<uint32_t>& realaddr,
+                       const std::vector<uint32_t>& flags);
     void WriteSectionBytes(const std::vector<uint32_t>& sec_pa, const PeImage& pe,
                            const std::vector<uint8_t>& bytes);
 
@@ -169,21 +174,21 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
 
 void GuestAdditionsInjector::WriteO32Array(uint32_t pa, const PeImage& pe,
                                             const std::vector<uint32_t>& dataptr_kva,
-                                            const std::vector<uint32_t>& realaddr) {
+                                            const std::vector<uint32_t>& realaddr,
+                                            const std::vector<uint32_t>& flags) {
     auto& mem = emu_.Get<EmulatedMemory>();
     for (size_t i = 0; i < pe.Sections().size(); ++i) {
         const auto& s = pe.Sections()[i];
         const uint32_t off = pa + uint32_t(i) * kO32RomSize;
-        const uint32_t flags = emu_.Get<GuestModulePlacer>().EffSectionFlags(s.flags);
         mem.WriteWord(off + kO32OffVsize,    s.vsize);
         mem.WriteWord(off + kO32OffRva,      s.rva);
         mem.WriteWord(off + kO32OffPsize,    s.psize);
         mem.WriteWord(off + kO32OffDataptr,  dataptr_kva[i]);
         mem.WriteWord(off + kO32OffRealaddr, realaddr[i]);
-        mem.WriteWord(off + kO32OffFlags,    flags);
+        mem.WriteWord(off + kO32OffFlags,    flags[i]);
         LOG(GuestAdditions, "  o32[%zu] vsize=0x%05X rva=0x%05X psize=0x%05X "
                   "dataptr=0x%08X realaddr=0x%08X flags=0x%08X\n",
-            i, s.vsize, s.rva, s.psize, dataptr_kva[i], realaddr[i], flags);
+            i, s.vsize, s.rva, s.psize, dataptr_kva[i], realaddr[i], flags[i]);
     }
 }
 
@@ -299,57 +304,66 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         CerfFatalExit();
     }
 
-    /* Section-0 victims (CE4.2/WM5) relocate into the section-1 shared-DLL
-       region; ComputeVbase returns orig_vbase when no move is needed. */
-    const uint32_t slot_base     = codebase - orig_vbase;
-    const uint32_t target_vbase  = emu_.Get<GuestModulePlacer>().ComputeVbase(
-        orig_vbase, slot_base, pe.ImageSize(), ce_major_, L.off_vbase, victim_name);
-    const uint32_t load_codebase = target_vbase + slot_base;
+    /* Acquire the CERF-owned injection band (lazy; halts if this board's OAT
+       leaves no static-window hole). The stub's records + section bytes live
+       here, never the victim's section; the TOC is repointed at band VAs the
+       MMU walker overlay serves. */
+    auto& region = emu_.Get<CerfInjectionRegion>();
+    const uint32_t band_va   = region.BandVaBase();
+    const uint32_t band_pa   = region.BandPaBase();
+    const uint32_t band_size = region.BandSize();
 
-    /* Host the stub in the victim's single LARGEST section. The victim's
-       sections are scattered across the image (a min->max span would cross
-       into other modules' bytes); the RO code section is page-aligned, sole
-       owner of its bytes, and the only one guaranteed to dwarf the stub. */
-    uint32_t foot_kva  = 0;
-    uint32_t foot_span = 0;
-    for (uint32_t i = 0; i < orig_objcnt; ++i) {
-        const uint32_t off = orig_o32_pa + i * kO32RomSize;
-        const uint32_t dp  = mem.ReadWord(off + kO32OffDataptr);
-        const uint32_t ps  = mem.ReadWord(off + kO32OffPsize);
-        if (ps > foot_span) { foot_span = ps; foot_kva = dp; }
+    /* CE6/7 run in place from the band: a static-window kernel-VA base makes
+       LoadO32 skip ReadSection (WINCE600/700 loader.c IsKernelVa = [0x80000000,
+       0xC0000000)). CE3/4/5 have no such gate -> copy to a section-1 vbase. */
+    const bool in_place = (ce_major_ >= 6);
+
+    uint32_t target_vbase = band_va;
+    uint32_t run_base     = band_va;   /* base the section bytes are relocated for */
+    if (!in_place) {
+        const uint32_t slot_base = codebase - orig_vbase;
+        target_vbase = emu_.Get<GuestModulePlacer>().ComputeVbase(
+            orig_vbase, slot_base, pe.ImageSize(), ce_major_, L.off_vbase,
+            victim_name);
+        run_base = target_vbase + slot_base;
     }
 
-    /* Lay the stub records into the footprint: e32, then o32 array, then each
-       section page-aligned (CE5 FATALs on a sub-page section dataptr). */
-    const uint32_t e32_kva = foot_kva;
-    const uint32_t o32_kva = Align4(e32_kva + L.size);
-    const size_t   nsec    = pe.Sections().size();
-    uint32_t cur = AlignPage(o32_kva + uint32_t(nsec) * kO32RomSize);
-    const uint32_t sec_base_kva = cur;
-
-    std::vector<uint32_t> sec_kva(nsec), sec_pa(nsec), sec_realaddr(nsec);
+    /* RVA layout in the band: section i bytes at band+rva, so an in-place
+       module runs correctly at vbase=band_va with section i at band_va+rva.
+       dataptr is always the band VA (overlay-served source). */
+    const size_t nsec = pe.Sections().size();
+    std::vector<uint32_t> sec_pa(nsec), dataptr(nsec), realaddr(nsec), flags(nsec);
     for (size_t i = 0; i < nsec; ++i) {
         const auto& s = pe.Sections()[i];
-        sec_kva[i]      = cur;
-        sec_pa[i]       = pt.VaToPa(cur);
-        sec_realaddr[i] = load_codebase + s.rva;
-        cur = AlignPage(cur + s.psize);
+        sec_pa[i]   = band_pa + s.rva;
+        dataptr[i]  = band_va + s.rva;
+        realaddr[i] = run_base + s.rva;
+        /* Copy path MUST force MEM_WRITE (else RO-XIP VirtualCopy resolves
+           dataptr via guest page tables, cannot reach the overlay band; CE5
+           loader.c:3040) + SHARED (else per-processed to a slot base on the
+           device.exe carrier load; CE5 loader.c:3086). In place: orig flags. */
+        flags[i] = in_place
+            ? emu_.Get<GuestModulePlacer>().EffSectionFlags(s.flags)
+            : (s.flags | kImgScnMemWrite | kImgScnMemShared);
     }
 
-    if (cur - foot_kva > foot_span) {
-        LOG(Caution, "%s stub needs 0x%X bytes but the victim's largest section "
-                "is only 0x%X (base 0x%08X) - victim smaller than the stub, "
-                "impossible for a display driver\n",
-            victim_name, cur - foot_kva, foot_span, foot_kva);
+    /* Records after the full virtual image (overlay-served reads of e32/o32). */
+    const uint32_t e32_va    = band_va + AlignPage(pe.ImageSize());
+    const uint32_t o32_va    = Align4(e32_va + L.size);
+    const uint32_t band_used = (o32_va + uint32_t(nsec) * kO32RomSize) - band_va;
+    if (band_used > band_size) {
+        LOG(Caution, "%s stub needs 0x%X band bytes but the band is 0x%X - raise "
+                "kInjectionBandSize in cerf_virt_addr_map.h\n",
+            victim_name, band_used, band_size);
         CerfFatalExit();
     }
 
     std::vector<uint8_t> patched_bytes(pe.Bytes().begin(), pe.Bytes().end());
-    const int32_t code_delta = int32_t(load_codebase) - int32_t(pe.ImageBase());
+    const int32_t code_delta = int32_t(run_base) - int32_t(pe.ImageBase());
     uint32_t reloc_count = 0;
     uint32_t unhandled_relocs = 0;
     cerf::ce_image_relocator::ApplyRelocations(
-        patched_bytes, pe, sec_realaddr, code_delta, reloc_count, unhandled_relocs);
+        patched_bytes, pe, realaddr, code_delta, reloc_count, unhandled_relocs);
     LOG(GuestAdditions, "%s reloc code_delta=0x%08X patched=%u unhandled=%u\n",
         victim_name, uint32_t(code_delta), reloc_count, unhandled_relocs);
     if (unhandled_relocs > 0) {
@@ -360,43 +374,45 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         CerfFatalExit();
     }
 
-    const uint32_t e32_pa = pt.VaToPa(e32_kva);
-    const uint32_t o32_pa = pt.VaToPa(o32_kva);
+    const uint32_t e32_pa = band_pa + (e32_va - band_va);
+    const uint32_t o32_pa = band_pa + (o32_va - band_va);
     WriteE32Rom(e32_pa, pe, target_vbase);
-    WriteO32Array(o32_pa, pe, sec_kva, sec_realaddr);
+    WriteO32Array(o32_pa, pe, dataptr, realaddr, flags);
     WriteSectionBytes(sec_pa, pe, patched_bytes);
 
     const uint32_t entry_pa = pt.VaToPa(entry_kva);
     mem.WriteWord(entry_pa + kTocOffNFileSize,  uint32_t(pe_bytes_size));
-    mem.WriteWord(entry_pa + kTocOffE32Offset,  e32_kva);
-    mem.WriteWord(entry_pa + kTocOffO32Offset,  o32_kva);
-    mem.WriteWord(entry_pa + kTocOffLoadOffset, sec_base_kva);
+    mem.WriteWord(entry_pa + kTocOffE32Offset,  e32_va);
+    mem.WriteWord(entry_pa + kTocOffO32Offset,  o32_va);
+    mem.WriteWord(entry_pa + kTocOffLoadOffset, band_va);
 
-    LOG(GuestAdditions, "%s stub injected: idx=%zu entry_kva=0x%08X "
-              "e32_kva=0x%08X o32_kva=0x%08X load_kva=0x%08X sections=%zu "
-              "vbase=0x%08X codebase=0x%08X footprint=[0x%08X,0x%08X)\n",
-        victim_name, victim_idx, entry_kva, e32_kva, o32_kva, sec_base_kva,
-        nsec, target_vbase, load_codebase, foot_kva, foot_kva + foot_span);
+    LOG(GuestAdditions, "%s stub injected (%s): idx=%zu entry_kva=0x%08X "
+              "band VA=0x%08X PA=0x%08X e32=0x%08X o32=0x%08X sections=%zu "
+              "vbase=0x%08X run_base=0x%08X\n",
+        victim_name, in_place ? "in-place" : "copy", victim_idx, entry_kva,
+        band_va, band_pa, e32_va, o32_va, nsec, target_vbase, run_base);
 
-    /* The stub records + section bytes live in the XIP image; flash survives a
-       hard reset, but a RAMIMAGE board's image span is volatile - replay the
-       footprint writes + the TOCentry repoint so a cold boot restores them. */
+    /* The band PA region is volatile (cerf_virt window) and a RAMIMAGE board's
+       TOC-entry span is volatile - replay the band writes + the TOCentry repoint
+       so a cold boot restores them. */
     auto& coldboot = emu_.Get<GuestColdBoot>();
-    coldboot.RecordPatch(e32_pa, L.size);
-    coldboot.RecordPatch(o32_pa, uint32_t(nsec) * kO32RomSize);
     for (size_t i = 0; i < nsec; ++i) {
         const auto& s = pe.Sections()[i];
         if (s.psize > 0 && size_t(s.pe_file_off) + s.psize <= patched_bytes.size()) {
             coldboot.RecordPatch(sec_pa[i], s.psize);
         }
     }
+    coldboot.RecordPatch(e32_pa, L.size);
+    coldboot.RecordPatch(o32_pa, uint32_t(nsec) * kO32RomSize);
     coldboot.RecordPatch(entry_pa + kTocOffNFileSize,  4);
     coldboot.RecordPatch(entry_pa + kTocOffE32Offset,  4);
     coldboot.RecordPatch(entry_pa + kTocOffO32Offset,  4);
     coldboot.RecordPatch(entry_pa + kTocOffLoadOffset, 4);
     /* ComputeVbase may have lowered ROMHDR.dllfirst (DllLoadBase) for a
        relocated section-1 vbase; replay it on hard reset. */
-    coldboot.RecordPatch(pt.VaToPa(primary_toc.romhdr_va) + kHdrDllFirstOff, 4);
+    if (!in_place) {
+        coldboot.RecordPatch(pt.VaToPa(primary_toc.romhdr_va) + kHdrDllFirstOff, 4);
+    }
     return true;
 }
 

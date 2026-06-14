@@ -69,6 +69,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion>   CachedDramRegions()   const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    std::vector<DramRegion>   MappedVaSpans()       const override;
 
 private:
     /* Per-OS kernel VA→PA placement, selected from ROMHDR.ulRAMStart in
@@ -157,6 +158,18 @@ std::vector<BackedRegion> Smdk2410DevEmuPageTableBuilder::BackedMemoryRegions() 
         const DWORD protect =
             (e.kind == OatKind::Flash) ? PAGE_READONLY : PAGE_READWRITE;
         regions.push_back({ e.va_base, e.pa_base, e.size, protect });
+    }
+    return regions;
+}
+
+std::vector<DramRegion> Smdk2410DevEmuPageTableBuilder::MappedVaSpans() const {
+    /* Full kOat (64 MB DRAM extent), NOT the runtime-classified dram_bands_: a
+       CE4.2-classified ROM's dram_bands_ reports only the low 32 MB, so the
+       injection-band hole-finder would pick 0x82000000 - actually backed DRAM
+       (PA 0x32000000) the kernel demand-maps - and the overlay corrupts boot. */
+    std::vector<DramRegion> regions;
+    for (const auto& e : kOat) {
+        regions.push_back({ e.va_base, e.pa_base, e.size });
     }
     return regions;
 }

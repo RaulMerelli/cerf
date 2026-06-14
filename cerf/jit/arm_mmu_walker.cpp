@@ -197,6 +197,7 @@ uint8_t* ArmMmu::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
 
         switch (l1_pte.fault.type) {
         case ArmL1PteType::kFault:
+            if (uint8_t* band = ServeInjectionBand(p, kAccess)) return band;
             RaiseAbort(p, ArmFaultStatus::kTranslationSection, kIsWrite);
             return nullptr;
 

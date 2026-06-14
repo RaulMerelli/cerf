@@ -47,6 +47,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion>   CachedDramRegions()   const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    std::vector<DramRegion>   MappedVaSpans()       const override;
 };
 
 uint32_t OdoArm720PageTableBuilder::VaToPa(uint32_t va) const {
@@ -80,6 +81,14 @@ OdoArm720PageTableBuilder::BackedMemoryRegions() const {
         const DWORD protect =
             (e.kind == OatKind::Flash) ? PAGE_READONLY : PAGE_READWRITE;
         regions.push_back({ e.va_base, e.pa_base, e.size, protect });
+    }
+    return regions;
+}
+
+std::vector<DramRegion> OdoArm720PageTableBuilder::MappedVaSpans() const {
+    std::vector<DramRegion> regions;
+    for (const auto& e : kOat) {
+        regions.push_back({ e.va_base, e.pa_base, e.size });
     }
     return regions;
 }

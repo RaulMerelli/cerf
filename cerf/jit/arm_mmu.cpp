@@ -132,6 +132,27 @@ void ArmMmu::SetIoPending(uint32_t pa) {
     }
 }
 
+void ArmMmu::SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size) {
+    injection_band_va_   = va_base;
+    injection_band_pa_   = pa_base;
+    injection_band_size_ = size;
+}
+
+uint8_t* ArmMmu::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
+    if (injection_band_size_ == 0u) return nullptr;
+    const uint32_t off = va - injection_band_va_;
+    if (off >= injection_band_size_) return nullptr;
+    const uint32_t pa = injection_band_pa_ + off;
+    const bool is_write = (access == ArmMmuAccess::kWrite ||
+                           access == ArmMmuAccess::kReadWrite);
+    uint8_t* host = is_write ? memory_->TryTranslateWrite(pa)
+                             : memory_->TryTranslate(pa);
+    if (!host) return nullptr;
+    if (access == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
+    else                                  last_data_pa_ = pa;
+    return host;
+}
+
 
 std::optional<uint8_t*> ArmMmu::PeekDataTlb(uint32_t va) const {
     /* Diagnostic-only: never walks, never raises, never mutates TLB state.

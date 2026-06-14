@@ -71,6 +71,7 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion>   CachedDramRegions()   const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    std::vector<DramRegion>   MappedVaSpans()       const override;
 };
 
 uint32_t SimpadSl4PageTableBuilder::VaToPa(uint32_t va) const {
@@ -129,6 +130,14 @@ SimpadSl4PageTableBuilder::BackedMemoryRegions() const {
         merged.push_back(r);
     }
     return merged;
+}
+
+std::vector<DramRegion> SimpadSl4PageTableBuilder::MappedVaSpans() const {
+    std::vector<DramRegion> regions;
+    for (const auto& e : kOat) {
+        regions.push_back({ e.va_base, e.pa_base, e.size });
+    }
+    return regions;
 }
 
 }  /* namespace */

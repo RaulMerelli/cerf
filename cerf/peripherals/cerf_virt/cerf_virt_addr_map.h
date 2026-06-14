@@ -59,6 +59,14 @@ const uint32_t kFramebufferMemSize = 0x02000000u;
    body sits in the fixed gap BELOW it, just past the register pages. */
 const uint32_t kGuestBodyBase    = kRegsBase + kRegsSize;
 const uint32_t kGuestBodyHdrSize = 0x1000u;
-const uint32_t kGuestBodyMaxSize = kFramebufferMemBase - kGuestBodyBase;
+
+/* Injected-stub band PA (overlay-mapped to a static-window VA so the stub's
+   bytes live here, not in the victim's section). Carved BELOW
+   kFramebufferMemBase — placing it above would be overrun by the
+   host-monitor-sized framebuffer region that grows up from there. */
+const uint32_t kInjectionBandSize = 0x10000u;
+const uint32_t kInjectionBandBase = kFramebufferMemBase - kInjectionBandSize;
+
+const uint32_t kGuestBodyMaxSize = kInjectionBandBase - kGuestBodyBase;
 
 }  /* namespace CerfVirt */

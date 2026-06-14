@@ -75,9 +75,19 @@ public:
        caller signals the abort via ArmCpu::RaiseAbortDataException. */
     void RaiseAlignmentFault(uint32_t va);
 
+    /* Guest-additions injection band: a CERF-owned PA region the walker serves
+       at a guest-unmapped static-window VA, so the injected stub's bytes live
+       in CERF memory and the victim's TOC is only repointed at this VA. size 0
+       disables it. */
+    void SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size);
+
 private:
     template <ArmMmuAccess kAccess>
     uint8_t* MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p);
+
+    /* On a walk fault, serve va from the injection band if it lies inside it;
+       nullptr otherwise (caller raises the abort). */
+    uint8_t* ServeInjectionBand(uint32_t va, ArmMmuAccess access);
 
     void RaiseAbort(uint32_t va, uint32_t fault_status, bool is_write);
 
@@ -93,6 +103,10 @@ private:
     uint32_t io_pending_address_adjust_ = 0;
     uint32_t last_exec_pa_              = 0;
     uint32_t last_data_pa_             = 0;
+
+    uint32_t injection_band_va_   = 0;
+    uint32_t injection_band_pa_   = 0;
+    uint32_t injection_band_size_ = 0;
 
     /* Backing stores for the SMC bitmaps (code_xlat_bitmap word-marks +
        code_page_dirty page set). Sized once in OnReady, never resized, so
