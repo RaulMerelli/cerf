@@ -223,18 +223,31 @@ LRESULT HostStatusBar::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HDC dc = BeginPaint(hwnd, &ps);
             RECT rc;
             GetClientRect(hwnd, &rc);
+
+            /* Double-buffer: the bar repaints at the activity-glow rate while a
+               widget has RX/TX, and erasing + redrawing every icon straight to
+               the window flickers. Compose into a memory DC and blit once. */
+            HDC     mem    = CreateCompatibleDC(dc);
+            HBITMAP bmp    = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+            HGDIOBJ oldbmp = SelectObject(mem, bmp);
+
             const bool dark = emu_.Get<HostDarkMode>().IsDark();
             const COLORREF bar_bg = dark ? kClrBg : kClrBgLight;
-            FillRect(dc, &rc, dark ? bg_brush_ : bg_brush_light_);
+            FillRect(mem, &rc, dark ? bg_brush_ : bg_brush_light_);
 
             /* 1px top separator from the canvas. */
-            HGDIOBJ old_pen = SelectObject(dc, dark ? sep_pen_ : sep_pen_light_);
-            MoveToEx(dc, rc.left, rc.top, nullptr);
-            LineTo(dc, rc.right, rc.top);
-            SelectObject(dc, old_pen);
+            HGDIOBJ old_pen = SelectObject(mem, dark ? sep_pen_ : sep_pen_light_);
+            MoveToEx(mem, rc.left, rc.top, nullptr);
+            LineTo(mem, rc.right, rc.top);
+            SelectObject(mem, old_pen);
 
-            for (auto& e : layout_) e.first->DrawComposited(dc, e.second, bar_bg);
+            for (auto& e : layout_) e.first->DrawComposited(mem, e.second, bar_bg);
 
+            BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
+
+            SelectObject(mem, oldbmp);
+            DeleteObject(bmp);
+            DeleteDC(mem);
             EndPaint(hwnd, &ps);
             return 0;
         }
