@@ -8,27 +8,27 @@
 
 namespace {
 
-/* SA-1100 MCP audio transmit DMA: DA[31:8]=0x818002 (MCDR0 port 0x80060008),
-   the runtime DDAR wavedev programs is 0x818002A8 (DW=1 halfword, RW=0 write).
-   The dev-man Table 11-6 text export misaligns the DS column. Mono 16-bit PCM
-   (subframe 0, 12-bit codec data left-justified in a 16-bit FIFO entry). */
+/* SIMpad SL4 wavedev PDD_AudioInitialize (sub_1331BF0) programs the playback
+   DMA DDAR = 0x818002AA (MCP MCDR0 port 0x80060008, mono halfword write); the
+   record DDAR 0x818002BB (...B0 after masking) is excluded by the match. Same
+   SA-1110 MCP audio path as the Jornada 820 -> UCB1300 codec. */
 constexpr uint32_t kMcpAudioTxDdarMask  = 0xFFFFFFF0u;
 constexpr uint32_t kMcpAudioTxDdarValue = 0x818002A0u;
 
-class Jornada820AudioPlayer : public Sa11xxDmaAudioPlayer {
+class SimpadSl4AudioPlayer : public Sa11xxDmaAudioPlayer {
 public:
     using Sa11xxDmaAudioPlayer::Sa11xxDmaAudioPlayer;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoard() == Board::SimpadSl4;
     }
 
 protected:
     Sa11xxAudioConfig AudioConfig() const override {
         return { kMcpAudioTxDdarMask, kMcpAudioTxDdarValue,
                  /*channels=*/1, /*bits=*/16, /*max_page=*/0x2000u,
-                 /*allow_resampler=*/false, "J820Audio" };
+                 /*allow_resampler=*/false, "SimpadAudio" };
     }
     uint32_t SampleRateHz() override {
         return emu_.Get<Sa11xxMcp>().GetAudioSampleRateHz();
@@ -37,4 +37,4 @@ protected:
 
 }  /* namespace */
 
-REGISTER_SERVICE(Jornada820AudioPlayer);
+REGISTER_SERVICE(SimpadSl4AudioPlayer);
