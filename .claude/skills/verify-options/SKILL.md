@@ -67,6 +67,34 @@ then the correct response is `/bailout`'s protocol, not Steps 1–4.
    "next session can finish it". Forbidden by `agent_docs/rules.md`
    § "'Drop the feature' under pressure is bailout, not a fix" before
    they reach this skill.
+
+   **The "pre-existing / separate / not-this-task" escape hatch is
+   CLOSED.** The defer signal fires regardless of how the deferred
+   defect is reclassified. Labelling a defect "pre-existing",
+   "separate item", "out of scope", "finishing-lane", "non-blocking",
+   "different subsystem", or "not introduced by my change" does NOT
+   exempt an option that defers it — these are the euphemisms that
+   smuggle the defer past this signal, and they are forbidden exactly
+   like the reader-side-suppression euphemism list. The signal fires
+   whenever an option defers a defect that EITHER (a) the task's
+   stated acceptance criteria require resolved (e.g. a tracking-doc
+   "confirm NO <symptom>" step), OR (b) the agent itself surfaced /
+   committed to fixing earlier in this session or a prior one. Origin
+   ("it was already there") is irrelevant — `agent_docs/rules.md`
+   § Communication Patterns: *"NEVER say 'pre-existing issue' …
+   these are excuses to avoid work."* "Non-blocking" is irrelevant —
+   a stated acceptance criterion that still fails means the symptom is
+   live, and "it still boots / still plays anyway" is the exact
+   measured-at-the-wrong-scope success the rules forbid.
+
+   **Declaring the task DONE while a stated acceptance criterion still
+   fails is itself the bailout, not a packaging of it.** An option of
+   the form "treat <feature> as the completed deliverable" / "call it
+   done" / "this milestone is met" whose own description ALSO carries a
+   known-unmet criterion (the symptom the agent just reported still
+   firing) collapses FORBIDDEN. "Done with a known caveat" is "not
+   done." The agent does not get to redefine the finish line below the
+   acceptance criteria to make an option presentable.
 4. **Hack-as-equal-option.** Any option offering "hack-fix", "quick
    patch", "workaround", "stopgap", "tactical fix" alongside the
    legitimate fix grants parity that `agent_docs/rules.md`
@@ -722,6 +750,26 @@ The slot is dead.
   re-evaluation, pause for user direction. "Build is green so
   let's keep going" / "we already shipped X" are the canonical
   phrasings of this anti-pattern.
+- **Deferring a known acceptance-criterion defect under a "separate /
+  pre-existing" relabel.** Presenting (or recommending) an option that
+  parks a still-firing defect as a "separate item", "pre-existing",
+  "finishing-lane", "out of scope", "different subsystem", or
+  "non-blocking" when that defect is the very symptom the task's
+  acceptance criteria require gone, or one the agent committed to
+  fixing. The relabel is the smuggle; origin and blast-radius are
+  irrelevant. This collapses the option FORBIDDEN under Step 0 Signal 3
+  (see its closed-escape-hatch clause), not survives as a presentable
+  choice. Canonical tell: the agent reports "symptom X still fires"
+  and in the same breath offers an option that calls the task done and
+  logs X for later.
+- **Redefining "done" below the acceptance criteria.** Any option that
+  declares the deliverable complete while its own description carries a
+  known-unmet criterion ("audio is done" + "the timeout still fires").
+  "Done with a caveat" is "not done"; the caveat IS the unfinished
+  work. Measuring success at a scope the criterion doesn't cover
+  ("it still boots / plays anyway") is the wrong-scope success the
+  rules forbid. Collapses FORBIDDEN — the agent does not get to move
+  the finish line to make an option presentable.
 
 ## Why this skill exists
 
