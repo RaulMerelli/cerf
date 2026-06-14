@@ -1,17 +1,16 @@
 #pragma once
 
-#include "../../peripherals/peripheral_base.h"
+#include "../peripherals/peripheral_base.h"
 
-#include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
-#include "../../boards/board_detector.h"
-#include "../../cpu/arm_processor_config.h"
-#include "../../jit/arm_jit.h"
-#include "../../jit/cpu_state.h"
-#include "../../peripherals/peripheral_dispatcher.h"
-#include "../../state/emulation_freeze.h"
-#include "../../state/state_stream.h"
-#include "imx31_avic.h"
+#include "../core/cerf_emulator.h"
+#include "../core/log.h"
+#include "../boards/board_detector.h"
+#include "../cpu/arm_processor_config.h"
+#include "../jit/arm_jit.h"
+#include "../jit/cpu_state.h"
+#include "../peripherals/peripheral_dispatcher.h"
+#include "../state/emulation_freeze.h"
+#include "../state/state_stream.h"
 
 #include <atomic>
 #include <chrono>
@@ -20,19 +19,23 @@
 #include <mutex>
 #include <thread>
 
-namespace cerf_imx31_epit_detail {
+/* Shared EPIT core. The EPIT IP is register-identical on i.MX31 (MCIMX31RM Ch 33)
+   and i.MX51 (MCIMX51RM Ch 29) — registers/offsets/reset-values/EPITCR-SWR-mode all
+   match (verified MCIMX51RM Table 29-2 + Figure 29-3) — so the model is shared; only
+   the IRQ line differs (AVIC vs TZIC source), per-concrete via Assert/DeassertIrqLine. */
+namespace cerf_freescale_epit_detail {
 
 constexpr uint32_t kEpitSize = 0x00004000u;
 constexpr uint32_t kRegEnd   = 0x14u;
 
-/* MCIMX31RM Table 33-5. */
+/* MCIMX31RM Table 33-5 / MCIMX51RM Table 29-2. */
 constexpr uint32_t kOffCr    = 0x00u;
 constexpr uint32_t kOffSr    = 0x04u;
 constexpr uint32_t kOffLr    = 0x08u;
 constexpr uint32_t kOffCmpr  = 0x0Cu;
 constexpr uint32_t kOffCnt   = 0x10u;
 
-/* MCIMX31RM Table 33-6 EPITCR. */
+/* MCIMX31RM Table 33-6 / MCIMX51RM Table 29-5 EPITCR. */
 constexpr uint32_t kCrEnMask         = 1u << 0;
 constexpr uint32_t kCrEnmodMask      = 1u << 1;
 constexpr uint32_t kCrOcienMask      = 1u << 2;
@@ -43,47 +46,39 @@ constexpr uint32_t kCrSwrMask        = 1u << 16;
 constexpr uint32_t kCrIovwMask       = 1u << 17;
 constexpr uint32_t kCrClksrcShift    = 24;
 constexpr uint32_t kCrClksrcMask     = 0x3u << kCrClksrcShift;
-/* Table 33-6 SWR description: preserves EN/ENMOD/STOPEN/DOZEN/WAITEN/DBGEN. */
+/* SWR description: preserves EN/ENMOD/STOPEN/DOZEN/WAITEN/DBGEN. DOZEN(20) is
+   reserved-0 on i.MX51, so preserving it there is a no-op. */
 constexpr uint32_t kCrSwrPreserveMask =
     (1u <<  0) |  /* EN     */
     (1u <<  1) |  /* ENMOD  */
     (1u << 18) |  /* DBGEN  */
     (1u << 19) |  /* WAITEN */
-    (1u << 20) |  /* DOZEN  */
+    (1u << 20) |  /* DOZEN  (i.MX31 only; reserved on i.MX51) */
     (1u << 21);   /* STOPEN */
 
-/* §33.6.1.1 CLKSRC values. */
+/* CLKSRC values (MCIMX31RM §33.6.1.1 / MCIMX51RM Table 29-5). */
 constexpr uint32_t kClksrcOff            = 0u;
 constexpr uint32_t kClksrcIpgClk         = 1u;
 constexpr uint32_t kClksrcIpgClkHighfreq = 2u;
 constexpr uint32_t kClksrcIpgClk32k      = 3u;
 
-/* Table 33-7: OCIF (bit 0) is w1c. */
+/* OCIF (bit 0) is w1c (MCIMX31RM Table 33-7 / MCIMX51RM Table 29-6). */
 constexpr uint32_t kSrOcifMask = 1u << 0;
 
-/* Figure 33-6 / 33-8 reset rows. */
+/* Reset rows (MCIMX31RM Figure 33-6/33-8 / MCIMX51RM Table 29-2). */
 constexpr uint32_t kLrResetValue  = 0xFFFFFFFFu;
 constexpr uint32_t kCntResetValue = 0xFFFFFFFFu;
 
-/* MCIMX31RM Table 2-3 (PDF p190): AVIC source 28 = EPIT1, 27 = EPIT2. */
-constexpr uint32_t kAvicSourceEpit1 = 28u;
-constexpr uint32_t kAvicSourceEpit2 = 27u;
-
 constexpr auto kPollInterval = std::chrono::microseconds(100);
 
-template <uint32_t kBase>
-class Imx31EpitImpl : public Peripheral {
-    static_assert(kBase == 0x53F94000u || kBase == 0x53F98000u,
-                  "EPIT base must be EPIT1 (0x53F94000) or EPIT2 (0x53F98000)");
-    static constexpr uint32_t kAvicSource =
-        (kBase == 0x53F94000u) ? kAvicSourceEpit1 : kAvicSourceEpit2;
-
+template <uint32_t kBase, SocFamily kSoc>
+class FreescaleEpitBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSoc() == kSoc;
     }
     void OnReady() override {
         auto& cfg = emu_.Get<ArmProcessorConfig>();
@@ -100,9 +95,9 @@ public:
         match_thread_ = std::thread([this] { MatchLoop(); });
     }
 
-    ~Imx31EpitImpl() override { StopMatchThread(); }
+    ~FreescaleEpitBase() override { StopMatchThread(); }
 
-    /* Match thread raises AVIC IRQs; stop it before any peer is destroyed. */
+    /* Match thread raises INTC IRQs; stop it before any peer is destroyed. */
     void OnShutdown() override { StopMatchThread(); }
 
     void StopMatchThread() {
@@ -114,8 +109,8 @@ public:
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kEpitSize; }
 
-    FastReadFn  FastReader() override { return &Imx31EpitImpl::FastReadThunk; }
-    FastWriteFn FastWriter() override { return &Imx31EpitImpl::FastWriteThunk; }
+    FastReadFn  FastReader() override { return &FreescaleEpitBase::FastReadThunk; }
+    FastWriteFn FastWriter() override { return &FreescaleEpitBase::FastWriteThunk; }
 
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
@@ -130,10 +125,10 @@ public:
     }
 
     static uint32_t FastReadThunk(void* ctx, uint32_t off, uint32_t width) {
-        return static_cast<Imx31EpitImpl*>(ctx)->FastRead(off, width);
+        return static_cast<FreescaleEpitBase*>(ctx)->FastRead(off, width);
     }
     static void FastWriteThunk(void* ctx, uint32_t off, uint32_t value, uint32_t width) {
-        static_cast<Imx31EpitImpl*>(ctx)->FastWrite(off, value, width);
+        static_cast<FreescaleEpitBase*>(ctx)->FastWrite(off, value, width);
     }
     uint32_t FastRead(uint32_t off, uint32_t width) {
         if (width != 4 || (off & 0x3u) != 0u || off >= kRegEnd) {
@@ -172,6 +167,16 @@ public:
         baseline_packed_.store(PackPair(cnt, GuestCycles()), std::memory_order_release);
         cv_.notify_all();
     }
+
+    /* Re-assert the INTC line from the restored OCIF/OCIEN — the EPIT compare
+       output is a level the source re-drives after restore. */
+    void PostRestore() override { RefreshIrq(); }
+
+protected:
+    /* Per-SoC interrupt line. i.MX31 -> Imx31Avic::Assert/DeassertSource(src);
+       i.MX51 -> Imx51Tzic::AssertIrq/DeAssertIrq(src). */
+    virtual void AssertIrqLine()    = 0;
+    virtual void DeassertIrqLine()  = 0;
 
 private:
     std::mutex              cv_mtx_;
@@ -229,11 +234,11 @@ private:
         const uint32_t base_cnt      = HiOf(packed);
 
         if ((cr_.load(std::memory_order_acquire) & kCrRldMask) == 0) {
-            /* §33.1.2 Free-Running mode: rolls 0 → 0xFFFFFFFF. */
+            /* Free-Running mode: rolls 0 -> 0xFFFFFFFF. */
             return base_cnt - elapsed_ticks;
         }
-        /* §33.1.2 Set-and-Forget mode: when CNT reaches 0, reload from
-           LR; period = LR + 1 ticks. */
+        /* Set-and-Forget mode: when CNT reaches 0, reload from LR;
+           period = LR + 1 ticks. */
         const uint32_t period = lr_.load(std::memory_order_acquire) + 1u;
         if (period == 0) {
             return base_cnt - elapsed_ticks;
@@ -247,8 +252,7 @@ private:
     }
 
     /* Anchored down-crossing: the compare has fired once the counter has
-       descended from anchor_cnt past cmpr. Mirror of Imx31Gpt's
-       MatchHasFired with the direction reversed for a down counter. */
+       descended from anchor_cnt past cmpr. */
     static bool CompareHasFired(uint32_t anchor_cnt, uint32_t cmpr,
                                 uint32_t count_now) {
         const uint32_t descent_target = anchor_cnt - cmpr;
@@ -263,8 +267,8 @@ private:
     void RefreshIrq() {
         const bool pending = (sr_.load(std::memory_order_acquire) & kSrOcifMask) != 0 &&
                              (cr_.load(std::memory_order_acquire) & kCrOcienMask) != 0;
-        if (pending) emu_.Get<Imx31Avic>().AssertSource(kAvicSource);
-        else         emu_.Get<Imx31Avic>().DeassertSource(kAvicSource);
+        if (pending) AssertIrqLine();
+        else         DeassertIrqLine();
     }
 
     uint32_t ReadReg(uint32_t off) const {
@@ -275,7 +279,7 @@ private:
             case kOffCmpr: return cmpr_.load(std::memory_order_acquire);
             case kOffCnt:  return ReadCounter();
         }
-        const_cast<Imx31EpitImpl*>(this)->HaltUnsupportedAccess(
+        const_cast<FreescaleEpitBase*>(this)->HaltUnsupportedAccess(
             "ReadReg", kBase + off, 0);
     }
 
@@ -290,10 +294,8 @@ private:
     }
 
     void WriteSr(uint32_t value) {
-        /* Table 33-7 OCIF: write-one-to-clear. Re-anchor so the next
-           descent past CMPR is detected fresh (the ISR re-arms CMPR for
-           the following tick), then drop the IRQ line if no longer
-           pending. */
+        /* OCIF is write-one-to-clear; re-anchor so the next descent past CMPR
+           is detected fresh (the ISR re-arms CMPR for the following tick). */
         if ((value & kSrOcifMask) == 0) return;
         sr_.fetch_and(~kSrOcifMask, std::memory_order_acq_rel);
         Rearm(ReadCounter());
@@ -331,9 +333,8 @@ private:
         cr_.store(value, std::memory_order_release);
 
         if (!was_en && now_en) {
-            /* Table 33-6 ENMOD: when set, EN edge loads CNT from LR
-               (RLD=1) or 0xFFFFFFFF (RLD=0); when cleared, CNT resumes
-               from the frozen value. */
+            /* ENMOD: when set, EN edge loads CNT from LR (RLD=1) or
+               0xFFFFFFFF (RLD=0); when cleared, CNT resumes from frozen. */
             const uint32_t start = (value & kCrEnmodMask)
                                        ? ((value & kCrRldMask)
                                               ? lr_.load(std::memory_order_acquire)
@@ -355,7 +356,7 @@ private:
 
     void WriteLr(uint32_t value) {
         lr_.store(value, std::memory_order_release);
-        /* Table 33-6 IOVW (bit 17) gates LR->CNT propagation. */
+        /* IOVW (bit 17) gates LR->CNT propagation. */
         if (cr_.load(std::memory_order_acquire) & kCrIovwMask) {
             baseline_packed_.store(PackPair(value, GuestCycles()),
                                    std::memory_order_release);
@@ -408,4 +409,4 @@ private:
     }
 };
 
-}  /* namespace cerf_imx31_epit_detail */
+}  /* namespace cerf_freescale_epit_detail */
