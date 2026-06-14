@@ -34,13 +34,16 @@ public:
 private:
     void     Launch(uint32_t value);
     void     ReadPage();
+    void     ReadId();
     uint64_t FlashOffset() const;
 
     std::array<uint8_t, 0x200> spare_{};
     uint8_t  nand_cmd_  = 0;
-    uint8_t  nand_add0_ = 0;
-    uint32_t cfg1_      = 0;
-    uint32_t launch_    = 0;
+    std::array<uint32_t, 12> nand_add_{};   /* NAND_ADD0..11 (0x1E04..0x1E30) */
+    uint32_t cfg1_       = 0;
+    uint32_t ecc_status_ = 0;               /* ECC_STATUS_RESULT (0=no error) */
+    uint32_t status_sum_ = 0;               /* STATUS_SUM */
+    uint32_t launch_     = 0;
 
     uint32_t wr_protect_ = 0;
     std::array<uint32_t, 8> unlock_{};
@@ -54,4 +57,5 @@ private:
 
     std::array<uint8_t, 5> addr_bytes_{};
     uint32_t addr_idx_ = 0;
+    bool     read_id_  = false;   /* a READ ID (0x90) command is in progress */
 };
