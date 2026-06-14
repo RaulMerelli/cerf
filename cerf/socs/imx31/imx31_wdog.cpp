@@ -1,94 +1,50 @@
-#include "../../peripherals/peripheral_base.h"
+#include "../freescale_wdog_impl.h"
 
-#include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
-#include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
-
-#include <cstdint>
 
 namespace {
 
-/* i.MX31 Watchdog Timer (WDOG) — MCIMX31RM Ch 37, base PA 0x53FD_C000. Three
-   16-bit registers. The kernel loads WCR.WT, sets WDE, then services the dog
-   (WSR 0x5555/0xAAAA) every cycle and reads WRSR for the boot reason. */
-constexpr uint32_t kBase = 0x53FDC000u;
-constexpr uint32_t kSize = 0x00004000u;  /* AIPS 16 KB peripheral slot */
+using cerf_freescale_wdog_detail::FreescaleWdogBase;
+using cerf_freescale_wdog_detail::kWcr;
+using cerf_freescale_wdog_detail::kWsr;
+using cerf_freescale_wdog_detail::kWrsr;
+using cerf_freescale_wdog_detail::kWcrReset;
 
-constexpr uint32_t kWcr  = 0x00u;  /* Watchdog Control Register      (Fig 37-3) */
-constexpr uint32_t kWsr  = 0x02u;  /* Watchdog Service Register                 */
-constexpr uint32_t kWrsr = 0x04u;  /* Watchdog Reset Status Register (Table 37-8) */
-
-constexpr uint16_t kWcrReset = 0x0030u;  /* WDA(5) | SRS(4) (Table 37-3) */
-constexpr uint16_t kWrsrPwr  = 0x0010u;  /* PWR: reset was power-on (Table 37-8) */
-
-class Imx31Wdog : public Peripheral {
+/* i.MX31 Watchdog (MCIMX31RM Ch 37) at PA 0x53FD_C000 — three 16-bit registers.
+   The kernel loads WCR.WT, sets WDE, then services the dog (WSR 0x5555/0xAAAA)
+   every cycle and reads WRSR for the boot reason. */
+class Imx31Wdog : public FreescaleWdogBase<0x53FDC000u, SocFamily::iMX31> {
 public:
-    using Peripheral::Peripheral;
+    using FreescaleWdogBase::FreescaleWdogBase;
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
-    }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
-
-    uint32_t MmioBase() const override { return kBase; }
-    uint32_t MmioSize() const override { return kSize; }
-
-    /* WRSR is read-only (cold power-on signature) and recomputed, not
-       stored; WCR and WSR are the whole writable state. */
+    /* WRSR is read-only (cold power-on signature) and recomputed, not stored;
+       WCR and WSR are the whole writable state. */
     void SaveState(StateWriter& w) override    { w.Write(wcr_); w.Write(wsr_); }
     void RestoreState(StateReader& r) override { r.Read(wcr_); r.Read(wsr_); }
 
-    uint8_t ReadByte(uint32_t addr) override {
-        const uint16_t v = ReadReg16((addr - kBase) & ~1u);
-        return ((addr & 1u) ? (v >> 8) : v) & 0xFFu;
-    }
-    void WriteByte(uint32_t addr, uint8_t value) override {
-        const uint32_t off = (addr - kBase) & ~1u;
-        uint16_t v = ReadReg16(off);
-        v = (addr & 1u) ? ((v & 0x00FFu) | (uint16_t(value) << 8))
-                        : ((v & 0xFF00u) | value);
-        WriteReg16(off, v);
-    }
-
-    uint16_t ReadHalf(uint32_t addr) override { return ReadReg16(addr - kBase); }
-    void WriteHalf(uint32_t addr, uint16_t value) override {
-        WriteReg16(addr - kBase, value);
-    }
-
-    uint32_t ReadWord(uint32_t addr) override {
-        const uint32_t off = addr - kBase;
-        return ReadReg16(off) | (uint32_t(ReadReg16(off + 2)) << 16);
-    }
-    void WriteWord(uint32_t addr, uint32_t value) override {
-        const uint32_t off = addr - kBase;
-        WriteReg16(off, value & 0xFFFFu);
-        WriteReg16(off + 2, value >> 16);
-    }
-
-private:
-    uint16_t ReadReg16(uint32_t off) {
+protected:
+    uint16_t ReadReg16(uint32_t off) override {
         switch (off) {
             case kWcr:  return wcr_;
             case kWsr:  return wsr_;
-            case kWrsr: return kWrsrPwr;  /* cold power-on; R/O */
+            case kWrsr: return 0x0010u;  /* PWR: reset was power-on (Table 37-8) */
         }
-        HaltUnsupportedAccess("ReadReg16", kBase + off, 0);
+        HaltUnsupportedAccess("ReadReg16", MmioBase() + off, 0);
     }
-    void WriteReg16(uint32_t off, uint16_t value) {
+    void WriteReg16(uint32_t off, uint16_t value) override {
         switch (off) {
             case kWcr:  wcr_ = value; return;
-            /* DO NOT add a time-out->reset timer here: the kernel services the
-               dog (WSR 0x5555/0xAAAA) every cycle so a real watchdog never
-               bites, and a SetResetPending timer would only fire a spurious
-               mid-boot reset on host/guest timing skew. */
+            /* No time-out->reset timer: the kernel services the dog (WSR
+               0x5555/0xAAAA) every cycle so a real watchdog never bites, and a
+               reset timer would only fire a spurious mid-boot reset on
+               host/guest timing skew. */
             case kWsr:  wsr_ = value; return;
             case kWrsr: return;  /* read-only (§37.5.4: write raises bus error) */
         }
-        HaltUnsupportedAccess("WriteReg16", kBase + off, value);
+        HaltUnsupportedAccess("WriteReg16", MmioBase() + off, value);
     }
 
+private:
     uint16_t wcr_ = kWcrReset;
     uint16_t wsr_ = 0;
 };

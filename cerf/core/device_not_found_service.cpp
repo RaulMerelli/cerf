@@ -7,6 +7,8 @@
 #include "cerf_paths.h"
 #include "string_utils.h"
 
+#include "../boot/sec_flash.h"
+
 #include <windows.h>
 
 #include <string>
@@ -69,7 +71,11 @@ private:
         const std::string dir = GetDeviceDir(cfg.device_name);
         if (!cfg.rom_primary.empty())
             return FileExists(dir + cfg.rom_primary);
-        return DirHasRom(dir);
+        if (DirHasRom(dir)) return true;
+        /* A `.sec` NAND image boots via the NAND-bootloader path, not the XIP
+           path, so the device is present even with no .nb0/.bin. */
+        if (auto* sf = emu_.TryGet<SecFlash>()) return sf->IsPresent();
+        return false;
     }
 
     /* MB_YESNOCANCEL: Yes = download + relaunch, No = open launcher GUI,

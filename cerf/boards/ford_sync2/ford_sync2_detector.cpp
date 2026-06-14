@@ -6,13 +6,15 @@ namespace {
 
 /* "Ford Sync GenII" is embedded in this board's OAL (nk.exe at 0x80101C48,
    UTF-16) and appears in no other ROM, so it uniquely fingerprints the board.
-   RomContainsString matches the needle in either ASCII or UTF-16. */
+   This board ships as a `.sec` NAND image, so the needle lives in the
+   de-chunked flash; a stray extracted NK.bin is matched via the XIP path too. */
 class FordSyncGen2Detector : public BoardDetector {
 public:
     using BoardDetector::BoardDetector;
 
     bool ShouldRegister() override {
-        return RomContainsString("Ford Sync GenII");
+        return RomContainsString("Ford Sync GenII")
+            || SecContainsString("Ford Sync GenII");
     }
 
     Board       GetBoard()  const override { return Board::FordSyncGen2; }

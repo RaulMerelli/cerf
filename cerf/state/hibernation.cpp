@@ -6,6 +6,7 @@
 
 #include "../boot/rom_parser_service.h"
 #include "../core/cerf_emulator.h"
+#include "../core/cerf_paths.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
 #include "../core/string_utils.h"
@@ -91,10 +92,12 @@ void Hibernation::AwaitFailureAck() {
 }
 
 std::wstring Hibernation::DefaultStatePath() const {
-    const std::string& rom_path = emu_.Get<RomParserService>().Primary().path;
-    std::filesystem::path dir =
-        std::filesystem::path(Utf8ToWide(rom_path.c_str())).parent_path();
-    return (dir / kDefaultStateFile).wstring();
+    /* The state image lives in the device directory — a property of the device,
+       not of a parsed XIP ROM (a .sec NAND device loads no XIP, so RomParser has
+       no Primary()). */
+    const std::string dir = GetDeviceDir(emu_.Get<DeviceConfig>().device_name);
+    return (std::filesystem::path(Utf8ToWide(dir.c_str())) / kDefaultStateFile)
+        .wstring();
 }
 
 bool Hibernation::DefaultStateExists() const {
