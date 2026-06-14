@@ -262,7 +262,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>UI refresh/updates for CERF and launcher</li>
               <li>PC Cards: Serial modem emulator and serial forwader</li>
               <li>Added Keyboard mapping window for boards with keyboard</li>
-              <li>Guest additions: DDraw export (now Zune and friends render)</li>
+              <li>Guest additions: DDraw export (now Zune and friends render, but might be broken in some cases)</li>
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
               <li>Guest additions: XIP injection improvements</li>
