@@ -35,7 +35,10 @@ constexpr uint32_t kAxiSpareBase = 0x1000u;
 constexpr uint32_t kAxiSpareEnd  = 0x1200u;
 constexpr uint32_t kAxiNandCmd   = 0x1E00u;
 constexpr uint32_t kAxiNandAdd0  = 0x1E04u;
+constexpr uint32_t kAxiNandAdd11 = 0x1E30u;
 constexpr uint32_t kAxiCfg1      = 0x1E34u;
+constexpr uint32_t kAxiEccStatus = 0x1E38u;
+constexpr uint32_t kAxiStatusSum = 0x1E3Cu;
 constexpr uint32_t kAxiLaunch    = 0x1E40u;
 
 constexpr uint32_t kLaunchFcmd     = 1u << 0;
@@ -50,8 +53,15 @@ constexpr uint32_t kIpcCack = 1u << 1;
 constexpr uint32_t kIpcCreq = 1u << 0;
 
 constexpr uint8_t  kNandCmdReadStart = 0x00u;
+constexpr uint8_t  kNandCmdReadId    = 0x90u;
 
 constexpr uint32_t kMainPageBytes = 0x1000u;
+
+/* READ ID (0x90) response. mfr 0x2C (Micron) + device 0x48 (the 2 GB 4 KB-page
+   512 KB-block part matching Imx51NandLayout) are grounded from SBOOT's own
+   media-ID table at Bootloader.bin 0x8FF0A94C, which matches on these two bytes;
+   the extended-ID geometry bytes are unused by SBOOT and stay 0. */
+constexpr std::array<uint8_t, 5> kReadIdBytes = {0x2Cu, 0x48u, 0x00u, 0x00u, 0x00u};
 
 }  /* namespace */
 
@@ -87,11 +97,14 @@ uint32_t Imx51Nfc::NfcRead(uint32_t addr, uint32_t width) {
                 v |= static_cast<uint32_t>(spare_[(off - kAxiSpareBase) + i]) << (8 * i);
             return v;
         }
+        if (off >= kAxiNandAdd0 && off <= kAxiNandAdd11)
+            return nand_add_[(off - kAxiNandAdd0) / 4];
         switch (off) {
-            case kAxiNandCmd:  return nand_cmd_;
-            case kAxiNandAdd0: return nand_add0_;
-            case kAxiCfg1:     return cfg1_;
-            case kAxiLaunch:   return launch_;
+            case kAxiNandCmd:   return nand_cmd_;
+            case kAxiCfg1:      return cfg1_;
+            case kAxiEccStatus: return ecc_status_;
+            case kAxiStatusSum: return status_sum_;
+            case kAxiLaunch:    return launch_;
         }
         HaltUnsupportedAccess("NfcRead(AXI)", addr, 0);
     }
@@ -119,11 +132,15 @@ void Imx51Nfc::NfcWrite(uint32_t addr, uint32_t value, uint32_t width) {
                 spare_[(off - kAxiSpareBase) + i] = static_cast<uint8_t>(value >> (8 * i));
             return;
         }
+        if (off >= kAxiNandAdd0 && off <= kAxiNandAdd11) {
+            nand_add_[(off - kAxiNandAdd0) / 4] = value; return;
+        }
         switch (off) {
-            case kAxiNandCmd:  nand_cmd_  = static_cast<uint8_t>(value); return;
-            case kAxiNandAdd0: nand_add0_ = static_cast<uint8_t>(value); return;
-            case kAxiCfg1:     cfg1_      = value;                       return;
-            case kAxiLaunch:   Launch(value);                           return;
+            case kAxiNandCmd:   nand_cmd_   = static_cast<uint8_t>(value); return;
+            case kAxiCfg1:      cfg1_       = value;                       return;
+            case kAxiEccStatus: ecc_status_ = value;                      return;
+            case kAxiStatusSum: status_sum_ = value;                      return;
+            case kAxiLaunch:    Launch(value);                            return;
         }
         HaltUnsupportedAccess("NfcWrite(AXI)", addr, value);
     }
@@ -147,17 +164,20 @@ void Imx51Nfc::NfcWrite(uint32_t addr, uint32_t value, uint32_t width) {
 void Imx51Nfc::Launch(uint32_t value) {
     launch_ = value;
     if (value & kLaunchFcmd) {
-        if (nand_cmd_ == kNandCmdReadStart) addr_idx_ = 0;
+        if (nand_cmd_ == kNandCmdReadStart)   { addr_idx_ = 0; read_id_ = false; }
+        else if (nand_cmd_ == kNandCmdReadId) { addr_idx_ = 0; read_id_ = true;  }
         int_pending_ = true;
         return;
     }
     if (value & kLaunchFadd) {
-        if (addr_idx_ < addr_bytes_.size()) addr_bytes_[addr_idx_++] = nand_add0_;
+        if (addr_idx_ < addr_bytes_.size())
+            addr_bytes_[addr_idx_++] = static_cast<uint8_t>(nand_add_[0]);
         int_pending_ = true;
         return;
     }
     if (value & kLaunchFdoMask) {
-        ReadPage();
+        if (read_id_) ReadId();
+        else          ReadPage();
         int_pending_ = true;
         return;
     }
@@ -194,11 +214,19 @@ void Imx51Nfc::ReadPage() {
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
 }
 
+void Imx51Nfc::ReadId() {
+    std::array<uint8_t, kMainPageBytes> buf{};
+    std::copy(kReadIdBytes.begin(), kReadIdBytes.end(), buf.begin());
+    emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, buf.data(), buf.size());
+}
+
 void Imx51Nfc::SaveState(StateWriter& w) {
     w.WriteBytes(spare_.data(), spare_.size());
     w.Write(nand_cmd_);
-    w.Write(nand_add0_);
+    for (uint32_t v : nand_add_) w.Write(v);
     w.Write(cfg1_);
+    w.Write(ecc_status_);
+    w.Write(status_sum_);
     w.Write(launch_);
     w.Write(wr_protect_);
     for (uint32_t v : unlock_) w.Write(v);
@@ -210,13 +238,16 @@ void Imx51Nfc::SaveState(StateWriter& w) {
     w.Write<uint8_t>(creq_ ? 1 : 0);
     w.WriteBytes(addr_bytes_.data(), addr_bytes_.size());
     w.Write(addr_idx_);
+    w.Write<uint8_t>(read_id_ ? 1 : 0);
 }
 
 void Imx51Nfc::RestoreState(StateReader& r) {
     r.ReadBytes(spare_.data(), spare_.size());
     r.Read(nand_cmd_);
-    r.Read(nand_add0_);
+    for (uint32_t& v : nand_add_) r.Read(v);
     r.Read(cfg1_);
+    r.Read(ecc_status_);
+    r.Read(status_sum_);
     r.Read(launch_);
     r.Read(wr_protect_);
     for (uint32_t& v : unlock_) r.Read(v);
@@ -229,4 +260,6 @@ void Imx51Nfc::RestoreState(StateReader& r) {
     r.Read(b); creq_ = b != 0;
     r.ReadBytes(addr_bytes_.data(), addr_bytes_.size());
     r.Read(addr_idx_);
+    uint8_t rid = 0;
+    r.Read(rid); read_id_ = rid != 0;
 }
