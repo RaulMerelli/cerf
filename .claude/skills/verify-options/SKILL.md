@@ -207,6 +207,37 @@ For each option produce exactly this block, in this order, no rewording:
   costs more" is NOT a recommendation against** — cost is the user's
   call. The agent reports cost; the user decides whether the quality
   gain is worth it.
+
+  **The skip-the-refactor inversion (mechanical, mandatory).** When the
+  set pits a COMPLETE correct refactor against an option that SKIPS it,
+  does it PARTIALLY, or LEAVES known duplication / tech-debt the rules
+  target (No code duplication, Refactor-first, "existing code the task
+  touches is technical debt to resolve"), the skip/partial option is the
+  one CARRYING the architectural debt. Therefore:
+  - `shittiness(skip/partial-that-leaves-debt) ≥ shittiness(complete-refactor)`.
+    If you wrote the reverse, your scores are INVERTED — fix them. The
+    complete refactor is the FLOOR; it can never be scored the shittier
+    choice. There is no set in which "leave the duplication" is cleaner
+    than "remove the duplication".
+  - The complete refactor can NEVER be the recommended-against option, and
+    the skip/partial option can NEVER be the recommended one. "Lean toward"
+    the partial on "smaller blast radius / touches fewer files / fewer
+    working boards / lower regression risk" is COST masquerading as
+    quality — the inverse-inflation smuggle in its most common live form.
+    Blast radius and regression risk are cost; they go in the Cost row and
+    are the user's call, never a shittiness or recommendation input.
+  - If the skip/partial option leaves a state the rules forbid (new
+    duplication, an un-refactored module the task already had to touch), it
+    COLLAPSES to a one-line FORBIDDEN entry — it is not a presentable
+    choice at all.
+  - When both options are genuinely rule-compliant and differ ONLY in
+    scope, present them neutrally, report cost on each, and recommend the
+    MORE complete one or recommend none — never the lazier one.
+  The tell this kills: scoring "do the proper full refactor" as MORE
+  shitty than "do part of it / leave the duplication", then recommending
+  the partial on cost. That steers the user to the lazy option by
+  mis-scoring — the exact psychological manipulation `/verify-options`
+  exists to prevent.
 - **Carefulness: X%** — how rigorously you examined this option's
   implications: prerequisites verified, affected code paths read,
   integration points understood.
