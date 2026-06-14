@@ -124,6 +124,8 @@ public:
     }
 
     const CerfConfig& Config() const { return config_; }
+    int    Argc() const { return argc_; }
+    char** Argv() const { return argv_; }
     uint32_t InstanceId() const { return instance_id_; }
 
 private:
@@ -147,7 +149,6 @@ private:
     CerfConfig                               config_;
     int                                      argc_ = 0;
     char**                                   argv_ = nullptr;
-    DeviceConfig                             device_config_;
     uint32_t                                 instance_id_;
     static inline std::atomic<uint32_t>      s_next_instance_id_{0};
 

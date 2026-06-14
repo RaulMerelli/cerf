@@ -1,6 +1,5 @@
 #include "cerf_emulator.h"
 #include "log.h"
-#include "config_loader.h"
 #include "../jit/jit_runner.h"
 
 namespace ServiceInternal {
@@ -36,10 +35,6 @@ CerfEmulator::~CerfEmulator() {
 
 void CerfEmulator::Bootstrap() {
     Provide<CerfEmulator>(*this);
-    Provide<DeviceConfig>(device_config_);
-
-    ConfigLoader loader(*this);
-    loader.Load(config_, argc_, argv_);
 
     // Before declaringa  service call logic here - what makes your sevice so special
     // that pre-existing OnReady/ShouldRegister that are used in hundreds of services

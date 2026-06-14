@@ -9,9 +9,10 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-#include <windows.h>
 
 using nlohmann::json;
+
+REGISTER_SERVICE(ConfigLoader);
 
 namespace {
 
@@ -244,19 +245,13 @@ void LoadGlobalSubstitutions(const json& root, DeviceConfig& config,
 
 }  // namespace
 
-void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
-    auto& config = emu_.Get<DeviceConfig>();
-
-    wchar_t cerf_pathw[MAX_PATH];
-    ::GetModuleFileNameW(NULL, cerf_pathw, MAX_PATH);
-    char cerf_path[MAX_PATH * 3];
-    WideCharToMultiByte(CP_UTF8, 0, cerf_pathw, -1, cerf_path, sizeof(cerf_path), NULL, NULL);
-    std::string cerf_str(cerf_path);
-    size_t last_sep = cerf_str.find_last_of("\\/");
-    cerf_dir_ = (last_sep != std::string::npos) ? cerf_str.substr(0, last_sep + 1) : "";
+void ConfigLoader::LoadInto(DeviceConfig& config) {
+    const CerfConfig& cli  = emu_.Config();
+    const int         argc = emu_.Argc();
+    char** const      argv = emu_.Argv();
 
     std::string device_name;
-    const std::string top_path = cerf_dir_ + "cerf.json";
+    const std::string top_path = GetCerfDir() + "cerf.json";
     {
         json j = ReadJsonFile(top_path);
         if (!j.is_null()) {
@@ -264,6 +259,11 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
                 if (!j["device"].is_string())
                     Fatal(top_path, "'device' must be a string");
                 device_name = j["device"].get<std::string>();
+            }
+            if (j.contains("last_save_state_mode")) {
+                if (!j["last_save_state_mode"].is_boolean())
+                    Fatal(top_path, "'last_save_state_mode' must be a boolean");
+                config.last_save_state_mode = j["last_save_state_mode"].get<bool>();
             }
             LoadGlobalSubstitutions(j, config, top_path);
         }
@@ -325,4 +325,22 @@ void ConfigLoader::Load(const CerfConfig& cli, int argc, char** argv) {
             else Fatal("(command line)", "--boot-anim must be enable or disable");
         }
     }
+}
+
+void ConfigLoader::SaveLastSaveStateMode(bool save_state) {
+    const std::string top_path = GetCerfDir() + "cerf.json";
+
+    json j = ReadJsonFile(top_path);   /* preserve every existing key */
+    if (!j.is_object()) j = json::object();
+    j["last_save_state_mode"] = save_state;
+
+    emu_.Get<DeviceConfig>().last_save_state_mode = save_state;
+
+    std::ofstream f(top_path, std::ios::trunc);
+    if (!f.is_open()) {
+        LOG(Cfg, "Could not write '%s' to persist last_save_state_mode\n",
+            top_path.c_str());
+        return;
+    }
+    f << j.dump(2) << '\n';
 }

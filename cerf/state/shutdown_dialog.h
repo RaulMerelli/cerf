@@ -24,8 +24,9 @@ private:
     void    Paint(HWND hwnd);
     void    StopTimer(HWND hwnd);
 
-    HWND hwnd_      = nullptr;
-    HWND chk_save_  = nullptr;
+    HWND hwnd_        = nullptr;
+    HWND chk_save_    = nullptr;
+    HWND chk_remember_ = nullptr;
     bool decided_   = false;
     bool cancelled_ = false;
     bool save_      = false;

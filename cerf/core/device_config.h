@@ -1,4 +1,5 @@
 #pragma once
+#include "service.h"
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -30,7 +31,13 @@ enum class StateBootMode {
     Cold,     /* ignore state.img, cold boot */
 };
 
-struct DeviceConfig {
+struct DeviceConfig : public Service {
+    using Service::Service;
+
+    /* Populates every field below from the global + per-device cerf.json and
+       the CLI, via ConfigLoader. Lazy: runs on first emu_.Get<DeviceConfig>(). */
+    void OnReady() override;
+
     std::string device_name;
 
     DeviceMeta meta;
@@ -101,4 +108,10 @@ struct DeviceConfig {
        host monitor size (host_w-10 x host_h-40, capped 3840x2160) so a
        guest-additions display fills the host screen. Read from cerf.json. */
     bool adopt_guest_additions_resolution_for_host_screen = false;
+
+    /* Default state of the shutdown dialog's "Save the state" checkbox. Read
+       from the GLOBAL cerf.json top-level "last_save_state_mode"; the dialog's
+       "Remember choice" checkbox writes the user's selection back to that file
+       via ConfigLoader. Defaults off so a close never auto-saves silently. */
+    bool last_save_state_mode = false;
 };

@@ -2,6 +2,8 @@
 #include "shutdown_dialog.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/config_loader.h"
+#include "../core/device_config.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
 #include "../host/host_dark_mode.h"
@@ -21,7 +23,7 @@ constexpr int     kBarX      = 64;
 constexpr int     kBarY      = 100;
 constexpr int     kBarW      = 320;
 constexpr int     kBarH      = 16;
-enum : int { IDC_CHK = 3001 };
+enum : int { IDC_CHK = 3001, IDC_REMEMBER = 3002 };
 }  /* namespace */
 
 void ShutdownDialog::OnReady() {
@@ -110,6 +112,8 @@ LRESULT ShutdownDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int id = LOWORD(wp);
             if (id == IDOK) {
                 save_    = (SendMessageW(chk_save_, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                if (SendMessageW(chk_remember_, BM_GETCHECK, 0, 0) == BST_CHECKED)
+                    emu_.Get<ConfigLoader>().SaveLastSaveStateMode(save_);
                 decided_ = true;
             } else if (id == IDCANCEL) {
                 cancelled_ = true;
@@ -192,11 +196,14 @@ ShutdownChoice ShutdownDialog::Show() {
                               WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                               64, 60, kBarW, 22, hwnd_, (HMENU)(INT_PTR)IDC_CHK,
                               inst, nullptr);
-#if CERF_DEV_MODE
-    SendMessageW(chk_save_, BM_SETCHECK, BST_UNCHECKED, 0);
-#else
-    SendMessageW(chk_save_, BM_SETCHECK, BST_CHECKED, 0);
-#endif
+    SendMessageW(chk_save_, BM_SETCHECK,
+                 emu_.Get<DeviceConfig>().last_save_state_mode
+                     ? BST_CHECKED : BST_UNCHECKED, 0);
+
+    chk_remember_ = CreateWindowW(L"BUTTON", L"Remember choice",
+                                  WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                                  16, kClientH - 41, 200, 22, hwnd_,
+                                  (HMENU)(INT_PTR)IDC_REMEMBER, inst, nullptr);
 
     CreateWindowW(L"BUTTON", L"OK",
                   WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
