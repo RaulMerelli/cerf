@@ -12,8 +12,8 @@ public:
     using BoardDetector::BoardDetector;
 
     bool ShouldRegister() override {
-        return ContainsString(
-            ReadKernelBlob(),
+        const auto blob = ReadKernelBlob();
+        return ContainsString(blob.data(), blob.size(),
             "OEMEthInit: Error reading IP config from SMC EEPROM");
     }
 

@@ -108,7 +108,10 @@ protected:
     std::string          ModuleNames   () const;
     std::vector<uint8_t> ReadKernelBlob() const;
     bool                 RomContainsString(const char* needle) const;
-    static bool          ContainsString(const std::vector<uint8_t>& bytes,
+    /* Scans the de-chunked `.sec` NAND flash (low region, where the OS XIP
+       images live) for the needle. False when the device has no `.sec`. */
+    bool                 SecContainsString(const char* needle) const;
+    static bool          ContainsString(const uint8_t* data, size_t size,
                                         const char* needle);
     static bool          NameContains  (const std::string& names,
                                         const char* needle);

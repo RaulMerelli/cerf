@@ -15,9 +15,8 @@
 #include "../cpu/arm_processor_config.h"
 #include "../cpu/emulated_memory.h"
 #include "../peripherals/peripheral_dispatcher.h"
-#include "../boot/rom_parser_service.h"
+#include "../boot/boot_mode.h"
 #include "../socs/guest_cpu_reset.h"
-#include "../boards/page_table_builder.h"
 #include "../host/guest_power_notifier.h"
 #include "arm_cp15_sctlr_handler.h"
 #include "arm_cpu.h"
@@ -218,20 +217,17 @@ void ArmJit::OnReady() {
     block_ctx_.sctlr_write_target =
         static_cast<uint8_t*>(sctlr_handler.Trampoline());
 
-    auto& page_tables = emu_.Get<PageTableBuilder>();
-    auto& rom         = emu_.Get<RomParserService>();
-    /* MMU off at cold reset — PC is consumed as PA, so feed entry_pa
-       (OAT-translated) not entry_va; high-VA delivered as PC faults. */
-    const uint32_t sp_pa     = page_tables.InitStackTopPa();
-    const uint32_t entry_va  = rom.EntryVa();
-    const uint32_t entry_pa  = page_tables.VaToPa(entry_va);
+    auto& boot = emu_.Get<BootMode>();
+    /* MMU off at cold reset — PC is consumed as PA; the BootMode strategy
+       supplies the entry/stack the board's boot model dictates. */
+    const uint32_t sp_pa    = boot.ColdStackPa();
+    const uint32_t entry_pa = boot.ColdEntryPa();
     cpu_->SetInitialStackPointer(sp_pa);
     cpu_->RaiseResetException(entry_pa);
     cpu_->BankSwitch();
-    LOG(Jit, "ArmJit::OnReady: bringup done; SP=0x%08X "
-              "entry_va=0x%08X entry_pa=0x%08X CPSR=0x%08X "
-              "R15=0x%08X R13=0x%08X\n",
-        sp_pa, entry_va, entry_pa, cpu_->GetCpsrWithFlags(),
+    LOG(Jit, "ArmJit::OnReady: bringup done; SP=0x%08X entry_pa=0x%08X "
+              "CPSR=0x%08X R15=0x%08X R13=0x%08X\n",
+        sp_pa, entry_pa, cpu_->GetCpsrWithFlags(),
         cpu_->State()->gprs[15], cpu_->State()->gprs[13]);
 }
 
