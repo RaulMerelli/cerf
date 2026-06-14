@@ -13,15 +13,16 @@ from typing import Callable, List, Optional, Tuple
 
 from app_paths import resolve_icon, resolve_icons_dir, resolve_version
 from bundles import ManifestVersionError, RELEASE_LATEST_URL, parse_version_tuple
-from device_state import DeviceBundle, DeviceSource, PackageStatus
+from device_state import DeviceBundle, PackageStatus
 from device_tree import DeviceTreePanel, TreeSelection
 from details_panel import DetailsPanel
 from launch_button import LaunchSplitButton
 from launch_options import LaunchOptionsPanel
 from operations import BundleManager, CancelledError
 from status_bar import StatusBar
-from ui_dialogs import (ask_yesno, confirm_rom_license, show_error, show_info,
-                        show_source_thanks)
+from ui_dialogs import ask_yesno, confirm_rom_license, show_error, show_info
+from ui_large_download import (filter_update_all_targets, gate_bundle_download,
+                               gate_package_download)
 from ui_scroll import ScrollColumn
 from ui_theme import FG_DIM, UPDATE_LINK, apply_dark_theme, enable_dark_titlebar
 
@@ -301,16 +302,6 @@ class LauncherApp(tk.Tk):
 
     # ---------------------------------------------------------- operations
 
-    def _confirm_rom_download(self, display_name: str,
-                              source: Optional[DeviceSource]) -> bool:
-        """Abandonware-license gate plus the preservation-source credit. The
-        credit dialog is modeless, so returning True lets the caller start the
-        download immediately while the credit stays on screen."""
-        if not confirm_rom_license(self, display_name):
-            return False
-        show_source_thanks(self, source)
-        return True
-
     def _download_selected(self) -> None:
         sel = self.tree_panel.selection()
         if self.busy or sel.device is None:
@@ -321,8 +312,7 @@ class LauncherApp(tk.Tk):
         d = sel.device
         if d.remote is None:
             return
-        if not self._confirm_rom_download(d.meta.device_name or d.name,
-                                          d.meta.source):
+        if not gate_bundle_download(self, d):
             return
         self._set_busy(True, f"Downloading {d.name}…")
         f = self.manager.submit_install(d.name, progress=self._progress_cb,
@@ -334,8 +324,7 @@ class LauncherApp(tk.Tk):
             show_error(self, "Cannot download package",
                        f"{d.name} is not installed; install the device first.")
             return
-        label = f"{ps.remote.name} ({d.meta.device_name or d.name})"
-        if not self._confirm_rom_download(label, d.meta.source):
+        if not gate_package_download(self, d, ps):
             return
         self._set_busy(True, f"Downloading {ps.remote.name}…")
         f = self.manager.submit_install_package(
@@ -379,10 +368,19 @@ class LauncherApp(tk.Tk):
         rom_targets = [d for d in devices if d.has_update]
         pkg_targets: List[Tuple[DeviceBundle, PackageStatus]] = [
             (d, ps) for d in devices for ps in d.packages if ps.has_update]
+        if not rom_targets and not pkg_targets:
+            show_info(self, "Update all",
+                      "All installed bundles and packages are up to date.")
+            return
+        filtered = filter_update_all_targets(self, rom_targets, pkg_targets)
+        if filtered is None:
+            return
+        rom_targets, pkg_targets = filtered
         total = len(rom_targets) + len(pkg_targets)
         if not total:
             show_info(self, "Update all",
-                      "All installed bundles and packages are up to date.")
+                      "Only large bundles need updating — update each from the "
+                      "table individually.")
             return
         if not confirm_rom_license(self, f"{total} item(s)"):
             return
@@ -447,8 +445,7 @@ class LauncherApp(tk.Tk):
                            f"{d.name} is not installed and no remote bundle "
                            f"is available to download.")
                 return
-            if not self._confirm_rom_download(d.meta.device_name or d.name,
-                                              d.meta.source):
+            if not gate_bundle_download(self, d):
                 return
             name = d.name
             self._set_busy(True, f"Downloading {name}…")
