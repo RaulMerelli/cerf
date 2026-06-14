@@ -60,6 +60,8 @@ public:
         irq_on_.store(irq != 0, std::memory_order_release);
     }
 
+    void PostRestore() override;
+
 private:
     void     StopSyncThread();
     uint16_t ReadReg16Locked(uint32_t off);

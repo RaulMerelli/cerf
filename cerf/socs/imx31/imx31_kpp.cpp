@@ -133,6 +133,18 @@ void Imx31Kpp::ApplyIrq(bool desired) {
     else         avic.DeassertSource(kAvicSourceKpp);
 }
 
+/* Re-assert the AVIC line from the restored key/register state — the KPP IRQ is
+   a level the source re-drives after restore (driven directly, not via ApplyIrq,
+   whose change-gate skips a level already equal to the restored irq_on_). */
+void Imx31Kpp::PostRestore() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    const bool desired = IrqDesiredLocked();
+    irq_on_.store(desired, std::memory_order_release);
+    auto& avic = emu_.Get<Imx31Avic>();
+    if (desired) avic.AssertSource(kAvicSourceKpp);
+    else         avic.DeassertSource(kAvicSourceKpp);
+}
+
 void Imx31Kpp::SetMatrixKey(uint8_t col, uint8_t row, bool pressed) {
     if (col >= 4u || row >= 5u) return;
     bool desired;

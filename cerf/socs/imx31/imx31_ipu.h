@@ -41,6 +41,13 @@ public:
         r.Read(last_pub_h_);
     }
 
+    /* Re-assert the AVIC line from the restored SDC3 vsync ctrl/stat — the IPU
+       vsync interrupt is a level the source re-drives after restore. */
+    void PostRestore() override {
+        std::lock_guard<std::mutex> lk(state_mtx_);
+        RouteSdc3VsyncToAvicLocked();
+    }
+
     enum class PfsKind { Unknown = 0, RgbPack = 4, Yuv422 = 6, Generic = 7 };
 
     struct ChannelFormat {
