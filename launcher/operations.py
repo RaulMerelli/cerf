@@ -325,6 +325,48 @@ class BundleManager:
             preserved.append((pkg_record, stash_path))
         return preserved
 
+    def prepare_manual_install(self, name: str) -> Path:
+        """GUI manual-download path: pre-create the device directory, write its
+        cerf.json from the remote manifest, and record the bundle in the local
+        manifest at the remote version. The user then unpacks the ZIP they
+        downloaded in a browser into this directory; update tracking already
+        matches the recorded version, so the bundle reads as up to date once
+        the ROM files are in place."""
+        bundle = self._find_remote(name)
+        target = self._bundle_dir(name)
+        target.mkdir(parents=True, exist_ok=True)
+        if bundle.cerf_json is not None:
+            write_cerf_json(target / "cerf.json", bundle.cerf_json)
+        with self._manifest_lock:
+            record = self.installed.get(name) or LocalBundleRecord()
+            record.updated_at = bundle.updated_at
+            self.installed[name] = record
+            save_local_manifest(self.local_manifest_path, self.installed)
+        return target
+
+    def prepare_manual_install_package(self, name: str, category: str,
+                                       key: str) -> None:
+        """GUI manual-download path for an additional package: record it in the
+        local manifest at the remote sha256 so update tracking matches once the
+        user unpacks the browser-downloaded artifact into the device directory.
+        Presence is re-derived from disk at list time, so the package reads as
+        installed only after its artifact actually lands."""
+        bundle = self._find_remote(name)
+        pkg = bundle.find_package(category, key)
+        if pkg is None:
+            raise BundleError(f"{name}: unknown package {category}/{key}")
+        target = self._bundle_dir(name)
+        if not target.is_dir():
+            raise BundleError(f"{name}: device not installed; install bundle first")
+        with self._manifest_lock:
+            record = self.installed.setdefault(name, LocalBundleRecord())
+            record.drop_package(category, key)
+            record.packages.append(LocalPackageRecord(
+                category=category, key=pkg.key,
+                is_directory=pkg.is_directory,
+                sha256=pkg.archive_sha256 or ""))
+            save_local_manifest(self.local_manifest_path, self.installed)
+
     def submit_install_package(self, name: str, category: str, key: str,
                                progress: ProgressFn,
                                cancel_event: Optional[threading.Event] = None) -> Future:

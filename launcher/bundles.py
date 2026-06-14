@@ -26,6 +26,11 @@ DOWNLOAD_TIMEOUT = 120
 DOWNLOAD_CHUNK = 1024 * 1024
 PARALLEL_WORKERS = 4
 
+# Compressed-download size above which the GUI offers a manual browser download
+# instead of streaming through the launcher (a >=2 GB ROM over a flaky link is
+# unreliable to pull in-process). GUI-only; the CLI always streams.
+LARGE_DOWNLOAD_THRESHOLD = 300 * 1024 * 1024
+
 # Human-readable labels for additional-package categories. Categories without
 # a mapping are displayed under their raw manifest key.
 PACKAGE_CATEGORY_LABELS = {
@@ -132,6 +137,12 @@ def _sha256_file(path: Path) -> str:
 
 def is_safe_bundle_name(name: str) -> bool:
     return bool(SAFE_BUNDLE_NAME.fullmatch(name)) and name not in {".", ".."}
+
+
+def is_large_download(archive_size: Optional[int]) -> bool:
+    """True when a bundle/package's compressed download crosses the GUI
+    large-download threshold. Unknown size (None) is treated as not large."""
+    return isinstance(archive_size, int) and archive_size >= LARGE_DOWNLOAD_THRESHOLD
 
 
 def parse_version_tuple(text) -> Optional[tuple]:
