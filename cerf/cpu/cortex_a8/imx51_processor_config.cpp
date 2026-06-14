@@ -1,7 +1,6 @@
 #include "cortex_a8_processor_config.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
 #include "../../boards/board_detector.h"
 
 namespace {
@@ -19,16 +18,18 @@ public:
        MCIMX51RM Rev.1 §2 ("processor version r2p5"). */
     uint32_t Midr() const override { return 0x412FC085u; }
 
-    /* i.MX51 ARM core max 800 MHz (IMX51CEC datasheet, p.1). */
-    uint32_t CpuClockHz() const override { return 800000000u; }
+    /* arm_clk = DPLL1 with CACRR ARM_PODF unwritten (/1). Ford SBOOT programs
+       DPLL1 DP_OP=0x60/MFN=1/MFD=3 -> MF=6.25, PDF=0 -> 4*MF*osc = 25*24MHz =
+       600 MHz. osc = 24 MHz (IMX51CEC p14); DPLL2->665 / DPLL3->432 confirm the
+       24 MHz reference (MCIMX51RM Eqn 22-1). */
+    uint32_t CpuClockHz() const override { return 600000000u; }
 
-    /* i.MX GPT/EPIT use this as CPU-cycles-per-ipg_clk (imx31_gpt.cpp:36), so the
-       real value is CpuClockHz/ipg_clk from the CCM, set when that timer is
-       modelled. Returning any value now (the inherited 56, or an OMAP-style
-       32 kHz ratio) is a silent wrong tick rate, so fail loudly until then. */
-    uint32_t CpuToOscrDivider() const override {
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
+    /* EPIT/GPT icount ratio = arm_clk / source_clock. ipg_clk = PLL2(665)/AHB(/5)/
+       IPG(/2) = 66.5 MHz (CBCDR 0x24239180): 600/66.5 = 9. ipg_clk_highfreq = osc
+       ckih 24 MHz: 600/24 = 25. ipg_clk_32k = CKIL 32.768 kHz: 600M/32768 = 18310. */
+    uint32_t CpuToOscrDivider()          const override { return 9u; }
+    uint32_t CpuToHighfreqClockDivider() const override { return 25u; }
+    uint32_t CpuToLowfreqClockDivider()  const override { return 18310u; }
 
     /* Cortex-A8 with unified L2 present (ARM DDI0344K TRM, c0 Cache Level ID
        Register, page 3-39: 0x0A000023). */
