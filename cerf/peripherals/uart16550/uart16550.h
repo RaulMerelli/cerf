@@ -4,7 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/hw_screen.h"
+#include "../../tracing/kernel_debug_sink.h"
 #include "../../state/state_stream.h"
 #include "../peripheral_dispatcher.h"
 
