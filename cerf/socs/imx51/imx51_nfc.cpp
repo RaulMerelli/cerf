@@ -45,6 +45,7 @@ constexpr uint32_t kLaunchFcmd     = 1u << 0;
 constexpr uint32_t kLaunchFadd     = 1u << 1;
 constexpr uint32_t kLaunchFdiMask  = 1u << 2;
 constexpr uint32_t kLaunchFdoMask  = 0x7u << 3;
+constexpr uint32_t kLaunchAutoRead = 1u << 7;   /* AUTO_READ (RM Table 45-29) */
 constexpr uint32_t kLaunchAutoMask = 0xFFu << 6;
 
 constexpr uint32_t kIpcInt  = 1u << 31;
@@ -62,6 +63,15 @@ constexpr uint32_t kMainPageBytes = 0x1000u;
    media-ID table at Bootloader.bin 0x8FF0A94C, which matches on these two bytes;
    the extended-ID geometry bytes are unused by SBOOT and stay 0. */
 constexpr std::array<uint8_t, 5> kReadIdBytes = {0x2Cu, 0x48u, 0x00u, 0x00u, 0x00u};
+
+/* Decode the five NAND address cycles (little-endian [col_lo, col_hi, row_lo,
+   row_mid, row_hi]) to a linear flash byte offset: 12-bit column (4 KB page) +
+   19-bit row (the 2 GB Micron part = 0x80000 pages; READ ID 0x2C/0x48 above). */
+uint64_t DecodeNandAddr(uint8_t a0, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4) {
+    const uint32_t column = a0 | ((a1 & 0x0Fu) << 8);
+    const uint32_t row    = a2 | (a3 << 8) | ((a4 & 0x07u) << 16);
+    return (static_cast<uint64_t>(row) << 12) | column;
+}
 
 }  /* namespace */
 
@@ -181,6 +191,11 @@ void Imx51Nfc::Launch(uint32_t value) {
         int_pending_ = true;
         return;
     }
+    if (value & kLaunchAutoRead) {
+        AutoRead();
+        int_pending_ = true;
+        return;
+    }
     if (value & (kLaunchFdiMask | kLaunchAutoMask)) {
         LOG(Caution, "Imx51Nfc: unhandled LAUNCH_NFC 0x%08X (cmd=0x%02X)\n",
             value, nand_cmd_);
@@ -190,28 +205,58 @@ void Imx51Nfc::Launch(uint32_t value) {
 }
 
 uint64_t Imx51Nfc::FlashOffset() const {
-    const uint32_t a0 = addr_bytes_[0], a1 = addr_bytes_[1];
-    const uint32_t a2 = addr_bytes_[2], a3 = addr_bytes_[3], a4 = addr_bytes_[4];
-    const uint32_t column = a0 | ((a1 & 0x0Fu) << 8);
-    const uint32_t row    = a2 | (a3 << 8) | ((a4 & 0x03u) << 16);
-    return (static_cast<uint64_t>(row) << 12) | column;
+    return DecodeNandAddr(addr_bytes_[0], addr_bytes_[1], addr_bytes_[2],
+                          addr_bytes_[3], addr_bytes_[4]);
 }
 
-void Imx51Nfc::ReadPage() {
-    const uint64_t phys_off = FlashOffset();
+void Imx51Nfc::FillPageBuffer(uint64_t flash_off, bool relocate_bbi) {
     std::array<uint8_t, kMainPageBytes> page{};
     page.fill(0xFFu);
+    spare_.fill(0xFF);   /* virtual NAND: no factory bad blocks -> spare all good */
     /* The `.sec` is packed by size; the device NAND is block-aligned. Map the
-       physical NAND offset to its `.sec` source (nullopt = blank/erased block). */
-    if (auto sec = emu_.Get<Imx51NandLayout>().PhysToSec(phys_off))
+       physical NAND offset to its `.sec` source (nullopt = blank/erased block).
+       The tail blocks serve synthesized device-state structures the `.sec` lacks:
+       the BBT (sets main+spare) and the DPS manifest. */
+    auto& layout = emu_.Get<Imx51NandLayout>();
+    if (layout.IsBbtBlock(flash_off))
+        layout.BuildBbtPage(flash_off, page.data(), page.size(),
+                            spare_.data(), spare_.size());
+    else if (layout.IsDpsOffset(flash_off))
+        layout.BuildDpsPage(flash_off, page.data(), page.size(),
+                            spare_.data(), spare_.size());
+    else if (auto sec = layout.PhysToSec(flash_off))
         emu_.Get<SecFlash>().ReadFlash(*sec, page.data(), page.size());
-    /* spare[0x1C1] is the factory Bad Block Indicator (0xFF=good): the i.MX NFC
-       chunked read relocates the BBI into a main-area byte and the stub swaps it
-       back (i.MX NFC bad-block-indicator swap). Swap offsets 0xF4A/0x1C1 are from
-       the stub's sub_0774 disassembly; a virtual NAND has no factory bad blocks. */
-    spare_.fill(0xFF);
-    std::swap(page[0xF4Au], spare_[0x1C1u]);
+    /* Stub-only: the first-stage stub's NFC config relocates the factory BBI to
+       main byte 0xF4A and sub_0774 swaps it back, so the stub path must pre-swap.
+       The FMD reads main data raw (Bootloader.bin 0x8FF090F0 copies 0xCFFF0000+n*512
+       straight out, no swap), so swapping on AUTO_READ would corrupt page[0xF4A]. */
+    if (relocate_bbi) std::swap(page[0xF4Au], spare_[0x1C1u]);
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
+}
+
+void Imx51Nfc::ReadPage() { FillPageBuffer(FlashOffset(), /*relocate_bbi=*/true); }
+
+void Imx51Nfc::AutoRead() {
+    /* AUTO_READ: full page-read into the internal RAM buffer (MCIMX51RM §45.9.1.3).
+       A 4 KB page forces RBA=000 (NFC_CONFIGURATION1, Table 45-26), so the page
+       lands at the AXI buffer base; a non-000 RBA would need a sub-buffer offset. */
+    const uint32_t iterations = (cfg1_ >> 8) & 0xFu;
+    if (iterations != 0) {
+        LOG(Caution, "Imx51Nfc: AUTO_READ NUM_OF_ITERATIONS=%u unsupported (cfg1=0x%08X)\n",
+            iterations, cfg1_);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    FillPageBuffer(AutoReadFlashOffset(), /*relocate_bbi=*/false);
+}
+
+uint64_t Imx51Nfc::AutoReadFlashOffset() const {
+    /* AUTO_READ address from the active group NAND_ADDRESS0 (Table 45-11):
+       NAND_ADD0 = ADDRESS0[31:0], NAND_ADD8[7:0] = ADDRESS0[39:32]. */
+    return DecodeNandAddr(static_cast<uint8_t>(nand_add_[0]),
+                          static_cast<uint8_t>(nand_add_[0] >> 8),
+                          static_cast<uint8_t>(nand_add_[0] >> 16),
+                          static_cast<uint8_t>(nand_add_[0] >> 24),
+                          static_cast<uint8_t>(nand_add_[8]));
 }
 
 void Imx51Nfc::ReadId() {

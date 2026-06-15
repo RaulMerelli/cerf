@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -20,12 +21,48 @@ constexpr uint32_t kCfgMagic  = 0x400DB1B1u;
 constexpr uint32_t kRecDelim  = 0xC001C000u;
 constexpr uint32_t kRecBase   = 0x60u;
 constexpr uint32_t kRecStride = 0x30u;
+/* New-format DPS signature. SBOOT's new DPS_Read (Bootloader.bin 0x8FF0DFBC)
+   accepts 0x400BD8D8 directly (0x8FF0E198); the old config magic 0x400DB1B1 is
+   treated as "old signature" (0x8FF0E1D8) → DPS_Write upgrade, which read-only
+   NAND cannot service. */
+constexpr uint32_t kDpsMagicNew = 0x400BD8D8u;
+
+/* DPS "Write Complete" pair: the flasher sets [0x38]=[0x3C]=1 on a fully-programmed
+   device (staged_80040000.bin 0x8005A710/0x8005A718). SBOOT launches the OS only if
+   [0x3C]!=0 (Bootloader.bin 0x8FF0B858, else "image was partially programmed"); the
+   `.sec` config is 0 there, so the synthesized DPS must assert it. */
+constexpr size_t kDpsProgStatusA = 0x38u;
+constexpr size_t kDpsProgStatusB = 0x3Cu;
+
+/* Bootloader version at DPS[0x28]. SBOOT matches it against the running IPL in the
+   low 24 bits (Bootloader.bin 0x8FF0BC30, "_NOT_ matched." → emergency otherwise);
+   the IPL reports 0xAB000002 (handler 0x8FF052E8) and the `.sec` config is 0. */
+constexpr size_t   kDpsBootVerOff = 0x28u;
+constexpr uint32_t kDpsBootVersion = 0xAB000002u;
+
+/* Bad Block Table signature (Bootloader.bin DPS_ReadBadBlockTable 0x8FF0D7D0,
+   search 0x8FF0D71C). */
+constexpr uint32_t kBbtMagic  = 0xB041D283u;
+constexpr uint64_t kPageBytes = 0x1000u;
+/* Written-page-marker offset in the NFC spare buffer: chunk 6 of 8 at the NFC's
+   0x40 chunk stride = 0x180. SBOOT's assembler (Bootloader.bin 0x8FF09424) reads it
+   from its linearized copied spare at index (pagesize/512-2)*26 = 156; the 0x40 NFC
+   stride (copy at 0x8FF090F0) maps copied-index 156 to NFC offset 6*0x40 = 0x180. */
+constexpr size_t   kBbtMetaSpareOff = 0x180u;
 
 uint32_t Rd32(const uint8_t* p) {
     return  static_cast<uint32_t>(p[0])
          | (static_cast<uint32_t>(p[1]) << 8)
          | (static_cast<uint32_t>(p[2]) << 16)
          | (static_cast<uint32_t>(p[3]) << 24);
+}
+
+void Wr32(uint8_t* p, size_t off, size_t len, uint32_t v) {
+    if (off + 4 > len) return;
+    p[off + 0] = static_cast<uint8_t>(v);
+    p[off + 1] = static_cast<uint8_t>(v >> 8);
+    p[off + 2] = static_cast<uint8_t>(v >> 16);
+    p[off + 3] = static_cast<uint8_t>(v >> 24);
 }
 
 }  /* namespace */
@@ -38,6 +75,7 @@ bool Imx51NandLayout::ShouldRegister() {
 }
 
 void Imx51NandLayout::OnReady() {
+    device_blocks_ = kDeviceBytes / kBlock;
     auto& sf = emu_.Get<SecFlash>();
 
     std::array<uint8_t, kRecBase + kRecStride * 16> cfg{};
@@ -96,4 +134,57 @@ std::optional<uint64_t> Imx51NandLayout::PhysToSec(uint64_t phys_off) const {
         return p.sec_off + in_mod;
     }
     return std::nullopt;                              /* unmapped block -> blank */
+}
+
+bool Imx51NandLayout::IsDpsOffset(uint64_t phys_off) const {
+    return device_blocks_ != 0 && (phys_off / kBlock) == device_blocks_ - 1;
+}
+
+void Imx51NandLayout::BuildDpsPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                                   uint8_t* spare, size_t spare_len) const {
+    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
+    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
+    if ((phys_off % kBlock) / kPageBytes != 0) return;   /* page1+: erased terminator */
+    /* The DPS manifest is the flash-0x0 config block; copy it, rewrite the magic to
+       the new-format signature (kDpsMagicNew), and patch each module record's
+       StartBlock (rec+8) to its cumulative block (the `.sec` records carry 0). */
+    const size_t cfg = kRecBase + kRecStride * parts_.size();
+    emu_.Get<SecFlash>().ReadFlash(0, main, std::min(main_len, cfg));
+    Wr32(main, 0, main_len, kDpsMagicNew);
+    Wr32(main, kDpsBootVerOff, main_len, kDpsBootVersion);
+    for (size_t i = 0; i < parts_.size(); ++i)
+        Wr32(main, kRecBase + i * kRecStride + 8, main_len,
+             static_cast<uint32_t>(parts_[i].start_block));
+    /* Assert the flasher's Write-Complete pair so SBOOT treats the image as fully
+       programmed (see kDpsProgStatus* above); both are 32-bit LE 1. */
+    Wr32(main, kDpsProgStatusA, main_len, 1);
+    Wr32(main, kDpsProgStatusB, main_len, 1);
+    /* Written-page marker so the new DPS_Read's validator (0x8FF0C9A0) accepts it. */
+    if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;
+}
+
+bool Imx51NandLayout::IsBbtBlock(uint64_t phys_off) const {
+    /* The search (Bootloader.bin 0x8FF0D71C) starts at block count-5
+       (`sub r6, r4, #5`) and scans down; serve the BBT at that first block. */
+    return device_blocks_ != 0 && (phys_off / kBlock) == device_blocks_ - 5;
+}
+
+void Imx51NandLayout::BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                                   uint8_t* spare, size_t spare_len) const {
+    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
+    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
+    /* Only page 0 carries the header; later pages stay erased (spare[0]=0xFF) so
+       the validator (0x8FF0C9A0) terminates its page scan after page 0. */
+    if ((phys_off % kBlock) / kPageBytes != 0) return;
+    /* Main: signature + entry count 0. DPS_ReadBadBlockTable copies (count+4)*2 = 8
+       bytes from main[0] (0x8FF0D8EC). */
+    main[0] = static_cast<uint8_t>(kBbtMagic);
+    main[1] = static_cast<uint8_t>(kBbtMagic >> 8);
+    main[2] = static_cast<uint8_t>(kBbtMagic >> 16);
+    main[3] = static_cast<uint8_t>(kBbtMagic >> 24);
+    main[4] = main[5] = main[6] = main[7] = 0x00;
+    /* meta[0]=0x00 marks a written page (validator 0x8FF0C9A0); meta[1..2] stay
+       0xFF so the stored 16-bit checksum reads 0xFFFF and the reader skips it
+       (DPS_ReadBadBlockTable 0x8FF0D8C4). */
+    if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;
 }

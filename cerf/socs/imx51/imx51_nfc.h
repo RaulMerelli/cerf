@@ -34,8 +34,11 @@ public:
 private:
     void     Launch(uint32_t value);
     void     ReadPage();
+    void     AutoRead();
+    void     FillPageBuffer(uint64_t flash_off, bool relocate_bbi);
     void     ReadId();
     uint64_t FlashOffset() const;
+    uint64_t AutoReadFlashOffset() const;
 
     std::array<uint8_t, 0x200> spare_{};
     uint8_t  nand_cmd_  = 0;
