@@ -15,7 +15,35 @@ REGISTER_SERVICE(HwScreen);
 namespace {
 
 constexpr int      kEdgeMarginPx = 1;
-constexpr COLORREF kLogTextColor = RGB(205, 205, 205);
+constexpr COLORREF kLogTextColor   = RGB(205, 205, 205);
+constexpr COLORREF kErrorTextColor = RGB(255, 110, 110);  /* light-red */
+constexpr COLORREF kWarnTextColor  = RGB(235, 210,  90);  /* amber */
+
+/* Case-insensitive substring search; needle must already be lower-case. */
+bool ContainsCI(std::string_view hay, std::string_view needle) {
+    if (needle.empty() || needle.size() > hay.size()) return false;
+    for (size_t i = 0; i + needle.size() <= hay.size(); ++i) {
+        size_t j = 0;
+        for (; j < needle.size(); ++j) {
+            char a = hay[i + j];
+            if (a >= 'A' && a <= 'Z') a = char(a - 'A' + 'a');
+            if (a != needle[j]) break;
+        }
+        if (j == needle.size()) return true;
+    }
+    return false;
+}
+
+/* Severity tint for one debug-console line. Error keywords win over warning so a
+   line mentioning both reads as the more urgent colour. "fail" stems catch
+   failed/failure/fails. */
+COLORREF ClassifyLineColor(std::string_view line) {
+    if (ContainsCI(line, "abort") || ContainsCI(line, "fail") ||
+        ContainsCI(line, "error"))
+        return kErrorTextColor;
+    if (ContainsCI(line, "warning")) return kWarnTextColor;
+    return kLogTextColor;
+}
 
 constexpr int      kFontHeightSmall      = 14;
 constexpr int      kFontHeightRegular    = 16;
@@ -104,7 +132,6 @@ void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
     if (!font) return;
 
     HFONT old_font = (HFONT)SelectObject(dc, font);
-    SetTextColor(dc, kLogTextColor);
     SetBkMode(dc, TRANSPARENT);
 
     TEXTMETRICW tm = {};
@@ -119,14 +146,16 @@ void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
     const int chars_wide = (avail_w > 0) ? avail_w / char_width  : 0;
     if (max_lines <= 0 || chars_wide <= 0) { SelectObject(dc, old_font); return; }
 
-    std::vector<std::string_view> wrapped;
+    struct Chunk { std::string_view text; COLORREF color; };
+    std::vector<Chunk> wrapped;
     wrapped.reserve(snapshot.size());
     for (const std::string& line : snapshot) {
-        if (line.empty()) { wrapped.emplace_back(); continue; }
+        const COLORREF color = ClassifyLineColor(line);
+        if (line.empty()) { wrapped.push_back({ {}, color }); continue; }
         size_t pos = 0;
         while (pos < line.size()) {
             const size_t take = std::min((size_t)chars_wide, line.size() - pos);
-            wrapped.emplace_back(line.data() + pos, take);
+            wrapped.push_back({ { line.data() + pos, take }, color });
             pos += take;
         }
     }
@@ -135,8 +164,9 @@ void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
     const int start = (total > max_lines) ? (total - max_lines) : 0;
     int y = kEdgeMarginPx;
     for (int i = start; i < total; ++i) {
-        const std::string_view& chunk = wrapped[i];
-        TextOutA(dc, kEdgeMarginPx, y, chunk.data(), (int)chunk.size());
+        const Chunk& chunk = wrapped[i];
+        SetTextColor(dc, chunk.color);
+        TextOutA(dc, kEdgeMarginPx, y, chunk.text.data(), (int)chunk.text.size());
         y += line_height;
     }
     SelectObject(dc, old_font);
