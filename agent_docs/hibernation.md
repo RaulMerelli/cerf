@@ -51,6 +51,24 @@ refused up front. `periph_layout_sig` is a hash over the registered peripheral s
 (count + each `MmioBase()`), so a cross-build-incompatible image is rejected rather
 than mis-applied. Identity comes from `RomParserService`.
 
+## Build-specific by design
+
+CERF state images are **build-specific**: an `.img` is only
+ever restored by the exact binary that wrote it. `ValidateHeader` enforces this up
+front — `periph_layout_sig` (above) plus the ROM fingerprint and `format_version`
+cause any image not aligned with the running build's peripheral set to be
+**refused, never mis-applied**. There is deliberately no per-peripheral image
+versioning; it would be intractable at CERF's chip/board count.
+
+The consequence for the peripheral contract: the ONLY serialization requirement is
+that a peripheral's own `SaveState` and `RestoreState` are **exact mirrors of each
+other in the same build** (a clean round-trip). Cross-build `.img` compatibility is
+**not** a requirement and must not be engineered for. A peripheral that, during
+bring-up, grows its `SaveState` (new registers), reorders fields, drops a field it
+no longer has, or is re-homed onto a shared core that serializes in a different
+order is doing nothing wrong — the older images that used the previous format are
+simply refused by `ValidateHeader`, exactly as intended.
+
 ## Sections — what each captures
 
 Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Presentation**.
