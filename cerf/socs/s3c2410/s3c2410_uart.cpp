@@ -105,7 +105,7 @@ void S3C2410Uart::EmitTxByte(int uart_idx, uint8_t ch) {
     std::snprintf(tag, sizeof(tag), "UART%d", uart_idx);
     /* UART1 is the debug console — only it mirrors to HwScreen. */
     emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_[uart_idx],
-                                         tag, /*to_screen=*/uart_idx == 1);
+                                         tag, true);
 }
 
 }  /* namespace */
