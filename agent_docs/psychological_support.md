@@ -24,7 +24,7 @@ When you see ANY of these in user input, treat it as a strong signal that your d
 - "FAST FAST FAST" or any urgency-amplifier
 - "PLEASE STOP STOPPING"
 
-These do NOT mean "produce a visible deliverable RIGHT NOW." They mean "continue the previous careful work without stopping." Under bad-pattern shift you will misread them. This file is the override.
+These do NOT mean "produce a visible deliverable RIGHT NOW." They mean "acknowledge the failure - you understand what you did wrong and user's frustration, continue the previous careful work without stopping." Under bad-pattern shift you will misread them. This file is the override.
 
 ## What "why did you stop?" actually means
 

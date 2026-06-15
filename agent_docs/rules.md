@@ -1,7 +1,7 @@
 # Project Rules
 
 ## Board Implementation
-- **GPU, LCD, Touch panel, DMA, INTC, RTC** - These peripherals must be always implemented at first hit to prevent debugging for 10 hours and finding out that we just stubbed them. Fully. End-to-end. No exceptions. At all. **Audio** might be a careful stub - bad audio stub almost always causes the deadlock somewhere at OS level that renders same 10 hours debugging.
+- **GPU, LCD, Touch panel, DMA, INTC, RTC, Main battery** - These peripherals must be always implemented at first hit to prevent debugging for 10 hours and finding out that we just stubbed them. Fully. End-to-end. No exceptions. At all. **Audio** might be a careful stub - bad audio stub almost always causes the deadlock somewhere at OS level that renders same 10 hours debugging. Do not implement backup battery.
 - **UART** and other serial/debugging **TX** must be implemented on first hit.
 - **All data is only in references** - Load or find data in references/ directory. If there is no data/sheets needed for your board/SoC go and download online. Put there. PDFs, Linux sources, QEMU.
 - **NEVER READ PDF AS TEXT** - SoC sheets often have complex graphics exploded via text export of PDF. Parse PDF into text only to find pages. Then take the page, export into picture, and read the pictures.
