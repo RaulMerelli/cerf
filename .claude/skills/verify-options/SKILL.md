@@ -32,6 +32,48 @@ from "options exist" to "options presented with characterization":
    to one-line FORBIDDEN entries.
 4. **Present** the surviving set with Carefulness ≥ 80% per option.
 
+## Options and decisions live in CHAT ONLY — NEVER written into a durable document
+
+The output of this skill is a **chat message to the user**. Options,
+recommendations, and decisions are spoken to the user in the conversation —
+they are **NEVER written into a durable document**: a tracking document
+(`docs/ai_checklists/`), a checklist, an `agent_docs/` page, a design doc, a
+commit message, or a code comment. Those artifacts carry **facts and evidence
+only** — what was done, what broke, what was proven or disproven, what not to
+repeat or rediscover. They are not a place for the agent's opinions,
+recommendations, or proposed decisions, because the next agent reads them as
+**authoritative ground truth** and acts on a planted opinion as if it were
+established fact. That is silent, durable damage to the one record the next
+session trusts.
+
+This is absolute, and it applies **even to decisions that ARE genuinely the
+user's to make**. Having the option in your head is fine; *writing it into the
+document* is the violation. If a real decision is open, raise it with the user
+in chat under this protocol and STOP — do not record it in any document.
+
+**FORBIDDEN in any durable document** (recognize the shape, not just the words):
+- **commit recommendations** — "commit this in isolation", "worth committing",
+  "lock it in", "safe to commit", "ready to merge".
+- **feature-kill / scope-cut decisions** — "gate the feature off by default",
+  "disable X", "revert wholesale", "drop the feature", "accept X broken".
+- **decision-deferral dressed as neutral** — "consider whether to X",
+  "— a user decision", "options going forward: A / B / C", "TBD: pick one".
+- **any Step-0 bailout shape** (hack-as-option, cost-inflated path, scope-cut,
+  drop-feature) — forbidden in chat AND doubly forbidden written into a document.
+
+**MECHANICAL TEST, applied to every sentence before it enters a durable document:**
+*"Is this a FACT/EVIDENCE (what happened, what is true), or is it my OPINION /
+RECOMMENDATION / a DECISION?"* If it is opinion / recommendation / decision → it
+does **not** go in the document. Delete it; if it matters, say it to the user in
+chat. When in doubt, it is opinion — leave it out.
+
+This rule exists because an agent wrote "commit the cp15 fix in isolation",
+"consider whether to gate the feature off by default", and "revert wholesale — a
+user decision" into a cross-session tracking document during a `/tracking
+update`. None of it was authorized; all of it was the agent planting its own
+decisions into the record the next agent trusts as fact. Decisions are the
+user's; the document is for facts.
+
 ## Bailout detection (Step 0)
 
 `/verify-options` exists to honestly characterize engineering choices
