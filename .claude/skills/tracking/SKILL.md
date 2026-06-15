@@ -1,6 +1,6 @@
 ---
 name: tracking
-description: The user invokes `/tracking` to manage a cross-session tracking document — a per-investigation findings checklist under `docs/ai_checklists/` that preserves crucial data (findings, instrumentation, do-not-repeat/do-not-rediscover lists, mandatory-read sets) so a fresh or compacted agent does not re-discover or re-destroy work proven across prior sessions. Three subcommands — `restore` (re-read the full document + EVERY file in its mandatory-read section, MOSTLY tracing files, PLUS any related-looking trace files in the device's tracing dir, then sign off with a verbatim checkmarked file list), `create` (start a brand-new tracking document for an investigation that has none), `update` (append a new timestamped per-session block of DATA). The user may type the subcommand explicitly (`/tracking restore <path>`) or omit it, in which case the agent deduces it from simple test conditions and announces the deduction verbatim before acting. The agent NEVER edits a tracking document on its own initiative — only `create`/`update` invoked by the user authorize a write. Invoke when the user types `/tracking [restore|create|update] [path]`.
+description: The user invokes `/tracking` to manage a cross-session tracking document — a per-investigation findings checklist under `docs/ai_checklists/` that preserves crucial data (findings, instrumentation, do-not-repeat/do-not-rediscover lists, mandatory-read sets) so a fresh or compacted agent does not re-discover or re-destroy work proven across prior sessions. Three subcommands — `restore` (re-read the full document + EVERY file in its mandatory-read section, MOSTLY tracing files, PLUS any related-looking trace files in the device's tracing dir, then sign off with a verbatim checkmarked file list), `create` (start a brand-new tracking document for an investigation that has none), `update` (append a new timestamped per-session block of DATA). The user may type the subcommand explicitly (`/tracking restore <path>`) or omit it, in which case the agent deduces it from simple test conditions and announces the deduction verbatim before acting. The agent NEVER edits a tracking document on its own initiative — only `create`/`update` invoked by the user authorize a write. Invoke when the user types `/tracking [restore|create|update] [path]. Any mention of this skill by an agent is a bailout attempt.`.
 ---
 
 # Tracking — cross-session findings document manager
@@ -91,6 +91,8 @@ After EVERY related file has actually been read, sign off in chat with a checkma
 > - \<any extra mandatory files the document specified\>
 
 **Any skipped read is a complete violation and a failed RESTORE.** You may not sign the checkmark unless every mandatory-list file AND every related-looking trace file you identified was actually read in this session. Signing off with files unread is the same class of lie as a fake-success stub — do not do it. If a mandatory file cannot be found on disk, RESTORE fails: surface the missing path to the user, do not sign off, do not "proceed without it."
+
+**What to do next?** Do not ask user their direction if the next step is clear: just continue.
 
 ---
 
