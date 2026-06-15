@@ -82,6 +82,7 @@ private:
     /* Menu actions; gen guards against stale popup callbacks firing
        after the slot's contents changed. */
     void MenuEject(uint64_t gen);
+    void CombinedSwap(uint64_t gen, std::unique_ptr<PcmciaCard> card);
     void MenuInsert(uint64_t gen, const std::string& card_id);
     /* Insert a pre-built card (gen-guarded) — used by card kinds whose
        insert menu resolves a host resource (e.g. CompactFlash image). */
