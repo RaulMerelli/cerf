@@ -173,25 +173,7 @@ private:
     void RecomputeInterrupt() { SetInterruptLine(TxIntPending() || RxIntPending()); }
 
     void EmitTxByte(uint8_t ch) {
-        if (ch == '\n') {
-            LOG(SocUart, "%s TX: %s\n", Name(), tx_line_.c_str());
-            emu_.Get<HwScreen>().AddLine(tx_line_);
-            tx_line_.clear();
-            return;
-        }
-        if (ch == '\r') return;  /* CE emits CRLF — drop CR, flush on LF. */
-        if (ch >= 0x20 && ch < 0x7F) {
-            tx_line_.push_back(static_cast<char>(ch));
-        } else {
-            char esc[8];
-            std::snprintf(esc, sizeof(esc), "\\x%02X", ch);
-            tx_line_.append(esc);
-        }
-        if (tx_line_.size() >= 256) {
-            LOG(SocUart, "%s TX (no LF, flushed at 256B): %s\n", Name(), tx_line_.c_str());
-            emu_.Get<HwScreen>().AddLine(tx_line_);
-            tx_line_.clear();
-        }
+        emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_, Name());
     }
 
     uint32_t ier_ = 0, fcr_ = 0, lcr_ = 0, mcr_ = 0, spr_ = 0, dll_ = 0, dlh_ = 0;
