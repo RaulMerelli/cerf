@@ -39,6 +39,15 @@ public:
     void BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main_len,
                       uint8_t* spare, size_t spare_len) const;
 
+    /* SBOOT's image-6 loader (Bootloader.bin 0x8FF0C1E8) reads the id-6 StartBlock
+       as block N="BADT", N+1="MSFLSH60" (the loader's own memcmp constants
+       @0x8FF03688), N+2.. = NK ECEC; the `.sec` lacks this OS layout, so synthesize
+       the two sigs and remap the NK blocks to the id-7 `.sec` image (ECEC at +0x40). */
+    bool IsOsBootSigBlock(uint64_t phys_off) const;
+    void BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                            uint8_t* spare, size_t spare_len) const;
+
+
 private:
     struct Part {
         uint32_t id;
@@ -51,6 +60,10 @@ private:
 
     std::vector<Part> parts_;
     uint64_t          device_blocks_ = 0;
+
+    uint64_t os_sig_block_ = 0;   /* id-6 StartBlock = loader's "BADT" block */
+    uint64_t nk_sec_off_   = 0;   /* id-7 NK `.sec` offset (ECEC at +0x40)   */
+    uint64_t nk_blocks_    = 0;   /* id-7 NK block span                      */
 
     /* 512 KB block (flash-0x0 config header +0x58; MCIMX51RM Table 9-3, S10). */
     static constexpr uint64_t kBlock = 0x80000u;

@@ -35,7 +35,7 @@ private:
     void     Launch(uint32_t value);
     void     ReadPage();
     void     AutoRead();
-    void     FillPageBuffer(uint64_t flash_off, bool relocate_bbi);
+    void     FillPageBuffer(uint64_t flash_off);
     void     ReadId();
     uint64_t FlashOffset() const;
     uint64_t AutoReadFlashOffset() const;

@@ -209,7 +209,7 @@ uint64_t Imx51Nfc::FlashOffset() const {
                           addr_bytes_[3], addr_bytes_[4]);
 }
 
-void Imx51Nfc::FillPageBuffer(uint64_t flash_off, bool relocate_bbi) {
+void Imx51Nfc::FillPageBuffer(uint64_t flash_off) {
     std::array<uint8_t, kMainPageBytes> page{};
     page.fill(0xFFu);
     spare_.fill(0xFF);   /* virtual NAND: no factory bad blocks -> spare all good */
@@ -224,17 +224,20 @@ void Imx51Nfc::FillPageBuffer(uint64_t flash_off, bool relocate_bbi) {
     else if (layout.IsDpsOffset(flash_off))
         layout.BuildDpsPage(flash_off, page.data(), page.size(),
                             spare_.data(), spare_.size());
+    else if (layout.IsOsBootSigBlock(flash_off))
+        layout.BuildOsBootSigPage(flash_off, page.data(), page.size(),
+                                  spare_.data(), spare_.size());
     else if (auto sec = layout.PhysToSec(flash_off))
         emu_.Get<SecFlash>().ReadFlash(*sec, page.data(), page.size());
-    /* Stub-only: the first-stage stub's NFC config relocates the factory BBI to
-       main byte 0xF4A and sub_0774 swaps it back, so the stub path must pre-swap.
-       The FMD reads main data raw (Bootloader.bin 0x8FF090F0 copies 0xCFFF0000+n*512
-       straight out, no swap), so swapping on AUTO_READ would corrupt page[0xF4A]. */
-    if (relocate_bbi) std::swap(page[0xF4Au], spare_[0x1C1u]);
+    /* Every block carries its factory BBI in the main page (NXP AN_MX_NAND_BAD_BLOCK
+       §3: BBI in the last NFC main section, read at main[0xF4A]); a virtual chip is
+       all-good, so present 0xFF and displace the `.sec` byte to spare. Without it the
+       FMD bad-block check (0x8FF0A494, reads main[0xF4A]) marks every OS block bad. */
+    std::swap(page[0xF4Au], spare_[0x1C1u]);
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
 }
 
-void Imx51Nfc::ReadPage() { FillPageBuffer(FlashOffset(), /*relocate_bbi=*/true); }
+void Imx51Nfc::ReadPage() { FillPageBuffer(FlashOffset()); }
 
 void Imx51Nfc::AutoRead() {
     /* AUTO_READ: full page-read into the internal RAM buffer (MCIMX51RM §45.9.1.3).
@@ -246,7 +249,7 @@ void Imx51Nfc::AutoRead() {
             iterations, cfg1_);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    FillPageBuffer(AutoReadFlashOffset(), /*relocate_bbi=*/false);
+    FillPageBuffer(AutoReadFlashOffset());
 }
 
 uint64_t Imx51Nfc::AutoReadFlashOffset() const {

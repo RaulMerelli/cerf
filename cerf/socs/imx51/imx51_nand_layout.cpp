@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 
 REGISTER_SERVICE(Imx51NandLayout);
 
@@ -44,6 +45,10 @@ constexpr uint32_t kDpsBootVersion = 0xAB000002u;
    search 0x8FF0D71C). */
 constexpr uint32_t kBbtMagic  = 0xB041D283u;
 constexpr uint64_t kPageBytes = 0x1000u;
+/* Loader's own OS-partition signatures, table @ Bootloader.bin 0x8FF03688,
+   compared at 0x8FF0C278 (memcmp4) / +4 (memcmp8). */
+constexpr char kOsSigBadt[]     = "BADT";
+constexpr char kOsSigMsflsh60[] = "MSFLSH60";
 /* Written-page-marker offset in the NFC spare buffer: chunk 6 of 8 at the NFC's
    0x40 chunk stride = 0x180. SBOOT's assembler (Bootloader.bin 0x8FF09424) reads it
    from its linearized copied spare at index (pagesize/512-2)*26 = 156; the 0x40 NFC
@@ -123,10 +128,24 @@ void Imx51NandLayout::OnReady() {
             static_cast<unsigned long long>(p.sec_off),
             static_cast<unsigned long long>(p.size));
     }
+
+    /* The image-6 (NK) loader walks the DPS for record.id==6 and reads its
+       StartBlock; the OS partition lives there as [BADT][MSFLSH60][NK id-7 image]. */
+    for (const auto& p : parts_) {
+        if (p.id == 6) os_sig_block_ = p.start_block;
+        if (p.id == 7) { nk_sec_off_ = p.sec_off; nk_blocks_ = p.nblocks; }
+    }
 }
 
 std::optional<uint64_t> Imx51NandLayout::PhysToSec(uint64_t phys_off) const {
     const uint64_t blk = phys_off / kBlock;
+    /* The image-6 loader copies the NK image from the blocks after the two sig
+       blocks (contiguous physical reads from os_sig_block_+2, Bootloader.bin
+       0x8FF0C384); serve those from the id-7 NK `.sec` region. */
+    if (nk_blocks_ != 0 && blk >= os_sig_block_ + 2 &&
+        blk < os_sig_block_ + 2 + nk_blocks_) {
+        return nk_sec_off_ + (blk - (os_sig_block_ + 2)) * kBlock + (phys_off % kBlock);
+    }
     for (const auto& p : parts_) {
         if (blk < p.start_block || blk >= p.start_block + p.nblocks) continue;
         const uint64_t in_mod = phys_off - p.start_block * kBlock;
@@ -188,3 +207,20 @@ void Imx51NandLayout::BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main
        (DPS_ReadBadBlockTable 0x8FF0D8C4). */
     if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;
 }
+
+bool Imx51NandLayout::IsOsBootSigBlock(uint64_t phys_off) const {
+    const uint64_t blk = phys_off / kBlock;
+    return nk_blocks_ != 0 && (blk == os_sig_block_ || blk == os_sig_block_ + 1);
+}
+
+void Imx51NandLayout::BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                                         uint8_t* spare, size_t spare_len) const {
+    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
+    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
+    if ((phys_off % kBlock) / kPageBytes != 0) return;   /* only page0 carries the sig */
+    const bool   badt = (phys_off / kBlock) == os_sig_block_;
+    const char*  sig  = badt ? kOsSigBadt : kOsSigMsflsh60;
+    const size_t n    = badt ? 4u : 8u;
+    if (n <= main_len) std::memcpy(main, sig, n);
+}
+
