@@ -6,12 +6,9 @@
 #include <cstdint>
 #include <vector>
 
-/* The main host window's drawable. Owns a shared PresenterCanvas (the
-   present-DIB + scaling + scrollbars, also used by VGA card windows) and
-   layers on the main-window-only concerns: the HwScreen / Framebuffer /
-   MemoryVisualizer tabs, the LCD scan tick, and stylus input — supplied to
-   the canvas through the PresenterCanvasHost hooks. Runs on HostWindow's UI
-   thread. */
+/* The main host window's drawable. Owns a shared PresenterCanvas and layers on
+   the main-window-only concerns (HwScreen / Framebuffer / MemoryVisualizer
+   tabs, LCD scan tick, stylus input) via the PresenterCanvasHost hooks. */
 class HostCanvas : public Service, public PresenterCanvasHost {
 public:
     using Service::Service;
@@ -37,10 +34,12 @@ public:
     }
 
     /* View state (UI thread). */
-    Tab          CurrentTab() const { return tab_; }
-    ViewportMode Mode()       const { return canvas_.Mode(); }
+    Tab          CurrentTab()    const { return tab_; }
+    ViewportMode Mode()          const { return canvas_.Mode(); }
+    int          IntegerFactor() const { return canvas_.IntegerFactor(); }
     void SetTab(Tab t, bool user_initiated);
     void SetViewportMode(ViewportMode m) { canvas_.SetViewportMode(m); }
+    void SetIntegerScale(int factor)     { canvas_.SetIntegerScale(factor); }
 
     /* UI thread. Re-arm the one-shot that auto-switches to Framebuffer on the
        first frame, so a guest reboot returns to Framebuffer when video resumes. */

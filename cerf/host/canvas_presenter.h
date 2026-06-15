@@ -9,23 +9,12 @@
 #include <cstdint>
 #include <vector>
 
-/* The shared guest-surface presentation core: viewport mode (Original /
-   Aspect / Stretch), optional antialiased scaling, Original-mode scrollbars,
-   and the single host-pixel -> guest-surface coordinate transform. One
-   instance per window — the main HostCanvas owns one (fed by the board
-   FrameRenderer), and each PCMCIA VGA card window owns one (fed by the
-   card's own producer), so the scale/stretch View semantics are defined
-   exactly once and behave identically in every window.
-
-   The presenter owns the guest-surface DIB (sized to the producer's native
-   frame) and composes it, scaled per the viewport mode, into a present
-   surface (the window backbuffer) the OWNER provides — the owner keeps the
-   present DIB because on the main window it is shared with the UART /
-   MemoryVisualizer tabs. The presenter does NOT own a window, a timer, or a
-   message loop; the owner forwards the relevant messages. */
+/* Shared guest-surface presentation core: viewport mode, scaling, scrollbars,
+   and the host-pixel -> guest-surface transform. One per window; owns the
+   guest DIB and composes into an owner-provided present surface. */
 class CanvasPresenter {
 public:
-    enum class ViewportMode { Original, Aspect, Stretch };
+    enum class ViewportMode { Original, Aspect, Stretch, Integer };
 
     /* source may be null — the main canvas binds the board FrameRenderer via
        TryGet, which yields null on a board with no renderer (matching the
@@ -63,17 +52,18 @@ public:
     uint32_t SurfaceWidth () const { return surface_w_.load(std::memory_order_acquire); }
     uint32_t SurfaceHeight() const { return surface_h_.load(std::memory_order_acquire); }
 
-    ViewportMode Mode()      const { return mode_; }
-    bool         Antialias() const { return antialias_; }
+    ViewportMode Mode()          const { return mode_; }
+    bool         Antialias()     const { return antialias_; }
+    int          IntegerFactor() const { return integer_factor_; }
     void SetViewportMode(ViewportMode m);
     void SetAntialias(bool on);
+    /* Switch to Integer mode at the given whole-number scale (nearest-neighbor,
+       centered, scrolled on overflow). */
+    void SetIntegerScale(int factor);
 
-    /* UI thread. Pull a fresh frame from the producer (if any) and compose it,
-       scaled per the viewport mode, into the owner's present surface. Returns
-       true when a frame was drawn, false when the producer has none (the owner
-       decides what to paint instead). present_bits is the owner's backbuffer,
-       sized to the last OnCanvasResized dimensions (BGRA32); present_dc wraps
-       it. */
+    /* UI thread. Compose a fresh producer frame, scaled per the viewport mode,
+       into present_bits (owner backbuffer, sized to the last OnCanvasResized;
+       present_dc wraps it). False when the producer has no frame. */
     bool ComposeInto(HDC present_dc, uint32_t* present_bits);
 
     /* UI thread. Whether the presenter's content is the one currently shown
@@ -109,6 +99,11 @@ private:
     };
     Layout ComputeLayout(int canvas_w, int canvas_h) const;
 
+    /* Composed content size in canvas pixels — surface dims, scaled by the
+       factor in Integer mode. Drives scrollbar range and overflow centering. */
+    int ContentW() const;
+    int ContentH() const;
+
     FrameSource* source_;
 
     HWND      hwnd_      = nullptr;
@@ -121,8 +116,9 @@ private:
     std::atomic<uint32_t> surface_w_{0};
     std::atomic<uint32_t> surface_h_{0};
 
-    ViewportMode mode_      = ViewportMode::Original;
-    bool         antialias_ = false;  /* off = crisp nearest-neighbor scale */
+    ViewportMode mode_           = ViewportMode::Original;
+    int          integer_factor_ = 2;
+    bool         antialias_      = false;  /* off = crisp nearest-neighbor scale */
     bool         active_    = true;   /* owner content currently shown */
 
     int  scroll_x_  = 0;

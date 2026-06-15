@@ -38,12 +38,9 @@ public:
 };
 
 /* The shared drawable child window: owns the present-DIB backbuffer, a
-   CanvasPresenter (viewport mode / scaling / scrollbars / host<->guest
-   transform), and the ~60 Hz present timer. Multi-instance — the main window's
-   HostCanvas owns one, and each PCMCIA VGA card window owns one — so the
-   present-DIB + scroll + present-loop plumbing exists exactly once. The window
-   is borderless (window rect == client) so scrollbar toggling never shrinks
-   the canvas reference and latches the bar on. NOT a Service. */
+   CanvasPresenter, and the ~60 Hz present timer. Multi-instance, NOT a Service.
+   Keep the window borderless (window rect == client): with a border, toggling a
+   scrollbar shrinks the client and latches the bar permanently on. */
 class PresenterCanvas {
 public:
     using ViewportMode = CanvasPresenter::ViewportMode;
@@ -73,10 +70,12 @@ public:
         presenter_.SetSurfaceSize(w, h);
     }
 
-    ViewportMode Mode()      const { return presenter_.Mode(); }
-    bool         Antialias() const { return presenter_.Antialias(); }
+    ViewportMode Mode()          const { return presenter_.Mode(); }
+    bool         Antialias()     const { return presenter_.Antialias(); }
+    int          IntegerFactor() const { return presenter_.IntegerFactor(); }
     void SetViewportMode(ViewportMode m) { presenter_.SetViewportMode(m); }
     void SetAntialias(bool on)           { presenter_.SetAntialias(on); }
+    void SetIntegerScale(int factor)     { presenter_.SetIntegerScale(factor); }
 
     /* Whether the FrameSource is the active content (drives scrollbars). The
        main window sets false while a non-framebuffer tab shows. */

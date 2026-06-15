@@ -7,6 +7,7 @@
 #include "emulation_pause.h"
 #include "host_canvas.h"
 #include "host_key_prompt.h"
+#include "host_window.h"
 #include "keyboard_input.h"
 
 REGISTER_SERVICE(HostInputCapture);
@@ -125,6 +126,11 @@ bool HostInputCapture::OnHookKey(WPARAM wParam, const KBDLLHOOKSTRUCT* k) {
 
     if (rctrl_down_ && vk == 'P') {
         if (!key_up) emu_.Get<EmulationPause>().Toggle();
+        return true;
+    }
+
+    if (rctrl_down_ && vk == 'F') {
+        if (!key_up) emu_.Get<HostWindow>().ToggleFullscreen();
         return true;
     }
 

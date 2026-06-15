@@ -188,7 +188,7 @@ void HostWindow::AdoptResolutionToWindowMonitor() {
 }
 
 void HostWindow::FitWindowToSurface(uint32_t sw, uint32_t sh) {
-    if (!hwnd_ || sw == 0 || sh == 0) return;
+    if (!hwnd_ || sw == 0 || sh == 0 || fullscreen_.IsActive()) return;
 
     int ex_w = 0, ex_h = 0;
     WindowChromeExtent(GetDpiForWindow(hwnd_), ex_w, ex_h);
@@ -230,6 +230,10 @@ void HostWindow::RunShutdownPrompt() {
         shutdown_pending_ = false;   /* user aborted close; allow a later one */
         return;
     }
+    PerformShutdownChoice(c);
+}
+
+void HostWindow::PerformShutdownChoice(ShutdownChoice c) {
     if (c == ShutdownChoice::ExitSave) {
         ShowHwScreenTab(false);          /* render the save-progress screen */
         emu_.Get<Hibernation>().SaveAsync(L"", [this] {
@@ -386,15 +390,17 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_SIZE: {
             RECT rc;
             GetClientRect(hwnd, &rc);
-            const LONG sbh = (LONG)emu_.Get<HostStatusBar>().Height();
+            const bool fs = fullscreen_.IsActive();   /* status bar gone in fullscreen */
+            const LONG sbh = fs ? 0 : (LONG)emu_.Get<HostStatusBar>().Height();
             RECT cv = { 0, 0, rc.right, rc.bottom - sbh };
             emu_.Get<HostCanvas>().Reposition(cv);
-            RECT sb = { 0, rc.bottom - sbh, rc.right, rc.bottom };
-            emu_.Get<HostStatusBar>().Reposition(sb);
-            /* Coalesce the drag/maximize WM_SIZE storm: (re)arm a short timer and
-               publish only the settled size on WM_TIMER. One guest re-mode per
-               intermediate size floods gwes with PDEV re-enables and crashes at
-               high resolution. */
+            ShowWindow(emu_.Get<HostStatusBar>().Hwnd(), fs ? SW_HIDE : SW_SHOW);
+            if (!fs) {
+                RECT sb = { 0, rc.bottom - sbh, rc.right, rc.bottom };
+                emu_.Get<HostStatusBar>().Reposition(sb);
+            }
+            /* Coalesce the WM_SIZE storm: one re-mode per intermediate size
+               floods gwes with PDEV re-enables and crashes at high resolution. */
             if (auto* ar = emu_.TryGet<HostAutoResize>();
                 wp != SIZE_MINIMIZED && ar && ar->Enabled())
                 SetTimer(hwnd, kResizeDebounceTimer, kResizeDebounceMs, nullptr);
@@ -447,7 +453,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (auto* ar = emu_.TryGet<HostAutoResize>()) {
                     RECT rc;
                     GetClientRect(hwnd, &rc);
-                    const LONG sbh = (LONG)emu_.Get<HostStatusBar>().Height();
+                    const LONG sbh = fullscreen_.IsActive() ? 0 : (LONG)emu_.Get<HostStatusBar>().Height();
                     ar->OnUserResizeEnd((uint32_t)rc.right,
                                         (uint32_t)(rc.bottom - sbh));
                 }
