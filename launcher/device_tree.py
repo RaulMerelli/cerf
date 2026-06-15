@@ -102,6 +102,20 @@ def _table_device_label(d: DeviceBundle) -> str:
     return f"{display} ({d.meta.device_year})" if d.meta.device_year else display
 
 
+def _device_search_haystack(d: DeviceBundle) -> str:
+    parts: List[str] = [
+        _table_device_label(d),
+        _table_os_label(d),
+        d.meta.board_name or "",
+        d.meta.soc_family or "",
+        d.state_label,
+        d.name,
+    ]
+    parts.extend(d.meta.os_notes or [])
+    parts.extend(ps.remote.name for ps in d.packages)
+    return "\n".join(parts).lower()
+
+
 class DeviceTreePanel:
     def __init__(self, parent: ttk.Frame,
                  on_select: Callable[[TreeSelection], None],
@@ -137,6 +151,12 @@ class DeviceTreePanel:
                         value="show_all",
                         command=self._filter_mode_changed).pack(side="left",
                                                                 padx=(8, 0))
+        self.var_search = tk.StringVar(value="")
+        search_entry = ttk.Entry(filter_bar, textvariable=self.var_search,
+                                 width=22)
+        search_entry.pack(side="right")
+        ttk.Label(filter_bar, text="Search:").pack(side="right", padx=(0, 4))
+        self.var_search.trace_add("write", lambda *_: self._refill())
 
         columns = ("os", "board", "soc", "status")
         tree = ttk.Treeview(frame, columns=columns, show="tree headings",
@@ -210,6 +230,7 @@ class DeviceTreePanel:
         self._payload.clear()
         hide = self.var_filter_mode.get() == "hide_unsupported"
         hide_no_metadata = hide and self.var_hide_no_metadata.get()
+        query = self.var_search.get().strip().lower()
         group_iids: Dict[str, str] = {}
         device_iids: List[str] = []
         for d in self.devices:
@@ -224,6 +245,8 @@ class DeviceTreePanel:
                     continue
                 if hide_no_metadata and state_flag is None:
                     continue
+            if query and query not in _device_search_haystack(d):
+                continue
             board = d.meta.board_name or ""
             group_iid = group_iids.get(board)
             if group_iid is None:
