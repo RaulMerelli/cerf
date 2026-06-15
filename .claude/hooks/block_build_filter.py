@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook for Bash AND PowerShell. HARD-BLOCKS any call that runs
-build.ps1 AND also invokes an output-filtering / line-slicing command
-ANYWHERE in the same call, regardless of separator (pipe, newline,
-semicolon, &&).
+PreToolUse hook for Bash AND PowerShell. Requires build.ps1 to be the
+LAST thing that runs in the call, with only output redirection permitted
+after it; any other trailing or wrapping construct is blocked.
 
-Two tool surfaces, two filter vocabularies:
+build.ps1's exit status reaches the caller only if nothing runs after it
+and nothing wraps it. Redirection spawns no command and preserves the
+exit code, so it is the sole permitted trailing construct; everything
+else is blocked by default.
 
-  Bash:        head, tail, grep
-  PowerShell:  Select-String (grep), Select-Object -First/-Last (head/
-               tail), Where-Object / `?` (grep), `| select -First/-Last`
+What masks the exit code (all FORBIDDEN after build.ps1):
+  - `;`  / newline   — statement separator; the next command's exit
+                       becomes the call's. `build.ps1 ...; echo $?` makes
+                       a failed build report 0.
+  - `|`  / `||`      — pipe / or-chain; the filter or RHS sets the exit.
+                       Also blinds the output (filters drop the error).
+  - `&&`             — even though `&&` propagates failure, a trailing
+                       command is still forbidden: keep build.ps1 in its
+                       own call so output and exit are unambiguous.
+  - `$( )` / backtick — command substitution running build inside another
+                       command, whose exit wins.
 
-Both failure modes apply on both surfaces:
+The ONLY two sanctioned forms:
+  1. build.ps1 raw (no trailing anything) — full output reaches the tool
+     result, exit code intact.
+  2. build.ps1 > build.log 2>&1  (redirection ALONE, nothing after) —
+     exit code intact; Read build.log in a SEPARATE call afterwards.
 
-  1. EXIT-CODE MASKING — in a compound command the last command's exit
-     status becomes the whole call's, so a successful filter after a
-     failed build (`build.ps1 > log 2>&1; tail log`, or `... |
-     Select-Object -Last 5`) reports success. PowerShell `$?` behaves
-     the same when the last pipeline / chain element is a successful
-     cmdlet.
+run_in_background note: a background build's completion notification
+reports the call's exit status. That is build.ps1's true status ONLY
+because this hook guarantees nothing trails it. Never infer build success
+from a notification on a call that had anything after build.ps1 — this
+hook blocks that shape outright.
 
-  2. OUTPUT BLINDING — filtering build output to a regex / last-N-lines
-     hides the actual compiler error, so the caller can't see why the
-     build failed and re-runs the whole build with a different filter.
-
-Raw build output goes directly to the agent. Pure redirection IS still
-allowed (`build.ps1 > build.log 2>&1` ALONE, no follow-up filter in the
-same call): redirection preserves build's exit code, so failure stays
-visible — the agent just Reads build.log afterwards. Pairing the
-redirect with a filter in the SAME call is what re-introduces masking
-and blinding.
+Leading setup before build.ps1 (`cd /z && build.ps1`, redirections) is
+fine: what runs BEFORE build.ps1 cannot mask its exit when build.ps1 is
+last. Only the tail after the last build.ps1 token is checked.
 """
 import json
 import re
@@ -37,21 +43,20 @@ import sys
 
 BUILD_RE = re.compile(r"\bbuild\.ps1\b", re.IGNORECASE)
 
-# Bash filters and PowerShell filters in one alternation. PowerShell
-# cmdlets and their common aliases:
-#   Select-String  (alias: sls)   — grep
-#   Select-Object  (alias: select) with -First/-Last/-Skip — head/tail
-#   Where-Object   (aliases: where, ?) — grep
-#   more / out-host -paging        — pager
-FILTER_RE = re.compile(
-    r"\b(head|tail|grep)\b"                       # bash
-    r"|\bSelect-String\b|\bsls\b"                 # ps grep
-    r"|\bSelect-Object\b|\bselect\b"              # ps head/tail/proj
-    r"|\bWhere-Object\b|\bwhere\b"                # ps filter
-    r"|\|\s*\?\s"                                 # ps `?` filter alias
-    r"|\bmore\b|\bout-host\b",                    # pagers
-    re.IGNORECASE,
-)
+# Command substitution wrapping build.ps1 swallows its exit code (the
+# outer command's status wins). There is no legitimate reason to run
+# build.ps1 inside `$( )` or backticks, so either anywhere in the
+# command is a block — the masker here sits BEFORE build.ps1, so a
+# tail-only check would miss it.
+SUBST_RE = re.compile(r"\$\(|`")
+
+# Tokens that introduce a new command / pipeline stage AFTER build.ps1.
+# Output redirection (`>`, `>>`, `2>&1`, `1>&2`) is deliberately NOT
+# here — it spawns no command and preserves the exit code. The `&` of
+# `2>&1` is excluded via the `(?<!>)` lookbehind; a bare background `&`
+# (not preceded by `>`, not part of `&&`, not followed by a redirection
+# digit) IS matched because it detaches build and returns 0 immediately.
+FORBIDDEN_TAIL_RE = re.compile(r"[;|\n]|&&|(?<!>)&(?![&\d])")
 
 
 def main() -> int:
@@ -64,32 +69,42 @@ def main() -> int:
     if not cmd:
         return 0
 
-    if not BUILD_RE.search(cmd):
+    matches = list(BUILD_RE.finditer(cmd))
+    if not matches:
         return 0
 
-    m = FILTER_RE.search(cmd)
-    if not m:
+    # Substitution-wrapping can mask from before build.ps1; check globally.
+    subst = SUBST_RE.search(cmd)
+    # Only the tail after the LAST build.ps1 occurrence can mask via a
+    # trailing command.
+    tail = cmd[matches[-1].end():]
+    tail_hit = FORBIDDEN_TAIL_RE.search(tail)
+
+    if not subst and not tail_hit:
         return 0
 
-    filter_token = m.group(0).strip().strip("|").strip()
+    bad = (subst or tail_hit).group(0).replace("\n", "\\n")
     reason = (
-        f"BLOCKED: build.ps1 is piped/chained into an output filter "
-        f"(`{filter_token}`) in the same call. Two reasons this is "
-        f"forbidden:\n\n"
-        f"  1. Exit-code masking — the last command in a chain sets "
-        f"the call's exit status, so the filter's success hides "
-        f"build.ps1's failure. A failed build reads as succeeded.\n"
-        f"  2. Output blinding — the filter drops the compiler error "
-        f"lines, so you cannot see why the build failed and end up "
-        f"re-running the whole build (minutes) to try another filter.\n\n"
-        f"Do one of:\n"
-        f"  - Run build.ps1 with no pipe/filter at all — full output "
-        f"and exit code reach you intact.\n"
-        f"  - Redirect alone: `build.ps1 > build.log 2>&1` (nothing "
-        f"after it in the same call), then Read build.log in a "
-        f"separate call.\n\n"
-        f"Running the build and inspecting its output must be two "
-        f"separate calls."
+        f"BLOCKED: something runs after build.ps1 in this call "
+        f"(found `{bad}` after the build.ps1 token). build.ps1 must be "
+        f"the LAST thing that runs — anything chained after it masks "
+        f"its exit code, so a failed build reports success.\n\n"
+        f"Only output redirection may follow build.ps1. A trailing "
+        f"command, pipe, `&&`/`||`/`;`/newline, `echo $?`, command "
+        f"substitution (`$( )` / backticks), or another program after "
+        f"build is blocked — each makes the exit status come from the "
+        f"trailing construct instead of build, or hides build's "
+        f"output.\n\n"
+        f"Use exactly one of these two forms:\n"
+        f"  1. Run build.ps1 with nothing after it — full output and "
+        f"exit code reach you directly.\n"
+        f"  2. `build.ps1 > build.log 2>&1` with nothing after the "
+        f"redirection, then Read build.log in a SEPARATE call.\n\n"
+        f"Running the build and inspecting its result are TWO separate "
+        f"calls. If you run the build in the background, the same rule "
+        f"holds: nothing may follow build.ps1, or the completion "
+        f"notification's exit code is the trailing command's, not the "
+        f"build's."
     )
 
     out = {
@@ -99,8 +114,8 @@ def main() -> int:
             "permissionDecisionReason": reason,
         },
         "systemMessage": (
-            f"[CLAUDE.md hook] BLOCKED: build.ps1 + filter "
-            f"('{filter_token}')"
+            f"[CLAUDE.md hook] BLOCKED: command runs after build.ps1 "
+            f"(masks exit code)"
         ),
     }
     json.dump(out, sys.stdout)
