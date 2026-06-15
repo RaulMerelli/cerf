@@ -7,6 +7,8 @@
 #include "../../host/host_icon_cache.h"
 #include "../../state/state_stream.h"
 
+#include <chrono>
+#include <thread>
 #include <utility>
 
 namespace {
@@ -217,7 +219,7 @@ void PcmciaSlot::MenuEject(uint64_t gen) {
     host_.OnCardDetectChanged(*this);
 }
 
-void PcmciaSlot::MenuInsert(uint64_t gen, const std::string& card_id) {
+void PcmciaSlot::CombinedSwap(uint64_t gen, std::unique_ptr<PcmciaCard> card) {
     bool ejected = false;
     {
         std::lock_guard<std::mutex> lk(bus_mutex_);
@@ -227,32 +229,27 @@ void PcmciaSlot::MenuInsert(uint64_t gen, const std::string& card_id) {
             ejected = true;
         }
     }
-    if (ejected) host_.OnCardDetectChanged(*this);
-
-    auto card = emu_.Get<PcmciaCardCatalog>().Create(card_id);
+    if (ejected) {
+        host_.OnCardDetectChanged(*this);   /* removal edge */
+        /* Hold the socket empty until the guest's detect handler runs and reads
+           it absent */
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+    }
     {
         std::lock_guard<std::mutex> lk(bus_mutex_);
         if (card_) return;   /* raced with another inserter; keep theirs */
         InsertLocked(std::move(card));
     }
-    host_.OnCardDetectChanged(*this);
+    host_.OnCardDetectChanged(*this);       /* insert edge */
+}
+
+void PcmciaSlot::MenuInsert(uint64_t gen, const std::string& card_id) {
+    CombinedSwap(gen, emu_.Get<PcmciaCardCatalog>().Create(card_id));
 }
 
 void PcmciaSlot::MenuInsertCard(uint64_t gen, std::unique_ptr<PcmciaCard> card) {
     if (!card) return;
-    bool ejected = false;
-    {
-        std::lock_guard<std::mutex> lk(bus_mutex_);
-        if (generation_ != gen) return;
-        if (card_) { EjectLocked(); ejected = true; }
-    }
-    if (ejected) host_.OnCardDetectChanged(*this);
-    {
-        std::lock_guard<std::mutex> lk(bus_mutex_);
-        if (card_) return;   /* raced with another inserter; keep theirs */
-        InsertLocked(std::move(card));
-    }
-    host_.OnCardDetectChanged(*this);
+    CombinedSwap(gen, std::move(card));
 }
 
 std::vector<WidgetMenuItem> PcmciaSlot::BuildInsertSubmenuLocked(uint64_t gen) {
