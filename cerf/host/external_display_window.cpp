@@ -19,7 +19,10 @@ constexpr wchar_t kWindowClass[] = L"CerfExternalDisplay";
 constexpr int kIdVpOriginal = 110;
 constexpr int kIdVpAspect   = 111;
 constexpr int kIdVpStretch  = 112;
+constexpr int kIdVpInteger2 = 113;
+constexpr int kIdVpInteger3 = 114;
 constexpr int kIdAliasing   = 120;
+constexpr int kIdFullscreen = 121;
 constexpr int kIdSaveShot   = 130;
 constexpr int kIdCopyShot   = 131;
 
@@ -74,7 +77,11 @@ HMENU ExternalDisplayWindow::BuildMenu() {
     AppendMenuW(view, MF_STRING, kIdVpOriginal, L"Original view");
     AppendMenuW(view, MF_STRING, kIdVpAspect,   L"Resize + match aspect ratio");
     AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
+    AppendMenuW(view, MF_STRING, kIdVpInteger2, L"Integer scale 2x");
+    AppendMenuW(view, MF_STRING, kIdVpInteger3, L"Integer scale 3x");
     AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
+    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(view, MF_STRING, kIdFullscreen, L"Full screen\tRight Ctrl+F");
     AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(view, MF_STRING, kIdSaveShot,   L"Save screenshot");
     AppendMenuW(view, MF_STRING, kIdCopyShot,   L"Copy screenshot");
@@ -91,14 +98,19 @@ void ExternalDisplayWindow::SyncMenuChecks() {
         case PresenterCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
         case PresenterCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
         case PresenterCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
+        case PresenterCanvas::ViewportMode::Integer:
+            vp_id = canvas_.IntegerFactor() >= 3 ? kIdVpInteger3 : kIdVpInteger2;
+            break;
     }
-    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpStretch, vp_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger3, vp_id, MF_BYCOMMAND);
     CheckMenuItem(view, kIdAliasing,
                   MF_BYCOMMAND | (canvas_.Antialias() ? MF_CHECKED : MF_UNCHECKED));
+    CheckMenuItem(view, kIdFullscreen,
+                  MF_BYCOMMAND | (fullscreen_.IsActive() ? MF_CHECKED : MF_UNCHECKED));
 }
 
 void ExternalDisplayWindow::FitToSurface(uint32_t sw, uint32_t sh) {
-    if (!hwnd_ || sw == 0 || sh == 0) return;
+    if (!hwnd_ || sw == 0 || sh == 0 || fullscreen_.IsActive()) return;
 
     const DWORD style = (DWORD)GetWindowLongW(hwnd_, GWL_STYLE);
     const DWORD ex    = (DWORD)GetWindowLongW(hwnd_, GWL_EXSTYLE);
@@ -176,8 +188,16 @@ void ExternalDisplayWindow::UiThreadMain(uint32_t surf_w, uint32_t surf_h) {
     }
     ui_ready_cv_.notify_all();
 
+    /* Right Ctrl+F toggles fullscreen, matching the main window's host shortcut.
+       Caught in the loop, not WndProc: the canvas child may hold keyboard focus,
+       so the key would never reach this top-level proc. */
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message == WM_KEYDOWN && msg.wParam == 'F' &&
+            (GetKeyState(VK_RCONTROL) & 0x8000)) {
+            fullscreen_.Toggle(hwnd_);
+            continue;
+        }
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
@@ -247,8 +267,11 @@ LRESULT ExternalDisplayWindow::WndProc(HWND hwnd, UINT msg,
                         canvas_.SetViewportMode(PresenterCanvas::ViewportMode::Aspect); break;
                     case kIdVpStretch:
                         canvas_.SetViewportMode(PresenterCanvas::ViewportMode::Stretch); break;
+                    case kIdVpInteger2: canvas_.SetIntegerScale(2); break;
+                    case kIdVpInteger3: canvas_.SetIntegerScale(3); break;
                     case kIdAliasing:
                         canvas_.SetAntialias(!canvas_.Antialias()); break;
+                    case kIdFullscreen: fullscreen_.Toggle(hwnd); break;
                     case kIdSaveShot: {
                         std::vector<uint32_t> px;
                         uint32_t w = 0, h = 0;

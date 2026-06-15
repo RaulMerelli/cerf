@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "presenter_canvas.h"
+#include "window_fullscreen.h"
 
 class CerfEmulator;
 class FrameSource;
@@ -70,4 +71,6 @@ private:
     /* Child drawable, fed by the producer. No host hooks: a VGA window has no
        tabs and no stylus. */
     PresenterCanvas canvas_;
+
+    WindowFullscreen fullscreen_;
 };

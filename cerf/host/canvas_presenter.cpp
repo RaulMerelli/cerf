@@ -92,6 +92,26 @@ void CanvasPresenter::SetAntialias(bool on) {
     if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
+void CanvasPresenter::SetIntegerScale(int factor) {
+    if (factor < 1) factor = 1;
+    if (mode_ == ViewportMode::Integer && integer_factor_ == factor) return;
+    mode_ = ViewportMode::Integer;
+    integer_factor_ = factor;
+    scroll_x_ = scroll_y_ = 0;
+    UpdateScrollbars();
+    if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+int CanvasPresenter::ContentW() const {
+    const int sw = (int)surface_w_.load(std::memory_order_acquire);
+    return mode_ == ViewportMode::Integer ? sw * integer_factor_ : sw;
+}
+
+int CanvasPresenter::ContentH() const {
+    const int sh = (int)surface_h_.load(std::memory_order_acquire);
+    return mode_ == ViewportMode::Integer ? sh * integer_factor_ : sh;
+}
+
 CanvasPresenter::Layout CanvasPresenter::ComputeLayout(int cw, int ch) const {
     Layout L = {};
     const int sw = (int)surface_w_.load(std::memory_order_acquire);
@@ -114,6 +134,23 @@ CanvasPresenter::Layout CanvasPresenter::ComputeLayout(int cw, int ch) const {
         L.dst_x = (cw - fw) / 2; L.dst_y = (ch - fh) / 2;
         L.dst_w = fw;            L.dst_h = fh;
         L.src_x = 0; L.src_y = 0; L.src_w = sw; L.src_h = sh;
+        return L;
+    }
+
+    if (mode_ == ViewportMode::Integer) {
+        const int N = integer_factor_;
+        const int scaled_w = sw * N;
+        const int scaled_h = sh * N;
+        L.stretch = true;
+        L.src_x = 0; L.src_y = 0; L.src_w = sw; L.src_h = sh;
+        L.dst_w = scaled_w; L.dst_h = scaled_h;
+        /* Fits: center. Overflows: offset by the scroll position and let the
+           present DC clip to the canvas — keeps each guest pixel an exact NxN
+           block (crisp) while staying scrollable. */
+        L.dst_x = (scaled_w <= cw) ? (cw - scaled_w) / 2
+                                   : -std::clamp(scroll_x_, 0, scaled_w - cw);
+        L.dst_y = (scaled_h <= ch) ? (ch - scaled_h) / 2
+                                   : -std::clamp(scroll_y_, 0, scaled_h - ch);
         return L;
     }
 
@@ -181,11 +218,12 @@ void CanvasPresenter::ClampGuest(int& sx, int& sy) const {
 
 void CanvasPresenter::UpdateScrollbars() {
     if (!hwnd_) return;
-    const int sw = (int)surface_w_.load(std::memory_order_acquire);
-    const int sh = (int)surface_h_.load(std::memory_order_acquire);
-    const bool original = active_ && (mode_ == ViewportMode::Original);
-    const bool want_h = original && sw > canvas_w_;
-    const bool want_v = original && sh > canvas_h_;
+    const int sw = ContentW();
+    const int sh = ContentH();
+    const bool scrollable = active_ && (mode_ == ViewportMode::Original ||
+                                        mode_ == ViewportMode::Integer);
+    const bool want_h = scrollable && sw > canvas_w_;
+    const bool want_v = scrollable && sh > canvas_h_;
 
     if (want_h != hsb_shown_) { ShowScrollBar(hwnd_, SB_HORZ, want_h); hsb_shown_ = want_h; }
     if (want_v != vsb_shown_) { ShowScrollBar(hwnd_, SB_VERT, want_v); vsb_shown_ = want_v; }
@@ -223,7 +261,7 @@ void CanvasPresenter::OnHScroll(WPARAM wp) {
         case SB_THUMBTRACK:
         case SB_THUMBPOSITION: pos = si.nTrackPos;  break;
     }
-    const int maxs = std::max(0, (int)surface_w_.load() - canvas_w_);
+    const int maxs = std::max(0, ContentW() - canvas_w_);
     scroll_x_ = std::clamp(pos, 0, maxs);
     SCROLLINFO s2 = { sizeof(s2) }; s2.fMask = SIF_POS; s2.nPos = scroll_x_;
     SetScrollInfo(hwnd_, SB_HORZ, &s2, TRUE);
@@ -243,7 +281,7 @@ void CanvasPresenter::OnVScroll(WPARAM wp) {
         case SB_THUMBTRACK:
         case SB_THUMBPOSITION: pos = si.nTrackPos;     break;
     }
-    const int maxs = std::max(0, (int)surface_h_.load() - canvas_h_);
+    const int maxs = std::max(0, ContentH() - canvas_h_);
     scroll_y_ = std::clamp(pos, 0, maxs);
     SCROLLINFO s2 = { sizeof(s2) }; s2.fMask = SIF_POS; s2.nPos = scroll_y_;
     SetScrollInfo(hwnd_, SB_VERT, &s2, TRUE);

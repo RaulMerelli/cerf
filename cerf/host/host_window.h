@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/service.h"
+#include "window_fullscreen.h"
 
 #define NOMINMAX
 #include <windows.h>
@@ -12,6 +13,8 @@
 #include <mutex>
 #include <string>
 #include <thread>
+
+enum class ShutdownChoice;
 
 class HostWindow : public Service {
 public:
@@ -55,6 +58,14 @@ public:
     /* HostMenu's "Match guest size" state + action. */
     bool FollowGuest() const { return follow_guest_; }
     void MatchGuestSize();
+
+    /* Borderless-fullscreen toggle (View menu + Right Ctrl+F). UI thread. */
+    bool IsFullscreen() const  { return fullscreen_.IsActive(); }
+    void ToggleFullscreen()    { if (hwnd_) fullscreen_.Toggle(hwnd_); }
+
+    /* UI thread. Execute a non-Cancel shutdown choice (exit, or save-then-exit);
+       shared by the window-close prompt and deep-sleep recovery. */
+    void PerformShutdownChoice(ShutdownChoice c);
 
 private:
     void StopUiThread();   /* idempotent: close window + join the UI thread */
@@ -106,4 +117,6 @@ private:
     bool      shutdown_pending_ = false;  /* dialog/save in flight, before teardown */
     bool      closing_          = false;  /* teardown started; waiting on JIT stop */
     ULONGLONG close_start_tick_ = 0;      /* GetTickCount64 at teardown start */
+
+    WindowFullscreen fullscreen_;
 };

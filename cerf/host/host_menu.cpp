@@ -34,7 +34,10 @@ enum MenuId : int {
     kIdVpOriginal  = 110,
     kIdVpAspect    = 111,
     kIdVpStretch   = 112,
-    kIdAliasing    = 113,
+    kIdVpInteger2  = 113,
+    kIdVpInteger3  = 114,
+    kIdAliasing    = 115,
+    kIdFullscreen  = 116,
     kIdSaveShot    = 120,
     kIdCopyShot    = 121,
     kIdMatchGuest  = 122,
@@ -60,7 +63,11 @@ HMENU HostMenu::Build() {
     AppendMenuW(view, MF_STRING, kIdVpOriginal, L"Original view");
     AppendMenuW(view, MF_STRING, kIdVpAspect,   L"Resize + match aspect ratio");
     AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
+    AppendMenuW(view, MF_STRING, kIdVpInteger2, L"Integer scale 2x");
+    AppendMenuW(view, MF_STRING, kIdVpInteger3, L"Integer scale 3x");
     AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
+    AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(view, MF_STRING, kIdFullscreen, L"Full screen\tRight Ctrl+F");
     AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(view, MF_STRING, kIdSaveShot,   L"Save screenshot");
     AppendMenuW(view, MF_STRING, kIdCopyShot,   L"Copy screenshot");
@@ -91,10 +98,16 @@ void HostMenu::Sync() {
         case HostCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
         case HostCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
         case HostCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
+        case HostCanvas::ViewportMode::Integer:
+            vp_id = canvas.IntegerFactor() >= 3 ? kIdVpInteger3 : kIdVpInteger2;
+            break;
     }
-    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpStretch, vp_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger3, vp_id, MF_BYCOMMAND);
     CheckMenuItem(view, kIdAliasing,
                   MF_BYCOMMAND | (canvas.Antialias() ? MF_CHECKED : MF_UNCHECKED));
+    CheckMenuItem(view, kIdFullscreen,
+                  MF_BYCOMMAND | (emu_.Get<HostWindow>().IsFullscreen()
+                                      ? MF_CHECKED : MF_UNCHECKED));
     CheckMenuItem(view, kIdMatchGuest,
                   MF_BYCOMMAND | (emu_.Get<HostWindow>().FollowGuest()
                                       ? MF_CHECKED : MF_UNCHECKED));
@@ -175,7 +188,10 @@ void HostMenu::HandleCommand(int id) {
         case kIdVpOriginal: canvas.SetViewportMode(HostCanvas::ViewportMode::Original); break;
         case kIdVpAspect:   canvas.SetViewportMode(HostCanvas::ViewportMode::Aspect);   break;
         case kIdVpStretch:  canvas.SetViewportMode(HostCanvas::ViewportMode::Stretch);  break;
+        case kIdVpInteger2: canvas.SetIntegerScale(2); break;
+        case kIdVpInteger3: canvas.SetIntegerScale(3); break;
         case kIdAliasing:   canvas.SetAntialias(!canvas.Antialias()); break;
+        case kIdFullscreen: emu_.Get<HostWindow>().ToggleFullscreen(); break;
         case kIdSaveShot:   emu_.Get<HostScreenshot>().Save(); break;
         case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
         case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
