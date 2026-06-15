@@ -42,14 +42,14 @@ void PcmciaSpaceRouter::SaveState(StateWriter& w) {
     for (int i = 0; i < 2; ++i) {
         PcmciaSlot* s = sockets_[i];
         w.Write<uint8_t>(s ? 1u : 0u);
-        if (s) s->SaveState(w);
+        if (s) s->SaveSlotState(w);
     }
 }
 
 void PcmciaSpaceRouter::RestoreState(StateReader& r) {
     for (int i = 0; i < 2; ++i) {
         uint8_t present = 0; r.Read(present);
-        if (present && sockets_[i]) sockets_[i]->RestoreState(r);
+        if (present && sockets_[i]) sockets_[i]->RestoreSlotState(r);
     }
 }
 

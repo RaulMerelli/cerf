@@ -149,7 +149,7 @@ void PcmciaSlot::OnShutdown() {
     if (card_) card_->OnShutdown();
 }
 
-void PcmciaSlot::SaveState(StateWriter& w) {
+void PcmciaSlot::SaveSlotState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(bus_mutex_);
     w.Write<uint8_t>(powered_ ? 1u : 0u);
     const bool has = (card_ != nullptr);
@@ -170,7 +170,7 @@ void PcmciaSlot::SaveState(StateWriter& w) {
     w.PatchAt(len_off, &len, sizeof(len));
 }
 
-void PcmciaSlot::RestoreState(StateReader& r) {
+void PcmciaSlot::RestoreSlotState(StateReader& r) {
     std::lock_guard<std::mutex> lk(bus_mutex_);
     uint8_t powered = 0, has = 0;
     r.Read(powered);

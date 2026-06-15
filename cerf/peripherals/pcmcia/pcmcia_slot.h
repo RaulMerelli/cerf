@@ -62,10 +62,12 @@ public:
        call this from their Service::OnShutdown. */
     void OnShutdown();
 
-    /* Hibernation: powered flag + present-card identity + length-framed
-       card body. Forwarded from the walked Peripheral holding the slot. */
-    void SaveState(StateWriter& w);
-    void RestoreState(StateReader& r);
+    /* NOT named SaveState/RestoreState: that overrides HostWidget::RestoreState,
+       so the Widget hibernation section re-runs this card restore on a
+       zero-length blob and ejects the card the Periph pass restored. Forwarded
+       from the slot's owning Peripheral. */
+    void SaveSlotState(StateWriter& w);
+    void RestoreSlotState(StateReader& r);
 
     /* HostWidget. */
     std::wstring WidgetName() const override { return label_; }
