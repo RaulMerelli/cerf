@@ -100,6 +100,7 @@ $files = @(
     @{ Name = 'agent_docs/boot_loaders.md';Path = 'agent_docs\boot_loaders.md' },
     @{ Name = 'agent_docs/jit.md';        Path = 'agent_docs\jit.md' },
     @{ Name = 'agent_docs/rules.md';      Path = 'agent_docs\rules.md' },
+    @{ Name = 'agent_docs/hibernation.md';Path = 'agent_docs\hibernation.md' },
     @{ Name = 'agent_docs/code_style.md'; Path = 'agent_docs\code_style.md' },
     @{ Name = 'agent_docs/debugging.md'; Path = 'agent_docs\debugging.md' }
     @{ Name = 'agent_docs/psychological_support.md'; Path = 'agent_docs\psychological_support.md' }

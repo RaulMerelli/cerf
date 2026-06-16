@@ -118,7 +118,7 @@ Logs are written to `cerf.log` next to the executable. On a fatal crash, every o
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>OMAP 3530 EVM</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 7" alt="Windows CE 7"/> Windows CE 7
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
     </tr>
     <tr>
       <td rowspan="2" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>

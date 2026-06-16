@@ -45,11 +45,11 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 - **[agent_docs/debugging.md](agent_docs/debugging.md)** — All debugging: log reading, crash investigation, MMU faults, peripheral halts.
 - **[agent_docs/boot_loaders.md](agent_docs/boot_loaders.md)** — What CERF does with boot loaders.
 - **[agent_docs/psychological_support.md](agent_docs/psychological_support.md)** — Emotional control instructions for agent.
+- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** — Full machine-state save/restore: the `.img` format, the two-thread freeze model (JitRunner pause + EmulationFreeze), and the MANDATORY peripheral contract (SaveState/RestoreState/PostRestore, worker-thread wrapping) for anyone creating or modifying a peripheral.
 
 ## Lazy-load
 
 Various subsystems details - read these documents as soon as the task is related.
-- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** — Full machine-state save/restore: the `.img` format, the two-thread freeze model (JitRunner pause + EmulationFreeze), and the MANDATORY peripheral contract (SaveState/RestoreState/PostRestore, worker-thread wrapping) for anyone creating or modifying a peripheral.
 - **[agent_docs/deep_sleep.md](agent_docs/deep_sleep.md)** — Guest suspend/resume (deep sleep): the CPU-halt + no-timeout recovery dialog, the wake-is-a-reset contract (cause latch + reset-line listeners + resume-vector provider) for implementing it per SoC/board, and why suspend/resume is NOT hibernation.
 - **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** — Guest Additions: universal stub injector + manual-map body delivery, device.exe AFS-FSD shared storage, the cross-process writable-state invariant (pid-key + SHARED), display driver + blit pipeline, task manager.
 
