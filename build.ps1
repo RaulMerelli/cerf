@@ -20,7 +20,7 @@ if (-not (Test-Path "$env:LOCALAPPDATA\vcpkg\vcpkg.user.props")) {
     [Environment]::Exit(1)
 }
 
-$waitDeadline = (Get-Date).AddMinutes(15)
+$waitDeadline = (Get-Date).AddMinutes(30)
 while ($true) {
     $blockingProcs = @()
     foreach ($n in @("cerf","MSBuild","cl","link")) {
@@ -38,7 +38,7 @@ while ($true) {
 
     $names = ($blockingProcs | Select-Object -ExpandProperty Name -Unique) -join ", "
     if ((Get-Date) -ge $waitDeadline) {
-        Write-Host "[BUILD] FAILED! The user OR other agent has been building/running CERF for more than 15 minutes (processes: $names)."
+        Write-Host "[BUILD] FAILED! The user OR other agent has been building/running CERF for more than 30 minutes (processes: $names)."
         Write-Host "[BUILD] If you are 100% sure that this is yours stuck build, then re-run with: build.ps1 -ForceKill"
         Write-Host "[BUILD] Otherwise, WAIT for the process to be closed and +~1 minute (recommended). DONT CORRUPT SOMEONE'S WORK."
         [Environment]::Exit(1)
@@ -58,9 +58,11 @@ while ($true) {
 
 if ($Config -match "^d(ebug)?$") { $Config = "Debug" }
 
+$buildStart = Get-Date
+
 Write-Host "============================================================"
 Write-Host "[BUILD] Starting build: $Config Win32"
-Write-Host "        Full rebuild might take 5+ minutes"
+Write-Host "        Full rebuild might take 60+ minutes"
 Write-Host "============================================================"
 
 # Locate MSBuild via vswhere -- works for any VS edition / version installed
@@ -185,7 +187,8 @@ Write-Host "============================================================"
 if ($buildsFailed -gt 0) {
     Write-Host "[BUILD] Failed: $($failedNames -join ', ')"
 }
-Write-Host "[BUILD] Summary: $buildsSucceeded succeeded, $buildsFailed failed"
+$elapsedMin = [math]::Round(((Get-Date) - $buildStart).TotalMinutes, 1)
+Write-Host "[BUILD] Summary: $buildsSucceeded succeeded, $buildsFailed failed, elapsed $elapsedMin minutes"
 
 # Guarantee a clean zero exit code -- `exit 0` has been known to be
 # swallowed by `powershell.exe -File` in some invocation chains; the
