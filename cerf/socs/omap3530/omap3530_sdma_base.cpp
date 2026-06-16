@@ -90,6 +90,7 @@ bool IsAligned(uint32_t addr, uint32_t es) {
 
 void Omap3530SdmaBase::OnReady() {
     channels_.resize(ChannelCount());
+    claimed_.assign(ChannelCount(), 0u);
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
 
@@ -190,8 +191,9 @@ void Omap3530SdmaBase::WriteWord(uint32_t addr, uint32_t value) {
     switch (sub) {
     case kCcrOff: {
         const bool was_enabled = (c.ccr & kCcrEnable) != 0u;
+        const bool now_enabled = (value & kCcrEnable) != 0u;
         c.ccr = value;
-        if (!was_enabled && (value & kCcrEnable) != 0u) {
+        if (!was_enabled && now_enabled) {
             /* New transfer: clear sticky end-of-transfer flags from any
                prior run (BSP DmaConfigure doesn't W1C-clear CSR, so the
                SW-trigger while-loop in RunSwTransfer would exit on the
@@ -203,7 +205,12 @@ void Omap3530SdmaBase::WriteWord(uint32_t addr, uint32_t value) {
             if (ExtractSyncSource(value) == 0u) {
                 RunSwTransfer(ch);
                 UpdateIrqLines();
+            } else if (OfferChannelToSinks(ch)) {
+                claimed_[ch] = 1u;
             }
+        } else if (was_enabled && !now_enabled && claimed_[ch]) {
+            claimed_[ch] = 0u;
+            for (auto& s : sinks_) if (s.second) s.second(ch);
         }
         return;
     }
@@ -242,6 +249,7 @@ void Omap3530SdmaBase::RaiseSyncEvent(uint32_t source) {
     for (uint32_t ch = 0; ch < count; ++ch) {
         Channel& c = channels_[ch];
         if ((c.ccr & kCcrEnable) == 0u) continue;
+        if (claimed_[ch]) continue;
         if (ExtractSyncSource(c.ccr) != source) continue;
         if ((c.csr & kCsrBlock) != 0u) continue;
         ExecuteSyncUnit(static_cast<int>(ch));
@@ -463,4 +471,30 @@ void Omap3530SdmaBase::UpdateIrqLines() {
         if (want_high) intc.AssertIrq  (irq);
         else           intc.DeAssertIrq(irq);
     }
+}
+
+void Omap3530SdmaBase::RegisterChannelSink(ChannelClaim claim, ChannelStop stop) {
+    sinks_.emplace_back(std::move(claim), std::move(stop));
+}
+
+bool Omap3530SdmaBase::OfferChannelToSinks(int ch) {
+    const Channel& c = channels_[ch];
+    const ChannelStart info{
+        ch, ExtractSyncSource(c.ccr), c.cssa, c.cdsa,
+        c.cen & 0x00FFFFFFu, c.cfn & 0x0000FFFFu, ElementSize(c.csdp),
+    };
+    for (auto& s : sinks_) {
+        if (s.first && s.first(info)) return true;
+    }
+    return false;
+}
+
+void Omap3530SdmaBase::SignalChannelFrame(int channel, bool block, uint32_t src_counter_pa) {
+    std::lock_guard<std::recursive_mutex> lk(state_mu_);
+    if (channel < 0 || channel >= static_cast<int>(channels_.size()) ||
+        !claimed_[channel]) return;
+    Channel& c = channels_[channel];
+    c.csac = src_counter_pa;
+    c.csr |= kCsrFrame | (block ? (kCsrBlock | kCsrLast) : 0u);
+    UpdateIrqLines();
 }
