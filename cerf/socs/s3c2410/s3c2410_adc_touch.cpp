@@ -1,19 +1,20 @@
 #define NOMINMAX
 
-#include "devemu_touch_panel.h"
+#include "s3c2410_adc_touch.h"
 
+#include "s3c2410_touch_calibration.h"
+#include "../irq_controller.h"
+#include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../socs/irq_controller.h"
 #include "../../state/state_stream.h"
-#include "../board_detector.h"
 
-REGISTER_SERVICE(DevEmuTouchPanel);
+REGISTER_SERVICE(S3C2410AdcTouch);
 
-void DevEmuTouchPanel::SaveState(StateWriter& w) {
+void S3C2410AdcTouch::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     w.Write(adccon_);
     w.Write(adctsc_);
@@ -24,7 +25,7 @@ void DevEmuTouchPanel::SaveState(StateWriter& w) {
     w.Write(sample_y_);
 }
 
-void DevEmuTouchPanel::RestoreState(StateReader& r) {
+void S3C2410AdcTouch::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     r.Read(adccon_);
     r.Read(adctsc_);
@@ -59,47 +60,40 @@ constexpr uint32_t kAdcdatUpdown      = 0x8000u;  /* ADCDAT0.UPDOWN / ADCDAT1.UP
 constexpr int kIrqAdc   = 31;
 constexpr int kIrqSubTc =  9;
 
-/* IOADConverter::SetPenSample: X = 90 + host_x*(875/screen_x);
-   Y = 920 - host_y*(870/screen_y), Y inverted (chip 0 = bottom). */
-constexpr int    kSampleXOffset = 90;
-constexpr double kSampleXSpan   = 875.0;
-constexpr int    kSampleYOrigin = 920;
-constexpr double kSampleYSpan   = 870.0;
-
 /* TouchInput adapter — anonymous-namespaced, forwards host pointer
-   events to the DevEmuTouchPanel concrete; nothing outside this .cpp
+   events to the S3C2410AdcTouch concrete; nothing outside this .cpp
    needs to name the adapter type. */
-class DevEmuTouchInput : public TouchInput {
+class S3C2410TouchInput : public TouchInput {
 public:
     using TouchInput::TouchInput;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetSoc() == SocFamily::S3C2410;
     }
     void OnPenDown(int x, int y) override {
-        emu_.Get<DevEmuTouchPanel>().OnPenDown(x, y);
+        emu_.Get<S3C2410AdcTouch>().OnPenDown(x, y);
     }
     void OnPenMove(int x, int y) override {
-        emu_.Get<DevEmuTouchPanel>().OnPenMove(x, y);
+        emu_.Get<S3C2410AdcTouch>().OnPenMove(x, y);
     }
     void OnPenUp(int x, int y) override {
-        emu_.Get<DevEmuTouchPanel>().OnPenUp(x, y);
+        emu_.Get<S3C2410AdcTouch>().OnPenUp(x, y);
     }
     void OnCaptureLost() override {
-        emu_.Get<DevEmuTouchPanel>().OnCaptureLost();
+        emu_.Get<S3C2410AdcTouch>().OnCaptureLost();
     }
 };
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(DevEmuTouchInput, TouchInput);
+REGISTER_SERVICE_AS(S3C2410TouchInput, TouchInput);
 
-bool DevEmuTouchPanel::ShouldRegister() {
+bool S3C2410AdcTouch::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
-    return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+    return bd && bd->GetSoc() == SocFamily::S3C2410;
 }
 
-void DevEmuTouchPanel::OnReady() {
+void S3C2410AdcTouch::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
 
     /* Without UPDOWN set here, the kernel's first sample reads
@@ -110,7 +104,7 @@ void DevEmuTouchPanel::OnReady() {
     adcdat1_ |= kAdcdatUpdown;
 }
 
-uint32_t DevEmuTouchPanel::ReadWord(uint32_t addr) {
+uint32_t S3C2410AdcTouch::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     uint32_t value = 0;
     {
@@ -129,7 +123,7 @@ uint32_t DevEmuTouchPanel::ReadWord(uint32_t addr) {
     return value;
 }
 
-void DevEmuTouchPanel::WriteWord(uint32_t addr, uint32_t value) {
+void S3C2410AdcTouch::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     LOG(Periph, "[Touch] write +0x%02X = 0x%08X\n", off, value);
     std::lock_guard<std::mutex> lk(state_mutex_);
@@ -137,15 +131,15 @@ void DevEmuTouchPanel::WriteWord(uint32_t addr, uint32_t value) {
         case kRegADCCON:
             adccon_ = value;
             if (adccon_ & kAdcconEnableStart) {
-                /* BSP axis swap: ADCDAT0/XPDATA holds the Y sample,
-                   ADCDAT1/YPDATA holds X (BSP: "XPDATA really does
-                   contain the Y sample"). */
                 adccon_ &= ~kAdcconEnableStart;
                 adccon_ |=  kAdcconEcflg;
+                const bool swap = emu_.Get<S3C2410TouchCalibration>().AxisSwap();
+                const uint16_t xpdata = swap ? sample_y_ : sample_x_;
+                const uint16_t ypdata = swap ? sample_x_ : sample_y_;
                 adcdat0_ = (adcdat0_ & ~kAdcdatXpdataMask) |
-                           (sample_y_ & kAdcdatXpdataMask);
+                           (xpdata & kAdcdatXpdataMask);
                 adcdat1_ = (adcdat1_ & ~kAdcdatXpdataMask) |
-                           (sample_x_ & kAdcdatXpdataMask);
+                           (ypdata & kAdcdatXpdataMask);
             }
             break;
         case kRegADCTSC:
@@ -164,7 +158,7 @@ void DevEmuTouchPanel::WriteWord(uint32_t addr, uint32_t value) {
     }
 }
 
-void DevEmuTouchPanel::SetPenStateLocked(bool pen_up) {
+void S3C2410AdcTouch::SetPenStateLocked(bool pen_up) {
     /* Mirrors IOADConverter::SetPenState: snapshot the current ADCTSC
        XY_PST into ADCDAT0's XY_PST field, set/clear UPDOWN in both
        data registers. ADCDAT1's XY_PST isn't touched — the BSP
@@ -181,7 +175,7 @@ void DevEmuTouchPanel::SetPenStateLocked(bool pen_up) {
              | updown_bit;
 }
 
-void DevEmuTouchPanel::UpdateSampleLocked(int host_x, int host_y) {
+void S3C2410AdcTouch::UpdateSampleLocked(int host_x, int host_y) {
     /* IOADConverter::SetPenSample guard: XY_PST!=0 AND UPDOWN==0. */
     if ((adcdat0_ & kAdcdatXyPstMask) == 0) return;
     if  (adcdat0_ & kAdcdatUpdown)          return;
@@ -190,17 +184,15 @@ void DevEmuTouchPanel::UpdateSampleLocked(int host_x, int host_y) {
     const double screen_x = (double)hc.GuestSurfaceWidth ();
     const double screen_y = (double)hc.GuestSurfaceHeight();
 
-    sample_x_ = (uint16_t)(kSampleXOffset +
-                           (int)((double)host_x * (kSampleXSpan / screen_x)));
-    sample_y_ = (uint16_t)(kSampleYOrigin -
-                           (int)((double)host_y * (kSampleYSpan / screen_y)));
+    emu_.Get<S3C2410TouchCalibration>().MapHostToSample(
+        host_x, host_y, screen_x, screen_y, sample_x_, sample_y_);
 }
 
-void DevEmuTouchPanel::RaiseTCInterrupt() {
+void S3C2410AdcTouch::RaiseTCInterrupt() {
     emu_.Get<IrqController>().AssertSubIrq(kIrqAdc, kIrqSubTc);
 }
 
-void DevEmuTouchPanel::OnPenDown(int host_x, int host_y) {
+void S3C2410AdcTouch::OnPenDown(int host_x, int host_y) {
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         /* Order matches IOLCDController::onWM_LBUTTONDOWN: state first
@@ -212,12 +204,12 @@ void DevEmuTouchPanel::OnPenDown(int host_x, int host_y) {
     RaiseTCInterrupt();
 }
 
-void DevEmuTouchPanel::OnPenMove(int host_x, int host_y) {
+void S3C2410AdcTouch::OnPenMove(int host_x, int host_y) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     UpdateSampleLocked(host_x, host_y);
 }
 
-void DevEmuTouchPanel::OnPenUp(int host_x, int host_y) {
+void S3C2410AdcTouch::OnPenUp(int host_x, int host_y) {
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         /* Order matches IOLCDController::onWM_LBUTTONUP: sample first
@@ -230,7 +222,7 @@ void DevEmuTouchPanel::OnPenUp(int host_x, int host_y) {
     RaiseTCInterrupt();
 }
 
-void DevEmuTouchPanel::OnCaptureLost() {
+void S3C2410AdcTouch::OnCaptureLost() {
     /* Capture lost without a pen-up: re-raise TC so the ISR
        latches the final state. */
     bool needs_raise = false;

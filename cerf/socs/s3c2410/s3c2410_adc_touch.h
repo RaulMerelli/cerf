@@ -5,7 +5,11 @@
 #include <cstdint>
 #include <mutex>
 
-class DevEmuTouchPanel : public Peripheral {
+/* S3C2410 ADC & Touch Screen Interface (MMIO 0x58000000): ADCCON/ADCTSC/
+   ADCDLY/ADCDAT0/ADCDAT1, raising INT_TC under INT_ADC. On-die silicon shared
+   by every S3C2410 board; the host-pixel calibration + axis wiring come from a
+   board-provided S3C2410TouchCalibration resolved at sample time. */
+class S3C2410AdcTouch : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
@@ -50,8 +54,7 @@ private:
     uint32_t adcdat0_ = 0u;
     uint32_t adcdat1_ = 0u;
 
-    /* Latest sampled pen position in the BSP's empirically-derived
-       10-bit range (SampleX 90..965, SampleY 50..920). Published into
+    /* Latest sampled pen position in 10-bit ADC range, published into
        ADCDAT0.XPDATA / ADCDAT1.YPDATA only when the guest writes
        ADCCON.ENABLE_START to kick off an auto-conversion. */
     uint16_t sample_x_ = 0;

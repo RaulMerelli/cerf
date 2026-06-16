@@ -55,16 +55,34 @@ bool S3C2410Lcd::IsEnabled() {
     const uint32_t pnrmode = (lcdcon1 >> 5)  & 0x3u;
     const bool     frm565  = ((lcdcon5 >> 11) & 1u) != 0u;
 
-    if (pnrmode != kPnrmodeTft || bppmode != kBppmode16bppTft || !frm565) {
+    /* 16bpp 5:6:5-direct and 8bpp-palettized both read framebuffer or
+       palette entries as 5:6:5, so both require FRM565=1; the 8bpp
+       5:5:5:1 palette format is not modeled. */
+    const bool ok16 = pnrmode == kPnrmodeTft && bppmode == kBppmode16bppTft && frm565;
+    const bool ok8  = pnrmode == kPnrmodeTft && bppmode == kBppmode8bppTft  && frm565;
+    if (!ok16 && !ok8) {
         LOG(Caution, "S3C2410Lcd: unsupported mode programmed with "
                 "ENVID=1: PNRMODE=%u BPPMODE=%u FRM565=%d. CERF models "
-                "16bpp 5:6:5 TFT only (PNRMODE=3 BPPMODE=12 FRM565=1). "
-                "Verify ScreenBitsPerPixel=16 in BSP_ARGS so the OAL "
-                "drives the kernel into the supported path.\n",
+                "16bpp 5:6:5 (BPPMODE=12) and 8bpp palettized (BPPMODE=11) "
+                "TFT only, both with PNRMODE=3 FRM565=1.\n",
                 pnrmode, bppmode, (int)frm565);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     return true;
+}
+
+bool S3C2410Lcd::IsPalettized() {
+    return ((ctrl_[kIdxLCDCON1] >> 1) & 0xFu) == kBppmode8bppTft;
+}
+
+uint32_t S3C2410Lcd::GetBytesPerPixel() {
+    return IsPalettized() ? 1u : 2u;
+}
+
+uint16_t S3C2410Lcd::GetPaletteEntry565(uint8_t index) {
+    /* TFT palette slot: 256 32-bit words at 0x400, low 16 bits = the
+       5:6:5 color (S3C2410A UM §15, 256 PALETTE USAGE). */
+    return (uint16_t)(pal_[index] & 0xFFFFu);
 }
 
 uint32_t S3C2410Lcd::GetFbPa() {

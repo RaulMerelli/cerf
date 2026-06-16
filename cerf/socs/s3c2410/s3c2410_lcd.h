@@ -4,10 +4,10 @@
 
 #include <cstdint>
 
-/* IsEnabled() halts on ENVID=1 with PNRMODE/BPPMODE/FRM565 not
-   matching the modeled 16bpp 5:6:5 TFT path — silently accepting
-   would render wrong colors. Register layout mirrored from
-   references/WINCE600/PLATFORM/DEVICEEMULATOR/SRC/INC/s3c2410x_lcd.h. */
+/* IsEnabled() fatals on any ENVID=1 mode CERF doesn't model (a
+   PNRMODE/BPPMODE/FRM565 outside 16bpp 5:6:5-direct and 8bpp
+   palettized-with-565-entries) — silently accepting renders wrong
+   colors. Bit fields + TFT palette format: S3C2410A UM §15. */
 
 class S3C2410Lcd : public Peripheral {
 public:
@@ -30,6 +30,12 @@ public:
     uint32_t GetGuestW();
     uint32_t GetGuestH();
 
+    /* 8bpp palettized vs 16bpp 5:6:5-direct — the two TFT modes
+       IsEnabled() accepts. Valid only while IsEnabled() is true. */
+    bool     IsPalettized();
+    uint32_t GetBytesPerPixel();
+    uint16_t GetPaletteEntry565(uint8_t index);
+
 private:
     static constexpr uint32_t kCtrlOff   = 0x000u;
     static constexpr uint32_t kCtrlEnd   = 0x064u;        /* exclusive */
@@ -50,7 +56,8 @@ private:
     };
 
     static constexpr uint32_t kPnrmodeTft       = 3u;
-    static constexpr uint32_t kBppmode16bppTft  = 12u;
+    static constexpr uint32_t kBppmode8bppTft   = 11u;   /* 0b1011 */
+    static constexpr uint32_t kBppmode16bppTft  = 12u;   /* 0b1100 */
 
     uint32_t* DecodeSlot(uint32_t addr);
 
