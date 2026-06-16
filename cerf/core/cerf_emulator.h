@@ -21,7 +21,7 @@ public:
     void Bootstrap();
     void WaitForExit();
 
-    static constexpr int MAX_SERVICES = 640;
+    static constexpr int MAX_SERVICES = 768;
     static inline std::atomic<int> s_next_slot_{0};
 
     template<typename T>

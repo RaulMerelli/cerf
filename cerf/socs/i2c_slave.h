@@ -1,13 +1,25 @@
 #pragma once
 
-#include "../../core/service.h"
+#include "../core/service.h"
 
 #include <cstdint>
 
+class StateWriter;
+class StateReader;
+
+/* An I2C slave device on a (host-modelled) I2C bus. A controller routes each
+   master-driven transaction to the registered slave that answers `slave_addr`.
+   Used cross-SoC: OMAP3530 (TWL4030 PMIC) and i.MX51 (MC13892 PMIC). */
 class I2cSlave : public Service {
 public:
     using Service::Service;
     ~I2cSlave() override = default;
+
+    /* An I2cSlave is a Service, not a Peripheral, so it is absent from the
+       hibernation peripheral walk; the owning I2C controller forwards these
+       from its own SaveState/RestoreState (hibernation.md). Default no-op. */
+    virtual void SaveState(StateWriter&) {}
+    virtual void RestoreState(StateReader&) {}
 
     /* Return true iff this slave answers the given 7-bit I2C
        address. A single slave may answer at multiple addresses

@@ -19,6 +19,11 @@ constexpr uint32_t kSize = 0x00001000u;
 
 struct CcmReset { uint32_t off; uint32_t val; };
 constexpr CcmReset kResets[] = {   /* Table 7-3 non-zero reset values */
+    /* CCR (RM Fig 7-3: bits 11..9 = 1, oscnt = 0xFF) with cosc_en (bit12) = 1.
+       cosc_en's reset is undefined in the RM, but SBOOT gates the 24 MHz DPLL
+       reference on it (Bootloader.bin 0x8FF06678 `tst #0x1000`) and never sets it;
+       read as 0 the reference is 0 → every PLL/EPIT clock is 0 → CE kernel aborts. */
+    {0x00, 0x00001EFFu},  /* CCR    */
     {0x08, 0x00000010u},  /* CSR    */ {0x14, 0x19239145u},  /* CBCDR  */
     {0x18, 0x000020C0u},  /* CBCMR  */ {0x1C, 0xA6A2A020u},  /* CSCMR1 */
     {0x20, 0x02A5A88Au},  /* CSCMR2 */ {0x24, 0x00C30318u},  /* CSCDR1 */

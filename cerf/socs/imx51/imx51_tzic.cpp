@@ -130,6 +130,7 @@ uint32_t Imx51Tzic::ReadReg(uint32_t off) {
             if (SourceDeliverable(b * kBitsPerBank + bit)) hi |= 1u << bit;
         return hi;
     }
+    if ((b = BankInSet(off, kOffWakeup0)) >= 0) return wakeup_[b];
 
     switch (off) {
     case kOffIntctrl:  return intctrl_;
@@ -158,6 +159,8 @@ void Imx51Tzic::WriteReg(uint32_t off, uint32_t value) {
             else if ((b = BankInSet(off, kOffSrcclear0)) >= 0) swforce_[b] &= ~value;
             else if (BankInSet(off, kOffPnd0) >= 0 || BankInSet(off, kOffHipnd0) >= 0) {
                 /* PND / HIPND are read-only status. */
+            } else if ((b = BankInSet(off, kOffWakeup0)) >= 0) {
+                wakeup_[b] = value;   /* inert in CERF (no suspend); see header */
             } else {
                 switch (off) {
                 case kOffIntctrl:
@@ -196,6 +199,7 @@ void Imx51Tzic::SaveState(StateWriter& w) {
     w.WriteBytes(enable_,   sizeof(enable_));
     w.WriteBytes(secure_,   sizeof(secure_));
     w.WriteBytes(swforce_,  sizeof(swforce_));
+    w.WriteBytes(wakeup_,   sizeof(wakeup_));
     w.WriteBytes(priority_, sizeof(priority_));
     w.Write(intctrl_);
     w.Write(priomask_);
@@ -209,6 +213,7 @@ void Imx51Tzic::RestoreState(StateReader& r) {
     r.ReadBytes(enable_,   sizeof(enable_));
     r.ReadBytes(secure_,   sizeof(secure_));
     r.ReadBytes(swforce_,  sizeof(swforce_));
+    r.ReadBytes(wakeup_,   sizeof(wakeup_));
     r.ReadBytes(priority_, sizeof(priority_));
     r.Read(intctrl_);
     r.Read(priomask_);

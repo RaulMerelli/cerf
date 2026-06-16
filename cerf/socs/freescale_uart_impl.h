@@ -8,9 +8,12 @@
 #include "../tracing/kernel_debug_sink.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
+#include "uart_endpoint.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <string>
 
 namespace cerf_freescale_uart_detail {
@@ -49,16 +52,51 @@ public:
 
     /* Only the control/baud register file is machine state. tx_line_ is a
        host-side console line accumulator (rebuilt as the guest writes UTXD),
-       so it is skipped. */
-    void SaveState(StateWriter& w) override    { w.WriteBytes(ctrl_, sizeof(ctrl_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(ctrl_, sizeof(ctrl_)); }
+       so it is skipped. An attached endpoint (e.g. the VMCU peer) serializes
+       its own guest-coupled state via the forward below. */
+    void SaveState(StateWriter& w) override {
+        w.WriteBytes(ctrl_, sizeof(ctrl_));
+        if (endpoint_) endpoint_->SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        r.ReadBytes(ctrl_, sizeof(ctrl_));
+        if (endpoint_) endpoint_->RestoreState(r);
+    }
+
+    /* A board wires an off-chip device (e.g. the SYNC2 VMCU) to this UART. */
+    void AttachEndpoint(UartEndpoint* ep) { endpoint_ = ep; }
+
+    /* The endpoint pushes reply bytes into the guest RxFIFO; raises the RX
+       interrupt if the guest enabled it (UCR1.RRDYEN / UCR4.RDREN). */
+    void InjectRx(const uint8_t* data, size_t n) {
+        for (size_t i = 0; i < n; ++i) rx_fifo_.push_back(data[i]);
+        UpdateRxIrq();
+    }
+
+protected:
+    /* Per-SoC RX-interrupt line to the INTC; default no-op (UART has no RX
+       consumer). i.MX51 UART2 -> Imx51Tzic source 32. */
+    virtual void AssertRxIrq()   {}
+    virtual void DeassertRxIrq() {}
 
 private:
     static constexpr uint32_t kURXD = 0x00u, kUTXD = 0x40u;
-    static constexpr uint32_t kUCR2 = 0x84u;
+    static constexpr uint32_t kUCR1 = 0x80u, kUCR2 = 0x84u;
+    static constexpr uint32_t kUCR4 = 0x8Cu, kUFCR = 0x90u;
     static constexpr uint32_t kUSR1 = 0x94u, kUSR2 = 0x98u;
     static constexpr uint32_t kONEMS = 0xB0u, kUTS = 0xB4u;
     static constexpr uint32_t kCtrlLo = 0x80u, kCtrlHi = 0xB8u;
+
+    /* RX-interrupt bits (MCIMX51RM Table 59-8 UCR1.RRDYEN b9 / Table 59-22:
+       UCR4.RDREN b0 enable; USR1.RRDY b9 / USR2.RDR b0 flags; URXD.CHARRDY b15;
+       UFCR.RXTL = bits 0..5 RxFIFO trigger level). */
+    static constexpr uint32_t kUcr1Rrdyen = 1u << 9;
+    static constexpr uint32_t kUcr4Rdren  = 1u << 0;
+    static constexpr uint32_t kUsr1Rrdy   = 1u << 9;
+    static constexpr uint32_t kUsr1Agtim  = 1u << 8;   /* RX aging-timer flag */
+    static constexpr uint32_t kUsr2Rdr    = 1u << 0;
+    static constexpr uint32_t kUrxdCharrdy = 1u << 15;
+    static constexpr uint32_t kUfcrRxtlMask = 0x3Fu;
 
     /* SRST self-deasserts after a 4-cycle reset (MCIMX51RM §59.3.3.4); the reset is
        instant in emulation so UCR2 bit0 reads 1 always. Without this, a guest that
@@ -85,11 +123,41 @@ private:
     };
     std::string tx_line_;
 
+    uint32_t RxTrigger() const {
+        const uint32_t t = ctrl_[(kUFCR - kCtrlLo) / 4u] & kUfcrRxtlMask;
+        return t == 0u ? 1u : t;
+    }
+
+    void UpdateRxIrq() {
+        const uint32_t ucr1 = ctrl_[(kUCR1 - kCtrlLo) / 4u];
+        const uint32_t ucr4 = ctrl_[(kUCR4 - kCtrlLo) / 4u];
+        /* The RX aging timer (USR1.AGTIM, MCIMX51RM Table 59-22) delivers any
+           pending RxFIFO data below RXTL, so a complete received frame always
+           raises the interrupt regardless of the trigger level — assert on >=1
+           byte whenever an RX-data interrupt source is enabled. */
+        const bool rx_int_en = (ucr1 & kUcr1Rrdyen) || (ucr4 & kUcr4Rdren);
+        if (rx_int_en && !rx_fifo_.empty()) AssertRxIrq();
+        else                                DeassertRxIrq();
+    }
+
     uint32_t Reg(uint32_t off) {
-        if (off == kURXD) return 0u;        /* no RX data (CHARRDY=0) */
+        if (off == kURXD) {
+            if (rx_fifo_.empty()) return 0u;   /* CHARRDY=0 */
+            const uint8_t b = rx_fifo_.front();
+            rx_fifo_.pop_front();
+            UpdateRxIrq();
+            return b | kUrxdCharrdy;
+        }
         if (off == kUTXD) return 0u;
-        if (off == kUSR1) return kUsr1Idle;
-        if (off == kUSR2) return kUsr2Idle;
+        if (off == kUSR1) {
+            const size_t n = rx_fifo_.size();
+            uint32_t v = kUsr1Idle;
+            if (n >= RxTrigger()) v |= kUsr1Rrdy;
+            else if (n >= 1u)     v |= kUsr1Agtim;
+            return v;
+        }
+        if (off == kUSR2)
+            return kUsr2Idle | (rx_fifo_.empty() ? 0u : kUsr2Rdr);
         if (off == kUTS)  return kUtsIdle;
         if (off >= kCtrlLo && off <= kCtrlHi && (off & 3u) == 0u) {
             uint32_t v = ctrl_[(off - kCtrlLo) / 4u];
@@ -111,16 +179,22 @@ private:
             const uint32_t m = (vmask << shift) & regmax;
             uint32_t& r = ctrl_[(aligned - kCtrlLo) / 4u];
             r = (r & ~m) | ((v << shift) & m);
+            if (aligned == kUCR1 || aligned == kUCR4 || aligned == kUFCR)
+                UpdateRxIrq();   /* enable/threshold changed */
             return;
         }
         HaltUnsupportedAccess("Write", kBase + off, v);
     }
 
     void EmitTx(uint8_t ch) {
+        if (endpoint_) { endpoint_->OnGuestTx(ch); return; }
         char tag[8];
         std::snprintf(tag, sizeof(tag), "UART%d", kUartNum);
         emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_, tag);
     }
+
+    UartEndpoint*        endpoint_ = nullptr;
+    std::deque<uint8_t>  rx_fifo_;
 };
 
 }  /* namespace cerf_freescale_uart_detail */
