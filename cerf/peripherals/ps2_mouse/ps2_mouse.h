@@ -35,6 +35,11 @@ public:
     void SaveState(StateWriter& w) const;
     void RestoreState(StateReader& r);
 
+    /* Power-cycle reset: drop queued motion + return to defaults. A real PS/2
+       mouse comes back empty after a system reset; the guest re-inits with F6+F4
+       (no FF reset), so a leftover motion packet ahead of the F6 ACK desyncs it. */
+    void Reset();
+
 private:
     void PushLocked(uint8_t b) { out_.push_back(b); }
     void RaiseData();   /* invoke on_data_ (IRQ) outside the queue lock */

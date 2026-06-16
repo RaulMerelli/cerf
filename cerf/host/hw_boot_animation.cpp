@@ -71,7 +71,8 @@ void HwBootAnimation::EnsureFonts() {
 }
 
 std::wstring HwBootAnimation::CurrentLabelText() const {
-    if (fb_latched_)                        return L"Switched to LCD";
+    if (fb_latched_)                          return L"Switched to LCD";
+    if (label_mode_ == LabelMode::Resuming)   return L"Resuming...";
     if (label_mode_ == LabelMode::Restarting) return L"Restarting...";
     return L"Starting " + short_name_ + L"...";
 }
@@ -92,7 +93,8 @@ void HwBootAnimation::Advance(uint64_t now) {
     if (!started_) { started_ = true; phase_ = Phase::CerfFadeIn; phase_start_ = now; }
 
     if (restart_req_.exchange(false)) {
-        label_mode_  = LabelMode::Restarting;
+        label_mode_  = restart_resuming_.load(std::memory_order_acquire)
+                           ? LabelMode::Resuming : LabelMode::Restarting;
         fb_latched_  = false;
         entered_oem_ = true;
         phase_       = Phase::OemFadeIn;
@@ -271,6 +273,9 @@ void HwBootAnimation::DrawDimmedCenterLogo(HDC dc, uint32_t width, uint32_t heig
                   /*label=*/false, L"", /*disclaimer=*/false, /*cerf_native_size=*/true);
 }
 
-void HwBootAnimation::Restart()            { restart_req_.store(true); }
+void HwBootAnimation::Restart(bool resuming) {
+    restart_resuming_.store(resuming, std::memory_order_release);
+    restart_req_.store(true, std::memory_order_release);
+}
 void HwBootAnimation::Abort()              { abort_req_.store(true); }
 void HwBootAnimation::OnFramebufferLatched() { fb_latched_req_.store(true); }

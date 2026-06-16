@@ -22,9 +22,21 @@ void Ps2Mouse::WriteCommand(uint8_t cmd) {
         PushLocked(0xFA);
         return;
     }
+    if (cmd == 0xFF) {
+        /* Reset flushes the output buffer + restores defaults before the BAT
+           response (real PS/2 mouse). Without the flush, bytes left in out_
+           across a system reset sit ahead of the 0xFA ACK and the driver's
+           reset handshake never syncs (it retries 0xFF forever). */
+        out_.clear();
+        expect_param_ = false;
+        reporting_    = false;
+        PushLocked(0xFA);             /* ACK  */
+        PushLocked(0xAA);             /* BAT passed */
+        PushLocked(0x00);             /* device ID 0 = standard mouse */
+        return;
+    }
     PushLocked(0xFA);              /* ACK */
     switch (cmd) {
-        case 0xFF: PushLocked(0xAA); PushLocked(0x00); reporting_ = false; break;  /* reset: BAT + ID0, disables reporting */
         case 0xF2: PushLocked(0x00); break;                    /* get device ID: standard mouse = 0 */
         case 0xF3: case 0xE8: expect_param_ = true; break;     /* set sample rate / resolution */
         case 0xE9: PushLocked(0x00); PushLocked(0x02); PushLocked(0x64); break;  /* status request */
@@ -88,6 +100,13 @@ void Ps2Mouse::RestoreState(StateReader& r) {
     reporting_ = (rep != 0);
     expect_param_ = (ep != 0);
     out_.clear();   /* no host motion survives a restore; drop queued bytes */
+}
+
+void Ps2Mouse::Reset() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    out_.clear();
+    expect_param_ = false;
+    reporting_    = false;
 }
 
 void Ps2Mouse::RaiseData() {

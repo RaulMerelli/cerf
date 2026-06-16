@@ -4,7 +4,9 @@
 #include "../core/log.h"
 #include "../core/rate_probe.h"
 #include "arm_jit.h"
+#include "cpu_state.h"
 
+#include <chrono>
 #include <intrin.h>
 
 #if CERF_DEV_MODE
@@ -83,6 +85,7 @@ void JitRunner::RunLoop() {
     ArmCpuState* state = jit.CpuState();
 #endif
 
+    bool prev_deep_sleep = false;
     while (!stop_requested_.load(std::memory_order_acquire)) {
 #if CERF_DEV_MODE
         const uint64_t t0 = __rdtsc();
@@ -93,15 +96,33 @@ void JitRunner::RunLoop() {
 #else
         jit.Run();
 #endif
-        if (pause_requested_.load(std::memory_order_acquire)) {
+        ArmCpuState* cpu = jit.CpuState();
+        const bool ds = cpu->deep_sleep != 0;
+        if (ds != prev_deep_sleep) {
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: deep_sleep %d->%d reset_pending=%u pause=%d\n",
+                prev_deep_sleep, ds, cpu->reset_pending,
+                static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
+            prev_deep_sleep = ds;
+        }
+        if (pause_requested_.load(std::memory_order_acquire) || cpu->deep_sleep) {
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
             pause_cv_.notify_all();
-            pause_cv_.wait(lk, [this] {
-                return !pause_requested_.load(std::memory_order_acquire) ||
-                       stop_requested_.load(std::memory_order_acquire);
-            });
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%u reset_pending=%u pause=%d\n",
+                cpu->deep_sleep, cpu->reset_pending,
+                static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
+            /* Bounded wait: the wake (reset_pending) is signalled via idle_event_,
+               not pause_cv_, so an unbounded wait would never observe it and the
+               deep-sleep park would never wake. */
+            while (!stop_requested_.load(std::memory_order_acquire) &&
+                   !cpu->reset_pending &&
+                   (pause_requested_.load(std::memory_order_acquire) || cpu->deep_sleep)) {
+                pause_cv_.wait_for(lk, std::chrono::milliseconds(20));
+            }
             paused_ = false;
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%u reset_pending=%u pause=%d\n",
+                cpu->deep_sleep, cpu->reset_pending,
+                static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
         }
     }
 

@@ -51,7 +51,11 @@ uint32_t Pxa255Gpio::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if ((off & 3u) != 0u) HaltUnsupportedAccess("ReadWord", addr, 0);
     std::lock_guard<std::mutex> g(mtx_);
-    if (off <= 0x08) return PinLevelLocked(off / 4u);                 /* GPLR (§4.1.3.1). */
+    if (off <= 0x08) {                                                /* GPLR (§4.1.3.1). */
+        uint32_t v = PinLevelLocked(off / 4u);
+        if (serial_slave_) v |= serial_slave_->DriveGplr(off / 4u);
+        return v;
+    }
     if (off >= 0x0C && off <= 0x14) return gpdr_[(off - 0x0C) / 4u];
     if (off >= 0x18 && off <= 0x2C) return 0u;                        /* GPSR/GPCR write-only. */
     if (off >= 0x30 && off <= 0x38) return grer_[(off - 0x30) / 4u];
@@ -81,6 +85,7 @@ void Pxa255Gpio::WriteWord(uint32_t addr, uint32_t value) {
         else if (off <= 0x20) out_[(off - 0x18) / 4u] |= value;       /* GPSR set. */
         else                  out_[(off - 0x24) / 4u] &= ~value;      /* GPCR clear. */
         ApplyEdgesLocked(before);
+        if (serial_slave_) serial_slave_->OnGuestWrite(off, value);
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
@@ -95,6 +100,7 @@ void Pxa255Gpio::SaveState(StateWriter& w) {
     w.WriteBytes(gfer_, sizeof(gfer_));
     w.WriteBytes(gedr_, sizeof(gedr_));
     w.WriteBytes(gafr_, sizeof(gafr_));
+    if (serial_slave_) serial_slave_->SaveState(w);
 }
 
 void Pxa255Gpio::RestoreState(StateReader& r) {
@@ -106,6 +112,7 @@ void Pxa255Gpio::RestoreState(StateReader& r) {
     r.ReadBytes(gfer_, sizeof(gfer_));
     r.ReadBytes(gedr_, sizeof(gedr_));
     r.ReadBytes(gafr_, sizeof(gafr_));
+    if (serial_slave_) serial_slave_->RestoreState(r);
 }
 
 REGISTER_SERVICE(Pxa255Gpio);

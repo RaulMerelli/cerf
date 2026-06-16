@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
+#include "../../host/guest_deep_sleep.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -11,7 +12,7 @@ namespace {
    ACTIVE-mode config registers hold their value; sleep is entered by the
    CP14 PWRMODE write (coproc emitter → WfiHelper), never by a store here.
    RCSR/PSSR/PEDR are write-1-to-clear; RCSR HWR cold-resets to 1 (§3.5.11). */
-class Pxa255PowerManager : public Peripheral {
+class Pxa255PowerManager : public Peripheral, public DeepSleepWaker {
 public:
     using Peripheral::Peripheral;
 
@@ -21,7 +22,13 @@ public:
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
+        emu_.Get<GuestDeepSleep>().RegisterWaker(this);
     }
+
+    /* DeepSleepWaker: §3.5.11 Table 3-19 RCSR bit2 SMR (sleep-mode reset) — the
+       OAL boot path reads it and resumes. Latched on the UI thread while the JIT
+       is parked in deep sleep, so the plain RMW does not race the guest. */
+    void LatchSleepWakeCause() override { rcsr_ |= 0x4u; }
 
     uint32_t MmioBase() const override { return 0x40F00000u; }
     uint32_t MmioSize() const override { return 0x00001000u; }
