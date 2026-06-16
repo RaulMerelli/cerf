@@ -7,6 +7,7 @@
 
 #define ID_MSGBOX 201
 #define ID_EXIT   202
+#define ID_EDIT   203
 
 /* Fixed client size — small, frame-bordered, never maximized. */
 #define CLIENT_W 200
@@ -53,6 +54,7 @@ static void LayoutControls(HWND hwnd) {
     y = CERF_ICON_H + 24;
     MoveWindow(GetDlgItem(hwnd, ID_MSGBOX), cx, y, btnw, btnh, TRUE);
     MoveWindow(GetDlgItem(hwnd, ID_EXIT),   cx, y + btnh + 10, btnw, btnh, TRUE);
+    MoveWindow(GetDlgItem(hwnd, ID_EDIT),   cx, y + 2 * (btnh + 10), btnw, 22, TRUE);
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -65,6 +67,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         CreateWindowExW(0, L"BUTTON", L"Exit",
                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
                         0, 0, 0, 0, hwnd, (HMENU)ID_EXIT, hi, NULL);
+        CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_EDIT, hi, NULL);
         LayoutControls(hwnd);
         return 0;
     }
