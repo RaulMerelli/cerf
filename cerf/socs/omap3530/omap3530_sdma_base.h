@@ -5,7 +5,9 @@
 #include "../../state/state_stream.h"
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 class Omap3530SdmaBase : public Peripheral {
@@ -18,6 +20,32 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     void RaiseSyncEvent(uint32_t source);
+
+    /* Channel config snapshot offered to sinks at the enable edge. A sink that
+       claims the channel becomes its data mover; the sync-event transfer engine
+       then skips it and the owner drives interrupts via SignalChannelFrame. */
+    struct ChannelStart {
+        int      channel;
+        uint32_t sync_source;   /* ExtractSyncSource(CCR).                  */
+        uint32_t src_pa;        /* CSSA — source physical address.          */
+        uint32_t dst_pa;        /* CDSA — destination physical address.     */
+        uint32_t elem_count;    /* CEN  — elements per frame.               */
+        uint32_t frame_count;   /* CFN  — frames per block.                 */
+        uint32_t element_size;  /* bytes per element (from CSDP DATATYPE).  */
+    };
+    using ChannelClaim = std::function<bool(const ChannelStart&)>;
+    using ChannelStop  = std::function<void(int channel)>;
+    /* A claim returning true takes ownership of the channel; stop fires when a
+       claimed channel is disabled. Stops are broadcast to all sinks; a sink
+       ignores channels it did not claim. */
+    void RegisterChannelSink(ChannelClaim claim, ChannelStop stop);
+
+    /* Raise a paced frame interrupt for a claimed channel: advances CSAC to the
+       source address now being consumed (the driver reads CSAC to pick the page
+       to refill), sets CSR.FRAME (plus CSR.BLOCK|LAST at a block boundary), and
+       re-evaluates the IRQ lines. Called once per page after host playback. */
+    void SignalChannelFrame(int channel, bool block_boundary,
+                            uint32_t src_counter_pa);
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::recursive_mutex> lk(state_mu_);
@@ -80,6 +108,7 @@ private:
     void OnChannelComplete(int ch);
     void StartChain(int ch);
     void UpdateIrqLines();
+    bool OfferChannelToSinks(int ch);
 
     uint32_t irqstatus_l_[4]   = {0, 0, 0, 0};
     uint32_t irqenable_l_[4]   = {0, 0, 0, 0};
@@ -88,6 +117,9 @@ private:
     uint32_t gcr_              = 0x10u;
     std::vector<Channel> channels_;
     bool     irq_line_high_[4] = {false, false, false, false};
+
+    std::vector<uint8_t> claimed_;   /* per-channel: owned by a sink, not serialized. */
+    std::vector<std::pair<ChannelClaim, ChannelStop>> sinks_;
 
     mutable std::recursive_mutex state_mu_;
 };

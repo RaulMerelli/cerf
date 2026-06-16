@@ -229,7 +229,7 @@ BOARDS_INFORMATION = [
         "supported": True,
         "soc": SOC_OMAP3530,
         "operating_systems": [WINDOWS_CE_7],
-        "features": {"display": True, "sound": False, "touch": True},
+        "features": {"display": True, "sound": True, "touch": True},
         "notes": [
             "Don't open the XAML keyboard or Internet Explorer - they "
             "render blank and hurt performance.",

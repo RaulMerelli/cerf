@@ -18,6 +18,11 @@ public:
     void    TxnWriteByte(uint8_t slave_addr, uint8_t byte) override;
     uint8_t TxnReadByte (uint8_t slave_addr) override;
 
+    /* Snapshot of an AUDIO_VOICE (I2C 0x49) register the driver last wrote.
+       The wave/codec path reads CODEC_MODE (sub 0x01) here to learn the
+       sample rate it programmed (TPS65950 TRM: CODEC_MODE.APLL_RATE [7:4]). */
+    uint8_t AudioReg(uint8_t sub_addr) const;
+
 private:
     static int AddrIndex(uint8_t slave_addr);
 

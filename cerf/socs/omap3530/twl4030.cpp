@@ -49,6 +49,11 @@ uint8_t Twl4030::TxnReadByte(uint8_t slave_addr) {
     return v;
 }
 
+uint8_t Twl4030::AudioReg(uint8_t sub_addr) const {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    return regs_[AddrIndex(kTwlAddr_AUDIO_INTBR)][sub_addr];
+}
+
 int Twl4030::AddrIndex(uint8_t slave_addr) {
     switch (slave_addr) {
     case kTwlAddr_USB:         return 0;
