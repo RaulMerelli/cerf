@@ -16,9 +16,10 @@ authentication. One mechanism satisfies all three on every ROM class and every
 CE version. Two pieces are common to all ROMs:
 
 - A **tiny stub** (`ce_apps/cerf_guest_stub/`) is injected as the victim
-  display-driver module. Because it is tiny it fits any victim's slot regardless
-  of CE version, erasing the per-version placement differences the full body
-  would hit.
+  display-driver module: the victim's module record is repointed at the stub,
+  whose bytes are placed in dedicated memory, never squatted into the victim's
+  own image. Keeping it tiny sidesteps the per-CE-version slot-size limits the
+  full body would hit.
 - The **full cerf_guest body** is delivered separately over a `cerf_virt` MMIO
   channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`; binaries staged
   by `cerf/boot/guest_additions_binaries.{h,cpp}`). The stub pulls the body bytes
@@ -32,10 +33,17 @@ Only **how the stub is placed into the ROM** differs by ROM class:
 
 - **XIP / MultiXIP** (`cerf/boot/guest_additions_injector.cpp`) — the ROM carries
   a TOC of XIP modules, so the injector overwrites the victim module's TOC entry
-  in place (its e32/o32/load offsets) to repoint it at the stub, and hosts the
-  stub's bytes inside the victim's largest section. `GuestModulePlacer::
-  ComputeVbase` relocates the module below the lowest section-1 code when the
-  victim's vbase is in section 0 or the stub overflows the slot.
+  (its e32/o32/load offsets) to repoint it at the stub. The stub's e32/o32 records
+  and section bytes live in a CERF-owned PA band in the `cerf_virt` window
+  (`cerf/boot/cerf_injection_region.{h,cpp}`), exposed at a guest-unmapped
+  static-window VA — a hole found by `PageTableBuilder::StaticWindowHole` over the
+  board's `MappedVaSpans()` — and served by an MMU-walker overlay
+  (`ArmMmu::ServeInjectionBand` at the L1-fault site); never the victim's own
+  section bytes. On CE6/7 the stub runs in place from the band (a kernel-VA base
+  makes the loader skip ReadSection); on CE3/4/5 the loader copies it to a
+  section-1 vbase (`GuestModulePlacer::ComputeVbase`), with the band sections
+  flagged MEM_WRITE|SHARED so the loader takes the overlay-servable memcpy without
+  a per-process slot-base fold on the device.exe carrier load.
 - **IMGFS** (WM6+; `cerf/boot/imgfs_injector.cpp` + `ce_imgfs_patcher.{h,cpp}`) —
   IMGFS is a flash filesystem (an FTL over the NOR/NAND image), not an XIP TOC,
   so there is no slot to overwrite. The injector allocates fresh FTL flash pages
@@ -45,14 +53,29 @@ Only **how the stub is placed into the ROM** differs by ROM class:
   the new pages. The SAME stub is injected; only the placement substrate is the
   FTL instead of the TOC.
 
-Both paths flag the stub's writable sections SHARED
-(`GuestModulePlacer::EffSectionFlags`) and the stub keeps its per-process state
-pid-keyed — see § The cross-process writable-state invariant for why.
+Every path flags the stub's writable sections SHARED — via
+`GuestModulePlacer::EffSectionFlags`, or directly alongside MEM_WRITE on the
+CE3/4/5 XIP copy path — and the stub keeps its per-process state pid-keyed; see
+§ The cross-process writable-state invariant for why.
 
 The body's manual-map shape is a load-bearing contract: a single import DLL
 (coredll), HIGHLOW-only relocations, no TLS. Rebuilding `cerf_guest` so it gains
 a second import DLL, MOV32 relocations, or a TLS directory silently breaks the
 stub's mapper.
+
+coredll is imported **by name**, not by ordinal — high ordinals are per-CE-version
+with no cross-version contract, names are the contract — and the stub resolves
+each name with `GetProcAddress` in the loading process. The trap: a coredll
+function that some target coredll exports **by ordinal only** has no name to
+resolve, so the by-name manual-map fails and the whole body never loads (Pocket
+PC 2000's coredll exports `CeSetExtendedPdata` ordinal-only; older coredlls are
+where this bites). Such a symbol must be **defined locally in cerf_guest** rather
+than imported — a local definition wins over the import-lib thunk, so no coredll
+import is emitted for it. `cerf_cacherangeflush.cpp` and
+`cerf_cesetextendedpdata.cpp` do exactly this for their GENBLT-only symbols
+(both are blit-codegen support, safe to local-no-op). When adding a coredll
+import to `cerf_guest`, confirm the **oldest** target coredll exports it by name;
+if not, define it locally.
 
 ## Shared host storage (AFS FSD in device.exe)
 
@@ -192,10 +215,11 @@ channel:
   TLB-resident pages, so a host-side walk fails for memory the guest reads fine;
   `PeekVaToHost` is reliable only for small just-written buffers (the gpe
   descriptors).
-- **cerf_guest.dll's virtual image must fit the ROM victim slot it is injected
-  into.** A large static array overflows the slot and the in-place injection
-  corrupts the adjacent kernel-space module; big buffers are allocated at first
-  use instead.
+- **cerf_guest.dll's virtual image stays small — big buffers are allocated at
+  first use, not declared as large statics.** The body is delivered over the
+  `cerf_virt` body channel and manual-mapped (VirtualAlloc), so a large static
+  array bloats the image past the channel's `kGuestBodyMaxSize` cap
+  (`cerf_virt_addr_map.h`).
 - **Kernel-loaded guest code (CE6+ drivers) cannot use callback-marshaled
   APIs** — gwes rejects caller-supplied function pointers from kernel space
   (EnumWindows); use handle-walk equivalents (GetWindow chain).
