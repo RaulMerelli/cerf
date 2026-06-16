@@ -22,11 +22,15 @@ public:
        a voltage table. The board battery service computes this from the widget %. */
     void SetMainBatteryRaw(uint16_t raw) { main_battery_raw_.store(raw, std::memory_order_release); }
 
-    /* Stream a 13-byte (104-bit) key-matrix snapshot: opcode 0x13, the 13 matrix
-       bytes (pco accumulates them via sub_1BC1C54), then 0x12 (pco signals
-       event.pco.keyboard). Public so the dev bit-sweep probe can map matrix-bit
-       -> VK against keybddr.dll's matrix decode. */
-    void SendKeyboardMatrix(const uint8_t matrix[13]);
+    /* Cache the current key matrix so keybddr's on-demand 0x13 scan request
+       (pco.dll sub_1BC2368(0x13)) can be answered from it. The PICO keyboard is
+       request/reply (Linux pic-pxa2xx.c process_packets: the PIC replies to a 0x13
+       request and NEVER streams the matrix), so the matrix is only cached here. */
+    void SetKeyMatrix(const uint8_t matrix[13]);
+    /* PIC_KEY_DOWN (0x12): one async byte sent on a host key-down edge. pco's parser
+       (sub_1BC28B4) signals the key-down event dword_1BC40D8 -> keybddr's sub_1BD3578
+       wakes its idle scan thread into the 5 ms poll. Matches Linux notify_key_down. */
+    void NotifyKeyDown();
 
     /* Touch report: opcode 0x04 then 16-bit X, Y big-endian (pco sub_1BC28B4
        states 4-7); pco signals event.pco.touch and touch.dll calibrates. */
@@ -36,10 +40,16 @@ public:
 
 private:
     void PushByte(uint8_t b);
-    /* BTUART TX observer: the guest writes a single PIC command byte to THR.
-       0x70 = main-battery-state request -> answer with a [0x70][hi][lo] packet. */
+    void SendBatteryReply(uint16_t raw);
+    /* BTUART TX observer: answers the request commands the guest writes to THR and
+       then blocks on (pco.dll sub_1BC2368, 200ms). 0x70/0x71 battery, 0x13 keyboard
+       scan; an unanswered request holds the PCO_IOControl critsec -> input freeze. */
     void OnBtuartTx(uint8_t b);
 
     std::mutex report_mtx_;   /* serializes a full report's bytes into the RX FIFO */
     std::atomic<uint16_t> main_battery_raw_{0};
+    /* last matrix cached by SetKeyMatrix (guarded by report_mtx_); idle = all-set
+       (active-low). Answers an on-demand 0x13 scan when the pacer isn't streaming. */
+    uint8_t cur_matrix_[13] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu,
+                               0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
 };

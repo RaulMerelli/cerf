@@ -18,13 +18,37 @@ void NecMobilePro900PcoCompanion::OnReady() {
     emu_.Get<Pxa255Btuart>().SetTxObserver([this](uint8_t b) { OnBtuartTx(b); });
 }
 
+/* The guest TX byte stream is not self-framing: command opcodes interleave with
+   2-byte commands' data bytes and an unframed boot init blob, so each byte is matched
+   independently and a stray opcode match is harmless (pulses an auto-reset event with
+   no waiter). */
 void NecMobilePro900PcoCompanion::OnBtuartTx(uint8_t b) {
-    /* 0x70 = PIC_MAIN_BAT_STATE_REQUEST. Reply with PIC_BATTERY_STATE (0x70)
-       followed by the 16-bit value, high byte first — pco.dll's parser
-       (sub_1BC28B4 states 2->3) reassembles (hi<<8)|lo and hands it to
-       sub_1BC1E80, which caches it and signals the request's wait event. */
-    if (b != 0x70u) return;
-    const uint16_t raw = main_battery_raw_.load(std::memory_order_acquire);
+    switch (b) {
+    case 0x70u:   /* main-battery request (sub_1BC1E3C). */
+        SendBatteryReply(main_battery_raw_.load(std::memory_order_acquire));
+        break;
+    case 0x71u:   /* backup-battery request. sub_1BC28B4 has no 0x71 case -> the reply
+                     ID is 0x70 (request byte only selects the cell). No separate backup
+                     source; report it as healthy as main (cosmetic — answering clears
+                     the freeze). */
+        SendBatteryReply(main_battery_raw_.load(std::memory_order_acquire));
+        break;
+    case 0x13u: {  /* keyboard scan request (sub_1BC1C00). sub_1BC1C54 accumulates 13
+                      bytes then signals the scan event; no trailing 0x12 (that is the
+                      async key-down notify, not part of a scan reply). */
+        std::lock_guard<std::mutex> lk(report_mtx_);
+        PushByte(0x13u);
+        for (int i = 0; i < 13; ++i) PushByte(cur_matrix_[i]);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/* PIC_BATTERY_STATE: [0x70][hi][lo]; pco.dll sub_1BC28B4 (states 2->3) reassembles
+   (hi<<8)|lo and hands it to sub_1BC1E80, which caches it and signals the wait event. */
+void NecMobilePro900PcoCompanion::SendBatteryReply(uint16_t raw) {
     std::lock_guard<std::mutex> lk(report_mtx_);
     PushByte(0x70u);
     PushByte(static_cast<uint8_t>(raw >> 8));
@@ -35,14 +59,20 @@ void NecMobilePro900PcoCompanion::PushByte(uint8_t b) {
     emu_.Get<Pxa255Btuart>().PushRx(b);
 }
 
-/* Keyboard and touch reports are streamed from separate pacer threads into one
-   BTUART RX FIFO; report_mtx_ keeps each report's bytes contiguous so pco's
-   byte-stream parser (sub_1BC28B4) never sees a touch report spliced into a
-   keyboard report (which would corrupt both — e.g. a stuck key). */
-void NecMobilePro900PcoCompanion::SendKeyboardMatrix(const uint8_t matrix[13]) {
+/* Cache only; never push to BTUART. The PICO keyboard is request/reply (Linux
+   pic-pxa2xx.c): keybddr's on-demand 0x13 is answered from cur_matrix_ in
+   OnBtuartTx. Pushing the matrix unsolicited floods the pco IST and re-creates the
+   input freeze. */
+void NecMobilePro900PcoCompanion::SetKeyMatrix(const uint8_t matrix[13]) {
     std::lock_guard<std::mutex> lk(report_mtx_);
-    PushByte(0x13u);
-    for (int i = 0; i < 13; ++i) PushByte(matrix[i]);
+    for (int i = 0; i < 13; ++i) cur_matrix_[i] = matrix[i];
+}
+
+/* report_mtx_ keeps a report's bytes contiguous in the shared BTUART RX FIFO so
+   pco's byte-stream parser (sub_1BC28B4) never sees a touch report spliced into a
+   keyboard one. A lone 0x12 (PIC_KEY_DOWN) is the async key-down notify. */
+void NecMobilePro900PcoCompanion::NotifyKeyDown() {
+    std::lock_guard<std::mutex> lk(report_mtx_);
     PushByte(0x12u);
 }
 
