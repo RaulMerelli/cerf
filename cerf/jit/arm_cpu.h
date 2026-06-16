@@ -49,10 +49,19 @@ public:
 
     void RaiseResetException(uint32_t initial_pc);
 
-    /* No-arg overload reuses cached initial_pc_ from the prior
-       (uint32_t) overload; calling before any cold reset has
-       cached a value lands the soft reset at PC=0. */
+    /* No-arg overload: uses the pending resume vector (SetPendingResumeVector)
+       if set, else the cached initial_pc_; never-cached lands the reset at PC=0. */
     void RaiseResetException();
+
+    /* Override the next reset delivery's PC with a SoC sleep-wake resume vector
+       (SA-1110: the PSPR vector its boot ROM jumps to on an SMR wake). One-shot. */
+    void SetPendingResumeVector(uint32_t pc);
+
+    /* A power-off-wake resume re-enters the OS mid-execution with the MMU live, so
+       the reset delivery reinstates the saved cp15 c1/c2/c3 (S3C2410/DevEmu: the
+       values EBOOT restores from SLEEPDATA, startup.s wakeup routine). One-shot;
+       paired with SetPendingResumeVector. */
+    void SetPendingResumeMmu(uint32_t control, uint32_t ttbr0, uint32_t dacr);
 
     bool AreInterruptsEnabled() const;
 
@@ -63,8 +72,6 @@ public:
     static void* __cdecl RaiseSoftwareInterruptExceptionHelper(ArmCpu* cpu, uint32_t pc);
 
     static void __cdecl PerformSyscallHelper();
-
-    static void __cdecl PowerDownHelper();
 
     static uint32_t ComputePSRMaskValue(int field_mask);
 
@@ -87,4 +94,12 @@ private:
     ArmJit*         jit_ = nullptr;
 
     uint32_t        initial_pc_ = 0;
+
+    uint32_t        pending_resume_pc_     = 0;
+    bool            has_pending_resume_pc_ = false;
+
+    uint32_t        pending_resume_mmu_control_ = 0;
+    uint32_t        pending_resume_mmu_ttbr0_   = 0;
+    uint32_t        pending_resume_mmu_dacr_    = 0;
+    bool            has_pending_resume_mmu_     = false;
 };

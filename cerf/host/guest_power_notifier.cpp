@@ -19,19 +19,23 @@ void GuestPowerNotifier::Banner(const char* line) {
 }
 
 void GuestPowerNotifier::NotifyPowerDown() {
-    Banner(" POWER DOWN (deep sleep)");
+    Banner(" SLEEP MODE");
     emu_.Get<HostWindow>().ShowHwScreenTab(/*rearm=*/false);
 }
 
-void GuestPowerNotifier::NotifyReboot() {
-    Banner(" DEVICE REBOOT");
+void GuestPowerNotifier::Relaunch(const char* line, bool resuming) {
+    Banner(line);
     /* Renderer first: while the renderer still reports the stale frame,
        the canvas re-latches off the HwScreen tab on its next tick. */
     if (auto* fr = emu_.TryGet<FrameRenderer>()) fr->RearmContentLatch();
     emu_.Get<HwScreen>().ArmTextGate();   /* hold the OEM logo until new guest TX */
-    emu_.Get<HwBootAnimation>().Restart();
+    emu_.Get<HwBootAnimation>().Restart(resuming);
     emu_.Get<HostWindow>().ShowHwScreenTab(/*rearm=*/true);
 }
+
+void GuestPowerNotifier::NotifyReboot() { Relaunch(" REBOOTING", /*resuming=*/false); }
+
+void GuestPowerNotifier::NotifyResume() { Relaunch(" RESUMING",  /*resuming=*/true); }
 
 void GuestPowerNotifier::NotifyHardReset() {
     Banner(" HARD RESET (RAM cleared)");

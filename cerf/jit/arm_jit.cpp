@@ -17,6 +17,7 @@
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../boot/boot_mode.h"
 #include "../socs/guest_cpu_reset.h"
+#include "../host/guest_deep_sleep.h"
 #include "../host/guest_power_notifier.h"
 #include "arm_cp15_sctlr_handler.h"
 #include "arm_cpu.h"
@@ -241,8 +242,10 @@ void ArmJit::UpdateInterruptOnPoll() {
     }
 
     const ArmCpuState* state = cpu_->State();
-    const bool deliver = !state->cpsr.bits.irq_disable
-                      && state->irq_interrupt_pending != 0;
+    /* deep_sleep forces the poll regardless of CPSR.I (a halted CPU must reach the dispatcher to park). */
+    const bool deliver = state->deep_sleep != 0
+                      || (!state->cpsr.bits.irq_disable
+                          && state->irq_interrupt_pending != 0);
 
 
     /* Target byte: 0x90 NOP falls through into the IRQ-delivery body;
@@ -279,6 +282,14 @@ void ArmJit::ResyncInterruptPoll() {
     UpdateInterruptOnPoll();
 }
 
+void ArmJit::EnterDeepSleep() {
+    /* SA-1110 Dev Man §9.5.3: PMCR.SF halts the CPU until a wake-event reset.
+       Re-arm the poll so the next poll returns to the dispatcher (RunLoop parks). */
+    std::lock_guard<std::mutex> guard(interrupt_lock_);
+    cpu_->State()->deep_sleep = 1;
+    UpdateInterruptOnPoll();
+}
+
 void __fastcall ArmJit::WfiHelper(ArmJit* jit) {
     auto* state = jit->cpu_->State();
     if (state->irq_interrupt_pending != 0 || state->reset_pending != 0) return;
@@ -294,15 +305,15 @@ void __fastcall ArmJit::WfiHelper(ArmJit* jit) {
         (static_cast<uint64_t>(elapsed_ns) * cpu_hz) / 1000000000ull);
 }
 
-void __fastcall ArmJit::NotifyPowerDownHelper(ArmJit* jit) {
-    jit->emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
+void __fastcall ArmJit::EnterDeepSleepHelper(ArmJit* jit) {
+    jit->emu_.Get<GuestDeepSleep>().Enter();
 }
 
 void ArmJit::NotifyResetDelivered() {
     emu_.Get<GuestCpuReset>().OnResetDelivered();
 }
 
-void ArmJit::SetResetPending() {
+void ArmJit::SetResetPending(bool is_resume) {
     ArmCpuState* state = cpu_->State();
     state->spsr.bits.irq_disable = 0;
     state->reset_pending          = 1;
@@ -312,7 +323,8 @@ void ArmJit::SetResetPending() {
         SetInterruptPendingLocked();
     }
     SetEvent(idle_event_);
-    emu_.Get<GuestPowerNotifier>().NotifyReboot();
+    if (is_resume) emu_.Get<GuestPowerNotifier>().NotifyResume();
+    else           emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
 
 /* All three take an FCSE-folded VA — the index is VA-keyed. */

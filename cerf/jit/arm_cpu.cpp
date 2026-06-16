@@ -14,6 +14,7 @@
 #include "arm_jit.h"
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
+#include "arm_tlb_ops.h"
 #include "decoded_insn.h"
 #include "../state/state_stream.h"
 
@@ -90,11 +91,25 @@ void ArmCpu::SetInitialStackPointer(uint32_t sp) {
 
 void ArmCpu::RaiseResetException(uint32_t initial_pc) {
     initial_pc_ = initial_pc;
+    has_pending_resume_pc_  = false;   /* a cold reset never resumes mid-sleep */
+    has_pending_resume_mmu_ = false;
     DoRaiseReset();
 }
 
 void ArmCpu::RaiseResetException() {
     DoRaiseReset();
+}
+
+void ArmCpu::SetPendingResumeVector(uint32_t pc) {
+    pending_resume_pc_     = pc;
+    has_pending_resume_pc_ = true;
+}
+
+void ArmCpu::SetPendingResumeMmu(uint32_t control, uint32_t ttbr0, uint32_t dacr) {
+    pending_resume_mmu_control_ = control;
+    pending_resume_mmu_ttbr0_   = ttbr0;
+    pending_resume_mmu_dacr_    = dacr;
+    has_pending_resume_mmu_     = true;
 }
 
 bool ArmCpu::AreInterruptsEnabled() const {
@@ -121,15 +136,32 @@ void ArmCpu::DoRaiseReset() {
         jit_->UpdateInterruptOnPoll();
     }
 
-    state_.gprs[ArmGpr::kR15] = initial_pc_;
+    state_.gprs[ArmGpr::kR15] =
+        has_pending_resume_pc_ ? pending_resume_pc_ : initial_pc_;
+    has_pending_resume_pc_ = false;
 
     ArmMmuState* mmu_state = mmu_->State();
-    mmu_state->control_register.word = 0;
-    mmu_state->process_id            = 0;
-    if (jit_->ProcessorConfig()->HasL2CacheAuxControl()) {
-        /* L2 Cache Auxiliary Control Register reset value (ARM DDI0344K §3.2.55). */
-        mmu_state->l2_aux_control = 0x00000042u;
+    if (has_pending_resume_mmu_) {
+        /* Power-off-wake resume (S3C2410/DevEmu): EBOOT restores cp15 control/TTB/
+           domain from SLEEPDATA and jumps to the saved VA with the MMU on
+           (startup.s wakeup routine). process_id is left as-is — the OS context
+           the resume returns into is preserved across the parked sleep. */
+        mmu_state->control_register.word       = pending_resume_mmu_control_;
+        mmu_state->translation_table_base.word = pending_resume_mmu_ttbr0_;
+        mmu_state->domain_access_control       = pending_resume_mmu_dacr_;
+        /* The new TTB/domain regime invalidates TLB entries keyed on the prior
+           TTBR0/domain; EBOOT flushes I+D TLBs here (startup.s wakeup routine). */
+        ArmTlbFlushAll(&mmu_state->data_tlb);
+        ArmTlbFlushAll(&mmu_state->instruction_tlb);
+    } else {
+        mmu_state->control_register.word = 0;
+        mmu_state->process_id            = 0;
+        if (jit_->ProcessorConfig()->HasL2CacheAuxControl()) {
+            /* L2 Cache Auxiliary Control Register reset value (ARM DDI0344K §3.2.55). */
+            mmu_state->l2_aux_control = 0x00000042u;
+        }
     }
+    has_pending_resume_mmu_ = false;
 }
 
 uint32_t* ArmCpu::GetUserModeRegisterAddress(int reg_num) {
@@ -179,11 +211,6 @@ void* __cdecl ArmCpu::RaiseSoftwareInterruptExceptionHelper(ArmCpu* cpu, uint32_
 void __cdecl ArmCpu::PerformSyscallHelper() {
     LOG(Caution, "ArmCpu::PerformSyscallHelper: SYSCALL on a board with no syscall mechanism\n");
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-}
-
-void __cdecl ArmCpu::PowerDownHelper() {
-    LOG(Boot, "ArmCpu: PowerDownHelper invoked (guest entered suspend mode); exiting\n");
-    CerfFatalExit(0);
 }
 
 uint32_t ArmCpu::ComputePSRMaskValue(int field_mask) {

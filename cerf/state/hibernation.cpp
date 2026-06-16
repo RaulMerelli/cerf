@@ -13,6 +13,7 @@
 #include "../cpu/emulated_memory.h"
 #include "../host/host_canvas.h"
 #include "../host/host_key_prompt.h"
+#include "../host/guest_deep_sleep.h"
 #include "../host/host_widget_registry.h"
 #include "../host/host_window.h"
 #include "../host/hw_boot_animation.h"
@@ -321,6 +322,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
 
     if (ok) {
         Progress("State restored.");
+        if (!ram_only) emu_.Get<GuestDeepSleep>().OnFullRestore();
     } else {
         /* Hold the CPU paused on the UART screen until the user acks the
            reason, then continue: a runtime load resumes the guest, a

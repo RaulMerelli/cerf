@@ -71,6 +71,25 @@ public:
             if (d->crn == 7 && d->crm == 2 && d->cp == 5 && d->cp_opc == 0) {
                 return cursor;
             }
+            /* Auxiliary Control Register (XScale Core Dev Manual §7.2.2 /
+               Table 7-7): CRn=c1, CRm=c1, opc2=0. The shared cp15 body keys
+               CRn=1 on opc2 alone, so this opc2=0 access would hit the SCTLR
+               handler and clobber the control register, clearing V. */
+            if (d->crn == 1 && d->crm == 1 && d->cp == 0 && d->cp_opc == 0) {
+                using namespace x86;
+                const int32_t rd_disp = static_cast<int32_t>(
+                    offsetof(ArmCpuState, gprs) + d->rd * 4u);
+                const int32_t aux_disp = static_cast<int32_t>(
+                    offsetof(ArmMmuState, aux_control_register));
+                if (d->l) {
+                    EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, aux_disp);
+                    EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
+                } else {
+                    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
+                    EmitMovBaseDisp32Reg(cursor, kMmuReg, aux_disp, kEax);
+                }
+                return cursor;
+            }
             return EmitCp15RegisterTransfer(cursor, d, ctx);
         }
         if (d->cp_num == 14 && d->cp_opc == 0 && d->crm == 0 && d->cp == 0) {
@@ -91,14 +110,19 @@ public:
                 EmitAndRegImm32(cursor, kEax, 0xFu);
                 EmitCmpRegImm32(cursor, kEax, 3u);
                 uint8_t* not_sleep = EmitJnzLabel(cursor);
+                /* M=3 SLEEP: halt the CPU + recovery prompt; the halt replaces
+                   the idle wait, so skip the WfiHelper fall-through. */
                 EmitMovRegImm32(cursor, kEcx,
                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
                 EmitCall(cursor,
-                    reinterpret_cast<void*>(&ArmJit::NotifyPowerDownHelper));
+                    reinterpret_cast<void*>(&ArmJit::EnterDeepSleepHelper));
+                uint8_t* done = EmitJmpLabel(cursor);
                 FixupLabel(not_sleep, cursor);
+                /* M=1 IDLE: wait for the next interrupt. */
                 EmitMovRegImm32(cursor, kEcx,
                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
                 EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
+                FixupLabel(done, cursor);
                 return cursor;
             }
 

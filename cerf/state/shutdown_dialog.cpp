@@ -63,7 +63,10 @@ void ShutdownDialog::Paint(HWND hwnd) {
     HGDIOBJ  old  = SelectObject(hdc, font ? font : GetStockObject(DEFAULT_GUI_FONT));
     RECT trc = { 60, 18, rc.right - 12, 56 };
     SetTextColor(hdc, dark ? dm.TextColor() : RGB(0, 0, 0));
-    DrawTextW(hdc, L"Would you like to shut down CERF?", -1, &trc, DT_LEFT | DT_WORDBREAK);
+    const wchar_t* body = (trigger_ == ShutdownTrigger::DeepSleep)
+        ? L"Guest device is in deep sleep mode. Exit CERF?"
+        : L"Would you like to shut down CERF?";
+    DrawTextW(hdc, body, -1, &trc, DT_LEFT | DT_WORDBREAK);
 
     if (timer_on_) {
         RECT bar = { kBarX, kBarY, kBarX + kBarW, kBarY + kBarH };
@@ -157,13 +160,15 @@ LRESULT CALLBACK ShutdownDialog::WndProcStatic(HWND hwnd, UINT msg, WPARAM wp, L
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-ShutdownChoice ShutdownDialog::Show() {
+ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
     HWND owner = emu_.Get<HostWindow>().Hwnd();
 
+    const bool with_countdown = (trigger == ShutdownTrigger::WindowClose);
+    trigger_   = trigger;
     decided_   = false;
     cancelled_ = false;
     save_      = false;
-    timer_on_  = true;
+    timer_on_  = with_countdown;
     remaining_ = kSeconds;
 
     const unsigned long long mb =
@@ -209,7 +214,8 @@ ShutdownChoice ShutdownDialog::Show() {
                   WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
                   kClientW - 184, kClientH - 44, 84, 28, hwnd_,
                   (HMENU)(INT_PTR)IDOK, inst, nullptr);
-    CreateWindowW(L"BUTTON", L"Cancel",
+    CreateWindowW(L"BUTTON",
+                  trigger == ShutdownTrigger::DeepSleep ? L"Resume" : L"Cancel",
                   WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                   kClientW - 92, kClientH - 44, 84, 28, hwnd_,
                   (HMENU)(INT_PTR)IDCANCEL, inst, nullptr);
@@ -219,7 +225,7 @@ ShutdownChoice ShutdownDialog::Show() {
 
     ShowWindow(hwnd_, SW_SHOW);
     SetForegroundWindow(hwnd_);
-    SetTimer(hwnd_, kTimerId, 1000, nullptr);
+    if (with_countdown) SetTimer(hwnd_, kTimerId, 1000, nullptr);
 
     MSG msg;
     while (!decided_ && GetMessageW(&msg, nullptr, 0, 0)) {

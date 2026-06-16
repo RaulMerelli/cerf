@@ -148,7 +148,14 @@ public:
 
     void ClearInterruptPending();
 
-    void SetResetPending();
+    /* A deep-sleep wake reaches the CPU through this same reset path; is_resume
+       marks that case so the UI surfaces a RESUMING banner, while a bare reset
+       surfaces a REBOOTING banner. */
+    void SetResetPending(bool is_resume = false);
+
+    /* Halt the guest CPU for deep sleep until a reset wakes it (SoC power-down
+       register write, JIT thread). Re-arms the poll so the next poll parks. */
+    void EnterDeepSleep();
 
     /* Reset-delivery hook: GuestCpuReset runs the reset-line listeners
        and an armed GuestColdBoot hard reset (RAM wipe + replay + TC
@@ -162,9 +169,9 @@ public:
     static void __fastcall WfiHelper(ArmJit* jit);
 
     /* JIT-emitted helper: a SoC power-down detector (e.g. XScale PWRMODE=SLEEP)
-       calls this to surface the power-off to the user via GuestPowerNotifier.
-       Generic — the SoC strategy owns the detection, this owns only the notify. */
-    static void __fastcall NotifyPowerDownHelper(ArmJit* jit);
+       calls this to enter deep sleep — halt the CPU and run the recovery prompt
+       (GuestDeepSleep). The SoC strategy owns the detection, this owns the entry. */
+    static void __fastcall EnterDeepSleepHelper(ArmJit* jit);
 
     /* __fastcall: ECX = va, EDX = tlb_hint, stack = jit. Nullptr
        return + io_pending_address_ set ⇒ peripheral I/O dispatch;

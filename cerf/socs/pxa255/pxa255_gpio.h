@@ -5,6 +5,19 @@
 #include <cstdint>
 #include <mutex>
 
+/* A device wired to one GPIO pin that the guest drives serially by toggling the
+   pin (a 1-Wire-style slave — the Falcon main battery on GPIO73). It watches the
+   guest's direction writes and supplies the pin's level when the guest reads. */
+class Pxa255GpioSerialSlave {
+public:
+    virtual ~Pxa255GpioSerialSlave() = default;
+    virtual void     OnGuestWrite(uint32_t off, uint32_t value) = 0;
+    virtual uint32_t DriveGplr(uint32_t bank) = 0;
+    /* Forwarded by the owning Pxa255Gpio (the slave is not a Peripheral). */
+    virtual void SaveState(StateWriter& w) = 0;
+    virtual void RestoreState(StateReader& r) = 0;
+};
+
 /* PXA255 GPIO, 3 banks x 32 pins (§4.1.3, base 0x40E00000, Table 4-49).
    A GRER/GFER-enabled edge latches GEDR (§4.1.3.5), which drives the INTC as
    a LEVEL via Intc::SetSourceLevel (cleared only by guest GEDR W1C) — an
@@ -26,11 +39,16 @@ public:
        from a host input thread, so all GPIO state is guarded by mtx_. */
     void SetInputLevel(uint32_t gpio, bool high);
 
+    /* Attach a serial slave on a GPIO pin (OnReady-time; at most one). */
+    void SetSerialSlave(Pxa255GpioSerialSlave* s) { serial_slave_ = s; }
+
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 
 private:
     mutable std::mutex mtx_;
+
+    Pxa255GpioSerialSlave* serial_slave_ = nullptr;   /* pin-attached slave (Falcon battery). */
 
     uint32_t in_[3]   = {};   /* externally driven input levels (board wiring). */
     uint32_t out_[3]  = {};   /* output-data: GPSR sets, GPCR clears. */

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../socs/guest_cpu_reset.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../../state/state_stream.h"
 #include "jornada820_pcmcia.h"
@@ -22,6 +23,11 @@ bool Jornada820CompanionAsic::ShouldRegister() {
 void Jornada820CompanionAsic::OnReady() {
     store_.assign(MmioSize(), 0u);
     emu_.Get<PeripheralDispatcher>().Register(this);
+    /* The deep-sleep wake (and any reset) leaves the GlidePad PS/2 controller
+       clean on hardware; the guest re-inits it with F6+F4 (no FF reset), so flush
+       any queued pre-suspend motion that would otherwise sit ahead of the F6 ACK
+       and desync the re-init handshake. */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this] { mouse_.Reset(); });
 }
 
 uint8_t Jornada820CompanionAsic::ReadByte(uint32_t addr) {

@@ -126,11 +126,6 @@ void ArmJit::JitDecode(JitBlock* containing_block, uint32_t guest_pc) {
                 ++i;
                 break;
             }
-
-            if (opcode_word == 0xEAFFFFFEu &&
-                actual_guest_pc == 0x92001010u) {
-                insn.place_fn = &PlacePowerDown;
-            }
         }
 
         /* Stop at an unconditional control-leave (return / uncond jump):

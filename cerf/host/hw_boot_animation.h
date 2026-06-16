@@ -37,9 +37,10 @@ public:
     void DrawHeldFinal(HDC dc, uint32_t width, uint32_t height);     /* finished, no TX */
     void DrawDimmedCenterLogo(HDC dc, uint32_t width, uint32_t height); /* text-mode bg */
 
-    /* Any thread. Restart the animation from the OEM-logo fade-in with a
-       "Restarting..." label (guest reboot). */
-    void Restart();
+    /* Any thread. Restart the animation from the OEM-logo fade-in. resuming
+       picks the label: "Resuming..." (deep-sleep wake) vs "Restarting..."
+       (guest reboot). */
+    void Restart(bool resuming = false);
 
     /* Any thread. Stop the animation immediately and jump to the finished state
        (hibernation restore failure prints text and awaits a keypress). */
@@ -51,7 +52,7 @@ public:
 
 private:
     enum class Phase { CerfFadeIn, CerfHold, CerfFadeOut, OemFadeIn, OemHold, Finished };
-    enum class LabelMode { Starting, Restarting };
+    enum class LabelMode { Starting, Restarting, Resuming };
 
     void         EnsureLogosLoaded();
     void         EnsureFonts();
@@ -83,6 +84,7 @@ private:
 
     /* Cross-thread requests, consumed at the top of Advance. */
     std::atomic<bool> restart_req_{false};
+    std::atomic<bool> restart_resuming_{false};  /* label: Resuming vs Restarting */
     std::atomic<bool> abort_req_{false};
     std::atomic<bool> fb_latched_req_{false};
 };

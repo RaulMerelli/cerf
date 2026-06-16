@@ -298,7 +298,8 @@ private:
             case 0x04: return UnpackOsmr(osmr_arm_[1].load(std::memory_order_acquire));
             case 0x08: return UnpackOsmr(osmr_arm_[2].load(std::memory_order_acquire));
             case 0x0C: return UnpackOsmr(osmr_arm_[3].load(std::memory_order_acquire));
-            case 0x10: return ReadOscr();
+            case 0x10:
+                return ReadOscr();
             case 0x14: return ossr_.load(std::memory_order_acquire) & 0xFu;
             case 0x18: return ower_.load(std::memory_order_acquire) & 0x1u;
             case 0x1C: return oier_.load(std::memory_order_acquire) & 0xFu;

@@ -64,8 +64,8 @@ private:
 
     /* Graphics Engine apertures (Table 4-1 + queued command alias). */
     static constexpr uint32_t kCc01R       = 0x004u;   /* FIFO/GE status (Reg 4-10). */
-    static constexpr uint32_t kGeRegLo     = 0x200u;   /* direct GE register block. */
-    static constexpr uint32_t kGeRegHi     = 0x280u;
+    /* The GE is accessed only via the queued command alias at 0x1400. The 0x200
+       direct block (MQ-1132 GE registers) is the MQ-1188 SD/MMC controller. */
     static constexpr uint32_t kGeCmdLo     = 0x1400u;  /* queued command alias. */
     static constexpr uint32_t kGeCmdHi     = 0x1480u;
     static constexpr uint32_t kSrcFifoLo   = 0xC00u;   /* Source FIFO Space. */

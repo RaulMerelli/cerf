@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../host/guest_power_notifier.h"
+#include "../../host/guest_deep_sleep.h"
 #include "../../state/state_stream.h"
 
 namespace {
@@ -76,9 +76,12 @@ void Sa11xxPowerManager::WriteReg(uint32_t off, uint32_t value) {
     switch (off) {
         case 0x00:
             /* PMCR bit0 SF forces sleep mode (Dev Man §9.5.7.1; HW clears it on
-               wake). With no wake path the guest spins forever after setting it,
-               so a set SF surfaces the power-down to the UI. */
-            if (value & 0x1u) emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
+               wake). HW halts the chip until a wake event resets it (§9.5.3.3);
+               GuestDeepSleep halts the CPU and runs the recovery prompt. */
+            if (value & 0x1u) {
+                pssr_ |= 0x1u;   /* §9.5.7.5 SSS: sleep entered via the SF bit */
+                emu_.Get<GuestDeepSleep>().Enter();
+            }
             pmcr_ = value & ~0x1u;
             break;
         case 0x04: pssr_ &= ~(value & 0x1Fu); break;  /* W1C on bits 4:0 */

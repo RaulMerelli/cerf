@@ -3,6 +3,7 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/guest_deep_sleep.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../irq_controller.h"
@@ -52,6 +53,14 @@ bool S3C2410IoPort::ShouldRegister() {
 void S3C2410IoPort::OnReady() {
     storage_[kRegOffsetGstatus1 / 4u] = kGstatus1ChipIdValue;
     emu_.Get<PeripheralDispatcher>().Register(this);
+    emu_.Get<GuestDeepSleep>().RegisterWaker(this);
+}
+
+void S3C2410IoPort::LatchSleepWakeCause() {
+    /* GSTATUS2 (+0xB4) bit1 = wakeup-from-PowerOff (DevEmu EBOOT startup.s
+       "tst r10,#0x2"); the kernel boot path reads it and resumes. */
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    storage_[0xB4u / 4u] |= 0x2u;
 }
 
 int S3C2410IoPort::ExtintTypeLocked(int n) const {

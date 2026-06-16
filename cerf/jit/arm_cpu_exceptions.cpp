@@ -83,10 +83,17 @@ void* ArmCpuRaiseIrqException(ArmJit* jit, ArmCpuState* state, uint32_t inst_ptr
         /* Reset-line effects must finish before the reset vector
            executes — the cold-boot wipe + replay restore the RAM bytes
            the entry code runs from. */
+        LOG(SocReset, "[DEEPSLEEP] reset delivery: clearing deep_sleep (was %u)\n",
+            state->deep_sleep);
+        state->deep_sleep = 0;   /* a reset wakes the CPU from deep sleep */
         jit->NotifyResetDelivered();
         jit->Cpu()->RaiseResetException();
         return nullptr;
     }
+
+    /* Deep sleep: CPU halted until a reset wakes it; nullptr → poll RETN → Run
+       returns so RunLoop parks, and no IRQ is delivered while asleep. */
+    if (state->deep_sleep) return nullptr;
 
     return EnterException(jit, state, ArmMode::kIrq, 0x18u, inst_ptr + 4u,
                           ExceptionVector::kIrq);

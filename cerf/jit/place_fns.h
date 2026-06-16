@@ -34,7 +34,6 @@ uint8_t* PlaceCoprocDataOperation          (uint8_t* cursor, DecodedInsn* d, Blo
 uint8_t* PlaceCoprocRegisterTransfer       (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocExtension              (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBKPT                         (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
-uint8_t* PlacePowerDown                    (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceR15ModifiedHelper            (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBx                           (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBxCALL                       (uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);

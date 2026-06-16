@@ -170,8 +170,13 @@ struct ArmCpuState {
        written by MRA/MAR (MRRC/MCRR p0). Appended last — ArmCpuState
        offsets above are baked into emitted code. */
     uint64_t       acc0;
+
+    /* Deep-sleep halt flag (e.g. SA-1110 PMCR.SF); the interrupt poll returns to
+       the dispatcher and the run loop parks until a reset wakes the CPU. Appended
+       last — offsets above are baked into emitted code. */
+    uint32_t       deep_sleep;
 };
-static_assert(sizeof(ArmCpuState) == 432,
+static_assert(sizeof(ArmCpuState) == 440,
               "ArmCpuState layout — JIT emit addresses fields by "
               "absolute byte offset; update emit-site offsets if size "
               "changes.");

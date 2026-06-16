@@ -67,7 +67,6 @@ void MediaQMq1188::PublishScreenSizeOnEnableEdge() {
 uint32_t MediaQMq1188::RegRead(uint32_t addr) {
     const uint32_t roff = (addr - MmioBase()) - kRegBase;
     if (roff == kCc01R) { ge_.FlushPending(); return ge_.StatusReady(); }
-    if (roff >= kGeRegLo && roff < kGeRegHi) return ge_.ReadReg((roff - kGeRegLo) / 4u);
     if (roff >= kGeCmdLo && roff < kGeCmdHi) return ge_.ReadReg((roff - kGeCmdLo) / 4u);
     if (IsUsbHost(roff)) {
         const uint32_t uoff = roff - kUsbLo;
@@ -79,7 +78,10 @@ uint32_t MediaQMq1188::RegRead(uint32_t addr) {
 
 void MediaQMq1188::RegWrite(uint32_t addr, uint32_t value) {
     const uint32_t roff = (addr - MmioBase()) - kRegBase;
-    if (roff >= kGeRegLo && roff < kGeRegHi) { ge_.WriteReg((roff - kGeRegLo) / 4u, value); return; }
+    /* GE registers are reached only via the queued alias (0x1400). The 0x200
+       block is the GE direct block on the MQ-1132 but the SD/MMC controller on
+       the MQ-1188 (mq1188sdmmc.dll maps PA 0x08040200, writes DMA descriptors at
+       0x22C) — routing it to the GE corrupts GE0BR. SD/MMC not yet modelled. */
     if (roff >= kGeCmdLo && roff < kGeCmdHi) { ge_.WriteReg((roff - kGeCmdLo) / 4u, value); return; }
     if (roff >= kSrcFifoLo && roff < kSrcFifoHi) { ge_.PushSourceFifo(value); return; }
     reg_[roff / 4u] = value;

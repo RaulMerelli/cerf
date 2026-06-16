@@ -36,19 +36,22 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 
 **MANDATORY** — Read ALL of these (using the Read tool) before doing ANY work. No exceptions. You DONT NEED to re-read files, if their content is already present in the system prompt below.
 
-**All `agent_docs/` pages are user-curated. Do NOT edit them drive-by because a filename looks like where your note belongs — these files land in every future agent's system prompt and a stray edit silently reshapes it. Edits happen only when the user directs one or when an approved skill (e.g. session-feedback) runs with explicit user sign-off.**
-
 - **[README.md](README.md)** - basic project information, run commands.
 - **[agent_docs/workflow.md](agent_docs/workflow.md)** — Mental model discipline: how to investigate, verify, and implement. Core operating method for every task.
 - **[agent_docs/subsystems.md](agent_docs/subsystems.md)** — Surviving CERF subsystems.
-- **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** — Guest Additions: universal stub injector + manual-map body delivery, device.exe AFS-FSD shared storage, the cross-process writable-state invariant (pid-key + SHARED), display driver + blit pipeline, task manager.
-- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** — Full machine-state save/restore: the `.img` format, the two-thread freeze model (JitRunner pause + EmulationFreeze), and the MANDATORY peripheral contract (SaveState/RestoreState/PostRestore, worker-thread wrapping) for anyone creating or modifying a peripheral.
 - **[agent_docs/jit.md](agent_docs/jit.md)** — JIT design notes: service set, `place_fn` contract, pinned-register dispatcher, compile pipeline, trampolines, shadow stack, FCSE fold, cross-thread interrupt delivery.
 - **[agent_docs/rules.md](agent_docs/rules.md)** — All project rules: WinCE accuracy, architecture, communication patterns, git, subagents.
 - **[agent_docs/code_style.md](agent_docs/code_style.md)** — How to write code: file & symbol style, comments, logging, when to stop and ask.
 - **[agent_docs/debugging.md](agent_docs/debugging.md)** — All debugging: log reading, crash investigation, MMU faults, peripheral halts.
 - **[agent_docs/boot_loaders.md](agent_docs/boot_loaders.md)** — What CERF does with boot loaders.
 - **[agent_docs/psychological_support.md](agent_docs/psychological_support.md)** — Emotional control instructions for agent.
+
+## Lazy-load
+
+Various subsystems details - read these documents as soon as the task is related.
+- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** — Full machine-state save/restore: the `.img` format, the two-thread freeze model (JitRunner pause + EmulationFreeze), and the MANDATORY peripheral contract (SaveState/RestoreState/PostRestore, worker-thread wrapping) for anyone creating or modifying a peripheral.
+- **[agent_docs/deep_sleep.md](agent_docs/deep_sleep.md)** — Guest suspend/resume (deep sleep): the CPU-halt + no-timeout recovery dialog, the wake-is-a-reset contract (cause latch + reset-line listeners + resume-vector provider) for implementing it per SoC/board, and why suspend/resume is NOT hibernation.
+- **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** — Guest Additions: universal stub injector + manual-map body delivery, device.exe AFS-FSD shared storage, the cross-process writable-state invariant (pid-key + SHARED), display driver + blit pipeline, task manager.
 
 ## Build
 

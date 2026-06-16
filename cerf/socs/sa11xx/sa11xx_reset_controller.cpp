@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
+#include "../../host/guest_deep_sleep.h"
 #include "../../jit/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -17,7 +18,9 @@ namespace {
    software reset. RCSR +0x4 is W1C on bits 3:0 = SMR|WDR|SWR|HWR;
    HWR cold-resets to 1, others to 0; bits 31:4 reserved. */
 
-class Sa11xxResetController : public Peripheral, public ResetCauseLatch {
+class Sa11xxResetController : public Peripheral,
+                             public ResetCauseLatch,
+                             public DeepSleepWaker {
 public:
     using Peripheral::Peripheral;
 
@@ -28,6 +31,7 @@ public:
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
         emu_.Get<GuestCpuReset>().SetCauseLatch(this);
+        emu_.Get<GuestDeepSleep>().RegisterWaker(this);
     }
 
     /* §9.6.1.2 RCSR: bit0=HWR bit1=SWR bit2=WDR. §9.6: DRAM survives
@@ -42,6 +46,11 @@ public:
     }
     void LatchWatchdogReset() override {
         rcsr_.fetch_or(0x4u, std::memory_order_acq_rel);
+    }
+    /* DeepSleepWaker: §9.6.1.2 RCSR bit3 SMR (sleep-mode reset) — the OAL boot
+       path reads it and takes its sleep-resume branch. */
+    void LatchSleepWakeCause() override {
+        rcsr_.fetch_or(0x8u, std::memory_order_acq_rel);
     }
 
     uint32_t MmioBase() const override { return 0x90030000u; }
