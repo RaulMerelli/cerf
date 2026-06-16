@@ -8,10 +8,12 @@
 #include "../../state/state_stream.h"
 #include "../peripheral_dispatcher.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <deque>
 #include <functional>
+#include <mutex>
 #include <string>
 
 /* Generic 16550 UART core. Register offsets are reg-index*RegStride (PXA255 =4,
@@ -31,10 +33,15 @@ public:
         switch ((addr - MmioBase()) / RegStride()) {
         case 0:                                        /* RBR / DLL. */
             if (dlab()) return dll_;
-            if (rx_fifo_.empty()) return 0u;           /* empty RX FIFO reads 0. */
             {
-                const uint8_t b = rx_fifo_.front();
-                rx_fifo_.pop_front();
+                uint8_t b;
+                {
+                    std::lock_guard<std::mutex> lk(rx_mtx_);
+                    if (rx_fifo_.empty()) return 0u;   /* empty RX FIFO reads 0. */
+                    b = rx_fifo_.front();
+                    rx_fifo_.pop_front();
+                    rx_size_.store(rx_fifo_.size(), std::memory_order_release);
+                }
                 RecomputeInterrupt();                  /* DR may clear, RDA may deassert. */
                 return b;
             }
@@ -52,7 +59,10 @@ public:
         case 3: return lcr_;
         case 4: return mcr_;
         case 5:                                         /* LSR, PXA255 Table 10-13. */
-            return kLsrTxReady | (rx_fifo_.empty() ? 0u : 0x01u);  /* +DR (bit0) on RX data. */
+            /* DR (bit0) from the lock-free RX count so the TX-drain LSR poll never
+               takes the FIFO lock. */
+            return kLsrTxReady |
+                   (rx_size_.load(std::memory_order_acquire) ? 0x01u : 0u);
         case 6: return 0u;                             /* MSR: no modem inputs. */
         case 7: return spr_;
         default: return ReadExtReg((addr - MmioBase()) / RegStride());
@@ -101,13 +111,20 @@ public:
        the interrupt line (RDA). The guest driver pops it from RBR. Used by board
        input transports that stream bytes into the UART (the NEC PCO keyboard/touch
        companion feeds reports into the BTUART this way). */
+    /* Runs on board input-transport threads (NEC PCO keyboard/touch pacers, the
+       battery TX-observer) while the guest JIT thread pops RBR — rx_mtx_ is the
+       mutual exclusion both sides take for every rx_fifo_ access. */
     void PushRx(uint8_t byte) {
-        if (rx_fifo_.size() >= kRxFifoCap) {
-            LOG(SocUart, "%s RX FIFO overflow (cap %zu), dropping 0x%02X\n",
-                Name(), kRxFifoCap, byte);
-            return;
+        {
+            std::lock_guard<std::mutex> lk(rx_mtx_);
+            if (rx_fifo_.size() >= kRxFifoCap) {
+                LOG(SocUart, "%s RX FIFO overflow (cap %zu), dropping 0x%02X\n",
+                    Name(), kRxFifoCap, byte);
+                return;
+            }
+            rx_fifo_.push_back(byte);
+            rx_size_.store(rx_fifo_.size(), std::memory_order_release);
         }
-        rx_fifo_.push_back(byte);
         RecomputeInterrupt();
     }
 
@@ -132,6 +149,7 @@ public:
         rx_fifo_.clear();
         uint32_t n = 0; r.Read(n);
         for (uint32_t i = 0; i < n; ++i) { uint8_t b = 0; r.Read(b); rx_fifo_.push_back(b); }
+        rx_size_.store(rx_fifo_.size(), std::memory_order_release);
     }
 
 protected:
@@ -168,7 +186,8 @@ private:
         return UnitEnabled() && (ier_ & 0x02u) && !tx_acked_;          /* TIE  (IER.1). */
     }
     bool RxIntPending() const {
-        return UnitEnabled() && (ier_ & 0x01u) && !rx_fifo_.empty();   /* RAVIE (IER.0). */
+        return UnitEnabled() && (ier_ & 0x01u) &&
+               rx_size_.load(std::memory_order_acquire) != 0;          /* RAVIE (IER.0). */
     }
     void RecomputeInterrupt() { SetInterruptLine(TxIntPending() || RxIntPending()); }
 
@@ -178,7 +197,9 @@ private:
 
     uint32_t ier_ = 0, fcr_ = 0, lcr_ = 0, mcr_ = 0, spr_ = 0, dll_ = 0, dlh_ = 0;
     bool     tx_acked_ = false;
-    std::deque<uint8_t> rx_fifo_;
+    std::deque<uint8_t> rx_fifo_;             /* guarded by rx_mtx_. */
+    std::mutex          rx_mtx_;
+    std::atomic<size_t> rx_size_{0};          /* lock-free mirror of rx_fifo_.size(). */
     std::string tx_line_;
     std::function<void(uint8_t)> tx_observer_;
 };
