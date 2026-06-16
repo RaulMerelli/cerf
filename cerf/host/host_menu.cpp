@@ -5,7 +5,7 @@
 #include "../boot/guest_cold_boot.h"
 #include "../core/cerf_emulator.h"
 #include "../socs/guest_cpu_reset.h"
-#include "../version.h"
+#include "about_dialog.h"
 #include "host_canvas.h"
 #include "host_input_capture.h"
 #include "host_screenshot.h"
@@ -195,11 +195,6 @@ void HostMenu::HandleCommand(int id) {
         case kIdSaveShot:   emu_.Get<HostScreenshot>().Save(); break;
         case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
         case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
-        case kIdAbout:
-            MessageBoxW(emu_.Get<HostWindow>().Hwnd(),
-                L"CE Runtime Foundation v" CERF_VERSION_DISPLAY_WSTR
-                L"\nhttps://github.com/gweslab/cerf",
-                L"About CERF", MB_OK | MB_ICONINFORMATION);
-            break;
+        case kIdAbout:      emu_.Get<AboutDialog>().Show(); break;
     }
 }
