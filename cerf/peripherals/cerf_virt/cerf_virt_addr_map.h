@@ -6,13 +6,13 @@ typedef unsigned int uint32_t;
 #include <cstdint>
 #endif
 
-/* 0xD0000000-0xDFFFFFFF is the only PA window free on every supported board:
-   0xC0000000 is iPaq SDRAM, 0xE0000000 the SA1110 zero-bank, and
-   0xA0000000-0xBFFFFFFF SoC MMIO blocks. */
+/* MUST be a PA free on every supported board — cerf_virt registers here, so a
+   board that maps this range faults at PeripheralDispatcher::Register. Highest
+   PA any board maps is the 0xE0000000 zero-bank; 0xF0000000 is above them all. */
 
 namespace CerfVirt {
 
-const uint32_t kBaseAddr  = 0xD0000000u;
+const uint32_t kBaseAddr  = 0xF0000000u;
 const uint32_t kTotalSize = 0x10000000u;
 
 const uint32_t kRegsBase = kBaseAddr;

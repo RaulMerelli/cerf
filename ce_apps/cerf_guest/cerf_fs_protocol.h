@@ -6,10 +6,6 @@
 
 #include <windows.h>
 
-/* Channel physical base (host kFolderShareBase). The host reads the ServerPB by
-   VA through the live MMU, so guest buffers are ordinary VirtualAlloc'd VAs. */
-#define CERF_FS_CHANNEL_PA   0xD0005000u
-
 /* Largest single read/write the host services in one ServerPB op. */
 #define CERF_FS_MAX_IO       (64u * 1024u)
 #define CERF_FS_MAX_LFN      255u   /* wide chars in a long file name */

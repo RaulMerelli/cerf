@@ -1,15 +1,15 @@
 Set-Location $PSScriptRoot
 
 $tools   = "$PSScriptRoot/../../references/WindowsCE-Build-Tools"
-$sources = @("main.cpp","cerf_regs_map.c","cerf_debug_log.cpp","cerf_ddgpe.cpp",
+$sources = @("main.cpp","cerf_regs_map.cpp","cerf_debug_log.cpp","cerf_ddgpe.cpp",
              "cerf_ddgpe_vidmem.cpp",
              "cerf_ddgpe_blt.cpp","cerf_ddhal.cpp","cerf_ddhal_ce5.cpp","cerf_gradient.cpp",
              "cerf_pointer_pump.cpp","cerf_keyboard_pump.cpp","cerf_resize_pump.cpp","cerf_task_manager_pump.cpp",
              "cerf_power.cpp",
              "cerf_cursor.cpp","cerf_ctbltstub.cpp","cerf_drvfnstubs.cpp",
              "cerf_cacherangeflush.cpp","cerf_cesetextendedpdata.cpp",
-             "cerf_driver_in_driver.cpp","cerf_fs_afs.c","cerf_fs_transport.c",
-             "cerf_fs_vol.c","cerf_fs_file.c","cerf_fs_find.c","cerf_fs_notify.c")
+             "cerf_driver_in_driver.cpp","cerf_fs_afs.cpp","cerf_fs_transport.cpp",
+             "cerf_fs_vol.cpp","cerf_fs_file.cpp","cerf_fs_find.cpp","cerf_fs_notify.cpp")
 $libs    = @("coredll","ddgpe","gpe_lib","emul","emulrotate","genblt","genblt_cpu","aablt")
 $incs    = @("$PSScriptRoot/shim","$tools/ce6-oak/INC","$tools/ce42-standard/Include/Armv4i")
 

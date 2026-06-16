@@ -4,6 +4,10 @@
 
 #include <windows.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* CERF guest folder-share FSD: registers directly on the coredll AFS API-set
    (RegisterAFSName + CreateAPISet + RegisterAFS), no fsdmgr.dll, uniform CE3..CE7. */
 
@@ -132,3 +136,7 @@ BOOL  CerfFsWriteFileWithSeek(CerfFile* f, const void* buf, DWORD count, PDWORD 
 
 BOOL CerfFsFindClose(CerfFind* s);                                     /* 0  */
 BOOL CerfFsFindNextFileW(CerfFind* s, PWIN32_FIND_DATAW fd);           /* 2  */
+
+#ifdef __cplusplus
+}
+#endif

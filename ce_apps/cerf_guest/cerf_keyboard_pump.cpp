@@ -2,11 +2,8 @@
 #include "cerf_regs_map.h"
 #include "cerf_debug_log.h"
 
-/* Offsets MUST match cerf_virt_keyboard_regs.h and the PA must match kKeyboardBase
-   in cerf_virt_addr_map.h; a mismatch reads the wrong reg and breaks injection.
-   Duplicated as #defines because the CE toolchain can't include host C++ headers. */
-#define CERF_VIRT_KB_REGS_PA  0xD000B000u
-#define CERF_VIRT_KB_REGS_SZ  0x1000u
+/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_keyboard_regs.h. */
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_KB_WRITE_SEQ  0x00u
 #define CERF_KB_RING_BASE  0x10u
@@ -20,8 +17,8 @@ static volatile ULONG* s_kb_regs = NULL;
 
 static BOOL CerfMapKbRegs(void) {
     if (s_kb_regs) return TRUE;
-    s_kb_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_KB_REGS_PA,
-                                                 CERF_VIRT_KB_REGS_SZ);
+    s_kb_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kKeyboardBase,
+                                                 CerfVirt::kKeyboardSize);
     return s_kb_regs != NULL;
 }
 

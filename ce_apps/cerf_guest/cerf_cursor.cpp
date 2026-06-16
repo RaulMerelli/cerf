@@ -2,12 +2,8 @@
 #include "cerf_regs_map.h"
 #include <string.h>
 
-/* These offsets/struct MUST match cerf/peripherals/cerf_virt/
-   cerf_virt_cursor_regs.h (the host peripheral); a mismatch makes the host read
-   the wrong bytes and corrupts the cursor. Duplicated because the CE toolchain
-   can't include the host C++ header, same as the fb/gpe channels in main.cpp. */
-#define CERF_VIRT_CURSOR_PA   0xD0004000u
-#define CERF_VIRT_CURSOR_SZ   0x1000u
+/* Register offsets/struct below MUST match cerf/peripherals/cerf_virt/cerf_virt_cursor_regs.h. */
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 #define CERF_CUR_DESC_VA      0x000u
 #define CERF_CUR_KICK         0x004u
 
@@ -30,8 +26,8 @@ static CerfCursorDesc   s_cur_desc;
 
 static BOOL CerfMapCursorRegs(void) {
     if (s_cur_regs) return TRUE;
-    s_cur_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_CURSOR_PA,
-                                                  CERF_VIRT_CURSOR_SZ);
+    s_cur_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kCursorBase,
+                                                  CerfVirt::kCursorSize);
     return s_cur_regs != NULL;
 }
 

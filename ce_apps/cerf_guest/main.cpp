@@ -9,11 +9,7 @@
 #define GCAPS_GRAY16 0x01000000u   /* winddi.h:294 */
 #endif
 
-#define CERF_VIRT_FB_REGS_PA   0xD0001000u
-#define CERF_VIRT_FB_REGS_SZ   0x1000u
-#define CERF_VIRT_GPE_CMD_PA   0xD0002000u
-#define CERF_VIRT_GPE_CMD_SZ   0x1000u
-#define CERF_VIRT_FB_MEM_PA    0xD0100000u
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_GPE_DESC_VA          0x000u
 #define CERF_GPE_STATUS           0x004u
@@ -55,8 +51,8 @@ extern "C" void CerfSetCarrierName(const wchar_t* name) {
 
 void CerfReadFbRegs(void) {
     if (s_fb_regs) return;
-    s_fb_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_FB_REGS_PA,
-                                                 CERF_VIRT_FB_REGS_SZ);
+    s_fb_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kFramebufferRegsBase,
+                                                 CerfVirt::kFramebufferRegsSize);
     if (!s_fb_regs) return;
     g_FbWidth  = s_fb_regs[0];
     g_FbHeight = s_fb_regs[1];
@@ -70,8 +66,8 @@ void CerfReadFbRegs(void) {
 BOOL CerfMapGpeCmd(void) {
     CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (s_gpe_cmd) return TRUE;
-    s_gpe_cmd = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_GPE_CMD_PA,
-                                                 CERF_VIRT_GPE_CMD_SZ);
+    s_gpe_cmd = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kGpeCmdBase,
+                                                 CerfVirt::kGpeCmdSize);
     return s_gpe_cmd != NULL;
 }
 
@@ -102,7 +98,7 @@ extern "C" ULONG CerfGpeLine(ULONG desc_va) {
     return s_gpe_cmd[CERF_GPE_STATUS / 4];
 }
 
-extern "C" ULONG CerfGpeFbMemBasePa(void) { return CERF_VIRT_FB_MEM_PA; }
+extern "C" ULONG CerfGpeFbMemBasePa(void) { return CerfVirt::kFramebufferMemBase; }
 
 /* The host accelerator addresses the framebuffer by physical address
    (SurfaceFbPa), so the surface base is the FB PA itself, not a mapped VA. */

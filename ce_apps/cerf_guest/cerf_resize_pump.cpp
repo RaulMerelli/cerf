@@ -1,10 +1,8 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
 
-/* Offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_resize_regs.h. The CE
-   toolchain can't include the host C++ header, same as the pointer/fb channels. */
-#define CERF_VIRT_RSZ_REGS_PA  0xD0006000u
-#define CERF_VIRT_RSZ_REGS_SZ  0x1000u
+/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_resize_regs.h. */
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_RSZ_WANT_W       0x00u
 #define CERF_RSZ_WANT_H       0x04u
@@ -45,8 +43,8 @@ static volatile ULONG* s_rsz_regs = NULL;
 
 static BOOL CerfMapRszRegs(void) {
     if (s_rsz_regs) return TRUE;
-    s_rsz_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_RSZ_REGS_PA,
-                                                  CERF_VIRT_RSZ_REGS_SZ);
+    s_rsz_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kResizeBase,
+                                                  CerfVirt::kResizeSize);
     return s_rsz_regs != NULL;
 }
 

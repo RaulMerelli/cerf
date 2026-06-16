@@ -14,13 +14,15 @@
 #define OID_FIRST_AFS  0     /* pre-reserved primary slot; stable CE3..CE7 */
 
 /* pkfuncs.h macro-maps SetHandleOwner to a symbol absent from coredll.lib; call
-   the plain exported function instead. */
+   the plain exported function instead. These are coredll C exports — extern "C"
+   so the references bind to the unmangled names. */
 #undef SetHandleOwner
+extern "C" {
 BOOL SetHandleOwner(HANDLE h, HANDLE hProc);
-
 int  RegisterAFSName(LPCWSTR pName);
 BOOL DeregisterAFS(int index);
 BOOL DeregisterAFSName(int index);
+}
 
 /* The AFS bind export is RegisterAFS (4 args) on CE3 but RegisterAFSEx (5 args,
    trailing flags) on CE4.2+; a static import of either fails to LOAD on the

@@ -3,10 +3,7 @@
 #include "cerf_regs_map.h"
 #include "cerf_debug_log.h"
 
-/* Must equal kGuestBodyBase / kGuestBodyHdrSize in cerf_virt_addr_map.h —
-   duplicated because the CE toolchain can't include the host C++ header. */
-#define CERF_VIRT_BODY_PA   0xD0010000u
-#define CERF_VIRT_BODY_HDR  0x1000u
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_ORDINAL_FLAG   0x80000000u
 
@@ -212,7 +209,7 @@ static BOOL CerfEnsureBody(void) {
 
     if (slot && slot->body_base) return TRUE;
 
-    hdr = (const ULONG*)CerfMapRegsPage(CERF_VIRT_BODY_PA, CERF_VIRT_BODY_HDR);
+    hdr = (const ULONG*)CerfMapRegsPage(CerfVirt::kGuestBodyBase, CerfVirt::kGuestBodyHdrSize);
     if (!hdr) { CERF_LOG("stub: body header map FAILED"); return FALSE; }
     size = hdr[0];
     CERF_LOG_X("stub: body size", size);
@@ -222,7 +219,7 @@ static BOOL CerfEnsureBody(void) {
     }
 
     mapped = (size + 0xFFFu) & ~0xFFFu;
-    body = (const UCHAR*)CerfMapRegsPage(CERF_VIRT_BODY_PA + CERF_VIRT_BODY_HDR,
+    body = (const UCHAR*)CerfMapRegsPage(CerfVirt::kGuestBodyBase + CerfVirt::kGuestBodyHdrSize,
                                          mapped);
     if (!body) { CERF_LOG("stub: body map FAILED"); return FALSE; }
 

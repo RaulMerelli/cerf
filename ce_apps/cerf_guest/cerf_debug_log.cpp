@@ -8,9 +8,7 @@
    driver logs (CERF_LOG) reach cerf.log in production too; the per-op graphics
    tracing tier (CERF_LOG_DEV) is what production strips, at its call sites. */
 
-#define CERF_VIRT_LOG_CH_BASE   0xD0007000u
-#define CERF_VIRT_LOG_CH_STRIDE 0x1000u
-#define CERF_VIRT_LOG_CH_SZ     0x1000u
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 /* cerf_guest's writable statics are one shared instance across every process that
    loads the module; a VirtualAlloc VA is valid only in its creating process, so a
@@ -37,8 +35,8 @@ extern "C" void CerfInitLogging(ULONG id) {
     int i;
     for (i = 0; i < CERF_LOG_MAX_PROC; ++i)
         if (s_log_slot[i].pid == pid) return;   /* this process already armed */
-    pa = CERF_VIRT_LOG_CH_BASE + id * CERF_VIRT_LOG_CH_STRIDE;
-    va = (volatile UCHAR*)CerfMapRegsPage(pa, CERF_VIRT_LOG_CH_SZ);
+    pa = CerfVirt::kLogChannelBase + id * CerfVirt::kLogChannelStride;
+    va = (volatile UCHAR*)CerfMapRegsPage(pa, CerfVirt::kLogChannelStride);
     if (!va) return;
     idx = InterlockedIncrement(&s_log_slot_next) - 1;
     if (idx < 0 || idx >= CERF_LOG_MAX_PROC) { VirtualFree((LPVOID)va, 0, MEM_RELEASE); return; }
