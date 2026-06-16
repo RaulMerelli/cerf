@@ -2,6 +2,7 @@
 
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../board_detector.h"
 #include "../../core/cerf_emulator.h"
 
@@ -25,6 +26,8 @@ public:
         return bd && bd->GetBoard() == Board::SimpadSl4;
     }
 
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
+
     void OnHostKey(uint8_t vk, bool key_up) override {
         auto& map = emu_.Get<KeyboardMap>();
         uint32_t code;
@@ -45,4 +48,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(SimpadSl4KeyboardInput, KeyboardInput);
+REGISTER_SERVICE(SimpadSl4KeyboardInput);

@@ -40,24 +40,9 @@ Logs are written to `cerf.log` next to the executable. On a fatal crash, every o
 > [!WARNING]
 > **Experimental and unstable.** Guest Additions are opt-in (`--guest-additions`), off by default. Expect per-device rendering glitches and reduced stability — some guest OSes behave better than others.
 
-Guest Additions mechanism injects **pre-built ARM driver**, replacing the matching ROM's video driver. The library is fully OS version-agnostic and orchestrates entire set of features along with regular video driver responsibilities.
-
-Pass `--guest-additions` (or tick the matching launcher option) to enable them.
-
-### Features
-
-- 32bpp custom screen resolution (boot CE3 into 4K!)
-- Host-accelerated blitting - the driver routes blits to host which performs the full set of graphical operations in native code
-- Dynamic screen resolution (CE 4+)
-- Shared storage with host
-- Task manager in a host window
-- Mouse pointer driver:
-  - required to avoid stock touch limitations on custom resolutions
-  - guest OS cursor shape translated directly into host graphics
-  - scroll wheel support on newer CE
-
-> [!WARNING]
-> **Touch breaks at non-native resolution.** The board's touch peripheral still uses the device's original input driver, which expects the original screen dimensions. With guest additions enabled, the main default input is the regular mouse cursor emulator that every (maybe) OS supports. In case if you need to go back to original touch interface, use the runtime switcher in Actions menu or in status bar. However it might be really corrupted on custom resolutions. E.g. iPaq H3600 devices seem to allow you to run calibration app only through stock stylus - the single app ignores the mouse pointer input.
+<p align="center">
+  <img src="launcher/assets/GaBanner.png" alt="Guest Additions features" width="640" />
+</p>
 
 ## Supported boards
 

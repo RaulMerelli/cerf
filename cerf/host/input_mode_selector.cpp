@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
+#include "../state/state_stream.h"
 #include "host_icon_cache.h"
 #include "host_widget_registry.h"
 #include "touch_input.h"
@@ -59,4 +60,14 @@ bool InputModeSelector::PollDirty() {
     if (m == drawn_mode_) return false;
     drawn_mode_ = m;
     return true;
+}
+
+void InputModeSelector::SaveState(StateWriter& w) const {
+    w.Write<uint8_t>(Mode() == InputMode::Touch ? 1u : 0u);
+}
+
+void InputModeSelector::RestoreState(StateReader& r) {
+    uint8_t v = 0;
+    r.Read(v);
+    SetMode(v ? InputMode::Touch : InputMode::Pointer);
 }

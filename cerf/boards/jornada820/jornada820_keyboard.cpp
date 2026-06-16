@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../../socs/sa11xx/sa11xx_ssp_device.h"
 #include "../board_detector.h"
@@ -83,11 +84,12 @@ public:
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
     void OnHostKey(uint8_t vk, bool key_up) override {
         emu_.Get<Jornada820Keyboard>().OnHostKey(vk, key_up);
     }
 };
-REGISTER_SERVICE_AS(Jornada820KeyboardInput, KeyboardInput);
+REGISTER_SERVICE(Jornada820KeyboardInput);
 
 }  /* namespace */
 

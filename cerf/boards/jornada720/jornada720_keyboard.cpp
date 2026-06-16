@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_detector.h"
 
@@ -15,6 +16,7 @@ public:
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
     void OnHostKey(uint8_t vk, bool key_up) override {
         emu_.Get<Jornada720Keyboard>().OnHostKey(vk, key_up);
     }
@@ -23,7 +25,7 @@ public:
 }  /* namespace */
 
 REGISTER_SERVICE(Jornada720Keyboard);
-REGISTER_SERVICE_AS(Jornada720KeyboardInput, KeyboardInput);
+REGISTER_SERVICE(Jornada720KeyboardInput);
 
 bool Jornada720Keyboard::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();

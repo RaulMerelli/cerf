@@ -50,6 +50,9 @@ const uint32_t kLogChannelSize   = kLogChannelCount * kLogChannelStride;
 const uint32_t kTaskManagerBase = kRegsBase + 0xA000u;
 const uint32_t kTaskManagerSize = 0x1000u;
 
+const uint32_t kKeyboardBase = kRegsBase + 0xB000u;
+const uint32_t kKeyboardSize = 0x1000u;
+
 const uint32_t kFramebufferMemBase = kBaseAddr + 0x00100000u;
 const uint32_t kFramebufferMemSize = 0x02000000u;
 

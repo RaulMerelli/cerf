@@ -104,6 +104,7 @@ AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
 CE3_SHARED_STORAGE_PROBLEM = "Guest additions shared storage misbehaves on CE3"
 CE4_SHARED_STORAGE_BROKEN = "Guest additions shared storage is broken on CE4"
 GUEST_ADDITIONS_BREAK_ROM = "Do NOT use guest additions - they break the ROM"
+GUEST_ADDITIONS_POINTER_WARN = "Guest additions mouse does not work in some apps (e.g. calibration) - switch to stock input"
 
 BOARDS_INFORMATION = [
     {
@@ -160,14 +161,7 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "network": True,
         },
-        "notes": [
-            "Calibration only responds to the stock stylus, not the mouse "
-            "pointer; switch input method if a screen needs the stylus.",
-            "OS seems to really disrespect the guest additions pointer: "
-            "once you see any stalls/OS doesnt register click/OS registers click "
-            "in a weird way - try switching to stock input and back, use both",
-            "Guest additions break multi-XIP PPC2002 ROM",
-        ],
+        "notes": [GUEST_ADDITIONS_POINTER_WARN],
     },
     {
         "name": "iPAQ h4000",
@@ -215,6 +209,7 @@ BOARDS_INFORMATION = [
         },
         "notes": [
             "Guest additions mouse is behaving weird",
+            GUEST_ADDITIONS_POINTER_WARN,
             "The guest Fn key is mapped to host F10 (e.g. hold F10 + P = '{'). "
             "The keys widget menu lists the common Fn symbols.",
         ],
@@ -287,6 +282,9 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "network": True,
         },
+        "notes": [
+            GUEST_ADDITIONS_POINTER_WARN,
+        ],
     },
     {
         "name": "NEC MobilePro 900",
@@ -301,6 +299,7 @@ BOARDS_INFORMATION = [
             "pcmcia": False,
             "network": False,
         },
+        "notes": [GUEST_ADDITIONS_POINTER_WARN, "Device is severely lagging in CERF"],
     },
     {
         "name": "Siemens P177",

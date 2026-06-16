@@ -5,7 +5,9 @@
 #include <windows.h>
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_detector.h"
 #include "nec_mobilepro_900_pco_companion.h"
@@ -25,10 +27,10 @@ using Matrix = std::array<uint8_t, 13>;
 constexpr Matrix kIdleMatrix = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu,
                                 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
 
-/* keybddr emits on the first scan that sees a changed bit in pco's CURRENT
-   snapshot (sub_1BD2D8C); one block per host edge loses a fast press (the release
-   overwrites it before keybddr scans). The pacer re-streams + holds each state
-   kMinStreams streams so keybddr scans each. Active-low: pressed = bit clear. */
+/* The PICO keyboard is request/reply (Linux pic-pxa2xx.c): a key-down sends one
+   0x12 that wakes keybddr, which then polls the matrix via on-demand 0x13 requests.
+   The pacer caches each host state for that 0x13 reply and sends one 0x12 on a
+   key-down edge. Active-low: pressed = bit clear. */
 class NecMobilePro900KeyboardInput : public KeyboardInput {
 public:
     using KeyboardInput::KeyboardInput;
@@ -48,9 +50,13 @@ public:
     void OnReady() override {
         wake_  = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         pacer_ = std::thread([this] { PacerMain(); });
+        emu_.Get<KeyboardRouter>().Register(this);
     }
 
     void OnHostKey(uint8_t vk, bool key_up) override {
+        /* T0 of the keystroke->blit latency bisection: the host key event, in the
+           same QPC t+ timeline as the guest [PCO-KBD]/[PCO-VK]/[INPUTDISP] probes. */
+        LOG(Board, "[NEC-KEY] vk=0x%02X up=%d\n", vk, key_up ? 1 : 0);
         uint32_t code;
         if (!emu_.Get<KeyboardMap>().BaseDeviceCode(vk, code)) return;
         const uint8_t bit  = static_cast<uint8_t>(code);
@@ -70,33 +76,39 @@ public:
     }
 
 private:
-    /* Host stream cadence (matches the board's touch sampler). */
+    /* Pacer tick: re-checks the queue and ages each state's dwell. */
     static constexpr DWORD kSamplePeriodMs = 8u;
-    /* Streams to hold each distinct state. Each stream wakes keybddr's scan; >=2
-       guarantees a scan observes the state with margin for IST/scan jitter. */
+    /* Ticks to hold each distinct state in the cached matrix so keybddr's ~5 ms
+       poll observes it; >=2 gives margin for IST/scan jitter. */
     static constexpr int   kMinStreams = 2;
 
     void PacerMain() {
         auto& freeze = emu_.Get<EmulationFreeze>();
+        auto& pco    = emu_.Get<NecMobilePro900PcoCompanion>();
         Matrix cur      = kIdleMatrix;
+        Matrix prev     = kIdleMatrix;
         int    streamed = kMinStreams;   /* idle starts already settled. */
         while (!shutdown_.load(std::memory_order_acquire)) {
-            bool active;
+            bool advanced = false;
             {
                 std::lock_guard<std::mutex> lk(mtx_);
                 /* Advance to the next queued state only once the current state
-                   has been held long enough for keybddr to scan it. */
+                   has been held long enough for keybddr to poll it. */
                 if (streamed >= kMinStreams && !pending_.empty()) {
                     cur = pending_.front();
                     pending_.pop_front();
                     streamed = 0;
+                    advanced = true;
                 }
             }
-            {
+            if (advanced) {
                 auto frozen = freeze.WorkerSection();
-                emu_.Get<NecMobilePro900PcoCompanion>().SendKeyboardMatrix(cur.data());
+                pco.SetKeyMatrix(cur.data());                       /* answer on-demand 0x13 */
+                if (HasNewKeyDown(prev, cur)) pco.NotifyKeyDown();  /* 0x12 wakes idle keybddr */
+                prev = cur;
             }
             ++streamed;
+            bool active;
             {
                 std::lock_guard<std::mutex> lk(mtx_);
                 /* Stay awake while a key is held (auto-repeat), while states are
@@ -106,6 +118,13 @@ private:
             }
             WaitForSingleObject(wake_, active ? kSamplePeriodMs : INFINITE);
         }
+    }
+
+    /* Active-low: a newly-pressed key is a bit clear in cur but set in prev. */
+    static bool HasNewKeyDown(const Matrix& prev, const Matrix& cur) {
+        for (size_t i = 0; i < cur.size(); ++i)
+            if (static_cast<uint8_t>(~cur[i] & prev[i]) != 0u) return true;
+        return false;
     }
 
     std::mutex         mtx_;
@@ -118,4 +137,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(NecMobilePro900KeyboardInput, KeyboardInput);
+REGISTER_SERVICE(NecMobilePro900KeyboardInput);
