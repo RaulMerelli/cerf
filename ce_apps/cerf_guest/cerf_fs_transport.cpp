@@ -3,11 +3,13 @@
 
 #include <windows.h>
 
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
+
 static volatile CerfFsChannel* g_chan = NULL;
 
 volatile CerfFsChannel* CerfFsMapChannel(void) {
     if (g_chan) return g_chan;
-    g_chan = (volatile CerfFsChannel*)CerfMapRegsPage(CERF_FS_CHANNEL_PA, 0x1000);
+    g_chan = (volatile CerfFsChannel*)CerfMapRegsPage(CerfVirt::kFolderShareBase, 0x1000);
     return g_chan;
 }
 

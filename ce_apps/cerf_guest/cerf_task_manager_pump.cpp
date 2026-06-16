@@ -3,11 +3,8 @@
 
 #include "cerf_regs_map.h"
 
-/* Offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_task_manager_regs.h
-   (the CE toolchain can't include the host C++ header; a silent mismatch
-   desyncs the channel). */
-#define CERF_VIRT_TM_REGS_PA  0xD000A000u
-#define CERF_VIRT_TM_REGS_SZ  0x1000u
+/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_task_manager_regs.h. */
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_TM_CMD_GEN       0x00u
 #define CERF_TM_CMD_CODE      0x04u
@@ -258,8 +255,8 @@ static void CerfTmDoRun(DWORD gen) {
 static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
     ULONG last_gen;
 
-    s_tm_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_TM_REGS_PA,
-                                                 CERF_VIRT_TM_REGS_SZ);
+    s_tm_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kTaskManagerBase,
+                                                 CerfVirt::kTaskManagerSize);
     if (!s_tm_regs) {
         CERF_LOG("cerf_guest: tmpump map FAILED");
         return 0;

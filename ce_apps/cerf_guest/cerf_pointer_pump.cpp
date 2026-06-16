@@ -1,12 +1,8 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
 
-/* These offsets MUST match cerf/peripherals/cerf_virt/cerf_virt_pointer_regs.h
-   (the host peripheral); a mismatch reads the wrong reg and breaks the pointer.
-   Duplicated as #defines because the CE toolchain can't include the host C++
-   header, same as the fb/gpe channels in main.cpp. */
-#define CERF_VIRT_PTR_REGS_PA  0xD0003000u
-#define CERF_VIRT_PTR_REGS_SZ  0x1000u
+/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_pointer_regs.h. */
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_PTR_X            0x00u
 #define CERF_PTR_Y            0x04u
@@ -20,8 +16,8 @@ static volatile ULONG* s_ptr_regs = NULL;
 
 static BOOL CerfMapPtrRegs(void) {
     if (s_ptr_regs) return TRUE;
-    s_ptr_regs = (volatile ULONG*)CerfMapRegsPage(CERF_VIRT_PTR_REGS_PA,
-                                                  CERF_VIRT_PTR_REGS_SZ);
+    s_ptr_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kPointerBase,
+                                                  CerfVirt::kPointerSize);
     return s_ptr_regs != NULL;
 }
 

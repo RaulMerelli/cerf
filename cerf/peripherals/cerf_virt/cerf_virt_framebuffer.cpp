@@ -59,9 +59,8 @@ uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
                             - CerfVirt::kFramebufferMemBase;
     if (desired > window) {
         LOG(Caution, "[CerfVirtFramebuffer] %ux%u needs %u B FB region, only "
-                     "%u B fits below 0xE0000000 (SA1110 zero-bank); raise "
-                     "kTotalSize / relocate region in cerf_virt_addr_map.h to "
-                     "support this resolution\n",
+                     "%u B fits in the cerf_virt window; raise kTotalSize in "
+                     "cerf_virt_addr_map.h to support this resolution\n",
             width_, height_, desired, window);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }

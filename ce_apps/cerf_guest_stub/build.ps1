@@ -2,7 +2,7 @@ Set-Location $PSScriptRoot
 
 $tools   = "$PSScriptRoot/../../references/WindowsCE-Build-Tools"
 $sources = @("main.cpp",
-             "../cerf_guest/cerf_regs_map.c",
+             "../cerf_guest/cerf_regs_map.cpp",
              "../cerf_guest/cerf_debug_log.cpp")
 $incs    = @("$PSScriptRoot/../cerf_guest",
              "$PSScriptRoot/../cerf_guest/shim",
