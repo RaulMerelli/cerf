@@ -89,10 +89,13 @@ void HostDarkMode::Init() {
     g_ShouldAppsUseDarkMode  = (ShouldAppsUseDarkMode_t)GetProcAddress(ux, MAKEINTRESOURCEA(132));
     if (!g_SetPreferredAppMode) return;  /* OS too old; leave light */
 
-    /* Follow the user's Windows app theme. ShouldAppsUseDarkMode (ordinal 132)
-       reads HKCU Personalize\AppsUseLightTheme; ForceLight when the system is
-       light keeps the dark caption/menu/control paths off (all gated on
-       inited_). */
+    /* MUST SetPreferredAppMode + RefreshImmersiveColorPolicy (104) BEFORE reading
+       ShouldAppsUseDarkMode (132): 132 returns the immersive-policy cache, and a
+       read against a cold cache (a board that materialises HostWindow very early)
+       returns a stale "light" that leaves the dark path off. (ysc3839/win32-darkmode.) */
+    g_SetPreferredAppMode(1 /*AllowDark*/);
+    if (g_RefreshImmersivePolicy) g_RefreshImmersivePolicy();
+
     const bool sys_dark = g_ShouldAppsUseDarkMode && g_ShouldAppsUseDarkMode();
     g_SetPreferredAppMode(sys_dark ? 2 /*ForceDark*/ : 3 /*ForceLight*/);
     if (g_RefreshImmersivePolicy) g_RefreshImmersivePolicy();
