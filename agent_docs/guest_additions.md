@@ -3,8 +3,8 @@
 Opt-in (`--guest-additions`, off by default). At ROM load CERF replaces the
 board's stock display driver with the universal `cerf_guest` driver and brings
 up a set of host-integration features on top of it: host-framebuffer rendering,
-host-accelerated blitting, a mouse-pointer cursor, dynamic screen resolution,
-shared host-folder storage, and a guest task manager. The subsystem spans host
+host-accelerated blitting, a mouse-pointer cursor, keyboard injection, dynamic
+screen resolution, shared host-folder storage, and a guest task manager. The subsystem spans host
 C++ under `cerf/boot/` + `cerf/peripherals/cerf_virt/` and guest ARM code under
 `ce_apps/cerf_guest/` + `ce_apps/cerf_guest_stub/`.
 
@@ -124,8 +124,8 @@ framebuffer + `gpe_cmd` accelerator channel: the driver routes blits over that
 channel and the host performs them natively (see `cerf_ddgpe.cpp` for the
 `BltPrepare` routing, `main.cpp` for the channel ABI). What it owns today is the
 universal display path — host-framebuffer rendering plus host-accelerated blits.
-Planned growth is host-side GPU acceleration, runtime screen resize, host↔guest
-shared storage / clipboard, and a guest-additions input path. Reference behavior
+Planned growth is host-side GPU acceleration, runtime screen resize, and
+host↔guest shared storage / clipboard. Reference behavior
 for the blit pipeline is the CE6 GPE source under
 `references/WINCE600/.../DISPLAY/` (GPE `swblt.cpp`/`swconvrt.cpp`, EMUL
 `eb*.cpp`).
@@ -140,6 +140,32 @@ reserved only for genuinely un-accelerable inputs (a guest page that cannot be
 translated), never a design choice for a hard blit; a blit shape that renders
 correctly under software but is declined to it is unaccelerated work, not a
 finished feature.
+
+## Keyboard injection
+
+Host keystrokes reach the guest through the same mechanism as the mouse-pointer
+pump, with `keybd_event` in place of `mouse_event`. Both are coredll exports
+that trap into the same GWES API set (API-set 81) and are present unchanged on
+every CE version (CE 2.11 → CE 7), so one guest binary drives keyboard input on
+every guest OS, with no per-version code and no guest-installed driver.
+
+- Host channel: `cerf/peripherals/cerf_virt/cerf_virt_keyboard.{h,cpp}` +
+  `cerf_virt_keyboard_regs.h`. Keys are edges (down/up) that must arrive once
+  and in order, so the channel is a ring buffer rather than the pointer's
+  level / last-value-wins registers: the host appends one entry per host-key
+  transition and bumps the write sequence after the entry store; the guest
+  drains entries by index.
+- Guest pump: `ce_apps/cerf_guest/cerf_keyboard_pump.cpp`, a thread started
+  from the display driver's `DrvEnablePDEV` beside the pointer / resize / task
+  pumps. It resolves `keybd_event` via `GetProcAddressW` and replays each ring
+  entry; GWES routes it to the focused window and runs the active keyboard
+  layout to produce WM_KEYDOWN / WM_KEYUP + WM_CHAR.
+
+The guest-additions keyboard registers as one source in the host
+`KeyboardRouter` (`cerf/host/keyboard_router.{h,cpp}`) with the highest source
+priority, so it is the active source whenever guest additions are on. The
+router is board-agnostic host input and is not itself part of guest additions —
+see `subsystems.md`.
 
 ## Task manager — host UI + cerf_virt channel + guest pump
 

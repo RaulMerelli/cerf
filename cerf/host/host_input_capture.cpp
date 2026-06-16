@@ -8,7 +8,7 @@
 #include "host_canvas.h"
 #include "host_key_prompt.h"
 #include "host_window.h"
-#include "keyboard_input.h"
+#include "keyboard_router.h"
 
 REGISTER_SERVICE(HostInputCapture);
 
@@ -63,8 +63,7 @@ bool HostInputCapture::IsForeground() const {
 }
 
 void HostInputCapture::ForwardToGuest(uint32_t vk, bool key_up) {
-    if (auto* k = emu_.TryGet<KeyboardInput>())
-        k->OnHostKey((uint8_t)NormalizeVk(vk), key_up);
+    emu_.Get<KeyboardRouter>().OnHostKey((uint8_t)NormalizeVk(vk), key_up);
 }
 
 void HostInputCapture::Toggle() {
@@ -78,14 +77,13 @@ void HostInputCapture::SetCaptured(bool on) {
 }
 
 void HostInputCapture::SendCtrlAltDel() {
-    auto* k = emu_.TryGet<KeyboardInput>();
-    if (!k) return;
-    k->OnHostKey(VK_CONTROL, false);
-    k->OnHostKey(VK_MENU,    false);
-    k->OnHostKey(VK_DELETE,  false);
-    k->OnHostKey(VK_DELETE,  true);
-    k->OnHostKey(VK_MENU,    true);
-    k->OnHostKey(VK_CONTROL, true);
+    auto& k = emu_.Get<KeyboardRouter>();
+    k.OnHostKey(VK_CONTROL, false);
+    k.OnHostKey(VK_MENU,    false);
+    k.OnHostKey(VK_DELETE,  false);
+    k.OnHostKey(VK_DELETE,  true);
+    k.OnHostKey(VK_MENU,    true);
+    k.OnHostKey(VK_CONTROL, true);
 }
 
 bool HostInputCapture::OnHookKey(WPARAM wParam, const KBDLLHOOKSTRUCT* k) {

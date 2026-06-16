@@ -288,6 +288,7 @@ extern "C" DHPDEV APIENTRY DrvEnablePDEV(DEVMODEW*, LPWSTR, ULONG, HSURF*,
                                           HDEV, LPWSTR, HANDLE);
 
 extern "C" void CerfStartPointerPump(void);
+extern "C" void CerfStartKeyboardPump(void);
 extern "C" void CerfStartResizePump(void);
 extern "C" void CerfStartTaskManagerPump(void);
 extern "C" void CerfStartDriverInDriver(void);
@@ -302,6 +303,7 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
                                    cjCaps, pdevcaps, cjDevInfo, pdi,
                                    hdev, pwszDeviceName, hDriver);
     if (result) CerfStartPointerPump();
+    if (result) CerfStartKeyboardPump();
     if (result) CerfStartResizePump();
     if (result) CerfStartTaskManagerPump();
     if (result) CerfStartDriverInDriver();

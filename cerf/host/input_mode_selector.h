@@ -33,6 +33,8 @@ public:
     std::vector<WidgetMenuItem> BuildMenu() override;
     void DrawIcon(HDC dc, const RECT& box) const override;
     bool PollDirty() override;
+    void SaveState(StateWriter& w) const override;
+    void RestoreState(StateReader& r) override;
 
 private:
     std::atomic<InputMode> mode_{InputMode::Pointer};

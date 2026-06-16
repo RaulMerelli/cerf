@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+class KeyboardInput;
+
 /* Board-agnostic status-bar keyboard widget: registers whenever the board
    provides a KeyboardMap. Left- or right-click opens a menu whose first item
    is "See keyboard mapping" (the host-keyboard replica dialog); a board may add
@@ -25,4 +27,11 @@ public:
     void DrawIcon(HDC dc, const RECT& box) const override;
     bool PrimaryActionOpensMenu() const override { return true; }
     std::vector<WidgetMenuItem> BuildMenu() override;
+    bool PollDirty() override;
+
+    void SaveState(StateWriter& w) const override;
+    void RestoreState(StateReader& r) override;
+
+private:
+    const KeyboardInput* drawn_source_ = nullptr;   /* UI-thread only */
 };

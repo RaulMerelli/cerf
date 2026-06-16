@@ -55,6 +55,19 @@ def resolve_icons_dir() -> Optional[Path]:
     return None
 
 
+def resolve_ga_banner() -> Optional[Path]:
+    meipass = getattr(sys, "_MEIPASS", None)
+    candidates: List[Path] = []
+    if meipass:
+        candidates.append(Path(meipass) / "assets" / "GaBanner.png")
+    candidates.append(exe_dir() / "assets" / "GaBanner.png")
+    candidates.append(Path(__file__).resolve().parent / "assets" / "GaBanner.png")
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
 def resolve_version() -> str:
     meipass = getattr(sys, "_MEIPASS", None)
     candidates: List[Path] = []

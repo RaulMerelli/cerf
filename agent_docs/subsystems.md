@@ -229,9 +229,18 @@ concretes (strategy pattern, selected by `BoardDetector`).
   them into guest pen samples. Concretes under `cerf/boards/<board>/`.
   — `cerf/host/touch_input.h`
 
-- **`KeyboardInput`** (abstract) — `OnHostKey(vk, key_up)`; the board's
-  keyboard peripheral concrete maps host VKs to the guest. Concretes under
-  `cerf/boards/<board>/`. — `cerf/host/keyboard_input.h`
+- **`KeyboardInput`** (abstract) — one keyboard source: `OnHostKey(vk, key_up)`
+  plus `SourceName` / `SourcePriority`. Concretes (a board's keyboard under
+  `cerf/boards/<board>/`, the guest-additions keyboard under
+  `cerf/peripherals/cerf_virt/`) self-register with `KeyboardRouter`.
+  — `cerf/host/keyboard_input.h`
+
+- **`KeyboardRouter`** — the keyboard-source registry and host-key funnel.
+  `KeyboardInput` concretes self-register from `OnReady`; the router forwards
+  host keys to the single active source, chosen by highest `SourcePriority` at
+  boot. When more than one source is registered, the `KeyboardWidget` status-bar
+  widget switches the active source and persists the choice across hibernation.
+  — `cerf/host/keyboard_router.{h,cpp}`
 
 - **`HostInputCapture`** — the low-level keyboard hook + capture toggle (so
   the guest receives keys the host shell would otherwise eat); forwards to

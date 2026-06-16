@@ -2,6 +2,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../socs/imx31/imx31_kpp.h"
 
 #include <cstdint>
@@ -17,6 +18,8 @@ public:
         return bd && bd->GetBoard() == Board::ZuneKeel;
     }
 
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
+
     void OnHostKey(uint8_t vk, bool key_up) override {
         uint32_t code;
         if (!emu_.Get<KeyboardMap>().BaseDeviceCode(vk, code)) return;
@@ -28,4 +31,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(ZuneKeelKeyboardInput, KeyboardInput);
+REGISTER_SERVICE(ZuneKeelKeyboardInput);

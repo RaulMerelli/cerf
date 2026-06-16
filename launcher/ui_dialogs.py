@@ -7,6 +7,7 @@ import webbrowser
 from tkinter import ttk
 from typing import Dict, Optional
 
+from app_paths import resolve_ga_banner
 from device_state import DeviceSource
 from ui_theme import BG, BG_FIELD, BORDER, FG, LINK_FG, enable_dark_titlebar
 
@@ -87,27 +88,35 @@ def confirm_rom_license(parent: tk.Misc, display_name: str) -> bool:
 
 
 def show_guest_additions_help(parent: tk.Misc) -> None:
-    show_info(
-        parent,
-        "Guest additions",
-        "CERF injects own ARM library into XIP/IMGFS and replaces stock video driver "
-        "with own OS version-agnostic driver. It fully replaces original video driver "
-        "and operates OS APIs to orchestrate the entire stack of features.\n\n"
-        "⚠️ Guest additions are experimental and unstable. Consider booting stock "
-        "ROM in case if there are any glitches/instabilities.\n\n"
-        "Supported features:\n"
-        "- 32bpp custom big resolution (boot CE3 into 4K!)\n"
-        "- Host-accelerated blitting - the driver routes blits to host which performs the "
-        "full set of graphical operations in native code\n"
-        "- Dynamic screen resolution (CE 4+)\n"
-        "- Shared storage with host\n"
-        "- Task manager in a host window\n"
-        "- Mouse pointer driver:\n"
-        "  - required to avoid stock touch limitations on custom res\n"
-        "  - guest OS cursor shape translated directly into host graphics\n"
-        "  - scroll wheel support for newer CE\n"
-        "  - use runtime switcher if you need to go back to stock touch"
-    )
+    """Show the Guest Additions feature banner in a borderless-content window.
+    Falls back to nothing if the banner asset can't be located."""
+    path = resolve_ga_banner()
+    if path is None:
+        return
+
+    dlg = tk.Toplevel(parent)
+    dlg.title("Guest additions")
+    dlg.configure(bg=BG)
+    dlg.transient(parent)
+    dlg.resizable(False, False)
+
+    banner = tk.PhotoImage(file=str(path))
+    lbl = ttk.Label(dlg, image=banner, background=BG)
+    lbl.image = banner  # keep a reference so Tk doesn't GC the image
+    lbl.pack()
+
+    dlg.bind("<Escape>", lambda _e: dlg.destroy())
+    lbl.bind("<Button-1>", lambda _e: dlg.destroy())
+
+    dlg.update_idletasks()
+    enable_dark_titlebar(dlg)
+    w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+    x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+    dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    dlg.grab_set()
+    parent.wait_window(dlg)
 
 
 def show_rom_submit_dialog(parent: tk.Misc) -> None:

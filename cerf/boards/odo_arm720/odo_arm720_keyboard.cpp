@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/irq_controller.h"
 #include "../../state/state_stream.h"
@@ -219,6 +220,8 @@ public:
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
 
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
+
     void OnHostKey(uint8_t vk, bool key_up) override {
         emu_.Get<OdoArm720Keyboard>().OnHostKey(vk, key_up);
     }
@@ -227,4 +230,4 @@ public:
 }  /* namespace */
 
 REGISTER_SERVICE(OdoArm720Keyboard);
-REGISTER_SERVICE_AS(OdoArm720KeyboardInput, KeyboardInput);
+REGISTER_SERVICE(OdoArm720KeyboardInput);

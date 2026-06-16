@@ -6,6 +6,7 @@
 #include "../../core/log.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
+#include "../../host/keyboard_router.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/irq_controller.h"
 #include "../../state/state_stream.h"
@@ -98,6 +99,7 @@ public:
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
+    void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
     void OnHostKey(uint8_t vk, bool key_up) override {
         emu_.Get<DevEmuPs2Keyboard>().OnHostKey(vk, key_up);
     }
@@ -105,7 +107,7 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(DevEmuKeyboardInput, KeyboardInput);
+REGISTER_SERVICE(DevEmuKeyboardInput);
 
 bool DevEmuPs2Keyboard::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();

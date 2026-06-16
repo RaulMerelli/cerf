@@ -8,7 +8,7 @@
 #include "host_input_capture.h"
 #include "host_status_bar.h"
 #include "input_mode_selector.h"
-#include "keyboard_input.h"
+#include "keyboard_router.h"
 #include "memory_visualizer.h"
 #include "pointer_input.h"
 #include "relative_mouse_input.h"
@@ -250,8 +250,7 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
         case WM_KEYDOWN:
         case WM_KEYUP:
             if (hc.CurrentTab() == HostCanvas::Tab::Framebuffer)
-                if (auto* k = emu_.TryGet<KeyboardInput>())
-                    k->OnHostKey(static_cast<uint8_t>(wp), msg == WM_KEYUP);
+                emu_.Get<KeyboardRouter>().OnHostKey(static_cast<uint8_t>(wp), msg == WM_KEYUP);
             return true;
         default:
             return false;
