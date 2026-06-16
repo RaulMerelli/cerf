@@ -21,9 +21,7 @@ public:
 
     std::wstring WidgetName() const override { return L"Keyboard"; }
     WidgetGroup  Group() const override { return WidgetGroup::InputControl; }
-    std::wstring Tooltip() const override {
-        return L"Keyboard — click to see the key mapping";
-    }
+    std::wstring Tooltip() const override;
     void DrawIcon(HDC dc, const RECT& box) const override;
     bool PrimaryActionOpensMenu() const override { return true; }
     std::vector<WidgetMenuItem> BuildMenu() override;
