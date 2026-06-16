@@ -7,7 +7,7 @@ $sources = @("main.cpp","cerf_regs_map.c","cerf_debug_log.cpp","cerf_ddgpe.cpp",
              "cerf_pointer_pump.cpp","cerf_keyboard_pump.cpp","cerf_resize_pump.cpp","cerf_task_manager_pump.cpp",
              "cerf_power.cpp",
              "cerf_cursor.cpp","cerf_ctbltstub.cpp","cerf_drvfnstubs.cpp",
-             "cerf_cacherangeflush.cpp",
+             "cerf_cacherangeflush.cpp","cerf_cesetextendedpdata.cpp",
              "cerf_driver_in_driver.cpp","cerf_fs_afs.c","cerf_fs_transport.c",
              "cerf_fs_vol.c","cerf_fs_file.c","cerf_fs_find.c","cerf_fs_notify.c")
 $libs    = @("coredll","ddgpe","gpe_lib","emul","emulrotate","genblt","genblt_cpu","aablt")
