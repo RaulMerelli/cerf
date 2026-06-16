@@ -22,6 +22,18 @@ void KeyboardWidget::OnReady() {
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
+std::wstring KeyboardWidget::Tooltip() const {
+    auto& router = emu_.Get<KeyboardRouter>();
+    KeyboardInput* active = router.Active();
+    std::wstring tip = active ? active->SourceName() : L"Keyboard";
+    /* The click hint is only true when BuildMenu yields something: a source
+       radio (>1 source) or the mapping section (a KeyboardMap exists). */
+    const bool has_menu = router.Sources().size() > 1 ||
+                          emu_.TryGet<KeyboardMap>() != nullptr;
+    if (has_menu) tip += L" — click to configure input / see key mappings";
+    return tip;
+}
+
 void KeyboardWidget::DrawIcon(HDC dc, const RECT& box) const {
     const wchar_t* icon = L"ICON_KEYBOARD";
     if (auto* a = emu_.Get<KeyboardRouter>().Active()) icon = a->IconResourceName();
