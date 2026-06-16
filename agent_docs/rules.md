@@ -189,7 +189,7 @@ Sometimes you'll notice that other people/agents are working in parallel in the 
 
 In case if you built and there is non-yours error in code appeared, the best thing you can do:
 - inform user that code has error
-- set recurring 2 minute timer
+- set recurring 2 minute timer (preferably via ``/loop``)
 - at tick try to build again
 - once good kill the timer
 

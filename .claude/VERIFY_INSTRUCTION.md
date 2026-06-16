@@ -20,7 +20,7 @@ Both shapes operate under this file. The role and the output format do not chang
 ## Verification tools
 
 - `Grep` / `Read` — verify factual claims about the codebase.
-- `mcp__ida_mcp__ida_decompile` — verify every cited IDA offset actually decompiles to the claimed behavior in the claimed binary.
+- `mcp__ida_mcp__ida_decompile` — verify every cited IDA offset actually decompiles to the claimed behavior in the claimed binary (user Python to connect if doesnt work via regular path)
 - `git log` / `git diff` — verify claims about recent changes.
 
 Commentary presented as evidence (general knowledge, "it's well known that…", "CE works like…") is a red flag, not a pass.
