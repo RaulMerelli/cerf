@@ -246,8 +246,7 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
           <td>
             <ul>
               <li>Experimental hibernation/state saving system for all boards</li>
-              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B</li>
-              <li>NEC MobilePro 900 Series (HPC2000, CE.NET) - boots but lagging too much ☹️</li>
+              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series</li>
               <li>Ford Sync 2 implementation started (not booting, broken)</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Soft/hard reset fixes for some SoCs</li>
