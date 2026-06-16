@@ -299,7 +299,7 @@ BOARDS_INFORMATION = [
             "pcmcia": False,
             "network": False,
         },
-        "notes": [GUEST_ADDITIONS_POINTER_WARN, "Device is severely lagging in CERF"],
+        "notes": [GUEST_ADDITIONS_POINTER_WARN, "Emulated with lags / audio / visual issues"],
     },
     {
         "name": "Siemens P177",
