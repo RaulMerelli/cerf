@@ -18,6 +18,7 @@
 #include "../core/service.h"
 #include "../cpu/emulated_memory.h"
 #include "../boards/page_table_builder.h"
+#include "../socs/guest_cpu_reset.h"
 
 #include <cstdint>
 #include <cstring>
@@ -412,6 +413,20 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
        relocated section-1 vbase; replay it on hard reset. */
     if (!in_place) {
         coldboot.RecordPatch(pt.VaToPa(primary_toc.romhdr_va) + kHdrDllFirstOff, 4);
+    }
+
+    /* In-place stubs mutate their writable .data in the band; a warm reset neither
+       re-copies the section (in-place skips ReadSection) nor replays the band
+       (cold-boot only), so without this the post-reset stub reads stale prior-boot
+       pointers and faults. Restore the band's initial bytes on each reset. */
+    if (in_place) {
+        std::vector<uint8_t> band_initial(band_used);
+        mem.CopyOut(band_pa, band_initial.data(), band_used);
+        emu_.Get<GuestCpuReset>().RegisterResetListener(
+            [this, band_pa, band_initial = std::move(band_initial)] {
+                emu_.Get<EmulatedMemory>().CopyIn(band_pa, band_initial.data(),
+                                                  band_initial.size());
+            });
     }
     return true;
 }
