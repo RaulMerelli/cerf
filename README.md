@@ -136,15 +136,14 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
     </tr>
     <tr>
-      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Freescale i.MX31L</b><br/><sub>ARM1136</sub></td>
+      <td rowspan="2" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
       <td>
-        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Zune 30</b><br/>
-        <img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Siemens P177</b><br/>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
     </tr>
     <tr>
-      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Device Emulator</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 6" alt="Windows CE 6"/> Windows CE 6<br/>
@@ -154,6 +153,14 @@ Pass `--guest-additions` (or tick the matching launcher option) to enable them.
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+    </tr>
+    <tr>
+      <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Freescale i.MX31L</b><br/><sub>ARM1136</sub></td>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Zune 30</b><br/>
+        <img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
     </tr>
   </tbody>
 </table>
@@ -254,8 +261,8 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
           <td>
             <ul>
               <li>Experimental hibernation/state saving system for all boards</li>
-              <li>New boards booting: Jornada 820, Siemens SIMpad SL4 (HPC2000, CE.NET)</li>
-              <li>NEC MobilePro 900 Series (HPC2000, CE.NET) - boots but works bad ☹️</li>
+              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B</li>
+              <li>NEC MobilePro 900 Series (HPC2000, CE.NET) - boots but lagging too much ☹️</li>
               <li>Ford Sync 2 implementation started (not booting, broken)</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Soft/hard reset fixes for some SoCs</li>
@@ -266,7 +273,9 @@ See [launcher's boards details database](launcher/supported_devices.py) for per-
               <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
               <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
               <li>Guest additions: XIP injection improvements</li>
-              <li>SA-1110 RTC implementation</li>
+              <li>SA-1110, PXA255 RTC implementation</li>
+              <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
+              <li>Suspend feature support for different SoCs</li>
             </ul>
           </td>
         </tr>

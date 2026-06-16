@@ -60,6 +60,9 @@ enum class Board {
                          Freescale i.MX51 (ARM Cortex-A8), Windows Embedded
                          Compact. Automotive head unit. ROM fingerprint: the
                          "Ford Sync GenII" string in nk.exe. */
+    SiemensP177,      /* Siemens SIMATIC TP177B 4" HMI panel, Samsung S3C2410
+                         (ARM920T), Windows CE 5.0 / Siemens P177 BSP. ROM
+                         fingerprint: "\platform\P177\target" in nk.exe. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

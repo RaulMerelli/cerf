@@ -303,6 +303,18 @@ BOARDS_INFORMATION = [
         },
     },
     {
+        "name": "Siemens P177",
+        "supported": True,
+        "soc": SOC_S3C2410,
+        "operating_systems": [WINDOWS_CE_5],
+        "features": {
+            "display": True,
+            "touch": True,
+            "network": False,
+        },
+        "notes": [],
+    },
+    {
         "name": "Siemens KTP4 Mobile (ZEUS/etcha)",
         "supported": False,
         "notes": [],
