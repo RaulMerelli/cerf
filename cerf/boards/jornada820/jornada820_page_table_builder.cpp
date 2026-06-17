@@ -30,6 +30,7 @@ constexpr OatEntry kOat[] = {
     { 0x8A000000u, 0xD8000000u, MB(16), OatKind::Mmio  }, /* DRAM bank 3 (unpopulated) */
     { 0x8B000000u, 0xC8000000u, MB(16), OatKind::Mmio  }, /* DRAM bank 1 (unpopulated) */
     { 0x80000000u, 0x00000000u, MB(32), OatKind::Flash }, /* System Flash/ROM */
+    { 0x82000000u, 0x12000000u, MB(32), OatKind::Mmio  }, /* static chip-select nCS2 */
     { 0x84000000u, 0x18000000u, MB( 4), OatKind::Mmio  }, /* static bank 3 */
     { 0x84800000u, 0x1A000000u, MB( 4), OatKind::Mmio  }, /* static bank 4 */
     { 0x84C00000u, 0x1B000000u, MB( 4), OatKind::Mmio  }, /* static bank 4 alias */
@@ -37,10 +38,15 @@ constexpr OatEntry kOat[] = {
     { 0x85400000u, 0x90000000u, MB( 4), OatKind::Mmio  }, /* SA-1100 power manager / RTC / reset */
     { 0x85800000u, 0xA0000000u, MB( 4), OatKind::Mmio  }, /* SA-1100 memory controller */
     { 0x85C00000u, 0xB0000000u, MB( 4), OatKind::Mmio  }, /* SA-1100 LCD / DMA controller */
+    { 0x8C000000u, 0xE0000000u, MB(16), OatKind::Mmio  }, /* SA-1100 zeros bank / cache-flush */
     { 0x90000000u, 0x20000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 0 */
     { 0x92000000u, 0x24000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 1 */
     { 0x94000000u, 0x28000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 2 */
     { 0x96000000u, 0x2C000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 3 */
+    { 0x98000000u, 0x30000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 4 */
+    { 0x9A000000u, 0x34000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 5 */
+    { 0x9C000000u, 0x38000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 6 */
+    { 0x9E000000u, 0x3C000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket window 7 */
 };
 
 constexpr uint32_t kDramPaBase     = 0xC0000000u;
