@@ -48,6 +48,12 @@ constexpr uint32_t kLaunchFdoMask  = 0x7u << 3;
 constexpr uint32_t kLaunchAutoRead = 1u << 7;   /* AUTO_READ (RM Table 45-29) */
 constexpr uint32_t kLaunchAutoMask = 0xFFu << 6;
 
+/* FDO field (LAUNCH_NFC[5:3]) selects the data-output type: FDO=001 = NAND data
+   output (MCIMX51RM Fig 45-42, §45.9.2.5), FDO=010 = NAND ID output (Fig 45-43,
+   §45.9.2.6). The output depends on the FDO field, NOT on a prior READ-ID. */
+constexpr uint32_t kFdoDataOutput = 0x1u;
+constexpr uint32_t kFdoIdOutput   = 0x2u;
+
 constexpr uint32_t kIpcInt  = 1u << 31;
 constexpr uint32_t kIpcRbB  = 1u << 28;
 constexpr uint32_t kIpcCack = 1u << 1;
@@ -174,8 +180,10 @@ void Imx51Nfc::NfcWrite(uint32_t addr, uint32_t value, uint32_t width) {
 void Imx51Nfc::Launch(uint32_t value) {
     launch_ = value;
     if (value & kLaunchFcmd) {
-        if (nand_cmd_ == kNandCmdReadStart)   { addr_idx_ = 0; read_id_ = false; }
-        else if (nand_cmd_ == kNandCmdReadId) { addr_idx_ = 0; read_id_ = true;  }
+        /* A read-setup (0x00) or READ-ID (0x90) command starts a fresh address
+           cycle; a read-confirm command (0x30) keeps the loaded address bytes. */
+        if (nand_cmd_ == kNandCmdReadStart || nand_cmd_ == kNandCmdReadId)
+            addr_idx_ = 0;
         int_pending_ = true;
         return;
     }
@@ -186,8 +194,16 @@ void Imx51Nfc::Launch(uint32_t value) {
         return;
     }
     if (value & kLaunchFdoMask) {
-        if (read_id_) ReadId();
-        else          ReadPage();
+        const uint32_t fdo = (value & kLaunchFdoMask) >> 3;
+        if (fdo == kFdoIdOutput)        ReadId();
+        else if (fdo == kFdoDataOutput) ReadPage();
+        else {
+            /* The only other FDO mode is status read (FDO=100, §45.9.2.7); the
+               read-only `.sec` boot never issues it, so FATAL if a guest ever does. */
+            LOG(Caution, "Imx51Nfc: unhandled FDO field %u in LAUNCH_NFC 0x%08X (cmd=0x%02X)\n",
+                fdo, value, nand_cmd_);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
         int_pending_ = true;
         return;
     }
@@ -218,7 +234,10 @@ void Imx51Nfc::FillPageBuffer(uint64_t flash_off) {
        The tail blocks serve synthesized device-state structures the `.sec` lacks:
        the BBT (sets main+spare) and the DPS manifest. */
     auto& layout = emu_.Get<Imx51NandLayout>();
-    if (layout.IsBbtBlock(flash_off))
+    if (layout.IsFalMasterBlock(flash_off))
+        layout.BuildFalMasterPage(flash_off, page.data(), page.size(),
+                                  spare_.data(), spare_.size());
+    else if (layout.IsBbtBlock(flash_off))
         layout.BuildBbtPage(flash_off, page.data(), page.size(),
                             spare_.data(), spare_.size());
     else if (layout.IsDpsOffset(flash_off))
@@ -237,7 +256,10 @@ void Imx51Nfc::FillPageBuffer(uint64_t flash_off) {
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
 }
 
-void Imx51Nfc::ReadPage() { FillPageBuffer(FlashOffset()); }
+void Imx51Nfc::ReadPage() {
+    const uint64_t off = FlashOffset();
+    FillPageBuffer(off);
+}
 
 void Imx51Nfc::AutoRead() {
     /* AUTO_READ: full page-read into the internal RAM buffer (MCIMX51RM §45.9.1.3).
@@ -249,6 +271,15 @@ void Imx51Nfc::AutoRead() {
             iterations, cfg1_);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
+    /* AUTO_READ issues the address phases (MCIMX51RM §45.9.1.2), latching the NAND
+       address; a later manual FDO data-output (FDO=001) outputs that same latched
+       page, so mirror it into addr_bytes_ — without this the FDO reads stale bytes. */
+    addr_bytes_[0] = static_cast<uint8_t>(nand_add_[0]);
+    addr_bytes_[1] = static_cast<uint8_t>(nand_add_[0] >> 8);
+    addr_bytes_[2] = static_cast<uint8_t>(nand_add_[0] >> 16);
+    addr_bytes_[3] = static_cast<uint8_t>(nand_add_[0] >> 24);
+    addr_bytes_[4] = static_cast<uint8_t>(nand_add_[8]);
+    addr_idx_      = static_cast<uint32_t>(addr_bytes_.size());
     FillPageBuffer(AutoReadFlashOffset());
 }
 
@@ -286,7 +317,6 @@ void Imx51Nfc::SaveState(StateWriter& w) {
     w.Write<uint8_t>(creq_ ? 1 : 0);
     w.WriteBytes(addr_bytes_.data(), addr_bytes_.size());
     w.Write(addr_idx_);
-    w.Write<uint8_t>(read_id_ ? 1 : 0);
 }
 
 void Imx51Nfc::RestoreState(StateReader& r) {
@@ -308,6 +338,4 @@ void Imx51Nfc::RestoreState(StateReader& r) {
     r.Read(b); creq_ = b != 0;
     r.ReadBytes(addr_bytes_.data(), addr_bytes_.size());
     r.Read(addr_idx_);
-    uint8_t rid = 0;
-    r.Read(rid); read_id_ = rid != 0;
 }

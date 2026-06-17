@@ -8,6 +8,7 @@
 #include "../state/state_stream.h"
 
 #include <cstdint>
+#include <functional>
 
 namespace cerf_freescale_gpio_detail {
 
@@ -41,17 +42,42 @@ public:
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kGpioSize; }
 
+    /* A board device drives an external input pin level, observed by the guest
+       through PSR (the pad-input semantic documented at the PSR read below).
+       Used by the Ford iPod-auth coprocessor to hold its GPIO3.23 SOMI "ready"
+       line high. Undriven pins stay 0. */
+    void SetInputPin(uint32_t pin, bool level) {
+        if (level) input_level_ |=  (1u << pin);
+        else       input_level_ &= ~(1u << pin);
+    }
+
+    /* A board device that bit-bangs a protocol over GPIO pins (Ford SYNC2's
+       software-I2C "HIC1:" on GPIO4.16/17, hsi2c.dll sub_C09F18D8) observes the
+       guest's SCL/SDA edges through a write callback and reads the master-driven
+       level via these getters; it drives the line back through SetInputPin. */
+    void SetWriteObserver(std::function<void()> cb) { write_obs_ = std::move(cb); }
+    bool PinIsOutput(uint32_t pin) const { return (gdir_ >> pin) & 1u; }
+    bool PinOutLevel(uint32_t pin) const { return (dr_ >> pin) & 1u; }
+    bool PinInputLevel(uint32_t pin) const { return (input_level_ >> pin) & 1u; }
+
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
         if constexpr (kSoc == SocFamily::iMX51) {
             if (off == kOffEdgeSel) return edge_sel_;
         }
         switch (off) {
-            case kOffDr:   return dr_;
+            /* A DR read returns the DR latch only for output bits; input bits
+               (GDIR=0) return the pad value — MCIMX51RM §35.4.2.1 + p1041 NOTE
+               ("while GDIR=0, a read access to DR does not return DR data"). A
+               board device drives a pin's pad level via SetInputPin. */
+            case kOffDr: {
+                const uint32_t dr_val = (dr_ & gdir_) | (input_level_ & ~gdir_);
+                return dr_val;
+            }
             case kOffGdir: return gdir_;
-            /* PSR returns the input-pin pad value; no external GPIO pins are wired
-               into CERF, so every pin reads 0 (MCIMX31RM §5.3.3.3). */
-            case kOffPsr:  return 0u;
+            /* PSR always returns the pad input value (MCIMX31RM §5.3.3.3). */
+            case kOffPsr:
+                return input_level_;
             case kOffIcr1: return icr1_;
             case kOffIcr2: return icr2_;
             case kOffImr:  return imr_;
@@ -66,8 +92,9 @@ public:
             if (off == kOffEdgeSel) { edge_sel_ = value; return; }
         }
         switch (off) {
-            case kOffDr:   dr_   = value; return;
-            case kOffGdir: gdir_ = value; return;
+            case kOffDr:   dr_   = value; if (write_obs_) write_obs_(); return;
+            case kOffGdir:
+                gdir_ = value; if (write_obs_) write_obs_(); return;
             case kOffIcr1: icr1_ = value; return;
             case kOffIcr2: icr2_ = value; return;
             case kOffImr:  imr_  = value; return;
@@ -79,11 +106,13 @@ public:
     void SaveState(StateWriter& w) override {
         w.Write(dr_);   w.Write(gdir_); w.Write(icr1_);
         w.Write(icr2_); w.Write(imr_);  w.Write(isr_);
+        w.Write(input_level_);
         if constexpr (kSoc == SocFamily::iMX51) w.Write(edge_sel_);
     }
     void RestoreState(StateReader& r) override {
         r.Read(dr_);   r.Read(gdir_); r.Read(icr1_);
         r.Read(icr2_); r.Read(imr_);  r.Read(isr_);
+        r.Read(input_level_);
         if constexpr (kSoc == SocFamily::iMX51) r.Read(edge_sel_);
     }
 
@@ -95,6 +124,8 @@ private:
     uint32_t imr_      = 0;
     uint32_t isr_      = 0;
     uint32_t edge_sel_ = 0;   /* i.MX51 only */
+    uint32_t input_level_ = 0;  /* board-driven input pin levels read back via PSR */
+    std::function<void()> write_obs_;  /* fired on DR/GDIR write (bit-bang observers) */
 };
 
 }  /* namespace cerf_freescale_gpio_detail */
