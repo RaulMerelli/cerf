@@ -1,0 +1,8 @@
+{
+  "search.exclude": {
+    "references/WindowsCE-Build-Tools/**": true
+  },
+  "files.watcherExclude": {
+    "references/WindowsCE-Build-Tools/**": true
+  }
+}
