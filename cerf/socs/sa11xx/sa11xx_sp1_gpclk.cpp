@@ -8,7 +8,10 @@
 
 namespace {
 
-/* SA-1110 Dev Man §11.9.2-11.9.4 (GPCLKR0..3). */
+/* SA-1110 Dev Man §11.9.2-11.9.4: the Serial Port 1 GPCLK block (0x80020000)
+   defines registers only at +0x60..+0x70; +0x78..+0xFFFF is reserved and on
+   real HW reads 0 / ignores writes. Reserved offsets here do the same — the
+   G138 OAL's SP1 reset writes 2/4 to +0x80 and 0x10 to +0x84. */
 
 class Sa11xxSp1Gpclk : public Peripheral {
 public:
@@ -71,13 +74,13 @@ uint8_t Sa11xxSp1Gpclk::ReadByte(uint32_t addr) {
     const uint32_t off   = addr - MmioBase();
     const uint32_t base  = off & ~0x3u;
     const uint32_t shift = (off & 0x3u) * 8;
-    if (!IsGpclkOffset(base)) HaltUnsupportedAccess("ReadByte", addr, 0);
+    if (!IsGpclkOffset(base)) return 0;   /* reserved: reads 0. */
     return static_cast<uint8_t>((ReadReg(base) >> shift) & 0xFFu);
 }
 
 uint32_t Sa11xxSp1Gpclk::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
-    if (!IsGpclkOffset(off)) HaltUnsupportedAccess("ReadWord", addr, 0);
+    if (!IsGpclkOffset(off)) return 0;    /* reserved: reads 0. */
     return ReadReg(off);
 }
 
@@ -85,7 +88,10 @@ void Sa11xxSp1Gpclk::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t off   = addr - MmioBase();
     const uint32_t base  = off & ~0x3u;
     const uint32_t shift = (off & 0x3u) * 8;
-    if (!IsGpclkOffset(base)) HaltUnsupportedAccess("WriteByte", addr, value);
+    if (!IsGpclkOffset(base)) {            /* reserved: write ignored. */
+        LOG(Periph, "[Sa11xxSp1Gpclk] reserved write +0x%02X (ignored)\n", off);
+        return;
+    }
     const uint32_t cur     = ReadReg(base);
     const uint32_t cleared = cur & ~(0xFFu << shift);
     WriteReg(base, cleared | (static_cast<uint32_t>(value) << shift));
@@ -93,7 +99,11 @@ void Sa11xxSp1Gpclk::WriteByte(uint32_t addr, uint8_t value) {
 
 void Sa11xxSp1Gpclk::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
-    if (!IsGpclkOffset(off)) HaltUnsupportedAccess("WriteWord", addr, value);
+    if (!IsGpclkOffset(off)) {             /* reserved: write ignored. */
+        LOG(Periph, "[Sa11xxSp1Gpclk] reserved write +0x%02X = 0x%08X (ignored)\n",
+            off, value);
+        return;
+    }
     WriteReg(off, value);
 }
 

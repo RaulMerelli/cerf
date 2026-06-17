@@ -63,6 +63,10 @@ enum class Board {
     SiemensP177,      /* Siemens SIMATIC TP177B 4" HMI panel, Samsung S3C2410
                          (ARM920T), Windows CE 5.0 / Siemens P177 BSP. ROM
                          fingerprint: "\platform\P177\target" in nk.exe. */
+    SmartBookG138,    /* SmartBook G138 webpad, Intel SA-1110 StrongARM + MediaQ
+                         MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). ROM
+                         fingerprint: the OEM build-path model token "G138",
+                         version-independent across both ROM generations. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

@@ -1,4 +1,4 @@
-#include "../../peripherals/peripheral_base.h"
+#include "sa11xx_ppc.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -6,59 +6,39 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
-namespace {
+/* SA-1110 Dev Man §11.13.3 PPDR — 0=input, 1=output, reset all-0 (all input).
+   §11.13.4 PPSR — 22 pin-state bits; an output pin reads its PPC-controlled
+   value, an input pin reads the external pin level; PPSR is not reset,
+   reserved bits 31:22 read 0. */
 
-/* SA-1110 Dev Man §11.13: PPDR/PPSR/PPAR/PSDR/PPFR at +0x00..0x10. +0x28 is
-   reserved but HPIrDA.dll sub_EE4B88 RMWs it during IrDA config; real HW reads
-   it 0 / ignores writes without aborting. Other undocumented offsets halt. */
+bool Sa11xxPpc::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardDetector>();
+    return bd && (bd->GetSoc() == SocFamily::SA1110 ||
+                  bd->GetSoc() == SocFamily::SA1100);
+}
 
-class Sa11xxPpc : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+void Sa11xxPpc::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
-    }
-    void OnReady() override {
-        emu_.Get<PeripheralDispatcher>().Register(this);
-    }
-
-    uint32_t MmioBase() const override { return 0x90060000u; }
-    uint32_t MmioSize() const override { return 0x00010000u; }
-
-    uint8_t  ReadByte (uint32_t addr) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteByte(uint32_t addr, uint8_t  value) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
-
-    void SaveState(StateWriter& w) override;
-    void RestoreState(StateReader& r) override;
-
-private:
-    static constexpr uint32_t kReservedIrdaPoke = 0x28u;  /* HPIrDA sub_EE4B88. */
-    static constexpr uint32_t kMccr1Offset      = 0x30u;  /* SA-1110 Dev Man: MCCR1 R/W. */
-
-    uint32_t regs_[5] = {};  /* PPDR, PPSR, PPAR, PSDR, PPFR */
-
-    /* MCCR1 (MCP control reg 1) shares this block; the kernel disables the MCP
-       by writing 0 here during clock setup (nk.exe sub_80039150). Stored R/W. */
-    uint32_t mccr1_ = 0;
-
-    static bool OffsetToIndex(uint32_t off, uint32_t* index_out) {
-        if (off > 0x10 || (off & 0x3u) != 0) return false;
-        *index_out = off / 4u;
-        return true;
-    }
-};
+void Sa11xxPpc::DriveInputPin(uint32_t pin, bool level) {
+    if (pin >= 22u) return;
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (level) input_state_ |=  (1u << pin);
+    else       input_state_ &= ~(1u << pin);
+}
 
 uint8_t Sa11xxPpc::ReadByte(uint32_t addr) {
     const uint32_t off   = addr - MmioBase();
     const uint32_t base  = off & ~0x3u;
     const uint32_t shift = (off & 0x3u) * 8;
     uint32_t index;
-    if (OffsetToIndex(base, &index))
-        return static_cast<uint8_t>((regs_[index] >> shift) & 0xFFu);
+    if (OffsetToIndex(base, &index)) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        const uint32_t word = (index == kPpsrIndex) ? ReadPpsrLocked()
+                                                    : regs_[index];
+        return static_cast<uint8_t>((word >> shift) & 0xFFu);
+    }
     if (base == kMccr1Offset)
         return static_cast<uint8_t>((mccr1_ >> shift) & 0xFFu);
     if (base == kReservedIrdaPoke) {
@@ -71,7 +51,10 @@ uint8_t Sa11xxPpc::ReadByte(uint32_t addr) {
 uint32_t Sa11xxPpc::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
-    if (OffsetToIndex(off, &index)) return regs_[index];
+    if (OffsetToIndex(off, &index)) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        return (index == kPpsrIndex) ? ReadPpsrLocked() : regs_[index];
+    }
     if (off == kMccr1Offset) return mccr1_;
     if (off == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved read +0x%02X -> 0\n", off);
@@ -86,8 +69,8 @@ void Sa11xxPpc::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t shift = (off & 0x3u) * 8;
     uint32_t index;
     if (OffsetToIndex(base, &index)) {
-        const uint32_t cur     = regs_[index];
-        const uint32_t cleared = cur & ~(0xFFu << shift);
+        std::lock_guard<std::mutex> lk(mtx_);
+        const uint32_t cleared = regs_[index] & ~(0xFFu << shift);
         regs_[index] = cleared | (static_cast<uint32_t>(value) << shift);
         return;
     }
@@ -106,7 +89,11 @@ void Sa11xxPpc::WriteByte(uint32_t addr, uint8_t value) {
 void Sa11xxPpc::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     uint32_t index;
-    if (OffsetToIndex(off, &index)) { regs_[index] = value; return; }
+    if (OffsetToIndex(off, &index)) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        regs_[index] = value;
+        return;
+    }
     if (off == kMccr1Offset) { mccr1_ = value; return; }
     if (off == kReservedIrdaPoke) {
         LOG(Periph, "[Sa11xxPpc] reserved write +0x%02X = 0x%08X (ignored)\n", off, value);
@@ -116,15 +103,17 @@ void Sa11xxPpc::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Sa11xxPpc::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(mtx_);
     w.WriteBytes(regs_, sizeof(regs_));
+    w.Write(input_state_);
     w.Write(mccr1_);
 }
 
 void Sa11xxPpc::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(mtx_);
     r.ReadBytes(regs_, sizeof(regs_));
+    r.Read(input_state_);
     r.Read(mccr1_);
 }
-
-}  /* namespace */
 
 REGISTER_SERVICE(Sa11xxPpc);
