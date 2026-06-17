@@ -13,6 +13,10 @@ void GuestDeepSleep::RegisterWaker(DeepSleepWaker* waker) {
     waker_ = waker;
 }
 
+void GuestDeepSleep::ClearWakeCause() {
+    if (waker_) waker_->ClearSleepWakeCause();
+}
+
 void GuestDeepSleep::RegisterResumeVectorProvider(SleepResumeVectorProvider* p) {
     resume_vector_provider_ = p;
 }

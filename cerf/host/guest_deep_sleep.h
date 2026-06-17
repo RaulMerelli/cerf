@@ -17,6 +17,11 @@ public:
     virtual ~DeepSleepWaker() = default;
     /* Latch the sleep-mode reset cause so the OAL boot path resumes on wake. */
     virtual void LatchSleepWakeCause() = 0;
+    /* Clear it on a non-resume reset. CERF's resume jumps straight to the saved
+       vector, skipping the OAL/EBOOT code that clears this cause on real HW, so a
+       later reboot would re-read the stale cause and resume from a now-invalid
+       save block. Cleared on every SetResetPending(is_resume=false). */
+    virtual void ClearSleepWakeCause() = 0;
 };
 
 /* pc == 0 ⇒ no resume; the wake falls through to the cold entry. restore_mmu
@@ -47,6 +52,10 @@ public:
 
     /* OnReady-time only; at most one waker per emulator instance. */
     void RegisterWaker(DeepSleepWaker* waker);
+
+    /* Any thread. Clears the latched sleep-wake cause; called from a non-resume
+       reset so the rebooting guest doesn't misread it as another sleep wake. */
+    void ClearWakeCause();
 
     /* OnReady-time, board-scoped: supplies the sleep-wake resume vector. */
     void RegisterResumeVectorProvider(SleepResumeVectorProvider* p);

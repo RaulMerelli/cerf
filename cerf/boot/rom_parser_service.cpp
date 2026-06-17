@@ -171,6 +171,20 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
     } else {
         rom.flat_base_va = primary.load_offset;
         rom.entry_va     = primary.toc.romhdr.physfirst;
+        /* Kernel entry is the e32 entry point. physfirst can be a zero
+           RomSignature pad the OS reuses for its sleep save block (SIMpad:
+           e32_entryrva=0x1000), so a reset entering at physfirst after a suspend
+           executes the save block. e32_entryrva=0 keeps entry_va == physfirst. */
+        for (const auto& m : primary.toc.modules) {
+            if (m.ulLoadOffset != rom.entry_va) continue;   /* kernel = module @ physfirst */
+            const size_t e32_off = size_t(m.ulE32Offset - rom.flat_base_va);
+            if (e32_off + 12 > rom.raw.size()) break;
+            const uint32_t entryrva = U32(rom.raw.data(), e32_off + 4);
+            const uint32_t vbase    = U32(rom.raw.data(), e32_off + 8);
+            if (vbase == rom.entry_va && entryrva < 0x01000000u)
+                rom.entry_va = vbase + entryrva;
+            break;
+        }
     }
 
     if (!rom.is_b000ff) {

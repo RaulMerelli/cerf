@@ -11,5 +11,3 @@ EXPORTS
     CDD_Write
     CDD_Seek
     CDD_IOControl
-    CDD_PowerUp
-    CDD_PowerDown
