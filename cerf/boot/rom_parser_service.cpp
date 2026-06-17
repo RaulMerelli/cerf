@@ -21,14 +21,20 @@ REGISTER_SERVICE(RomParserService);
 
 namespace {
 
+using cerf::rom_image_parse::ArnoldLocateOsXip;
+using cerf::rom_image_parse::ArnoldOsXip;
 using cerf::rom_image_parse::AssembleB000FFFlat;
 using cerf::rom_image_parse::FindAllEcec;
 using cerf::rom_image_parse::FindImgfsBase;
 using cerf::rom_image_parse::ParseModulesAndFiles;
+using cerf::rom_image_parse::NosajLocateOsXip;
+using cerf::rom_image_parse::NosajOsXip;
 using cerf::rom_image_parse::ResolveRomhdrAtEcec;
 using cerf::rom_image_parse::ResolveRomhdrStructural;
 using cerf::rom_image_parse::U32;
+using cerf::rom_image_parse::kArnoldSignature;
 using cerf::rom_image_parse::kB000FFSignature;
+using cerf::rom_image_parse::kNosajSignature;
 
 inline char AsciiLower(char c) {
     return char(std::tolower(static_cast<unsigned char>(c)));
@@ -43,7 +49,7 @@ bool EqualIgnoreCase(const std::string& a, const char* b) {
     return true;
 }
 
-/* Scan a directory for the first *.nb0 / *.bin file (single-ROM
+/* Scan a directory for the first *.nb0 / *.bin / *.fim file (single-ROM
    auto-detect mode when cerf.json lists no partitions). */
 std::string FindFirstRomFile(const std::string& device_dir) {
     const std::wstring pattern = Utf8ToWide((device_dir + "*").c_str());
@@ -57,7 +63,7 @@ std::string FindFirstRomFile(const std::string& device_dir) {
         if (name.size() < 5) continue;
         std::string ext = name.substr(name.size() - 4);
         for (auto& c : ext) c = AsciiLower(c);
-        if (ext == ".nb0" || ext == ".bin") {
+        if (ext == ".nb0" || ext == ".bin" || ext == ".fim") {
             result = name;
             break;
         }
@@ -100,6 +106,41 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
             return false;
         }
         rom.flat = std::span<const uint8_t>(rom.flat_storage);
+    } else if (rom.raw.size() >= sizeof(kNosajSignature) &&
+               std::memcmp(rom.raw.data(), kNosajSignature,
+                           sizeof(kNosajSignature)) == 0) {
+        NosajOsXip os;
+        if (!NosajLocateOsXip(rom.raw, os)) {
+            LOG(Caution, "RomParser %s: NOSAJ container but OS XIP not "
+                         "resolvable\n", rom.filename.c_str());
+            return false;
+        }
+        rom.is_nosaj     = true;
+        rom.flat         = std::span<const uint8_t>(rom.raw)
+                               .subspan(os.data_off, os.flat_size);
+        rom.flat_base_va = os.base_va;
+        rom.entry_va     = os.entry_va;
+        LOG(Boot, "RomParser %s: NOSAJ container — OS XIP @ file 0x%zX "
+                  "base=0x%08X entry=0x%08X span=%.1f MB\n",
+            rom.filename.c_str(), os.data_off, os.base_va, os.entry_va,
+            double(os.flat_size) / 1024.0 / 1024.0);
+    } else if (rom.raw.size() >= sizeof(kArnoldSignature) &&
+               std::memcmp(rom.raw.data(), kArnoldSignature,
+                           sizeof(kArnoldSignature)) == 0) {
+        ArnoldOsXip os;
+        if (!ArnoldLocateOsXip(rom.raw, os)) {
+            LOG(Caution, "RomParser %s: ARNOLDBOOTBLOCK package but OS XIP not "
+                         "resolvable\n", rom.filename.c_str());
+            return false;
+        }
+        rom.is_arnold    = true;
+        rom.flat         = std::span<const uint8_t>(rom.raw)
+                               .subspan(os.data_off, os.flat_size);
+        rom.flat_base_va = os.base_va;
+        LOG(Boot, "RomParser %s: ARNOLDBOOTBLOCK package — OS XIP @ file 0x%zX "
+                  "base=0x%08X span=%.1f MB\n",
+            rom.filename.c_str(), os.data_off, os.base_va,
+            double(os.flat_size) / 1024.0 / 1024.0);
     } else {
         rom.flat = std::span<const uint8_t>(rom.raw);
         rom.flat_base_va = 0;
@@ -168,7 +209,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
             rom.entry_va    += primary.load_offset - rom.flat_base_va;
             rom.flat_base_va = primary.load_offset;
         }
-    } else {
+    } else if (!rom.is_nosaj) {
         rom.flat_base_va = primary.load_offset;
         rom.entry_va     = primary.toc.romhdr.physfirst;
         /* Kernel entry is the e32 entry point. physfirst can be a zero
@@ -178,16 +219,16 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         for (const auto& m : primary.toc.modules) {
             if (m.ulLoadOffset != rom.entry_va) continue;   /* kernel = module @ physfirst */
             const size_t e32_off = size_t(m.ulE32Offset - rom.flat_base_va);
-            if (e32_off + 12 > rom.raw.size()) break;
-            const uint32_t entryrva = U32(rom.raw.data(), e32_off + 4);
-            const uint32_t vbase    = U32(rom.raw.data(), e32_off + 8);
+            if (e32_off + 12 > rom.flat.size()) break;
+            const uint32_t entryrva = U32(rom.flat.data(), e32_off + 4);
+            const uint32_t vbase    = U32(rom.flat.data(), e32_off + 8);
             if (vbase == rom.entry_va && entryrva < 0x01000000u)
                 rom.entry_va = vbase + entryrva;
             break;
         }
     }
 
-    if (!rom.is_b000ff) {
+    if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold) {
         const size_t off = FindImgfsBase(rom.raw);
         if (off != SIZE_MAX) {
             rom.has_imgfs        = true;

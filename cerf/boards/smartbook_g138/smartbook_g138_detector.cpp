@@ -9,11 +9,10 @@ public:
     using BoardDetector::BoardDetector;
 
     bool ShouldRegister() override {
-        /* Both CE .NET 4.1 and 4.2 ROMs bake the OEM build path
-           "E:\138_PR~1\G138_...\WINCE4xx\"; the model token "G138" is the
-           board-unique, version-independent part. No other CERF board's ROM
-           carries "G138". */
-        return RomContainsString("G138");
+        /* "Book_HPC" is the OEM device name in the SmartBook eboot banner,
+           present in both the CE 4.1 and 4.2 .fim images (the "G138" build-path
+           token is only in the 4.2 ROM). */
+        return RomContainsString("Book_HPC");
     }
 
     Board       GetBoard()  const override { return Board::SmartBookG138; }
@@ -23,6 +22,12 @@ public:
     }
     const char* GetShortBoardName() const override { return "SmartBook G138"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_SMARTBOOK"; }
+
+    /* 800x480 LCD (registry Drivers\Display\MQ200 CxScreen=0x320, CyScreen=0x1E0).
+       Cosmetic pre-boot hint only; the live size comes from MQ200 OnLcdEnabled. */
+    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
+        return PreferredWindowSize{800, 480};
+    }
 };
 
 }  /* namespace */

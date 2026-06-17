@@ -23,7 +23,9 @@ public:
     bool ShouldRegister() override {
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        if (!bd) return false;
+        const Board b = bd->GetBoard();
+        return b == Board::SimpadSl4 || b == Board::SmartBookG138;
     }
 
     bool HasFrame() override {
