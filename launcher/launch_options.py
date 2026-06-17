@@ -55,6 +55,7 @@ class LaunchOptionsPanel:
         self.var_flush     = tk.BooleanVar(value=False)
         self.var_flood     = tk.BooleanVar(value=False)
         self.var_no_net    = tk.BooleanVar(value=False)
+        self.var_full_screen = tk.BooleanVar(value=False)
         self.var_guest_additions = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text="Enable all log channels", variable=self.var_log_all).grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(opts, text="Flush logs immediately",
@@ -63,11 +64,13 @@ class LaunchOptionsPanel:
                         variable=self.var_flood).grid(row=2, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(opts, text="Disable network backend",
                         variable=self.var_no_net).grid(row=3, column=0, columnspan=2, sticky="w")
+        ttk.Checkbutton(opts, text="Borderless full screen",
+                        variable=self.var_full_screen).grid(row=4, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=4, column=0, columnspan=3, sticky="ew", pady=6)
+        ttk.Separator(opts).grid(row=5, column=0, columnspan=3, sticky="ew", pady=6)
 
         guest = ttk.Frame(opts)
-        guest.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        guest.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(0, 6))
         guest.columnconfigure(0, weight=1)
         ttk.Checkbutton(guest, text="Enable guest additions",
                         variable=self.var_guest_additions,
@@ -78,15 +81,15 @@ class LaunchOptionsPanel:
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=6, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        ttk.Separator(opts).grid(row=7, column=0, columnspan=3, sticky="ew", pady=(0, 6))
 
         self.res_note = ttk.Label(opts, text="Resolution override:")
-        self.res_note.grid(row=7, column=0, columnspan=3, sticky="w")
+        self.res_note.grid(row=8, column=0, columnspan=3, sticky="w")
         self.var_width  = tk.StringVar(value="240")
         self.var_height = tk.StringVar(value="320")
         numeric_vcmd = (parent_window.register(self._is_optional_uint), "%P")
         res_fields = ttk.Frame(opts)
-        res_fields.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        res_fields.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(2, 0))
         res_fields.columnconfigure(5, weight=1)
         self.width_entry = ttk.Entry(res_fields, textvariable=self.var_width, width=8,
                                      validate="key", validatecommand=numeric_vcmd)
@@ -124,6 +127,7 @@ class LaunchOptionsPanel:
         if self.var_flush.get():  argv.append("--flush-outputs")
         if self.var_flood.get():  argv.append("--allow-flood")
         if self.var_no_net.get(): argv.append("--disable-network")
+        if self.var_full_screen.get(): argv.append("--full-screen")
         guest_additions = self.var_guest_additions.get()
         if guest_additions:
             argv.append("--guest-additions")
