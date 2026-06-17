@@ -25,6 +25,8 @@ public:
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 240 };
     }
+
+    uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }
 };
 
 }  /* namespace */

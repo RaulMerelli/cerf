@@ -24,6 +24,9 @@ public:
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 240 };
     }
+    
+    // 32bpp causes at least IE picture rendering broken
+    uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }
 };
 
 }  /* namespace */
