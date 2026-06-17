@@ -26,6 +26,8 @@ using cerf::rom_image_parse::ArnoldOsXip;
 using cerf::rom_image_parse::AssembleB000FFFlat;
 using cerf::rom_image_parse::FindAllEcec;
 using cerf::rom_image_parse::FindImgfsBase;
+using cerf::rom_image_parse::IpaqNbfLocateOsXip;
+using cerf::rom_image_parse::IpaqNbfOsXip;
 using cerf::rom_image_parse::ParseModulesAndFiles;
 using cerf::rom_image_parse::NosajLocateOsXip;
 using cerf::rom_image_parse::NosajOsXip;
@@ -34,6 +36,7 @@ using cerf::rom_image_parse::ResolveRomhdrStructural;
 using cerf::rom_image_parse::U32;
 using cerf::rom_image_parse::kArnoldSignature;
 using cerf::rom_image_parse::kB000FFSignature;
+using cerf::rom_image_parse::kIpaqNbfSignature;
 using cerf::rom_image_parse::kNosajSignature;
 
 inline char AsciiLower(char c) {
@@ -63,7 +66,8 @@ std::string FindFirstRomFile(const std::string& device_dir) {
         if (name.size() < 5) continue;
         std::string ext = name.substr(name.size() - 4);
         for (auto& c : ext) c = AsciiLower(c);
-        if (ext == ".nb0" || ext == ".bin" || ext == ".fim") {
+        if (ext == ".nb0" || ext == ".bin" || ext == ".fim"
+            || ext == ".nbf") {
             result = name;
             break;
         }
@@ -140,6 +144,23 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         LOG(Boot, "RomParser %s: ARNOLDBOOTBLOCK package — OS XIP @ file 0x%zX "
                   "base=0x%08X span=%.1f MB\n",
             rom.filename.c_str(), os.data_off, os.base_va,
+            double(os.flat_size) / 1024.0 / 1024.0);
+    } else if (rom.raw.size() >= sizeof(kIpaqNbfSignature) &&
+               std::memcmp(rom.raw.data(), kIpaqNbfSignature,
+                           sizeof(kIpaqNbfSignature)) == 0) {
+        IpaqNbfOsXip os;
+        if (!IpaqNbfLocateOsXip(rom.raw, os)) {
+            LOG(Caution, "RomParser %s: iPAQ .nbf banner but OS XIP not "
+                         "resolvable\n", rom.filename.c_str());
+            return false;
+        }
+        rom.is_nbf       = true;
+        rom.flat         = std::span<const uint8_t>(rom.raw)
+                               .subspan(os.data_off, os.flat_size);
+        rom.flat_base_va = 0;
+        LOG(Boot, "RomParser %s: iPAQ .nbf package — OS XIP @ file 0x%zX "
+                  "span=%.1f MB\n",
+            rom.filename.c_str(), os.data_off,
             double(os.flat_size) / 1024.0 / 1024.0);
     } else {
         rom.flat = std::span<const uint8_t>(rom.raw);
@@ -228,7 +249,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         }
     }
 
-    if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold) {
+    if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold && !rom.is_nbf) {
         const size_t off = FindImgfsBase(rom.raw);
         if (off != SIZE_MAX) {
             rom.has_imgfs        = true;

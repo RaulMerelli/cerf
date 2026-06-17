@@ -80,6 +80,26 @@ struct ArnoldOsXip {
    absent/unresolvable. */
 bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out);
 
+/* First ECEC ROM signature at/after `start` whose pTOC (+4) is a kernel VA
+   (0x80000000..0xC0000000); SIZE_MAX if none. Locates the XIP inside a
+   fixed-header firmware package without trusting a header-length constant. */
+size_t FindXipEcec(std::span<const uint8_t> raw, size_t start);
+
+/* "iPAQ " banner — the Compaq/HP iPAQ h3xxx ".nbf" firmware update format: a
+   32-byte ASCII version banner ("iPAQ 3600-ENG-2.14-...") then the bootable OS
+   XIP. A distinct OEM format from a raw .nb0; its payload happens to match an
+   extracted .nb0 byte-for-byte. */
+constexpr uint8_t kIpaqNbfSignature[5] = {'i', 'P', 'A', 'Q', ' '};
+
+struct IpaqNbfOsXip {
+    size_t   data_off  = 0;   /* file offset of the OS XIP (after the banner) */
+    uint32_t flat_size = 0;   /* XIP span in the file                         */
+};
+
+/* Resolve the bootable OS XIP in a Compaq iPAQ .nbf package; false if
+   absent/unresolvable. */
+bool IpaqNbfLocateOsXip(std::span<const uint8_t> raw, IpaqNbfOsXip& out);
+
 /* Find every ECEC marker in the first 8 MB of `flat` whose
    ptoc_va / romhdr_off look plausible. Multi-XIP images
    (Pocket PC 2000 NB0, WM6+ NB0 flash dumps) carry one ECEC

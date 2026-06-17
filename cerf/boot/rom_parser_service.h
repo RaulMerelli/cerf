@@ -108,6 +108,7 @@ struct ParsedRom {
     bool                         is_b000ff    = false;
     bool                         is_nosaj     = false;
     bool                         is_arnold    = false;
+    bool                         is_nbf       = false;
     bool                         has_imgfs        = false;
     bool                         imgfs_is_ftl     = false;
     uint32_t                     imgfs_file_off   = 0;

@@ -142,18 +142,22 @@ bool NosajLocateOsXip(std::span<const uint8_t> raw, NosajOsXip& out) {
     return false;
 }
 
+size_t FindXipEcec(std::span<const uint8_t> raw, size_t start) {
+    for (size_t i = start; i + 8 <= raw.size(); ++i) {
+        if (U32(raw.data(), i) != kRomSignature) continue;
+        const uint32_t ptoc = U32(raw.data(), i + 4);
+        if (ptoc >= 0x80000000u && ptoc < 0xC0000000u) return i;
+    }
+    return SIZE_MAX;
+}
+
 bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out) {
     if (raw.size() < sizeof(kArnoldSignature) + kRomSignatureOffset + 8)
         return false;
     if (std::memcmp(raw.data(), kArnoldSignature, sizeof(kArnoldSignature)) != 0)
         return false;
 
-    size_t ecec = SIZE_MAX;
-    for (size_t i = sizeof(kArnoldSignature); i + 8 <= raw.size(); ++i) {
-        if (U32(raw.data(), i) != kRomSignature) continue;
-        const uint32_t ptoc = U32(raw.data(), i + 4);
-        if (ptoc >= 0x80000000u && ptoc < 0xC0000000u) { ecec = i; break; }
-    }
+    const size_t ecec = FindXipEcec(raw, sizeof(kArnoldSignature));
     if (ecec == SIZE_MAX || ecec < kRomSignatureOffset) return false;
 
     const size_t   data_off = ecec - kRomSignatureOffset;
@@ -182,6 +186,24 @@ bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out) {
         if (base < base_min + 0x1000u) break;  /* guard unsigned wrap past base_min */
     }
     return false;
+}
+
+bool IpaqNbfLocateOsXip(std::span<const uint8_t> raw, IpaqNbfOsXip& out) {
+    if (raw.size() < sizeof(kIpaqNbfSignature) + kRomSignatureOffset + 8)
+        return false;
+    if (std::memcmp(raw.data(), kIpaqNbfSignature, sizeof(kIpaqNbfSignature)) != 0)
+        return false;
+
+    /* The banner is followed by a raw flat XIP carrying 'ECEC' at XIP+0x40; the
+       first marker with a kernel-VA pTOC locates the XIP regardless of banner
+       length. The base VA is left for the shared ECEC resolver, identical to a
+       raw .nb0. */
+    const size_t ecec = FindXipEcec(raw, sizeof(kIpaqNbfSignature));
+    if (ecec == SIZE_MAX || ecec < kRomSignatureOffset) return false;
+
+    out.data_off  = ecec - kRomSignatureOffset;
+    out.flat_size = uint32_t(raw.size() - out.data_off);
+    return true;
 }
 
 std::vector<size_t> FindAllEcec(std::span<const uint8_t> flat) {

@@ -239,6 +239,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>SA-1110, PXA255 RTC implementation</li>
               <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
               <li>Suspend feature support for different SoCs</li>
+              <li>iPaqs now use original .nbf format instead of normalized .nb0</li>
             </ul>
           </td>
         </tr>

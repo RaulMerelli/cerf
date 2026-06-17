@@ -57,7 +57,7 @@ private:
 
     static bool DirHasRom(const std::string& dir) {
         WIN32_FIND_DATAW fd;
-        const wchar_t* pats[] = { L"*.nb0", L"*.bin", L"*.fim" };
+        const wchar_t* pats[] = { L"*.nb0", L"*.bin", L"*.fim", L"*.nbf" };
         for (const wchar_t* pat : pats) {
             std::wstring glob = Utf8ToWide(dir.c_str()) + pat;
             HANDLE h = ::FindFirstFileW(glob.c_str(), &fd);
