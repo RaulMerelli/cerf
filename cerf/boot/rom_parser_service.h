@@ -115,6 +115,8 @@ struct ParsedRom {
     uint32_t                     flat_base_va = 0;
     uint32_t                     entry_va     = 0;
     bool                         is_b000ff    = false;
+    bool                         is_nosaj     = false;
+    bool                         is_arnold    = false;
     bool                         has_imgfs        = false;
     bool                         imgfs_is_ftl     = false;
     uint32_t                     imgfs_file_off   = 0;

@@ -52,6 +52,37 @@ bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
                         uint32_t&                   out_entry_va,
                         std::vector<B000FFSection>& out_sections);
 
+/* "NOSAJ\0" magic — the SmartBook G138 ".fim" flash-packaging container. */
+constexpr uint8_t kNosajSignature[6] = {'N', 'O', 'S', 'A', 'J', '\0'};
+
+struct NosajOsXip {
+    size_t   data_off  = 0;   /* file offset of OS XIP data (after launch block) */
+    uint32_t flat_size = 0;   /* image span = physlast - physfirst                */
+    uint32_t base_va   = 0;   /* physfirst — file offset 0 of the XIP maps here    */
+    uint32_t entry_va  = 0;   /* kernel entry kernel-VA                            */
+};
+
+/* Resolve the bootable OS XIP in a NOSAJ container; false if absent/unresolvable. */
+bool NosajLocateOsXip(std::span<const uint8_t> raw, NosajOsXip& out);
+
+/* "ARNOLDBOOTBLOCK\0" magic — the Siemens SIMpad ("Arnold" codename) flash
+   firmware package (the original S842-SI-*.bin update files). A fixed header
+   prefixes the bootable OS XIP; the XIP itself is byte-for-byte what an extracted
+   .nb0 carries (the genuine ROM that runs on real SIMpad hardware). */
+constexpr uint8_t kArnoldSignature[16] = {
+    'A', 'R', 'N', 'O', 'L', 'D', 'B', 'O',
+    'O', 'T', 'B', 'L', 'O', 'C', 'K', '\0'};
+
+struct ArnoldOsXip {
+    size_t   data_off  = 0;   /* file offset of the OS XIP (after the header)  */
+    uint32_t flat_size = 0;   /* XIP span in the file (header-stripped tail)   */
+    uint32_t base_va   = 0;   /* physfirst — file offset data_off maps here    */
+};
+
+/* Resolve the bootable OS XIP in a Siemens ARNOLDBOOTBLOCK package; false if
+   absent/unresolvable. */
+bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out);
+
 /* Find every ECEC marker in the first 8 MB of `flat` whose
    ptoc_va / romhdr_off look plausible. Multi-XIP images
    (Pocket PC 2000 NB0, WM6+ NB0 flash dumps) carry one ECEC

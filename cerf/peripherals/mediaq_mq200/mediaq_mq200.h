@@ -6,10 +6,10 @@
 #include <cstdint>
 #include <vector>
 
-/* MediaQ MQ200 display controller (SIMpad SL4). MmioBase 0x4B800000 = framebuffer
-   SRAM (2 MB) at window offset 0; the register block (PA 0x4BE00000) is at offset
-   0x600000. Display geometry is the Graphics Controller 1 block at register-area
-   offset 0xA000 (MQ-200 Data Book Table 5-3), programmed by ddi.dll sub_1343898. */
+/* MediaQ MQ200 display controller (SA-1110 boards: SIMpad SL4, SmartBook G138).
+   MmioBase 0x4B800000 = 2 MB framebuffer SRAM at window offset 0; the register
+   block (PA 0x4BE00000) is at offset 0x600000; display geometry is Graphics
+   Controller 1 at register offset 0xA000 (MQ-200 Data Book Table 5-3). */
 class MediaQMq200 : public Peripheral, public MediaQGeHost {
 public:
     using Peripheral::Peripheral;
@@ -30,15 +30,14 @@ public:
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 
-    /* Display-state getters consumed by MediaQMq200Renderer. Values come from
-       the Graphics Controller 1 register block (MQ-200 Data Book §5); the
-       SIMpad driver writes them in sub_1343898/sub_13431F8/sub_1343798. */
-    bool     IsEnabled()      const;   /* GC00R[3] image window on + valid mode. */
-    uint32_t Bpp()            const;   /* decoded from GC00R[7:4] (Table 5-8). */
-    uint32_t GetGuestW()      const;   /* GC08R[31:16] + 1. */
-    uint32_t GetGuestH()      const;   /* GC09R[31:16] + 1. */
-    uint32_t FbWindowOffset() const;   /* GC0CR[20:0], byte offset in FB SRAM. */
-    uint32_t Stride()         const;   /* GC0ER[15:0], bytes per scanline. */
+    /* Display-state getters consumed by MediaQMq200Renderer, read from the
+       Graphics Controller that FP00R[1:0] selects to drive the flat panel. */
+    bool     IsEnabled()      const;   /* panel GC control[3] image window on + valid mode. */
+    uint32_t Bpp()            const;   /* panel GC control[7:4] depth (Table 5-8). */
+    uint32_t GetGuestW()      const;   /* panel GC H-window[31:16] + 1. */
+    uint32_t GetGuestH()      const;   /* panel GC V-window[31:16] + 1. */
+    uint32_t FbWindowOffset() const;   /* panel GC start[20:0], byte offset in FB SRAM. */
+    uint32_t Stride()         const;   /* panel GC stride[15:0], bytes per scanline. */
     uint32_t PaletteEntry(uint32_t index) const;   /* C100R+i: R[7:0] G[15:8] B[23:16]. */
     const uint8_t* FbBytes()  const { return fb_.data(); }
     uint8_t*       FbMutableBytes() override { return fb_.data(); }   /* GE blit target. */
@@ -64,17 +63,26 @@ private:
     static constexpr uint32_t kGeBlockHi = 0xC200u;
     static constexpr uint32_t kSrcFifo   = 0x18000u;
 
-    /* Graphics Controller 1 register-area offsets (Table 5-3 base 0x0A000). */
-    static constexpr uint32_t kGc00R = 0xA000u;  /* control: [0] ctrl-en, [3] img-win-en, [7:4] depth. */
-    static constexpr uint32_t kGc08R = 0xA020u;  /* horizontal window: [31:16] = width - 1. */
-    static constexpr uint32_t kGc09R = 0xA024u;  /* vertical window: [31:16] = height - 1. */
-    static constexpr uint32_t kGc0CR = 0xA030u;  /* window start address [20:0]. */
-    static constexpr uint32_t kGc0ER = 0xA038u;  /* window stride [15:0]. */
-    static constexpr uint32_t kGc00ImgWinEnable = 0x8u;   /* GC00R[3] (Table 5-8). */
+    /* Two Graphics Controllers, GC1 @ 0x0A000 and GC2 @ 0x0A080 (identical
+       layout, GC2 = GC1 + 0x80; Data Book Table 5-3). FP00R[1:0] (Flat Panel
+       Control, Table 5-51) picks which drives the flat panel: 01=GC1, 11=GC2,
+       x0=off. (SIMpad SL4 panel = GC1; SmartBook G138 panel = GC2, GC1 = CRT.) */
+    static constexpr uint32_t kGc1Base  = 0xA000u;
+    static constexpr uint32_t kGc2Base  = 0xA080u;
+    static constexpr uint32_t kGcCtrl   = 0x00u;   /* [0] ctrl-en, [3] img-win-en, [7:4] depth. */
+    static constexpr uint32_t kGcHWin   = 0x20u;   /* [31:16] = width - 1. */
+    static constexpr uint32_t kGcVWin   = 0x24u;   /* [31:16] = height - 1. */
+    static constexpr uint32_t kGcStart  = 0x30u;   /* window start address [20:0]. */
+    static constexpr uint32_t kGcStride = 0x38u;   /* window stride [15:0]. */
+    static constexpr uint32_t kGc00ImgWinEnable = 0x8u;    /* control[3] (Table 5-8). */
+    static constexpr uint32_t kFp00R        = 0xE000u;     /* Flat Panel Control (Table 5-51). */
+    static constexpr uint32_t kFpEnable     = 0x1u;        /* FP00R[0]: interface enable. */
+    static constexpr uint32_t kFpDriveCtrl2 = 0x2u;        /* FP00R[1]: 0=GC1, 1=GC2. */
 
     static constexpr uint32_t kPaletteBase = 0x10000u;   /* Color Palette 1 (Table 5-3). */
 
     uint32_t Reg(uint32_t roff) const { return reg_[roff / 4u]; }
+    uint32_t PanelGcBase() const;   /* 0xA000/0xA080, or 0 when no panel controller is enabled. */
     uint32_t RegRead(uint32_t roff);
     void     RegWrite(uint32_t roff, uint32_t value);
     void     PublishScreenSizeOnEnableEdge();

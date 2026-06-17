@@ -11,7 +11,9 @@
 
 bool MediaQMq200::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
-    return bd && bd->GetBoard() == Board::SimpadSl4;
+    if (!bd) return false;
+    const Board b = bd->GetBoard();
+    return b == Board::SimpadSl4 || b == Board::SmartBookG138;
 }
 
 void MediaQMq200::OnReady() {
@@ -39,13 +41,22 @@ void MediaQMq200::RegWrite(uint32_t roff, uint32_t value) {
     PublishScreenSizeOnEnableEdge();
 }
 
+uint32_t MediaQMq200::PanelGcBase() const {
+    const uint32_t fp = Reg(kFp00R);                    /* FP00R[1:0] (Table 5-51). */
+    if ((fp & kFpEnable) == 0u) return 0u;              /* x0: flat panel off. */
+    return (fp & kFpDriveCtrl2) ? kGc2Base : kGc1Base;  /* 01=GC1, 11=GC2. */
+}
+
 bool MediaQMq200::IsEnabled() const {
-    return (Reg(kGc00R) & kGc00ImgWinEnable) != 0u &&
+    const uint32_t gc = PanelGcBase();
+    return gc != 0u && (Reg(gc + kGcCtrl) & kGc00ImgWinEnable) != 0u &&
            GetGuestW() > 1u && GetGuestH() > 1u && Stride() != 0u;
 }
 
 uint32_t MediaQMq200::Bpp() const {
-    switch ((Reg(kGc00R) >> 4u) & 0xFu) {   /* GC00R[7:4] color depth (Table 5-8). */
+    const uint32_t gc = PanelGcBase();
+    if (gc == 0u) return 0u;
+    switch ((Reg(gc + kGcCtrl) >> 4u) & 0xFu) {   /* control[7:4] color depth (Table 5-8). */
         case 0x0u: return 1u;
         case 0x1u: return 2u;
         case 0x2u: return 4u;
@@ -62,10 +73,22 @@ uint32_t MediaQMq200::Bpp() const {
     }
 }
 
-uint32_t MediaQMq200::GetGuestW()      const { return ((Reg(kGc08R) >> 16u) & 0xFFFu) + 1u; }
-uint32_t MediaQMq200::GetGuestH()      const { return ((Reg(kGc09R) >> 16u) & 0xFFFu) + 1u; }
-uint32_t MediaQMq200::FbWindowOffset() const { return Reg(kGc0CR) & 0x1FFFFFu; }
-uint32_t MediaQMq200::Stride()         const { return Reg(kGc0ER) & 0xFFFFu; }
+uint32_t MediaQMq200::GetGuestW() const {
+    const uint32_t gc = PanelGcBase();
+    return gc ? (((Reg(gc + kGcHWin) >> 16u) & 0xFFFu) + 1u) : 0u;
+}
+uint32_t MediaQMq200::GetGuestH() const {
+    const uint32_t gc = PanelGcBase();
+    return gc ? (((Reg(gc + kGcVWin) >> 16u) & 0xFFFu) + 1u) : 0u;
+}
+uint32_t MediaQMq200::FbWindowOffset() const {
+    const uint32_t gc = PanelGcBase();
+    return gc ? (Reg(gc + kGcStart) & 0x1FFFFFu) : 0u;
+}
+uint32_t MediaQMq200::Stride() const {
+    const uint32_t gc = PanelGcBase();
+    return gc ? (Reg(gc + kGcStride) & 0xFFFFu) : 0u;
+}
 
 uint32_t MediaQMq200::PaletteEntry(uint32_t index) const {
     return Reg(kPaletteBase + (index & 0xFFu) * 4u);

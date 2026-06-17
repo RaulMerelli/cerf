@@ -65,8 +65,8 @@ enum class Board {
                          fingerprint: "\platform\P177\target" in nk.exe. */
     SmartBookG138,    /* SmartBook G138 webpad, Intel SA-1110 StrongARM + MediaQ
                          MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). ROM
-                         fingerprint: the OEM build-path model token "G138",
-                         version-independent across both ROM generations. */
+                         fingerprint: the OEM eboot device name "Book_HPC" (both
+                         ROM generations; the "G138" token is 4.2-only). */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

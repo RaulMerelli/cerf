@@ -72,6 +72,121 @@ bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
     return true;
 }
 
+bool NosajLocateOsXip(std::span<const uint8_t> raw, NosajOsXip& out) {
+    if (raw.size() < 0x60) return false;
+    if (std::memcmp(raw.data(), kNosajSignature, sizeof(kNosajSignature)) != 0)
+        return false;
+
+    /* "DiAlOgUe" launch-block marker, stored byte-reversed in the image. */
+    static const uint8_t kLaunchMarker[8] = {'e', 'U', 'g', 'O', 'l', 'A', 'i', 'D'};
+
+    /* Inline partition descriptors: fixed 0x5C-byte records, the first at the u16
+       offset stored at +0x06. Per record: +0x00 next-descriptor file offset (0 =
+       last), +0x58 this partition's data file offset. The bootable OS partition's
+       data begins with the launch block. */
+    constexpr size_t kDescSize = 0x5Cu;
+    size_t   desc       = U16(raw.data(), 0x06);
+    size_t   launch_off = 0;
+    bool     found      = false;
+    for (int i = 0; i < 64 && desc + kDescSize <= raw.size(); ++i) {
+        const uint32_t next_off  = U32(raw.data(), desc + 0x00);
+        const uint32_t start_off = U32(raw.data(), desc + 0x58);
+        if (start_off + sizeof(kLaunchMarker) <= raw.size() &&
+            std::memcmp(raw.data() + start_off, kLaunchMarker,
+                        sizeof(kLaunchMarker)) == 0) {
+            launch_off = start_off;
+            found      = true;
+            break;
+        }
+        if (next_off == 0 || next_off <= desc || next_off >= raw.size()) break;
+        desc = next_off;
+    }
+    if (!found) return false;
+
+    /* Launch block: marker(8) + physfirst-offset + span + entry-offset, then the
+       XIP data. The offsets are RAM-window-relative; pf_off is physfirst's low
+       24 bits. */
+    if (launch_off + 0x14 > raw.size()) return false;
+    const uint32_t pf_off = U32(raw.data(), launch_off + 0x08);
+    const uint32_t span   = U32(raw.data(), launch_off + 0x0C);
+    const uint32_t en_off = U32(raw.data(), launch_off + 0x10);
+    const size_t   xip    = launch_off + 0x14;
+    if (span == 0 || en_off < pf_off || xip + span > raw.size()) return false;
+
+    /* ECEC at XIP+0x40 -> ROMHDR kernel-VA. */
+    if (xip + kRomSignatureOffset + 8 > raw.size()) return false;
+    if (U32(raw.data(), xip + kRomSignatureOffset) != kRomSignature) return false;
+    const uint32_t ev_ptoc = U32(raw.data(), xip + kRomSignatureOffset + 4);
+
+    /* The image can cross a 16 MB boundary, so ev_ptoc's high byte is not
+       necessarily physfirst's — try the 16 MB-aligned bases at/below ev_ptoc and
+       accept the one whose ROMHDR self-validates. */
+    constexpr uint32_t kWindowGrain = 0x01000000u;
+    const uint32_t top   = ev_ptoc & ~(kWindowGrain - 1u);
+    const uint32_t steps = (span / kWindowGrain) + 2u;
+    for (uint32_t i = 0; i <= steps && i < 16u; ++i) {
+        if (top < i * kWindowGrain) break;
+        const uint32_t base = top - i * kWindowGrain;
+        const uint32_t pf   = base + pf_off;
+        if (pf > ev_ptoc || ev_ptoc - pf >= span) continue;
+        const size_t romhdr_off = xip + (ev_ptoc - pf);
+        ParsedROMHDR h;
+        if (!ParseRomHdr(raw, romhdr_off, h)) continue;
+        if (h.physfirst != pf || h.physlast - h.physfirst != span) continue;
+        out.data_off  = xip;
+        out.flat_size = span;
+        out.base_va   = pf;
+        out.entry_va  = pf + (en_off - pf_off);
+        return true;
+    }
+    return false;
+}
+
+bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out) {
+    if (raw.size() < sizeof(kArnoldSignature) + kRomSignatureOffset + 8)
+        return false;
+    if (std::memcmp(raw.data(), kArnoldSignature, sizeof(kArnoldSignature)) != 0)
+        return false;
+
+    /* The OS XIP carries 'ECEC' at XIP+0x40 (romldr.h ROM_SIGNATURE_OFFSET) with
+       the pTOC kernel-VA at +0x44; the first such marker past the magic locates
+       the XIP base independent of the header length. */
+    size_t ecec = SIZE_MAX;
+    for (size_t i = sizeof(kArnoldSignature); i + 8 <= raw.size(); ++i) {
+        if (U32(raw.data(), i) != kRomSignature) continue;
+        const uint32_t ptoc = U32(raw.data(), i + 4);
+        if (ptoc >= 0x80000000u && ptoc < 0xC0000000u) { ecec = i; break; }
+    }
+    if (ecec == SIZE_MAX || ecec < kRomSignatureOffset) return false;
+
+    const size_t   data_off = ecec - kRomSignatureOffset;
+    const uint32_t ev_ptoc  = U32(raw.data(), ecec + 4);
+    const size_t   xip_size = raw.size() - data_off;
+    std::span<const uint8_t> xip = raw.subspan(data_off);
+
+    /* base_va == ROMHDR.physfirst, and the ROMHDR sits at XIP offset
+       (ev_ptoc - base_va). ARNOLD leaves ECEC+8 (the ROMHDR offset) zero, so the
+       base is recovered by scanning page-aligned candidates and accepting the one
+       whose ROMHDR.physfirst equals the candidate base. */
+    const uint32_t base_top = ev_ptoc & ~0xFFFu;
+    const uint32_t base_min =
+        (ev_ptoc > uint32_t(xip_size)) ? ev_ptoc - uint32_t(xip_size) : 0u;
+    for (uint32_t base = base_top; base >= base_min; base -= 0x1000u) {
+        const uint32_t romhdr_off = ev_ptoc - base;
+        if (romhdr_off + kRomHdrSize <= xip_size) {
+            ParsedROMHDR h;
+            if (ParseRomHdr(xip, romhdr_off, h) && h.physfirst == base) {
+                out.data_off  = data_off;
+                out.flat_size = uint32_t(xip_size);
+                out.base_va   = base;
+                return true;
+            }
+        }
+        if (base < base_min + 0x1000u) break;  /* guard unsigned wrap past base_min */
+    }
+    return false;
+}
+
 std::vector<size_t> FindAllEcec(std::span<const uint8_t> flat) {
     std::vector<size_t> out;
     /* Scan the whole flat — a multi-XIP ROM keeps the NK kernel region in the
