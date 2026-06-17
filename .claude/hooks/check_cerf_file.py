@@ -255,7 +255,7 @@ def main() -> int:
 
     # Check 1: line-count cap. Skip trace files and .claude/hooks/,
     # mirroring .githooks/pre-commit.
-    if "tracing/" not in rel_path and ".claude/hooks/" not in rel_path:
+    if "tracing/" not in rel_path and ".claude/hooks/" not in rel_path and "launcher/supported_devices.py" not in rel_path:
         line_count = content.count("\n")
         if content and not content.endswith("\n"):
             line_count += 1

@@ -32,7 +32,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Falcon 4220</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE .NET" alt="Windows CE .NET"/> Windows CE .NET
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
       <td>
@@ -40,15 +40,15 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 2000" alt="Handheld PC 2000"/> Handheld PC 2000<br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE .NET" alt="Windows CE .NET"/> Windows CE .NET
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
-      <td rowspan="3" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1110</b><br/><sub>StrongARM</sub></td>
+      <td rowspan="4" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1110</b><br/><sub>StrongARM</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 720</b><br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 2000" alt="Handheld PC 2000"/> Handheld PC 2000
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
       <td>
@@ -56,7 +56,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000<br/>
         <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="Pocket PC 2002" alt="Pocket PC 2002"/> Pocket PC 2002
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/></td>
     </tr>
     <tr>
       <td>
@@ -64,7 +64,14 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 2000" alt="Handheld PC 2000"/> Handheld PC 2000<br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE .NET" alt="Windows CE .NET"/> Windows CE .NET
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
+    </tr>
+    <tr>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>SmartBook G138</b><br/>
+        <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE .NET" alt="Windows CE .NET"/> Windows CE .NET
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1100</b><br/><sub>StrongARM</sub></td>
@@ -72,7 +79,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 820</b><br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 3 (CE 2.11)" alt="Handheld PC 3 (CE 2.11)"/> Handheld PC 3 (CE 2.11)
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> ARM720T</b><br/><sub>ARMv4T</sub></td>
@@ -81,7 +88,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 2.11" alt="Windows CE 2.11"/> Windows CE 2.11<br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 3" alt="Windows CE 3"/> Windows CE 3
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> TI OMAP 3530</b><br/><sub>Cortex-A8</sub></td>
@@ -89,7 +96,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>OMAP 3530 EVM</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 7" alt="Windows CE 7"/> Windows CE 7
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/></td>
     </tr>
     <tr>
       <td rowspan="2" align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
@@ -97,7 +104,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Siemens P177</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/></td>
     </tr>
     <tr>
       <td>
@@ -108,7 +115,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="WM 2003 SE" alt="WM 2003 SE"/> WM 2003 SE<br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Freescale i.MX31L</b><br/><sub>ARM1136</sub></td>
@@ -116,7 +123,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Zune 30</b><br/>
         <img src="launcher/assets/icons/os_zune.png" width="16" height="16" title="Windows CE 5" alt="Windows CE 5"/> Windows CE 5
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/></td>
     </tr>
   </tbody>
 </table>
