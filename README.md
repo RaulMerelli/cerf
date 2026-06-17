@@ -146,9 +146,6 @@ Logs are written to `cerf.log` next to the executable. On a fatal crash, every o
 
 ## <img src="gweslab.png" width="24" height="24" /> Guest Additions
 
-> [!WARNING]
-> **Experimental and unstable.** Guest Additions are opt-in (`--guest-additions`), off by default. Expect per-device rendering glitches and reduced stability — some guest OSes behave better than others.
-
 <p align="center">
   <img src="launcher/assets/GaBanner.png" width="640"
        alt="CERF Guest Additions for Windows CE. CERF injects own driver into ROMs to provide ultimate integration level. Guest Additions might render ROM unbootable/broken — consider this a proof of concept/experimental feature. Custom screen resolution / Live resize: boot various ROMs in 4K full color with improved rendering, resize host window to change resolution (CE 4+). Mouse + keyboard emulation: allows to use touch/limited devices in a different way. New apps are directly coupled with touch, configure at runtime. Task Manager: control processes from the host emulator window. Shared folders: mount Storage Card and bind it to host directory on any supported ROM." />
@@ -272,6 +269,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
     </tr>
   </tbody>
 </table>
+
 ## Known Issues
 
 See [launcher's boards details database](launcher/supported_devices.py) for per-board issues.
