@@ -167,20 +167,6 @@ bool ResolveRomhdrAtEcec(std::span<const uint8_t> flat,
         return true;
     }
 
-    /* Masked bases fail when the ROMHDR sits many MB above physfirst (large XIP
-       with TOC near the top). Recover the base from the ROMHDR's own physfirst
-       field: the real ROMHDR is the off where physfirst(off) + off == ev_ptoc
-       (same fixpoint as ResolveRomhdrStructural). */
-    for (size_t off = 0; off + kRomHdrSize <= flat.size(); off += 4) {
-        if (uint32_t(U32(flat.data(), off + 0x08) + uint32_t(off)) != ev_ptoc) {
-            continue;
-        }
-        if (!ParseRomHdr(flat, off, out.toc.romhdr)) continue;
-        out.toc.romhdr_va = ev_ptoc;
-        out.load_offset   = ev_ptoc - uint32_t(off);   /* == physfirst(off) */
-        out_romhdr_off    = off;
-        return true;
-    }
     return false;
 }
 
