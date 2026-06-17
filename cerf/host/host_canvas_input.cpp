@@ -7,10 +7,11 @@
 #include "host_guest_cursor.h"
 #include "host_input_capture.h"
 #include "host_status_bar.h"
-#include "input_mode_selector.h"
 #include "keyboard_router.h"
 #include "memory_visualizer.h"
 #include "pointer_input.h"
+#include "pointer_router.h"
+#include "pointer_source.h"
 #include "relative_mouse_input.h"
 #include "touch_input.h"
 
@@ -164,9 +165,19 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
         return true;
     }
 
+    const bool framebuffer = hc.CurrentTab() == HostCanvas::Tab::Framebuffer;
+
+    PointerKind kind = PointerKind::Absolute;
+    if (auto* a = emu_.Get<PointerRouter>().Active()) kind = a->Kind();
+    const bool relative_active = kind == PointerKind::Relative;
+    const bool stylus_active   = kind == PointerKind::Stylus;
+
+    /* The host-capture mouse lock (click-to-lock, hidden cursor, warp-to-centre,
+       relative deltas) engages ONLY when a Relative source is the active device;
+       for Absolute/Stylus the whole lock path stays off. Right-Ctrl keyboard
+       capture is independent of this and works in every mode. */
     auto* cap = emu_.TryGet<HostInputCapture>();
-    const bool locked = cap && cap->IsCaptured() &&
-                        hc.CurrentTab() == HostCanvas::Tab::Framebuffer;
+    const bool locked = relative_active && cap && cap->IsCaptured() && framebuffer;
     if (locked) {
         if (RouteCapturedMouse(hwnd, msg, wp, lp, out)) return true;
     } else {
@@ -175,23 +186,20 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
             if (GetCapture() == hwnd) ReleaseCapture();
             ShowCursor(TRUE);
         }
-        /* Click-to-lock: a device whose pointer needs the lock (a
-           RelativeMouseInput exists) engages it on a framebuffer click. */
         const bool click = msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN;
-        if (click && cap && hc.CurrentTab() == HostCanvas::Tab::Framebuffer &&
-            emu_.TryGet<RelativeMouseInput>()) {
+        if (relative_active && click && cap && framebuffer) {
             cap->SetCaptured(true);
             ShowLockHintOnce(hwnd);
             return true;
         }
     }
 
-    /* Over the framebuffer, make the host cursor BE the guest's cursor shape
-       (vmware model). HostGuestCursor returns the guest's HCURSOR, or NULL if
-       the guest hid it; not handled => no guest cursor (PocketPC) => host keeps
-       its stock arrow. */
-    if (msg == WM_SETCURSOR && LOWORD(lp) == HTCLIENT &&
-        hc.CurrentTab() == HostCanvas::Tab::Framebuffer) {
+    /* vmware-cursor model: host cursor becomes the guest's shape (NULL when the
+       guest hid it). Gate on Absolute — in stylus/relative mode the guest cursor
+       isn't driven, and HostGuestCursor's latched-hidden state would SetCursor(NULL)
+       and blank the host cursor, leaving nothing to aim taps with. */
+    if (msg == WM_SETCURSOR && LOWORD(lp) == HTCLIENT && framebuffer &&
+        kind == PointerKind::Absolute) {
         bool active = false;
         HCURSOR cur = emu_.Get<HostGuestCursor>().Resolve(active);
         if (active) {
@@ -206,50 +214,57 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
         if (auto* mv = emu_.TryGet<MemoryVisualizer>())
             if (mv->HandleInput(hwnd, msg, wp, lp)) return true;
 
-    auto* sel = emu_.TryGet<InputModeSelector>();
-    const bool touch_selected = sel && sel->Mode() == InputMode::Touch;
-    if (!touch_selected && RoutePointerInput(hwnd, msg, wp, lp)) return true;
+    /* Absolute GA pointer: free host cursor mapped to guest pixels. */
+    if (kind == PointerKind::Absolute && RoutePointerInput(hwnd, msg, wp, lp))
+        return true;
+
+    /* Stylus: drive the raw touch panel (the path calibration apps read below
+       the mouse abstraction). Only when the stylus source is active. */
+    if (stylus_active) {
+        switch (msg) {
+            case WM_LBUTTONDOWN: {
+                SetFocus(hwnd);
+                if (!framebuffer) return true;
+                int sx, sy;
+                if (!hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy))
+                    return true;
+                pen_down_ = true;
+                SetCapture(hwnd);
+                if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenDown(sx, sy);
+                return true;
+            }
+            case WM_MOUSEMOVE: {
+                if (!pen_down_) return true;
+                int sx, sy;
+                hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
+                hc.ClampGuest(sx, sy);
+                if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenMove(sx, sy);
+                return true;
+            }
+            case WM_LBUTTONUP: {
+                if (!pen_down_) return true;
+                pen_down_ = false;
+                ReleaseCapture();
+                int sx, sy;
+                hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
+                hc.ClampGuest(sx, sy);
+                if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenUp(sx, sy);
+                return true;
+            }
+            case WM_CAPTURECHANGED: {
+                if (pen_down_) {
+                    pen_down_ = false;
+                    if (auto* t = emu_.TryGet<TouchInput>()) t->OnCaptureLost();
+                }
+                return true;
+            }
+        }
+    }
 
     switch (msg) {
-        case WM_LBUTTONDOWN: {
-            SetFocus(hwnd);
-            if (hc.CurrentTab() != HostCanvas::Tab::Framebuffer) return true;
-            int sx, sy;
-            if (!hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy))
-                return true;
-            pen_down_ = true;
-            SetCapture(hwnd);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenDown(sx, sy);
-            return true;
-        }
-        case WM_MOUSEMOVE: {
-            if (!pen_down_) return true;
-            int sx, sy;
-            hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
-            hc.ClampGuest(sx, sy);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenMove(sx, sy);
-            return true;
-        }
-        case WM_LBUTTONUP: {
-            if (!pen_down_) return true;
-            pen_down_ = false;
-            ReleaseCapture();
-            int sx, sy;
-            hc.HostToGuest((int)(short)LOWORD(lp), (int)(short)HIWORD(lp), sx, sy);
-            hc.ClampGuest(sx, sy);
-            if (auto* t = emu_.TryGet<TouchInput>()) t->OnPenUp(sx, sy);
-            return true;
-        }
-        case WM_CAPTURECHANGED: {
-            if (pen_down_) {
-                pen_down_ = false;
-                if (auto* t = emu_.TryGet<TouchInput>()) t->OnCaptureLost();
-            }
-            return true;
-        }
         case WM_KEYDOWN:
         case WM_KEYUP:
-            if (hc.CurrentTab() == HostCanvas::Tab::Framebuffer)
+            if (framebuffer)
                 emu_.Get<KeyboardRouter>().OnHostKey(static_cast<uint8_t>(wp), msg == WM_KEYUP);
             return true;
         default:

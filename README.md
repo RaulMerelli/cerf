@@ -218,7 +218,6 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
             <ul>
               <li>Experimental hibernation/state saving system for all boards</li>
               <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series</li>
-              <li>Ford Sync 2 implementation started (not booting, broken)</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Soft/hard reset fixes for some SoCs</li>
               <li>UI refresh/updates for CERF and launcher</li>
@@ -229,6 +228,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
               <li>Guest additions: XIP injection improvements</li>
               <li>Guest additions: Keyboard support</li>
+              <li>Guest additions: Windows CE 2.11 support</li>
               <li>SA-1110, PXA255 RTC implementation</li>
               <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
               <li>Suspend feature support for different SoCs</li>

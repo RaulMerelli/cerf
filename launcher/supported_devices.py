@@ -222,6 +222,7 @@ BOARDS_INFORMATION = [
         "features": {"display": True, "sound": True, "touch": True, "keyboard": True},
         "notes": [
             "Audio is currently crippled.",
+            "Guest additions keyboard causes OS to HANG - switch to stock!",
         ],
     },
     {
@@ -299,7 +300,10 @@ BOARDS_INFORMATION = [
             "pcmcia": False,
             "network": False,
         },
-        "notes": [GUEST_ADDITIONS_POINTER_WARN, "Emulated with lags / audio / visual issues"],
+        "notes": [
+            GUEST_ADDITIONS_POINTER_WARN,
+            "Emulated with lags / audio / visual issues",
+        ],
     },
     {
         "name": "Siemens P177",
@@ -443,11 +447,6 @@ DYNAMIC_NOTES = [
         and not rom.os_contains("Pocket PC 2002")
         and not rom.os_contains("Windows Mobile"),
         note=_NE2000_TOGGLE + ".",
-    ),
-    # ver_major 0 means "no os block in cerf.json", not CE 1 — hence 1..2.
-    DynamicNote(
-        applies=lambda rom: 1 <= rom.os_ver_major <= 2,
-        note="Guest additions are NOT supported on CE 2.11",
     ),
     DynamicNote(
         applies=lambda rom: rom.os_ver_major == 3,

@@ -2,6 +2,7 @@
 #define NOMINMAX
 
 #include "ce_image_relocator.h"
+#include "ce_import_binder.h"
 #include "cerf_injection_region.h"
 #include "guest_additions_binaries.h"
 #include "guest_cold_boot.h"
@@ -372,6 +373,13 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
                 "addresses; rebuild it without MOVW/MOVT or extend "
                 "ce_image_relocator\n", victim_name, unhandled_relocs);
         CerfFatalExit();
+    }
+
+    /* Only CE2.11 needs this: it does not bind an injected ROM module's imports
+       (CE3+ kernels rebind at load). Restricting to CE2 also avoids reading CE3+
+       coredll, whose ROM sections may be compressed (garbage at injection time). */
+    if (ce_major_ <= 2) {
+        emu_.Get<CeImportBinder>().BindImports(patched_bytes, pe, L);
     }
 
     const uint32_t e32_pa = band_pa + (e32_va - band_va);

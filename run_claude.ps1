@@ -93,16 +93,18 @@ if (-not (Test-Path -LiteralPath $gateFile)) {
 # Ordered list of mandatory documents. Matches CLAUDE.md's "Reference Pages"
 # section (the MANDATORY bullets — the lazy-read set is intentionally omitted).
 $files = @(
-    @{ Name = $null;                      Path = 'CLAUDE.md' },
-    @{ Name = 'README_SOURCE.md';         Path = 'README_SOURCE.md' },
-    @{ Name = 'agent_docs/workflow.md';   Path = 'agent_docs\workflow.md' },
-    @{ Name = 'agent_docs/subsystems.md'; Path = 'agent_docs\subsystems.md' },
-    @{ Name = 'agent_docs/boot_loaders.md';Path = 'agent_docs\boot_loaders.md' },
-    @{ Name = 'agent_docs/jit.md';        Path = 'agent_docs\jit.md' },
-    @{ Name = 'agent_docs/rules.md';      Path = 'agent_docs\rules.md' },
-    @{ Name = 'agent_docs/hibernation.md';Path = 'agent_docs\hibernation.md' },
-    @{ Name = 'agent_docs/code_style.md'; Path = 'agent_docs\code_style.md' },
-    @{ Name = 'agent_docs/debugging.md'; Path = 'agent_docs\debugging.md' }
+    @{ Name = $null;                                 Path = 'CLAUDE.md' },
+    @{ Name = 'README_SOURCE.md';                    Path = 'README_SOURCE.md' },
+    @{ Name = 'agent_docs/workflow.md';              Path = 'agent_docs\workflow.md' },
+    @{ Name = 'agent_docs/subsystems.md';            Path = 'agent_docs\subsystems.md' },
+    @{ Name = 'agent_docs/boot_loaders.md';          Path = 'agent_docs\boot_loaders.md' },
+    @{ Name = 'agent_docs/jit.md';                   Path = 'agent_docs\jit.md' },
+    @{ Name = 'agent_docs/rules.md';                 Path = 'agent_docs\rules.md' },
+    @{ Name = 'agent_docs/hibernation.md';           Path = 'agent_docs\hibernation.md' },
+    @{ Name = 'agent_docs/code_style.md';            Path = 'agent_docs\code_style.md' },
+    @{ Name = 'agent_docs/debugging.md';             Path = 'agent_docs\debugging.md' }
+    @{ Name = 'agent_docs/guest_additions.md';       Path = 'agent_docs\guest_additions.md' }
+    @{ Name = 'agent_docs/deep_sleep.md';            Path = 'agent_docs\deep_sleep.md' }
     @{ Name = 'agent_docs/psychological_support.md'; Path = 'agent_docs\psychological_support.md' }
 )
 

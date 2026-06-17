@@ -18,6 +18,8 @@ public:
     void OnRelativeMove(int dx, int dy, uint32_t button_mask) override {
         emu_.Get<Jornada820CompanionAsic>().QueuePs2Motion(dx, dy, button_mask);
     }
+
+    std::wstring SourceName() const override { return L"Stock PS/2 mouse"; }
 };
 
 }  /* namespace */

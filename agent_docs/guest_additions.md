@@ -187,6 +187,16 @@ priority, so it is the active source whenever guest additions are on. The
 router is board-agnostic host input and is not itself part of guest additions —
 see `subsystems.md`.
 
+The guest-additions mouse registers the same way — one source in the host
+`PointerRouter` (`cerf/host/pointer_router.{h,cpp}`) at the highest source
+priority, so the GA absolute pointer is the active device whenever guest
+additions are on. The `PointerWidget` switches it for the board's stock
+pointer(s) — needed because some apps (e.g. calibrators) read the stock
+touch/mouse stream directly. On a board whose stock pointer is a relative mouse,
+the host-capture mouse lock engages only while that source is active. Router and
+widget are board-agnostic host input, not part of guest additions — see
+`subsystems.md`.
+
 ## Task manager — host UI + cerf_virt channel + guest pump
 
 The guest task manager (Guest Additions status-bar widget → non-modal host
