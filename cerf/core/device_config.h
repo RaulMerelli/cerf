@@ -98,6 +98,10 @@ struct DeviceConfig : public Service {
        not given on the command line. */
     std::string share_folder;
 
+    /* --full-screen: enter borderless fullscreen (the Right Ctrl+F toggle) right
+       after the host window is shown. CLI-only launch preference, default off. */
+    bool start_fullscreen = false;
+
     /* Guest-additions ROM-module substitutions from the GLOBAL cerf.json
        ("global_substitutions_inside_rom"): {ROM module name -> ce_apps DLL}.
        GuestAdditionsInjector replaces each present ROM module with the named

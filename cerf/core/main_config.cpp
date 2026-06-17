@@ -24,6 +24,7 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
                    strncmp(argv[i], kArgBootAnim, sizeof(kArgBootAnim) - 1) == 0 ||
                    strcmp(argv[i], kArgDisableNetwork) == 0 ||
                    strcmp(argv[i], kArgGuestAdditions) == 0 ||
+                   strcmp(argv[i], kArgFullScreen) == 0 ||
                    strcmp(argv[i], kArgRecovery) == 0) {
             /* Device-config overrides — applied to DeviceConfig by
                ConfigLoader after cerf.json loads. Recognized here only so

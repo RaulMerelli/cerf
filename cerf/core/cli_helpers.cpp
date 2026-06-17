@@ -25,6 +25,7 @@ void PrintUsage(const char* prog) {
     printf("  --boot=resume|cold|warm  Saved-state boot action when state.img exists\n");
     printf("                           (resume=full restore, warm=RAM+flash only, cold=ignore)\n");
     printf("  --boot-anim=enable|disable  HwScreen logo boot animation (default: off in dev, on in release)\n");
+    printf("  --full-screen            Enter borderless fullscreen (Right Ctrl+F) once the window is shown\n");
     printf("  --help                   Show this help\n");
     printf("\n");
     Log::PrintCategoryList();

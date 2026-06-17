@@ -21,5 +21,6 @@ inline constexpr char kArgRecovery[]       = "--recovery";
 inline constexpr char kArgShareFolder[]    = "--share-folder=";
 inline constexpr char kArgBoot[]           = "--boot=";
 inline constexpr char kArgBootAnim[]       = "--boot-anim=";
+inline constexpr char kArgFullScreen[]     = "--full-screen";
 
 bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg);
