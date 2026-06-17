@@ -16,6 +16,7 @@ public:
 
     /* DeepSleepWaker: GSTATUS2 (+0xB4) bit1 = wakeup-from-PowerOff. */
     void LatchSleepWakeCause() override;
+    void ClearSleepWakeCause() override;
 
     uint32_t MmioBase() const override { return 0x56000000u; }
     uint32_t MmioSize() const override { return 0x00100000u; }  /* 1 MB section */

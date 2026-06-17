@@ -63,6 +63,11 @@ void S3C2410IoPort::LatchSleepWakeCause() {
     storage_[0xB4u / 4u] |= 0x2u;
 }
 
+void S3C2410IoPort::ClearSleepWakeCause() {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    storage_[0xB4u / 4u] &= ~0x2u;
+}
+
 int S3C2410IoPort::ExtintTypeLocked(int n) const {
     if (n < 8)  return (storage_[kSlotExtint0] >> (n * 4)) & 0x7;
     if (n < 16) return (storage_[kSlotExtint1] >> ((n - 8) * 4)) & 0x7;

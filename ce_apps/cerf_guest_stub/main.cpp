@@ -19,7 +19,6 @@ typedef DWORD (*PFN_CddRead)(DWORD, LPVOID, DWORD);
 typedef DWORD (*PFN_CddWrite)(DWORD, LPCVOID, DWORD);
 typedef DWORD (*PFN_CddSeek)(DWORD, LONG, WORD);
 typedef BOOL  (*PFN_CddIOControl)(DWORD, DWORD, PBYTE, DWORD, PBYTE, DWORD, PDWORD);
-typedef void  (*PFN_CddPower)(DWORD);
 
 static HMODULE s_hinst = NULL;
 
@@ -41,8 +40,6 @@ typedef struct {
     PFN_CddWrite        cdd_write;
     PFN_CddSeek         cdd_seek;
     PFN_CddIOControl    cdd_ioctl;
-    PFN_CddPower        cdd_powerup;
-    PFN_CddPower        cdd_powerdown;
 } CerfStubSlot;
 static CerfStubSlot s_slot[CERF_STUB_MAX_PROC];
 static LONG         s_slot_next = 0;
@@ -243,8 +240,6 @@ static BOOL CerfEnsureBody(void) {
     slot->cdd_write     = (PFN_CddWrite)    CerfFindExport((const UCHAR*)base, "CDD_Write");
     slot->cdd_seek      = (PFN_CddSeek)     CerfFindExport((const UCHAR*)base, "CDD_Seek");
     slot->cdd_ioctl     = (PFN_CddIOControl)CerfFindExport((const UCHAR*)base, "CDD_IOControl");
-    slot->cdd_powerup   = (PFN_CddPower)    CerfFindExport((const UCHAR*)base, "CDD_PowerUp");
-    slot->cdd_powerdown = (PFN_CddPower)    CerfFindExport((const UCHAR*)base, "CDD_PowerDown");
 
     set_name = (PFN_SetCarrierName)CerfFindExport((const UCHAR*)base, "CerfSetCarrierName");
     if (set_name) {
@@ -304,9 +299,6 @@ extern "C" BOOL  CDD_IOControl(DWORD h, DWORD code, PBYTE pi, DWORD il,
     CerfStubSlot* cs;
     return (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_ioctl) ? cs->cdd_ioctl(h, code, pi, il, po, ol, pa) : FALSE;
 }
-extern "C" void CDD_PowerUp(DWORD h)   { CerfStubSlot* cs; if (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_powerup)   cs->cdd_powerup(h); }
-extern "C" void CDD_PowerDown(DWORD h) { CerfStubSlot* cs; if (CerfEnsureBody() && (cs = CerfStubCurSlot()) && cs->cdd_powerdown) cs->cdd_powerdown(h); }
-
 extern "C" BOOL APIENTRY DllEntryPoint(HANDLE hInst, DWORD reason, LPVOID reserved) {
     (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) s_hinst = (HMODULE)hInst;

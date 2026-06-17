@@ -136,8 +136,9 @@ void ArmCpu::DoRaiseReset() {
         jit_->UpdateInterruptOnPoll();
     }
 
+    const bool used_pending_pc = has_pending_resume_pc_;
     state_.gprs[ArmGpr::kR15] =
-        has_pending_resume_pc_ ? pending_resume_pc_ : initial_pc_;
+        used_pending_pc ? pending_resume_pc_ : initial_pc_;
     has_pending_resume_pc_ = false;
 
     ArmMmuState* mmu_state = mmu_->State();

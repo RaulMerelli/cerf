@@ -283,8 +283,7 @@ void ArmJit::ResyncInterruptPoll() {
 }
 
 void ArmJit::EnterDeepSleep() {
-    /* SA-1110 Dev Man §9.5.3: PMCR.SF halts the CPU until a wake-event reset.
-       Re-arm the poll so the next poll returns to the dispatcher (RunLoop parks). */
+    /* SA-1110 §9.5.3: PMCR.SF halts the CPU until a wake reset; re-arm the poll so it returns to the dispatcher (RunLoop parks). */
     std::lock_guard<std::mutex> guard(interrupt_lock_);
     cpu_->State()->deep_sleep = 1;
     UpdateInterruptOnPoll();
@@ -323,8 +322,9 @@ void ArmJit::SetResetPending(bool is_resume) {
         SetInterruptPendingLocked();
     }
     SetEvent(idle_event_);
-    if (is_resume) emu_.Get<GuestPowerNotifier>().NotifyResume();
-    else           emu_.Get<GuestPowerNotifier>().NotifyReboot();
+    if (is_resume) { emu_.Get<GuestPowerNotifier>().NotifyResume(); return; }
+    emu_.Get<GuestDeepSleep>().ClearWakeCause();
+    emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
 
 /* All three take an FCSE-folded VA — the index is VA-keyed. */

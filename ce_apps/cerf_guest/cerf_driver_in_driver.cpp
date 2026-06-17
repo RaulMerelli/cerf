@@ -127,6 +127,3 @@ extern "C" BOOL CDD_IOControl(DWORD dwHandle, DWORD code, PBYTE pIn,
                               PDWORD pActualOut) {
     return FALSE;
 }
-
-extern "C" void CDD_PowerUp(DWORD dwHandle) {}
-extern "C" void CDD_PowerDown(DWORD dwHandle) {}

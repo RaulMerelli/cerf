@@ -29,6 +29,7 @@ public:
        OAL boot path reads it and resumes. Latched on the UI thread while the JIT
        is parked in deep sleep, so the plain RMW does not race the guest. */
     void LatchSleepWakeCause() override { rcsr_ |= 0x4u; }
+    void ClearSleepWakeCause() override { rcsr_ &= ~0x4u; }
 
     uint32_t MmioBase() const override { return 0x40F00000u; }
     uint32_t MmioSize() const override { return 0x00001000u; }

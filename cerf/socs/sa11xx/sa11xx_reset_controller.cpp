@@ -52,6 +52,9 @@ public:
     void LatchSleepWakeCause() override {
         rcsr_.fetch_or(0x8u, std::memory_order_acq_rel);
     }
+    void ClearSleepWakeCause() override {
+        rcsr_.fetch_and(~0x8u, std::memory_order_acq_rel);
+    }
 
     uint32_t MmioBase() const override { return 0x90030000u; }
     uint32_t MmioSize() const override { return 0x00010000u; }
