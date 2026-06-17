@@ -58,12 +58,14 @@ public:
         }
 
         ce_major_ = DetectCeMajor();
-        /* e32_rom inserts e32_timestamp before e32_unit in CE5 (pehdr.h: CE3
-           e32_unit at 0x20, CE5 adds e32_timestamp at 0x20 pushing it to 0x24),
-           so CE3 and CE4.2 use the pre-timestamp layout. */
-        layout_ = (ce_major_ <= 4) ? &kE32RomCE3 : &kE32RomCE5plus;
+        layout_ = (ce_major_ <= 2) ? &kE32RomCE2
+                : (ce_major_ <= 4) ? &kE32RomCE3
+                                   : &kE32RomCE5plus;
+        const char* layout_name = (layout_ == &kE32RomCE2)   ? "CE2"
+                                : (layout_ == &kE32RomCE3)   ? "pre-CE5"
+                                                             : "CE5+";
         LOG(GuestAdditions, "CE major=%u; e32_rom layout=%s\n",
-            ce_major_, (layout_ == &kE32RomCE3) ? "pre-CE5" : "CE5+");
+            ce_major_, layout_name);
 
         const auto& subs = emu_.Get<DeviceConfig>().global_rom_substitutions;
         if (subs.empty()) {
@@ -123,9 +125,9 @@ uint32_t GuestAdditionsInjector::DetectCeMajor() {
     auto& mem = emu_.Get<EmulatedMemory>();
     const uint32_t e32_pa = pt.VaToPa(nk->ulE32Offset);
     const uint16_t subsysmajor = mem.ReadHalf(e32_pa + kE32SubsysmajorOff);
-    if (subsysmajor < 3 || subsysmajor > 8) {
+    if (subsysmajor < 2 || subsysmajor > 8) {
         LOG(Caution, "nk.exe e32_subsysmajor=%u outside plausible CE range "
-                "(3..8) - refusing to guess e32_rom layout\n", subsysmajor);
+                "(2..8) - refusing to guess e32_rom layout\n", subsysmajor);
         CerfFatalExit();
     }
     return subsysmajor;
@@ -161,8 +163,12 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
     mem.WriteHalf(pa + L.off_subsysminor, pe.SubsysMinor());
     mem.WriteWord(pa + L.off_stackmax,    pe.StackReserve());
     mem.WriteWord(pa + L.off_vsize,       pe.ImageSize());
-    mem.WriteWord(pa + L.off_sect14rva,   0);
-    mem.WriteWord(pa + L.off_sect14size,  0);
+    if (L.off_sect14rva >= 0) {
+        mem.WriteWord(pa + uint32_t(L.off_sect14rva),  0);
+    }
+    if (L.off_sect14size >= 0) {
+        mem.WriteWord(pa + uint32_t(L.off_sect14size), 0);
+    }
     if (L.off_timestamp >= 0) {
         mem.WriteWord(pa + uint32_t(L.off_timestamp), 0);
     }

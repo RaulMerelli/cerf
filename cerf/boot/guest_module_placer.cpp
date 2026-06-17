@@ -70,7 +70,7 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
     /* Relocate below the lowest section-1 code (romimage grows dll_code_start
        down). Anchor on the code realaddr (CE3 has vbase+slot_base==codebase);
        new_vbase keeps slot_base. */
-    if (ce_major < 3 || ce_major > 5 || lowest_code == 0xFFFFFFFFu) {
+    if (ce_major > 5 || lowest_code == 0xFFFFFFFFu) {
         LOG(GuestAdditions, "%s image 0x%X overflows victim slot 0x%X; relocation "
                   "N/A (ce_major=%u lowest_code=0x%08X) — in-place at 0x%08X\n",
             victim_name, image_size, slot, ce_major, lowest_code, orig_vbase);
