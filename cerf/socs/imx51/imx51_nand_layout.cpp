@@ -49,6 +49,9 @@ constexpr uint64_t kPageBytes = 0x1000u;
    compared at 0x8FF0C278 (memcmp4) / +4 (memcmp8). */
 constexpr char kOsSigBadt[]     = "BADT";
 constexpr char kOsSigMsflsh60[] = "MSFLSH60";
+/* OS MSFlash FAL master signature (AutoFlashMDD master scan sub_C09A33B0 reads
+   *buf and requires 0x54444142). */
+constexpr uint32_t kFalMasterMagic = 0x54444142u;
 /* Written-page-marker offset in the NFC spare buffer: chunk 6 of 8 at the NFC's
    0x40 chunk stride = 0x180. SBOOT's assembler (Bootloader.bin 0x8FF09424) reads it
    from its linearized copied spare at index (pagesize/512-2)*26 = 156; the 0x40 NFC
@@ -222,5 +225,18 @@ void Imx51NandLayout::BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_
     const char*  sig  = badt ? kOsSigBadt : kOsSigMsflsh60;
     const size_t n    = badt ? 4u : 8u;
     if (n <= main_len) std::memcpy(main, sig, n);
+}
+
+bool Imx51NandLayout::IsFalMasterBlock(uint64_t phys_off) const {
+    return phys_off < kPageBytes;   /* physical block 0, page 0 */
+}
+
+void Imx51NandLayout::BuildFalMasterPage(uint64_t /*phys_off*/, uint8_t* main, size_t main_len,
+                                         uint8_t* spare, size_t spare_len) const {
+    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
+    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
+    /* "BADT" + skipped-block count 0; sub_C09A33B0 reads buf[0]=magic, buf[1]=count. */
+    Wr32(main, 0, main_len, kFalMasterMagic);
+    Wr32(main, 4, main_len, 0);
 }
 

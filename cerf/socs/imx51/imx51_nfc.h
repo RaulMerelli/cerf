@@ -60,5 +60,4 @@ private:
 
     std::array<uint8_t, 5> addr_bytes_{};
     uint32_t addr_idx_ = 0;
-    bool     read_id_  = false;   /* a READ ID (0x90) command is in progress */
 };

@@ -47,6 +47,13 @@ public:
     void BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_t main_len,
                             uint8_t* spare, size_t spare_len) const;
 
+    /* The FAL master scan (sub_C09A33B0) reads physical block 0 page 0 and requires
+       "BADT"@0; it is the only guest reader there (boot ROM reads flash 0x4000, SBOOT
+       reads the DPS at the tail), so CERF serves the synthesized master here. */
+    bool IsFalMasterBlock(uint64_t phys_off) const;
+    void BuildFalMasterPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                            uint8_t* spare, size_t spare_len) const;
+
 
 private:
     struct Part {
