@@ -39,7 +39,7 @@ bool ContainsCI(std::string_view hay, std::string_view needle) {
    failed/failure/fails. */
 COLORREF ClassifyLineColor(std::string_view line) {
     if (ContainsCI(line, "abort") || ContainsCI(line, "fail") ||
-        ContainsCI(line, "error"))
+        ContainsCI(line, "error") || ContainsCI(line, "exception"))
         return kErrorTextColor;
     if (ContainsCI(line, "warning")) return kWarnTextColor;
     return kLogTextColor;
