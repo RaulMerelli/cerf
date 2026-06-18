@@ -3,9 +3,11 @@
 #include "host_canvas.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/log.h"
 #include "emulation_pause.h"
 #include "frame_renderer.h"
 #include "host_canvas_input.h"
+#include "keyboard_router.h"
 #include "lcd_scan_tick.h"
 #include "memory_visualizer.h"
 #include "hw_boot_animation.h"
@@ -55,6 +57,38 @@ void HostCanvas::OnPresentTick() {
             tab_ = Tab::Framebuffer;
             canvas_.SetFramebufferActive(true);
         }
+    }
+
+    /* Resume wake nudge: the guest can resume with the panel dimmed-until-input
+       (Jornada 820), so the framebuffer never repaints and OnFramebufferLatched
+       never fires. While stuck on the Resuming screen, send Tab via the active
+       keyboard source every second to undim it; give up + warn after 10s. */
+    auto& boot = emu_.Get<HwBootAnimation>();
+    const bool stuck = (tab_ == Tab::Hw) && !latched_once_ && boot.IsResuming();
+    if (!stuck) {
+        resume_nudge_start_ms_ = 0;
+        resume_nudge_warned_   = false;
+        return;
+    }
+    const uint32_t now = static_cast<uint32_t>(GetTickCount());
+    if (resume_nudge_start_ms_ == 0) {
+        resume_nudge_start_ms_ = now;
+        resume_nudge_last_ms_  = now;   /* first nudge one interval after going stuck */
+    }
+    if (now - resume_nudge_start_ms_ >= 10000u) {
+        if (!resume_nudge_warned_) {
+            resume_nudge_warned_ = true;
+            boot.SetResumeStalled();
+            LOG(Caution, "resume: framebuffer blank 10s after wake; guest may have "
+                         "hung (use View -> Framebuffer + input if only dimmed)\n");
+        }
+        return;
+    }
+    if (now - resume_nudge_last_ms_ >= 1000u) {
+        resume_nudge_last_ms_ = now;
+        auto& kr = emu_.Get<KeyboardRouter>();
+        kr.OnHostKey(0x09 /* VK_TAB */, /*key_up=*/false);
+        kr.OnHostKey(0x09 /* VK_TAB */, /*key_up=*/true);
     }
 }
 

@@ -32,6 +32,11 @@ constexpr int      kLabelFontPx      = 18;
 constexpr int      kDisclaimerFontPx = 12;
 const wchar_t*     kDisclaimer =
     L"Logos are property of their respective owners";
+const wchar_t*     kResumeHint =
+    L"If nothing happens, try View -> Framebuffer and do some input - maybe screen is dimmed";
+const wchar_t*     kResumeStalledHint =
+    L"WARNING: framebuffer blank for 10s - the guest may have hung. "
+    L"Try View -> Framebuffer and send input if the screen is only dimmed.";
 
 }  /* namespace */
 
@@ -77,6 +82,19 @@ std::wstring HwBootAnimation::CurrentLabelText() const {
     return L"Starting " + short_name_ + L"...";
 }
 
+/* In Resuming mode the panel may be dimmed-until-input and the framebuffer tab
+   not shown yet; the disclaimer becomes a hint to reach it via View -> Framebuffer. */
+const wchar_t* HwBootAnimation::CurrentDisclaimerText() const {
+    if (label_mode_ != LabelMode::Resuming) return kDisclaimer;
+    return resume_stalled_ ? kResumeStalledHint : kResumeHint;
+}
+
+bool HwBootAnimation::IsResuming() const {
+    return label_mode_ == LabelMode::Resuming && !fb_latched_;
+}
+
+void HwBootAnimation::SetResumeStalled() { resume_stalled_ = true; }
+
 void HwBootAnimation::Advance(uint64_t now) {
     if (!enabled_) {
         /* Animation off: the screen stays in the finished state. The
@@ -96,6 +114,7 @@ void HwBootAnimation::Advance(uint64_t now) {
         label_mode_  = restart_resuming_.load(std::memory_order_acquire)
                            ? LabelMode::Resuming : LabelMode::Restarting;
         fb_latched_  = false;
+        resume_stalled_ = false;
         entered_oem_ = true;
         phase_       = Phase::OemFadeIn;
         phase_start_ = now;
@@ -204,7 +223,7 @@ void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     if (show_disclaimer && disclaimer_font_) {
         HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
         RECT calc{ kMargin, 0, (int)width - kMargin, 0 };
-        DrawTextW(dc, kDisclaimer, -1, &calc,
+        DrawTextW(dc, CurrentDisclaimerText(), -1, &calc,
                   DT_CENTER | DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
         const int dh     = calc.bottom - calc.top;
         const int bottom = (int)height - 16 - 6;
@@ -229,7 +248,7 @@ void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
         const int dv = (int)(150.0f * opacity);
         HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
         SetTextColor(dc, RGB(dv, dv, dv));
-        DrawTextW(dc, kDisclaimer, -1, &disc_rect,
+        DrawTextW(dc, CurrentDisclaimerText(), -1, &disc_rect,
                   DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
         SelectObject(dc, old);
     }
@@ -247,7 +266,8 @@ void HwBootAnimation::DrawInto(HDC dc, uint32_t width, uint32_t height) {
         case Phase::OemHold: {
             const bool oem = (oem_logo_ != nullptr);
             DrawLogoFrame(dc, width, height, oem, cur_op_,
-                          /*label=*/true, CurrentLabelText(), /*disclaimer=*/oem);
+                          /*label=*/true, CurrentLabelText(),
+                          /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
             break;
         }
         case Phase::Finished:
@@ -259,7 +279,8 @@ void HwBootAnimation::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
     if (entered_oem_) {
         const bool oem = (oem_logo_ != nullptr);
         DrawLogoFrame(dc, width, height, oem, 1.0f,
-                      /*label=*/true, CurrentLabelText(), /*disclaimer=*/oem);
+                      /*label=*/true, CurrentLabelText(),
+                      /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
     } else {
         /* No OEM logo and never reached an OEM phase: the CERF intro faded to
            black. Leave a dim watermark; surface the LCD hint once relatched. */
