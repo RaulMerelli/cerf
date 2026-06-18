@@ -108,9 +108,10 @@ void JitRunner::RunLoop() {
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
             pause_cv_.notify_all();
-            LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%u reset_pending=%u pause=%d\n",
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%u reset_pending=%u pause=%d pc=0x%08X\n",
                 cpu->deep_sleep, cpu->reset_pending,
-                static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
+                static_cast<int>(pause_requested_.load(std::memory_order_acquire)),
+                cpu->gprs[15]);
             /* Bounded wait: the wake (reset_pending) is signalled via idle_event_,
                not pause_cv_, so an unbounded wait would never observe it and the
                deep-sleep park would never wake. */
@@ -120,9 +121,10 @@ void JitRunner::RunLoop() {
                 pause_cv_.wait_for(lk, std::chrono::milliseconds(20));
             }
             paused_ = false;
-            LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%u reset_pending=%u pause=%d\n",
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%u reset_pending=%u pause=%d pc=0x%08X\n",
                 cpu->deep_sleep, cpu->reset_pending,
-                static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
+                static_cast<int>(pause_requested_.load(std::memory_order_acquire)),
+                cpu->gprs[15]);
         }
     }
 
