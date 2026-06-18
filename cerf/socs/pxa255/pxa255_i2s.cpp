@@ -1,5 +1,7 @@
 #include "pxa255_i2s.h"
 
+#include "../../host/audio_activity_widget.h"
+
 #include <utility>
 
 REGISTER_SERVICE(Pxa255I2s);
@@ -9,6 +11,7 @@ void Pxa255I2s::OnReady() {
     /* rate 0: defer opening the host device until the guest starts I2S audio
        (BeginAudioOut -> SetFormat), so AC'97-only boards hold no idle I2S device. */
     audio_out_.Start("Pxa255I2s", /*rate=*/0, 0, 0, /*allow_resampler=*/true);
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 void Pxa255I2s::OnShutdown() { audio_out_.Stop(); }
@@ -20,6 +23,7 @@ void Pxa255I2s::BeginAudioOut(std::function<void()> on_block_done) {
 
 void Pxa255I2s::QueueOutput(const void* host_bytes, uint32_t length) {
     audio_out_.QueueOutput(host_bytes, length);
+    emu_.Get<AudioActivityWidget>().MarkTx();
 }
 
 void Pxa255I2s::StopAudioOut() { audio_out_.StopAudioOut(); }

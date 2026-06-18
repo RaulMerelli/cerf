@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../host/audio_activity_widget.h"
 #include "twl4030.h"
 
 #include <cstring>
@@ -28,6 +29,7 @@ void Omap3530AudioPlayer::OnReady() {
     emu_.Get<Omap3530Sdma>().RegisterChannelSink(
         [this](const Omap3530SdmaBase::ChannelStart& s) { return OnChannelClaim(s); },
         [this](int ch) { OnChannelStop(ch); });
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 void Omap3530AudioPlayer::OnShutdown() {
@@ -151,6 +153,7 @@ bool Omap3530AudioPlayer::QueuePage() {
         slot->in_flight = false;
         return false;
     }
+    emu_.Get<AudioActivityWidget>().MarkTx();
     return true;
 }
 

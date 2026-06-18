@@ -56,7 +56,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/os_ppc2000.png" width="16" height="16" title="Pocket PC 2000" alt="Pocket PC 2000"/> Pocket PC 2000<br/>
         <img src="launcher/assets/icons/os_ppc2002.png" width="16" height="16" title="Pocket PC 2002" alt="Pocket PC 2002"/> Pocket PC 2002
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/microphone.png" width="16" height="16" title="Microphone" alt="Microphone"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/></td>
     </tr>
     <tr>
       <td>
@@ -220,11 +220,11 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
   </thead>
   <tbody>
     <tr>
-          <td>v5.0 (NOT RELEASED YET)</td>
+          <td>v5.0</td>
           <td>
             <ul>
+              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series, SmartBook G138</li>
               <li>Experimental hibernation/state saving system for all boards</li>
-              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
               <li>Soft/hard reset fixes for some SoCs</li>
               <li>UI refresh/updates for CERF and launcher</li>
@@ -240,6 +240,8 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
               <li>Suspend feature support for different SoCs</li>
               <li>iPaqs now use original .nbf format instead of normalized .nb0</li>
+              <li>Ipaq 1st gen: microphone support</li>
+              <li>ce_apps/xplorer.exe - dependency-free minimal shell, CE2+, useful for Zune 30 GA mode</li>
             </ul>
           </td>
         </tr>

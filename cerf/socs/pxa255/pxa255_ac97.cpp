@@ -3,6 +3,7 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/audio_activity_widget.h"
 #include "../../peripherals/ac97_codec.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -25,6 +26,7 @@ void Pxa255Ac97::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
     audio_out_.Start("Pxa255Ac97", kSampleRate, kChannels, kBitsPerSamp,
                      /*allow_resampler=*/false);
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 void Pxa255Ac97::BeginAudioOut(std::function<void()> on_block_done) {
@@ -35,6 +37,7 @@ void Pxa255Ac97::StopAudioOut() { audio_out_.StopAudioOut(); }
 
 void Pxa255Ac97::QueueOutput(const void* host_bytes, uint32_t length) {
     audio_out_.QueueOutput(host_bytes, length);
+    emu_.Get<AudioActivityWidget>().MarkTx();
 }
 
 void Pxa255Ac97::SaveState(StateWriter& w) {
