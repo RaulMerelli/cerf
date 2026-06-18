@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v5.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v5.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual ARM hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
@@ -13,7 +13,7 @@ A universal Windows CE emulator: a virtual ARM hardware platform that boots real
 
 ## Downloads
 
-Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download WIP build (5.1) from artifacs [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
 
 ## Supported boards
 
@@ -220,9 +220,18 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
   </thead>
   <tbody>
     <tr>
+          <td>v5.1 (NOT RELEASED YET)</td>
+          <td>
+            <ul>
+              <li>...</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v5.0</td>
           <td>
             <ul>
+              <li>iPaqs now use original .nbf format instead of normalized .nb0. <b>Upgrade bundle in launcher!</b></li>
               <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series, SmartBook G138</li>
               <li>Experimental hibernation/state saving system for all boards</li>
               <li>Added HP Palmtop VGA (F1252A) card</li>
@@ -240,7 +249,6 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>SA-1110, PXA255 RTC implementation</li>
               <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
               <li>Suspend feature support for different SoCs</li>
-              <li>iPaqs now use original .nbf format instead of normalized .nb0</li>
               <li>Ipaq 1st gen: microphone support</li>
               <li>ce_apps/xplorer.exe - dependency-free minimal shell, CE2+, useful for Zune 30 GA mode</li>
             </ul>
@@ -261,17 +269,6 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>Launcher: optional packages feature</li>
               <li>Guest additions: Complete overhaul of XIP injection (Now you can boot Jornada 720 in 4K. Also suddenly Zune 30 is in the game too)</li>
               <li>Various UI/general fixes, improvements</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v3.21</td>
-          <td>
-            <ul>
-              <li>iPaq H3100 support</li>
-              <li>iPaq H3100,H3600 PPC2002 sound fixes</li>
-              <li>Jornada 720 support</li>
-              <li>JIT/MMU improvements</li>
             </ul>
           </td>
         </tr>
