@@ -10,12 +10,10 @@
 
 namespace {
 
-/* PXA255 GPIO sense lines per socket, read by the pcmcia.dll PDD via GPLR
-   (sub_1B02244 sets GPDR0 bits 5/7/11/13 as inputs; ready threads sub_1B021B8/
-   sub_1B02170 read GPLR bits 5/7). nCD active-low (low = present); PRDY high =
-   ready. Drive nCD high for an empty slot or the PDD detects a phantom card. */
-constexpr uint32_t kGpioNcd [2] = { 11u, 13u };   /* socket 0 CF, 1 PC Card */
-constexpr uint32_t kGpioPrdy[2] = {  5u,  7u };
+/* Per-socket GPIO (Linux jlime_v2.6.34-hpc_mp900.c mp900_pin_config[]). */
+constexpr uint32_t kGpioNcd    [2] = { 11u, 13u };  /* nCD,  socket 0 CF / 1 PC */
+constexpr uint32_t kGpioPrdy   [2] = {  5u,  7u };  /* PRDY (ready), idles high  */
+constexpr uint32_t kGpioCardIrq[2] = { 75u, 76u };  /* card IREQ, active-low      */
 
 }  /* namespace */
 
@@ -37,8 +35,9 @@ void NecMobilePro900Pcmcia::OnReady() {
 
     auto& gpio = emu_.Get<Pxa255Gpio>();
     for (int s = 0; s < 2; ++s) {
-        gpio.SetInputLevel(kGpioNcd[s],  true);   /* empty: nCD idles high */
-        gpio.SetInputLevel(kGpioPrdy[s], true);   /* ready line idles high */
+        gpio.SetInputLevel(kGpioNcd[s],     true);  /* empty: nCD idles high */
+        gpio.SetInputLevel(kGpioPrdy[s],    true);  /* ready line idles high */
+        gpio.SetInputLevel(kGpioCardIrq[s], true);  /* IREQ idles high (active-low) */
     }
 
     if (emu_.Get<DeviceConfig>().network_enabled) {
@@ -71,11 +70,11 @@ void NecMobilePro900Pcmcia::OnCardDetectChanged(PcmciaSlot& slot) {
 }
 
 void NecMobilePro900Pcmcia::OnCardIrqAsserted(PcmciaSlot& slot) {
-    emu_.Get<Pxa255Gpio>().SetInputLevel(kGpioPrdy[SocketOf(slot)], false);
+    emu_.Get<Pxa255Gpio>().SetInputLevel(kGpioCardIrq[SocketOf(slot)], false);
 }
 
 void NecMobilePro900Pcmcia::OnCardIrqDeasserted(PcmciaSlot& slot) {
-    emu_.Get<Pxa255Gpio>().SetInputLevel(kGpioPrdy[SocketOf(slot)], true);
+    emu_.Get<Pxa255Gpio>().SetInputLevel(kGpioCardIrq[SocketOf(slot)], true);
 }
 
 REGISTER_SERVICE(NecMobilePro900Pcmcia);
