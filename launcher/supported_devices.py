@@ -98,6 +98,7 @@ FEATURE_SPECS = [
     ("suspend", "suspend.png", "Suspend / Resume"),
     ("guest_additions", "ga.png", "Guest Additions"),
     ("sound", "speaker.png", "Sound"),
+    ("mic", "microphone.png", "Microphone"),
     ("pcmcia", "pcmcia.png", "PCMCIA"),
     ("network", "internet.png", "Network"),
     ("battery", "battery.png", "Battery"),
@@ -180,6 +181,7 @@ BOARDS_INFORMATION = [
             "battery": False,
             "suspend": True,
             "guest_additions": True,
+            "mic": True,
         },
         "notes": [GUEST_ADDITIONS_POINTER_WARN],
     },
@@ -217,6 +219,7 @@ BOARDS_INFORMATION = [
             "battery": True,
             "suspend": True,
             "guest_additions": True,
+            "mic": False,
         },
     },
     {
@@ -234,6 +237,7 @@ BOARDS_INFORMATION = [
             "battery": True,
             "suspend": True,
             "guest_additions": True,
+            "mic": False,
         },
         "notes": [
             "Guest additions mouse is behaving weird",
@@ -331,6 +335,7 @@ BOARDS_INFORMATION = [
             "network": True,
             "guest_additions": True,
             "battery": True,
+            "mic": False,
         },
         "notes": [
             GUEST_ADDITIONS_POINTER_WARN,
@@ -350,6 +355,7 @@ BOARDS_INFORMATION = [
             "network": True,
             "guest_additions": True,
             "battery": True,
+            "mic": False,
         },
         "notes": [
             GUEST_ADDITIONS_POINTER_WARN,
@@ -382,6 +388,7 @@ BOARDS_INFORMATION = [
             "network": True,
             "guest_additions": True,
             "battery": False,
+            "mic": False,
         },
     },
     {

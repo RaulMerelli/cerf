@@ -5,6 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/audio_activity_widget.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../irq_controller.h"
@@ -55,6 +56,7 @@ void S3C2410Iis::OnReady() {
         },
         [this](const MSG& msg) { OnThreadMessage(msg); },
         "S3C2410Iis");
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 void S3C2410Iis::OnThreadMessage(const MSG& msg) {
@@ -107,6 +109,7 @@ void S3C2410Iis::ResetCurrentQueue() {
 void S3C2410Iis::PlayCurrentQueue() {
     if (!sink_.IsOpen()) return;
     sink_.Play(curr_out_header_);
+    emu_.Get<AudioActivityWidget>().MarkTx();
 }
 
 void S3C2410Iis::QueueOutput(const void* host_bytes, size_t length) {

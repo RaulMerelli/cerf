@@ -10,6 +10,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../host/audio_activity_widget.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../../socs/irq_controller.h"
@@ -147,6 +148,7 @@ void OdoArm720AudioPlayer::OnReady() {
         },
         [this](const MSG& msg) { OnThreadMessage(msg); },
         "OdoArm720Audio");
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 void OdoArm720AudioPlayer::OnThreadMessage(const MSG& msg) {
@@ -238,7 +240,9 @@ void OdoArm720AudioPlayer::SubmitNextPage() {
     if (!sink_.Play(&slot->hdr)) {
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (submitted_pages_ > 0) --submitted_pages_;
+        return;
     }
+    emu_.Get<AudioActivityWidget>().MarkTx();
 }
 
 void OdoArm720AudioPlayer::SetPlaybackEnabled(bool enabled) {

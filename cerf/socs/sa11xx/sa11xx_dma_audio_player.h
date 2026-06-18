@@ -4,23 +4,13 @@
 
 #include "../../core/service.h"
 #include "../../host/wave_out_sink.h"
+#include "sa11xx_audio_config.h"
 #include "sa11xx_dma.h"
 
 #include <cstdint>
 #include <deque>
 #include <mutex>
 #include <vector>
-
-/* Per-board PCM format + DMA match for an SA-11x0 transmit audio path. */
-struct Sa11xxAudioConfig {
-    uint32_t    ddar_mask;        /* DDAR bits the player matches on...        */
-    uint32_t    ddar_value;       /* ...== this value selects the TX channel.  */
-    uint16_t    channels;
-    uint16_t    bits_per_sample;
-    uint32_t    max_page_bytes;   /* per-DMA-buffer cap; oversized => declined. */
-    bool        allow_resampler;
-    const char* log_tag;          /* audio-thread name + DONE-log label.       */
-};
 
 /* Shared SA-11x0 transmit-DMA -> host waveOut audio playback; subclasses supply
    the DMA DDAR match + PCM format (AudioConfig) and the playback rate. */
@@ -33,6 +23,10 @@ public:
 protected:
     virtual Sa11xxAudioConfig AudioConfig() const = 0;
     virtual uint32_t          SampleRateHz()      = 0;
+    /* Board hook reporting the codec/amp output-mute state. The SSP keeps
+       clocking the TX DMA while output is muted (full-duplex record), so the
+       player renders silence for any span where this returns true. */
+    virtual bool              OutputMuted() const { return false; }
 
 private:
     static constexpr uint32_t kPagesQueued = 4u;

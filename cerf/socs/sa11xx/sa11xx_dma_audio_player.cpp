@@ -6,6 +6,8 @@
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../state/emulation_freeze.h"
+#include "../../host/audio_activity_widget.h"
 
 #include <cstring>
 
@@ -21,6 +23,7 @@ void Sa11xxDmaAudioPlayer::OnReady() {
                 cfg_.log_tag);
     emu_.Get<Sa11xxDma>().RegisterSink(
         [this](const Sa11xxDma::ChannelState& st) { return OnDmaStart(st); });
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 bool Sa11xxDmaAudioPlayer::OnDmaStart(const Sa11xxDma::ChannelState& st) {
@@ -64,6 +67,7 @@ void Sa11xxDmaAudioPlayer::SubmitPage(const PendingPage& p) {
     sink_.EnsureFormat(p.rate_hz, cfg_.channels, cfg_.bits_per_sample,
                        cfg_.allow_resampler, /*busy=*/false);
     if (!sink_.IsOpen()) {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
         emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
         return;
     }
@@ -80,10 +84,15 @@ void Sa11xxDmaAudioPlayer::SubmitPage(const PendingPage& p) {
 }
 
 void Sa11xxDmaAudioPlayer::LoadIntoSlot(Slot& slot, const PendingPage& p) {
-    auto& mem = emu_.Get<EmulatedMemory>();
-    for (uint32_t i = 0; i < p.byte_count; ++i) {
-        slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+    {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+        auto& mem = emu_.Get<EmulatedMemory>();
+        for (uint32_t i = 0; i < p.byte_count; ++i) {
+            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+        }
     }
+    if (OutputMuted()) std::memset(slot.bytes.data(), 0, p.byte_count);
+    else               emu_.Get<AudioActivityWidget>().MarkTx();
     slot.dma_channel = p.dma_channel;
     slot.buffer_b    = p.buffer_b;
 
@@ -101,6 +110,7 @@ void Sa11xxDmaAudioPlayer::LoadIntoSlot(Slot& slot, const PendingPage& p) {
             std::lock_guard<std::mutex> lk(slots_mtx_);
             slot.in_flight = false;
         }
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
         emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
     }
 }
@@ -128,7 +138,10 @@ void Sa11xxDmaAudioPlayer::OnPageDone(LPWAVEHDR hdr) {
         cfg_.log_tag, completed_ch, completed_buf ? 'B' : 'A');
     /* Raises the DMA-done IRQ that wakes the guest wavedev IST; dropping this
        leaves the IST blocked on the audio DMA and deadlocks playback. */
-    emu_.Get<Sa11xxDma>().CompleteTransfer(completed_ch, completed_buf);
+    {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+        emu_.Get<Sa11xxDma>().CompleteTransfer(completed_ch, completed_buf);
+    }
 
     if (have_next) LoadIntoSlot(*slot, next_page);
 }

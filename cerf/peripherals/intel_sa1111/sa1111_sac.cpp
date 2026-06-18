@@ -6,6 +6,7 @@
 #include "../peripheral_dispatcher.h"
 #include "sa1111_intc.h"
 #include "sa1111_system_controller.h"
+#include "../../host/audio_activity_widget.h"
 #include "../../state/state_stream.h"
 
 bool Sa1111Sac::ShouldRegister() {
@@ -15,6 +16,7 @@ bool Sa1111Sac::ShouldRegister() {
 
 void Sa1111Sac::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
+    emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
 uint32_t Sa1111Sac::ReadWord(uint32_t addr) {
@@ -172,6 +174,7 @@ void Sa1111Sac::CompleteTransmit(bool buffer_b) {
             start_next ? 1 : 0);
 #endif
     }
+    emu_.Get<AudioActivityWidget>().MarkTx();
     if (raise)
         emu_.Get<Sa1111Intc>().RaiseInterrupt(buffer_b ? 34u : 32u);
     if (start_next) {
