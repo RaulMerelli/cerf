@@ -73,27 +73,43 @@ void CerfVirtTaskManager::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void CerfVirtTaskManager::ConsumeRecordLocked() {
-    if (!in_flight_ || in_flight_code_ != kTmCmdList) {
-        LOG(Caution, "[TaskMgr] record kick outside a LIST (in_flight=%d "
-            "code=%u)\n", (int)in_flight_, in_flight_code_);
+    if (in_flight_ && in_flight_code_ == kTmCmdList) {
+        if (pending_rows_.size() >= kTmMaxProcRecords) return;
+        if (rec_index_ != pending_rows_.size())
+            LOG(Caution, "[TaskMgr] record index %u, expected %zu\n",
+                rec_index_, pending_rows_.size());
+        TaskManagerProcRecord r;
+        std::memcpy(&r, rec_words_, sizeof(r));
+        ProcEntry e;
+        e.pid           = r.pid;
+        e.parent_pid    = r.parent_pid;
+        e.thread_count  = r.thread_count;
+        e.base_priority = r.base_priority;
+        e.mem_base      = r.mem_base;
+        for (uint32_t i = 0; i < kTmProcNameWchars && r.name[i]; ++i)
+            e.name.push_back((wchar_t)r.name[i]);
+        pending_rows_.push_back(std::move(e));
         return;
     }
-    if (pending_rows_.size() >= kTmMaxProcRecords) return;
-    if (rec_index_ != pending_rows_.size())
-        LOG(Caution, "[TaskMgr] record index %u, expected %zu\n",
-            rec_index_, pending_rows_.size());
-
-    TaskManagerProcRecord r;
-    std::memcpy(&r, rec_words_, sizeof(r));
-    ProcEntry e;
-    e.pid           = r.pid;
-    e.parent_pid    = r.parent_pid;
-    e.thread_count  = r.thread_count;
-    e.base_priority = r.base_priority;
-    e.mem_base      = r.mem_base;
-    for (uint32_t i = 0; i < kTmProcNameWchars && r.name[i]; ++i)
-        e.name.push_back((wchar_t)r.name[i]);
-    pending_rows_.push_back(std::move(e));
+    if (in_flight_ && in_flight_code_ == kTmCmdListWindows) {
+        if (pending_wins_.size() >= kTmMaxProcRecords) return;
+        if (rec_index_ != pending_wins_.size())
+            LOG(Caution, "[TaskMgr] window record index %u, expected %zu\n",
+                rec_index_, pending_wins_.size());
+        TaskManagerWindowRecord r;
+        std::memcpy(&r, rec_words_, sizeof(r));
+        WinEntry e;
+        e.hwnd      = r.hwnd;
+        e.pid       = r.pid;
+        e.thread_id = r.thread_id;
+        e.visible   = (r.flags & kTmWinFlagVisible) != 0;
+        for (uint32_t i = 0; i < kTmWindowTitleWchars && r.title[i]; ++i)
+            e.title.push_back((wchar_t)r.title[i]);
+        pending_wins_.push_back(std::move(e));
+        return;
+    }
+    LOG(Caution, "[TaskMgr] record kick outside a LIST (in_flight=%d "
+        "code=%u)\n", (int)in_flight_, in_flight_code_);
 }
 
 void CerfVirtTaskManager::RequestProcessList() {
@@ -101,6 +117,13 @@ void CerfVirtTaskManager::RequestProcessList() {
     if (list_live_) return;
     list_live_ = true;
     EnqueueLocked(kTmCmdList, 0, {});
+}
+
+void CerfVirtTaskManager::RequestWindowList() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (list_live_) return;
+    list_live_ = true;
+    EnqueueLocked(kTmCmdListWindows, 0, {});
 }
 
 uint32_t CerfVirtTaskManager::RequestKill(uint32_t pid) {
@@ -111,6 +134,11 @@ uint32_t CerfVirtTaskManager::RequestKill(uint32_t pid) {
 uint32_t CerfVirtTaskManager::RequestSwitchTo(uint32_t pid) {
     std::lock_guard<std::mutex> lk(mtx_);
     return EnqueueLocked(kTmCmdSwitchTo, pid, {});
+}
+
+uint32_t CerfVirtTaskManager::RequestSwitchToWindow(uint32_t hwnd) {
+    std::lock_guard<std::mutex> lk(mtx_);
+    return EnqueueLocked(kTmCmdSwitchToWin, hwnd, {});
 }
 
 uint32_t CerfVirtTaskManager::RequestRun(const std::wstring& cmdline) {
@@ -150,7 +178,8 @@ void CerfVirtTaskManager::PublishNextLocked() {
     queue_.pop_front();
     in_flight_      = true;
     in_flight_code_ = c.code;
-    if (c.code == kTmCmdList) pending_rows_.clear();
+    if (c.code == kTmCmdList)        pending_rows_.clear();
+    if (c.code == kTmCmdListWindows) pending_wins_.clear();
     cmd_code_       = c.code;
     cmd_pid_        = c.pid;
     cmd_run_text_   = std::move(c.run_text);
@@ -181,6 +210,23 @@ void CerfVirtTaskManager::ConsumeResponseLocked() {
         } else {
             LOG(GuestAdditions, "[TaskMgr] LIST failed in guest (err=%u)\n",
                 resp_err_);
+            last_action_ = { cmd_gen_, in_flight_code_, false, resp_err_ };
+        }
+    } else if (in_flight_code_ == kTmCmdListWindows) {
+        list_live_ = false;
+        if (ok) {
+            if (resp_count_ != pending_wins_.size())
+                LOG(Caution, "[TaskMgr] guest reported %u windows, %zu "
+                    "streamed\n", resp_count_, pending_wins_.size());
+            snap_.wins = std::move(pending_wins_);
+            pending_wins_.clear();
+            ++snap_.gen;
+            if (resp_total_ > (uint32_t)snap_.wins.size())
+                LOG(Caution, "[TaskMgr] guest window snapshot truncated: %zu "
+                    "of %u windows\n", snap_.wins.size(), resp_total_);
+        } else {
+            LOG(GuestAdditions, "[TaskMgr] LIST-WINDOWS failed in guest "
+                "(err=%u)\n", resp_err_);
             last_action_ = { cmd_gen_, in_flight_code_, false, resp_err_ };
         }
     } else {

@@ -28,6 +28,7 @@ constexpr int kRowH       = 26;
 constexpr int kBtnW       = 90;
 
 enum : int {
+    IDC_TABS    = 2000,
     IDC_LIST    = 2001,
     IDC_RUNEDIT = 2002,
     IDC_RUN     = 2003,
@@ -37,33 +38,28 @@ enum : int {
     IDM_ROW_KILL   = 2102,
 };
 
+constexpr int kTabWindows   = 0;
+constexpr int kTabProcesses = 1;
+
 constexpr COLORREF kClrOk   = RGB(0, 140, 0);
 constexpr COLORREF kClrFail = RGB(190, 0, 0);
 constexpr COLORREF kClrInfo = RGB(96, 96, 96);
 
+/* Dark-mode tab fills (match the HostDarkMode dialog/hot palette). */
+constexpr COLORREF kTabStripBg = RGB(32, 32, 32);
+constexpr COLORREF kTabSelBg   = RGB(60, 60, 60);
+constexpr COLORREF kTabText    = RGB(230, 230, 230);
+
 const wchar_t* ActionName(uint32_t code) {
     switch (code) {
-        case CerfVirt::kTmCmdKill:     return L"kill";
-        case CerfVirt::kTmCmdSwitchTo: return L"switch to";
-        case CerfVirt::kTmCmdRun:      return L"run";
-        case CerfVirt::kTmCmdList:     return L"list";
-        default:                       return L"command";
+        case CerfVirt::kTmCmdKill:        return L"kill";
+        case CerfVirt::kTmCmdSwitchTo:    return L"switch to";
+        case CerfVirt::kTmCmdSwitchToWin: return L"switch to";
+        case CerfVirt::kTmCmdRun:         return L"run";
+        case CerfVirt::kTmCmdList:        return L"list";
+        case CerfVirt::kTmCmdListWindows: return L"list";
+        default:                          return L"command";
     }
-}
-
-bool SameProcs(const std::vector<CerfVirtTaskManager::ProcEntry>& a,
-               const std::vector<CerfVirtTaskManager::ProcEntry>& b) {
-    if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i) {
-        const auto& x = a[i];
-        const auto& y = b[i];
-        if (x.pid != y.pid || x.parent_pid != y.parent_pid ||
-            x.thread_count != y.thread_count ||
-            x.base_priority != y.base_priority ||
-            x.mem_base != y.mem_base || x.name != y.name)
-            return false;
-    }
-    return true;
 }
 
 }  /* namespace */
@@ -106,22 +102,19 @@ void TaskManagerWindow::Show() {
 
     auto& dm = emu_.Get<HostDarkMode>();
     dm.ApplyToDialog(hwnd_);
-    if (dm.IsDark()) {
-        ListView_SetBkColor(list_, dm.BgColor());
-        ListView_SetTextBkColor(list_, dm.BgColor());
-        ListView_SetTextColor(list_, dm.TextColor());
-    }
+    if (dm.IsDark()) list_.ApplyDarkColors(dm.BgColor(), dm.TextColor());
 
     ShowWindow(hwnd_, SW_SHOW);
     SetTimer(hwnd_, kRefreshTimerId, kRefreshMs, nullptr);
 
-    shown_gen_ = 0;   /* force a repopulate from the next snapshot */
-    emu_.Get<CerfVirtTaskManager>().RequestProcessList();
+    awaiting_first_ = true;
+    RequestActiveList();
     SetStatus(L"Waiting for guest…", kClrInfo);
 }
 
 void TaskManagerWindow::BuildControls() {
-    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_LISTVIEW_CLASSES };
+    INITCOMMONCONTROLSEX icc = { sizeof(icc),
+                                 ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES };
     InitCommonControlsEx(&icc);
 
     HINSTANCE inst = GetModuleHandleW(nullptr);
@@ -135,26 +128,28 @@ void TaskManagerWindow::BuildControls() {
         return h;
     };
 
-    list_ = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
-                            WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT |
-                            LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-                            0, 0, 0, 0, hwnd_, (HMENU)(INT_PTR)IDC_LIST,
+    /* Tab controls have no uxtheme dark class, so in dark mode we owner-draw the
+       tab buttons (WM_DRAWITEM) and dark-fill the strip behind them via a
+       subclass; classic comctl would otherwise paint them light. */
+    const bool dark = emu_.Get<HostDarkMode>().IsDark();
+    DWORD tab_style = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS;
+    if (dark) tab_style |= TCS_OWNERDRAWFIXED;
+    tabs_ = CreateWindowExW(0, WC_TABCONTROLW, L"", tab_style,
+                            0, 0, 0, 0, hwnd_, (HMENU)(INT_PTR)IDC_TABS,
                             inst, nullptr);
-    SendMessageW(list_, WM_SETFONT, (WPARAM)gui, TRUE);
-    ListView_SetExtendedListViewStyle(list_,
-                                      LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP);
-
-    struct { const wchar_t* title; int width; } cols[] = {
-        { L"Process",  150 }, { L"PID",      90 }, { L"Parent",   90 },
-        { L"Threads",   60 }, { L"Priority", 60 }, { L"Mem base", 90 },
-    };
-    for (int i = 0; i < (int)(sizeof(cols) / sizeof(cols[0])); ++i) {
-        LVCOLUMNW c = {};
-        c.mask     = LVCF_TEXT | LVCF_WIDTH;
-        c.pszText  = (LPWSTR)cols[i].title;
-        c.cx       = cols[i].width;
-        ListView_InsertColumn(list_, i, &c);
+    SendMessageW(tabs_, WM_SETFONT, (WPARAM)gui, TRUE);
+    TCITEMW ti = {};
+    ti.mask    = TCIF_TEXT;
+    ti.pszText = (LPWSTR)L"Windows";   TabCtrl_InsertItem(tabs_, kTabWindows, &ti);
+    ti.pszText = (LPWSTR)L"Processes"; TabCtrl_InsertItem(tabs_, kTabProcesses, &ti);
+    if (dark) {
+        SetWindowLongPtrW(tabs_, GWLP_USERDATA, (LONG_PTR)this);
+        tabs_base_proc_ = (WNDPROC)SetWindowLongPtrW(
+            tabs_, GWLP_WNDPROC, (LONG_PTR)&TaskManagerWindow::TabProcStatic);
     }
+
+    list_ = TaskManagerListView{};   /* default mode = Windows, matches tab 0 */
+    list_.Create(hwnd_, IDC_LIST, gui);
 
     btn_switch_ = mk(L"BUTTON", L"Switch to", BS_PUSHBUTTON | WS_TABSTOP, IDC_SWITCH);
     btn_kill_   = mk(L"BUTTON", L"Kill",      BS_PUSHBUTTON | WS_TABSTOP, IDC_KILL);
@@ -175,8 +170,13 @@ void TaskManagerWindow::LayoutControls() {
     GetClientRect(hwnd_, &rc);
     const int w = rc.right, h = rc.bottom;
 
-    MoveWindow(list_, kMargin, kMargin, w - 2 * kMargin,
-               h - kBottomBarH - 2 * kMargin, TRUE);
+    const int tabs_bottom = h - kBottomBarH - kMargin;
+    MoveWindow(tabs_, kMargin, kMargin, w - 2 * kMargin,
+               tabs_bottom - kMargin, TRUE);
+
+    RECT tr = { kMargin, kMargin, w - kMargin, tabs_bottom };
+    TabCtrl_AdjustRect(tabs_, FALSE, &tr);   /* tab window rect -> display rect */
+    list_.Move(tr.left, tr.top, tr.right - tr.left, tr.bottom - tr.top);
 
     const int row1 = h - kBottomBarH;
     MoveWindow(btn_switch_, kMargin, row1, kBtnW, kRowH, TRUE);
@@ -194,9 +194,26 @@ void TaskManagerWindow::LayoutControls() {
                kBtnW + 12, row2 + 4, 164, kRowH - 6, TRUE);
 }
 
+void TaskManagerWindow::RequestActiveList() {
+    auto& svc = emu_.Get<CerfVirtTaskManager>();
+    if (list_.GetMode() == TaskManagerListView::Mode::Windows)
+        svc.RequestWindowList();
+    else
+        svc.RequestProcessList();
+}
+
+void TaskManagerWindow::OnTabChanged() {
+    const int sel = TabCtrl_GetCurSel(tabs_);
+    list_.SetMode(sel == kTabProcesses ? TaskManagerListView::Mode::Processes
+                                       : TaskManagerListView::Mode::Windows);
+    awaiting_first_ = true;
+    RequestActiveList();
+    SetStatus(L"Waiting for guest…", kClrInfo);
+}
+
 void TaskManagerWindow::OnTick() {
     auto& svc = emu_.Get<CerfVirtTaskManager>();
-    svc.RequestProcessList();
+    RequestActiveList();
 
     if (auto r = svc.TakeActionResult()) {
         wchar_t buf[96];
@@ -210,10 +227,12 @@ void TaskManagerWindow::OnTick() {
                     SetStatus(buf, kClrFail);
                 }
             }
-        } else if (r->code == CerfVirt::kTmCmdList) {
+        } else if (r->code == CerfVirt::kTmCmdList ||
+                   r->code == CerfVirt::kTmCmdListWindows) {
             if (!r->ok) {
-                _snwprintf_s(buf, _TRUNCATE,
-                             L"list failed (error %u)", r->guest_err);
+                _snwprintf_s(buf, _TRUNCATE, L"list failed (error %u)",
+                             r->guest_err);
+                SetStatus(buf, kClrFail);
             }
         } else if (r->ok) {
             _snwprintf_s(buf, _TRUNCATE, L"%s: done", ActionName(r->code));
@@ -225,85 +244,66 @@ void TaskManagerWindow::OnTick() {
         }
     }
 
-    Repopulate();
+    auto snap = svc.GetSnapshot();
+    if (list_.Update(snap)) {
+        if (awaiting_first_) {
+            SetStatus(L"", kClrInfo);   /* replaces "Waiting for guest…" */
+            awaiting_first_ = false;
+        }
+        UpdateTitle(snap);
+    }
 }
 
-void TaskManagerWindow::Repopulate() {
-    auto snap = emu_.Get<CerfVirtTaskManager>().GetSnapshot();
-    if (snap.gen == shown_gen_) return;
-
-    /* Rebuild only on real content change — the snapshot gen bumps on every
-       LIST round-trip (2 Hz) and a constant rebuild flickers the selection. */
-    const bool first = shown_gen_ == 0;
-    shown_gen_ = snap.gen;
-    if (first) SetStatus(L"", kClrInfo);   /* replaces "Waiting for guest…" */
-    if (!first && SameProcs(snap.procs, shown_procs_)) return;
-    shown_procs_ = snap.procs;
-
-    uint32_t sel_pid = 0;
-    const bool had_sel = SelectedPid(&sel_pid);
-
-    SendMessageW(list_, WM_SETREDRAW, FALSE, 0);
-    ListView_DeleteAllItems(list_);
-    wchar_t buf[64];
-    for (int i = 0; i < (int)snap.procs.size(); ++i) {
-        const auto& p = snap.procs[(size_t)i];
-        LVITEMW it = {};
-        it.mask    = LVIF_TEXT | LVIF_PARAM;
-        it.iItem   = i;
-        it.pszText = (LPWSTR)p.name.c_str();
-        it.lParam  = (LPARAM)p.pid;
-        ListView_InsertItem(list_, &it);
-        _snwprintf_s(buf, _TRUNCATE, L"0x%08X", p.pid);
-        ListView_SetItemText(list_, i, 1, buf);
-        _snwprintf_s(buf, _TRUNCATE, L"0x%08X", p.parent_pid);
-        ListView_SetItemText(list_, i, 2, buf);
-        _snwprintf_s(buf, _TRUNCATE, L"%u", p.thread_count);
-        ListView_SetItemText(list_, i, 3, buf);
-        _snwprintf_s(buf, _TRUNCATE, L"%d", p.base_priority);
-        ListView_SetItemText(list_, i, 4, buf);
-        _snwprintf_s(buf, _TRUNCATE, L"0x%08X", p.mem_base);
-        ListView_SetItemText(list_, i, 5, buf);
-        if (had_sel && p.pid == sel_pid) {
-            ListView_SetItemState(list_, i, LVIS_SELECTED | LVIS_FOCUSED,
-                                  LVIS_SELECTED | LVIS_FOCUSED);
-        }
-    }
-    SendMessageW(list_, WM_SETREDRAW, TRUE, 0);
-    InvalidateRect(list_, nullptr, TRUE);
-
+void TaskManagerWindow::UpdateTitle(const CerfVirtTaskManager::Snapshot& snap) {
     wchar_t title[96];
-    if (snap.guest_total > snap.procs.size())
-        _snwprintf_s(title, _TRUNCATE,
-                     L"Guest Task Manager — %u of %u processes",
-                     (unsigned)snap.procs.size(), snap.guest_total);
-    else
-        _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager — %u processes",
-                     (unsigned)snap.procs.size());
+    if (list_.GetMode() == TaskManagerListView::Mode::Windows) {
+        /* One row per process; the count is processes shown, not raw windows. */
+        _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager — %u programs",
+                     (unsigned)list_.DisplayedCount());
+    } else {
+        if (snap.guest_total > snap.procs.size())
+            _snwprintf_s(title, _TRUNCATE,
+                         L"Guest Task Manager — %u of %u processes",
+                         (unsigned)snap.procs.size(), snap.guest_total);
+        else
+            _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager — %u processes",
+                         (unsigned)snap.procs.size());
+    }
     SetWindowTextW(hwnd_, title);
 }
 
-bool TaskManagerWindow::SelectedPid(uint32_t* pid) const {
-    const int i = ListView_GetNextItem(list_, -1, LVNI_SELECTED);
-    if (i < 0) return false;
-    LVITEMW it = {};
-    it.mask  = LVIF_PARAM;
-    it.iItem = i;
-    if (!ListView_GetItem(list_, &it)) return false;
-    *pid = (uint32_t)it.lParam;
-    return true;
-}
-
 void TaskManagerWindow::DoSwitchTo() {
-    uint32_t pid;
-    if (!SelectedPid(&pid)) { SetStatus(L"no process selected", kClrFail); return; }
-    emu_.Get<CerfVirtTaskManager>().RequestSwitchTo(pid);
+    auto& svc = emu_.Get<CerfVirtTaskManager>();
+    if (list_.GetMode() == TaskManagerListView::Mode::Windows) {
+        uint32_t hwnd, pid;
+        if (!list_.SelectedWindow(&hwnd, &pid)) {
+            SetStatus(L"no window selected", kClrFail);
+            return;
+        }
+        svc.RequestSwitchToWindow(hwnd);
+    } else {
+        uint32_t pid;
+        if (!list_.SelectedProc(&pid)) {
+            SetStatus(L"no process selected", kClrFail);
+            return;
+        }
+        svc.RequestSwitchTo(pid);
+    }
     SetStatus(L"switching…", kClrInfo);
 }
 
 void TaskManagerWindow::DoKill() {
     uint32_t pid;
-    if (!SelectedPid(&pid)) { SetStatus(L"no process selected", kClrFail); return; }
+    if (list_.GetMode() == TaskManagerListView::Mode::Windows) {
+        uint32_t hwnd;
+        if (!list_.SelectedWindow(&hwnd, &pid)) {
+            SetStatus(L"no window selected", kClrFail);
+            return;
+        }
+    } else if (!list_.SelectedProc(&pid)) {
+        SetStatus(L"no process selected", kClrFail);
+        return;
+    }
     emu_.Get<CerfVirtTaskManager>().RequestKill(pid);
     SetStatus(L"killing…", kClrInfo);
 }
@@ -319,16 +319,31 @@ void TaskManagerWindow::DoRun() {
 }
 
 void TaskManagerWindow::ShowRowMenu(int item, POINT screen_pt) {
-    if (item >= 0) {
-        ListView_SetItemState(list_, item, LVIS_SELECTED | LVIS_FOCUSED,
-                              LVIS_SELECTED | LVIS_FOCUSED);
-    }
+    list_.SelectRow(item);
     HMENU m = CreatePopupMenu();
     AppendMenuW(m, MF_STRING, IDM_ROW_SWITCH, L"Switch to");
     AppendMenuW(m, MF_STRING, IDM_ROW_KILL, L"Kill");
     TrackPopupMenu(m, TPM_RIGHTBUTTON, screen_pt.x, screen_pt.y, 0, hwnd_,
                    nullptr);
     DestroyMenu(m);
+}
+
+void TaskManagerWindow::DrawTab(const DRAWITEMSTRUCT* di) {
+    const bool sel = (di->itemState & ODS_SELECTED) != 0;
+    SetDCBrushColor(di->hDC, sel ? kTabSelBg : kTabStripBg);
+    FillRect(di->hDC, &di->rcItem, (HBRUSH)GetStockObject(DC_BRUSH));
+
+    wchar_t txt[32] = {};
+    TCITEMW ti = {};
+    ti.mask       = TCIF_TEXT;
+    ti.pszText    = txt;
+    ti.cchTextMax = 31;
+    TabCtrl_GetItem(tabs_, di->itemID, &ti);
+
+    SetTextColor(di->hDC, kTabText);
+    SetBkMode(di->hDC, TRANSPARENT);
+    RECT rc = di->rcItem;
+    DrawTextW(di->hDC, txt, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 }
 
 void TaskManagerWindow::SetStatus(const std::wstring& text, COLORREF clr) {
@@ -348,6 +363,22 @@ LRESULT CALLBACK TaskManagerWindow::RunEditProcStatic(HWND hwnd, UINT msg,
     }
     if (msg == WM_CHAR && wp == L'\r') return 0;   /* swallow the beep */
     return CallWindowProcW(self->run_edit_base_proc_, hwnd, msg, wp, lp);
+}
+
+LRESULT CALLBACK TaskManagerWindow::TabProcStatic(HWND hwnd, UINT msg,
+                                                  WPARAM wp, LPARAM lp) {
+    auto* self = reinterpret_cast<TaskManagerWindow*>(
+        GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (!self || !self->tabs_base_proc_)
+        return DefWindowProcW(hwnd, msg, wp, lp);
+    if (msg == WM_ERASEBKGND) {
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        SetDCBrushColor((HDC)wp, kTabStripBg);
+        FillRect((HDC)wp, &rc, (HBRUSH)GetStockObject(DC_BRUSH));
+        return 1;
+    }
+    return CallWindowProcW(self->tabs_base_proc_, hwnd, msg, wp, lp);
 }
 
 LRESULT CALLBACK TaskManagerWindow::WndProcStatic(HWND hwnd, UINT msg,
@@ -390,12 +421,25 @@ LRESULT TaskManagerWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
 
+        case WM_DRAWITEM: {
+            auto* di = reinterpret_cast<DRAWITEMSTRUCT*>(lp);
+            if (di->CtlType == ODT_TAB && di->hwndItem == tabs_) {
+                DrawTab(di);
+                return TRUE;
+            }
+            break;
+        }
+
         case WM_NOTIFY: {
             auto* hdr = reinterpret_cast<NMHDR*>(lp);
-            if (hdr->hwndFrom == list_ && hdr->code == NM_RCLICK) {
+            if (hdr->hwndFrom == tabs_ && hdr->code == TCN_SELCHANGE) {
+                OnTabChanged();
+                return 0;
+            }
+            if (hdr->hwndFrom == list_.Hwnd() && hdr->code == NM_RCLICK) {
                 auto* ia = reinterpret_cast<NMITEMACTIVATE*>(lp);
                 POINT pt = ia->ptAction;
-                ClientToScreen(list_, &pt);
+                ClientToScreen(list_.Hwnd(), &pt);
                 ShowRowMenu(ia->iItem, pt);
                 return 0;
             }
@@ -440,7 +484,7 @@ LRESULT TaskManagerWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_DESTROY:
             KillTimer(hwnd, kRefreshTimerId);
             hwnd_ = nullptr;
-            list_ = run_edit_ = btn_run_ = btn_switch_ = btn_kill_ = nullptr;
+            tabs_ = run_edit_ = btn_run_ = btn_switch_ = btn_kill_ = nullptr;
             run_label_ = status_ = nullptr;
             return 0;
     }

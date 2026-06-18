@@ -22,14 +22,18 @@
 #define CERF_TM_RESP_KICK     0x80u
 #define CERF_TM_REC_DATA      0x200u
 
-#define CERF_TM_OP_LIST       1u
-#define CERF_TM_OP_KILL       2u
-#define CERF_TM_OP_SWITCHTO   3u
-#define CERF_TM_OP_RUN        4u
+#define CERF_TM_OP_LIST         1u
+#define CERF_TM_OP_KILL         2u
+#define CERF_TM_OP_SWITCHTO     3u
+#define CERF_TM_OP_RUN          4u
+#define CERF_TM_OP_LISTWINDOWS  5u
+#define CERF_TM_OP_SWITCHTOWIN  6u
 
-#define CERF_TM_RUN_MAX       256u
-#define CERF_TM_MAX_RECORDS   256u
-#define CERF_TM_NAME_WCHARS   64u
+#define CERF_TM_RUN_MAX         256u
+#define CERF_TM_MAX_RECORDS     256u
+#define CERF_TM_NAME_WCHARS     64u
+#define CERF_TM_WIN_TITLE_WCHARS 64u
+#define CERF_TM_WINFLAG_VISIBLE 0x1u
 
 typedef struct CerfTmProcRecord {
     DWORD pid;
@@ -40,6 +44,15 @@ typedef struct CerfTmProcRecord {
     WCHAR name[CERF_TM_NAME_WCHARS];
 } CerfTmProcRecord;
 typedef char cerf_tm_record_size_check[(sizeof(CerfTmProcRecord) == 148) ? 1 : -1];
+
+typedef struct CerfTmWindowRecord {
+    DWORD hwnd;
+    DWORD pid;
+    DWORD thread_id;
+    DWORD flags;
+    WCHAR title[CERF_TM_WIN_TITLE_WCHARS];
+} CerfTmWindowRecord;
+typedef char cerf_tm_winrec_size_check[(sizeof(CerfTmWindowRecord) == 144) ? 1 : -1];
 
 /* Windows CE forbids user APIs before the system has fully booted, and pump
    start is display-driver init (mid-boot). Toolhelp therefore resolves on the
@@ -88,12 +101,11 @@ static void CerfTmRespond(DWORD gen, DWORD status, DWORD err,
     s_tm_regs[CERF_TM_RESP_KICK / 4]   = 1;   /* host consumes synchronously */
 }
 
-/* Stream one staged record through the MMIO window. */
-static void CerfTmSendRecord(const CerfTmProcRecord* rec, DWORD index) {
-    const ULONG* w = (const ULONG*)rec;
+/* Stream one staged record (words raw words) through the MMIO window. */
+static void CerfTmSendRecord(const ULONG* words, DWORD count, DWORD index) {
     DWORD i;
-    for (i = 0; i < sizeof(*rec) / 4; ++i)
-        s_tm_regs[(CERF_TM_REC_DATA + i * 4) / 4] = w[i];
+    for (i = 0; i < count; ++i)
+        s_tm_regs[(CERF_TM_REC_DATA + i * 4) / 4] = words[i];
     s_tm_regs[CERF_TM_REC_INDEX / 4] = index;
     s_tm_regs[CERF_TM_REC_KICK / 4]  = 1;
 }
@@ -131,7 +143,7 @@ static void CerfTmDoList(DWORD gen) {
                 rec.name[i] = pe.szExeFile[i];
             for (; i < CERF_TM_NAME_WCHARS; ++i)
                 rec.name[i] = 0;
-            CerfTmSendRecord(&rec, count);
+            CerfTmSendRecord((const ULONG*)&rec, sizeof(rec) / 4, count);
             count++;
         }
         pe.dwSize = sizeof(pe);
@@ -184,6 +196,41 @@ static void CerfTmDoSwitchTo(DWORD gen, DWORD pid) {
         return;
     }
     SetForegroundWindow(target);
+    CerfTmRespond(gen, 1, 0, 0, 0);
+}
+
+/* Enumerate top-level windows via the same GetWindow walk CerfTmDoSwitchTo
+   uses (EnumWindows' callback marshaling rejects the kernel-loaded caller),
+   one record per window. */
+static void CerfTmDoListWindows(DWORD gen) {
+    CerfTmWindowRecord rec;
+    HWND  w = GetForegroundWindow();
+    DWORD count = 0, total = 0;
+    if (w) w = GetWindow(w, GW_HWNDFIRST);
+    for (; w; w = GetWindow(w, GW_HWNDNEXT)) {
+        DWORD pid = 0, tid, i;
+        total++;
+        if (count >= CERF_TM_MAX_RECORDS) continue;
+        tid           = GetWindowThreadProcessId(w, &pid);
+        rec.hwnd      = (DWORD)w;
+        rec.pid       = pid;
+        rec.thread_id = tid;
+        rec.flags     = IsWindowVisible(w) ? CERF_TM_WINFLAG_VISIBLE : 0;
+        for (i = 0; i < CERF_TM_WIN_TITLE_WCHARS; ++i) rec.title[i] = 0;
+        GetWindowTextW(w, rec.title, CERF_TM_WIN_TITLE_WCHARS);
+        CerfTmSendRecord((const ULONG*)&rec, sizeof(rec) / 4, count);
+        count++;
+    }
+    CerfTmRespond(gen, 1, 0, count, total);
+}
+
+static void CerfTmDoSwitchToWin(DWORD gen, DWORD hwnd) {
+    HWND w = (HWND)hwnd;
+    if (!w || !IsWindow(w)) {
+        CerfTmRespond(gen, 0, ERROR_NOT_FOUND, 0, 0);
+        return;
+    }
+    SetForegroundWindow(w);
     CerfTmRespond(gen, 1, 0, 0, 0);
 }
 
@@ -270,10 +317,12 @@ static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
             ULONG pid  = s_tm_regs[CERF_TM_CMD_PID / 4];
             last_gen = gen;
             switch (code) {
-                case CERF_TM_OP_LIST:     CerfTmDoList(gen);          break;
-                case CERF_TM_OP_KILL:     CerfTmDoKill(gen, pid);     break;
-                case CERF_TM_OP_SWITCHTO: CerfTmDoSwitchTo(gen, pid); break;
-                case CERF_TM_OP_RUN:      CerfTmDoRun(gen);           break;
+                case CERF_TM_OP_LIST:        CerfTmDoList(gen);            break;
+                case CERF_TM_OP_KILL:        CerfTmDoKill(gen, pid);       break;
+                case CERF_TM_OP_SWITCHTO:    CerfTmDoSwitchTo(gen, pid);   break;
+                case CERF_TM_OP_RUN:         CerfTmDoRun(gen);             break;
+                case CERF_TM_OP_LISTWINDOWS: CerfTmDoListWindows(gen);     break;
+                case CERF_TM_OP_SWITCHTOWIN: CerfTmDoSwitchToWin(gen, pid); break;
                 default:
                     CERF_LOG_X("cerf_guest: tmpump unknown cmd", code);
                     CerfTmRespond(gen, 0, ERROR_INVALID_PARAMETER, 0, 0);
