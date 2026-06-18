@@ -50,6 +50,11 @@ public:
        switch the held label to "Switched to LCD". */
     void OnFramebufferLatched();
 
+    /* UI thread. IsResuming: resume screen up, framebuffer not yet latched.
+       SetResumeStalled: flip the resume hint to a blank-framebuffer warning. */
+    bool IsResuming() const;
+    void SetResumeStalled();
+
 private:
     enum class Phase { CerfFadeIn, CerfHold, CerfFadeOut, OemFadeIn, OemHold, Finished };
     enum class LabelMode { Starting, Restarting, Resuming };
@@ -57,6 +62,7 @@ private:
     void         EnsureLogosLoaded();
     void         EnsureFonts();
     std::wstring CurrentLabelText() const;
+    const wchar_t* CurrentDisclaimerText() const;
     void DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
                        bool use_oem, float opacity,
                        bool show_label, const std::wstring& label,
@@ -81,6 +87,7 @@ private:
     LabelMode label_mode_   = LabelMode::Starting;
     bool      entered_oem_  = false;  /* an OEM-phase fade-in was reached */
     bool      fb_latched_   = false;
+    bool      resume_stalled_ = false;
 
     /* Cross-thread requests, consumed at the top of Advance. */
     std::atomic<bool> restart_req_{false};

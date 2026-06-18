@@ -76,5 +76,9 @@ private:
     bool user_picked_view_ = false;
     bool latched_once_     = false;
 
+    uint32_t resume_nudge_start_ms_ = 0;
+    uint32_t resume_nudge_last_ms_  = 0;
+    bool     resume_nudge_warned_   = false;
+
     PresenterCanvas canvas_{nullptr, this};
 };
