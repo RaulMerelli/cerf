@@ -35,8 +35,10 @@ CERF_AT_COMMAND_RE = re.compile(
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+        # BOM-tolerant: some sessions pipe the payload as UTF-8-with-BOM, which
+        # json.load(sys.stdin) rejects (JSONDecodeError at char 0) -> silent no-op.
+        payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
         return 0
 
     cmd = (payload.get("tool_input") or {}).get("command", "")

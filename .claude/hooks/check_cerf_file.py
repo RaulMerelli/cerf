@@ -222,8 +222,12 @@ def emit_warnings(warnings: list, rel_path: str) -> int:
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+        # Decode BOM-tolerantly: some Claude Code sessions pipe the hook payload
+        # as UTF-8-with-BOM, and json.load(sys.stdin) raises JSONDecodeError on
+        # the leading BOM (char 0) -> the hook silently no-ops and never fires.
+        # utf-8-sig strips a leading BOM if present and is plain UTF-8 otherwise.
+        payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
         return 0
 
     tool_input = payload.get("tool_input") or {}
