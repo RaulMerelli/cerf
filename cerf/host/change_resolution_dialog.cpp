@@ -22,21 +22,23 @@ namespace {
 constexpr wchar_t kClass[] = L"CerfChangeResolutionDlg";
 
 constexpr int kClientW = 380;
-constexpr int kClientH = 300;
+constexpr int kClientH = 380;
 
 /* Group frames (caption sits on the top edge). */
 constexpr RECT kGroupRes   = { 14, 12,  366, 82  };
-constexpr RECT kGroupReset = { 14, 96,  366, 244 };
+constexpr RECT kGroupDpi   = { 14, 92,  366, 150 };
+constexpr RECT kGroupReset = { 14, 160, 366, 322 };
 
 constexpr uint32_t kMinDim = 64;
 constexpr uint32_t kMaxDim = 8192;
 
 enum : int {
-    IDC_W_EDIT  = 4001,
-    IDC_H_EDIT  = 4002,
-    IDC_RB_NONE = 4003,
-    IDC_RB_SOFT = 4004,
-    IDC_RB_HARD = 4005,
+    IDC_W_EDIT   = 4001,
+    IDC_H_EDIT   = 4002,
+    IDC_RB_NONE  = 4003,
+    IDC_RB_SOFT  = 4004,
+    IDC_RB_HARD  = 4005,
+    IDC_DPI_EDIT = 4006,
 };
 
 }  /* namespace */
@@ -73,15 +75,19 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
     HWND he = mk(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_NUMBER,
                  256, 39, 90, 24, IDC_H_EDIT);
 
+    mk(L"STATIC", L"DPI:", 0, 28, 121, 50, 18, 0);
+    HWND de = mk(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_NUMBER,
+                 84, 118, 90, 24, IDC_DPI_EDIT);
+
     mk(L"STATIC",
        L"Windows CE ≤ 3 needs at least a soft reset to use the new "
-       L"resolution.",
-       0, 28, 116, 324, 40, 0);
+       L"resolution. A DPI change requires a reset.",
+       0, 28, 178, 324, 52, 0);
     mk(L"BUTTON", L"Do not reset",
-       BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 28, 162, 320, 24, IDC_RB_NONE);
-    mk(L"BUTTON", L"Soft reset", BS_OWNERDRAW | WS_TABSTOP, 28, 190, 320, 24,
+       BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 28, 236, 320, 24, IDC_RB_NONE);
+    mk(L"BUTTON", L"Soft reset", BS_OWNERDRAW | WS_TABSTOP, 28, 264, 320, 24,
        IDC_RB_SOFT);
-    mk(L"BUTTON", L"Hard reset", BS_OWNERDRAW | WS_TABSTOP, 28, 218, 320, 24,
+    mk(L"BUTTON", L"Hard reset", BS_OWNERDRAW | WS_TABSTOP, 28, 292, 320, 24,
        IDC_RB_HARD);
 
     mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
@@ -100,12 +106,18 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
     _snwprintf_s(buf, _TRUNCATE, L"%u", fb.Height());
     SetWindowTextW(he, buf);
 
+    auto& devcfg = emu_.Get<DeviceConfig>();
+    _snwprintf_s(buf, _TRUNCATE, L"%u",
+                 devcfg.screen_dpi ? devcfg.screen_dpi : 96u);
+    SetWindowTextW(de, buf);
+
     reset_choice_ = 0;
 }
 
 void ChangeResolutionDialog::PaintGroups(HDC dc) {
     const bool dark = emu_.Get<HostDarkMode>().IsDark();
     PaintGroup(dc, kGroupRes,   L"Resolution",   dark);
+    PaintGroup(dc, kGroupDpi,   L"Display DPI",  dark);
     PaintGroup(dc, kGroupReset, L"Reset device", dark);
 }
 
@@ -200,10 +212,19 @@ bool ChangeResolutionDialog::Apply(HWND hwnd) {
         return false;
     }
 
+    BOOL okd = FALSE;
+    const uint32_t dpi = GetDlgItemInt(hwnd, IDC_DPI_EDIT, &okd, FALSE);
+    if (!okd || dpi < 1) {
+        MessageBoxW(hwnd, L"Enter a DPI value of at least 1.",
+                    L"Change resolution", MB_OK | MB_ICONWARNING);
+        return false;
+    }
+
     auto& dc = emu_.Get<DeviceConfig>();
     dc.board_configurable_screen_width    = w;
     dc.board_configurable_screen_height   = h;
     dc.board_configurable_screen_explicit = true;
+    dc.screen_dpi                         = dpi;
 
     auto& win = emu_.Get<HostWindow>();
     if (reset_choice_ == 1) {

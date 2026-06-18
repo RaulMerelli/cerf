@@ -23,5 +23,8 @@ const uint32_t kFbRegPrimaryReserve = 0x20u;  /* byte span reserved at the regio
                                                  head for the re-mode-growable
                                                  primary; the driver's offscreen
                                                  video heap must start past it. */
+const uint32_t kFbRegLogicalDpi  = 0x24u;  /* DPI override (LOGPIXELSX/Y) the guest
+                                              driver reports; 0 = no override, guest
+                                              falls back to registry then 96. */
 
 }  /* namespace CerfVirt */

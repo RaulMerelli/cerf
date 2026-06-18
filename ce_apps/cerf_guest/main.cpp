@@ -24,6 +24,7 @@ ULONG g_FbWidth   = 0;
 ULONG g_FbHeight  = 0;
 ULONG g_FbBpp     = 0;
 ULONG g_FbStride  = 0;
+ULONG g_FbDpi     = 0;
 ULONG g_FbMemPa   = 0;
 ULONG g_FbMemTotal = 0;   /* total host-backed region bytes (kFbRegMemSizeTotal);
                              region tail past the primary = DDraw video memory. */
@@ -61,6 +62,7 @@ void CerfReadFbRegs(void) {
     g_FbMemPa   = s_fb_regs[5];   /* kFbRegMemBasePa   (0x14 >> 2) */
     g_FbMemTotal = s_fb_regs[7];  /* kFbRegMemSizeTotal (0x1C >> 2) */
     g_FbPrimaryReserve = s_fb_regs[8];  /* kFbRegPrimaryReserve (0x20 >> 2) */
+    g_FbDpi      = s_fb_regs[9];  /* kFbRegLogicalDpi (0x24 >> 2) */
 }
 
 BOOL CerfMapGpeCmd(void) {

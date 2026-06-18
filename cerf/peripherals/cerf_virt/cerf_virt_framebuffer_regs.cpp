@@ -19,6 +19,7 @@ using CerfVirt::kFbRegMemBasePa;
 using CerfVirt::kFbRegPresent;
 using CerfVirt::kFbRegMemSizeTotal;
 using CerfVirt::kFbRegPrimaryReserve;
+using CerfVirt::kFbRegLogicalDpi;
 
 class CerfVirtFramebufferRegs : public Peripheral {
 public:
@@ -48,6 +49,7 @@ public:
             case kFbRegPresent:   return 0u;
             case kFbRegMemSizeTotal: return fb_->RegionBytes();
             case kFbRegPrimaryReserve: return fb_->PrimaryReserveBytes();
+            case kFbRegLogicalDpi: return emu_.Get<DeviceConfig>().screen_dpi;
             default:              return 0u;
         }
     }

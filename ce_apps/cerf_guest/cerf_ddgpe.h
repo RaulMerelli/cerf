@@ -17,6 +17,7 @@ extern "C" void  CerfUnmapFbWindow(void* va);
 extern "C" void CerfPublishCursor(const void* mask_bits, int stride,
                                   int cx, int cy, int xhot, int yhot, BOOL visible);
 extern ULONG g_FbWidth, g_FbHeight, g_FbBpp, g_FbStride, g_FbMemTotal, g_FbPrimaryReserve;
+extern ULONG g_FbDpi;   /* emulator DPI override (kFbRegLogicalDpi); 0 = none */
 
 /* RGB formats the host blitter reads/writes directly: 16/24/32bpp. */
 inline bool CerfConvertibleFmt(EGPEFormat f) {

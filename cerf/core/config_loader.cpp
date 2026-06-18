@@ -96,6 +96,12 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
         config.board_configurable_screen_height = (uint32_t)n;
         config.board_configurable_screen_explicit = true;
     }
+    if (b.contains("configurable_screen_dpi")) {
+        int n = ReadOptInt(b, "configurable_screen_dpi", path, "board");
+        if (n < 1)
+            Fatal(path, "board.configurable_screen_dpi must be >= 1");
+        config.screen_dpi = (uint32_t)n;
+    }
 }
 
 /* Top-level device-feature flags (not board hardware): guest additions and
@@ -310,6 +316,10 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             config.board_configurable_screen_height = (uint32_t)n;
             config.board_configurable_screen_explicit = true;
             config.adopt_guest_additions_resolution_for_host_screen = false;
+        } else if (strncmp(a, kArgScreenDpi, sizeof(kArgScreenDpi) - 1) == 0) {
+            int n = atoi(a + sizeof(kArgScreenDpi) - 1);
+            if (n < 1) Fatal("(command line)", "--screen-dpi must be >= 1");
+            config.screen_dpi = (uint32_t)n;
         } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
             config.share_folder = a + sizeof(kArgShareFolder) - 1;
         } else if (strcmp(a, kArgFullScreen) == 0) {
