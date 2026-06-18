@@ -381,7 +381,7 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "network": True,
             "guest_additions": True,
-            "battery": True,
+            "battery": False,
         },
     },
     {
