@@ -77,7 +77,7 @@ Download WIP build (5.0) from artifacs [![build](https://github.com/gweslab/cerf
       <td align="center"><b><img src="launcher/assets/icons/chip.png" width="16" height="16" title="Chip" alt="Chip"/> Intel SA-1100</b><br/><sub>StrongARM</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>HP Jornada 820</b><br/>
-        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 3 (CE 2.11)" alt="Handheld PC 3 (CE 2.11)"/> Handheld PC 3 (CE 2.11)
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Handheld PC 3.0 Professional" alt="Handheld PC 3.0 Professional"/> Handheld PC 3.0 Professional
       </td>
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/suspend.png" width="16" height="16" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
     </tr>
