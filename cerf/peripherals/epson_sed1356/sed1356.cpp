@@ -144,8 +144,10 @@ uint8_t Sed1356::RegRead(uint32_t off) {
         case 0x1E4: return ReadLutData();
         case 0x1F1: return (reg_[0x1F0] & 0x1u) ? 0x03u : 0x00u;  /* §8.3.14. */
         default:
-            if (!IsDocumentedReg(off))
-                HaltUnsupportedAccess("RegRead", MmioBase() + off, 0);
+            /* §8.2 / Table 8-1: the full 0x000..0x1FF window is decoded
+               register space; reserved registers (REG[033h] etc.) read back
+               their stored byte, 0 when never written. Guest drivers read
+               them in contiguous bulk register saves. */
             return reg_[off];
     }
 }
