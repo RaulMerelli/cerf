@@ -24,10 +24,18 @@ public:
         uint32_t     mem_base;
         std::wstring name;
     };
+    struct WinEntry {
+        uint32_t     hwnd;
+        uint32_t     pid;
+        uint32_t     thread_id;
+        bool         visible;
+        std::wstring title;
+    };
     struct Snapshot {
-        uint64_t gen = 0;          /* bumps on every accepted LIST response */
-        uint32_t guest_total = 0;  /* > procs.size() => guest table truncated */
+        uint64_t gen = 0;          /* bumps on every accepted LIST/LIST-WINDOWS */
+        uint32_t guest_total = 0;  /* > procs.size() => process table truncated */
         std::vector<ProcEntry> procs;
+        std::vector<WinEntry>  wins;
     };
     struct ActionResult {
         uint32_t ticket;
@@ -45,9 +53,11 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     /* UI thread. Tickets identify the eventual ActionResult; 0 = rejected. */
-    void     RequestProcessList();   /* deduped: at most one LIST cycle live */
+    void     RequestProcessList();   /* deduped: at most one list cycle live */
+    void     RequestWindowList();    /* deduped: at most one list cycle live */
     uint32_t RequestKill(uint32_t pid);
     uint32_t RequestSwitchTo(uint32_t pid);
+    uint32_t RequestSwitchToWindow(uint32_t hwnd);
     uint32_t RequestRun(const std::wstring& cmdline);
     Snapshot GetSnapshot();
     std::optional<ActionResult> TakeActionResult();
@@ -89,6 +99,7 @@ private:
     uint32_t               rec_words_[37] = {};
     uint32_t               rec_index_     = 0;
     std::vector<ProcEntry> pending_rows_;
+    std::vector<WinEntry>  pending_wins_;
 
     void ConsumeRecordLocked();
 
