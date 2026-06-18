@@ -7,7 +7,7 @@ from tkinter import ttk
 from typing import List, Optional
 
 from device_state import DeviceBundle
-from ui_dialogs import show_error, show_guest_additions_help
+from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
 from ui_theme import BG_FIELD, FG_DIM
 
 
@@ -40,6 +40,11 @@ RES_PRESETS = [
     (3440, 1440),               #  UW-QHD
     (3840, 2160),               #  4K UHD
 ]
+
+# DPI override slider bounds. The entry stays free-form so any value (including
+# extreme ones) is typable past the slider's range.
+DPI_SLIDER_MIN = 48
+DPI_SLIDER_MAX = 480
 
 
 class LaunchOptionsPanel:
@@ -115,6 +120,36 @@ class LaunchOptionsPanel:
         self.var_height.trace_add("write", self._on_res_text_changed)
         self._sync_slider_to_text()
 
+        ttk.Separator(opts).grid(row=10, column=0, columnspan=3, sticky="ew", pady=6)
+        self.var_override_dpi = tk.BooleanVar(value=False)
+        self.var_dpi = tk.StringVar(value="96")
+        dpi_head = ttk.Frame(opts)
+        dpi_head.grid(row=11, column=0, columnspan=3, sticky="ew")
+        dpi_head.columnconfigure(0, weight=1)
+        self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
+                                         variable=self.var_override_dpi,
+                                         command=self._refresh_dpi_state)
+        self.dpi_check.grid(row=0, column=0, sticky="w")
+        self.dpi_help_btn = ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
+                                       command=lambda: show_dpi_help(self._window))
+        self.dpi_help_btn.grid(row=0, column=1, sticky="e")
+
+        dpi_fields = ttk.Frame(opts)
+        dpi_fields.grid(row=12, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        dpi_fields.columnconfigure(3, weight=1)
+        ttk.Label(dpi_fields, text="DPI").grid(row=0, column=0, sticky="w")
+        self.dpi_entry = ttk.Entry(dpi_fields, textvariable=self.var_dpi, width=8,
+                                   validate="key", validatecommand=numeric_vcmd)
+        self.dpi_entry.grid(row=0, column=1, sticky="w", padx=(4, 12))
+        self._dpi_sync_guard = False
+        self.dpi_slider = ttk.Scale(dpi_fields, from_=DPI_SLIDER_MIN, to=DPI_SLIDER_MAX,
+                                    orient="horizontal", style="Res.Horizontal.TScale",
+                                    command=self._on_dpi_slider)
+        self.dpi_slider.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        self.var_dpi.trace_add("write", self._on_dpi_text_changed)
+        self._sync_dpi_slider_to_text()
+        self._refresh_dpi_state()
+
     def set_device(self, device: Optional[DeviceBundle]) -> None:
         self._device = device
         self.refresh_resolution_state()
@@ -139,6 +174,11 @@ class LaunchOptionsPanel:
             if h is None:
                 return None
             argv += [f"--screen-width={w}", f"--screen-height={h}"]
+        if guest_additions and self.var_override_dpi.get():
+            dpi = self._dpi_value()
+            if dpi is None:
+                return None
+            argv.append(f"--screen-dpi={dpi}")
         return argv
 
     def _is_optional_uint(self, value: str) -> bool:
@@ -186,6 +226,7 @@ class LaunchOptionsPanel:
         self.res_preset_label.config(foreground=FG_DIM if enabled else BG_FIELD)
 
     def refresh_resolution_state(self) -> None:
+        self._refresh_dpi_state()
         device = self._device
         if self.var_guest_additions.get():
             self.res_note.config(text="CERF display driver resolution:")
@@ -246,3 +287,49 @@ class LaunchOptionsPanel:
                 self.res_preset_label.config(text=f"Custom — {w} × {h}")
         finally:
             self._res_sync_guard = False
+
+    def _refresh_dpi_state(self) -> None:
+        ga = self.var_guest_additions.get()
+        self.dpi_check.config(state="normal" if ga else "disabled")
+        self.dpi_help_btn.config(state="normal" if ga else "disabled")
+        fields = "normal" if (ga and self.var_override_dpi.get()) else "disabled"
+        self.dpi_entry.config(state=fields)
+        self.dpi_slider.config(state=fields)
+
+    def _dpi_value(self) -> Optional[int]:
+        raw = self.var_dpi.get().strip()
+        try:
+            value = int(raw, 10)
+        except ValueError:
+            value = 0
+        if value < 1:
+            show_error(self._window, "Invalid DPI",
+                       "DPI must be a positive whole number.")
+            self.dpi_entry.focus_set()
+            return None
+        return value
+
+    def _on_dpi_slider(self, value: str) -> None:
+        if self._dpi_sync_guard:
+            return
+        self._dpi_sync_guard = True
+        try:
+            self.var_dpi.set(str(int(round(float(value)))))
+        finally:
+            self._dpi_sync_guard = False
+
+    def _on_dpi_text_changed(self, *_args: object) -> None:
+        if self._dpi_sync_guard:
+            return
+        self._sync_dpi_slider_to_text()
+
+    def _sync_dpi_slider_to_text(self) -> None:
+        try:
+            dpi = int(self.var_dpi.get().strip())
+        except ValueError:
+            return
+        self._dpi_sync_guard = True
+        try:
+            self.dpi_slider.set(max(DPI_SLIDER_MIN, min(DPI_SLIDER_MAX, dpi)))
+        finally:
+            self._dpi_sync_guard = False

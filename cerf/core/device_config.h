@@ -45,6 +45,11 @@ struct DeviceConfig : public Service {
     uint32_t board_configurable_screen_width  = 800;
     uint32_t board_configurable_screen_height = 600;
 
+    /* Guest-additions display DPI override (logical pixels/inch) from
+       --screen-dpi / cerf.json board.configurable_screen_dpi. 0 = no override:
+       the guest driver then falls back to the ROM's registry DPI, then 96. */
+    uint32_t screen_dpi = 0;
+
     /* True when the configurable screen size came from cerf.json
        board.configurable_screen_* or --screen-width/height (not the bare
        default above). The host window uses this to let an explicit size win

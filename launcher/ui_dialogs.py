@@ -87,6 +87,23 @@ def confirm_rom_license(parent: tk.Misc, display_name: str) -> bool:
     )
 
 
+def show_dpi_help(parent: tk.Misc) -> None:
+    show_info(
+        parent,
+        "Display DPI override",
+        "Overrides the logical DPI (pixels-per-inch) the CERF guest display "
+        "driver reports to the OS. It changes what the OS believes the screen "
+        "density is — it most likely causes rendering artifacts and broken "
+        "graphics.\n\n"
+        "Known behaviour:\n"
+        "• Restores VGA (2×) mode on Device Emulator ROMs.\n"
+        "• Scales readable / printable text (documents, web pages) on older "
+        "CE versions.\n"
+        "• Works best on Alt-Controls (touch-style) ROMs.\n\n"
+        "Takes effect on the next guest reset. Requires guest additions."
+    )
+
+
 def show_guest_additions_help(parent: tk.Misc) -> None:
     """Show the Guest Additions feature banner in a borderless-content window.
     Falls back to nothing if the banner asset can't be located."""

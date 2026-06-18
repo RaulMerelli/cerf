@@ -201,13 +201,33 @@ BOOL CerfDDGPE::IsPaletteSettable() {
     return (g_FbBpp <= 8);
 }
 
+static ULONG CerfReadGpeDpi(const wchar_t* value_name) {
+    HKEY hk;
+    ULONG dpi = 0;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Drivers\\Display\\GPE", 0, 0, &hk)
+        == ERROR_SUCCESS) {
+        DWORD type = 0, data = 0, sz = sizeof(data);
+        if (RegQueryValueExW(hk, value_name, NULL, &type, (LPBYTE)&data, &sz)
+                == ERROR_SUCCESS && type == REG_DWORD)
+            dpi = data;
+        RegCloseKey(hk);
+    }
+    return dpi;
+}
+
 BOOL CerfDDGPE::GetScreenDimensions(GPEScreenProps* pProps) {
     CERF_LOG_DEV("cerf_guest: GPE::GetScreenDimensions");
     if (!pProps) return FALSE;
-    pProps->ulHorzSize   = (g_FbWidth  * 254) / 96 / 10;
-    pProps->ulVertSize   = (g_FbHeight * 254) / 96 / 10;
-    pProps->ulLogPixelsX = 96;
-    pProps->ulLogPixelsY = 96;
+    /* DPI priority: 1) emulator override (kFbRegLogicalDpi), 2) the ROM's own
+       registry DPI (what the stock GPE lib would read), 3) 96. */
+    ULONG dpiX = g_FbDpi ? g_FbDpi : CerfReadGpeDpi(L"LogicalPixelsX");
+    ULONG dpiY = g_FbDpi ? g_FbDpi : CerfReadGpeDpi(L"LogicalPixelsY");
+    if (!dpiX) dpiX = 96;
+    if (!dpiY) dpiY = 96;
+    pProps->ulHorzSize   = (g_FbWidth  * 254) / dpiX / 10;
+    pProps->ulVertSize   = (g_FbHeight * 254) / dpiY / 10;
+    pProps->ulLogPixelsX = dpiX;
+    pProps->ulLogPixelsY = dpiY;
     pProps->ulAspectX    = 36;
     pProps->ulAspectY    = 36;
     pProps->ulAspectXY   = 51;
