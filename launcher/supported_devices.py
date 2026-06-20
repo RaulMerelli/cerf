@@ -390,6 +390,7 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
             "battery": False,
             "mic": False,
+            "suspend": True
         },
     },
     {
