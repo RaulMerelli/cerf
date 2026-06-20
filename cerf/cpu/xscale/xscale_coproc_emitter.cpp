@@ -13,6 +13,7 @@
 #include "../../jit/place_fns.h"
 #include "../../jit/x86_emit.h"
 #include "../../boards/board_detector.h"
+#include "../../socs/iop13xx/iop13xx_cp6.h"
 
 namespace {
 
@@ -22,12 +23,18 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && (bd->GetSoc() == SocFamily::PXA25x ||
+                      bd->GetSoc() == SocFamily::IOP13xx);
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
                                   BlockContext* ctx) override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        if (d->cp_num == 6 && bd && bd->GetSoc() == SocFamily::IOP13xx) {
+            return static_cast<Iop13xxCp6&>(emu_.Get<IrqController>())
+                .EmitRegisterTransfer(cursor, d, ctx);
+        }
         if (d->cp_num == 15) {
             /* CPAR (Coprocessor Access Register) — XScale §7.2.15: cp15
                c15, CRm=c1, opc2=0. Shared cp15 dispatch UNDs c15 (boot

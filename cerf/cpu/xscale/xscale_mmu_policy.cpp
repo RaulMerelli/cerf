@@ -11,7 +11,8 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && (bd->GetSoc() == SocFamily::PXA25x ||
+                      bd->GetSoc() == SocFamily::IOP13xx);
     }
 
     /* XScale Core Dev Manual Table 7-8: TTBR base is bits[31:14],

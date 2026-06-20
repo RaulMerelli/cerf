@@ -16,6 +16,7 @@ enum class SocFamily {
                   only in CPU ID (proc-sa1100.S:276 = 0x4401a110). */
     PXA25x,    /* Intel XScale PXA255 ("Cotulla"), ARMv5TE */
     PXA27x,
+    IOP13xx,   /* Intel IOP13xx I/O processor, XScale-V3 / ARMv5TE */
     OMAP3530,
     Poseidon,
     iMX31,
@@ -67,6 +68,9 @@ enum class Board {
                          MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). ROM
                          fingerprint: the OEM eboot device name "Book_HPC" (both
                          ROM generations; the "G138" token is 4.2-only). */
+    SiemensMP377,     /* Siemens SIMATIC MP 377 HMI family, Intel IOP13xx
+                         XScale-V3, Windows CE 5.0, Siemens P377 BSP. ROM
+                         fingerprint: "\platform\P377\target". */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

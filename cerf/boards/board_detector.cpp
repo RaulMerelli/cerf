@@ -24,6 +24,7 @@ const char* BoardDetector::SocFamilyName(SocFamily f) {
         case SocFamily::SA1100:    return "SA1100";
         case SocFamily::PXA25x:    return "PXA25x";
         case SocFamily::PXA27x:    return "PXA27x";
+        case SocFamily::IOP13xx:   return "IOP13xx";
         case SocFamily::OMAP3530:  return "OMAP3530";
         case SocFamily::Poseidon:  return "Poseidon";
         case SocFamily::iMX31:     return "iMX31";

@@ -173,6 +173,18 @@ uint8_t* EmitCp15CacheOp(uint8_t*      cursor,
         case 6:
         case 10:
             break;
+        case 5:
+        case 7:
+        case 11:
+        case 14:
+        case 15:
+            /* XScale Core Dev Manual Table 7-12 — opc1=1 cache maintenance
+               on I-cache (c5, c11), unified (c7) and D-cache (c14, c15).
+               opc2 selects granularity: 0 = by line (VA), 1 = by line
+               index, 2 = by Set/Way. c6 (D-cache by VA) is already covered
+               above as a no-op. No I/D cache modeled on CERF — no-op. */
+            if (d->cp <= 2) break;
+            [[fallthrough]];
         default:
             LOG(Caution,
                 "EmitCp15CacheOp: unimplemented c7 maintenance op "

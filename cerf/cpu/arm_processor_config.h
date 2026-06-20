@@ -77,6 +77,13 @@ public:
     virtual bool     HasCp15V7()                  const { return false; }
     virtual bool     HasVmsav7()                  const { return false; }
 
+    /* TTBR low bits hold cacheability attributes instead of being SBZ.
+       XScale Core Dev Manual §7.2.4 Table 7-7 defines bit0 = S,
+       bit2 = RGN[0], bit3 = P, bit4 = RGN[1]. Default (v4/v5 non-XScale,
+       v6, v7) writes SBZ in [13:0] and the JIT-side store must reject
+       non-zero low bits. */
+    virtual bool     HasXscaleTtbrAttrs()         const { return false; }
+
     /* c9,c0,2 op1=1 L2 Cache Auxiliary Control Register present (Cortex-A8). */
     virtual bool     HasL2CacheAuxControl()       const { return false; }
 

@@ -12,7 +12,8 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && (bd->GetSoc() == SocFamily::PXA25x ||
+                      bd->GetSoc() == SocFamily::IOP13xx);
     }
 
     /* ARMv5 / StrongARM / XScale store PC+8 for STR/STM of R15. Not
@@ -36,7 +37,14 @@ public:
     /* CP15 Register 0 ID. PXA255 manual Table 2-3 (A0 stepping):
        ARM ID = 0x69052D06 (0x69 Intel, 0x05 ARMv5TE, core gen 001 =
        XScale, product number 010000 = PXA255, revision 0110 = A0). */
-    uint32_t Midr()                       const override { return 0x69052D06u; }
+    uint32_t Midr() const override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        /* Linux proc-xsc3.S matches IOP13xx with value 0x69056000 and mask
+           0xFFFFE000. The low implementation/revision bits are not used by
+           the CE 5 kernel beyond its ProcessorType/Revision diagnostic. */
+        return bd && bd->GetSoc() == SocFamily::IOP13xx
+            ? 0x69056000u : 0x69052D06u;
+    }
 
     /* Cache Type Register, XScale Table 7-5 fields with PXA255 sizes
        (manual §1.1: 32-KByte I-cache + 32-KByte D-cache, 32-way,
@@ -63,13 +71,32 @@ public:
        40-bit DSP accumulator via CP0, not VFP). All v6/v7 ISA additions
        absent — inherit base defaults (false). */
 
+    /* XScale Core Dev Manual §7.2.4 Table 7-7: TTBR0 low bits are
+       cacheability attributes (bit0 S, bit2 RGN[0], bit3 P, bit4 RGN[1]),
+       not SBZ. The Siemens P377 OAL writes TTBR0 with bits[3:4] set
+       ("ORR R10, R10, #0x18" before MCR p15, c2, c0) at 0x8040A360. */
+    bool     HasXscaleTtbrAttrs()         const override { return true; }
+
     /* PXA255 max run mode (PXA255 manual Table 3-20 CCCR): 3.6864 MHz
        crystal * L_mult(27) * M(x4) = 398.13 MHz core; OSCR is the
        3.6864 MHz crystal directly (/108); 32.768 kHz low-freq ref (/12150). */
-    uint32_t CpuClockHz()                 const override { return 398131200u; }
-    uint32_t CpuToOscrDivider()           const override { return 108; }
-    uint32_t CpuToHighfreqClockDivider()  const override { return 108; }
-    uint32_t CpuToLowfreqClockDivider()   const override { return 12150; }
+    uint32_t CpuClockHz() const override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        return bd && bd->GetSoc() == SocFamily::IOP13xx
+            ? 800000000u : 398131200u;
+    }
+    uint32_t CpuToOscrDivider() const override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        /* MP377 OEMInit programs 25,000 timer counts per millisecond. */
+        return bd && bd->GetSoc() == SocFamily::IOP13xx ? 32u : 108u;
+    }
+    uint32_t CpuToHighfreqClockDivider() const override {
+        return CpuToOscrDivider();
+    }
+    uint32_t CpuToLowfreqClockDivider() const override {
+        auto* bd = emu_.TryGet<BoardDetector>();
+        return bd && bd->GetSoc() == SocFamily::IOP13xx ? 24414u : 12150u;
+    }
 };
 
 }  /* namespace */

@@ -179,6 +179,24 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         } else if (jit->ProcessorConfig()->HasCp15V7()) {
             cursor = EmitFieldWriteContextSwitch(cursor, jit, rd_disp, ttbr0_disp,
                                                  0xFFFFFFFFu);
+        } else if (jit->ProcessorConfig()->HasXscaleTtbrAttrs()) {
+            /* XScale Core Dev Manual Table 7-7: low 14 bits carry
+               cacheability attributes (S / RGN[0] / P / RGN[1]). Validate
+               the base PA (bits[31:14]) and store the full value — the
+               walker masks at use. */
+            EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
+            EmitMovRegReg(cursor, kEax, kEcx);
+            EmitAndRegImm32(cursor, kEax, 0xFFFFC000u);
+            EmitMovRegImm32(cursor, kEdx,
+                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+            EmitCall(cursor,
+                reinterpret_cast<void*>(&ArmJit::MapGuestPhysicalToHostRamHelper));
+            EmitTestRegReg(cursor, kEax, kEax);
+            uint8_t* store_label = EmitJnzLabel(cursor);
+            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+            FixupLabel(store_label, cursor);
+            cursor = EmitFieldWriteContextSwitch(cursor, jit, rd_disp, ttbr0_disp,
+                                                 0xFFFFFFFFu);
         } else {
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
             EmitMovRegReg(cursor, kEax, kEcx);
