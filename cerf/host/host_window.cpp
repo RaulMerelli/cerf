@@ -246,7 +246,7 @@ void HostWindow::PerformShutdownChoice(ShutdownChoice c) {
 
 void HostWindow::BeginShutdownTeardown() {
     if (closing_) return;
-    /* Stop the CPU cooperatively first — destroying the window with the JIT
+    /* Stop the CPU cooperatively first - destroying the window with the JIT
        still grinding ARM code orphans cerf.exe; the watchdog destroys it once parked. */
     closing_ = true;
     if (auto* jit = emu_.TryGet<JitRunner>()) jit->RequestStop();
@@ -298,7 +298,7 @@ void HostWindow::UiThreadMain() {
        dims (no re-mode needed). No-op unless adopt-resolution is enabled. */
     AdoptResolutionToWindowMonitor();
 
-    /* Must run before the canvas is built — the canvas takes the window
+    /* Must run before the canvas is built - the canvas takes the window
        client size, and an unclamped oversized surface would size it
        off-screen with no scrollbars engaged. */
     FitWindowToSurface(initial_surface_w_, initial_surface_h_);
@@ -407,7 +407,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
 
-        /* Dirty the follow-guest bit only on genuine user action — drag-
+        /* Dirty the follow-guest bit only on genuine user action - drag-
            resize (bracketed by ENTER/EXITSIZEMOVE) and maximize. Raw
            WM_SIZE also fires for the first show and our own programmatic
            AutoResizeToGuest, which must NOT count as the user taking over. */
@@ -436,7 +436,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     DestroyWindow(hwnd);
                 } else if (GetTickCount64() - close_start_tick_ >= kCloseGraceMs) {
                     /* The JIT thread didn't observe the cooperative stop within
-                       the grace period — wedged in a guest spin or host wait, it
+                       the grace period - wedged in a guest spin or host wait, it
                        will never exit on its own. Force the process down so
                        cerf.exe doesn't survive with a running JIT thread. */
                     LOG(Caution, "HostWindow: JIT did not stop within %llums of "

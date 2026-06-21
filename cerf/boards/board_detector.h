@@ -35,7 +35,7 @@ enum class Board {
                          builds Thumb (_TGTCPUTYPE=THUMB, _TGTCPU=ARM720). */
     OmapEvm3530,      /* TI OMAP 3530 EVM (Cortex-A8 / CE7); EVM1 and EVM2 ship same BSP */
     IpaqGen1,         /* Compaq iPAQ first generation (H31xx mono, H36xx color,
-                         H37xx SKUs — EGPIO + Atmel MicroP companions), Intel
+                         H37xx SKUs - EGPIO + Atmel MicroP companions), Intel
                          SA-1110. One BSP across the family; H38xx (ASIC1/2)
                          and H39xx (PXA, ASIC3) are separate future boards. */
     ZuneKeel,         /* Microsoft Zune 30, board codename Keel, Freescale
@@ -87,13 +87,13 @@ public:
     virtual const char* GetShortBoardName() const { return BoardName(); }
 
     /* RT_RCDATA resource name of the board's OEM boot logo (a PNG embedded via
-       cerf.rc), or nullptr when the board has no OEM logo — HwScreen then shows
+       cerf.rc), or nullptr when the board has no OEM logo - HwScreen then shows
        only the CERF logo. HwScreen owns decoding; the detector stays free of
        any GDI/Win32 dependency (a wchar_t* resource name needs no windows.h). */
     virtual const wchar_t* GetBootLogoResource() const { return nullptr; }
 
     /* Cosmetic pre-boot window-size hint for boards with a single fixed LCD.
-       Never route actual sizing through this — the real resolution comes
+       Never route actual sizing through this - the real resolution comes
        solely from OnLcdEnabled, and overriding that here would ignore what
        the guest LCD reports. nullopt (base default) = no hint. */
     virtual std::optional<PreferredWindowSize> GetPreferredWindowSize() const {
@@ -102,15 +102,15 @@ public:
 
     /* Guest-Additions framebuffer colour depth in bpp (the cerf_virt FB format
        the guest's display/DDraw stack sees). Base = 32 (host-native BGRA). A
-       board overrides when its guest software hard-requires another depth — Zune
+       board overrides when its guest software hard-requires another depth - Zune
        XUI/D3-Mobile only accepts 16bpp RGB565; CE3 imgdecmp rejects 32bpp. */
     virtual uint32_t GetGuestAdditionsColorDepth() const { return 32u; }
 
     static const char*  SocFamilyName(SocFamily f);
 
 protected:
-    /* NameContains is ASCII-only — UTF-16 needles need ContainsString.
-       ModuleNames omits IMGFS-table filenames (WM6+ NB0) — those need
+    /* NameContains is ASCII-only - UTF-16 needles need ContainsString.
+       ModuleNames omits IMGFS-table filenames (WM6+ NB0) - those need
        RomContainsString. */
     std::string          ModuleNames   () const;
     std::vector<uint8_t> ReadKernelBlob() const;

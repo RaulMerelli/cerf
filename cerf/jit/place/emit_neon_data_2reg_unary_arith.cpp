@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VABS / VNEG (A8.8.280 / A8.8.355) — A7.4.5 A=01, bits[9:7]=110/111.
+/* VABS / VNEG (A8.8.280 / A8.8.355) - A7.4.5 A=01, bits[9:7]=110/111.
    bit[10]=F selects integer (0) vs .F32 (1). bit[6]=Q selects D vs Q form. */
 uint8_t* PlaceNeonData2RegUnaryArith(uint8_t*      cursor,
                                      DecodedInsn*  d,

@@ -197,7 +197,7 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
     }
 }
 
-/* "additional_packages": { "compact_flash_cards": [{ "file", "name" }] } —
+/* "additional_packages": { "compact_flash_cards": [{ "file", "name" }] } -
    every level is optional. */
 void LoadAdditionalPackages(const json& root, DeviceConfig& config,
                             const std::string& path) {

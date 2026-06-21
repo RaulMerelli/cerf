@@ -22,7 +22,7 @@ constexpr uint32_t kMountBytes = kFsMountPointMaxWchars * sizeof(uint16_t);
 
 /* The op MUST run synchronously in the issuing (JIT) thread: the ServerPB is
    read by guest VA through the live MMU, valid only in that thread's process
-   context — a worker thread would translate the VA against the wrong process. */
+   context - a worker thread would translate the VA against the wrong process. */
 class CerfVirtFolderShare : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -80,7 +80,7 @@ public:
 
     /* serverpb_va_ is guest-registered and not re-sent on a resume, so a
        mounted share breaks without it. mount_* is a lazy cache of
-       FolderShareConfig (host config, persists across restart) — left
+       FolderShareConfig (host config, persists across restart) - left
        uninited so the next read rebuilds it from the live config. */
     void SaveState(StateWriter& w) override {
         w.Write(serverpb_va_);

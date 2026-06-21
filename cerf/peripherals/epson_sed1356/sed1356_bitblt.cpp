@@ -114,7 +114,7 @@ uint32_t Sed1356BitBlt::ExpectedWriteWords() const {
 }
 
 /* AB[20:0] addressing: accesses alias within the populated buffer (TM
-   X25B-A-001 §10 Fig 10-1) via owner_.VramWrap — never fault. */
+   X25B-A-001 §10 Fig 10-1) via owner_.VramWrap - never fault. */
 uint16_t Sed1356BitBlt::ReadPxAt(uint32_t byte_addr) const {
     const uint8_t* m = owner_.vram_.data();
     const uint8_t  lo = m[owner_.VramWrap(byte_addr)];

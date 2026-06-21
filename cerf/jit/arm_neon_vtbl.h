@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VTBL / VTBX — A8.8.419, byte-wise table lookup of D[m]'s 8 indices
+/* VTBL / VTBX - A8.8.419, byte-wise table lookup of D[m]'s 8 indices
    into a 1-4 D-register table starting at D[n]. VTBL zero-fills bytes
    whose index is out of range; VTBX preserves D[d]'s original byte at
    those positions. */

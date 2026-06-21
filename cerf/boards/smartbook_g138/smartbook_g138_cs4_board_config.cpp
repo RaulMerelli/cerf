@@ -12,7 +12,7 @@ namespace {
 
 /* G138 board-config block on static nCS4 (PA 0x42000000), unbacked MMIO. OAL
    firmware-init (nk.exe sub_8C17962C) writes +0x30E=1 then reads board
-   type/version/S/N at +0x304/306/308 — info-only (board-type string is
+   type/version/S/N at +0x304/306/308 - info-only (board-type string is
    MPU-derived), and the PLD data isn't in the ROM, so reads return 0. */
 class SmartBookG138Cs4BoardConfig : public Peripheral {
 public:

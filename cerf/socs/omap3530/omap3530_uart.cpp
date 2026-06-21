@@ -172,7 +172,7 @@ void Omap3530UartBank::WriteByteLocked(uint32_t addr, uint32_t off,
     case kOffMsr:    msr_ = value; return;
     case kOffSpr:    spr_ = value; return;
     case kOffMdr1:
-        /* Accept any MODE_SELECT — UART TX path (EmitTxByte via THR)
+        /* Accept any MODE_SELECT - UART TX path (EmitTxByte via THR)
            only fires when guest writes RHR/THR; disable mode just
            means kernel won't queue bytes. */
         mdr1_ = value;
@@ -240,7 +240,7 @@ void Omap3530UartBank::WriteWord(uint32_t addr, uint32_t value) {
 
 void Omap3530UartBank::SaveState(StateWriter& w) {
     /* tx_line_ is a host-side console line accumulator, rebuilt as the
-       guest writes — not machine state. state_mutex_ is held (the bank
+       guest writes - not machine state. state_mutex_ is held (the bank
        drives a cross-thread RaiseSyncEvent path into the SDMA). */
     std::lock_guard<std::mutex> lk(state_mutex_);
     w.Write(ier_);

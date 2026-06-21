@@ -58,7 +58,7 @@ void ApplyRelocations(std::vector<uint8_t>& bytes,
             std::memcpy(&entry, bytes.data() + cursor + 8 + i*2, 2);
             const uint32_t type   = (entry >> 12) & 0xF;
             const uint32_t offset = entry & 0xFFF;
-            if (type == 0) continue;            /* IMAGE_REL_BASED_ABSOLUTE — padding */
+            if (type == 0) continue;            /* IMAGE_REL_BASED_ABSOLUTE - padding */
             if (type == 3) {                    /* IMAGE_REL_BASED_HIGHLOW */
                 const uint32_t tgt_rva = page_va + offset;
                 const uint32_t tgt_off = RvaToFileOff(pe, tgt_rva);

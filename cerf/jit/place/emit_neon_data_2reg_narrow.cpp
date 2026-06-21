@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VMOVN / VQMOVUN / VQMOVN.S / VQMOVN.U (A8.8.347 / A8.8.374) — A7.4.5
+/* VMOVN / VQMOVUN / VQMOVN.S / VQMOVN.U (A8.8.347 / A8.8.374) - A7.4.5
    A=10, bits[10:8]=010 with op at bits[7:6] selecting the variant. */
 uint8_t* PlaceNeonData2RegNarrow(uint8_t*      cursor,
                                  DecodedInsn*  d,
@@ -28,7 +28,7 @@ uint8_t* PlaceNeonData2RegNarrow(uint8_t*      cursor,
     if (size == 3u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
-    /* Vm[0]==1 UND — source is Q-register, even-indexed D required. */
+    /* Vm[0]==1 UND - source is Q-register, even-indexed D required. */
     if (m_idx & 1u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

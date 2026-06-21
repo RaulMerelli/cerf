@@ -15,7 +15,7 @@ struct StateImageHeader {
     char     magic[8];          /* kStateMagic */
     uint32_t format_version;    /* kStateFormatVersion */
     /* Lightweight ROM fingerprint + peripheral-layout signature. Restore
-       refuses a mismatch before touching live state — a foreign ROM's RAM
+       refuses a mismatch before touching live state - a foreign ROM's RAM
        and registers describe a different machine, and a peripheral set
        saved by an incompatible build cannot be replayed in order. */
     uint32_t rom_entry_va;      /* primary partition entry VA */
@@ -40,14 +40,14 @@ enum class StateSection : uint32_t {
     Periph       = 4,
     /* Host guest-surface dimensions, so a restore re-sizes the window to the
        saved display mode (both GA and stock modes publish them to HostCanvas).
-       Full restore only — a warm boot's rebooting OS re-asserts its own mode. */
+       Full restore only - a warm boot's rebooting OS re-asserts its own mode. */
     Presentation = 5,
-    /* Backed flash regions (guest NOR/NAND writes). Applied on warm boot too —
+    /* Backed flash regions (guest NOR/NAND writes). Applied on warm boot too -
        flash survives a reboot on real hardware. */
     Flash        = 6,
     /* Host-widget state that drives guest-visible hardware (the battery
        widget's charge level / AC, which a board service feeds into GPIO/MCU
-       lines the CE driver reads). Full restore only — a warm boot re-asserts
+       lines the CE driver reads). Full restore only - a warm boot re-asserts
        it when the board service re-drives at startup. */
     Widget       = 7,
 };

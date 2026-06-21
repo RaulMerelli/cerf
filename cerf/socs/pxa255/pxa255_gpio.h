@@ -6,7 +6,7 @@
 #include <mutex>
 
 /* A device wired to one GPIO pin that the guest drives serially by toggling the
-   pin (a 1-Wire-style slave — the Falcon main battery on GPIO73). It watches the
+   pin (a 1-Wire-style slave - the Falcon main battery on GPIO73). It watches the
    guest's direction writes and supplies the pin's level when the guest reads. */
 class Pxa255GpioSerialSlave {
 public:
@@ -20,7 +20,7 @@ public:
 
 /* PXA255 GPIO, 3 banks x 32 pins (§4.1.3, base 0x40E00000, Table 4-49).
    A GRER/GFER-enabled edge latches GEDR (§4.1.3.5), which drives the INTC as
-   a LEVEL via Intc::SetSourceLevel (cleared only by guest GEDR W1C) — an
+   a LEVEL via Intc::SetSourceLevel (cleared only by guest GEDR W1C) - an
    edge/AssertSource model would desync the INTC line from GEDR. */
 class Pxa255Gpio : public Peripheral {
 public:

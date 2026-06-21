@@ -33,7 +33,7 @@ constexpr OatEntry kOat[] = {
     { 0x96000000u, 0x28000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket 0 */
     { 0x94000000u, 0x20000000u, MB(32), OatKind::Mmio  }, /* PCMCIA socket 0 base */
     { 0x8E000000u, 0xC2000000u, MB(96), OatKind::Dram  }, /* DRAM bank 0, +32MB..128MB (cached) */
-    { 0x8C000000u, 0xC0000000u, MB(32), OatKind::Dram  }, /* DRAM bank 0 base (cached) — NK image @ 0xC0140000 */
+    { 0x8C000000u, 0xC0000000u, MB(32), OatKind::Dram  }, /* DRAM bank 0 base (cached) - NK image @ 0xC0140000 */
     { 0x8BD00000u, 0x08000000u, MB( 1), OatKind::Flash }, /* static bank CS1 (NOR) 1MB window */
     { 0x8BA00000u, 0x42000000u, MB( 1), OatKind::Mmio  }, /* variable-latency I/O (PA 0x40-0x48M region) */
     { 0x8B600000u, 0x4B800000u, MB( 2), OatKind::Mmio  }, /* variable-latency I/O */

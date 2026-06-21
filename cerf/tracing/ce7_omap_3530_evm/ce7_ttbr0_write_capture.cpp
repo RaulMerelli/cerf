@@ -20,7 +20,7 @@ constexpr uint32_t kPcGetCpuIdReturn     = 0x8C00C0F4u;
 constexpr uint32_t kPcGetCpuIdKdllReturn = 0x8C035064u;
 constexpr uint32_t kPcNkStartupEntry     = 0x8C02D2D8u;
 constexpr uint32_t kPcArchIdUbfx         = 0x8C02D320u;  /* UBFX R3, R9, #16, #4 */
-constexpr uint32_t kPcArchIdPostUbfx     = 0x8C02D324u;  /* MOV R6, #2 — first insn after UBFX */
+constexpr uint32_t kPcArchIdPostUbfx     = 0x8C02D324u;  /* MOV R6, #2 - first insn after UBFX */
 constexpr uint32_t kPcArchIdStore        = 0x8C02D340u;  /* STR R3, [R5, #0x2A0] */
 constexpr uint32_t kPcArchIdCmp          = 0x8C02D344u;  /* CMP R3, #7 */
 

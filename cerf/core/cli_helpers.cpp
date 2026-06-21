@@ -3,7 +3,7 @@
 #include <cstdio>
 
 void PrintUsage(const char* prog) {
-    printf("CERF — Windows CE virtual platform\n");
+    printf("CERF - Windows CE virtual platform\n");
     printf("Boots unmodified Windows CE / Mobile / Phone ROMs on x64 Windows.\n\n");
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");

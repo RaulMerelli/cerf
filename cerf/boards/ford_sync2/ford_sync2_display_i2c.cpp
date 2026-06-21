@@ -32,7 +32,7 @@ public:
         /* Both lines idle high (open-drain pull-up). SCL especially: the slave
            never clock-stretches, so the master's WaitForSCK readback (hsi2c
            sub_C09F16E4 releases GPIO4.16 then waits for it to read high) must
-           read high — else it times out (0x102) every clock and the I2C crawls. */
+           read high - else it times out (0x102) every clock and the I2C crawls. */
         gpio_->SetInputPin(kScl, true);
         gpio_->SetInputPin(kSda, true);
         gpio_->SetWriteObserver([this] { OnEdge(); });
@@ -66,7 +66,7 @@ private:
                          gpio_->PinInputLevel(kSda);
 
         if (scl && prev_scl_) {                       /* SDA edge while SCL high */
-            if (prev_sda_ && !sda) {                  /* (repeated) START — reg_ kept */
+            if (prev_sda_ && !sda) {                  /* (repeated) START - reg_ kept */
                 active_ = true; bit_ = 0u; shift_ = 0u;
                 tx_this_ = false; byte_idx_ = 0u; addressed_ = false;
                 ReleaseSda();
@@ -74,7 +74,7 @@ private:
                 active_ = false; ReleaseSda();
             }
         } else if (active_) {
-            if (prev_scl_ && !scl) {                  /* SCL falling — set up next bit */
+            if (prev_scl_ && !scl) {                  /* SCL falling - set up next bit */
                 if (bit_ < 8u) {
                     if (tx_this_ && addressed_) DriveSda((tx_byte_ >> (7u - bit_)) & 1u);
                     else ReleaseSda();
@@ -82,7 +82,7 @@ private:
                     if (!tx_this_ && addressed_) DriveSda(false);  /* slave ACKs RX byte */
                     else ReleaseSda();                /* master ACKs our TX byte */
                 }
-            } else if (!prev_scl_ && scl) {           /* SCL rising — sample */
+            } else if (!prev_scl_ && scl) {           /* SCL rising - sample */
                 if (bit_ < 8u) {
                     if (!tx_this_) shift_ = (shift_ << 1) | (sda ? 1u : 0u);
                     if (++bit_ == 8u && !tx_this_)    /* RX byte done BEFORE its ACK */

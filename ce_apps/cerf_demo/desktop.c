@@ -7,7 +7,7 @@
 #define NDISC   28
 #define FADE_MS 5000
 
-/* per-frame bokeh state — this compositor owns all of it */
+/* per-frame bokeh state - this compositor owns all of it */
 static int           g_bw, g_bh;
 static HDC           g_fxdc;
 static HBITMAP       g_fxbmp;

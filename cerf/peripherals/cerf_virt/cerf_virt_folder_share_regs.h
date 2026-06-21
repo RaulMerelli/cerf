@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-/* Shared host/guest contract for the folder-sharing channel — the Microsoft
+/* Shared host/guest contract for the folder-sharing channel - the Microsoft
    Device Emulator VCEFSD folder-sharing protocol, reproduced so the guest FSD
    and this host peripheral agree byte-for-byte (the host checks fStructureSize
    == sizeof(ServerPB) at runtime to catch any layout drift). */
@@ -72,7 +72,7 @@ constexpr uint16_t kOpenShareDenyNone      = 0x0040;
 constexpr uint32_t kMaxLfn = 255;
 constexpr uint32_t kFolderShareMaxReadWriteSize = 1024 * 64;
 
-/* ServerPB — per-request parameter block in guest RAM. Natural alignment (CE
+/* ServerPB - per-request parameter block in guest RAM. Natural alignment (CE
    default); fName/fName2 are uint16_t so the 2-byte-wchar layout is identical
    regardless of host wchar_t width; fDTAPtr is a guest VA read via the MMU. */
 struct ServerPB {

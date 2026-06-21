@@ -38,7 +38,7 @@ public:
     void     WriteByte(uint32_t addr, uint8_t  v) override { WriteWord(addr & ~0x3u, v); }
     void     WriteHalf(uint32_t addr, uint16_t v) override { WriteWord(addr & ~0x3u, v); }
 
-    /* AudioOutSink — the Pxa255Dma I2S-target channel drives playback through these. */
+    /* AudioOutSink - the Pxa255Dma I2S-target channel drives playback through these. */
     void BeginAudioOut(std::function<void()> on_block_done) override;
     void QueueOutput(const void* host_bytes, uint32_t length) override;
     void StopAudioOut() override;

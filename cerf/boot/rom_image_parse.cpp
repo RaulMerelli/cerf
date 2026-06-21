@@ -38,11 +38,11 @@ bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
     while (off + kB000FFSectionHeaderSize <= raw.size()) {
         uint32_t base = U32(raw.data(), off);
         uint32_t size = U32(raw.data(), off + 4);
-        /* checksum at off+8 — ignored. */
+        /* checksum at off+8 - ignored. */
         if (base == 0) {
             /* Terminator section (base=0): the loader convention
                reuses the section header's 'size' field as the kernel
-               entry-point VA — the only place B000FF encodes where
+               entry-point VA - the only place B000FF encodes where
                execution begins. */
             out_entry_va = size;
             break;
@@ -119,7 +119,7 @@ bool NosajLocateOsXip(std::span<const uint8_t> raw, NosajOsXip& out) {
     const uint32_t ev_ptoc = U32(raw.data(), xip + kRomSignatureOffset + 4);
 
     /* The image can cross a 16 MB boundary, so ev_ptoc's high byte is not
-       necessarily physfirst's — try the 16 MB-aligned bases at/below ev_ptoc and
+       necessarily physfirst's - try the 16 MB-aligned bases at/below ev_ptoc and
        accept the one whose ROMHDR self-validates. */
     constexpr uint32_t kWindowGrain = 0x01000000u;
     const uint32_t top   = ev_ptoc & ~(kWindowGrain - 1u);
@@ -208,7 +208,7 @@ bool IpaqNbfLocateOsXip(std::span<const uint8_t> raw, IpaqNbfOsXip& out) {
 
 std::vector<size_t> FindAllEcec(std::span<const uint8_t> flat) {
     std::vector<size_t> out;
-    /* Scan the whole flat — a multi-XIP ROM keeps the NK kernel region in the
+    /* Scan the whole flat - a multi-XIP ROM keeps the NK kernel region in the
        file tail, far past any front window; a size cap drops that region and
        the kernel never gets placed. Each hit is validated by ParseRomHdr
        downstream, so a stray 'ECEC' byte match costs nothing. */
@@ -404,7 +404,7 @@ void ParseModulesAndFiles(std::span<const uint8_t> flat,
 
 size_t FindImgfsBase(std::span<const uint8_t> raw) {
     /* Scan for the IMGFS superblock UUID at page-aligned offsets and
-       validate the header fields. Port of imgfs.py::find_imgfs_base —
+       validate the header fields. Port of imgfs.py::find_imgfs_base -
        check `dirent_size` at +0x1C and a sane `bytes_per_block` at
        +0x24 (0x200..0x10000). */
     size_t pos = 0;

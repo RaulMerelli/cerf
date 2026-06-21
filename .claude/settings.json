@@ -45,6 +45,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "py -3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/autofix_em_dashes.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "py -3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/check_cerf_file.py",
             "timeout": 10
           },

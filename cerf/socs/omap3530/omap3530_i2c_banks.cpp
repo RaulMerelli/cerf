@@ -6,7 +6,7 @@
 
 namespace {
 
-/* I2C1 — talks to the TWL4030 PMIC. Dispatch hooks routed to the
+/* I2C1 - talks to the TWL4030 PMIC. Dispatch hooks routed to the
    TWL4030 slave service. */
 class Omap3530I2c1 : public Omap3530I2cBank {
 public:
@@ -63,7 +63,7 @@ class Omap3530I2c3 : public Omap3530I2cBank {
 public:
     using Omap3530I2cBank::Omap3530I2cBank;
     uint32_t MmioBase() const override { return 0x48060000u; }
-    /* I2C3 is high-speed I2C with no SDMA wiring on OMAP3530 — uses
+    /* I2C3 is high-speed I2C with no SDMA wiring on OMAP3530 - uses
        its own internal FIFO and CPU-driven transfers. */
 };
 

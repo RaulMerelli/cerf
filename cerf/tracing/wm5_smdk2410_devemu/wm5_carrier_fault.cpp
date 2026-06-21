@@ -40,7 +40,7 @@ public:
                             k * 4u, w ? *w : 0xDEADBEEFu);
                     }
                     /* Slot context: the FCSE process_id (which process's slot is
-                       active) and the slot-base global the loader OR-folds with —
+                       active) and the slot-base global the loader OR-folds with -
                        0x06000000 = slot-3 base means dest = slot_base | offset0. */
                     auto& mmu = c.emu.Get<ArmMmu>();
                     const uint32_t pid = mmu.State()->process_id;
@@ -49,7 +49,7 @@ public:
                         pid, slot ? *slot : 0xDEADBEEFu);
                     /* Full page-table walk (device.exe tables are live at the abort)
                        to read the memcpy caller's code (UART RA=0x36C436C0) where the
-                       fast-path ReadVa32 returned DEADBEEF — so it can be byte-matched
+                       fast-path ReadVa32 returned DEADBEEF - so it can be byte-matched
                        to a module's .text in IDA. */
                     if (uint8_t* h = mmu.PeekVaToHost(0x36C436A0u)) {
                         const uint32_t* w = reinterpret_cast<const uint32_t*>(h);

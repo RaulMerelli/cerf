@@ -11,7 +11,7 @@
 namespace {
 
 /* i.MX51 eSDHC2 (Enhanced SD Host Controller, MCIMX51RM Ch 31) at SPBA0 0x70008000.
-   Modelled with no card present (SD slot is non-boot-critical) — there is no card
+   Modelled with no card present (SD slot is non-boot-critical) - there is no card
    transaction model behind it, so the present-state must report CINS=0. */
 constexpr uint32_t kBase = 0x70008000u;
 constexpr uint32_t kSize = 0x00004000u;  /* SPBA0 16 KB slot */

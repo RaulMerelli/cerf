@@ -18,7 +18,7 @@ public:
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kZuneKeelBundleCrc32, [&] {
             static std::atomic<bool> dumped{false};
-            /* Unfiltered by necessity — attributing the unknown module, so no
+            /* Unfiltered by necessity - attributing the unknown module, so no
                process predicate exists. Drop the r3==0xD8 gate and the dump
                fires for any process aliasing this VA, giving wrong attribution
                bytes; 0xD8 is the rejection's ATA-read register state. */

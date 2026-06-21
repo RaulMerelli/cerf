@@ -128,7 +128,7 @@ public:
 };
 
 
-/* DEBUG_SER CSR peripheral — owns CSR A / CSR B state through the
+/* DEBUG_SER CSR peripheral - owns CSR A / CSR B state through the
    shared P2FpgaSerial helper. Detects SERB_TX_EN rising-edge on CSR
    B writes and dispatches one byte via HwScreen + LOG. */
 class OdoArm720DebugSerial : public Peripheral {

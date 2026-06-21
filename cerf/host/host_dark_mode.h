@@ -6,7 +6,7 @@
 #include <windows.h>
 
 /* Dark menu bar/popups via undocumented uxtheme dark-mode ordinals + the
-   undocumented UAH menu messages — best-effort, no-ops on an OS that
+   undocumented UAH menu messages - best-effort, no-ops on an OS that
    doesn't send them. */
 
 class HostDarkMode : public Service {
@@ -18,7 +18,7 @@ public:
     void ApplyToWindow(HWND h);  /* per top-level + child window */
 
     /* One-shot dialog theming: dark title bar + dark-theme every child control +
-       apply the modern UI font. Safe to call regardless of OS dark support —
+       apply the modern UI font. Safe to call regardless of OS dark support -
        the font is applied always; dark theming only when the OS supports it. */
     void ApplyToDialog(HWND dlg);
 

@@ -101,7 +101,7 @@ void OdoArm720Pcmcia::WriteHalf(uint32_t addr, uint16_t value) {
     if (IsControlSlot(off)) {
         if (value != 0) {
             LOG(Caution, "Odo PCMCIA: activation write to "
-                    "PCMCIA_REG%c = 0x%04X — non-zero control "
+                    "PCMCIA_REG%c = 0x%04X - non-zero control "
                     "bits set, no host PCMCIA model behind this "
                     "peripheral.\n", SlotIndex(off), value);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
@@ -113,8 +113,9 @@ void OdoArm720Pcmcia::WriteHalf(uint32_t addr, uint16_t value) {
     }
     if (IsIntrSlot(off)) {
         if ((value & ~kPcmciaStateIntr) != 0) {
+
             LOG(Caution, "Odo PCMCIA: write to PCMCIA_INTR_REG%c = "
-                    "0x%04X — bits other than PCMCIA_STATE_INTR "
+                    "0x%04X - bits other than PCMCIA_STATE_INTR "
                     "(0x0001) set; only bit 0 has a modeled W1C "
                     "semantic.\n",
                     SlotIndex(off), value);
@@ -153,6 +154,7 @@ uint32_t OdoArm720Pcmcia::ReadWord(uint32_t addr) {
 
 void OdoArm720Pcmcia::WriteWord(uint32_t addr, uint32_t value) {
     if ((value & 0xFFFF0000u) != 0) {
+
         LOG(Caution, "Odo PCMCIA: WriteWord at 0x%08X = 0x%08X has "
                 "non-zero high 16 bits; only bits 0-7 are "
                 "modeled.\n", addr, value);

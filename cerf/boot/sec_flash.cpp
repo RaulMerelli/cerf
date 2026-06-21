@@ -54,7 +54,7 @@ void SecFlash::OnReady() {
             dir.c_str(), name.c_str());
         return;
     }
-    LOG(Boot, "SecFlash: %s%s — %u chunks, %.1f MB de-chunked flash\n",
+    LOG(Boot, "SecFlash: %s%s - %u chunks, %.1f MB de-chunked flash\n",
         dir.c_str(), name.c_str(), sec_.Header().chunk_count,
         double(FlashSize()) / 1024.0 / 1024.0);
 }

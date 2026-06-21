@@ -98,7 +98,7 @@ void PppTerminator::OnGuestData(const uint8_t* data, size_t n) {
         if (!active_) return;
         hdlc_.Feed(data, n);   /* may QueueTx via HandleGuestIp / MaybeOpenIpcp */
     }
-    DrainTx();                 /* send outside mu_ — see QueueTx note */
+    DrainTx();                 /* send outside mu_ - see QueueTx note */
 }
 
 /* ---- guest -> us (under mu_ via OnGuestData) ---- */
@@ -259,10 +259,10 @@ void PppTerminator::MaybeOpenLcp() {
 void PppTerminator::MaybeOpenIpcp() {
     if (ipcp_open_ || !ipcp_peer_acked_ || !ipcp_we_acked_) return;
     ipcp_open_ = true;
-    LOG(Net, "[PPP] IPCP up — guest is online\n");
+    LOG(Net, "[PPP] IPCP up - guest is online\n");
     /* Announce guest_ip -> guest_mac: libslirp learns MACs only from ARP input
        (slirp.c:1205), never from IP frames, so without this it would ARP the
-       guest to deliver the first reply — which our RX path cannot answer
+       guest to deliver the first reply - which our RX path cannot answer
        without re-entering slirp's lock. */
     std::vector<uint8_t> arp;
     BuildGratuitousArp(arp);

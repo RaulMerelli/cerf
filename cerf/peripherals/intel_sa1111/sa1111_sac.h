@@ -7,7 +7,7 @@
 #include <mutex>
 
 /* SA-1111 Serial Audio Controller (Developer's Manual ch.7, Table 7-31,
-   base 0x40000600). SASR0/1 idle 0x9 = TNF|TFS — 0 wedges guest FIFO polls.
+   base 0x40000600). SASR0/1 idle 0x9 = TNF|TFS - 0 wedges guest FIFO polls.
    TX DMA self-re-arms A/B: wavedev kicks SADTCS=0x53 ONCE (sub_FD17EC) and
    never rewrites it while playing; waiting for a re-kick stalls playback. */
 class Sa1111Sac : public Peripheral {

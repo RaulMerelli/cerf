@@ -247,7 +247,7 @@ uint32_t SpansionS29AL016J::ReadWord(uint32_t addr) {
 }
 
 void SpansionS29AL016J::WriteByte(uint32_t addr, uint8_t value) {
-    LOG(Periph, "[S29AL016J] WriteByte off=0x%05X val=0x%02X — S29AL016J "
+    LOG(Periph, "[S29AL016J] WriteByte off=0x%05X val=0x%02X - S29AL016J "
                 "Table 13 lists only word-mode and byte-mode bus cycles "
                 "(BYTE# pin), not partial-byte writes on a x16 bus\n",
         addr - kNorBase, value);

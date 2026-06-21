@@ -167,6 +167,7 @@ void OdoArm720CpuTimer::WriteWord(uint32_t addr, uint32_t value) {
             period_start_ = Clock::now();
         }
     } else if (slot == kSlotTir) {
+
         tir_ &= ~value;
     } else {
         HaltUnsupportedAccess("WriteWord TVR", addr, value);
@@ -187,7 +188,7 @@ void OdoArm720CpuTimer::TickLoop() {
         }
 
         if (period_ms == 0) {
-            /* Timer off — sleep short and re-check the mode
+            /* Timer off - sleep short and re-check the mode
                register. Host doesn't expose a wake-on-write
                channel into the peripheral state, so polling at
                1 ms is the simplest correct shape. */
@@ -217,7 +218,7 @@ void OdoArm720CpuTimer::TickLoop() {
                 tir_ |= kTirSetBit;
             }
 
-            /* Wake the JIT outside the lock — ArmJit::SetInterruptPending
+            /* Wake the JIT outside the lock - ArmJit::SetInterruptPending
                takes its own interrupt_lock_. */
             emu_.Get<ArmJit>().SetInterruptPending();
         }
@@ -249,6 +250,7 @@ uint16_t OdoArm720CpuTimer::ReadHalf(uint32_t addr) {
 }
 
 void OdoArm720CpuTimer::WriteHalf(uint32_t addr, uint16_t value) {
+
     LOG(Caution, "OdoArm720CpuTimer::WriteHalf at 0x%08X = 0x%04X "
             "- the ARM720 CPU-interface registers are 32-bit-only; "
             "halt rather than guess the half-write semantic.\n",

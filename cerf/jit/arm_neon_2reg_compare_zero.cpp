@@ -49,7 +49,7 @@ void ArmNeon2RegCompareZero::HandleCompareZero(uint32_t op_sel, uint32_t F,
         for (uint32_t e = 0; e < elements; ++e) {
             bool passed;
             if (F != 0u) {
-                /* .F32 — decoder rejects esize != 32. */
+                /* .F32 - decoder rejects esize != 32. */
                 float v;
                 std::memcpy(&v, src + e * 4u, 4);
                 passed = TestFloatVsZero(op_sel, v);

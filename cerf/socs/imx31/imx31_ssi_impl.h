@@ -42,7 +42,7 @@ constexpr uint32_t kSisrW1c = (1u << 8) | (1u << 9) | (1u << 10) | (1u << 11);
 /* SFCSR (Figure 45-32): RFCNT1[31:28]/TFCNT1[27:24]/RFCNT0[15:12]/TFCNT0[11:8]
    are read-only FIFO occupancy counters; RFWM/TFWM watermark nibbles are R/W.
    With no real samples the FIFOs are always empty/drained, so the counter
-   fields must read 0 — only the watermark bits read back as written. */
+   fields must read 0 - only the watermark bits read back as written. */
 constexpr uint32_t kSfcsrWatermarkMask = 0x00FF00FFu;
 
 template <uint32_t kBase>
@@ -103,7 +103,7 @@ public:
     }
 
     /* The TX/RX FIFOs are stubbed (always empty, no real audio samples), so
-       there is no heap data to serialize — only the plain control registers
+       there is no heap data to serialize - only the plain control registers
        and the W1C error-flag latch are guest-observable state. */
     void SaveState(StateWriter& w) override {
         w.Write(scr_);    w.Write(sier_);   w.Write(stcr_);   w.Write(srcr_);

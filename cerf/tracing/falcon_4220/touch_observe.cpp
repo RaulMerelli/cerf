@@ -24,7 +24,7 @@ public:
             static std::atomic<uint64_t> wakes{0};
             static std::atomic<uint64_t> decs{0};
             /* Admit only where touch.dll's cal page is mapped in the current
-               address space, so the coeff ReadVa32s are valid — the cal runs in
+               address space, so the coeff ReadVa32s are valid - the cal runs in
                touch.dll's host process, which is NOT a fixed slot. */
             const TracePredicate touch_mapped = [](const TraceContext& c) {
                 return c.ReadVa32(0x18E730Cu).has_value();
@@ -55,7 +55,7 @@ public:
                         static_cast<int>(c.regs[0]), static_cast<int>(c.regs[1]));
             });
             /* gwes.exe sub_398D4 (GWES = slot 5) = TouchPanelEnable's injector:
-               r0=flags(bit1 down), r1=x, r2=y = the screen point GWES injects —
+               r0=flags(bit1 down), r1=x, r2=y = the screen point GWES injects -
                the actual landing. Shows phantom injects + each click's coord. */
             const TracePredicate in_gwes = [](const TraceContext& c) {
                 return (c.emu.Get<ArmMmu>().State()->process_id >> 25) == 5u;

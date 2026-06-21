@@ -22,13 +22,13 @@ constexpr uint32_t kRtcctlSlot    =  4u;
 constexpr uint32_t kRtcisrSlot    =  5u;
 constexpr uint32_t kRtcctlResetV  = 0x00000080u;
 
-/* MCIMX31RM Table 36-8 (PDF p1518): RTCCTL bit layout — bit 7 EN,
+/* MCIMX31RM Table 36-8 (PDF p1518): RTCCTL bit layout - bit 7 EN,
    bits 6-5 XTL, bit 1 GEN, bit 0 SWR (self-clearing software reset).
    The reserved bits stay 0 on read. */
 constexpr uint32_t kRtcctlMask    = 0x000000E3u;
 constexpr uint32_t kRtcctlSwrBit  = 1u << 0;
 
-/* MCIMX31RM Table 36-9 (PDF p1519): RTCISR — bits 15..0 are interrupt
+/* MCIMX31RM Table 36-9 (PDF p1519): RTCISR - bits 15..0 are interrupt
    flags (SAM7..SAM0, 2HZ, HR, 1HZ, DAY, ALM, MIN, SW), all W1C; bit 6
    reserved (reads 0). */
 constexpr uint32_t kRtcisrW1cMask = 0x0000FFBFu;

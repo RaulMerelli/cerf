@@ -8,7 +8,7 @@ namespace {
 
 /* Translate libslirp SLIRP_POLL_* event bits ↔ Windows WSAPOLLFD events.
    SLIRP_POLL_ERR / SLIRP_POLL_HUP are output-only (revents); WSAPoll
-   reports POLLERR/POLLHUP unconditionally — no input bit needed. */
+   reports POLLERR/POLLHUP unconditionally - no input bit needed. */
 short SlirpEventsToWsa(int slirp_events) {
     short out = 0;
     if (slirp_events & SLIRP_POLL_IN)  out |= POLLRDNORM;

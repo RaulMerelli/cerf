@@ -47,7 +47,7 @@ uint32_t PackBgra(uint32_t r, uint32_t g, uint32_t b) {
 
 VgaController::VgaController() : fb_(kFbSize, 0u) {}
 
-/* Geometry — derived from the CRTC exactly as a real VGA (QEMU vga.c
+/* Geometry - derived from the CRTC exactly as a real VGA (QEMU vga.c
    vga_get_resolution / vga_get_params). */
 uint32_t VgaController::Width() const {
     return ((uint32_t)cr_[kCrH_Disp] + 1u) * 8u;

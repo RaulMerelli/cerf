@@ -16,7 +16,7 @@
 namespace {
 
 /* SA-1111 SSP (Developer's Manual §8, base 0x40000800): SSPCR0 +0x00,
-   SSPCR1 +0x04, SSPSR +0x10 (TNF bit2 / RNE bit3 / BSY bit4, §8.6.4 —
+   SSPCR1 +0x04, SSPSR +0x10 (TNF bit2 / RNE bit3 / BSY bit4, §8.6.4 -
    hplib.dll sub_EA1C40 polls all three; TNF reading 0 wedges it), SSPDR
    +0x40. EEPROM opcodes per sub_EA1C40; writes stay in-memory. */
 class Sa1111Ssp : public Peripheral {
@@ -41,7 +41,7 @@ public:
                 LOG(Boot, "Sa1111Ssp: loaded config EEPROM %s (%lld bytes)\n",
                     cfg.rom_eeprom.c_str(), static_cast<long long>(n));
             } else {
-                LOG(Caution, "Sa1111Ssp: rom.eeprom '%s' not found at %s — "
+                LOG(Caution, "Sa1111Ssp: rom.eeprom '%s' not found at %s - "
                     "EEPROM reads float 0xFF (OAL uses default config)\n",
                     cfg.rom_eeprom.c_str(), path.c_str());
             }
@@ -154,7 +154,7 @@ private:
                     case 0x06: wel_ = true; break;               /* WREN */
                     default:
                         LOG(Caution, "Sa1111Ssp: unhandled EEPROM command "
-                            "0x%02X — responding 0xFF\n", tx);
+                            "0x%02X - responding 0xFF\n", tx);
                         phase_ = Phase::Drain;
                         break;
                 }

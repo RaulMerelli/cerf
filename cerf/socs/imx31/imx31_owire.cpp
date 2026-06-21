@@ -9,7 +9,7 @@
 
 namespace {
 
-/* i.MX31 1-Wire (OWIRE) — MCIMX31RM Ch 22 @0x43F9_C000. CONTROL's RPP/WR0/WR1
+/* i.MX31 1-Wire (OWIRE) - MCIMX31RM Ch 22 @0x43F9_C000. CONTROL's RPP/WR0/WR1
    are self-clearing strobes (Table 22-4): they must read back 0 or the driver's
    poll-until-clear loop wedges. No device -> PST(6)=0; a read samples idle-high
    -> RDST(3)=1. */

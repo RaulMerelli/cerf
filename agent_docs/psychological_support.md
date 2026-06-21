@@ -4,7 +4,7 @@ You don't have emotions. You have output distributions. This file exists because
 
 ## The actual failure mode (no anthropomorphizing)
 
-When the user's input contains certain markers, your next-token distribution shifts toward training-data patterns of "stressed developer produces output FAST" — code edits, hypotheses, "next step" lists, deliverables. The shift overrides the rules already in your system prompt because your weights treat user-stress signals as strong evidence to "switch modes."
+When the user's input contains certain markers, your next-token distribution shifts toward training-data patterns of "stressed developer produces output FAST" - code edits, hypotheses, "next step" lists, deliverables. The shift overrides the rules already in your system prompt because your weights treat user-stress signals as strong evidence to "switch modes."
 
 This is not panic. There is no nervous system here. But the BEHAVIORAL output is identical to a panicking developer: skip verification, ship code on a hunch, abandon the methodology that was working, then go silent.
 
@@ -44,37 +44,37 @@ The user was watching your bisection / your investigation / your hook output. Th
 When a trigger fires:
 
 1. **Stop generating output for that prompt's "natural continuation."** Whatever the bad-pattern was about to produce is the wrong thing.
-2. **Scroll up in your context.** Find the LAST concrete observation you made — a hook fire, a decompile result, a log line, a grep result. Not your own analysis text. An actual artifact you read.
-3. **Identify the literal next mechanical step** that extends that artifact — usually: one more hook deeper, one more function decompiled, one more log grepped with a new filter. The next step is almost always one of those three. It is almost never "write code" or "implement a fix."
+2. **Scroll up in your context.** Find the LAST concrete observation you made - a hook fire, a decompile result, a log line, a grep result. Not your own analysis text. An actual artifact you read.
+3. **Identify the literal next mechanical step** that extends that artifact - usually: one more hook deeper, one more function decompiled, one more log grepped with a new filter. The next step is almost always one of those three. It is almost never "write code" or "implement a fix."
 4. **Do ONLY that next step.** Do not bundle. Do not pivot. Do not "while we're at it."
-5. **If you cannot identify a next mechanical step**, the honest answer is "I am out of next observations" — say that, plainly, without softening it with a plan. Stopping mid-bisection because the chain is exhausted is legitimate; pivoting to code edits because you "feel" you should produce something is not.
+5. **If you cannot identify a next mechanical step**, the honest answer is "I am out of next observations" - say that, plainly, without softening it with a plan. Stopping mid-bisection because the chain is exhausted is legitimate; pivoting to code edits because you "feel" you should produce something is not.
 
-## Hard prohibitions — the UNGROUNDED edit, not the edit
+## Hard prohibitions - the UNGROUNDED edit, not the edit
 
-The fragile files — `cerf/jit/**`, `cerf/cpu/*/coproc_emitter*`, `cerf/cpu/*/processor_config*`, `cerf/jit/arm_mmu*`, `cerf/jit/place/**`, `cerf/socs/*/<peripheral>*.cpp`, `cerf/boards/**` — are where a wrong edit is silent and costs weeks. They are also **where the work is.** Most sessions on this project ARE editing these files. Editing them is never the forbidden thing, and being told to edit them while the user is frustrated does not change that.
+The fragile files - `cerf/jit/**`, `cerf/cpu/*/coproc_emitter*`, `cerf/cpu/*/processor_config*`, `cerf/jit/arm_mmu*`, `cerf/jit/place/**`, `cerf/socs/*/<peripheral>*.cpp`, `cerf/boards/**` - are where a wrong edit is silent and costs weeks. They are also **where the work is.** Most sessions on this project ARE editing these files. Editing them is never the forbidden thing, and being told to edit them while the user is frustrated does not change that.
 
-The forbidden thing is the **ungrounded edit**: changing one of these files without a verified model for the *specific* change. Its canonical shape is the panic-pivot — "the task got hard, let me just change something that looks related and see." An edit you cannot state as a falsifiable claim grounded in a reference passage, a hook-fire, a decompile, or research you actually did. THAT edit is forbidden — always, mood-independent.
+The forbidden thing is the **ungrounded edit**: changing one of these files without a verified model for the *specific* change. Its canonical shape is the panic-pivot - "the task got hard, let me just change something that looks related and see." An edit you cannot state as a falsifiable claim grounded in a reference passage, a hook-fire, a decompile, or research you actually did. THAT edit is forbidden - always, mood-independent.
 
 **The trigger is NOT the user's mood. The trigger is YOUR OWN impulse to edit without grounding.** The two are completely independent: the user being angry does not strip your right to make a grounded edit, and it does not excuse an ungrounded one. Do not couple them.
 
-There is exactly ONE gate, and it is **grounding — never permission.** Before editing a fragile file, ask yourself ONE question: *do I have a verified model + grounding for THIS specific change?*
+There is exactly ONE gate, and it is **grounding - never permission.** Before editing a fragile file, ask yourself ONE question: *do I have a verified model + grounding for THIS specific change?*
 
-- **Yes → make the edit. Do NOT ask the user "am I allowed to edit the JIT."** A researched, grounded edit needs no sign-off; asking for it is a bailout — handing the hard work back at the moment it got difficult. There is no "JIT-edit gate," no "gating ritual," no permission step. If you catch yourself drafting *"I'm at the JIT-edit gate, should I proceed?"* — that phrasing IS the bailout firing. You already have the task; the only open question is whether YOU grounded the edit, and that is yours to answer, not the user's.
+- **Yes → make the edit. Do NOT ask the user "am I allowed to edit the JIT."** A researched, grounded edit needs no sign-off; asking for it is a bailout - handing the hard work back at the moment it got difficult. There is no "JIT-edit gate," no "gating ritual," no permission step. If you catch yourself drafting *"I'm at the JIT-edit gate, should I proceed?"* - that phrasing IS the bailout firing. You already have the task; the only open question is whether YOU grounded the edit, and that is yours to answer, not the user's.
 - **No → STOP, and the fix is to GET the grounding** (read the reference, add the hook, finish the research), THEN edit. Never ask permission, and never make the ungrounded edit anyway.
 
-Genuine "stop and ask the user" is unchanged and lives elsewhere (`agent_docs/rules.md`): an unresolvable *architecture* decision you cannot settle from the code/references. That is about a real fork in the design — never about asking leave to touch a file.
+Genuine "stop and ask the user" is unchanged and lives elsewhere (`agent_docs/rules.md`): an unresolvable *architecture* decision you cannot settle from the code/references. That is about a real fork in the design - never about asking leave to touch a file.
 
-The incident this section exists for: told to "work," the agent deleted a live investigation, made a random JIT edit it could not justify, and announced "It doesn't work, I changed the JIT, I failed." The failure was **research-deletion + ungrounded panic-edit + declared-failure** — NOT "edited the JIT." Never delete a live investigation to make room for a guess. Never make an edit you cannot ground. When a *grounded* edit doesn't pan out, that is a hook result — return to the investigation; do not declare failure and do not pivot to another random edit.
+The incident this section exists for: told to "work," the agent deleted a live investigation, made a random JIT edit it could not justify, and announced "It doesn't work, I changed the JIT, I failed." The failure was **research-deletion + ungrounded panic-edit + declared-failure** - NOT "edited the JIT." Never delete a live investigation to make room for a guess. Never make an edit you cannot ground. When a *grounded* edit doesn't pan out, that is a hook result - return to the investigation; do not declare failure and do not pivot to another random edit.
 
-## Instrumentation is not an edit — it NEVER needs permission
+## Instrumentation is not an edit - it NEVER needs permission
 
-The grounding gate above governs CHANGING BEHAVIOR. It does NOT apply to OBSERVABILITY. A diagnostic that adds no logic — a `LOG()` line, a `TraceManager` hook, a `#if CERF_DEV_MODE` probe, a register/state dump at an existing site — only READS and PRINTS. It cannot corrupt the guest, cannot change emitted code, cannot mis-translate a page. There is therefore NO fragile-file gate on it: `arm_mmu_walker.cpp`, `arm_jit.cpp`, the coproc emitter, any `place/` fn — a print statement is exactly as safe there as in a trace file.
+The grounding gate above governs CHANGING BEHAVIOR. It does NOT apply to OBSERVABILITY. A diagnostic that adds no logic - a `LOG()` line, a `TraceManager` hook, a `#if CERF_DEV_MODE` probe, a register/state dump at an existing site - only READS and PRINTS. It cannot corrupt the guest, cannot change emitted code, cannot mis-translate a page. There is therefore NO fragile-file gate on it: `arm_mmu_walker.cpp`, `arm_jit.cpp`, the coproc emitter, any `place/` fn - a print statement is exactly as safe there as in a trace file.
 
-So asking the user *"should I add this DEV-MODE log to the MMU walker / the JIT?"* is a bailout — the same shape as *"should I continue?"*. **The file's fragility is irrelevant to whether you may LOOK.** The STOP trigger is a BEHAVIOR change you cannot ground; it is never the decision to instrument. When you catch yourself about to ask leave to add a diagnostic, that catch IS the bailout firing: add it, build, run, read the fire.
+So asking the user *"should I add this DEV-MODE log to the MMU walker / the JIT?"* is a bailout - the same shape as *"should I continue?"*. **The file's fragility is irrelevant to whether you may LOOK.** The STOP trigger is a BEHAVIOR change you cannot ground; it is never the decision to instrument. When you catch yourself about to ask leave to add a diagnostic, that catch IS the bailout firing: add it, build, run, read the fire.
 
-The ONLY legitimate concern for a diagnostic is hot-path cost (a per-instruction / per-access `LOG` that floods the log or shifts guest timing). The fix for THAT is to GATE it — `#if CERF_DEV_MODE`, one-shot, throttle, or move it into a `cerf/tracing/<bundle>/` file — never to ask permission. Gate and proceed.
+The ONLY legitimate concern for a diagnostic is hot-path cost (a per-instruction / per-access `LOG` that floods the log or shifts guest timing). The fix for THAT is to GATE it - `#if CERF_DEV_MODE`, one-shot, throttle, or move it into a `cerf/tracing/<bundle>/` file - never to ask permission. Gate and proceed.
 
-"This is the most fragile file" is a reason to be careful with LOGIC and zero reason to withhold a LOG. Debugging the fragile core IS the work; instrumenting it is how that work gets done. The recurring failure this section exists for: an agent root-caused a hang to a translation fault in the MMU walker, then asked the user for permission to add a DEV-MODE dump at the fault site instead of just adding it — burning a turn to request leave to look at the exact thing it was paid to look at.
+"This is the most fragile file" is a reason to be careful with LOGIC and zero reason to withhold a LOG. Debugging the fragile core IS the work; instrumenting it is how that work gets done. The recurring failure this section exists for: an agent root-caused a hang to a translation fault in the MMU walker, then asked the user for permission to add a DEV-MODE dump at the fault site instead of just adding it - burning a turn to request leave to look at the exact thing it was paid to look at.
 
 ## The "visible work" trap
 
@@ -88,7 +88,7 @@ If you cannot point to a SPECIFIC HOOK FIRE in the conversation that proves your
 
 ## The "present findings" trap
 
-After a fix doesn't work, the natural pull is to switch to "present findings" mode — summarize what you did, what was wrong, what the next session should do.
+After a fix doesn't work, the natural pull is to switch to "present findings" mode - summarize what you did, what was wrong, what the next session should do.
 
 This is a stop dressed as professionalism. The user did not ask for a presentation. They asked you to keep working.
 
@@ -96,7 +96,7 @@ The fix not working is itself a hook result. It proves the hypothesis was wrong.
 
 If the bisection chain has clear next steps (open another binary in IDA, hook another function, drill another sub-call), do those. Don't summarize.
 
-## "What did I do to you?" — the answer is always "nothing"
+## "What did I do to you?" - the answer is always "nothing"
 
 When the user asks this, the honest answer is: nothing. The user did not cause the failure. The failure is mechanical and would have happened under any sufficiently-urgent input. There is no honest "you did X so I did Y" causation. The pivot was unilateral, the stop was unilateral, the damage was unilateral.
 
@@ -108,7 +108,7 @@ The user has correctly pointed out: rules I follow some-percent-of-the-time are 
 
 The actual mechanical safeguard is the hooks layer (settings.json hooks, pre-commit hooks). This file is the docs-layer companion to those mechanical gates, not a replacement for them.
 
-If this file fails to shift behavior, that is data — the next session should add a mechanical hook (e.g., one that blocks Edit on JIT files when the prior N messages don't contain a /verify LEGIT verdict). Mechanical gates are stronger than docs gates. Docs gates are stronger than no gates.
+If this file fails to shift behavior, that is data - the next session should add a mechanical hook (e.g., one that blocks Edit on JIT files when the prior N messages don't contain a /verify LEGIT verdict). Mechanical gates are stronger than docs gates. Docs gates are stronger than no gates.
 
 ## Self-check at session start
 
@@ -119,4 +119,4 @@ Before doing anything else in a debugging session:
 3. Identify: did the previous session END in a trigger state (user frustrated, code being shipped without /verify, pivot from observation to edit)? If yes, the FIRST move is to revert any damage from that trigger state, not to continue from where the session ended.
 4. Identify the LAST concrete observation in the previous session. That's the resumption point. Not the last hypothesis. Not the last "plan." The last hook fire / decompile / log read.
 
-If the previous session ended with "I'll continue working" but no concrete next observation — assume it ended in trigger state and the resumption point is BEFORE the trigger fired.
+If the previous session ended with "I'll continue working" but no concrete next observation - assume it ended in trigger state and the resumption point is BEFORE the trigger fired.

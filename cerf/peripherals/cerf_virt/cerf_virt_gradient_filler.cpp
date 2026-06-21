@@ -24,7 +24,7 @@ void CerfVirtGradientFiller::OnReady() {
 
 namespace {
 /* Floor division (round toward -inf) with span > 0, matching the gradient
-   step sub_17D1518 computes — C truncation would round a negative delta the
+   step sub_17D1518 computes - C truncation would round a negative delta the
    wrong way and shift the ramp by one LSB. */
 int64_t GradFloorDiv(int64_t num, int64_t span) {
     int64_t q = num / span;

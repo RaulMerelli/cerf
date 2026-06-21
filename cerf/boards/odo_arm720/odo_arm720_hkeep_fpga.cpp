@@ -55,7 +55,7 @@ public:
         r.Read(led_alpha_value_);
     }
 
-    /* HostWidget. The icon IS the LED — the discrete LED register lights it,
+    /* HostWidget. The icon IS the LED - the discrete LED register lights it,
        the 4-char alpha display shows in the tooltip. No RX/TX. */
     std::wstring WidgetName() const override { return L"Debug LED"; }
     WidgetGroup  Group() const override { return WidgetGroup::Indicator; }
@@ -140,7 +140,7 @@ void OdoArm720HkeepFpga::LogAlphaWrite(uint32_t addr, uint32_t value) {
     /* LED_ALPHA writes are LOW-frequency on this build path
        (boot stub WhereAmI, OEMInit's 0xECEEECEE, and the very
        rare OEMWriteDebugLED-triggered prints). Permanent LOG is
-       acceptable — these are major boot landmarks. */
+       acceptable - these are major boot landmarks. */
     char as_ascii[5] = {
         static_cast<char>((value      ) & 0xFFu),
         static_cast<char>((value >>  8) & 0xFFu),

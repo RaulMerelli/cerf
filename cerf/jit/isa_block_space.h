@@ -16,7 +16,7 @@ struct JumpCacheEntry {
 };
 
 /* Per-ISA blocks. CE7 sets FCSE process_id=0, so the index key no
-   longer separates address spaces — partition by ASID: global (nG=0
+   longer separates address spaces - partition by ASID: global (nG=0
    kernel/shared) shared across processes; user (nG=1) in per_asid. */
 struct IsaBlockSpace {
     JitBlockIndex global;
@@ -104,7 +104,7 @@ struct IsaBlockSpace {
         }
     }
     /* SMC: remove every block on physical pages [phys_lo, phys_hi] via the
-       page list — RemoveNode RbDeletes each from its owning tree + clears its
+       page list - RemoveNode RbDeletes each from its owning tree + clears its
        jump-cache slot. O(blocks-on-page), not a whole-tree scan. */
     uint32_t RemoveRange(uint32_t phys_lo, uint32_t phys_hi) {
         uint32_t removed = 0;

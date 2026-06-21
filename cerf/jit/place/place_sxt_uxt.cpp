@@ -10,14 +10,14 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-/* x86 ROR r32, imm8 — opcode 0xC1 /1 ib. */
+/* x86 ROR r32, imm8 - opcode 0xC1 /1 ib. */
 inline void EmitRorRegImm8(uint8_t*& p, uint8_t reg, uint8_t count) {
     x86::Emit8(p, 0xC1);
     x86::EmitModRmReg(p, /*mod=*/3, /*rm=*/reg, /*reg=*/1);
     x86::Emit8(p, count);
 }
 
-/* MOVSX EAX, AL — opcode 0F BE C0. Sign-extends the low byte of
+/* MOVSX EAX, AL - opcode 0F BE C0. Sign-extends the low byte of
    EAX to all 32 bits. */
 inline void EmitMovsxEaxAl(uint8_t*& p) {
     x86::Emit8(p, 0x0F);
@@ -25,21 +25,21 @@ inline void EmitMovsxEaxAl(uint8_t*& p) {
     x86::Emit8(p, 0xC0);
 }
 
-/* MOVZX EAX, AL — opcode 0F B6 C0. Zero-extends the low byte. */
+/* MOVZX EAX, AL - opcode 0F B6 C0. Zero-extends the low byte. */
 inline void EmitMovzxEaxAl(uint8_t*& p) {
     x86::Emit8(p, 0x0F);
     x86::Emit8(p, 0xB6);
     x86::Emit8(p, 0xC0);
 }
 
-/* MOVSX EAX, AX — opcode 0F BF C0. Sign-extends the low 16 bits. */
+/* MOVSX EAX, AX - opcode 0F BF C0. Sign-extends the low 16 bits. */
 inline void EmitMovsxEaxAx(uint8_t*& p) {
     x86::Emit8(p, 0x0F);
     x86::Emit8(p, 0xBF);
     x86::Emit8(p, 0xC0);
 }
 
-/* MOVZX EAX, AX — opcode 0F B7 C0. Zero-extends the low 16 bits. */
+/* MOVZX EAX, AX - opcode 0F B7 C0. Zero-extends the low 16 bits. */
 inline void EmitMovzxEaxAx(uint8_t*& p) {
     x86::Emit8(p, 0x0F);
     x86::Emit8(p, 0xB7);

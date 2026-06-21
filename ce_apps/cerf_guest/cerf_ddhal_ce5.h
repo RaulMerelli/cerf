@@ -4,7 +4,7 @@
 
 #pragma pack(push, 4)
 
-/* ddraw.h _DDPIXELFORMAT — 0x20 bytes (8 DWORDs); identical CE5/CE6. */
+/* ddraw.h _DDPIXELFORMAT - 0x20 bytes (8 DWORDs); identical CE5/CE6. */
 typedef struct _Ce5_DDPIXELFORMAT {
     DWORD dwSize;
     DWORD dwFlags;
@@ -16,7 +16,7 @@ typedef struct _Ce5_DDPIXELFORMAT {
     union { DWORD dwRGBAlphaBitMask; DWORD dwYUVAlphaBitMask; };
 } Ce5_DDPIXELFORMAT;
 
-/* ddraw.h _DDSCAPS — single DWORD on CE. */
+/* ddraw.h _DDSCAPS - single DWORD on CE. */
 typedef struct _Ce5_DDSCAPS { DWORD dwCaps; } Ce5_DDSCAPS;
 
 typedef struct _Ce5_VIDMEMINFO {
@@ -31,8 +31,8 @@ typedef struct _Ce5_VIDMEMINFO {
     DWORD               dwTextureAlign;     /* 0x3c */
     DWORD               dwZBufferAlign;     /* 0x40 */
     DWORD               dwAlphaAlign;       /* 0x44 */
-    DWORD               dwNumHeaps;         /* 0x48 — 0 = HAL owns all video mem */
-    DWORD               pvmList;            /* 0x4c LPVIDMEM — NULL when dwNumHeaps=0 */
+    DWORD               dwNumHeaps;         /* 0x48 - 0 = HAL owns all video mem */
+    DWORD               pvmList;            /* 0x4c LPVIDMEM - NULL when dwNumHeaps=0 */
 } Ce5_VIDMEMINFO;
 
 #define CE5_DD_ROP_SPACE (256 / 32)   /* ddraw.h DD_ROP_SPACE */
@@ -126,8 +126,8 @@ typedef struct _Ce5_DDHAL_DDSURFACECALLBACKS {
     PVOID SetOverlayPosition;
     PVOID reserved4;
     PVOID SetPalette;
-    PVOID reserved5;            /* slot14 (bit 0x4000) — runtime size pad, unused */
-    PVOID reserved6;            /* slot15 (bit 0x8000) — runtime size pad, unused */
+    PVOID reserved5;            /* slot14 (bit 0x4000) - runtime size pad, unused */
+    PVOID reserved6;            /* slot15 (bit 0x8000) - runtime size pad, unused */
 } Ce5_DDHAL_DDSURFACECALLBACKS;
 
 typedef struct _Ce5_DDHALMODEINFO {

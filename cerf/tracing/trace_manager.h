@@ -10,9 +10,9 @@
 
 class CerfEmulator;
 
-/* TraceContext — read-only snapshot the JIT hands to a trace handler.
+/* TraceContext - read-only snapshot the JIT hands to a trace handler.
    `regs[15] == pc`; `regs[13]` SP; `regs[14]` LR. ReadVa* peek the
-   data-TLB fast path via ArmMmu::PeekDataTlb — nullopt when the page
+   data-TLB fast path via ArmMmu::PeekDataTlb - nullopt when the page
    is not currently TLB-cached (no MMU walk, no abort raise). */
 struct TraceContext {
     const uint32_t* regs;

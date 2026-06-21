@@ -31,7 +31,7 @@ public:
         DmaWrites,
         AudioMsgs,
         MmuXlateCalls,
-        JitCompiles,      /* block translations/sec — high = TC thrash / cold cache. */
+        JitCompiles,      /* block translations/sec - high = TC thrash / cold cache. */
         TcFlushes,        /* full translation-cache flushes/sec (FlushAll+arena). */
         CtxFlushes,       /* context-switch jump-cache flushes/sec (FCSE PID switch). */
         Count,
@@ -68,7 +68,7 @@ public:
     }
 
     /* Per-guest-PC MMIO call histogram. Linear-probe open-addressed hash;
-       relaxed atomics throughout — slot races at edge of buckets cause at
+       relaxed atomics throughout - slot races at edge of buckets cause at
        most a few miscounts, fine for sampling. */
     void RecordMmioPc(uint32_t guest_pc, uint32_t addr) {
         const uint32_t mix = guest_pc ^ (addr * 2654435761u);
@@ -95,7 +95,7 @@ public:
                 }
             }
         }
-        /* Exhausted probes — drop the sample. */
+        /* Exhausted probes - drop the sample. */
     }
 #else
     void Inc(Counter)                    {}

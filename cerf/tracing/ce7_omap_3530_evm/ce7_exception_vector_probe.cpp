@@ -43,7 +43,7 @@ public:
                     "lpszFileName='%s' LR=0x%08X\n",
                     c.regs[0], c.regs[1], name.c_str(), c.regs[14]);
             });
-            /* InitModule return — fires on every successful return.
+            /* InitModule return - fires on every successful return.
                Pair against InitModule entry to find which module's
                init entered but never returned. */
             tm.OnPc(0x8C04BE90u, [](const TraceContext& c) {
@@ -68,7 +68,7 @@ public:
                 (void)c;
                 LOG(Trace, "[hit] CELOG_LaunchingFilesys entry\n");
             });
-            /* DM_ActivateDeviceEx — first arg is lpszDevKey wchar_t*
+            /* DM_ActivateDeviceEx - first arg is lpszDevKey wchar_t*
                (e.g. L"Drivers\\BuiltIn\\SPI1"). Logs which device key
                the device manager is activating; if no matching exit
                trace fires, that's the device whose Init is stuck. */
@@ -86,7 +86,7 @@ public:
                5 PCs at 0xEFE6xxxx (~83 instructions / 5 blocks).
                Fires once, captures LR + 8 stack words to identify the
                caller. */
-            /* ROM_GetFileAttributesW entry — count invocations + log
+            /* ROM_GetFileAttributesW entry - count invocations + log
                the filename being searched. R1 is the wchar_t* path. */
             tm.OnPc(0xEFE611B4u, [count = uint32_t{0}](const TraceContext& c) mutable {
                 ++count;
@@ -101,7 +101,7 @@ public:
                         count, c.regs[1], name, c.regs[14]);
                 }
             });
-            /* Inner-loop iteration probe — after the BL to GetRomFileInfo
+            /* Inner-loop iteration probe - after the BL to GetRomFileInfo
                returns. Captures R5/R6 (the iterator state) on each hit. */
             tm.OnPc(0xEFE611FCu, [count = uint32_t{0}](const TraceContext& c) mutable {
                 ++count;
@@ -162,7 +162,7 @@ public:
                     LOG(Trace, "[spin] insn @0x%08X = 0x%08X\n",
                         c.pc + i * 4u, v.value_or(0xDEADBEEFu));
                 }
-                /* Dump literal pool 0xEFE61330..0xEFE6135C — function uses
+                /* Dump literal pool 0xEFE61330..0xEFE6135C - function uses
                    PC-relative LDRs to load constants from there. */
                 for (uint32_t i = 0; i < 12; ++i) {
                     const uint32_t a = 0xEFE61330u + i * 4u;
@@ -190,7 +190,7 @@ public:
                 LOG(Trace, "[hit] DM_ActivateDeviceEx exit R0=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[14]);
             });
-            /* NKLoadLibraryEx — first arg is the filename wchar_t*. */
+            /* NKLoadLibraryEx - first arg is the filename wchar_t*. */
             tm.OnPc(0x8C04BFB0u, [](const TraceContext& c) {
                 /* Read first 16 wchars from R0. */
                 wchar_t name[16] = {};
@@ -403,7 +403,7 @@ public:
                     l1h ? *(uint32_t*)l1h : 0xDEADBEEFu, pa,
                     insn[0], insn[1], (void*)sanity);
             });
-            /* Instruction immediately after BLX — if BLX called something
+            /* Instruction immediately after BLX - if BLX called something
                that returned, PC reaches here. */
             tm.OnPc(0x8C0517BCu, [](const TraceContext& c) {
                 LOG(Trace, "[hit] kernel RunApps post-BLX R0=0x%08X LR=0x%08X R15=0x%08X\n",
@@ -427,7 +427,7 @@ public:
                 LOG(Trace, "[hit] PREFETCH-ABORT FSR=0x%08X FAR=0x%08X LR_abt=0x%08X\n",
                     m.fault_status.word, m.fault_address, c.regs[14]);
             });
-            /* filesys.dll FileSysMain entry — this is the real entry called
+            /* filesys.dll FileSysMain entry - this is the real entry called
                by kernel.dll RunApps (R0=FileSysMain in BLX). */
             tm.OnPc(0xEFE81208u, [](const TraceContext& c) {
                 LOG(Trace, "[hit] FileSysMain entry R0=0x%08X LR=0x%08X\n",
@@ -473,20 +473,20 @@ public:
                 LOG(Trace, "[hit] MountSystemHive R0=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[14]);
             });
-            /* PC right after BL MountSystemHive in prgInitHiveRegistry —
+            /* PC right after BL MountSystemHive in prgInitHiveRegistry -
                fires iff MountSystemHive actually returned. */
             tm.OnPc(0xEFE963C0u, [](const TraceContext& c) {
                 LOG(Trace, "[hit] MountSystemHive returned (back in prgInitHiveRegistry)\n");
                 (void)c;
             });
-            /* RegMountHive entry — fires on every mount attempt
+            /* RegMountHive entry - fires on every mount attempt
                (boot ROM hive, boot RAM hive, system ROM hive, system
                RAM hive). Surfaces R0=filename pointer + R1=guid. */
             tm.OnPc(0xEFEAFD7Cu, [](const TraceContext& c) {
                 LOG(Trace, "[hit] RegMountHive R0=0x%08X R1=0x%08X R2=0x%08X R3=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[1], c.regs[2], c.regs[3], c.regs[14]);
             });
-            /* prgNotifyBootFSReady — called once after BOOTFS is
+            /* prgNotifyBootFSReady - called once after BOOTFS is
                advertised, before mounting the system hive. */
             tm.OnPc(0xEFE949F8u, [](const TraceContext& c) {
                 LOG(Trace, "[hit] prgNotifyBootFSReady R0=0x%08X LR=0x%08X\n",
@@ -540,7 +540,7 @@ public:
                     state, dits.value_or(0xDEADBEEFu), pSector,
                     b454.value_or(0xCC), b458.value_or(0xCC));
             });
-            /* nand!Fal::ReadFromMedia entry — fires for every FAL read. */
+            /* nand!Fal::ReadFromMedia entry - fires for every FAL read. */
             tm.OnPc(0xEF1F305Cu, [](const TraceContext& c) {
                 LOG(Trace, "[hit] Fal::ReadFromMedia this=0x%08X "
                            "pSG=0x%08X LR=0x%08X\n",
@@ -566,7 +566,7 @@ public:
                            "pSI=0x%08X n=%u\n",
                     c.regs[0], c.regs[1], c.regs[2], c.regs[3]);
             });
-            /* CELOG_FSMsg(wchar_t* msg) — surfaces every CELog
+            /* CELOG_FSMsg(wchar_t* msg) - surfaces every CELog
                filesys breadcrumb so we can see exactly which
                MountSystemHive milestone is reached. */
             tm.OnPc(0xEFE7E848u, [](const TraceContext& c) {
@@ -582,7 +582,7 @@ public:
                 LOG(Trace, "[hit] DevloadInit R0=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[14]);
             });
-            /* InitDevices / ActivateDeviceEx — driver chain entry. */
+            /* InitDevices / ActivateDeviceEx - driver chain entry. */
             tm.OnPc(0xEFD38054u, [](const TraceContext& c) {
                 wchar_t name[32] = {};
                 for (int i = 0; i < 31; ++i) {
@@ -693,7 +693,7 @@ public:
                     fpc, insn, l1, l2, pa, c.cpsr);
             });
 
-            /* Hook k.coredll memcpy entry — log only when dst is in
+            /* Hook k.coredll memcpy entry - log only when dst is in
                the 0xCE9xxxxx region that's been re-faulting. R14 at
                entry = caller's return PC (memcpy is leaf, no LR push). */
             tm.OnPc(0xEFFA4400u, [last_caller = uint32_t{0xDEADBEEFu}]
@@ -734,7 +734,7 @@ public:
                     c.regs[14], c.regs[13], c.cpsr, m.process_id,
                     m.contextidr);
 
-                /* Walk PTE once per unique (FAR, FSR) — a fault that
+                /* Walk PTE once per unique (FAR, FSR) - a fault that
                    transitions Translation→Permission on the same FAR
                    re-walks so we can see what the kernel just wrote. */
                 if (m.fault_address == last_far &&
@@ -742,7 +742,7 @@ public:
                 last_far = m.fault_address;
                 last_fsr = m.fault_status.word;
 
-                /* Dump SVC-banked R13/R14 — leaf-call memcpy didn't
+                /* Dump SVC-banked R13/R14 - leaf-call memcpy didn't
                    push LR, so R14_svc = caller's return PC. */
                 auto& cpu = c.emu.Get<ArmCpu>();
                 auto* cs = cpu.State();
@@ -828,7 +828,7 @@ public:
                     ap, wnr, (l2 >> 0) & 1u, (l2 >> 11) & 1u);
             });
 
-            /* Watch every change to KData.pVMPrc — read BOTH via TLB
+            /* Watch every change to KData.pVMPrc - read BOTH via TLB
                (ReadVa32) AND via PA-direct walk (Section + Coarse-L2).
                Dump L1/L2 PTE words so we can see what the kernel
                actually mapped at this VA. */
@@ -858,7 +858,7 @@ public:
                         pa = (l1_val & 0xFFF00000u) | (kVa & 0x000FFFFFu);
                         has_pa = true;
                     } else if (type == 1u) {
-                        /* Coarse — fetch L2 entry. */
+                        /* Coarse - fetch L2 entry. */
                         const uint32_t l2_pa = (l1_val & 0xFFFFFC00u) |
                                                (((kVa >> 12) & 0xFFu) << 2);
                         uint8_t* l2_host = mem.TryTranslate(l2_pa);

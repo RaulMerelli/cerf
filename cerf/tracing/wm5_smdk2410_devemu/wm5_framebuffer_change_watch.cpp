@@ -33,7 +33,7 @@ public:
             auto pc_logger = [](const char* tag) {
                 return [tag](const TraceContext& c) {
                     /* Read the instruction at PC and the call-site BL
-                       at LR-4 — together they identify what helper is
+                       at LR-4 - together they identify what helper is
                        running and which call site invoked it, without
                        needing IDA pre-loaded for the owning module. */
                     auto insn_at_pc = c.ReadVa32(c.pc);
@@ -65,7 +65,7 @@ public:
                     const uint32_t w = mem.ReadWord(pa);
                     if (i == 0) first_word = w;
                     /* Rotate-XOR so two equal words at different
-                       positions don't cancel — captures position-
+                       positions don't cancel - captures position-
                        sensitive change. */
                     hash ^= ((w << (i & 31)) | (w >> ((32 - (i & 31)) & 31)));
                 }

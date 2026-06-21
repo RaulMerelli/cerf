@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-/* A producer of guest-surface frames for CanvasPresenter — the minimal
+/* A producer of guest-surface frames for CanvasPresenter - the minimal
    surface the presentation core needs to draw one window's content.
 
    Deliberately NOT a Service: the single board FrameRenderer implements it,

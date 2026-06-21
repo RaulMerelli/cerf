@@ -32,7 +32,7 @@ public:
             cfg.device_name.c_str());
 
 #if CERF_DEV_MODE
-        /* Dev/automation runs cannot answer a modal — treat as "yes, download". */
+        /* Dev/automation runs cannot answer a modal - treat as "yes, download". */
         SpawnLauncherFetch(cfg.device_name);
 #else
         const int choice = PromptDownload(cfg.device_name);

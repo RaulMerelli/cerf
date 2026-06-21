@@ -60,7 +60,7 @@ public:
         const uint32_t fb_pa = ipu.GetSdcBgFbPa();
         const Imx31Ipu::ChannelFormat fmt = ipu.GetSdcBgFormat();
         /* Framebuffer geometry = SDC BG channel descriptor (FW frame width, SL
-           stride bytes) — the layout the IPU DMA fetches — NOT the SDC panel
+           stride bytes) - the layout the IPU DMA fetches - NOT the SDC panel
            timing SCREEN_WIDTH/HEIGHT: reading rows at the panel width skews each
            row by (screen_w-fw)*2 B. MCIMX31RM §44.4: W0[119:108]=FW, W1[80:67]=SL. */
         const uint32_t fb_w  = fmt.fw;
@@ -79,7 +79,7 @@ public:
 
         if (!IsRgb565(fmt)) {
             LOG(Periph, "[IPU] unsupported SDC bg format pfs=%u bpp=%u "
-                        "wid=%u/%u/%u/%u ofs=%u/%u/%u/%u — renderer halt\n",
+                        "wid=%u/%u/%u/%u ofs=%u/%u/%u/%u - renderer halt\n",
                 (unsigned)fmt.pfs, fmt.bpp_bits,
                 fmt.wid[0], fmt.wid[1], fmt.wid[2], fmt.wid[3],
                 fmt.ofs[0], fmt.ofs[1], fmt.ofs[2], fmt.ofs[3]);

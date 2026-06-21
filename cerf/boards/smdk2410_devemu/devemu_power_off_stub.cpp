@@ -12,9 +12,9 @@ namespace {
 
 constexpr uint32_t kStubFlashPa = 0x4u;
 constexpr uint32_t kStub[] = {
-    0xE5801000u,  /* STR R1,[R0] — REFRESH: SDRAM self-refresh  */
-    0xE5823000u,  /* STR R3,[R2] — MISCCR                       */
-    0xE5845000u,  /* STR R5,[R4] — CLKCON <- 0x7fff8 (power off) */
+    0xE5801000u,  /* STR R1,[R0] - REFRESH: SDRAM self-refresh  */
+    0xE5823000u,  /* STR R3,[R2] - MISCCR                       */
+    0xE5845000u,  /* STR R5,[R4] - CLKCON <- 0x7fff8 (power off) */
     0xEAFFFFFEu,  /* B .                                        */
 };
 

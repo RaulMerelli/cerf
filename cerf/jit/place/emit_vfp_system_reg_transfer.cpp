@@ -8,10 +8,10 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VMRS / VMSR — VFP system-register move. Encoding: cp_num=10,
+/* VMRS / VMSR - VFP system-register move. Encoding: cp_num=10,
    cp_opc=7, CRm=0, opc2=0; CRn selects which VFP system register.
    Per references/omap3530/armv7_arch_excerpts.txt § VFP system
-   registers — VMRS / VMSR. */
+   registers - VMRS / VMSR. */
 
 uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
@@ -29,7 +29,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
     constexpr uint32_t kFpexc  = 8;
 
     if (d->l) {
-        /* VMRS — read VFP system register → Rt. */
+        /* VMRS - read VFP system register → Rt. */
         switch (d->crn) {
         case kFpsid:
             if (d->rd == 15) {
@@ -85,7 +85,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
-    /* VMSR — write Rt → VFP system register. */
+    /* VMSR - write Rt → VFP system register. */
     switch (d->crn) {
     case kFpsid:
     case kMvfr1:

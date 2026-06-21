@@ -77,7 +77,7 @@ bool WaveOutSink::EnsureFormat(uint32_t sample_rate_hz, uint16_t channels,
                                    thread_id_, 0, flags);
     if (r != MMSYSERR_NOERROR) {
         LOG(Caution, "%s: waveOutOpen(%u Hz x %u ch x %u bit) failed mmresult=%u "
-                "— silent-mode (IRQ/pacing still run)\n",
+                "- silent-mode (IRQ/pacing still run)\n",
                 log_tag_, sample_rate_hz, channels, bits, r);
         out_device_ = nullptr;
         return false;

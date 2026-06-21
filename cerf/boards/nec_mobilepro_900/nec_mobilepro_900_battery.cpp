@@ -18,8 +18,8 @@ constexpr uint32_t kGpioConvBranch = 27u;  /* GPLR0 bit27 (sub_1C81F88): low sel
 
 /* battery.dll voltage poly (sub_1C81F88) + table (0x1C842AC). */
 constexpr double   kSlope       = 0.867924528;  /* C1*C2*1000 scaled-units per raw unit. */
-constexpr double   kOffAc       = 6426.342525;  /* (C3 - C5 0.25) * 1000  — AC online. */
-constexpr double   kOffBatt     = 6646.342525;  /* (C3 - C6 0.03) * 1000  — on battery. */
+constexpr double   kOffAc       = 6426.342525;  /* (C3 - C5 0.25) * 1000  - AC online. */
+constexpr double   kOffBatt     = 6646.342525;  /* (C3 - C6 0.03) * 1000  - on battery. */
 constexpr uint16_t kChargingBit = 0x8000u;      /* sub_1C8245C: value<0 => charging flag. */
 
 /* Descending (scaled-threshold, percent) bands; the lookup picks the highest

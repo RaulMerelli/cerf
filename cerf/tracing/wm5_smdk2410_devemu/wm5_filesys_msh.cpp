@@ -5,7 +5,7 @@
 
 namespace {
 
-/* filesys MountSystemHive — at PC=0x26C88 sub_194AC("Flags") returns;
+/* filesys MountSystemHive - at PC=0x26C88 sub_194AC("Flags") returns;
    at PC=0x26C94 sub_194AC("Start DevMgr") returns. dword_48058 is what
    RegQueryValueExW just wrote. */
 

@@ -1,15 +1,15 @@
-# Debugging — v2
+# Debugging - v2
 
 CERF's host-side surface is virtual hardware: peripherals, MMU, JIT, ROM
 loader. CE-side code is real ARM running through the JIT. Crashes
 therefore land in one of a small number of shapes. This page is the
 playbook for each.
 
-## Core workflow — Nuclear bisection (MANDATORY, NO DEVIATIONS)
+## Core workflow - Nuclear bisection (MANDATORY, NO DEVIATIONS)
 
 When CERF behaves wrong: **breakpoint everything, theorize nothing.**
 Theories, guesses, hypotheses, "I think the bug is X", "this is most
-likely Y", numbered lists of candidate causes — all forbidden. The
+likely Y", numbered lists of candidate causes - all forbidden. The
 only valid output of an investigation is a hook that fired (data) or
 a hook that didn't fire (also data). Anything else is commentary; do
 not produce it.
@@ -17,7 +17,7 @@ not produce it.
 The method is mechanical: install a hook on every candidate, run, see
 which fire, narrow. Repeat until the dead branch is named in the log.
 No step is skippable. "I already know what it is" is never permitted
-to replace a hook — write the hook anyway.
+to replace a hook - write the hook anyway.
 
 ### New session? Compaction? Lost context?
 
@@ -36,13 +36,13 @@ debuggin setup session. Ask user if he has a tracking document for current bug. 
 check pre-existing tracing setup so you don't accidentally spend huge money
 to setup tracing hooks which already exist.
 
-### The reference is the guest binary — you ALWAYS have one
+### The reference is the guest binary - you ALWAYS have one
 
 The ground truth for "what is correct" is the guest binary itself. Every
-ROM module — kernel, drivers, the app — ran on real hardware, so its code
+ROM module - kernel, drivers, the app - ran on real hardware, so its code
 IS the spec: at each function the decompiled guest states exactly what
 value it expects CERF's virtual hardware to return, and every binary is
-open in IDA. There is no captured hardware trace and none is needed — so
+open in IDA. There is no captured hardware trace and none is needed - so
 **"I have no reference" / "I'd need a real-hardware trace or a TX log" is
 never true and never a stop condition; it is a bailout.** Diff CERF's
 behavior against the guest code, not against any external capture.
@@ -50,18 +50,18 @@ behavior against the guest code, not against any external capture.
 The method is always nuclear bisection: drill into the last function,
 deeper through each layer / binary / library, hooking each candidate,
 until the single dead branch is named. The divergence is the first hop
-where CERF returns a value the guest code does not expect — a wrong
-register read, MMU/translate result, API return, or memory value — found
+where CERF returns a value the guest code does not expect - a wrong
+register read, MMU/translate result, API return, or memory value - found
 by comparing CERF's actual value to what the decompiled guest at that hop
 expects.
 
 For a documented standard off-chip part (codec, NIC, PMIC), split the
-labor: use the guest driver only to pin WHAT it requires — the register or
-bit it polls, the dead branch — then ground the part's register map and bit
+labor: use the guest driver only to pin WHAT it requires - the register or
+bit it polls, the dead branch - then ground the part's register map and bit
 semantics in its datasheet + the Linux driver + QEMU, rather than
 reverse-engineering the whole part from the guest.
 
-**The dead branch is always a CERF defect** — a JIT, MMU, or peripheral
+**The dead branch is always a CERF defect** - a JIT, MMU, or peripheral
 bug, or (rarely) a ROM-placement bug. It is never "the real device would
 fail here too" / "the app is buggy"; the ROM shipped and worked on
 hardware (`agent_docs/rules.md` § "Bug reports describe verified
@@ -69,17 +69,17 @@ real-device behavior").
 
 The layer is almost never simple and almost always far deeper than it
 looks. A symptom like "the app asked to render and nothing painted" rarely
-bottoms out in the top-level library it entered — it bottoms out many
+bottoms out in the top-level library it entered - it bottoms out many
 layers down in a DRIVER reached through complex PSL traps and indirection.
 For example, a blank UI can trace down to an on-screen-keyboard driver
-whose parse hits a JIT defect — nowhere near where the draw call started,
+whose parse hits a JIT defect - nowhere near where the draw call started,
 and not in any imported library directly. Reaching that depth is
 mechanical and strict: drill the LAST function deeper, one layer at a
-time — resolve each PSL trap the ROM uses, identify each wait object and
+time - resolve each PSL trap the ROM uses, identify each wait object and
 what signals it, hook to learn where a stall/WSO actually originates,
 follow the call into the next function and the next binary. Never jump
 sideways to a different surface and never theorize a cause. Each new layer
-is progress, never a stop — drill the last functions until the one dead
+is progress, never a stop - drill the last functions until the one dead
 branch is named.
 
 ### Steps
@@ -95,18 +95,18 @@ branch is named.
    the chain (`ida_decompile`, `ida_get_xrefs`) until you have a
    list of every function and decision point between "last known
    good" and "first missing." **Don't filter the list by
-   likelihood — list everything.**
+   likelihood - list everything.**
 
 3. **Install one TraceManager `OnPc` hook per candidate** in a
    trace file under `cerf/tracing/<bundle>/` (see § TraceManager
    below). `tm.OnPc(addr, handler)` per function entry. Tag names
    must be unique and grep-friendly. Capture R0..R3, LR, SP at
-   minimum — the input arguments and the caller. **Hook the WHOLE
+   minimum - the input arguments and the caller. **Hook the WHOLE
    chain. Do not prune to "likely culprits."**
 
 4. **Build, run with a SHORT timeout.** Use GNU `timeout` in the
    command itself (`timeout 15s ./cerf.exe ...`), never the Bash
-   tool's timeout parameter — it doesn't kill the cerf child and
+   tool's timeout parameter - it doesn't kill the cerf child and
    orphans the process. Boot-time bugs are visible within seconds.
 
 5. **Read the fires.** `grep "<your_tag>" cerf.log`. The hook that
@@ -132,7 +132,7 @@ branch is named.
   functions is 10 lines of C++; guessing wrong is a full build +
   run cycle.
 - **A hook that never fires is data.** It tells you the branch was
-  never taken. Don't dismiss it — it's the answer.
+  never taken. Don't dismiss it - it's the answer.
 - **Theories / hypotheses / "most likely…" lists are forbidden
   investigation output.** See `agent_docs/rules.md` § "Hypothesis
   enumeration is forbidden investigation output". When evidence is
@@ -159,12 +159,12 @@ branch is named.
   in IDA via a memory-write xref to the field), read the value via
   `c.ReadVa8/16/32(va)` inside the handler. The PC at which the
   value changes from correct to wrong is your bug. There is no
-  `OnRead` / `OnWrite` primitive — see `subsystems.md` § TraceManager
+  `OnRead` / `OnWrite` primitive - see `subsystems.md` § TraceManager
   for why.
 - **Missing call?** PC hook the function that should be called.
   No fire = trace backwards by hooking its expected caller.
 - **Guest powers off / "deep sleeps" seconds after booting?** That IS a
-  kernel panic — CE's PowerOffSystem / sleep path doubles as the
+  kernel panic - CE's PowerOffSystem / sleep path doubles as the
   unrecoverable-fault halt, and no device sleeps right after booting. Do
   NOT model it as suspend / resume; hunt the fault that triggered it
   (heavy aborts, a lock timeout) via the guest debug output above.
@@ -185,7 +185,7 @@ branch is named.
   16-slot stack snapshot at the time the dying thread aborted. Use it
   when the FATAL message comes from a thread whose state you need to
   cross-reference with another thread.
-- Stdout / stderr is flood-controlled and silently drops lines — it is
+- Stdout / stderr is flood-controlled and silently drops lines - it is
   NEVER a valid log source, and reading it is prohibited. Pass
   `--log-file=<repo>/tmp/<unique>.log` on every run and read ONLY that
   file; confirm it was created before reading, and if `--log-file` didn't
@@ -193,24 +193,24 @@ branch is named.
   stdout.
 - **On every failure, scan the guest's own debug output with a WIDE net
   first.** Before reverse-engineering, grep the log across all guest output
-  channels — UART / serial TX and NKDBG / OEM-debug strings — for the
+  channels - UART / serial TX and NKDBG / OEM-debug strings - for the
   guest's self-reported diagnosis: exception / abort register dumps,
   semaphore / lock timeouts, power-off / "deep sleep", panic banners.
   Re-scan after each failed run. A pre-narrowed keyword filter
-  (`abort|exception` only) hides the very line that names the failure — dump
+  (`abort|exception` only) hides the very line that names the failure - dump
   the distinct message vocabulary (collapse high-frequency noise) and read
   what the guest is actually saying.
 
 Filtering log channels with `--log=Boot,Mmu,Periph` (etc.) helps
 narrow output during a long boot, but `--log=ALL` (default) is what
-you want when a crash already happened — read the tail and grep
+you want when a crash already happened - read the tail and grep
 upward.
 
 ## Timeout selection for cerf runs
 
 CERF runs MUST use GNU `timeout` in the command itself
 (`timeout 15s ./cerf.exe ...`). Picking the right number is part of
-the diagnostic, not an afterthought — too short and you miss the
+the diagnostic, not an afterthought - too short and you miss the
 target; too long and every iteration wastes user budget on idle
 guest-time after the target already fired.
 
@@ -222,7 +222,7 @@ not on a generic round number. The rule:
 - If the latest observed target timestamp is `t+12s`, use **15-20s**,
   not 60s.
 - If the target hasn't been observed yet, pick the smallest
-  reasonable upper bound from a sibling milestone — a related log
+  reasonable upper bound from a sibling milestone - a related log
   line that appeared at `t+8s` in a prior run → use ~15s.
 - A timeout that worked for one investigation is **a target-specific
   baseline**, not a default. The number for "boot far enough to see
@@ -236,10 +236,10 @@ guest time × N runs × however many sessions. Pick small numbers.
 A run missing its target at the chosen timeout is data, but data of
 two possible shapes:
 
-- **Variance** — boot timing varies run-to-run (scheduler decisions,
+- **Variance** - boot timing varies run-to-run (scheduler decisions,
   libslirp, peripheral cadence, host-clock jitter). A single missed
   target on a previously-working timeout is most likely variance.
-- **Regression** — recent code or diagnostic changes added overhead
+- **Regression** - recent code or diagnostic changes added overhead
   so each host second produces fewer guest seconds.
 
 You cannot distinguish these from one run. **Re-run with the same
@@ -250,7 +250,7 @@ regression, not variance.
 
 A bump must satisfy ALL of:
 
-- **Evidence of forward progress at the cutoff** — the log's last
+- **Evidence of forward progress at the cutoff** - the log's last
   entries show the guest still executing (peripheral writes, JIT
   compile lines, new progress markers), not parked (idle loops,
   the same peripheral register being polled with no other activity,
@@ -270,7 +270,7 @@ A bump must satisfy ALL of:
 - Any **single bump ≥1.5× the working baseline** (65→90, 60→120, 30→60).
 - Any **round abnormal value picked without log evidence** (90s,
   120s, 180s, 300s, 600s, 1h, "let's try a minute", "ten minutes").
-- Repeatedly bumping by +5 until the run succeeds — that's laziness
+- Repeatedly bumping by +5 until the run succeeds - that's laziness
   in slow motion. After 2-3 +5 increments without reaching the
   target, stop bumping and investigate the slowdown.
 
@@ -281,17 +281,17 @@ target, the response is **find what slowed down**, not extend the
 window. Read the log's last few seconds and ask: is the guest
 making forward progress, or is it idle / spinning / waiting?
 
-- **Idle / waiting** — find what it's waiting for. An interrupt
+- **Idle / waiting** - find what it's waiting for. An interrupt
   that didn't fire, a peripheral that didn't respond, a kernel
   primitive blocking on an event that never gets signalled.
-- **Forward progress but slower than before** — the recent change
+- **Forward progress but slower than before** - the recent change
   added per-instruction or per-iteration overhead. Bisect the
   change, profile, or remove the heaviest contributor.
 
 Once the slowdown is fixed, re-run at the original timeout. The
 target should now fire within it.
 
-## Crash shape #1 — guest hits an undecodable ARM instruction
+## Crash shape #1 - guest hits an undecodable ARM instruction
 
 The JIT decoder couldn't translate an instruction at some guest PC.
 v2 doesn't halt CERF in this case; `ArmCpu::RaiseUndefinedException`
@@ -303,7 +303,7 @@ catch it early, hook the Undefined-exception path in the JIT (set
 `OnPc` at `ArmCpu::RaiseUndefinedExceptionHelper`'s entry) and log
 the offending PC + insn bytes. The instruction bytes at `pc` are
 not what the kernel or driver expects to be there. **Almost always
-not a JIT bug** — the bytes at that PA in DRAM are wrong because
+not a JIT bug** - the bytes at that PA in DRAM are wrong because
 something corrupted them.
 
 Investigation:
@@ -311,7 +311,7 @@ Investigation:
 1. Convert `pc` to its corresponding PA via the SoC's `VaToPa` mapping
    (or directly if the kernel was running PA-mode pre-MMU).
 2. Identify which module was loaded at that PA. The CERF ROM parser
-   logs its module list with load VAs during boot — grep cerf.log
+   logs its module list with load VAs during boot - grep cerf.log
    for the boot trace and find the module whose
    `load_va` ≤ `pc` < `load_va + vsize`. The decomposed-for-IDA tree
    under `references/extracted-roms/<device>/<rom>/fs/Windows/` is
@@ -329,7 +329,7 @@ Investigation:
    record, or runtime corruption from another module's write into
    that range.
 
-## Crash shape #2 — MMU translation fault
+## Crash shape #2 - MMU translation fault
 
 ```
 [FATAL] Mmu translation fault on read|write|fetch vaddr=0xNNNNNNNN: <reason> (SCTLR=0x… TTBR0=0x… DACR=0x…)
@@ -357,12 +357,12 @@ Investigation:
    bytes around the kernel's known OAT VA) for the expected (VA, PA,
    size) triplets.
 4. If the fault is on a low VA (e.g. `vaddr < 0x10000`), it's a NULL
-   deref in the kernel — find the function the kernel was running by
+   deref in the kernel - find the function the kernel was running by
    looking at the recent UART output (kernel debug serial usually
    prints a function name shortly before crashing) and decompile it
    in IDA.
 
-## Crash shape #3 — peripheral MMIO halt
+## Crash shape #3 - peripheral MMIO halt
 
 ```
 [CAUTION] EmulatedMemory::Translate unmapped 0xNNNNNNNN
@@ -394,10 +394,10 @@ Investigation:
    NOT guess values.** No hacks. The datasheet entry must be visible
    above before you write the handler.
 
-## Crash shape #4 — kernel debug serial says something useful
+## Crash shape #4 - kernel debug serial says something useful
 
-The OAL writes diagnostic strings to a UART, or — when the OEM nulls
-the debug path — to a sink hooked by a `cerf/tracing/<bundle>/nkdbg/`
+The OAL writes diagnostic strings to a UART, or - when the OEM nulls
+the debug path - to a sink hooked by a `cerf/tracing/<bundle>/nkdbg/`
 file. CERF routes all such guest debug text through `KernelDebugSink`
 to the `Nkdbg` channel. Search `cerf.log` for `[NKDBG]` to
 find the kernel's own boot trace, which often names the function that
@@ -411,7 +411,7 @@ the published ROMHDR / TOCentry / `e32_rom` / `o32_rom` values) and
 compare against the byte-for-byte reference at
 `references/extracted-roms/<device>/<rom>/`.
 
-## Adding diagnostics — discipline
+## Adding diagnostics - discipline
 
 **You may NOT write fix code until you have a log line identifying the
 exact problem.** "I think X causes Y" is not enough. "LOG shows X
@@ -425,40 +425,40 @@ mechanism is named in writing.
 When your fix crashes:
 
 - STOP editing, start investigating. Treat the new crash as a fresh
-  investigation — read the crash log, decompile the crashing function,
-  trace the data. Do not "tweak the fix" — that's the cascading-hack
+  investigation - read the crash log, decompile the crashing function,
+  trace the data. Do not "tweak the fix" - that's the cascading-hack
   trigger. If your fix caused a crash, your understanding was wrong;
   go back to debugging.
 
-## TraceManager — where bug-specific diagnostics belong
+## TraceManager - where bug-specific diagnostics belong
 
 Permanent `LOG()` sites are for low-frequency state observation across
-the codebase. Bug-specific diagnostics — register dumps at one
+the codebase. Bug-specific diagnostics - register dumps at one
 particular guest PC, value-change pollers, watches on one specific
 guest VA, one-shot startup audits, function-entry fire-or-no-fire
-bisections — belong in **device-specific trace files** under
+bisections - belong in **device-specific trace files** under
 `cerf/tracing/<bundle>/`, not in permanent code.
 
 See `agent_docs/subsystems.md` § TraceManager for the framework's
 hook surfaces (`OnPc`, `OnPcFiltered`, `OnRunLoopIter`) and how
 device-specific files key off the bundle CRC32. **There is no
-`OnRead` / `OnWrite` memory-watch primitive** — see subsystems.md for
+`OnRead` / `OnWrite` memory-watch primitive** - see subsystems.md for
 the full reason; the short version is that page-level slow-path
 exclusion altered guest IRQ delivery alignment enough to manufacture
 Heisenbugs that did not exist in production CERF.
 
-### `OnPc` / `OnPcFiltered` — picking a hook VA
+### `OnPc` / `OnPcFiltered` - picking a hook VA
 
 `OnPc(va, handler)` triggers on every guest execution of `va`. The VA
-is matched as-is — the JIT does the lookup, the handler fires.
+is matched as-is - the JIT does the lookup, the handler fires.
 
-**Kernel-VA hooks** (PC ≥ `0x80000000`) — kernel image, the `k.*`
-kernel-mode twins, filesys/gwes/devmgr internals — are constant
+**Kernel-VA hooks** (PC ≥ `0x80000000`) - kernel image, the `k.*`
+kernel-mode twins, filesys/gwes/devmgr internals - are constant
 across all guest processes. A hook here fires exactly when that
 specific code runs. Pick this whenever you can.
 
 **XIP ROM modules execute at their link VA, not the RomParser
-loadVA** — when hooking a ROM DLL/EXE with `OnPc`, use the raw IDA VA
+loadVA** - when hooking a ROM DLL/EXE with `OnPc`, use the raw IDA VA
 of the extracted module; computing `loadVA + (ida - base)` produces
 hooks that never fire, and a never-firing hook on an XIP module should
 be suspected of this before anything else.
@@ -470,14 +470,14 @@ the active slot, so the SAME user-VA can resolve to DIFFERENT
 physical pages depending on which process is on-CPU. Two EXEs whose
 code happens to land at the same offset within their slot will both
 fire your hook. The `LR` captured in the handler is also a user-VA
-and has the same property — it doesn't identify the caller's process.
+and has the same property - it doesn't identify the caller's process.
 
 To filter a user-VA hook to a specific process, use
 `OnPcFiltered(va, predicate, handler)`. The predicate runs at fire
 time and returns `true` to admit the call. Typical predicate body:
 read `emu.Get<ArmMmu>().State()->process_id & 0x7Fu` and compare
 against the target process's slot. Acquiring the target's slot
-number is CE-version-specific — observe it via a kernel-VA hook on
+number is CE-version-specific - observe it via a kernel-VA hook on
 process creation in your trace file and store name → slot.
 
 If a user-VA hook isn't strictly required, prefer a kernel-VA
@@ -486,7 +486,7 @@ up often:
 
 - `xxx_*` PSL trap landings in `k.coredll` (every user-mode call from
   any process funnels through here)
-- `filesys.dll!FS_SignalStarted(dw)` — `dw` is the RunApps
+- `filesys.dll!FS_SignalStarted(dw)` - `dw` is the RunApps
   `Launch%NN` index, which uniquely names the launched EXE
 - Per-subsystem kernel routines that take a `pProc` argument
 
@@ -494,7 +494,7 @@ These produce identifying data inline, without needing a per-process
 filter.
 
 **Duplicate-registration guard.** Two unfiltered `OnPc` at the same
-VA halts CERF — registration is exclusive and surfaced at startup,
+VA halts CERF - registration is exclusive and surfaced at startup,
 never silently stomped. `OnPcFiltered` instances at the same VA
 coexist with each other and with one unfiltered handler; each
 filtered handler is responsible for its own predicate-distinct
@@ -505,7 +505,7 @@ name/slot resolver can't be trusted.** A per-process (low) VA hook can
 fire under any process whose code aliases that VA. When the resolver
 that maps a fire to a process is unreliable, identify the firing
 process by reading the runtime bytes at the hook PC (`c.ReadVa32`) and
-matching them against each candidate module's extracted `.text` — each
+matching them against each candidate module's extracted `.text` - each
 module is byte-unique at a given VA, so the match is unambiguous where
 a name lookup is not.
 
@@ -515,7 +515,7 @@ a name lookup is not.
 | --- | --- |
 | Log every call to a host C++ function with its args / state at the call site | Permanent `LOG(<chan>, ...)` at that call site |
 | Log a host-side state transition that happens on a slow cadence (boot milestone, IRQ, mode switch) | Permanent `LOG(<chan>, ...)` at the transition |
-| Watch a specific guest VA for write — to see when it changes | Trace file `tm.OnPc(writer_pc, ...)` at every writer instruction PC + `c.ReadVa8/16/32(va)` inside the handler |
+| Watch a specific guest VA for write - to see when it changes | Trace file `tm.OnPc(writer_pc, ...)` at every writer instruction PC + `c.ReadVa8/16/32(va)` inside the handler |
 | Watch a specific guest VA for value-change with unknown writers | Trace file `tm.OnRunLoopIter(...)` polling the value via `c.ReadVa8/16/32(va)` |
 | Dump full register state every time a specific guest PC is reached | Trace file calling `tm.OnPc` |
 | Poll a guest-memory value and log every change | Trace file calling `tm.OnRunLoopIter` |
@@ -537,7 +537,7 @@ a name lookup is not.
    whose `OnReady` calls `emu_.Get<TraceManager>().RegisterForBundle(
    kBundleCrc32, [&]{ ... });`. Inside the lambda, call `OnPc` and
    `OnRunLoopIter` as needed. Read memory inside handlers via
-   `c.ReadVa8/16/32(va)` — there is no `OnRead`/`OnWrite`
+   `c.ReadVa8/16/32(va)` - there is no `OnRead`/`OnWrite`
    primitive.
 4. `REGISTER_SERVICE(YourTraceClass);` at the bottom.
 5. Build with `build.ps1` (default `-Mode dev`). The trace file is
@@ -563,14 +563,14 @@ For each thread:
 - `RSP+0..78` = top 16 stack slots; 8-byte values that may be return
   addresses, args, or saved registers depending on calling convention
 - Many threads will be in `WaitForSingleObject` / similar host-side
-  blocking calls — those are normal worker threads, not interesting
+  blocking calls - those are normal worker threads, not interesting
 - Threads with RIP inside CERF code (e.g. `0x00007FF7…` ranges that
   fall inside `cerf.exe`'s mapped image) are doing CERF work;
   cross-reference with the crashing thread's stack via `dbghelp`
   symbols if you need a host-side back trace
 
 The crashing thread's own stack trace (the `[FATAL] [N]
-FunctionName+0xXX` list) is at the bottom of `cerf.crash.log` — that's
+FunctionName+0xXX` list) is at the bottom of `cerf.crash.log` - that's
 your first read.
 
 ## IDA discipline
@@ -588,7 +588,7 @@ produced by `tools/extract_bundles.py` running
 `bundled/devices/<device>/pdbs/` are copied next to the modules
 automatically, so IDA finds symbols without any extra step.
 `references/extracted-roms/` is gitignored and persistent across
-rebuilds — point IDA at it directly:
+rebuilds - point IDA at it directly:
 
 ```
 python tools/open_ida.py --wait references/extracted-roms/<device>/<rom>/fs/Windows/<name>
@@ -603,10 +603,10 @@ link-time RVAs and appending a `.cerom` section; the result is faithful
 for disassembly / decompilation but is NOT ground truth for PE
 structure or for how the module looks in live guest memory after the
 kernel loader maps it. Trust it for reading code, never for runtime
-layout questions — to learn how it diverges from live memory, read the
+layout questions - to learn how it diverges from live memory, read the
 extractor source rather than assuming the file mirrors the loader's
 output.
 
 Never run IDA from `build/` or `bundled/`. `build/` is wiped on
-rebuild and IDA holds locks; `bundled/` is CERF's runtime input — an
+rebuild and IDA holds locks; `bundled/` is CERF's runtime input - an
 `.i64` sidecar inside it would pollute the input tree.

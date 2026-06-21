@@ -74,7 +74,7 @@ public:
 private:
     /* Stream period while down. The driver does not fix the PIC scan rate, so
        this is sized to stay faster than touch.dll's default 16.7 ms acquire
-       poll (rate 300) — the [TOUCH-RATE] hook reports the live rate to confirm. */
+       poll (rate 300) - the [TOUCH-RATE] hook reports the live rate to confirm. */
     static constexpr DWORD kStreamPeriodMs = 15u;
 
     void PacerMain() {

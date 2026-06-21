@@ -6,7 +6,7 @@ typedef unsigned int uint32_t;
 #include <cstdint>
 #endif
 
-/* MUST be a PA free on every supported board — cerf_virt registers here, so a
+/* MUST be a PA free on every supported board - cerf_virt registers here, so a
    board that maps this range faults at PeripheralDispatcher::Register. Highest
    PA any board maps is the 0xE0000000 zero-bank; 0xF0000000 is above them all. */
 
@@ -65,7 +65,7 @@ const uint32_t kGuestBodyHdrSize = 0x1000u;
 
 /* Injected-stub band PA (overlay-mapped to a static-window VA so the stub's
    bytes live here, not in the victim's section). Carved BELOW
-   kFramebufferMemBase — placing it above would be overrun by the
+   kFramebufferMemBase - placing it above would be overrun by the
    host-monitor-sized framebuffer region that grows up from there. */
 const uint32_t kInjectionBandSize = 0x10000u;
 const uint32_t kInjectionBandBase = kFramebufferMemBase - kInjectionBandSize;

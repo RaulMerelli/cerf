@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VMAX.F32 / VMIN.F32 — A7.4.1 opc=1111 B=0 U=0 (A8.8.335). */
+/* VMAX.F32 / VMIN.F32 - A7.4.1 opc=1111 B=0 U=0 (A8.8.335). */
 class ArmNeon3SameFpMinMax : public Service {
 public:
     using Service::Service;

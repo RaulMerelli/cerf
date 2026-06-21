@@ -9,7 +9,7 @@
 #include <mutex>
 #include <thread>
 
-/* i.MX31 Keypad Port (KPP), PA 0x43FA_8000 — MCIMX31RM Ch 27. Zune front
+/* i.MX31 Keypad Port (KPP), PA 0x43FA_8000 - MCIMX31RM Ch 27. Zune front
    controls are a KPP matrix: pyxis_keybd.dll scans 4 cols (KPDR 8-11) x 5 rows
    (KPDR 0-4), key index 5*col+row. SetMatrixKey is the host-input entry. */
 class Imx31Kpp : public Peripheral {

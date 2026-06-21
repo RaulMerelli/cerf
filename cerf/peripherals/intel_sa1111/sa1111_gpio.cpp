@@ -10,7 +10,7 @@ namespace {
 
 /* SA-1111 GPIO A/B/C (Dev Man Table 10-7, base 0x40001000), 8-bit
    ports DDR/DWR·DRR/SDR/SSR at stride 0x10. Px_DDR (§10.3.3): 1=input,
-   0=output, reset 0xFF — flipping the polarity inverts every port.
+   0=output, reset 0xFF - flipping the polarity inverts every port.
    Input pins read 0 (nothing drives them). */
 class Sa1111Gpio : public Peripheral {
 public:

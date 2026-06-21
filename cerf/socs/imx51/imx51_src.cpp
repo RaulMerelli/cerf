@@ -12,7 +12,7 @@
 
 namespace {
 
-/* i.MX51 System Reset Controller (SRC), MCIMX51RM Ch 54, PA 0x73FD_0000 — reset
+/* i.MX51 System Reset Controller (SRC), MCIMX51RM Ch 54, PA 0x73FD_0000 - reset
    status/control + ResetCauseLatch. Per-register resets cited below. */
 constexpr uint32_t kBase = 0x73FD0000u;
 constexpr uint32_t kSize = 0x00004000u;

@@ -88,7 +88,7 @@ public:
                     c.regs[0], ttbr, c.regs[14]);
             });
             tm.OnPc(0x8C05E39Cu, [](const TraceContext& c) {
-                /* NKCreateAPISet(name[4], cMethods, apiMethods, sigs) — capture name (4 chars) + which API set ID is allocated. */
+                /* NKCreateAPISet(name[4], cMethods, apiMethods, sigs) - capture name (4 chars) + which API set ID is allocated. */
                 char tag[5] = {};
                 for (int i = 0; i < 4; ++i) {
                     auto b = c.ReadVa8(c.regs[0] + i);
@@ -298,7 +298,7 @@ public:
                     LOG(Trace, "[cmp] InitializeCompositor LR=0x%08X SP=0x%08X\n",
                         c.regs[14], c.regs[13]);
                 });
-            /* kernel-mode k.coredll xxx_RegOpenKeyExW — captures kernel-side reads */
+            /* kernel-mode k.coredll xxx_RegOpenKeyExW - captures kernel-side reads */
             tm.OnPc(0xEFF73CE8u, [reg_open_hook](const TraceContext& c) {
                 reg_open_hook(c, "kmode_RegOpenKeyExW");
             });
@@ -436,7 +436,7 @@ public:
                 if (++n > 40 && (n % 20u) != 0u) return;
                 LOG(Trace, "[fb4] PSL_F10093F8()=0x%08X (0=fail) #%u\n", c.regs[0], n);
             });
-            /* CDirectDraw::Create later returns: GetPrimaryDDrawDeviceName / device-create PSL(F4) / caps PSL(E4) — which yields 0x80004005. */
+            /* CDirectDraw::Create later returns: GetPrimaryDDrawDeviceName / device-create PSL(F4) / caps PSL(E4) - which yields 0x80004005. */
             tm.OnPc(0xEFDD54C8u, [](const TraceContext& c) {
                 static uint32_t n = 0;
                 if (++n > 40 && (n % 20u) != 0u) return;

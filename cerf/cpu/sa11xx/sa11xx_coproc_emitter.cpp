@@ -34,10 +34,10 @@ public:
         }
         /* SA-1110 c15 (Dev Man §5.2 "Test, clock, idle"): writes have
            no software-visible state; reads reserved. Kernel writes
-           0x80020000 here — without the intercept the shared dispatch
+           0x80020000 here - without the intercept the shared dispatch
            UNDs c15. */
         if (d->crn == 15) {
-            /* MCR p15, 0, Rd, c15, c2, 2 — SA-1110 "Wait for Interrupt"
+            /* MCR p15, 0, Rd, c15, c2, 2 - SA-1110 "Wait for Interrupt"
                (Dev Man §5.3.4). OEMIdle uses this to halt CPU until next
                IRQ. Without this, the kernel polls cp15 + LCD-mmio 137K
                times/sec instead of sleeping. */
@@ -59,7 +59,7 @@ public:
         /* StrongARM c9 = Read-Buffer ops (Dev Man §5.2.10 table; reads
            RESERVED per Table 5-1). CERF's coherent memory holds no RB state
            and an allocate's access violation aborts at the later load (§6.4)
-           — documented writes are no-ops. Linux 2.6.25 executes the
+           - documented writes are no-ops. Linux 2.6.25 executes the
            user-access enable (MCR p15,0,R0,c9,c0,5) in early boot before
            its vectors page is mapped; UNDing it is fatal there. */
         if (d->crn == 9) {
@@ -74,7 +74,7 @@ public:
             return EmitRaiseUndAndReturn(cursor, d, ctx);
         }
         /* SA-1110 c14 = debug/breakpoint registers (Dev Man §5.2.13). CERF has
-           no breakpoint unit, so writes are no-ops and reads return 0 — enough
+           no breakpoint unit, so writes are no-ops and reads return 0 - enough
            for the kernel sleep state-save (reads c14 at nk.exe 0x8008162C) to
            round-trip. The shared cp15 dispatch UNDs c14, which corrupts suspend. */
         if (d->crn == 14) {

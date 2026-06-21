@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VPMAX / VPMIN (floating-point) — A8.8.366, opc=1111 C=0 U=1. */
+/* VPMAX / VPMIN (floating-point) - A8.8.366, opc=1111 C=0 U=1. */
 class ArmNeon3SameFpPairMinMax : public Service {
 public:
     using Service::Service;

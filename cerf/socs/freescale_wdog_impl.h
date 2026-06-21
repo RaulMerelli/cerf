@@ -22,7 +22,7 @@ constexpr uint32_t kWrsr = 0x04u;  /* Watchdog Reset Status (R/O) */
 constexpr uint32_t kWicr = 0x06u;  /* Watchdog Interrupt Control (i.MX51) */
 constexpr uint32_t kWmcr = 0x08u;  /* Watchdog Misc. Control (i.MX51)     */
 
-constexpr uint16_t kWcrReset = 0x0030u;  /* WDA(5)|SRS(4) — i.MX51 Table 62-5 / i.MX31 Table 37-3 */
+constexpr uint16_t kWcrReset = 0x0030u;  /* WDA(5)|SRS(4) - i.MX51 Table 62-5 / i.MX31 Table 37-3 */
 
 template <uint32_t Base, SocFamily Soc>
 class FreescaleWdogBase : public Peripheral {

@@ -84,8 +84,8 @@ void HostCanvasInput::ShowLockHintOnce(HWND owner) {
         owner, nullptr, GetModuleHandleW(nullptr), nullptr);
     if (!lock_hint_tip_) return;
 
-    wchar_t text[] = L"Mouse locked — press Right Ctrl to release";
-    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE — accepted by every
+    wchar_t text[] = L"Mouse locked - press Right Ctrl to release";
+    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE - accepted by every
        comctl32 (v5 and the manifest's v6); the larger modern sizeof(TTTOOLINFOW)
        is rejected by older comctl32 from TTM_ADDTOOL (see HostStatusBar). */
     TTTOOLINFOW ti = { TTTOOLINFOW_V1_SIZE };
@@ -195,7 +195,7 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
     }
 
     /* vmware-cursor model: host cursor becomes the guest's shape (NULL when the
-       guest hid it). Gate on Absolute — in stylus/relative mode the guest cursor
+       guest hid it). Gate on Absolute - in stylus/relative mode the guest cursor
        isn't driven, and HostGuestCursor's latched-hidden state would SetCursor(NULL)
        and blank the host cursor, leaving nothing to aim taps with. */
     if (msg == WM_SETCURSOR && LOWORD(lp) == HTCLIENT && framebuffer &&

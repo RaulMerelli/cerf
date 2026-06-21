@@ -13,7 +13,7 @@
 namespace {
 
 /* PXA255 RTC, base 0x40900000 (§4.3). §4.3.1: RCNR is a free-running 1 Hz
-   up-counter "unaffected by transitions into and out of Sleep" — it advances in
+   up-counter "unaffected by transitions into and out of Sleep" - it advances in
    real wall-clock time and keeps ticking while the JIT thread is parked in deep
    sleep, where guest-cycle time does not advance, so the resumed guest reads the
    true elapsed wall time. */

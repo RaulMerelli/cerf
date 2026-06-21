@@ -25,7 +25,7 @@ public:
         tm.RegisterForBundle(kZuneKeelBundleCrc32, [&] {
             /* Unfiltered: discovering WHICH process runs mspart's PD_OpenStore
                (device.exe and filesys.exe filters both produced no fires), so
-               no process predicate is yet known — each handler logs pid. */
+               no process predicate is yet known - each handler logs pid. */
             tm.OnPc(0x3ED1178u, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};
                 if (n.fetch_add(1) >= 6u) return;

@@ -48,7 +48,7 @@ private:
 
     static constexpr uint32_t kOffIntctrl   = 0x000;  /* INTCTRL  R/W */
     static constexpr uint32_t kOffInttype   = 0x004;  /* INTTYPE  RO  */
-    /* PRIOMASK/SYNCCTRL/DSMINT at 0x00C/0x010/0x014 — RM Table 57-1; 0x008 is a
+    /* PRIOMASK/SYNCCTRL/DSMINT at 0x00C/0x010/0x014 - RM Table 57-1; 0x008 is a
        reserved gap between INTTYPE (0x004) and PRIOMASK (0x00C). */
     static constexpr uint32_t kOffPriomask  = 0x00C;  /* PRIOMASK R/W */
     static constexpr uint32_t kOffSyncctrl  = 0x010;  /* SYNCCTRL R/W */
@@ -74,7 +74,7 @@ private:
     uint32_t secure_[kBankCount]{};    /* INTSEC; 1 = secure */
     uint32_t swforce_[kBankCount]{};   /* SRCSET/SRCCLEAR */
     /* WAKEUP0-3 (RM Table 57-1): which sources may wake from low-power. Stored
-       only — CERF has no real suspend (it wakes instantly), so the config never
+       only - CERF has no real suspend (it wakes instantly), so the config never
        gates interrupt delivery. */
     uint32_t wakeup_[kBankCount]{};
     uint32_t priority_[32]{};          /* PRIORITY0-31 */

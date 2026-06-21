@@ -10,7 +10,7 @@
 namespace {
 
 /* MCIMX31RM Ch 32 (Tables 32-23/24/32) USB-OTG, no USB device wired. PORTSC
-   config bits (31:12) are R/W; status bits (11:0 — CCS/PE/etc.) must read 0 so
+   config bits (31:12) are R/W; status bits (11:0 - CCS/PE/etc.) must read 0 so
    the kernel's connect/enable checks see no device. Unreached registers halt. */
 constexpr uint32_t kBase        = 0x43F88000u;
 constexpr uint32_t kSize        = 0x00004000u;
@@ -39,7 +39,7 @@ constexpr uint32_t kOtgsc       = 0x1A4u;      /* OTGSC On-The-Go status/ctrl (T
    BSV/ASV/AVV=0 (Table 32-33). */
 constexpr uint32_t kOtgscRwMask = 0x7F00003Bu;
 constexpr uint32_t kOtgscNoCable = 0x00001100u;  /* ID(8) | BSE(12) */
-/* Device-mode endpoint controller (Table 32-2) — used by the USB-function /
+/* Device-mode endpoint controller (Table 32-2) - used by the USB-function /
    MTP driver. All 32-bit, reset 0. */
 constexpr uint32_t kEndptSetupStat = 0x1ACu;   /* ENDPTSETUPSTAT W1C (Table 32-35) */
 constexpr uint32_t kEndptPrime     = 0x1B0u;   /* ENDPTPRIME, HW-clears (Table 32-36) */
@@ -48,7 +48,7 @@ constexpr uint32_t kEndptStat      = 0x1B8u;   /* ENDPTSTAT R/O ready bitmap (Fi
 constexpr uint32_t kEndptComplete  = 0x1BCu;   /* ENDPTCOMPLETE W1C */
 constexpr uint32_t kEndptCtrl0     = 0x1C0u;   /* ENDPTCTRL0..15 (§32.9.5.18) */
 constexpr uint32_t kEndptCtrl15    = 0x1FCu;
-/* EHCI operational list/index regs (§32.9.5, Figs 32-27/28/30) — R/W,
+/* EHCI operational list/index regs (§32.9.5, Figs 32-27/28/30) - R/W,
    reset 0; no schedule runs with no device, so plain storage. */
 constexpr uint32_t kFrIndex     = 0x14Cu;      /* FRINDEX */
 constexpr uint32_t kCtrlDsSeg   = 0x150u;      /* CTRLDSSEGMENT 4G segment, unused (ADC=0) */
@@ -59,7 +59,7 @@ constexpr uint32_t kUlpiView    = 0x170u;      /* ULPIVIEW (Fig 32-34) */
 constexpr uint32_t kUlpiWu      = 1u << 31;    /* ULPIVIEW Wakeup, self-clears */
 constexpr uint32_t kUlpiRun     = 1u << 30;    /* ULPIVIEW Run, self-clears on xfer done */
 
-/* EHCI capability registers (read-only) — MCIMX31RM §32.9.4 Fig 32-18..32-21.
+/* EHCI capability registers (read-only) - MCIMX31RM §32.9.4 Fig 32-18..32-21.
    0x100 word packs CAPLENGTH(0x40)|HCIVERSION(0x0100<<16); HCSPARAMS N_PORTS=1
    (a 0 there is "undefined" so the host driver needs ≥1); HCCPARAMS=0x0006. */
 constexpr uint32_t kCapLength   = 0x100u;
@@ -104,7 +104,7 @@ public:
             case kHcsParams: return kHcsParamsVal;
             case kHccParams: return kHccParamsVal;
             case kUsbcmd:  return usbcmd_;
-            /* AS(15)/PS(14) must mirror USBCMD ASE(5)/PSE(4) — the host driver
+            /* AS(15)/PS(14) must mirror USBCMD ASE(5)/PSE(4) - the host driver
                spins until AS==ASE / PS==PSE (hcd_hsotg sub_306B560); returning
                only HCHalted wedges USB bring-up. Tables 32-23/32-24. */
             case kUsbsts: {
@@ -166,7 +166,7 @@ public:
             case kTxFillTune:   tx_fill_tune_  = value; return;
             /* PRIME makes the named endpoints ready (HW would clear PRIME after
                priming, Table 32-36); FLUSH clears them (Table 32-37). SETUPSTAT/
-               COMPLETE are W1C — nothing is set with no host. STAT is read-only. */
+               COMPLETE are W1C - nothing is set with no host. STAT is read-only. */
             case kEndptPrime:     endpt_stat_ |=  value; return;
             case kEndptFlush:     endpt_stat_ &= ~value; return;
             case kEndptSetupStat: return;

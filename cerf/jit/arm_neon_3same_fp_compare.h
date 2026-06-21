@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VCEQ.F32 / VCGE.F32 / VCGT.F32 (register form) — A7.4.1 opc=1110 C=0
+/* VCEQ.F32 / VCGE.F32 / VCGT.F32 (register form) - A7.4.1 opc=1110 C=0
    (A8.8.291 / A8.8.293 / A8.8.295). */
 class ArmNeon3SameFpCompare : public Service {
 public:

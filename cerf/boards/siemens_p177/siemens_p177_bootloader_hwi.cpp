@@ -22,7 +22,7 @@ constexpr uint32_t kHwInfoPointerPa = 0x00000020u;
 
 /* nGCS0 PA 0x800: free zero padding (0x4B..0x1004, between ROM header and the
    first XIP module). MUST stay in the first 4 MiB the parser range-checks and
-   off live image bytes — the contributor's 0x3F0000 overwrites module .text. */
+   off live image bytes - the contributor's 0x3F0000 overwrites module .text. */
 constexpr uint32_t kHwInfoPa   = 0x00000800u;
 constexpr size_t   kHwInfoSize = 128u;
 

@@ -7,10 +7,10 @@
 
 namespace {
 
-/* SA-1110 Memory Controller — Dev Man §10.2 Table 10-2 register map.
+/* SA-1110 Memory Controller - Dev Man §10.2 Table 10-2 register map.
    All registers R/W; CERF treats them as plain storage (the actual
    DRAM/SDRAM timing they configure has no effect on emulator memory
-   access — the host backs DRAM with normal allocations). */
+   access - the host backs DRAM with normal allocations). */
 
 class Sa11xxMemoryController : public Peripheral {
 public:

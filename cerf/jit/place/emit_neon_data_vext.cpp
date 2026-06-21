@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VEXT — A8.8.316, U=0, bit23=1, bits[21:20]=11, bit[4]=0. */
+/* VEXT - A8.8.316, U=0, bit23=1, bits[21:20]=11, bit[4]=0. */
 uint8_t* PlaceNeonDataVext(uint8_t*      cursor,
                            DecodedInsn*  d,
                            BlockContext* ctx) {

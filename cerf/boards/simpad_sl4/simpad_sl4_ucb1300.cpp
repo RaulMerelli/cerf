@@ -40,7 +40,7 @@ constexpr uint16_t kPressureDown = 512u;
 constexpr uint16_t kPressureUp   = 0u;
 
 /* gwes (sub_ABA64) reads AD2 as the AC-line sense; its divide makes
-   adc >= 289 register as "AC online" — 400 when on AC, 0 on battery. */
+   adc >= 289 register as "AC online" - 400 when on AC, 0 on battery. */
 constexpr uint16_t kAcOnlineAdc = 400u;
 
 class SimpadSl4Ucb1300 : public Sa11xxMcpCodec {

@@ -7,7 +7,7 @@ namespace {
 
 /* Fallback boot mode for an unrecognised board, mirroring NullPageTableBuilder:
    returns safe zero entry/stack so cold-boot setup never dereferences an absent
-   ROM. The boot doesn't proceed — DeviceNotFoundService / BoardNotFoundService
+   ROM. The boot doesn't proceed - DeviceNotFoundService / BoardNotFoundService
    run and show the graceful message. */
 class NullBootMode : public BootMode {
 public:

@@ -12,7 +12,7 @@
 
 namespace cerf_imx51_ssi_detail {
 
-/* i.MX51 SSI (Synchronous Serial Interface) audio port, MCIMX51RM Ch 56 — an
+/* i.MX51 SSI (Synchronous Serial Interface) audio port, MCIMX51RM Ch 56 - an
    audio careful-stub (agent_docs/rules.md): the audio driver only config-writes
    the SSI (no status poll), so a passive register file clears its init. */
 constexpr uint32_t kSize = 0x00004000u;   /* AIPS slot, RM Table 2-1 */

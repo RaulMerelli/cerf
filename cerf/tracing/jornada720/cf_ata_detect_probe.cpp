@@ -11,7 +11,7 @@
 namespace {
 
 /* atadisk.dll ATAConfig (sub_1EB1E4C) bail-point hooks. Addresses are raw
-   atadisk.dll IDA VAs: XIP exec VA = link VA, NOT the RomParser loadVA — the
+   atadisk.dll IDA VAs: XIP exec VA = link VA, NOT the RomParser loadVA - the
    0x8081xxxx twins are loadVA-relative and fire only if that assumption is
    wrong. */
 class CfAtaDetectProbe : public Service {

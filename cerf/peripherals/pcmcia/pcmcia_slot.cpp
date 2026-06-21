@@ -135,7 +135,7 @@ void PcmciaSlot::InsertCard(std::unique_ptr<PcmciaCard> card) {
         std::lock_guard<std::mutex> lk(bus_mutex_);
         if (card_) {
             LOG(Caution, "[Slot %ls] InsertCard into occupied slot "
-                    "(%ls) — rejected\n",
+                    "(%ls) - rejected\n",
                 label_.c_str(), card_->DisplayName().c_str());
             return;
         }
@@ -329,8 +329,8 @@ std::vector<WidgetMenuItem> PcmciaSlot::BuildMenu() {
 
 std::wstring PcmciaSlot::Tooltip() const {
     std::lock_guard<std::mutex> lk(bus_mutex_);
-    if (!card_) return label_ + L" — empty";
-    return label_ + L" — " + card_->TooltipDetail();
+    if (!card_) return label_ + L" - empty";
+    return label_ + L" - " + card_->TooltipDetail();
 }
 
 void PcmciaSlot::DrawIcon(HDC dc, const RECT& box) const {

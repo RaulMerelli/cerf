@@ -8,7 +8,7 @@
 uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
                                  DecodedInsn*  d,
                                  BlockContext* ctx) {
-    /* VDUP (ARM core register) — NEON, A7-22 (C=1, L=0, A=1xx, B=0x).
+    /* VDUP (ARM core register) - NEON, A7-22 (C=1, L=0, A=1xx, B=0x).
        MUST precede the VMRS check: VDUP.8 Qd encodes cp_opc=7, cp=0 and
        would otherwise alias VMRS. HasNeon() gate => non-NEON SoCs fall
        through and UND it, like real hardware. */
@@ -18,7 +18,7 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
         return EmitNeonVdup(cursor, d, ctx);
     }
 
-    /* VMOV (ARM core register ↔ scalar) — A8.8.341 / A8.8.342, esize=8
+    /* VMOV (ARM core register ↔ scalar) - A8.8.341 / A8.8.342, esize=8
        or 16. MUST precede VMRS: VMOV.U8 Rt, Dn[7] aliases cp_opc=7
        cp=0. esize=32 collapses to VMOV Sn↔Rt (handled below) and is
        not matched here. */
@@ -31,14 +31,14 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
         }
     }
 
-    /* VMRS / VMSR — VFP system register R/W (cp_opc=7, CRm=0, op2=0). */
+    /* VMRS / VMSR - VFP system register R/W (cp_opc=7, CRm=0, op2=0). */
     if (d->cp_opc == 7 && d->crm == 0 && d->cp == 0) {
         return EmitVfpSystemRegTransfer(cursor, d, ctx);
     }
 
     /* FMRDL/FMRDH: esize-32 scalar VMOV Rt<->Dn[x], cp11 (QEMU vfp.decode
        VMOV_to_gp size=2): Dn=(D<<4)|Vn (D=cp bit2), index=bit21=cp_opc&1,
-       lane Sx=(Dn<<1)|index. MUST precede the cp10 rule — FMRDL (cp11,
+       lane Sx=(Dn<<1)|index. MUST precede the cp10 rule - FMRDL (cp11,
        cp_opc=0) would else route there and decode the wrong fields. */
     if (d->cp_num == 11 && (d->cp_opc & 6u) == 0u && d->crm == 0 &&
         (d->cp & 3u) == 0u) {
@@ -47,7 +47,7 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
         return EmitVfpSingleMoveIdx(cursor, d, ctx, sx);
     }
 
-    /* VMOV Sn <-> Rt — cp10 single-register transfer (cp_opc=0, CRm=0,
+    /* VMOV Sn <-> Rt - cp10 single-register transfer (cp_opc=0, CRm=0,
        op2 low bits = 0; cp bit 2 = Sn extension). */
     if (d->cp_opc == 0 && d->crm == 0 && (d->cp & 3u) == 0u) {
         return EmitVfpSingleMove(cursor, d, ctx);

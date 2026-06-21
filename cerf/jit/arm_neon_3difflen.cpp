@@ -278,7 +278,7 @@ void ArmNeon3DiffLen::HandleMulLongSat(uint32_t op, uint32_t d_idx,
         bool sat1 = false;
         if (op1_s == MIN_OP && op2_s == MIN_OP) {
             /* 2*MIN*MIN = 2^(2*esize-1) overflows the signed 2*esize range
-               by exactly one — saturate to MAX. */
+               by exactly one - saturate to MAX. */
             product = MAX_OUT;
             sat1 = true;
         } else {

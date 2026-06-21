@@ -122,7 +122,7 @@ void Omap3530I2cBank::OnStatW1cLocked(uint32_t guest_addr_for_diag,
                                       uint16_t value) {
     /* If a write transaction is pending and the kernel just W1Cs
        any of XRDY|XDR|XUDF, the OAL's "fill phase complete" signal
-       has arrived — drain tx_fifo_ to the slave and set ARDY so
+       has arrived - drain tx_fifo_ to the slave and set ARDY so
        the next loop iteration sees the packet complete. */
     if (pending_active_ && !pending_is_read_ &&
         (value & kI2cStatTxBits) != 0) {

@@ -20,7 +20,7 @@ namespace {
 
 /* Intel PXA255 DMA Controller (dev manual 278693-002 Ch.5, base 0x40000000).
    A channel whose descriptor targets the AC'97 PCM-out FIFO is handed to
-   Pxa255Ac97 to pace each buffer-complete IRQ via AudioTick — blasting that
+   Pxa255Ac97 to pace each buffer-complete IRQ via AudioTick - blasting that
    ring synchronously deadlocks the guest audio thread and the UI. */
 class Pxa255Dma : public Peripheral {
 public:
@@ -203,7 +203,7 @@ private:
     }
 
     /* True iff the channel's first descriptor sources from the modem-in FIFO
-       (MODR) — the WM9705 touch slot-5 stream. */
+       (MODR) - the WM9705 touch slot-5 stream. */
     bool PeekTouchInLocked(uint32_t ch) {
         if (dcsr_[ch] & NODESCFETCH) return false;
         if (ddadr_[ch] & DDADR_STOP) return false;
@@ -335,7 +335,7 @@ private:
         }
         if (n == kMaxDescriptors)
             LOG(Caution, "Pxa255Dma: ch%u chain exceeded %u descriptors (last DSADR=0x%08X "
-                "DTADR=0x%08X DCMD=0x%08X DDADR=0x%08X) — stopping\n", ch, kMaxDescriptors,
+                "DTADR=0x%08X DCMD=0x%08X DDADR=0x%08X) - stopping\n", ch, kMaxDescriptors,
                 dsadr_[ch], dtadr_[ch], dcmd_[ch], ddadr_[ch]);
         dcsr_[ch] = (dcsr_[ch] & ~RUN) | STOPSTATE;
     }

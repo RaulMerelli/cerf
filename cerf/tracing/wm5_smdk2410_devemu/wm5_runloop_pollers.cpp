@@ -12,7 +12,7 @@
 
 namespace {
 
-/* RunLoop pollers — fire on every JIT Run() return. Each tracks a
+/* RunLoop pollers - fire on every JIT Run() return. Each tracks a
    value-of-interest and logs only on CHANGE (single line per
    transition, not per iter). Service members hold the state so we
    stay clear of static-locals-in-lambda. */
@@ -79,7 +79,7 @@ private:
         }
     }
 
-    /* MEMORY[0x05FFD484] — read by CertMod's DllEntryPoint at
+    /* MEMORY[0x05FFD484] - read by CertMod's DllEntryPoint at
        fdwReason=1 (LDR R3,[R5]; BX R3). 0x03F5842C means BX
        recursively re-enters DllEntryPoint = loop trigger. */
     void CertModData(const TraceContext& c) {
@@ -90,7 +90,7 @@ private:
         LOG(Trace, "[CERTMOD_DATA] MEMORY[0x05FFD484]: 0x%08X -> 0x%08X %s\n",
             prev, *v,
             *v == 0x03F5842Cu ? "(= DllEntryPoint!) LOOP TRIGGER"
-            : *v == 0           ? "(zero — DllEntryPoint skips BX R3)"
+            : *v == 0           ? "(zero - DllEntryPoint skips BX R3)"
                                 : "(some function pointer)");
     }
 
@@ -105,7 +105,7 @@ private:
                    "0x%08X -> 0x%08X\n", prev, v);
     }
 
-    /* L2[0xDC] @ PA 0x3FF5A370 — L2 entry for page 0xDC in slot 2's
+    /* L2[0xDC] @ PA 0x3FF5A370 - L2 entry for page 0xDC in slot 2's
        L2 table (which L1[0x40]=0x3FF5A001 points to). The lazy-page-
        fill abort fires when this entry is 0 but L1[0x40] is set.
        Knowing when/who clears this entry pins the root cause. */
@@ -141,7 +141,7 @@ private:
     }
 
     /* Periodic snapshot: coredll literal at IDA 0x8008A8F0
-       (PA 0x3008A8F0) — expected 0x80071FB4 ("coredll.dll" string).
+       (PA 0x3008A8F0) - expected 0x80071FB4 ("coredll.dll" string).
        LSB set = system loader path. */
     void DiagPeriodic(const TraceContext& c) {
         const uint64_t n = ++diag_count_;

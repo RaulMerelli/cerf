@@ -12,7 +12,7 @@
 /* SIMpad SL4 NOR (SA-1110 CS0/CS1), 28F128J3 StrataFlash. Reads of a backed PA
    bypass this peripheral to the EmulatedMemory backing, so id / status / CFI and
    the per-block read-ID lock configuration are presented by MUTATING that
-   backing and restored on read-array — a Read override here would never fire. */
+   backing and restored on read-array - a Read override here would never fire. */
 class Intel28F128J3 : public Peripheral {
 public:
     using Peripheral::Peripheral;

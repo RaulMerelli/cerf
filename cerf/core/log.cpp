@@ -181,7 +181,7 @@ void Log::Print(Cat cat, const char* fmt, ...) {
     LeaveCriticalSection(&g_log_cs);
     va_end(args);
 
-    /* fflush outside the CS — CRT FILE* is internally locked, so concurrent
+    /* fflush outside the CS - CRT FILE* is internally locked, so concurrent
        fprintf+fflush is safe. Avoids starving other threads on disk I/O. */
     if (need_flush && g_logfile) fflush(g_logfile);
 }

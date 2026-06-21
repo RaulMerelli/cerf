@@ -22,7 +22,7 @@
 #include <mutex>
 #include <thread>
 
-/* Intel/Marvell OS Timer — the same IP block on SA-1110 (§9.4) and PXA25x
+/* Intel/Marvell OS Timer - the same IP block on SA-1110 (§9.4) and PXA25x
    (§4.4): OSCR / OSMR0-3 / OSSR / OWER / OIER at 0x00..0x1C. A per-SoC concrete
    supplies MmioBase + SetMatchLevel + ShouldRegister. */
 class OsTimer : public Peripheral {
@@ -143,7 +143,7 @@ public:
 protected:
     /* Drive the OST match interrupt LEVEL into the SoC INTC (level4 bit n =
        OSSR.M[n] & OIER.E[n]). PXA §4.4 / SA-1110 §9.4: it is a level, not an
-       edge — an edge model desyncs the INTC line from OSSR and storms. */
+       edge - an edge model desyncs the INTC line from OSSR and storms. */
     virtual void SetMatchLevel(uint32_t level4) = 0;
 
 private:
@@ -161,7 +161,7 @@ private:
     std::mutex              irq_mtx_;
 
     /* High 32 = baseline_oscr, low 32 = baseline_cycles. Single 64-bit atomic so
-       the reader sees a consistent (oscr, cycles) pair — splitting into two
+       the reader sees a consistent (oscr, cycles) pair - splitting into two
        32-bit atomics produces torn reads when the match thread re-baselines
        while the JIT reads. */
     std::atomic<uint64_t> baseline_packed_{0};
@@ -315,7 +315,7 @@ private:
             case 0x0C: WriteOsmr(3, value); break;
             case 0x10: WriteOscr(value); break;
             case 0x14: WriteOssr(value); break;
-            /* §9.4.3: WME is write-once — software cannot clear it. */
+            /* §9.4.3: WME is write-once - software cannot clear it. */
             case 0x18:
                 ower_.fetch_or(value & 0x1u, std::memory_order_acq_rel);
                 NotifyMatchLoop();
@@ -378,7 +378,7 @@ private:
 
     /* notify MUST hold cv_mtx_: MatchLoop checks AnyMatchArmed()/stop_ under it
        then waits, while writers publish oier_/ossr_/stop_ lock-free. Notifying
-       outside the lock loses any notify in the check->wait window — the guest's
+       outside the lock loses any notify in the check->wait window - the guest's
        per-tick OIER clear-then-set hits it and parks the loop forever (OST tick
        dies -> GetTickCount-freeze idle hang). */
     void NotifyMatchLoop() {

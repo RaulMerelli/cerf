@@ -182,7 +182,7 @@ public:
         RestoreExtra(r);
     }
 
-    /* Re-assert the INTC line from restored intr_ & intrmask_ — the SDMA AP
+    /* Re-assert the INTC line from restored intr_ & intrmask_ - the SDMA AP
        interrupt is a level the source re-drives after restore. */
     void PostRestore() override { RefreshIrq(); }
 

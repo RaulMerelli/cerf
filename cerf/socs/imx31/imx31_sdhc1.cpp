@@ -10,7 +10,7 @@
 
 namespace {
 
-/* i.MX31 SDHC1 — MCIMX31RM Ch 29 @0x5000_4000. No SD card wired; per §29.5.1 a
+/* i.MX31 SDHC1 - MCIMX31RM Ch 29 @0x5000_4000. No SD card wired; per §29.5.1 a
    command submit must raise the END_CMD_RESP interrupt (here: set END_CMD_RESP +
    TIME_OUT_RESP, assert AVIC source 9) or the driver wedges waiting on it. */
 constexpr uint32_t kBase = 0x50004000u;
@@ -116,7 +116,7 @@ public:
         r.Read(cmd_);          r.Read(arg_);
     }
 
-    /* Re-assert the AVIC line from restored status_ & int_cntr_ — END_CMD_RESP
+    /* Re-assert the AVIC line from restored status_ & int_cntr_ - END_CMD_RESP
        is a level the source re-drives after restore. */
     void PostRestore() override { UpdateIrq(); }
 

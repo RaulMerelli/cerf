@@ -81,7 +81,7 @@ void CerfDDGPE::SetVisibleSurface(GPESurf* pSurf, BOOL bWaitForVBlank) {
 /* Claim the hardware cursor and transport the shape to the host, which
    draws it as the host cursor (vmware model). Returning SPS_DECLINE would
    make the engine SW-draw it via DrvBitBlt, which doesn't survive the
-   guest-additions host-blit path — the cursor vanishes. */
+   guest-additions host-blit path - the cursor vanishes. */
 SCODE CerfDDGPE::SetPointerShape(GPESurf* pMask, GPESurf*, int xHot, int yHot,
                                  int cx, int cy) {
     if (pMask) CerfPublishCursor(pMask->Buffer(), pMask->Stride(),
@@ -91,7 +91,7 @@ SCODE CerfDDGPE::SetPointerShape(GPESurf* pMask, GPESurf*, int xHot, int yHot,
 }
 
 /* Position is tracked by the host pointer (absolute 1:1), so the host
-   cursor is already where GWES thinks it is — nothing to do here. */
+   cursor is already where GWES thinks it is - nothing to do here. */
 SCODE CerfDDGPE::MovePointer(int, int) { return S_OK; }
 
 SCODE CerfDDGPE::SetPalette(const PALETTEENTRY* src, unsigned short firstEntry,
@@ -165,7 +165,7 @@ ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
     }
     if (iEsc == DRVESC_GETSCREENROTATION) {
         /* gwes passes cjOut=0 with a valid 4-byte pvOut (&word_B9444) and reads the
-           result back, like VGAFLAT — so the write is gated on pvOut only. */
+           result back, like VGAFLAT - so the write is gated on pvOut only. */
         if (pvOut)
             *(int*)pvOut = ((DMDO_0 | DMDO_90 | DMDO_180 | DMDO_270) << 8)
                          | (m_currentRotation & 0xFF);
@@ -176,7 +176,7 @@ ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
         /* Orientation arrives in cjIn (CE GPE escape ABI). No pixel rotation. */
         m_currentRotation = (int)cjIn;
         /* The rotation apply is the only surface re-enable point on the CE5 path, so
-           rebuild the primary at g_Fb* (the pump set it before this CDS) — otherwise
+           rebuild the primary at g_Fb* (the pump set it before this CDS) - otherwise
            GDI keeps drawing at the boot stride while the host renders the new one,
            shearing the screen. */
         if (m_pPrimarySurface == NULL ||

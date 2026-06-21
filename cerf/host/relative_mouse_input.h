@@ -20,7 +20,7 @@ public:
        current button state. Called on motion or a button transition. */
     virtual void OnRelativeMove(int dx, int dy, uint32_t button_mask) = 0;
 
-    /* PointerSource — concretes override SourceName per controller. */
+    /* PointerSource - concretes override SourceName per controller. */
     std::wstring   SourceName()       const override { return L"Stock mouse"; }
     const wchar_t* IconResourceName() const override { return L"ICON_INPUT_PS2_MOUSE"; }
     int            SourcePriority()   const override { return 0; }

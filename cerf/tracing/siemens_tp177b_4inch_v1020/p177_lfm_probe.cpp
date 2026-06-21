@@ -21,7 +21,7 @@ public:
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kSiemensTp177bBundleCrc32, [this, &tm] {
             /* TFFS3.dll is loaded only by filesys.exe (the FSD host), so this
-               user-mode VA has no cross-process alias — the unfiltered OnPc
+               user-mode VA has no cross-process alias - the unfiltered OnPc
                fires solely in filesys.exe and needs no process predicate. */
             tm.OnPc(0x34CF408u, [this](const TraceContext& c) {
                 if (fired_ >= 8u) return;

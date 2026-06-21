@@ -25,6 +25,7 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
+
     bool RaiseSoundStrBits(uint16_t bits);
 
     bool SoundIntrEnabled() const;

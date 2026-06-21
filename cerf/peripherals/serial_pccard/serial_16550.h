@@ -80,7 +80,7 @@ private:
     bool thre_armed_ = false;   /* THRE interrupt pending until next IIR read     */
 
     /* RX line: a 16-byte visible FIFO is modeled as the head of an unbounded
-       queue (bytes still "on the wire") so a fast personality never overruns —
+       queue (bytes still "on the wire") so a fast personality never overruns -
        the driver drains 16 per RDA and we refill from the queue. */
     static constexpr size_t kFifoDepth = 16;
     std::vector<uint8_t> rx_;

@@ -114,13 +114,13 @@ void Intel28F320C3::WriteByte(uint32_t /*addr*/, uint8_t value) {
         case 0x40:
         case 0x10:  mode_ = kProgram;    break;
         case 0x20:  mode_ = kErase;      break;
-        case 0xD0:                                /* confirm — no-op data side */
+        case 0xD0:                                /* confirm - no-op data side */
         case 0xB0:                                /* suspend */
             mode_ = kReadStatus;
             break;
         default:
             /* In Program / Erase mode, this byte is the data word
-               or erase confirm — silently drop (no Flash persistence
+               or erase confirm - silently drop (no Flash persistence
                in CERF) and report ready. */
             mode_ = kReadStatus;
             break;

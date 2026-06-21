@@ -43,7 +43,7 @@ public:
     }
 
     /* Keyboard make/break: kbdmouse.dll sub_1B526BC reads the 2-byte frame as a
-       little-endian word — low byte 0xFA=make / 0xF0=break, high byte = scancode. */
+       little-endian word - low byte 0xFA=make / 0xF0=break, high byte = scancode. */
     void SendKey(uint8_t scancode, bool down) {
         const uint8_t pkt[2] = { static_cast<uint8_t>(down ? 0xFAu : 0xF0u), scancode };
         emu_.Get<Sa11xxSp3Uart>().PushRxBurst(pkt, sizeof(pkt));

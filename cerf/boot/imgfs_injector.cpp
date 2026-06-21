@@ -164,7 +164,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     auto tr = cerf::ce_imgfs_walker::Translator::Detect(
         rom.raw, rom.imgfs_file_off);
 
-    /* MUST offset by base_sector — kernel resolves sector = LA/0x1000 + base_sector;
+    /* MUST offset by base_sector - kernel resolves sector = LA/0x1000 + base_sector;
        omitting it walks to an unmapped sector and read returns empty. */
     const uint32_t base_sector = tr.BaseSector();
 
@@ -215,7 +215,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
 
     /* The injected stub's writable sections are flagged SHARED (EffSectionFlags
        below), so the CE5 loader keeps one pid-keyed copy and never makes a
-       per-process copy — every section's realaddr is simply its vbase + rva. */
+       per-process copy - every section's realaddr is simply its vbase + rva. */
     const size_t K = victim->sections.size();
     auto geom = cerf::ce_imgfs_patcher::PackPeSections(
         pe, std::vector<uint8_t>(pe.Bytes().begin(), pe.Bytes().end()), K);
@@ -268,7 +268,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     constexpr uint32_t kPage   = 0x1000;
     constexpr uint32_t kDpb    = 15;
     /* IMGFS FTL flag word: imgfs.dll skips an entry whose bit 18 is set
-       (deleted-pending), so a live mapping clears it — 0xFFFBFFFF. */
+       (deleted-pending), so a live mapping clears it - 0xFFFBFFFF. */
     constexpr uint32_t kValidFlags = 0xFFFBFFFFu;
 
     auto allocate_pages = [&](uint32_t count, const char* what)
@@ -334,7 +334,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     };
 
     /* Module header (e32_rom + o32 array, ~200 bytes for cerf_guest)
-       — one fresh 4 KB page. */
+       - one fresh 4 KB page. */
     auto hdr_pages = allocate_pages(1, "mod_hdr");
     const uint32_t hdr_la = hdr_pages[0].first * kPage;
     const uint32_t hdr_pa = hdr_pages[0].second;
@@ -369,7 +369,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     mem.WriteWord(mod_dirent_pa + kDirentFileSizeOff,
                   uint32_t(new_hdr.size()));
 
-    /* Sections — each in its own fresh contiguous run of 4 KB pages.
+    /* Sections - each in its own fresh contiguous run of 4 KB pages.
        Records advertise full_sz = 4 KB so the kernel's section-read
        walker (imgfs.dll sub_3E4574C) indexes them correctly by
        (offset >> 12). */

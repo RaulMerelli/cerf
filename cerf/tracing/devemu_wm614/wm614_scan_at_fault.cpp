@@ -32,7 +32,7 @@ public:
                 if (r32(kFaultPc) != kFaultInsn) return;  /* real fault, not alias */
                 done_ = true;
                 const uint32_t pid = mmu.State()->process_id;
-                LOG(Trace, "[WM614_SCAN] at fault pid=%08X — scanning for imgfs\n", pid);
+                LOG(Trace, "[WM614_SCAN] at fault pid=%08X - scanning for imgfs\n", pid);
                 /* FAL/block read fn ptr imgfs imports at 0x1FF3100 (sub_88244BC8
                    thunks MEMORY[0x1FF3100]); resolve target → which module. */
                 for (uint32_t off = 0x100; off <= 0x110; off += 4)

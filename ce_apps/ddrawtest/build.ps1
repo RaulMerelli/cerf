@@ -7,7 +7,7 @@ $tools = "$PSScriptRoot/../../references/WindowsCE-Build-Tools"
     -ExtraIncludes "$tools/ce6-oak/INC","$tools/ce42-standard/Include/Armv4i" `
     -Libs coredll
 
-# CE 5.0 variant: ce5-standard headers — devemu_ce5 IDirectDraw is WITH-Compact, so these
+# CE 5.0 variant: ce5-standard headers - devemu_ce5 IDirectDraw is WITH-Compact, so these
 # headers' vtable macros hit the correct slots (CreateSurface=6, SetCooperativeLevel=20,
 # Lock/Unlock on the surface) and define DDSCL_EXCLUSIVE. CERF_CE5_DESC (main_ce5.c) gates
 # the CE5 DDSURFACEDESC + the EXCLUSIVE|FULLSCREEN coop level.

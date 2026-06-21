@@ -34,7 +34,7 @@ void NullNetworkBackend::SendFrame(const uint8_t* /*frame*/, std::size_t len) {
 }
 
 void NullNetworkBackend::SetReceiveCallback(RxFn cb) {
-    /* Store but never invoke — there is no host RX in the null backend. */
+    /* Store but never invoke - there is no host RX in the null backend. */
     rx_cb_ = std::move(cb);
 }
 
@@ -47,7 +47,7 @@ std::array<uint8_t, 6> NullNetworkBackend::GuestMacAddress() const {
 }
 
 std::array<uint8_t, 6> NullNetworkBackend::HostGatewayMacAddress() const {
-    /* libslirp's convention — kept identical so consumer code is impl-agnostic. */
+    /* libslirp's convention - kept identical so consumer code is impl-agnostic. */
     return {0x52, 0x55, 0x0A, 0x00, 0x02, 0x02};
 }
 

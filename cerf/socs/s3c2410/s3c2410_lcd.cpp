@@ -34,7 +34,7 @@ void S3C2410Lcd::WriteWord(uint32_t addr, uint32_t value) {
     if (!slot) HaltUnsupportedAccess("WriteWord", addr, value);
     const uint32_t old = *slot;
     *slot = value;
-    /* Fire on ENVID 0→1 edge only — firing on every LCDCON write
+    /* Fire on ENVID 0→1 edge only - firing on every LCDCON write
        would race with the BSP's size-then-enable sequence and
        publish stale size from a partially-programmed LCDCON2/3. */
     if (slot == &ctrl_[kIdxLCDCON1]

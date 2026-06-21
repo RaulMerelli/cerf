@@ -16,7 +16,7 @@ public:
         tm.RegisterForBundle(kWm5BundleCrc32, [&] {
             tm.OnRunLoopIter([this](const TraceContext& c) { BootHvDump (c); });
             tm.OnRunLoopIter([this](const TraceContext& c) { W32Method  (c); });
-            /* Vector page dump triggered late — after scheduler entry, when
+            /* Vector page dump triggered late - after scheduler entry, when
                kernel has finished setting up vectors. */
             tm.OnPc(0x8007B36Cu, [this](const TraceContext& c) { AbortVec(c); });
         });

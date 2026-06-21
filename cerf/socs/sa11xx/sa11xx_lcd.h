@@ -32,7 +32,7 @@ public:
     uint32_t GetGuestW() const { return (lccr1_ & 0x3FFu) + 16u; } /* §11.7.4.1: PPL = pixels - 16 */
     uint32_t GetGuestH() const {
         const uint32_t lpp = (lccr2_ & 0x3FFu) + 1u;   /* §11.7.5.1: LPP = lines - 1 */
-        /* §11.7.3.3: SDS (LCCR0 bit 2) = dual-panel STN — the screen is two
+        /* §11.7.3.3: SDS (LCCR0 bit 2) = dual-panel STN - the screen is two
            LPP-line panels (upper DBAR1 + lower DBAR2), so real lines = 2*LPP. */
         return (lccr0_ & 0x4u) ? lpp * 2u : lpp;
     }

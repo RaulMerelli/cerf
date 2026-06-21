@@ -30,7 +30,7 @@ public:
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
 
-    std::wstring Tooltip() const override { return L"NOR Flash — AMD AM29LV800BB"; }
+    std::wstring Tooltip() const override { return L"NOR Flash - AMD AM29LV800BB"; }
 
 protected:
     uint32_t AutoSelectIdent() const override { return kAutoSelIdent; }

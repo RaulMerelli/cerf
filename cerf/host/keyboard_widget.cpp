@@ -30,7 +30,7 @@ std::wstring KeyboardWidget::Tooltip() const {
        radio (>1 source) or the mapping section (a KeyboardMap exists). */
     const bool has_menu = router.Sources().size() > 1 ||
                           emu_.TryGet<KeyboardMap>() != nullptr;
-    if (has_menu) tip += L" — click to configure input / see key mappings";
+    if (has_menu) tip += L" - click to configure input / see key mappings";
     return tip;
 }
 

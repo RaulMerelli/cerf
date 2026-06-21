@@ -36,7 +36,7 @@ uint32_t Pxa255I2s::ReadWord(uint32_t addr) {
         /* Tx FIFO modeled as perpetually empty: TNF set, and TFS (DMA service
            request) set while enabled. If TNF/TFS ever read 0 here the guest audio
            driver's FIFO/DMA service loop blocks waiting to feed a FIFO that never
-           drains — the classic audio-stub boot deadlock. */
+           drains - the classic audio-stub boot deadlock. */
         return kSasr0Tnf | ((sacr0_ & kSacr0Enb) ? kSasr0Tfs : 0u);
     case kSAIMR: return saimr_;
     case kSAICR: return 0u;          /* SAICR clears on write; nothing latched. */

@@ -3,7 +3,7 @@
 #include <windows.h>
 
 /* Guest debug-log transport: a per-process MMIO channel the host drains into
-   cerf.log. Two tiers — CERF_LOG is always-on so the driver's init / activation /
+   cerf.log. Two tiers - CERF_LOG is always-on so the driver's init / activation /
    mount / error trail reaches cerf.log in production builds too; CERF_LOG_DEV is
    the dev-only tier for per-operation graphics tracing. */
 
@@ -32,7 +32,7 @@ enum {
 #define CERF_LOG_INIT(id)    CerfInitLogging((unsigned long)(id))
 
 /* Per-operation graphics tracing (per-blit / per-escape / per-cursor / per-mode):
-   high-frequency, dev-build only — stripped at the call site in production. */
+   high-frequency, dev-build only - stripped at the call site in production. */
 #if CERF_DEV_MODE
 #define CERF_LOG_DEV(msg)        CerfDebugTx(msg)
 #define CERF_LOG_X_DEV(msg, val) CerfDebugTxX((msg), (DWORD)(val))

@@ -54,9 +54,9 @@ public:
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kZuneKeelBundleCrc32, [&] {
             /* services.exe WaitForMultipleObjects(count=r0, handles=r1, wait=r2,
-               timeout=r3) INFINITE — resolve hnd0=*(r1) (the parked handle shows
+               timeout=r3) INFINITE - resolve hnd0=*(r1) (the parked handle shows
                here, e.g. 0x4BD5D28A). OnPcFiltered to coexist with SVCWAIT. */
-            /* gwes.exe (0x08000000) parks before signaling GweApiSetReady — walk
+            /* gwes.exe (0x08000000) parks before signaling GweApiSetReady - walk
                its wait stack for ddraw_ipu_sdc-range (~0x0310_xxxx) callers. */
             auto gwes_inf = [](const TraceContext& c) -> bool {
                 return c.emu.Get<ArmMmu>().State()->process_id == 0x08000000u

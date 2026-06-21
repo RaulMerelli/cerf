@@ -12,7 +12,7 @@ namespace {
 
 /* i.MX51 CCM (Clock Controller Module), MCIMX51RM Ch.7 Table 7-3, base
    0x73FD4000, regs +0x0..0x80, R/W storage (no clock tree modelled). Resets
-   are load-bearing — start() read-modify-writes CCGR6 (0x78)/CBCDR (0x14)/CBCMR
+   are load-bearing - start() read-modify-writes CCGR6 (0x78)/CBCDR (0x14)/CBCMR
    (0x18); CDHIPR (0x44) reset 0 = handshake idle so divider polls pass. */
 constexpr uint32_t kBase = 0x73FD4000u;
 constexpr uint32_t kSize = 0x00001000u;

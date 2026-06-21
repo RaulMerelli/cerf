@@ -298,7 +298,7 @@ LRESULT ExternalDisplayWindow::WndProc(HWND hwnd, UINT msg,
             /* Closing the window means ejecting the card; the eject (run on the
                main UI thread) destroys this card and joins THIS thread, so it
                must not run here. Returning 0 suppresses DefWindowProc's
-               DestroyWindow — teardown happens via kDestroyMsg from Close(). */
+               DestroyWindow - teardown happens via kDestroyMsg from Close(). */
             std::wstring caption;
             { std::lock_guard<std::mutex> lk(title_mutex_); caption = title_; }
             if (MessageBoxW(hwnd, L"Eject VGA card?", caption.c_str(),

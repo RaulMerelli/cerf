@@ -15,7 +15,7 @@ uint8_t ClampDelta(int v) {
 void Ps2Mouse::WriteCommand(uint8_t cmd) {
     /* Command ACKs/responses are read by polling during driver init; only the
        motion stream (after 0xF4) is interrupt-driven, so commands never raise
-       the IRQ — doing so mid-handshake perturbs the driver's polled reset. */
+       the IRQ - doing so mid-handshake perturbs the driver's polled reset. */
     std::lock_guard<std::mutex> lk(mtx_);
     if (expect_param_) {            /* sample-rate / resolution argument */
         expect_param_ = false;

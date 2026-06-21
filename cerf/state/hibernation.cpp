@@ -93,7 +93,7 @@ void Hibernation::AwaitFailureAck() {
 }
 
 std::wstring Hibernation::DefaultStatePath() const {
-    /* The state image lives in the device directory — a property of the device,
+    /* The state image lives in the device directory - a property of the device,
        not of a parsed XIP ROM (a .sec NAND device loads no XIP, so RomParser has
        no Primary()). */
     const std::string dir = GetDeviceDir(emu_.Get<DeviceConfig>().device_name);

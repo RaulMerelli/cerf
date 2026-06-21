@@ -6,7 +6,7 @@
 
 namespace {
 
-/* SA-1110 §6.2.3.1 Zero Bank — memory-controller-decoded read-zero
+/* SA-1110 §6.2.3.1 Zero Bank - memory-controller-decoded read-zero
    region at PA 0xE0000000+ for D-cache writeback flushing
    ("writeBackDC" loop reads 8 KB here to evict cache lines). */
 

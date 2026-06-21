@@ -22,7 +22,7 @@ class P2FpgaSerial {
 public:
     uint16_t Read(uint32_t slot_off);
 
-    /* Returns true on SERB_TX_EN 0→1 in CSR B — DEBUG_SER uses
+    /* Returns true on SERB_TX_EN 0→1 in CSR B - DEBUG_SER uses
        this rising edge to dispatch TX. */
     bool Write(uint32_t slot_off, uint16_t value);
 

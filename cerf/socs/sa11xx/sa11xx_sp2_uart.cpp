@@ -4,7 +4,7 @@
 
 namespace {
 
-/* SA-1110 §11.10 SP2 UART. IrDA-capable port — on iPaq H3xxx this
+/* SA-1110 §11.10 SP2 UART. IrDA-capable port - on iPaq H3xxx this
    surface is reused by the kernel's exception/init path. */
 
 class Sa11xxSp2Uart : public Sa11xxUartBase {

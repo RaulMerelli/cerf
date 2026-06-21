@@ -17,7 +17,7 @@
 #include <string>
 
 /* Generic 16550 UART core. Register offsets are reg-index*RegStride (PXA255 =4,
-   off-chip 16-bit-bus TL16C550 =2) — hardcoding word offsets here breaks the
+   off-chip 16-bit-bus TL16C550 =2) - hardcoding word offsets here breaks the
    x2-stride part. */
 class Uart16550 : public Peripheral {
 public:
@@ -112,7 +112,7 @@ public:
        input transports that stream bytes into the UART (the NEC PCO keyboard/touch
        companion feeds reports into the BTUART this way). */
     /* Runs on board input-transport threads (NEC PCO keyboard/touch pacers, the
-       battery TX-observer) while the guest JIT thread pops RBR — rx_mtx_ is the
+       battery TX-observer) while the guest JIT thread pops RBR - rx_mtx_ is the
        mutual exclusion both sides take for every rx_fifo_ access. */
     void PushRx(uint8_t byte) {
         {
@@ -135,7 +135,7 @@ public:
     void SetTxObserver(std::function<void(uint8_t)> cb) { tx_observer_ = std::move(cb); }
 
     /* tx_line_ is a host-side console accumulator rebuilt as the guest writes,
-       not guest state — not serialized. A concrete with extra registers chains
+       not guest state - not serialized. A concrete with extra registers chains
        its own fields after Uart16550::Save/RestoreState. */
     void SaveState(StateWriter& w) override {
         w.Write(ier_); w.Write(fcr_); w.Write(lcr_); w.Write(mcr_);
@@ -158,7 +158,7 @@ protected:
 
     /* Drive (pending=true) or clear the UART interrupt line; the concrete routes
        it to its controller (PXA255 INTC source, board GPIO, …). One physical line
-       for the whole UART — TX (THRE) and RX (RDA) share it. */
+       for the whole UART - TX (THRE) and RX (RDA) share it. */
     virtual void SetInterruptLine(bool pending) = 0;
 
     /* Unit-enable gate for the UART interrupt. Baseline 16550 is always enabled;

@@ -10,7 +10,7 @@
 #include <thread>
 
 /* Host waveOut output sink shared by the sound paths. EnsureFormat (waveOutOpen)
-   MUST run on the audio thread — CALLBACK_THREAD delivers MM_WOM_DONE only there.
+   MUST run on the audio thread - CALLBACK_THREAD delivers MM_WOM_DONE only there.
    Play/Unprepare/Reset are winmm-serialized and may run on any thread. */
 class WaveOutSink {
 public:
@@ -45,7 +45,7 @@ public:
     /* prepare + write `hdr`; on failure unprepare and return false. On-thread. */
     bool Play(WAVEHDR* hdr);
     void Unprepare(WAVEHDR* hdr);   /* unprepare a finished/failed header. */
-    void Reset();                   /* waveOutReset — flush queued buffers. */
+    void Reset();                   /* waveOutReset - flush queued buffers. */
 
 private:
     void ThreadMain(ThreadCallback on_start, MessageHandler on_message);

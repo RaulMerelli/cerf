@@ -20,7 +20,7 @@ extern PFN_CLIPOBJ_bEnum      CLIPOBJ_bEnum;
 
 /* GPE lib bridge that carries the BLENDFUNCTION into GPEBltParms and runs
    BltPrepare -> HwBlt (so alpha lands on the host). Internal C++ symbol, not an
-   extern "C" DDI export — declaring it extern "C" would fail to link. */
+   extern "C" DDI export - declaring it extern "C" would fail to link. */
 extern BOOL APIENTRY AnyBlt(SURFOBJ*, SURFOBJ*, SURFOBJ*, CLIPOBJ*, XLATEOBJ*,
                             RECTL*, RECTL*, POINTL*, BRUSHOBJ*, POINTL*,
                             ROP4, unsigned long, int, BLENDFUNCTION);

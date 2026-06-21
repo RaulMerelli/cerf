@@ -8,7 +8,7 @@
 
 /* HP Jornada 820 companion ASIC, nCS3 PA 0x18000000 (uncached VA 0xA4000000).
    Control regs storage-backed; the GlidePad PS/2 controller is at offset
-   0x1A0000 — 8042 status +0x400, command/data +0x800 (glidepad.dll). */
+   0x1A0000 - 8042 status +0x400, command/data +0x800 (glidepad.dll). */
 class Jornada820CompanionAsic : public Peripheral {
 public:
     explicit Jornada820CompanionAsic(CerfEmulator& emu)

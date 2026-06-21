@@ -78,11 +78,11 @@ private:
     uint64_t TimerFreqHz(int timer_idx) const;
     uint32_t ComputeTcntoLocked(int timer_idx, Clock::time_point now) const;
 
-    /* TCON write parsing — drives the per-timer state machine. Caller
+    /* TCON write parsing - drives the per-timer state machine. Caller
        holds state_mutex_. */
     void ApplyTconWrite(uint32_t new_tcon, Clock::time_point now);
 
-    /* Tick thread main loop — wakes ~1 ms, asserts IRQs for any
+    /* Tick thread main loop - wakes ~1 ms, asserts IRQs for any
        running timer that underflowed since last wake, advances
        last_load_time accordingly. */
     void TickLoop();
@@ -122,7 +122,7 @@ S3C2410Timer::DecodedReg S3C2410Timer::DecodeReg(uint32_t offset) {
         if (offset == base + 4u) return { RegKind::TcmpbN, i };
         if (offset == base + 8u) return { RegKind::TcntoN, i };
     }
-    /* Timer 4 — pair only (no TCMPB4) at +0x3C, +0x40. */
+    /* Timer 4 - pair only (no TCMPB4) at +0x3C, +0x40. */
     if (offset == 0x3Cu) return { RegKind::TcntbN, 4 };
     if (offset == 0x40u) return { RegKind::TcntoN, 4 };
     return { RegKind::OutOfRange, 0 };
@@ -196,7 +196,7 @@ void S3C2410Timer::ApplyTconWrite(uint32_t new_tcon, Clock::time_point now) {
             timers_[i].stopped_value = ComputeTcntoLocked(i, now);
             timers_[i].running       = false;
         }
-        /* No transition — leave running / last_load_time alone. */
+        /* No transition - leave running / last_load_time alone. */
     }
 }
 
@@ -238,7 +238,7 @@ void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
             case RegKind::TcntbN: timers_[dec.timer_idx].tcntb = value; break;
             case RegKind::TcmpbN: timers_[dec.timer_idx].tcmpb = value; break;
             case RegKind::TcntoN:
-                /* Read-only on the chip — silently drop writes. The
+                /* Read-only on the chip - silently drop writes. The
                    kernel would never write here intentionally; halting
                    would falsely flag corrupt code. */
                 break;

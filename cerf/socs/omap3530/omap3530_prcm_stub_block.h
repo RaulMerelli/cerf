@@ -186,7 +186,7 @@ public:
         std::lock_guard<std::mutex> lk(mu_);
         bool need_recompute = false;
         switch (off) {
-        case 0x18u:  /* IRQSTATUS1 — W1C on sticky bits only. */
+        case 0x18u:  /* IRQSTATUS1 - W1C on sticky bits only. */
             regs_[0x18 / 4u] &= ~value;
             need_recompute = true;
             break;

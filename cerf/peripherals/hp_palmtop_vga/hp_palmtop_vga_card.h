@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <memory>
 
-/* HP F1252A "HP Palmtop VGA" PC Card — a standard VGA-compatible SVGA
+/* HP F1252A "HP Palmtop VGA" PC Card - a standard VGA-compatible SVGA
    controller on a 16-bit PC Card that drives an external monitor. Board-
    agnostic: pluggable into any slot via the catalog. On the Jornada 720 the
    stock ROM auto-detects it (registry Detect\49 -> hpvgaout!DetectVGA, which
@@ -19,8 +19,8 @@
    accesses):
      - ATTRIBUTE memory: the CIS at low offsets + the HP identity magic at
        0xC0000 (DetectVGA's CardRequestWindow/CardMapWindow targets attribute).
-     - I/O space: the VGA register file (the driver's register writes —
-       0x3C0..0x46E8, 0x43Cx — decode into the PCMCIA I/O region).
+     - I/O space: the VGA register file (the driver's register writes -
+       0x3C0..0x46E8, 0x43Cx - decode into the PCMCIA I/O region).
      - COMMON memory: the linear framebuffer at 0x200000.
    Registers + framebuffer route to the VgaController; the card presents the
    controller in its own ExternalDisplayWindow. */

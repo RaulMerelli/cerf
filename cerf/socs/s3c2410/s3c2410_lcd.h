@@ -6,7 +6,7 @@
 
 /* IsEnabled() fatals on any ENVID=1 mode CERF doesn't model (a
    PNRMODE/BPPMODE/FRM565 outside 16bpp 5:6:5-direct and 8bpp
-   palettized-with-565-entries) — silently accepting renders wrong
+   palettized-with-565-entries) - silently accepting renders wrong
    colors. Bit fields + TFT palette format: S3C2410A UM §15. */
 
 class S3C2410Lcd : public Peripheral {
@@ -30,7 +30,7 @@ public:
     uint32_t GetGuestW();
     uint32_t GetGuestH();
 
-    /* 8bpp palettized vs 16bpp 5:6:5-direct — the two TFT modes
+    /* 8bpp palettized vs 16bpp 5:6:5-direct - the two TFT modes
        IsEnabled() accepts. Valid only while IsEnabled() is true. */
     bool     IsPalettized();
     uint32_t GetBytesPerPixel();

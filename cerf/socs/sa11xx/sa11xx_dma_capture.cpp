@@ -32,7 +32,7 @@ bool Sa11xxDmaCapture::OnDmaStart(const Sa11xxDma::ChannelState& st) {
     if ((st.ddar & cfg_.ddar_mask) != cfg_.ddar_value) return false;
 
     /* No host capture device: decline the receive page. Sa11xxDma then leaves
-       DONE unset and the wavedev IST blocks — the faithful "receive with no
+       DONE unset and the wavedev IST blocks - the faithful "receive with no
        incoming data" state, never a fake completion. */
     if (live_.load(std::memory_order_acquire) == kDead) return false;
 
@@ -68,7 +68,7 @@ void Sa11xxDmaCapture::EnsureOpenOnThread() {
 
     /* Open failed: no host capture device. Leave the optimistically-claimed
        receive pages uncompleted and decline future ones (OnDmaStart) so DONE
-       stays unset and the wavedev IST blocks — the faithful idle-receive state,
+       stays unset and the wavedev IST blocks - the faithful idle-receive state,
        never a manufactured completion. */
     live_.store(kDead, std::memory_order_release);
     {

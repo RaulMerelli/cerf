@@ -63,7 +63,7 @@ void TaskManagerListView::ApplyDarkColors(COLORREF bg, COLORREF text) {
        theme class that darkens the column-header background. */
     SetWindowTheme(ListView_GetHeader(list_), L"DarkMode_ItemsView", nullptr);
     /* The themed header background is dark but its text stays black, and the
-       header's NM_CUSTOMDRAW is sent to the listview (not our dialog) — so
+       header's NM_CUSTOMDRAW is sent to the listview (not our dialog) - so
        subclass the listview to recolor the header text via custom draw. */
     header_text_ = text;
     SetWindowLongPtrW(list_, GWLP_USERDATA, (LONG_PTR)this);
@@ -162,7 +162,7 @@ void TaskManagerListView::Fill() {
 
     if (mode_ == Mode::Windows) {
         /* One row per process (Zune has no working toolhelp, so this window
-           walk IS the process list — same one-per-PID collapse xplorer's task
+           walk IS the process list - same one-per-PID collapse xplorer's task
            manager does). The representative is the process's best top-level
            window: a visible, titled one wins over a hidden helper window. */
         std::vector<CerfVirtTaskManager::WinEntry> rows;

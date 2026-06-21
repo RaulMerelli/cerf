@@ -41,7 +41,7 @@ public:
         r.Read(last_pub_h_);
     }
 
-    /* Re-assert the AVIC line from the restored SDC3 vsync ctrl/stat — the IPU
+    /* Re-assert the AVIC line from the restored SDC3 vsync ctrl/stat - the IPU
        vsync interrupt is a level the source re-drives after restore. */
     void PostRestore() override {
         std::lock_guard<std::mutex> lk(state_mtx_);

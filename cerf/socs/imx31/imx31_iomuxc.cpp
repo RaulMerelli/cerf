@@ -12,7 +12,7 @@ namespace {
 
 /* i.MX31 IOMUXC pin-mux config (MCIMX31RM Ch 4 Table 4-1: GPR @0x008,
    SW_MUX_CTL @0x00C-0x150, SW_PAD_CTL @0x154-0x308, all R/W). Pure R/W storage
-   — CERF models no physical pads, so mux values select nothing here; software
+   - CERF models no physical pads, so mux values select nothing here; software
    just writes and reads them back. */
 constexpr uint32_t kBase = 0x43FAC000u;
 constexpr uint32_t kSize = 0x0000030Cu;  /* through SW_PAD_CTL last reg 0x308 (Table 4-1) */

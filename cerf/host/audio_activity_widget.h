@@ -18,7 +18,7 @@ public:
     std::wstring WidgetName() const override { return L"Audio"; }
     WidgetGroup  Group() const override { return WidgetGroup::Indicator; }
     std::wstring Tooltip() const override {
-        return L"Audio — TX: sound output, RX: microphone";
+        return L"Audio - TX: sound output, RX: microphone";
     }
 
     void DrawIcon(HDC dc, const RECT& box) const override;

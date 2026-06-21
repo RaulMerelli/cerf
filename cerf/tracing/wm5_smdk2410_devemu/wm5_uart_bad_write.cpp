@@ -31,7 +31,7 @@ public:
                         LOG(Trace, "[UART_BAD]   0x%08X: <unmapped>\n", va);
                     }
                 }
-                /* DLL header words at 0x03DD0000 — for CE5 ROM-DLLs
+                /* DLL header words at 0x03DD0000 - for CE5 ROM-DLLs
                    the first 64 bytes is the abbreviated TOC; we just
                    want the bytes for offline binary identification. */
                 for (uint32_t off = 0; off < 0x40u; off += 4u) {

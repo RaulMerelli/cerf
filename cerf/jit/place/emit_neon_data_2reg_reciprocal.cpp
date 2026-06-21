@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VRECPE / VRSQRTE (A8.8.384 / A8.8.391) — A7.4.5 A=11, bits[10:9]=10,
+/* VRECPE / VRSQRTE (A8.8.384 / A8.8.391) - A7.4.5 A=11, bits[10:9]=10,
    bit[8]=F integer/.F32, bit[7] selects op (0=VRECPE, 1=VRSQRTE). */
 uint8_t* PlaceNeonData2RegReciprocal(uint8_t*      cursor,
                                      DecodedInsn*  d,

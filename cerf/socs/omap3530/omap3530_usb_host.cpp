@@ -61,7 +61,7 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - MmioBase();
         if (off == 0x10u) {
-            value &= ~0x2u;  /* USBCMD.HCRESET self-clears — ehcihcd polls 1s then fails Init. */
+            value &= ~0x2u;  /* USBCMD.HCRESET self-clears - ehcihcd polls 1s then fails Init. */
         }
         Omap3530PrcmStubBlock::WriteWord(addr, value);
     }
@@ -70,7 +70,7 @@ public:
         const uint32_t off = addr - MmioBase();
         switch (off) {
         case 0x00u: return 0x01000010u;  /* HCIVERSION=0x0100 | CAPLENGTH=0x10; 0 collapses op regs onto cap regs. */
-        case 0x04u: return 0x00000003u;  /* HCSPARAMS.N_PORTS=3 — OMAP3530 UHH P1/P2/P3. */
+        case 0x04u: return 0x00000003u;  /* HCSPARAMS.N_PORTS=3 - OMAP3530 UHH P1/P2/P3. */
         case 0x08u: return 0x00000000u;  /* HCCPARAMS */
         }
         return Omap3530PrcmStubBlock::ReadWord(addr);

@@ -1,5 +1,5 @@
 """Right-side info panels: device metadata, feature icons, description and
-notes — plus the additional-package details view shown when a package row
+notes - plus the additional-package details view shown when a package row
 is selected in the device tree."""
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class DetailsPanel:
                 ("State",        "state")]
         for i, (label, key) in enumerate(rows):
             ttk.Label(meta, text=label + ":").grid(row=i, column=0, sticky="w", padx=(0, 8))
-            var = tk.StringVar(value="—")
+            var = tk.StringVar(value="-")
             self.meta_vars[key] = var
             ttk.Label(meta, textvariable=var, wraplength=220,
                       justify="left").grid(row=i, column=1, sticky="w")
@@ -83,7 +83,7 @@ class DetailsPanel:
                     ("State",    "state")]
         for i, (label, key) in enumerate(pkg_rows):
             ttk.Label(package, text=label + ":").grid(row=i, column=0, sticky="w", padx=(0, 8))
-            var = tk.StringVar(value="—")
+            var = tk.StringVar(value="-")
             self.package_vars[key] = var
             ttk.Label(package, textvariable=var, wraplength=220,
                       justify="left").grid(row=i, column=1, sticky="w")
@@ -143,15 +143,15 @@ class DetailsPanel:
         self.package_frame.grid_remove()
         self.meta_frame.grid()
         self.meta_vars["device_name"].set(device.meta.device_name or device.name)
-        self.meta_vars["board_name"] .set(device.meta.board_name or "—")
-        self.meta_vars["soc_family"] .set(device.meta.soc_family or "—")
-        self.meta_vars["os_version"] .set(device.meta.os_version or "—")
-        self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "—")
+        self.meta_vars["board_name"] .set(device.meta.board_name or "-")
+        self.meta_vars["soc_family"] .set(device.meta.soc_family or "-")
+        self.meta_vars["os_version"] .set(device.meta.os_version or "-")
+        self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "-")
         remote = device.remote
         self.meta_vars["size"].set(
-            (format_size(remote.unpacked_size) if remote else "") or "—")
+            (format_size(remote.unpacked_size) if remote else "") or "-")
         self.meta_vars["download_size"].set(
-            (format_size(remote.archive_size) if remote else "") or "—")
+            (format_size(remote.archive_size) if remote else "") or "-")
         self.meta_vars["state"].set(device.state_label)
         self._update_source(device)
         self._update_features(device)
@@ -170,9 +170,9 @@ class DetailsPanel:
         self.package_vars["name"].set(ps.remote.name)
         self.package_vars["device"].set(device.meta.device_name or device.name)
         self.package_vars["category"].set(ps.category_label)
-        self.package_vars["size"].set(format_size(ps.remote.unpacked_size) or "—")
+        self.package_vars["size"].set(format_size(ps.remote.unpacked_size) or "-")
         self.package_vars["download_size"].set(
-            format_size(ps.remote.archive_size) or "—")
+            format_size(ps.remote.archive_size) or "-")
         state = ps.state_label
         if not device.is_installed:
             state += " (install device first)"
@@ -208,7 +208,7 @@ class DetailsPanel:
 
     def _update_notes(self, device: DeviceBundle) -> None:
         # ROM-specific notes first, then board-wide quirks, then
-        # predicate-gated dynamic notes — both from supported_devices.py.
+        # predicate-gated dynamic notes - both from supported_devices.py.
         notes: List[str] = list(device.meta.notes)
         notes += board_extra_notes(device.meta.board_name,
                                    device.meta.board_prev_names)
@@ -231,7 +231,7 @@ class DetailsPanel:
             return
         when = datetime.fromtimestamp(info.saved_at).strftime("%d.%m.%y %H:%M")
         self.state_when.config(text=f"State was saved {when}")
-        self.state_size.config(text=format_size(info.size) or "—")
+        self.state_size.config(text=format_size(info.size) or "-")
         self.state_frame.grid()
 
     def refresh_saved_state(self) -> None:

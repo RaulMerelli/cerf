@@ -79,7 +79,7 @@ uint8_t* PlaceUbfx(uint8_t*      cursor,
     return cursor;
 }
 
-/* SBFX: Rd = SignExtend(Rn[lsb+width-1:lsb]). x86 sign-extend trick —
+/* SBFX: Rd = SignExtend(Rn[lsb+width-1:lsb]). x86 sign-extend trick -
    shift the field to the top, then arithmetic-shift right by
    (32 - width). */
 uint8_t* PlaceSbfx(uint8_t*      cursor,

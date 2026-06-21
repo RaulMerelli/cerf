@@ -73,7 +73,7 @@ void JitRunner::Resume() {
 
 void JitRunner::RunLoop() {
     LOG(Jit, "JitRunner::RunLoop: entered, resolving ArmJit\n");
-    /* Resolve ArmJit lazily on the JIT thread — first Get<T> walks the
+    /* Resolve ArmJit lazily on the JIT thread - first Get<T> walks the
        OnReady dependency chain. A Get<ArmJit>() in JitRunner::OnReady
        is service pre-warming, forbidden by agent_docs/rules.md. */
     auto& jit = emu_.Get<ArmJit>();

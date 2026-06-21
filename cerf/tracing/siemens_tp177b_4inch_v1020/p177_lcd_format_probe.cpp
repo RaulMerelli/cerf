@@ -7,8 +7,8 @@
 #include <cstdint>
 
 /* P177 8bpp encoding probe (dev, one-shot): ddi.dll sub_3464338's R0/R1/R2 are
-   the GPE surface color masks — settling 3:3:2-direct (E0/1C/03) vs palettized
-   (0/0/0). Unfiltered OnPc is exact — this display-init setup runs only in the
+   the GPE surface color masks - settling 3:3:2-direct (E0/1C/03) vs palettized
+   (0/0/0). Unfiltered OnPc is exact - this display-init setup runs only in the
    display host (gwes) at boot; fired_ takes the first hit. ddi.dll XIP → link VA. */
 
 namespace {

@@ -1,7 +1,7 @@
 /* CERF physical-memory ROM dumper for Windows CE.
 
    On a memory-mapped/XIP device the OS ROM is NOR flash on a static
-   chip-select at a fixed physical address (PA 0 on most ARM boards — the
+   chip-select at a fixed physical address (PA 0 on most ARM boards - the
    reset vector). It executes in place, not copied to DRAM, so "the ROM" is
    the bytes at that base upward.
 
@@ -38,7 +38,7 @@
 #define ID_EXIT      103
 
 /* base = PA 0 for all (reset vector); size_mb covers the SoC's static banks
-   per its CERF page-table builder under cerf/boards. Over-dump is free —
+   per its CERF page-table builder under cerf/boards. Over-dump is free -
    unmapped space SEH-fills 0xFF. */
 typedef struct { LPCWSTR name; DWORD base; DWORD size_mb; int custom; } Preset;
 static const Preset kPresets[] = {
@@ -87,7 +87,7 @@ static void ApplyPreset(HWND hwnd, int idx) {
     EnableWindow(GetDlgItem(hwnd, ID_SIZE), custom);
 }
 
-/* One control per row, label left, control fills the rest — fits a 240-wide
+/* One control per row, label left, control fills the rest - fits a 240-wide
    PocketPC screen and stretches on wider ones. The top two rows (preset,
    file) stop short of the top-right logo; rows below it use full width. */
 static void LayoutControls(HWND hwnd) {

@@ -16,7 +16,7 @@ Semantics (matched case-insensitively on ``name``):
     "Hide without metadata" checkbox is also on (the startup default, which
     leaves only supported:True boards visible).
 
-Board renames: a bundle's cerf.json may carry ``meta.board_prev_names`` —
+Board renames: a bundle's cerf.json may carry ``meta.board_prev_names`` -
 the board's earlier ``board_name`` values. A bundle matches an entry when
 ANY of the bundle's names (current first, then previous) equals the entry's
 ``name``. The rename history lives ONLY in the remote cerf.json: when a

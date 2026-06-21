@@ -63,7 +63,7 @@ void HostStatusBar::CreateOn(HWND parent, const RECT& rect) {
     }
 
     /* The tooltip window class lives in ICC_BAR_CLASSES, NOT ICC_STANDARD_CLASSES
-       — without it CreateWindowExW(TOOLTIPS_CLASSW) yields a dead control and no
+       - without it CreateWindowExW(TOOLTIPS_CLASSW) yields a dead control and no
        tip ever shows. */
     INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES | ICC_STANDARD_CLASSES };
     InitCommonControlsEx(&icc);
@@ -138,7 +138,7 @@ void HostStatusBar::RebuildTooltips() {
     for (auto& e : layout_) tip_texts_.push_back(e.first->Tooltip());
     tip_count_ = layout_.size();
 
-    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE — accepted by every
+    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE - accepted by every
        comctl32 (v5 and the v6 the manifest now pulls in); avoids the larger
        modern sizeof(TTTOOLINFOW) that older comctl32 rejects from TTM_ADDTOOL. */
     for (size_t i = 0; i < layout_.size(); ++i) {

@@ -25,7 +25,7 @@ public:
 
     /* Block until the JIT thread terminates. Caller is expected to
        arrange termination (RequestStop or process exit) before
-       calling — Join itself does NOT signal stop. */
+       calling - Join itself does NOT signal stop. */
     void Join();
 
     /* Cooperative stop signal. The thread checks this between
@@ -37,7 +37,7 @@ public:
        poll for a clean CPU stop after RequestStop without blocking on Join. */
     bool Stopped() const { return stopped_.load(std::memory_order_acquire); }
 
-    /* Host thread only — calling from the JIT thread self-deadlocks.
+    /* Host thread only - calling from the JIT thread self-deadlocks.
        Returns once the guest CPU is parked between blocks. */
     void Pause();
     void Resume();

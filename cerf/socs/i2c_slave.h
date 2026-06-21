@@ -23,7 +23,7 @@ public:
 
     /* Return true iff this slave answers the given 7-bit I2C
        address. A single slave may answer at multiple addresses
-       (the TWL4030 answers at four — one per internal module). */
+       (the TWL4030 answers at four - one per internal module). */
     virtual bool MatchesAddress(uint8_t slave_addr) const = 0;
 
     /* Called at the start of every master-driven transaction

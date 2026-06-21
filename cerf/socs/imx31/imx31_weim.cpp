@@ -35,7 +35,7 @@ constexpr uint32_t kResetValues[kSlotCount] = {
     0x00000000u,   /* 0x50 CSCR5U */
     0x00000000u,   /* 0x54 CSCR5L */
     0x00000000u,   /* 0x58 CSCR5A */
-    0x00000100u,   /* 0x60 WCR    — per Table 18-5; figure shows 0,
+    0x00000100u,   /* 0x60 WCR    - per Table 18-5; figure shows 0,
                                     table is authoritative */
 };
 

@@ -7,7 +7,7 @@
 #include <cstdint>
 
 /* ddi.dll is XIP at its link VA and loaded only into gwes, so these user-VA
-   hooks fire for one process only — no filter needed. sub_11B1E84 = GPE ctor
+   hooks fire for one process only - no filter needed. sub_11B1E84 = GPE ctor
    tail, R0 = built GPE object; dump its VirtualCopy'd VAs + mode index to see
    if the framebuffer/surface VA (gwes faults on 0x06000000) is mapped. */
 namespace {

@@ -38,7 +38,7 @@ public:
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
         /* Board-gated, not SoC-gated: which display path a board uses
            is board wiring. Both these S3C2410 boards drive the on-die
-           LCDC — DevEmu's guest programs it at runtime; P177's
+           LCDC - DevEmu's guest programs it at runtime; P177's
            bootloader presets it pre-kernel. */
         auto* bd = emu_.TryGet<BoardDetector>();
         if (!bd) return false;

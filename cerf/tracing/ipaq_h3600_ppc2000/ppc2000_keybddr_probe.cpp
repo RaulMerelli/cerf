@@ -30,7 +30,7 @@ public:
                 }
             });
 
-            /* Track CURTHREAD switches — identify what thread is keybddr's
+            /* Track CURTHREAD switches - identify what thread is keybddr's
                StartAddr in PPC2000 (= the equivalent of 8FF66000 in PPC2002). */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_thr{0xCAFEBABEu};
@@ -74,7 +74,7 @@ public:
                     c.regs[0], name, c.regs[14]);
             });
 
-            /* Unfiltered intentional — a process filter would drop every
+            /* Unfiltered intentional - a process filter would drop every
                CreateThread call in every other process, defeating enumeration. */
             tm.OnPc(0x01FAC45Cu, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -87,7 +87,7 @@ public:
                     c.regs[0], c.regs[1], c.regs[2], c.regs[3], c.regs[14]);
             });
 
-            /* Unfiltered intentional — a process filter would drop every
+            /* Unfiltered intentional - a process filter would drop every
                CreateProcessW call in every other process. */
             tm.OnPc(0x01FAC3CCu, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -106,7 +106,7 @@ public:
                     name, c.regs[0], c.regs[14]);
             });
 
-            /* Unfiltered intentional — a process filter would drop every
+            /* Unfiltered intentional - a process filter would drop every
                thread spawn in every other process, defeating enumeration. */
             tm.OnPc(0x01FB10E8u, [](const TraceContext& c) {
                 auto cur = c.ReadVa32(0xFFFFC894u);

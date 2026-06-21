@@ -32,7 +32,7 @@ uint8_t* PlaceNeonData3DiffLenAbs(uint8_t*      cursor,
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
     /* Vd<0>==1 UND (output Q-reg at d>>1; A8.8.277 line 38960, A8.8.278
-       line 39074). No constraint on Vn or Vm — both are D-regs. */
+       line 39074). No constraint on Vn or Vm - both are D-regs. */
     if ((d_idx & 1u) != 0u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

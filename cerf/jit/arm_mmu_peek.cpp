@@ -62,14 +62,14 @@ uint8_t* ArmMmu::PeekVaToHost(uint32_t va) {
         } else if (l2_pte.fault.type == ArmL2PteType::kExtendedSmallPage && v6_ext_small) {
             effective_address = ArmExtSmallPagePa(l2_pte.word, p);
         } else {
-            /* Large page / fault / v5-1KB extended small — caller does software. */
+            /* Large page / fault / v5-1KB extended small - caller does software. */
             return nullptr;
         }
         break;
     }
 
     default:
-        /* kFault / kFine — caller does software. */
+        /* kFault / kFine - caller does software. */
         return nullptr;
     }
 

@@ -9,7 +9,7 @@
 /* CE5-generation DirectDraw HAL: fills the CE5 DDHALINFO layout and reshapes the
    two per-call DATA structs that differ from CE6 (CreateSurface, Lock) into the
    CE6 shapes the linked DDGPE lib reads, then delegates to the same DDGPE video
-   callbacks the CE6 path uses. HW path only — no software HEL fallback. */
+   callbacks the CE6 path uses. HW path only - no software HEL fallback. */
 
 extern ULONG g_FbWidth;
 extern ULONG g_FbHeight;
@@ -388,8 +388,8 @@ static Ce5_DDHAL_DDSURFACECALLBACKS g_ce5SurfCallbacks = {
     NULL,                        /* SetOverlayPosition */
     NULL,                        /* reserved4 */
     (PVOID)DDGPESetPalette,      /* SetPalette */
-    NULL,                        /* reserved5 — 72B size pad */
-    NULL                         /* reserved6 — 72B size pad */
+    NULL,                        /* reserved5 - 72B size pad */
+    NULL                         /* reserved6 - 72B size pad */
 };
 
 /* The CE5/Zune ddcore decodes ddsCaps.dwCaps with CE5 bit numbering, which the

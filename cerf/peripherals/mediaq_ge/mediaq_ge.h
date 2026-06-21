@@ -9,7 +9,7 @@ class StateReader;
 /* Shared MediaQ 2D GE, MQ-1100/1132 + MQ-200 (MQ-200 Data Book Table 5-63..5-74;
    MQ-1132 datasheet Reg 4-83..4-98). GE00R command + operands are family-uniform
    (here); colour register indices, field widths, solid-fill encoding, Source-FIFO
-   packing are per-part (virtual) — split them wrong and the other part draws garbage. */
+   packing are per-part (virtual) - split them wrong and the other part draws garbage. */
 
 /* The owning peripheral exposes its framebuffer to the engine. */
 class MediaQGeHost {

@@ -9,7 +9,7 @@ typedef unsigned char  uint8_t;
 #include <cstdint>
 #endif
 
-/* Shared host<->guest GPE blit descriptor. Do NOT add a pConvert field — it is
+/* Shared host<->guest GPE blit descriptor. Do NOT add a pConvert field - it is
    a driver member-fn pointer that derefs to garbage host-side; the host converts
    from src_fmt/dst_fmt itself. */
 
@@ -49,7 +49,7 @@ typedef struct CerfBltSurface {
     uint32_t rotate;    /* kCerfRotate* when is_rotate */
     uint32_t screen_w;  /* physical screen width  (rotated addressing) */
     uint32_t screen_h;  /* physical screen height (rotated addressing) */
-    /* Actual channel masks from GPEFormat::m_pPalette — the reference uses the
+    /* Actual channel masks from GPEFormat::m_pPalette - the reference uses the
        surface's real masks, never an assumed-per-format set. mask[0..2]=R,G,B
        (and mask[3]=A if pal_entries==4). pal_entries: 3=RGB, 4=ARGB, else indexed
        (mask[] = 0). */

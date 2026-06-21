@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VPMAX / VPMIN (floating-point) — A8.8.366, opc=1111 C=0 U=1. */
+/* VPMAX / VPMIN (floating-point) - A8.8.366, opc=1111 C=0 U=1. */
 uint8_t* PlaceNeonData3SameFpPairMinMax(uint8_t*      cursor,
                                         DecodedInsn*  d,
                                         BlockContext* ctx) {

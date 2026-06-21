@@ -14,7 +14,7 @@
 namespace {
 
 /* ActivateDeviceEx(Drivers\KeyVault) hangs; KEY_Init's sub-init chain runs in
-   the driver host (device.exe), not the zserv caller — so pid is logged. */
+   the driver host (device.exe), not the zserv caller - so pid is logged. */
 class ZuneKeelKeyVaultInit : public Service {
 public:
     using Service::Service;

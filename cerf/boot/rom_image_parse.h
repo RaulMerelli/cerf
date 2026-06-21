@@ -9,7 +9,7 @@
 
 /* Pure functions for parsing the CE ROM image binary format
    (B000FF, NB0, ECEC marker, ROMHDR, TOC, IMGFS). All callers go
-   through these — RomParserService composes them; nothing here
+   through these - RomParserService composes them; nothing here
    depends on any Service. */
 
 namespace cerf::rom_image_parse {
@@ -25,7 +25,7 @@ constexpr uint32_t kRomSignatureOffset   = 0x40u;
 constexpr uint8_t  kB000FFSignature[7]   = {'B','0','0','0','F','F','\n'};
 constexpr size_t   kB000FFSectionHeaderSize = 12;
 
-/* IMGFS — superblock 16-byte UUID per imgfs.py. */
+/* IMGFS - superblock 16-byte UUID per imgfs.py. */
 constexpr uint8_t  kImgfsUuid[16] = {
     0xF8, 0xAC, 0x2C, 0x9D, 0xE3, 0xD4, 0x2B, 0x4D,
     0xBD, 0x30, 0x91, 0x6E, 0xD8, 0x4F, 0x31, 0xDC,
@@ -49,20 +49,20 @@ bool AssembleB000FFFlat(const std::vector<uint8_t>&  raw,
                         uint32_t&                   out_entry_va,
                         std::vector<B000FFSection>& out_sections);
 
-/* "NOSAJ\0" magic — the SmartBook G138 ".fim" flash-packaging container. */
+/* "NOSAJ\0" magic - the SmartBook G138 ".fim" flash-packaging container. */
 constexpr uint8_t kNosajSignature[6] = {'N', 'O', 'S', 'A', 'J', '\0'};
 
 struct NosajOsXip {
     size_t   data_off  = 0;   /* file offset of OS XIP data (after launch block) */
     uint32_t flat_size = 0;   /* image span = physlast - physfirst                */
-    uint32_t base_va   = 0;   /* physfirst — file offset 0 of the XIP maps here    */
+    uint32_t base_va   = 0;   /* physfirst - file offset 0 of the XIP maps here    */
     uint32_t entry_va  = 0;   /* kernel entry kernel-VA                            */
 };
 
 /* Resolve the bootable OS XIP in a NOSAJ container; false if absent/unresolvable. */
 bool NosajLocateOsXip(std::span<const uint8_t> raw, NosajOsXip& out);
 
-/* "ARNOLDBOOTBLOCK\0" magic — the Siemens SIMpad ("Arnold" codename) flash
+/* "ARNOLDBOOTBLOCK\0" magic - the Siemens SIMpad ("Arnold" codename) flash
    firmware package (the original S842-SI-*.bin update files). A fixed header
    prefixes the bootable OS XIP; the XIP itself is byte-for-byte what an extracted
    .nb0 carries (the genuine ROM that runs on real SIMpad hardware). */
@@ -73,7 +73,7 @@ constexpr uint8_t kArnoldSignature[16] = {
 struct ArnoldOsXip {
     size_t   data_off  = 0;   /* file offset of the OS XIP (after the header)  */
     uint32_t flat_size = 0;   /* XIP span in the file (header-stripped tail)   */
-    uint32_t base_va   = 0;   /* physfirst — file offset data_off maps here    */
+    uint32_t base_va   = 0;   /* physfirst - file offset data_off maps here    */
 };
 
 /* Resolve the bootable OS XIP in a Siemens ARNOLDBOOTBLOCK package; false if
@@ -85,7 +85,7 @@ bool ArnoldLocateOsXip(std::span<const uint8_t> raw, ArnoldOsXip& out);
    fixed-header firmware package without trusting a header-length constant. */
 size_t FindXipEcec(std::span<const uint8_t> raw, size_t start);
 
-/* "iPAQ " banner — the Compaq/HP iPAQ h3xxx ".nbf" firmware update format: a
+/* "iPAQ " banner - the Compaq/HP iPAQ h3xxx ".nbf" firmware update format: a
    32-byte ASCII version banner ("iPAQ 3600-ENG-2.14-...") then the bootable OS
    XIP. A distinct OEM format from a raw .nb0; its payload happens to match an
    extracted .nb0 byte-for-byte. */

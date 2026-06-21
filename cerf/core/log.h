@@ -36,7 +36,7 @@ namespace Log {
         X(Lcd,         "LCD",         "host display window + per-SoC LCD ctrl")     \
         X(Pcmcia,      "PCMCIA",      "board-level PCMCIA bus controller (PD6710)") \
         X(Trace,       "TRACE",       "TraceManager + device-specific trace files") \
-        X(Perf,        "PERF",        "RateProbe — per-second event counters")    \
+        X(Perf,        "PERF",        "RateProbe - per-second event counters")    \
         X(GuestDriver, "GUEST",       "CERF guest driver runtime output via cerf_debug_tx") \
         X(GuestAdditions, "GUEST_HOST", "CERF guest additions")
 
@@ -59,9 +59,9 @@ namespace Log {
     };
 
     static_assert(sizeof(kCategories) / sizeof(CatInfo) == (size_t)Cat::COUNT,
-                  "kCategories must match Cat::COUNT — X-macro out of sync");
+                  "kCategories must match Cat::COUNT - X-macro out of sync");
     static_assert((int)Cat::COUNT <= 64,
-                  "Log::Cat exceeds 64 — switch enabled_mask to std::bitset");
+                  "Log::Cat exceeds 64 - switch enabled_mask to std::bitset");
 
     inline constexpr uint64_t MASK_ALL =
         ((int)Cat::COUNT >= 64) ? ~0ULL : ((1ULL << (int)Cat::COUNT) - 1);
@@ -77,7 +77,7 @@ namespace Log {
         return detail::enabled_mask.load(std::memory_order_relaxed);
     }
     inline bool IsEnabled(Cat cat) {
-        /* Cerf and Caution are hardcoded always-on — they describe events
+        /* Cerf and Caution are hardcoded always-on - they describe events
            the user must see regardless of --log= / --no-log= / --quiet. */
         if (cat == Cat::Cerf || cat == Cat::Caution) return true;
         return (GetEnabled() & (1ULL << (int)cat)) != 0;
@@ -95,7 +95,7 @@ namespace Log {
        Unknown tokens warn on stderr and contribute nothing to the mask. */
     uint64_t ParseCategories(const char* str);
 
-    /* Print every category and its description to stdout — used by --help. */
+    /* Print every category and its description to stdout - used by --help. */
     void PrintCategoryList();
 
     void EmergencyStart();
@@ -104,17 +104,17 @@ namespace Log {
     void EmergencyDumpAllThreadStacks();
 
     /* Installs a top-level SEH filter that runs the Emergency* crash dump for
-       exceptions outside any CerfFatalExit / JIT __except — e.g. an access
+       exceptions outside any CerfFatalExit / JIT __except - e.g. an access
        violation during service teardown, which otherwise terminates the
        process with no cerf.crash.log. Call once, early in main. */
     void InstallCrashHandler();
 
 }  // namespace Log
 
-/* LOG(name, fmt, ...) — `name` is an unqualified Cat identifier (e.g. Boot,
+/* LOG(name, fmt, ...) - `name` is an unqualified Cat identifier (e.g. Boot,
    SocIntc). The macro qualifies it as Log::Cat::name; a typo is a compile
    error. The slug "[NAME]" is auto-prepended by Log::Print from the
-   registry — never put it in the format string. */
+   registry - never put it in the format string. */
 #define LOG(name, ...) do {                                                         \
     if (Log::IsEnabled(Log::Cat::name))                                             \
         Log::Print(Log::Cat::name, __VA_ARGS__);                                    \

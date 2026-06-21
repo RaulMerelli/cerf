@@ -10,10 +10,10 @@ class ArmVfp : public Service {
 public:
     using Service::Service;
 
-    /* FPSCR.QC bit[27] — sticky Advanced SIMD saturation flag (B4.1.58). */
+    /* FPSCR.QC bit[27] - sticky Advanced SIMD saturation flag (B4.1.58). */
     static constexpr uint32_t kFpscrQcMask = 1u << 27;
 
-    /* Per-element IEEE 754 primitives — shared by VFP (ExecuteCdp) and
+    /* Per-element IEEE 754 primitives - shared by VFP (ExecuteCdp) and
        NEON .F32 element code so the host-IEEE choice (FZ/DN spec
        divergence) lives in exactly one place. */
     static inline float  FPAddS (float a, float b)  { return a + b; }
@@ -94,7 +94,7 @@ public:
         return result;
     }
 
-    /* Integer element loaders — read an `esize`-bit element from a byte
+    /* Integer element loaders - read an `esize`-bit element from a byte
        pointer (NEON D-register slot), sign- or zero-extend to 64-bit.
        Shared by every NEON handler that iterates over lanes. */
     static inline int64_t LoadIntS(const uint8_t* p, uint32_t esize) {
@@ -153,7 +153,7 @@ public:
                                                       uint32_t imm8,
                                                       uint32_t flags);
 
-    /* VLDR / VSTR — single-register VFP load/store. signed_off is
+    /* VLDR / VSTR - single-register VFP load/store. signed_off is
        the already-signed byte displacement from Rn (decoder applies
        the U-bit sign to d->offset). Same 0/non-zero status as
        HandleBlockTransfer. */

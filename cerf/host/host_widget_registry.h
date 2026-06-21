@@ -14,7 +14,7 @@ class HostWidgetRegistry : public Service {
 public:
     using Service::Service;
 
-    /* Called from a widget's OnReady — possibly after the UI thread is already
+    /* Called from a widget's OnReady - possibly after the UI thread is already
        painting, hence the lock. */
     void Register(HostWidget* w);
 

@@ -212,7 +212,7 @@ public:
                 }
             }
             /* The faulting fill store (PC 0x03FC5B30, a RAM DLL not in IDA),
-               gated to the crashing invocation (0x1881 fill value in a reg) — the
+               gated to the crashing invocation (0x1881 fill value in a reg) - the
                routine is a generic fill called many times. LR = the caller (likely
                a module that IS in IDA) → names the next frame up. */
             tm.OnPcFiltered(0x03FC5B30u, gem, [](const TraceContext& c) {

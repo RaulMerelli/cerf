@@ -35,7 +35,7 @@ public:
     }
 
     /* §9.6.1.2 RCSR: bit0=HWR bit1=SWR bit2=WDR. §9.6: DRAM survives
-       SWR/WDR, is lost on HWR — hence warm→SWR, cold→HWR. PPC2002
+       SWR/WDR, is lost on HWR - hence warm→SWR, cold→HWR. PPC2002
        startup (nk @0x411E0) needs RCSR&7 != 0; a causeless reset reads
        as sleep-exit and resumes from a stale save block (UND loop). */
     void LatchWarmReset() override {
@@ -47,7 +47,7 @@ public:
     void LatchWatchdogReset() override {
         rcsr_.fetch_or(0x4u, std::memory_order_acq_rel);
     }
-    /* DeepSleepWaker: §9.6.1.2 RCSR bit3 SMR (sleep-mode reset) — the OAL boot
+    /* DeepSleepWaker: §9.6.1.2 RCSR bit3 SMR (sleep-mode reset) - the OAL boot
        path reads it and takes its sleep-resume branch. */
     void LatchSleepWakeCause() override {
         rcsr_.fetch_or(0x8u, std::memory_order_acq_rel);
@@ -73,8 +73,8 @@ private:
     std::atomic<uint32_t> rcsr_{0x1u};  /* HWR cold-reset state per §9.6.1.2. */
 
     /* SA-1110 Dev Man App. D.1: TUCR (+0x08, reset 0) is a R/W control
-       register — TSEL2:0 clock-out select, MIR, PMD; no hardware-set
-       bits — so plain storage is faithful. The clock-out routing
+       register - TSEL2:0 clock-out select, MIR, PMD; no hardware-set
+       bits - so plain storage is faithful. The clock-out routing
        (TSEL=0b101 drives RCLK to the SA-1111) has no CERF side effect. */
     uint32_t tucr_ = 0;
 

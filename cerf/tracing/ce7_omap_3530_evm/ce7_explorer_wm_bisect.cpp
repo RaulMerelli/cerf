@@ -79,10 +79,10 @@ constexpr uint32_t kPcKernelSetupCallToUserServer = 0x8C060494u;
 constexpr uint32_t kPcSetRedrawEntry       = 0x42320830u;  /* CShellListView::SetRedraw */
 constexpr uint32_t kPcSendMessageWThunk    = 0x4232CD54u;  /* ceshell SendMessageW_0 thunk */
 constexpr uint32_t kPcSubclassProcEntry    = 0x4231BB50u;  /* CDesktopView::SubclassProc */
-constexpr uint32_t kPcXxxWaitSingleEntry   = 0xEFF69D9Cu;  /* k.coredll!xxx_WaitForSingleObject — verified via IDA */
+constexpr uint32_t kPcXxxWaitSingleEntry   = 0xEFF69D9Cu;  /* k.coredll!xxx_WaitForSingleObject - verified via IDA */
 
 /* commctrl.dll listview WndProc internals for LVM_ARRANGE(msg=0x1016)
-   chain. User-mode shared mapping (0x40xxxxxx) — MUST be filtered. */
+   chain. User-mode shared mapping (0x40xxxxxx) - MUST be filtered. */
 constexpr uint32_t kPcListViewOnArrange     = 0x406FCA34u;
 constexpr uint32_t kPcListViewCommonArrange = 0x406FC0C4u;
 constexpr uint32_t kPcListViewCommonArrangeEx    = 0x406FBDE4u;
@@ -583,7 +583,7 @@ public:
                 }
             });
             /* User-mode wrapper xxx_WaitForMultipleObjects @ 0x40029FA8
-               in coredll.dll — IDA-verified. Captures LR (= the caller
+               in coredll.dll - IDA-verified. Captures LR (= the caller
                in explorer's address space). */
             tm.OnPcFiltered(0x40029FA8u, expl_only, [](const TraceContext& c) {
                 static uint32_t count = 0;
@@ -598,7 +598,7 @@ public:
                 }
             });
 
-            /* NKWaitForMultipleObjects entry @ 0x8C050B30 — IDA-verified
+            /* NKWaitForMultipleObjects entry @ 0x8C050B30 - IDA-verified
                function start in kernel.dll. Captures cObjs/h0/Timeout. */
             tm.OnPcFiltered(0x8C050B30u, expl_only, [](const TraceContext& c) {
                 static uint32_t count = 0;

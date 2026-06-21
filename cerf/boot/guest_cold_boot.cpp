@@ -30,7 +30,7 @@ void GuestColdBoot::RequestHardReset() {
 void GuestColdBoot::ExecuteIfPending() {
     if (!pending_.exchange(false, std::memory_order_acq_rel)) return;
 
-    LOG(Boot, "GuestColdBoot: hard reset — wiping volatile RAM, replaying "
+    LOG(Boot, "GuestColdBoot: hard reset - wiping volatile RAM, replaying "
               "%zu boot-time writes\n", replays_.size());
     emu_.Get<EmulatedMemory>().WipeVolatileRegions();
     for (auto& fn : replays_) fn();

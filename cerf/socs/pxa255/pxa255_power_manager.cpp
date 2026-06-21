@@ -25,7 +25,7 @@ public:
         emu_.Get<GuestDeepSleep>().RegisterWaker(this);
     }
 
-    /* DeepSleepWaker: §3.5.11 Table 3-19 RCSR bit2 SMR (sleep-mode reset) — the
+    /* DeepSleepWaker: §3.5.11 Table 3-19 RCSR bit2 SMR (sleep-mode reset) - the
        OAL boot path reads it and resumes. Latched on the UI thread while the JIT
        is parked in deep sleep, so the plain RMW does not race the guest. */
     void LatchSleepWakeCause() override { rcsr_ |= 0x4u; }

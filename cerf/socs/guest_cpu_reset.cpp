@@ -9,7 +9,7 @@ REGISTER_SERVICE(GuestCpuReset);
 
 void GuestCpuReset::SetCauseLatch(ResetCauseLatch* latch) {
     if (latch_ != nullptr) {
-        LOG(Caution, "GuestCpuReset: second ResetCauseLatch registered — "
+        LOG(Caution, "GuestCpuReset: second ResetCauseLatch registered - "
                 "one SoC owns the reset-cause register; two implementers "
                 "mean a ShouldRegister gate is wrong\n");
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);

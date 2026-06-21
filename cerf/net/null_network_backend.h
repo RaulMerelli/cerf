@@ -1,5 +1,5 @@
 #pragma once
-/* NullNetworkBackend — no-op NetworkBackend, selected when network_enabled=0.
+/* NullNetworkBackend - no-op NetworkBackend, selected when network_enabled=0.
    SendFrame drops; the receive callback is stored but never invoked. Lets
    the rest of the stack (NDIS miniport, ndis.dll, tcp/ip) come up cleanly
    on systems where outbound networking is intentionally disabled. */

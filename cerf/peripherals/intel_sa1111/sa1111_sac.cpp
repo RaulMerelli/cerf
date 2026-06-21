@@ -34,7 +34,7 @@ uint32_t Sa1111Sac::ReadWord(uint32_t addr) {
         case 0x24: return accar_;
         case 0x28: return accdr_;
         case 0x2C: return acsar_;
-        case 0x30: return 0;          /* ACSDR — no AC-link codec. */
+        case 0x30: return 0;          /* ACSDR - no AC-link codec. */
         case 0x34: {
             std::unique_lock<std::mutex> lk(dma_mtx_);
             return sadtcs_;
@@ -121,7 +121,7 @@ void Sa1111Sac::WriteSadtcs(uint32_t value) {
 
 /* Picks an armed buffer, consumes its strobe, hands the page to the player.
    Drops the lock around the sink call (the sink posts to its own thread).
-   A declined page completes inline WITHOUT continuing — continuing unpaced
+   A declined page completes inline WITHOUT continuing - continuing unpaced
    would recurse submit->complete->submit without bound. */
 void Sa1111Sac::TryStartNextLocked(std::unique_lock<std::mutex>& lk) {
     bool b;
@@ -147,7 +147,7 @@ void Sa1111Sac::TryStartNextLocked(std::unique_lock<std::mutex>& lk) {
     lk.unlock();
     if (tx_sink_ && tx_sink_(page)) return;
 
-    LOG(Caution, "Sa1111Sac: transmit page declined by the audio sink — "
+    LOG(Caution, "Sa1111Sac: transmit page declined by the audio sink - "
         "completing it inline\n");
     CompleteTransmit(b);
 }
@@ -159,7 +159,7 @@ void Sa1111Sac::CompleteTransmit(bool buffer_b) {
     {
         std::unique_lock<std::mutex> lk(dma_mtx_);
         if (!tx_running_ || tx_buffer_b_ != buffer_b) return;
-        /* Cleared BEFORE the continuation — TryStartNext is gated on
+        /* Cleared BEFORE the continuation - TryStartNext is gated on
            !tx_running_ in BOTH this thread and a racing WriteSadtcs; clearing
            it only on !start_next wedges the ping-pong after one page. */
         tx_running_ = false;

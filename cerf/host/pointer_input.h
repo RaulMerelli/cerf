@@ -21,7 +21,7 @@ public:
     virtual void OnWheel(int sx, int sy, int delta)            = 0;
     virtual void OnCaptureLost()                               = 0;
 
-    /* PointerSource — absolute GA mouse; outranks stock devices at boot. */
+    /* PointerSource - absolute GA mouse; outranks stock devices at boot. */
     std::wstring   SourceName()       const override { return L"Guest Additions mouse"; }
     const wchar_t* IconResourceName() const override { return L"ICON_INPUT_GA_POINTER"; }
     int            SourcePriority()   const override { return 100; }

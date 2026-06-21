@@ -15,17 +15,17 @@ namespace {
 /* S14 consumer thread, learned at WFMO-call 0x39E4C (= pCurThread @ 0xFFFFC894).
    The make-runnable wake (sub_800C5E8C/sub_800C5928) runs in SVC mode with IRQs
    enabled; an added instruction there moves the IRQ-in-wake race that is this bug
-   and masks it (S13 Heisenbug) — so its outcome is polled host-side, not hooked. */
+   and masks it (S13 Heisenbug) - so its outcome is polled host-side, not hooked. */
 std::atomic<uint32_t> g_consumerThread{0};
 
 /* Paint/animation thread, learned at the GPE blit core sub_184B308 (DDI.DLL,
    GWES-only) where it is the running thread. The render hang stops blits while
-   the input consumer still limps, so this — not the consumer — is the primary
+   the input consumer still limps, so this - not the consumer - is the primary
    freeze; polled below for runnable-but-not-scheduled vs blocked-on-wait. */
 std::atomic<uint32_t> g_paintThread{0};
 
 /* Shared-XIP system-DLL code (coredll/waveapi/wavedev): unfiltered on purpose,
-   each line logs slot — the consumer PSL-traps GWES(5)->device.exe(3), so a
+   each line logs slot - the consumer PSL-traps GWES(5)->device.exe(3), so a
    process filter would drop the slot-3 fires that locate the wedge. */
 class Falcon4220SoundHangDiag : public Service {
 public:
@@ -96,7 +96,7 @@ public:
             });
 
             /* GWES touch consumer dequeue (gwes.exe sub_39D20): per-process VAs,
-               filtered to GWES (slot 5) — without the filter these alias other
+               filtered to GWES (slot 5) - without the filter these alias other
                processes' code at the same VA and the fires are unattributable. */
             const TracePredicate in_gwes = [](const TraceContext& c) {
                 return (c.emu.Get<ArmMmu>().State()->process_id >> 25) == 5u;
@@ -145,7 +145,7 @@ public:
             });
 
             /* Kernel EventModify sub_800C6AAC; the ring-event filter
-               (R0 == handle dword_B9FD4) is load-bearing — unfiltered it fires
+               (R0 == handle dword_B9FD4) is load-bearing - unfiltered it fires
                per-SET and the perturbation masks the hang. R1 = 3 SET / 2 RESET. */
             const TracePredicate is_ring = [](const TraceContext& c) {
                 auto h = c.ReadVa32(0xB9FD4u);
@@ -172,7 +172,7 @@ public:
             /* GWES global lock stru_B9920: the consumer blocks here in sub_20FA0's
                EnterCriticalSection (gwes sub_15820) when held. CE 4.2 CRITICAL_SECTION
                (coredll): +0 LockCount, +4 OwnerThreadId vs KData curId 0xFFFFC808.
-               Read in gwes context — the VA aliases per process; log holder on contention. */
+               Read in gwes context - the VA aliases per process; log holder on contention. */
             tm.OnPcFiltered(0x15820u, in_gwes, [](const TraceContext& c) {
                 const uint32_t owner = c.ReadVa32(0xB9924u).value_or(0u);
                 const uint32_t curId = c.ReadVa32(0xFFFFC808u).value_or(0u);
@@ -184,7 +184,7 @@ public:
             /* Consumer status low-2-bits (written by sub_800C5928) name the gate:
                01 = enqueued runnable (lost-wake is downstream resched/priority),
                10 = thread+2 gate skipped the run-queue insert, 11 = unchanged
-               (never reached sub_800C5928 — sub_800C5E8C status!=3). */
+               (never reached sub_800C5928 - sub_800C5E8C status!=3). */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 const uint32_t th = g_consumerThread.load(std::memory_order_relaxed);
                 if (th == 0u) return;

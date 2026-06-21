@@ -27,10 +27,10 @@ public:
     struct ChannelStart {
         int      channel;
         uint32_t sync_source;   /* ExtractSyncSource(CCR).                  */
-        uint32_t src_pa;        /* CSSA — source physical address.          */
-        uint32_t dst_pa;        /* CDSA — destination physical address.     */
-        uint32_t elem_count;    /* CEN  — elements per frame.               */
-        uint32_t frame_count;   /* CFN  — frames per block.                 */
+        uint32_t src_pa;        /* CSSA - source physical address.          */
+        uint32_t dst_pa;        /* CDSA - destination physical address.     */
+        uint32_t elem_count;    /* CEN  - elements per frame.               */
+        uint32_t frame_count;   /* CFN  - frames per block.                 */
         uint32_t element_size;  /* bytes per element (from CSDP DATATYPE).  */
     };
     using ChannelClaim = std::function<bool(const ChannelStart&)>;

@@ -22,7 +22,7 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     /* dev-man §11.12.3.1: rate = 11.981 MHz / 32 / ASD, ASD = MCCR0 bits 6:0
-       (CFS=0 on the J820 — wavedev sets MCCR1=0). Returns the wavedev default
+       (CFS=0 on the J820 - wavedev sets MCCR1=0). Returns the wavedev default
        11025 Hz until MCCR0 is programmed. */
     uint32_t GetAudioSampleRateHz() const;
 

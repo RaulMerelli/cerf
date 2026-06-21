@@ -9,7 +9,7 @@
 
 /* Hard-reset orchestrator: wipes volatile guest RAM and replays the
    registered boot-time RAM writes at reset delivery. Registration is
-   OnReady-time only — registering after JitRunner starts races the
+   OnReady-time only - registering after JitRunner starts races the
    JIT thread's lock-free walk of replays_. */
 class GuestColdBoot : public Service {
 public:
@@ -21,7 +21,7 @@ public:
     void RegisterReplay(std::function<void()> fn);
 
     /* Snapshot len bytes at pa now; replay writes them back verbatim.
-       Replayed RAM must be byte-identical across resets — flash keeps
+       Replayed RAM must be byte-identical across resets - flash keeps
        KVAs pointing at it, and an allocating producer (GuestModulePlacer
        lowers the DLL-RW floor on every run) shifts them when re-run. */
     void RecordPatch(uint32_t pa, uint32_t len);

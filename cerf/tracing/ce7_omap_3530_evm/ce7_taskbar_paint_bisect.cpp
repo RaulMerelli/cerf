@@ -13,7 +13,7 @@
 
 namespace {
 
-/* explorer.exe ImageBase 0x10000. CTaskBar::Create body — first/last
+/* explorer.exe ImageBase 0x10000. CTaskBar::Create body - first/last
    CreateWindowExW calls + the visibility-trigger triple at the end. */
 constexpr uint32_t kPcCreateBlCreateWindowEx     = 0x00025EA0u;
 constexpr uint32_t kPcCreatePostCreateWindowEx   = 0x00025EA4u;
@@ -155,7 +155,7 @@ public:
                         c.regs[0], c.regs[14]);
                 });
 
-            /* WndProc entries — fire on every msg dispatched to the
+            /* WndProc entries - fire on every msg dispatched to the
                class. Log only when hwnd matches the captured taskbar
                (skip noise from other HHTaskBar instances if any). */
             auto wndproc_hook = [](const char* tag) {
@@ -760,7 +760,7 @@ public:
                 [](const TraceContext& c) {
                     LOG(Trace,
                         "[tb] lassd BL EventModify(LASS_SRV_STARTED, SET) "
-                        "hEvent=0x%08X — about to signal\n",
+                        "hEvent=0x%08X - about to signal\n",
                         c.regs[0]);
                 });
 
@@ -775,7 +775,7 @@ public:
                 [](const TraceContext& c) {
                     (void)c;
                     LOG(Trace,
-                        "[tb] lassd post-Sleep(1000) — about to CreateFileW(LAS0:)\n");
+                        "[tb] lassd post-Sleep(1000) - about to CreateFileW(LAS0:)\n");
                 });
 
             tm.OnPc(kPcGwesOnWindowCreatedBit29Str,

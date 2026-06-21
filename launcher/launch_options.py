@@ -284,7 +284,7 @@ class LaunchOptionsPanel:
                 nearest = min(range(len(RES_PRESETS)),
                               key=lambda i: abs(RES_PRESETS[i][0] * RES_PRESETS[i][1] - area))
                 self.res_slider.set(nearest)
-                self.res_preset_label.config(text=f"Custom — {w} × {h}")
+                self.res_preset_label.config(text=f"Custom - {w} × {h}")
         finally:
             self._res_sync_guard = False
 

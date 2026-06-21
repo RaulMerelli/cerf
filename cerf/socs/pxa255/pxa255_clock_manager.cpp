@@ -32,7 +32,7 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     /* CCCR/CKEN storage + the OON write-once latch are guest state.
-       JIT-thread-only — no lock. */
+       JIT-thread-only - no lock. */
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 

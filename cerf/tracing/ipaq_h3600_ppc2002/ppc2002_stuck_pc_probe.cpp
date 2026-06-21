@@ -83,19 +83,19 @@ public:
             /* 0x800606AC = right after MSR CPSR_fc, R2 at 0x800606A8.
                c.regs[13] = SP_<oldmode> after the mode switch.
                c.cpsr = CPSR after MSR. R2 still holds the SPSR value. */
-            /* 0x8006066C = MSR SPSR_fc, R2 — sets SPSR_svc = R2 right
+            /* 0x8006066C = MSR SPSR_fc, R2 - sets SPSR_svc = R2 right
                before MOVS PC, LR. R2 should hold the ORIGINAL SPSR
                (mode of the faulted code), loaded from frame at 0x80060638. */
-            /* 0x80060A74 = SUB SP, SP, #0x48 — first instruction of a kernel
+            /* 0x80060A74 = SUB SP, SP, #0x48 - first instruction of a kernel
                function that's a frequent MOVS PC, LR return target (XRET LR).
                After return CPSR.mode should be SYS (0x1F). If it's ABT (0x17),
                that confirms the JIT didn't transition mode on MOVS PC, LR. */
-            /* Track inside fast-path of abort handler — sub_80069FF0
+            /* Track inside fast-path of abort handler - sub_80069FF0
                page-table walk steps. Any of these LDRs faulting from ABT
                mode triggers a recursive abort. */
-            /* sub_80069D68 entry — the big abort handler. If reached,
+            /* sub_80069D68 entry - the big abort handler. If reached,
                kernel is past the cascade and into actual fault resolution. */
-            /* sub_80069D68 RETURN PC — log return value (R0 = thread struct or 0). */
+            /* sub_80069D68 RETURN PC - log return value (R0 = thread struct or 0). */
             tm.OnPc(0x80069FC4u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
                 const uint64_t k = n.fetch_add(1, std::memory_order_relaxed);
@@ -294,7 +294,7 @@ public:
 
             /* Poll kernel CurMSec at 0x8C0D3600 (the tick counter incremented
                by sub_800585C8's OST branch). If it stops advancing, the
-               OST IRQ branch isn't being taken — wrong INTPEND bit. */
+               OST IRQ branch isn't being taken - wrong INTPEND bit. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_ms{0xCAFEBABEu};
                 static std::atomic<uint64_t> tick{0};
@@ -329,7 +329,7 @@ public:
                 }
             });
 
-            /* Hook idle/halt sub_8005D328 — the halt-wait kernel calls when
+            /* Hook idle/halt sub_8005D328 - the halt-wait kernel calls when
                no thread is runnable. */
             tm.OnPc(0x8005D328u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -355,7 +355,7 @@ public:
                 }
             });
 
-            /* Hook keybddr.dll Sleep(1) loop just after the LDR — captures
+            /* Hook keybddr.dll Sleep(1) loop just after the LDR - captures
                R0 = base ptr keybddr is using, R3 = value just loaded.
                Tells us what value CERF returns for the polled address. */
             tm.OnPcFiltered(0x01F33BD4u,
@@ -375,7 +375,7 @@ public:
                     }
                 });
 
-            /* OnPc hook at user VA 0x01FA187C with thread filter — fires
+            /* OnPc hook at user VA 0x01FA187C with thread filter - fires
                when thread 0x8FF66000 reaches the userspace polling site.
                Dumps register state + LR + a few bytes around. */
             tm.OnPcFiltered(0x01FA187Cu,
@@ -404,14 +404,14 @@ public:
                     }
                 });
 
-            /* One-shot at t+8s+ — walk kernel sleep list at 0x8C0D4DF0,
+            /* One-shot at t+8s+ - walk kernel sleep list at 0x8C0D4DF0,
                dump each thread + its wait_obj. The threads in this list
                are all the blocked threads we can't see otherwise. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<bool> done{false};
                 if (done.load(std::memory_order_relaxed)) return;
                 /* Wait until at least one CURTHREAD-switch happened past t=8s.
-                   Approximate via guest tick advance — use M[0x8C0D3600] CurMSec. */
+                   Approximate via guest tick advance - use M[0x8C0D3600] CurMSec. */
                 auto curms = c.ReadVa32(0x8C0D3600u);
                 if (!curms || *curms < 0x2000u) return;  /* ~8s into simulated boot */
                 bool exp = false;
@@ -440,7 +440,7 @@ public:
             });
 
             /* Dump thread 8FF5B400 + 8FF4D0A4 structures (the two waiters
-               on 8FF66000) — fields tell us which process owns them. */
+               on 8FF66000) - fields tell us which process owns them. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<bool> done5B{false};
                 static std::atomic<bool> done4D{false};
@@ -499,7 +499,7 @@ public:
                 }
             });
 
-            /* Unfiltered intentional — adding a filter breaks enumeration. */
+            /* Unfiltered intentional - adding a filter breaks enumeration. */
             tm.OnPc(0x01FA1880u, [](const TraceContext& c) {
                 auto cur = c.ReadVa32(0xFFFFC894u);
                 static std::atomic<uint64_t> n{0};
@@ -510,7 +510,7 @@ public:
                     cur.value_or(0), c.regs[0], c.regs[1]);
             });
 
-            /* Unfiltered intentional — a process filter would drop every
+            /* Unfiltered intentional - a process filter would drop every
                CreateThread call in every other process, defeating enumeration. */
             tm.OnPc(0x01F9D998u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -523,7 +523,7 @@ public:
                     c.regs[0], c.regs[1], c.regs[2], c.regs[3], c.regs[14]);
             });
 
-            /* Unfiltered intentional — every process's main thread enters
+            /* Unfiltered intentional - every process's main thread enters
                via this address; filter would drop all but one process. */
             tm.OnPc(0x01FA1794u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -645,7 +645,7 @@ public:
                 }
             });
 
-            /* Unfiltered intentional — a process filter would drop every
+            /* Unfiltered intentional - a process filter would drop every
                CreateProcessW call in every other process. */
             tm.OnPc(0x01F9D908u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -775,7 +775,7 @@ public:
                 }
             });
 
-            /* Hook sub_8006308C entry — the "timer-expired wakeup processor"
+            /* Hook sub_8006308C entry - the "timer-expired wakeup processor"
                that the scheduler calls when WAIT_FLAG was 1 and cleared. */
             tm.OnPc(0x8006308Cu, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -898,7 +898,7 @@ public:
                         mmu_state.process_id, c.cpsr);
                 });
 
-            /* L1[0x11F] poll — does it ever become non-zero? */
+            /* L1[0x11F] poll - does it ever become non-zero? */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_l1{0xCAFEBABEu};
                 auto& mem = c.emu.Get<EmulatedMemory>();
@@ -916,7 +916,7 @@ public:
                 }
             });
 
-            /* L1[0x3F] poll — slot 1 high range that XRET k=33 returned to. */
+            /* L1[0x3F] poll - slot 1 high range that XRET k=33 returned to. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_l1{0xCAFEBABEu};
                 auto& mem = c.emu.Get<EmulatedMemory>();
@@ -934,7 +934,7 @@ public:
                 }
             });
 
-            /* L1[0x080] poll — slot 4 low range (where 0x08012E50 lives). */
+            /* L1[0x080] poll - slot 4 low range (where 0x08012E50 lives). */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_l1{0xCAFEBABEu};
                 auto& mem = c.emu.Get<EmulatedMemory>();
@@ -981,7 +981,7 @@ public:
                 }
             });
 
-            /* Also watch the process_struct[1] pointer itself — if it changes,
+            /* Also watch the process_struct[1] pointer itself - if it changes,
                the kernel is re-allocating/re-pointing slot 4's soft-TLB struct. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_pt4{0xCAFEBABEu};
@@ -1172,7 +1172,7 @@ public:
                 }
             });
 
-            /* Flag at 0xFFFFC884 — the wait-loop terminator. Poll it. */
+            /* Flag at 0xFFFFC884 - the wait-loop terminator. Poll it. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint32_t> last_flag{0xFFu};
                 auto v = c.ReadVa8(0xFFFFC884u);
@@ -1205,7 +1205,7 @@ public:
                         std::memcpy(&instr, p, sizeof(instr));
                     }
                     const uint32_t vec_va = 0xFFFF0000u + i * 4u;
-                    /* Decode B (0x0A000000) and BL (0x0B000000) — cond
+                    /* Decode B (0x0A000000) and BL (0x0B000000) - cond
                        in top nibble, low 24 bits = sign-extended offset
                        (in words), target = pc + 8 + offset*4 where pc = vec_va. */
                     char decode[80] = "?";
@@ -1215,7 +1215,7 @@ public:
                         snprintf(decode, sizeof(decode),
                                  "B -> 0x%08X", tgt);
                     } else if ((instr & 0x0FFFF000u) == 0x059FF000u) {
-                        /* LDR PC, [PC, #imm12] — load PC from data table.
+                        /* LDR PC, [PC, #imm12] - load PC from data table.
                            Target word at vec_va + 8 + imm12. */
                         const uint32_t imm12 = instr & 0xFFFu;
                         const uint32_t data_va = vec_va + 8u + imm12;
@@ -1395,7 +1395,7 @@ public:
                 }
             });
 
-            /* PREFETCH fast-path success return — POPNE {R0-R3,R12,PC}^. Loads
+            /* PREFETCH fast-path success return - POPNE {R0-R3,R12,PC}^. Loads
                PC from the saved LR_abt (= user PC + 4). Log cross-slot returns. */
             tm.OnPc(0x800605CCu, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
@@ -1416,7 +1416,7 @@ public:
                 }
             });
 
-            /* DATA fast-path success return — POPNE {R0-R3,R12,PC}^. */
+            /* DATA fast-path success return - POPNE {R0-R3,R12,PC}^. */
             tm.OnPc(0x800606FCu, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
                 const uint64_t k = n.fetch_add(1, std::memory_order_relaxed);
@@ -1456,7 +1456,7 @@ public:
             tm.OnPc(0x80060684u, [](const TraceContext& c) {
                 static std::atomic<uint64_t> n{0};
                 const uint64_t k = n.fetch_add(1, std::memory_order_relaxed);
-                /* R0 holds the base address — LDM loads R0..R15 from
+                /* R0 holds the base address - LDM loads R0..R15 from
                    [R0..R0+0x3C]. Saved PC is at R0+0x3C. */
                 auto pc_target = c.ReadVa32(c.regs[0] + 0x3Cu);
                 auto saved_sp  = c.ReadVa32(c.regs[0] + 0x34u);
@@ -1553,7 +1553,7 @@ public:
                 const uint64_t k = n.fetch_add(1, std::memory_order_relaxed);
                 if (k < 50 || (k & 0xFFFFu) == 0u) {
                     LOG(Trace, "[FIX_PASS_5] k=%llu (V bit set) FAR=0x%08X "
-                               "R10=sub_entry=0x%08X — SUCCESS PATH\n",
+                               "R10=sub_entry=0x%08X - SUCCESS PATH\n",
                         static_cast<unsigned long long>(k),
                         c.regs[0], c.regs[10]);
                 }

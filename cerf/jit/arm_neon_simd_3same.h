@@ -10,7 +10,7 @@ class ArmNeonSimd3Same : public Service {
 public:
     using Service::Service;
 
-    /* Selector values are stable — referenced by decode + emit. */
+    /* Selector values are stable - referenced by decode + emit. */
     static constexpr uint32_t kS3Add = 0u;
     static constexpr uint32_t kS3Sub = 1u;
     static constexpr uint32_t kS3And = 2u;   /* VAND  a & b   */
@@ -41,10 +41,10 @@ public:
     /* VABD (A8.8.278). */
     static constexpr uint32_t kS3AbdS = 24u;
     static constexpr uint32_t kS3AbdU = 25u;
-    /* VSHL register (A8.8.396) — data=D[m], shift=signed low byte of D[n]. */
+    /* VSHL register (A8.8.396) - data=D[m], shift=signed low byte of D[n]. */
     static constexpr uint32_t kS3ShlS = 26u;
     static constexpr uint32_t kS3ShlU = 27u;
-    /* VRSHL register (A8.8.388) — same operand reversal, rounding right shift. */
+    /* VRSHL register (A8.8.388) - same operand reversal, rounding right shift. */
     static constexpr uint32_t kS3RshlS = 28u;
     static constexpr uint32_t kS3RshlU = 29u;
     /* VMUL.P8 polynomial (A8.8.350, op=1): carry-less multiply over GF(2).

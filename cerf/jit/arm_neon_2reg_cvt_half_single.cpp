@@ -26,7 +26,7 @@ inline uint32_t HalfToSingle(uint16_t h) {
         if (mantissa == 0u) {
             return sign | 0x7F800000u;
         }
-        /* NaN — force quiet bit (bit 22), narrow mantissa to high 9 bits. */
+        /* NaN - force quiet bit (bit 22), narrow mantissa to high 9 bits. */
         return sign | 0x7F800000u | 0x00400000u
              | ((mantissa & 0x1FFu) << 13);
     }
@@ -46,7 +46,7 @@ inline uint16_t SingleToHalf(uint32_t f) {
         if (mantissa == 0u) {
             return sign | 0x7C00u;
         }
-        /* NaN — quiet bit set (bit 9), narrow mantissa from bits[22:13]. */
+        /* NaN - quiet bit set (bit 9), narrow mantissa from bits[22:13]. */
         return sign | 0x7E00u
              | static_cast<uint16_t>((mantissa >> 13) & 0x1FFu);
     }

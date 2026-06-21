@@ -5,7 +5,7 @@
 #include "../core/service.h"
 
 /* NEON (Advanced SIMD) semantics. Operates on the shared VFP/NEON
-   register file ArmCpuState::vfp_d[32] (D0..D31 aliased as Q0..Q15) —
+   register file ArmCpuState::vfp_d[32] (D0..D31 aliased as Q0..Q15) -
    the same storage as ArmVfp, not a separate register array. */
 class ArmNeon : public Service {
 public:
@@ -69,7 +69,7 @@ public:
                                                  uint32_t m_idx, uint32_t esize,
                                                  uint32_t regs);
 
-    /* Pairwise reduction WITHIN each input register — low half of Dd from
+    /* Pairwise reduction WITHIN each input register - low half of Dd from
        Dn pairs, high half from Dm pairs (NOT n[e]/m[e] like HandleSimd3Same).
        Doubleword only (Q=0). A8.8.362 VPADD, A8.8.365 VPMAX/VPMIN. */
     static constexpr uint32_t kPwAdd  = 0u;   /* VPADD                       */

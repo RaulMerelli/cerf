@@ -10,7 +10,7 @@ namespace {
 /* Unpopulated static-bank space between the modem window and the
    CL-CD1284 debug board (SA-1110 Dev Manual ch.2 map). SA-1110 data
    aborts are MMU-generated, so these accesses complete: writes vanish,
-   reads float — jlime pushes its post-MMU-off stack here on real HW. */
+   reads float - jlime pushes its post-MMU-off stack here on real HW. */
 class Jornada720OpenBus : public Peripheral {
 public:
     using Peripheral::Peripheral;

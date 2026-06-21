@@ -12,7 +12,7 @@ namespace {
 
 /* i.MX51 Enhanced SDRAM Controller (ESDRAMC), MCIMX51RM Rev.1 Ch.30, register
    base 0x83FD9000. The DDR timing/delay/mode registers have no effect in CERF
-   (guest DRAM is already host-backed), so they are pure R/W storage — except
+   (guest DRAM is already host-backed), so they are pure R/W storage - except
    the ESDSCR config handshake below. */
 constexpr uint32_t kBase = 0x83FD9000u;
 constexpr uint32_t kSize = 0x00001000u;
@@ -41,7 +41,7 @@ public:
             /* ESDSCR[14] CON_ACK (RO, Table 30-6): the controller acks the
                config-access request once idle with no AXI pending. CERF issues
                no DDR AXI traffic, so it is always idle and acks immediately,
-               i.e. CON_ACK tracks CON_REQ — the OAL polls (CON_REQ & CON_ACK). */
+               i.e. CON_ACK tracks CON_REQ - the OAL polls (CON_REQ & CON_ACK). */
             v = (v & ~kConAck) | ((v & kConReq) ? kConAck : 0u);
         }
         return v;

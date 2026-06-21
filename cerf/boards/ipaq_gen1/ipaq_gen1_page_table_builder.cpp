@@ -23,7 +23,7 @@ struct OatEntry {
 
 /* OEMAddressTable, decoded from PPC2002 nk.exe at IDA 0x800413F4. */
 constexpr OatEntry kOat[] = {
-    { 0x80000000u, 0x00000000u, MB(32), OatKind::Flash }, /* static bank 0 — boot Flash (kernel image at PA 0x40000) */
+    { 0x80000000u, 0x00000000u, MB(32), OatKind::Flash }, /* static bank 0 - boot Flash (kernel image at PA 0x40000) */
     { 0x82000000u, 0x08000000u, MB(32), OatKind::Mmio  }, /* static bank 1 */
     { 0x84000000u, 0x18000000u, MB(16), OatKind::Mmio  }, /* static bank 3 */
     { 0x86000000u, 0x40000000u, MB(32), OatKind::Mmio  }, /* static bank 4 */

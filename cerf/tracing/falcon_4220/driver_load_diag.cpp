@@ -21,7 +21,7 @@ void ReadWStr(const TraceContext& c, uint32_t va, char* out, int cap) {
 
 /* coredll!LoadDriver (shared XIP, runtime VA == IDA VA): 0x3F87670 entry R0 =
    driver name; 0x3F876D0 (after MOV R0,R4) R0 = result (0 = load failed).
-   Unfiltered on purpose — whole-system driver-load census; the name string in
+   Unfiltered on purpose - whole-system driver-load census; the name string in
    each fire identifies the load, so the calling process is irrelevant. */
 class FalconDriverLoadDiag : public Service {
 public:

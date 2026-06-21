@@ -52,9 +52,9 @@ void Jornada720Led::PressButton() {
 
 std::wstring Jornada720Led::Tooltip() const {
     switch (CurrentState()) {
-        case State::On:    return L"Notification LED — on (click = press button)";
-        case State::Blink: return L"Notification LED — blinking (click = press button)";
-        default:           return L"Notification LED — off (click = press button)";
+        case State::On:    return L"Notification LED - on (click = press button)";
+        case State::Blink: return L"Notification LED - blinking (click = press button)";
+        default:           return L"Notification LED - off (click = press button)";
     }
 }
 

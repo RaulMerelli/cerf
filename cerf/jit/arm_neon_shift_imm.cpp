@@ -48,7 +48,7 @@ void ArmNeonShiftImm::HandleShiftImm(uint32_t op, uint32_t d_idx, uint32_t m_idx
                 case kSiShl:
                     s = a << shift_amount;
                     break;
-                /* VRSHR rounding: same overflow-safe idiom as VRSHL right shift —
+                /* VRSHR rounding: same overflow-safe idiom as VRSHL right shift -
                    main = a>>rs (clamp/zero at >=64), rbit = bit (rs-1) of a. */
                 case kSiRshrU: {
                     const uint32_t rs = shift_amount;

@@ -17,7 +17,7 @@ public:
 
     /* Second pass, after every peripheral's RestoreState has run. Re-assert
        computed interrupt lines here (a source into its INTC, an INTC's JIT
-       notify) — done in RestoreState the peer being driven may not be restored
+       notify) - done in RestoreState the peer being driven may not be restored
        yet, so the assertion is clobbered. */
     virtual void PostRestore() {}
 
@@ -28,7 +28,7 @@ public:
     virtual uint32_t MmioSize() const = 0;
 
     /* Read/write paths. addr is already inside [MmioBase, MmioBase + MmioSize).
-       Defaults halt — peripherals override per width. */
+       Defaults halt - peripherals override per width. */
     virtual uint8_t  ReadByte (uint32_t addr);
     virtual uint16_t ReadHalf (uint32_t addr);
     virtual uint32_t ReadWord (uint32_t addr);

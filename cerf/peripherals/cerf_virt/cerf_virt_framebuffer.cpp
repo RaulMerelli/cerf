@@ -34,8 +34,8 @@ BOOL CALLBACK AccumulateMaxMonitor(HMONITOR, HDC, LPRECT rc, LPARAM lp) {
 
 uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
     /* bytes_ cannot grow after this (guest maps it by PA, MmioSize fixed), and
-       the surface tops out at the host monitor it lands on — which may not be
-       the primary — so reserve for the largest single monitor on the desktop. */
+       the surface tops out at the host monitor it lands on - which may not be
+       the primary - so reserve for the largest single monitor on the desktop. */
     const uint32_t bytes_per_px = bpp_ >> 3u;
     uint32_t max_primary = SizeBytes();
     MaxMonitorDims mon;

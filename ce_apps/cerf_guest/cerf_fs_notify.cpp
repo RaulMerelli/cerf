@@ -49,7 +49,7 @@ static BOOL CerfNotifyReset(CerfWatch* w, void* ignored) {
 static const PFNVOID g_notifyMethods[3] = {
     (PFNVOID)CerfNotifyClose, (PFNVOID)NULL, (PFNVOID)CerfNotifyReset,
 };
-/* FNSIG1(DW), FNSIG0(), FNSIG2(DW,PTR) — byte-identical to fsnotify asigFindNotify.
+/* FNSIG1(DW), FNSIG0(), FNSIG2(DW,PTR) - byte-identical to fsnotify asigFindNotify.
    CE5/WM5 (the only family this runs on) uses the 32-bit encoding. */
 static const DWORD g_notifySig32[3] = { 0x000, 0x000, 0x004 };
 
@@ -67,7 +67,7 @@ void CerfFsNotifyInit(void) {
 
     ovi.dwOSVersionInfoSize = sizeof(ovi);
     GetVersionEx(&ovi);
-    /* CE5/WM5 (major 5) only — the family whose volume apiset registers FFCN at
+    /* CE5/WM5 (major 5) only - the family whose volume apiset registers FFCN at
        index 17. DO NOT enable on CE6/7: their explorer hangs on folder-open. */
     if (ovi.dwMajorVersion != 5) { CERF_LOG("cerf_guest: notify skipped (not CE5)"); return; }
     g_hNotifyAPI = pCreateAPISet("CFSN", 3, g_notifyMethods, (const ULONGLONG*)g_notifySig32);

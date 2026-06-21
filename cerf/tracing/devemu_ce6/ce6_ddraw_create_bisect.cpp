@@ -49,7 +49,7 @@ public:
                 if (cap(m, 8)) return;
                 LOG(Trace, "[CE6DD] mode-record count [R5+0x2E4]=R3=%u\n", c.regs[3]);
             });
-            /* mode-record new[] result (0xC01B587C CMP R0,#0) — only if count!=0. */
+            /* mode-record new[] result (0xC01B587C CMP R0,#0) - only if count!=0. */
             auto ma = std::make_shared<std::atomic<uint32_t>>(0);
             tm.OnPc(0xC01B587Cu, [ma, cap](const TraceContext& c) {
                 if (cap(ma, 8)) return;

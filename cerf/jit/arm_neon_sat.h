@@ -16,7 +16,7 @@ public:
     static constexpr uint32_t kSatSubU  = 3u;  /* VQSUB  unsigned            */
     /* VQSHL (register, A8.8.379) + VQRSHL (A8.8.377): saturating left
        shift; right shift is truncating (VQSHL) or rounding (VQRSHL).
-       No saturation on right shift — the result always fits in esize. */
+       No saturation on right shift - the result always fits in esize. */
     static constexpr uint32_t kSatShlS  = 4u;  /* VQSHL  signed              */
     static constexpr uint32_t kSatShlU  = 5u;  /* VQSHL  unsigned            */
     static constexpr uint32_t kSatRshlS = 6u;  /* VQRSHL signed (rounding)   */

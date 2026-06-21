@@ -49,7 +49,7 @@ constexpr uint32_t kOffTowr   = 0x58;
 /* TIOCP bits. */
 constexpr uint32_t kTiocpSoftReset = 1u << 1;
 
-/* TISR / TIER / TWER bit layout — TCAR, OVF, MAT. */
+/* TISR / TIER / TWER bit layout - TCAR, OVF, MAT. */
 constexpr uint32_t kIntMat = 1u << 0;
 constexpr uint32_t kIntOvf = 1u << 1;
 constexpr uint32_t kIntTcar = 1u << 2;
@@ -95,7 +95,7 @@ private:
        guest scheduler decisions and flaky boot. */
     uint32_t ComputeTcrrLocked(uint32_t cycles_now) const;
 
-    /* Match-loop worker — wakes every 100 us host time, advances
+    /* Match-loop worker - wakes every 100 us host time, advances
        state, dispatches MATCH / OVF, edges the IRQ line. The host
        sleep is for poll cadence only; the state advance reads
        guest_cycle_counter so the answer is host-clock-independent. */
@@ -164,7 +164,7 @@ private:
 bool Omap3530Gptimer1::MatchCrossed(uint32_t old_tcrr, uint32_t new_tcrr,
                                     uint32_t tmar) {
     /* Distance from old_tcrr to TMAR (modulo 2^32). 0 means TMAR
-       sits at old_tcrr exactly — we don't fire on that because
+       sits at old_tcrr exactly - we don't fire on that because
        the previous wake already would have. */
     const uint32_t to_match = tmar - old_tcrr;
     const uint32_t advanced = new_tcrr - old_tcrr;
@@ -203,7 +203,7 @@ void Omap3530Gptimer1::ApplySoftResetLocked(uint32_t cycles_now) {
     tmar_   = 0xFFFFFFFFu;
     tsicr_  = 0;
     SampleTcrrBaseLocked(0, cycles_now);
-    /* Don't clear irq_line_high_ — caller's RecomputeIrqLineLocked
+    /* Don't clear irq_line_high_ - caller's RecomputeIrqLineLocked
        needs its pre-reset value to detect the high→low edge and
        issue DeAssertIrq(37); clearing it strands ITR[37] high. */
 }
@@ -234,7 +234,7 @@ void Omap3530Gptimer1::AdvanceStateLocked(uint32_t cycles_now) {
 
     if (new_tcrr == old_tcrr) return;
 
-    /* Match crossing — only if CE is set. */
+    /* Match crossing - only if CE is set. */
     if ((tclr_ & kTclrCe) != 0 && MatchCrossed(old_tcrr, new_tcrr, tmar_)) {
         tisr_ |= kIntMat;
     }
@@ -257,7 +257,7 @@ void Omap3530Gptimer1::AdvanceStateLocked(uint32_t cycles_now) {
 void Omap3530Gptimer1::TickLoop() {
     auto& freeze = emu_.Get<EmulationFreeze>();
     while (!stop_thread_.load(std::memory_order_acquire)) {
-        /* 100 µs host poll cadence — matches Sa11xxOsTimer. State
+        /* 100 µs host poll cadence - matches Sa11xxOsTimer. State
            advance uses guest_cycle_counter, so the answer is
            deterministic per-run despite the host sleep's jitter. */
         std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -274,7 +274,7 @@ uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     const uint32_t cycles_now = GuestCycles();
     AdvanceStateLocked(cycles_now);
-    /* Log only TCRR reads with their values — that's what matters. */
+    /* Log only TCRR reads with their values - that's what matters. */
     if (off == kOffTcrr) {
         static uint32_t last_tcrr = 0;
         const uint32_t v = ComputeTcrrLocked(cycles_now);
@@ -332,7 +332,7 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
         tiocp_ = value;
         return;
     case kOffTistat:
-        /* Status — read-only. */
+        /* Status - read-only. */
         return;
     case kOffTisr:
         /* W1C: clear any bit the caller wrote 1 to. */
@@ -364,7 +364,7 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
             last_processed_tcrr_ = frozen;
         }
         tclr_ = value;
-        /* No match/overflow recompute here — the next wake or
+        /* No match/overflow recompute here - the next wake or
            read will handle it. */
         return;
     }
@@ -380,7 +380,7 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
         SampleTcrrBaseLocked(tldr_, cycles_now);
         return;
     case kOffTwps:
-        /* Posted-write status — read-only. */
+        /* Posted-write status - read-only. */
         return;
     case kOffTmar:
         tmar_ = value;
@@ -392,23 +392,23 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
     case kOffTnir:
         if (value != 0) {
             HaltUnsupportedAccess(
-                "WriteWord(TPIR/TNIR non-zero — fractional clock "
+                "WriteWord(TPIR/TNIR non-zero - fractional clock "
                 "increment not modelled)",
                 addr, value);
         }
         return;
     case kOffTcar1:
     case kOffTcar2:
-        /* Capture registers — read-only on real silicon. */
+        /* Capture registers - read-only on real silicon. */
         return;
     case kOffTcvr:
     case kOffTocr:
     case kOffTowr:
-        /* Overflow-counter / wakeup registers — not modelled
+        /* Overflow-counter / wakeup registers - not modelled
            because the boot path doesn't program them. Halt if
            the kernel ever writes here. */
         HaltUnsupportedAccess(
-            "WriteWord(TCVR/TOCR/TOWR — overflow-counter family "
+            "WriteWord(TCVR/TOCR/TOWR - overflow-counter family "
             "not modelled)",
             addr, value);
     }

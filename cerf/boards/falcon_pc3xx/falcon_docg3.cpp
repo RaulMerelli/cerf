@@ -10,7 +10,7 @@ namespace {
 
 /* The DiskOnChip G3 is the Falcon's CS0 boot device: registry WindowBase=0 and
    the OAL's uncached probe at 0xB8300000 (nk.exe sub_800F3FFC) both resolve to
-   PA 0 — OAT VA 0x98300000 -> PA 0, +0x20000000 is its uncached alias. */
+   PA 0 - OAT VA 0x98300000 -> PA 0, +0x20000000 is its uncached alias. */
 class FalconDocG3 : public MsystemsDocG3Base {
 public:
     using MsystemsDocG3Base::MsystemsDocG3Base;

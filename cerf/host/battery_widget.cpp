@@ -58,7 +58,7 @@ std::wstring BatteryWidget::Tooltip() const {
                          : fill >= kLevelLow  ? L"Low"
                                               : L"Critical";
     wchar_t buf[96];
-    swprintf_s(buf, L"Battery — %s, %d%% (%s)",
+    swprintf_s(buf, L"Battery - %s, %d%% (%s)",
                on_batt ? L"on battery" : L"on AC", fill, level);
     return buf;
 }

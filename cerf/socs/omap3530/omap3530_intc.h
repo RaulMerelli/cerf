@@ -31,7 +31,7 @@ public:
 private:
     /* Per-bank state. */
     struct Bank {
-        uint32_t itr  = 0;                /* raw input — set by AssertIrq */
+        uint32_t itr  = 0;                /* raw input - set by AssertIrq */
         uint32_t mir  = 0xFFFFFFFFu;      /* mask: 1 = source disabled */
         uint32_t isr  = 0;                /* software-fired bits */
     };

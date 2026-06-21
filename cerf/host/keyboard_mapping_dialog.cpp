@@ -164,7 +164,7 @@ void KeyboardMappingDialog::Paint(HDC dc) {
     HFONT font = emu_.Get<HostDarkMode>().UiFont();
     HGDIOBJ of = SelectObject(dc, font ? font : GetStockObject(DEFAULT_GUI_FONT));
 
-    /* Header line — lists the board's modifiers (it may have more than one) and
+    /* Header line - lists the board's modifiers (it may have more than one) and
        only then offers the layer preview. */
     const auto     toggles = emu_.Get<KeyboardMap>().ToggleLayers();
     std::wstring   mods;
@@ -190,8 +190,8 @@ void KeyboardMappingDialog::Paint(HDC dc) {
         const wchar_t* m = active_name ? active_name : L"the modifier";
         _snwprintf_s(header, _TRUNCATE,
                      active_is_toggle
-                         ? L"Previewing the %s layer — untick %s to return."
-                         : L"Previewing the %s layer — click %s again to return.",
+                         ? L"Previewing the %s layer - untick %s to return."
+                         : L"Previewing the %s layer - click %s again to return.",
                      m, m);
     } else if (!mods.empty()) {
         _snwprintf_s(header, _TRUNCATE,

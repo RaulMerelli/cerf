@@ -7,7 +7,7 @@
 /* Owns the guest-additions injection band: a CERF-backed PA region the MMU
    walker overlay serves at a guest-unmapped static-window VA, so the injected
    stub's e32/o32/section bytes live in CERF memory and the victim's TOC is
-   only repointed at the band VA — never squatted into the victim's section. */
+   only repointed at the band VA - never squatted into the victim's section. */
 class CerfInjectionRegion : public Service {
 public:
     using Service::Service;

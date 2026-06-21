@@ -43,7 +43,7 @@ public:
         if (copy_w == 0 || copy_h == 0) return;
 
         /* The host DIB is always BGRA32; a board may run the GA framebuffer at a
-           shallower depth (BoardDetector::GetGuestAdditionsColorDepth — Zune 16bpp
+           shallower depth (BoardDetector::GetGuestAdditionsColorDepth - Zune 16bpp
            RGB565, iPaq 24bpp BGR888), so convert per source bpp on scanout. */
         const uint32_t guest_stride = fb.Stride();
         const uint32_t bpp = fb.Bpp();

@@ -5,7 +5,7 @@
 #include "../core/service.h"
 
 /* VMOV (ARM core register to scalar) / VMOV (scalar to ARM core
-   register) — A8.8.341 / A8.8.342, esize=8 and esize=16 lane
+   register) - A8.8.341 / A8.8.342, esize=8 and esize=16 lane
    transfers. (esize=32 is handled by EmitVfpSingleMove.) */
 class ArmNeonScalarMove : public Service {
 public:

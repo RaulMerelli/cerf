@@ -38,7 +38,7 @@ bool ArmDecoder::DecodeArmClass3Misc(DecodedInsn* insn, ArmOpcode op) {
             insn->place_fn = &PlaceRevsh;
             return true;
         }
-        /* No match in the REV family — return false so the caller
+        /* No match in the REV family - return false so the caller
            UND-faults (halt-on-unknown). RBIT (0x6F, 0x3) lands here. */
         return false;
     }

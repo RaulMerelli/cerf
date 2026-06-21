@@ -7,7 +7,7 @@
 namespace {
 
 /* The G138 OAL samples PPC pin 7 (L_DD7, an input pre-LCD) as a boot-mode
-   strap: nk.exe 0x8C143790 `TST PPSR,#0x80` — bit 7 high = normal boot, low =
+   strap: nk.exe 0x8C143790 `TST PPSR,#0x80` - bit 7 high = normal boot, low =
    `MOV PC,#0x20000` recovery/reflash stub. A run-position device reads bit 7
    high, so drive the input pin high for the normal boot path. */
 class SmartBookG138BootStrap : public Service {

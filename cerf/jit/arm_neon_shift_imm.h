@@ -24,12 +24,12 @@ public:
        the shift mask. No signed/unsigned distinction (A8.8.403 / A8.8.400). */
     static constexpr uint32_t kSiSri   = 9u;  /* VSRI shift-right-and-insert         */
     static constexpr uint32_t kSiSli   = 10u; /* VSLI shift-left-and-insert          */
-    /* VSHRN (A8.8.399) / VRSHRN (A8.8.390): narrowing right shift — reads
+    /* VSHRN (A8.8.399) / VRSHRN (A8.8.390): narrowing right shift - reads
        a Q register (2*esize-bit elements), writes a D register (esize-bit
        elements). VRSHRN adds the rounding (val>>rs)+rbit idiom. */
     static constexpr uint32_t kSiShrn  = 11u; /* VSHRN  truncating narrowing right   */
     static constexpr uint32_t kSiRshrn = 12u; /* VRSHRN rounding   narrowing right   */
-    /* VSHLL (A8.8.397 T1/A1): widening left shift — reads a D register
+    /* VSHLL (A8.8.397 T1/A1): widening left shift - reads a D register
        (esize-bit elements), writes a Q register (2*esize-bit elements).
        U bit selects sign-extend vs zero-extend before the shift. */
     static constexpr uint32_t kSiShllS = 13u; /* VSHLL signed   widening left        */

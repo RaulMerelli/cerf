@@ -9,7 +9,7 @@ namespace {
 
 /* T8: captures every coredll!CreateProcessW call (shared DLL region, one VA for
    all processes; process_id names the caller) to diff explorer's launch of the
-   card .exe — which prefetch-aborts — against the gwes self-test's, which works. */
+   card .exe - which prefetch-aborts - against the gwes self-test's, which works. */
 constexpr uint32_t kCreateProcessW = 0x01F9B5B4u;   /* coredll CreateProcessW entry */
 
 /* Read up to `cap-1` guest wide chars at `va` into an ASCII-ish buffer for

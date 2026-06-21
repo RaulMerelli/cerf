@@ -10,7 +10,7 @@ using cerf_freescale_wdog_detail::kWsr;
 using cerf_freescale_wdog_detail::kWrsr;
 using cerf_freescale_wdog_detail::kWcrReset;
 
-/* i.MX31 Watchdog (MCIMX31RM Ch 37) at PA 0x53FD_C000 — three 16-bit registers.
+/* i.MX31 Watchdog (MCIMX31RM Ch 37) at PA 0x53FD_C000 - three 16-bit registers.
    The kernel loads WCR.WT, sets WDE, then services the dog (WSR 0x5555/0xAAAA)
    every cycle and reads WRSR for the boot reason. */
 class Imx31Wdog : public FreescaleWdogBase<0x53FDC000u, SocFamily::iMX31> {

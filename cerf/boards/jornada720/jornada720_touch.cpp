@@ -117,7 +117,7 @@ void Jornada720Touch::TapRawAdc(uint16_t adc_x, uint16_t adc_y) {
         adc_x_ = adc_x;
         adc_y_ = adc_y;
         /* touch.dll latches the zone from pen-down samples and fires on the
-           pen-up report (sub_FB1314) — hold a few samples, then release. */
+           pen-up report (sub_FB1314) - hold a few samples, then release. */
         synthetic_pulses_ = 4;
         pen_down_ = true;
     }

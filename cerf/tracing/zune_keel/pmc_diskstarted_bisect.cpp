@@ -30,14 +30,14 @@ public:
                     n.fetch_add(1), c.regs[0], c.regs[1]);
             });
 
-            /* Reached only if every early bail was passed — right before the
+            /* Reached only if every early bail was passed - right before the
                CreateEvent(PMC/DiskStarted) call. */
             tm.OnPcFiltered(0x3058330u, dev, [](const TraceContext& c) {
                 LOG(Trace, "[PMC-PMINIT] reached PMC/DiskStarted create site "
                            "(no early bail) lr=0x%08X\n", c.regs[14]);
             });
 
-            /* The store a1[21]=hEvent right after the create — confirms the event
+            /* The store a1[21]=hEvent right after the create - confirms the event
                handle returned. */
             tm.OnPcFiltered(0x3058354u, dev, [](const TraceContext& c) {
                 LOG(Trace, "[PMC-PMINIT] PMC/DiskStarted created, handle=0x%08X\n",

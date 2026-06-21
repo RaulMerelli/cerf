@@ -49,7 +49,7 @@ void PaintProgress(HWND hwnd, DumpState* st) {
     HGDIOBJ oldbr;
 
     GetClientRect(hwnd, &rc);
-    /* Clear with a real stock brush — CE FillRect does not honour the
+    /* Clear with a real stock brush - CE FillRect does not honour the
        (COLOR_xxx + 1) system-color pseudo-brush, so the per-paint erase
        must use an HBRUSH; otherwise changing text overdraws itself. */
     FillRect(dc, &rc, (HBRUSH)GetStockObject(WHITE_BRUSH));

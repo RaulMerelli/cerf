@@ -25,7 +25,7 @@ constexpr size_t   kContentProbeStride = 251;
 /* SA-1110 §11.7.1.5 Table 11-7: dither value -> pixel-ON duty. The H31xx
    STN glass darkens when driven (Linux h3100_lcd_info: cmap_inverse=1;
    the ROM's ddi.dll programs an identity hw palette relying on it), so
-   intensity = duty complement — an ascending table inverts the screen. */
+   intensity = duty complement - an ascending table inverts the screen. */
 constexpr uint8_t kMonoGray[16] = { 255, 227, 204, 187, 170, 153, 142, 127,
                                     113, 102, 85, 68, 51, 28, 0, 0 };
 
@@ -138,11 +138,11 @@ private:
             case 1: return MonoLayout{ 0x200u, 8u, 256u };
             default: break;
         }
-        /* PBS=10 bypasses the palette with 12-bit RGB pixels (p.11-19) —
+        /* PBS=10 bypasses the palette with 12-bit RGB pixels (p.11-19) -
            contradicts CMS=1's 4-bit gray palette path; PBS=11 reserved.
            Neither has defined mono behavior. */
         LOG(Lcd, "Sa11xxLcdRenderer: FATAL mono frame with PBS=%u "
-                 "(palette entry0=0x%04X) — undefined combination\n",
+                 "(palette entry0=0x%04X) - undefined combination\n",
             pbs, entry0);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }

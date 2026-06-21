@@ -28,7 +28,7 @@ uint8_t* PlaceNeonData2RegScalarMul(uint8_t*      cursor,
     const uint32_t d_idx = (Dbit << 4) | Vd;
     const uint32_t n_idx = (Nbit << 4) | Vn;
 
-    /* A8.8.338 line 44817 / A8.8.352 line 46062: size==11 SEE Related —
+    /* A8.8.338 line 44817 / A8.8.352 line 46062: size==11 SEE Related -
        upstream router sends size=11 to A7.4.5 not here, defensive UND. */
     if (size == 3u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);

@@ -8,7 +8,7 @@ class PeImage;
 namespace cerf::ce_image_relocator {
 
 /* Pre-applied: injection sets e32_vbase==BasePtr so the kernel skips Relocate().
-   Each fixup is rebased by section_realaddr[] of the section it targets — writable
+   Each fixup is rebased by section_realaddr[] of the section it targets - writable
    data on a slot-0 per-process base, code on slot-1 shared; a single global delta
    would leave writable data in the shared region. code_delta = out-of-section. */
 void ApplyRelocations(std::vector<uint8_t>&         bytes,

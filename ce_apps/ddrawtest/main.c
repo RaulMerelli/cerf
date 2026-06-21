@@ -10,7 +10,7 @@
 #endif
 
 /* CE5.0 (Zune / devemu_ce5) DirectDraw: no-Compact vtable (ce6-oak headers) but the
-   CLASSIC DDSURFACEDESC layout — ddsCaps at 0x68 (ce6=0x64), PRIMARYSURFACE=0x200
+   CLASSIC DDSURFACEDESC layout - ddsCaps at 0x68 (ce6=0x64), PRIMARYSURFACE=0x200
    (ce6=0x40). Field names match DDSURFACEDESC so the rest of the probe is identical. */
 #ifdef CERF_CE5_DESC
 #pragma pack(push, 4)

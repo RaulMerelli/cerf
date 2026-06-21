@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VACGE / VACGT — A8.8.281, opc=1110 C=1 U=1. bit[21]=op selects
+/* VACGE / VACGT - A8.8.281, opc=1110 C=1 U=1. bit[21]=op selects
    ACGE (0) / ACGT (1). */
 uint8_t* PlaceNeonData3SameFpAbsCompare(uint8_t*      cursor,
                                         DecodedInsn*  d,

@@ -7,8 +7,8 @@
 #include <string>
 #include <string_view>
 
-/* Single funnel for guest OS debug text. Every producer — live SoC/board
-   UART/serial TX, and hooks on a nulled OEM debug sink — routes finished
+/* Single funnel for guest OS debug text. Every producer - live SoC/board
+   UART/serial TX, and hooks on a nulled OEM debug sink - routes finished
    lines here, which emits them to the always-on Nkdbg log channel and the
    HwScreen debug console. */
 class KernelDebugSink : public Service {

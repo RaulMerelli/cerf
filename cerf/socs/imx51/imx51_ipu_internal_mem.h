@@ -14,7 +14,7 @@ namespace cerf_imx51_ipu_mem_detail {
 
 /* i.MX51 IPUv3EX internal-memory windows (MCIMX51RM Ch 42 Table 42-1): 128 KB
    passive-RAM windows in the IPU internal-memory region (IPU base 0x40000000 +
-   0x1F000000 = 0x5F000000) — CPMEM / LUT / CM-Shadow(SRM) / TPM / DC template. */
+   0x1F000000 = 0x5F000000) - CPMEM / LUT / CM-Shadow(SRM) / TPM / DC template. */
 constexpr uint32_t kSize = 0x00020000u;   /* 128 KB per window, RM Table 42-1 */
 
 template <uint32_t kBase>

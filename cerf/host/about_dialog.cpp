@@ -267,7 +267,7 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int w = rc.right - rc.left, h = rc.bottom - rc.top;
             if (w > 0 && h > 0) {
                 /* Double-buffer: fill background + draw the (possibly rotating)
-                   logo into a memory DC, then blit once — no erase-then-draw
+                   logo into a memory DC, then blit once - no erase-then-draw
                    flash during the Konami spin. */
                 HDC     mem = CreateCompatibleDC(dc);
                 HBITMAP bmp = CreateCompatibleBitmap(dc, w, h);

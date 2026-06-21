@@ -8,7 +8,7 @@
 namespace {
 
 /* #72 CE3 GA crash: pins why touch.dll's UCB-codec pointer off_1654110 is NULL
-   under --guest-additions — VirtualAlloc fail vs VirtualCopy fail (sub_1651858
+   under --guest-additions - VirtualAlloc fail vs VirtualCopy fail (sub_1651858
    then zeroes it) vs already-NULL at the crasher. Hook PCs are fixed-VA ROM-DLL
    addresses (touch.dll @ 0x01650000), so unambiguous. */
 constexpr uint32_t kGwesSlot          = 0x0A000000u;  /* GWES process_id, slot 5 */
@@ -50,7 +50,7 @@ public:
             });
 
             tm.OnPc(kCleanupZero, [pid](const TraceContext& c) {
-                LOG(Trace, "[TCH] sub_1651858 CLEANUP (zeroes off_1654110 — UCB init "
+                LOG(Trace, "[TCH] sub_1651858 CLEANUP (zeroes off_1654110 - UCB init "
                            "FAILED) pid=%08X LR=%08X\n", pid(c), c.regs[14]);
             });
 
@@ -67,7 +67,7 @@ public:
                 LOG(Trace, "[TCH] sub_1651500 ENTER off_1654110=%s%08X pid=%08X "
                            "LR=%08X %s\n",
                     cur ? "" : "(unmapped)", cur.value_or(0), pid(c), c.regs[14],
-                    (cur && *cur == 0) ? "<<< NULL — about to Data Abort" : "");
+                    (cur && *cur == 0) ? "<<< NULL - about to Data Abort" : "");
             });
         });
     }

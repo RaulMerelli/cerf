@@ -13,7 +13,7 @@ public:
     virtual void OnPenUp      (int x, int y) = 0;
     virtual void OnCaptureLost()             = 0;
 
-    /* PointerSource — the stock resistive/stylus panel. */
+    /* PointerSource - the stock resistive/stylus panel. */
     std::wstring   SourceName()       const override { return L"Stock stylus"; }
     const wchar_t* IconResourceName() const override { return L"ICON_INPUT_STYLUS"; }
     int            SourcePriority()   const override { return 0; }

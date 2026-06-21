@@ -1,4 +1,4 @@
-"""LauncherApp: window composition and operation orchestration — manifest
+"""LauncherApp: window composition and operation orchestration - manifest
 refresh, release check, device & package download/update/delete, launch."""
 from __future__ import annotations
 
@@ -183,7 +183,7 @@ class LauncherApp(tk.Tk):
                     f"{exc}\n\n"
                     f"Local devices remain available to launch. Download / "
                     f"update / package fetch require a reachable remote "
-                    f"manifest — try again later or check your network."
+                    f"manifest - try again later or check your network."
                 )
             self._reload_device_list()
         self._await_future(future, done)
@@ -198,8 +198,8 @@ class LauncherApp(tk.Tk):
                 f"understands (version {exc.supported_version}).\n\n"
                 f"Download a newer CERF build to fetch or update ROM bundles:\n"
                 f"https://github.com/gweslab/cerf\n"
-                f"  • Releases — latest stable build\n"
-                f"  • Actions artifacts — newest CI build\n\n"
+                f"  • Releases - latest stable build\n"
+                f"  • Actions artifacts - newest CI build\n\n"
                 f"Your already-installed devices remain available to launch."
             )
         else:
@@ -209,7 +209,7 @@ class LauncherApp(tk.Tk):
                 f"The server's bundle catalog (manifest version "
                 f"{exc.remote_version}) is older than this CERF build expects "
                 f"(version {exc.supported_version}). This is usually "
-                f"temporary — try again later.\n\n"
+                f"temporary - try again later.\n\n"
                 f"Your already-installed devices remain available to launch."
             )
 
@@ -379,7 +379,7 @@ class LauncherApp(tk.Tk):
         total = len(rom_targets) + len(pkg_targets)
         if not total:
             show_info(self, "Update all",
-                      "Only large bundles need updating — update each from the "
+                      "Only large bundles need updating - update each from the "
                       "table individually.")
             return
         if not confirm_rom_license(self, f"{total} item(s)"):

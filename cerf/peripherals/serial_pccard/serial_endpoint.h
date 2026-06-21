@@ -8,7 +8,7 @@ class Serial16550;
 /* A serial "personality" behind a 16550 UART: consumes the guest's TX bytes,
    reacts to DTR/RTS changes, and pushes RX bytes + modem-status lines back
    through the bound Serial16550. Concretes: modem (AT), GPS (NMEA), raw bridge.
-   NOT a Service — one per card, owned by SerialPcCard. */
+   NOT a Service - one per card, owned by SerialPcCard. */
 class SerialEndpoint {
 public:
     virtual ~SerialEndpoint() = default;

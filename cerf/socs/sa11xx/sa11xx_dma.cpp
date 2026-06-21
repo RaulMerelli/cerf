@@ -79,7 +79,7 @@ void Sa11xxDma::KickIfStartedLocked(uint32_t channel_index, Channel& c,
                                      uint32_t newly_set) {
     const uint32_t before = c.dcsr;
 
-    /* §11.6.1.2: setting STRTA clears DONEA, NOT STRTA itself —
+    /* §11.6.1.2: setting STRTA clears DONEA, NOT STRTA itself -
        wavedev sub_F524B4 polls until both STRT bits stay set after
        software writes them; clearing in-Kick makes it spin forever.
        The clear is unconditional on the STRT write, even under RUN=0. */
@@ -101,7 +101,7 @@ void Sa11xxDma::KickIfStartedLocked(uint32_t channel_index, Channel& c,
         return false;
     };
 
-    /* §11.6.1.2: STRT is "functional only if the RUN bit is set" — STRT
+    /* §11.6.1.2: STRT is "functional only if the RUN bit is set" - STRT
        written under RUN=0 stays pending and takes effect on the RUN 0→1
        edge. PPC2002 wavedev arms STRTA/STRTB first and sets RUN|IE last;
        kicking only on STRT edges leaves those transfers dead forever. */

@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VMLA.F32 / VMLS.F32 (A8.8.337) — A7.4.1 opc=1101, B=1, U=0. */
+/* VMLA.F32 / VMLS.F32 (A8.8.337) - A7.4.1 opc=1101, B=1, U=0. */
 uint8_t* PlaceNeonData3SameFpMulAcc(uint8_t*      cursor,
                                     DecodedInsn*  d,
                                     BlockContext* ctx) {

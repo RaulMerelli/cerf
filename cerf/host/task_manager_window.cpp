@@ -258,15 +258,15 @@ void TaskManagerWindow::UpdateTitle(const CerfVirtTaskManager::Snapshot& snap) {
     wchar_t title[96];
     if (list_.GetMode() == TaskManagerListView::Mode::Windows) {
         /* One row per process; the count is processes shown, not raw windows. */
-        _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager — %u programs",
+        _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager - %u programs",
                      (unsigned)list_.DisplayedCount());
     } else {
         if (snap.guest_total > snap.procs.size())
             _snwprintf_s(title, _TRUNCATE,
-                         L"Guest Task Manager — %u of %u processes",
+                         L"Guest Task Manager - %u of %u processes",
                          (unsigned)snap.procs.size(), snap.guest_total);
         else
-            _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager — %u processes",
+            _snwprintf_s(title, _TRUNCATE, L"Guest Task Manager - %u processes",
                          (unsigned)snap.procs.size());
     }
     SetWindowTextW(hwnd_, title);

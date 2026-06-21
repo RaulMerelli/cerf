@@ -94,7 +94,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         LOG(Caution, "RomParser: failed to read %s\n", rom.path.c_str());
         return false;
     }
-    LOG(Boot, "RomParser: %s — %zu bytes (%.1f MB)\n",
+    LOG(Boot, "RomParser: %s - %zu bytes (%.1f MB)\n",
         rom.path.c_str(), rom.raw.size(),
         double(rom.raw.size()) / 1024.0 / 1024.0);
 
@@ -124,7 +124,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
                                .subspan(os.data_off, os.flat_size);
         rom.flat_base_va = os.base_va;
         rom.entry_va     = os.entry_va;
-        LOG(Boot, "RomParser %s: NOSAJ container — OS XIP @ file 0x%zX "
+        LOG(Boot, "RomParser %s: NOSAJ container - OS XIP @ file 0x%zX "
                   "base=0x%08X entry=0x%08X span=%.1f MB\n",
             rom.filename.c_str(), os.data_off, os.base_va, os.entry_va,
             double(os.flat_size) / 1024.0 / 1024.0);
@@ -141,7 +141,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         rom.flat         = std::span<const uint8_t>(rom.raw)
                                .subspan(os.data_off, os.flat_size);
         rom.flat_base_va = os.base_va;
-        LOG(Boot, "RomParser %s: ARNOLDBOOTBLOCK package — OS XIP @ file 0x%zX "
+        LOG(Boot, "RomParser %s: ARNOLDBOOTBLOCK package - OS XIP @ file 0x%zX "
                   "base=0x%08X span=%.1f MB\n",
             rom.filename.c_str(), os.data_off, os.base_va,
             double(os.flat_size) / 1024.0 / 1024.0);
@@ -158,7 +158,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         rom.flat         = std::span<const uint8_t>(rom.raw)
                                .subspan(os.data_off, os.flat_size);
         rom.flat_base_va = 0;
-        LOG(Boot, "RomParser %s: iPAQ .nbf package — OS XIP @ file 0x%zX "
+        LOG(Boot, "RomParser %s: iPAQ .nbf package - OS XIP @ file 0x%zX "
                   "span=%.1f MB\n",
             rom.filename.c_str(), os.data_off,
             double(os.flat_size) / 1024.0 / 1024.0);
@@ -181,7 +181,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         ParseModulesAndFiles(rom.flat, romhdr_off, xip.load_offset,
                              xip.toc.romhdr, xip.toc);
         const auto& h = xip.toc.romhdr;
-        LOG(Boot, "RomParser %s: no ECEC marker — structural ROMHDR @ file "
+        LOG(Boot, "RomParser %s: no ECEC marker - structural ROMHDR @ file "
                   "off 0x%zX  load_offset=0x%08X  romhdr_va=0x%08X  "
                   "physfirst=0x%08X..physlast=0x%08X  nummods=%u  numfiles=%u\n",
             rom.filename.c_str(), romhdr_off, xip.load_offset,
@@ -289,7 +289,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
                 rom.filename.c_str(),
                 rom.imgfs_is_ftl ? "FTL-mapped" : "direct-addressed",
                 rom.imgfs_modules.size());
-            /* Diagnostic: log section index pointers for victim + gwes —
+            /* Diagnostic: log section index pointers for victim + gwes -
                lets the injector cross-compare which IMGFS pages it's
                writing to and whether they overlap any other module's
                storage (the WM6.5 gwes UND crash signature). */
@@ -314,7 +314,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         }
     }
 
-    /* Per-module / per-file logging — flatten across every XIP. */
+    /* Per-module / per-file logging - flatten across every XIP. */
     for (size_t xi = 0; xi < rom.xips.size(); ++xi) {
         const auto& xip = rom.xips[xi];
         for (size_t i = 0; i < xip.toc.modules.size(); ++i) {
@@ -352,7 +352,7 @@ void RomParserService::OnReady() {
                          "declares no rom.recovery\n", cfg.device_name.c_str());
             return;
         }
-        LOG(Boot, "RomParser: RECOVERY MODE — booting %s\n",
+        LOG(Boot, "RomParser: RECOVERY MODE - booting %s\n",
             cfg.rom_recovery.c_str());
         filenames.push_back(cfg.rom_recovery);
     } else if (!cfg.rom_primary.empty()) {

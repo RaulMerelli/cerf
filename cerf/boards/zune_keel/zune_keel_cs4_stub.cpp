@@ -9,7 +9,7 @@
 
 namespace {
 
-/* WEIM CS4 (PA 0xB4000000, 32 MB) — unidentified Zune 30 peripheral */
+/* WEIM CS4 (PA 0xB4000000, 32 MB) - unidentified Zune 30 peripheral */
 constexpr uint32_t kCs4Base = 0xB4000000u;
 constexpr uint32_t kCs4Size = 0x02000000u;
 

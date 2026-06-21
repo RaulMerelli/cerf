@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VPADD (floating-point) — A8.8.363, opc=1101 C=0 U=1 bit[21]=0. */
+/* VPADD (floating-point) - A8.8.363, opc=1101 C=0 U=1 bit[21]=0. */
 class ArmNeon3SameFpPairAdd : public Service {
 public:
     using Service::Service;

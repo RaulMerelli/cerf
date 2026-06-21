@@ -59,7 +59,7 @@ public:
             k_hook(0x80096204u, "K_96204");
             k_hook(0x80096BB8u, "K_96BB8");
 
-            /* sub_80096BB8 import-resolver — STR R8, [R6] at PC=0x80096F2C
+            /* sub_80096BB8 import-resolver - STR R8, [R6] at PC=0x80096F2C
                writes resolved IAT value. R8=v27 = import target; R6=
                slot addr. */
             tm.OnPc(0x80096F2Cu, [](const TraceContext& c) {

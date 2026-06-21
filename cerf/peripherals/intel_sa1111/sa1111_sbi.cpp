@@ -32,7 +32,7 @@ public:
         switch (addr - MmioBase()) {
             case 0x00: return skcr_;
             case 0x04: return smcr_;
-            case 0x08: return 0x690CC200u;   /* SKID — SA-1111 identity, rev 0. */
+            case 0x08: return 0x690CC200u;   /* SKID - SA-1111 identity, rev 0. */
         }
         HaltUnsupportedAccess("ReadWord", addr, 0);
     }

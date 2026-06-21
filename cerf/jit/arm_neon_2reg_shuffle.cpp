@@ -10,7 +10,7 @@ REGISTER_SERVICE(ArmNeon2RegShuffle);
 
 namespace {
 
-/* VTRN — per A8.8.420 lines 52826-52831: for each D-reg pair, swap
+/* VTRN - per A8.8.420 lines 52826-52831: for each D-reg pair, swap
    Elem[D[d+r], 2*e+1] with Elem[D[m+r], 2*e] for every adjacent pair. */
 inline void DoTrn(uint8_t* dp, uint8_t* mp, uint32_t ebytes,
                   uint32_t elements_per_dreg) {
@@ -24,7 +24,7 @@ inline void DoTrn(uint8_t* dp, uint8_t* mp, uint32_t ebytes,
     }
 }
 
-/* VUZP — per A8.8.422 lines 53015-53026: zipped = Mreg:Dreg; new Dreg
+/* VUZP - per A8.8.422 lines 53015-53026: zipped = Mreg:Dreg; new Dreg
    takes even-indexed elements of zipped, new Mreg takes odd-indexed. */
 inline void DoUzp(uint8_t* dp, uint8_t* mp, uint32_t ebytes,
                   uint32_t total_bytes) {
@@ -45,7 +45,7 @@ inline void DoUzp(uint8_t* dp, uint8_t* mp, uint32_t ebytes,
     std::memcpy(mp, out_m, half);
 }
 
-/* VZIP — per A8.8.423 lines 53122-53132 (and D-form equivalent): interleave
+/* VZIP - per A8.8.423 lines 53122-53132 (and D-form equivalent): interleave
    the elements of Dreg and Mreg into a 2x-wide buffer, then split halves
    back into the two destination registers. */
 inline void DoZip(uint8_t* dp, uint8_t* mp, uint32_t ebytes,

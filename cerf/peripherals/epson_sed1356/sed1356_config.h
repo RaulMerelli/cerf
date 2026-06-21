@@ -24,7 +24,7 @@ public:
     virtual uint8_t ProductRevCode() const = 0;
 
     /* SED1356 §8.1 reset-lock (REG[001h].7): only REG[000h]/[001h] decode until
-       software clears it. The S1D13806 has no such gate — its driver reads
+       software clears it. The S1D13806 has no such gate - its driver reads
        REG[004h] before clearing REG[001h]. */
     virtual bool RegMemSelectLockedAtReset() const = 0;
 };

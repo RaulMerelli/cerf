@@ -18,7 +18,7 @@ uint64_t AdvSIMDExpandImm(uint32_t op, uint32_t cmode, uint32_t imm8) {
 
     switch (cmode_31) {
         case 0x0u:
-            /* Replicate(Zeros(24):imm8, 2) — imm8 in low byte of each 32-bit lane. */
+            /* Replicate(Zeros(24):imm8, 2) - imm8 in low byte of each 32-bit lane. */
             return v | (v << 32);
         case 0x1u:
             /* Replicate(Zeros(16):imm8:Zeros(8), 2). */
@@ -30,7 +30,7 @@ uint64_t AdvSIMDExpandImm(uint32_t op, uint32_t cmode, uint32_t imm8) {
             /* Replicate(imm8:Zeros(24), 2). */
             return (v << 24) | (v << 56);
         case 0x4u:
-            /* Replicate(Zeros(8):imm8, 4) — imm8 in low byte of each 16-bit lane. */
+            /* Replicate(Zeros(8):imm8, 4) - imm8 in low byte of each 16-bit lane. */
             return v | (v << 16) | (v << 32) | (v << 48);
         case 0x5u:
             /* Replicate(imm8:Zeros(8), 4). */
@@ -48,7 +48,7 @@ uint64_t AdvSIMDExpandImm(uint32_t op, uint32_t cmode, uint32_t imm8) {
         case 0x7u:
         default:
             if (cmode_0 == 0u && op == 0u) {
-                /* Replicate(imm8, 8) — imm8 in every byte. */
+                /* Replicate(imm8, 8) - imm8 in every byte. */
                 return v * 0x0101010101010101ull;
             } else if (cmode_0 == 0u && op == 1u) {
                 /* Each bit i of imm8 expanded to a full byte at byte position i. */
@@ -72,7 +72,7 @@ uint64_t AdvSIMDExpandImm(uint32_t op, uint32_t cmode, uint32_t imm8) {
                 return static_cast<uint64_t>(lane32) |
                        (static_cast<uint64_t>(lane32) << 32);
             }
-            /* cmode_0==1 && op==1 is the UNDEFINED case — caller filters it. */
+            /* cmode_0==1 && op==1 is the UNDEFINED case - caller filters it. */
             return 0ull;
     }
 }

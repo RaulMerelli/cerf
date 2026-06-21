@@ -223,7 +223,7 @@ void Imx51Tzic::RestoreState(StateReader& r) {
 
 void Imx51Tzic::PostRestore() {
     /* Re-derive the JIT IRQ latch from restored state after every peripheral's
-       RestoreState has run — the INTC owns the CPU IRQ line. */
+       RestoreState has run - the INTC owns the CPU IRQ line. */
     bool pending = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);

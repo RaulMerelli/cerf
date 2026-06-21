@@ -10,7 +10,7 @@
 
 namespace {
 
-/* i.MX51 WEIM (Wireless External Interface Module — EMI external-memory ctrl),
+/* i.MX51 WEIM (Wireless External Interface Module - EMI external-memory ctrl),
    EMI base + 0x2000 = 0x83FDA000 (MCIMX51RM Table 27-2; EMI base 0x83FD8000).
    Chip-select / timing config for off-chip NOR/async memory; CERF's memory is
    host-backed, so R/W storage. start() writes WEIM config with no read-back. */

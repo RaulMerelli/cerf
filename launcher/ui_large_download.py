@@ -5,7 +5,7 @@ through the launcher. After the abandonware-license step, the GUI offers the
 user a choice: keep downloading in-launcher, or download the ZIP themselves in
 a browser / download manager. For the manual path the launcher pre-stages the
 device directory, cerf.json, and local-manifest entry so the user only has to
-unpack the ZIP. This is GUI-only — the CLI always streams in-process."""
+unpack the ZIP. This is GUI-only - the CLI always streams in-process."""
 from __future__ import annotations
 
 import tkinter as tk

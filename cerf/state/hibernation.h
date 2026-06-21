@@ -13,7 +13,7 @@
 class StateWriter;
 class StateReader;
 
-/* Callers must run Save/Restore on a thread other than the JIT thread —
+/* Callers must run Save/Restore on a thread other than the JIT thread -
    JitRunner::Pause self-deadlocks if called from the JIT thread. */
 class Hibernation : public Service {
 public:
@@ -22,7 +22,7 @@ public:
 
     void OnReady() override;
 
-    /* state.img in the device directory — the implicit save/restore target. */
+    /* state.img in the device directory - the implicit save/restore target. */
     std::wstring DefaultStatePath() const;
     bool         DefaultStateExists() const;
 
@@ -36,7 +36,7 @@ public:
     bool Restore(const std::wstring& path, bool ram_only = false);
 
     /* Runs the op on a worker. on_done (if set) fires on that worker thread
-       at completion — UI work inside it must marshal to the UI thread.
+       at completion - UI work inside it must marshal to the UI thread.
        Serialized: a new call joins the previous worker first. */
     void SaveAsync(const std::wstring& path, std::function<void()> on_done = {});
     void RestoreAsync(const std::wstring& path, bool ram_only = false);

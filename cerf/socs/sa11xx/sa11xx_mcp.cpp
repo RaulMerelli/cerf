@@ -23,7 +23,7 @@ void Sa11xxMcp::OnReady() {
 uint32_t Sa11xxMcp::ReadWord(uint32_t addr) {
     switch (addr - MmioBase()) {
         case 0x00: return mccr0_;
-        case 0x08: return 0;   /* MCDR0 — audio data path is DMA-intercepted. */
+        case 0x08: return 0;   /* MCDR0 - audio data path is DMA-intercepted. */
         case 0x0C: return 0;   /* MCDR1. */
         case 0x10: return mcdr2_read_;   /* MCDR2: last codec read data. */
         case 0x18: return mcsr_;         /* MCSR: CWC|CRC sticky after access. */
@@ -34,7 +34,7 @@ uint32_t Sa11xxMcp::ReadWord(uint32_t addr) {
 void Sa11xxMcp::WriteWord(uint32_t addr, uint32_t value) {
     switch (addr - MmioBase()) {
         case 0x00: mccr0_ = value; return;
-        case 0x08: case 0x0C: return;  /* MCDR0/1 — dropped. */
+        case 0x08: case 0x0C: return;  /* MCDR0/1 - dropped. */
         case 0x10: RouteCodecCommand(value); return;
         case 0x18: return;             /* MCSR W1C status. */
     }

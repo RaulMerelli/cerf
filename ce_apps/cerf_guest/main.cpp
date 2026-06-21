@@ -116,7 +116,7 @@ void* CerfMapFbMemory(void) {
 }
 
 /* On-demand FB aperture for guest CPU code that must touch PA-only FB pixels
-   (DirectDraw Lock, GDI SW-blit edge). Map only the rect needed — a whole 4K
+   (DirectDraw Lock, GDI SW-blit edge). Map only the rect needed - a whole 4K
    surface (33 MB) exceeds the 32 MB slot. Returns the exact byte; free the same
    pointer via CerfUnmapFbWindow. */
 extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes) {
@@ -247,7 +247,7 @@ static BOOL APIENTRY CerfTracePaint(SURFOBJ* pso, CLIPOBJ* pco, BRUSHOBJ* pbo,
 }
 
 
-/* DO NOT delegate TRIVIAL to the engine — CE3 gwes's static TRIVIAL XLATEOBJ
+/* DO NOT delegate TRIVIAL to the engine - CE3 gwes's static TRIVIAL XLATEOBJ
    has a bogus internal palette ptr the engine handler derefs → Data Abort.
    Trivial = no palette anyway, so 0 is correct. */
 static ULONG (*g_EngineXlateObj_cGetPalette)(XLATEOBJ*, ULONG, ULONG, ULONG*) = NULL;

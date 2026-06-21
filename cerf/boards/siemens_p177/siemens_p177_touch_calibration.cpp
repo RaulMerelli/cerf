@@ -42,7 +42,7 @@ public:
                            (kRawYBot - kRawYTop) / (kCalYBotFrac - kCalYTopFrac));
     }
 
-    /* sub_3422318 reads ADCDAT0 as X, ADCDAT1 as Y — not swapped. */
+    /* sub_3422318 reads ADCDAT0 as X, ADCDAT1 as Y - not swapped. */
     bool AxisSwap() const override { return false; }
 };
 

@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VADD.F32 / VSUB.F32 / VMUL.F32 / VABD.F32 — A7.4.1 opc=1101 family
+/* VADD.F32 / VSUB.F32 / VMUL.F32 / VABD.F32 - A7.4.1 opc=1101 family
    (A8.8.283 / A8.8.415 / A8.8.351 / A8.8.279). */
 class ArmNeon3SameFpArith : public Service {
 public:

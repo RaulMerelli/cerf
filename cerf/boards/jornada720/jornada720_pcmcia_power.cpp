@@ -8,8 +8,8 @@
 namespace {
 
 /* Jornada 720 PCMCIA/CF power controller on SA-1111 GPIO_A (hardware
-   doc jornada720.txt §3.2: PC Card power on bits 0/1 — the ROM driver
-   drives bit 0, the doc names bit 1; either rail means Vcc applied —
+   doc jornada720.txt §3.2: PC Card power on bits 0/1 - the ROM driver
+   drives bit 0, the doc names bit 1; either rail means Vcc applied -
    bit 2 selects 3 V/5 V, CF power on bit 3). */
 constexpr uint8_t kPcCardPowerBits = 0x03u;
 constexpr uint8_t kCfPowerBit      = 0x08u;

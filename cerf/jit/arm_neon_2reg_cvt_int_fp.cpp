@@ -13,7 +13,7 @@ namespace {
 
 /* fp→s32 with Round-to-Zero (truncation, ARM ARM A8.8.305 line 41314):
    NaN→0, out-of-range saturates. Host (int32_t)f is RtZ-defined only in
-   the representable range — out-of-range cast is UB; explicit saturation
+   the representable range - out-of-range cast is UB; explicit saturation
    avoids it. */
 inline int32_t FpToS32(float f) {
     if (std::isnan(f))               return 0;

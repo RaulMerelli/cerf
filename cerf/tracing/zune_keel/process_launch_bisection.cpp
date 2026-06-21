@@ -26,7 +26,7 @@ public:
                 zune_resolver::PidPredicateForName("device.exe");
 
             /* devmgr VAs are ImageBase (0x3F7xxxx), NOT the XIP load addr
-               0x8841xxxx — the latter never fires. StartDeviceManager early-init
+               0x8841xxxx - the latter never fires. StartDeviceManager early-init
                milestones (post-BL return PCs). Last one that fires = the wedged
                call. The real BuiltIn activation is sub_3F7550C @ 0x3F72264. */
             struct Milestone { uint32_t pc; const char* label; };
@@ -114,7 +114,7 @@ public:
 
             /* device.exe infinite waits (sub_8821A5F8 = kernel
                WaitForMultipleObjects; R3==INFINITE). Filtered to device.exe so
-               only its blocking waits show — the steady one is its wedge. */
+               only its blocking waits show - the steady one is its wedge. */
             tm.OnPcFiltered(0x8821A5F8u, device_exe, [](const TraceContext& c) {
                 if (c.regs[3] != 0xFFFFFFFFu) return;
                 static std::atomic<uint32_t> n{0};

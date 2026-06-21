@@ -36,7 +36,7 @@ public:
     void    WriteReg8(uint32_t port, uint8_t value);
 
     /* Linear framebuffer (card common-memory offset 0x200000). 8bpp covers up
-       to 1024x768 (= 0xC0000); 16bpp is used only at 640x480 — both fit the
+       to 1024x768 (= 0xC0000); 16bpp is used only at 640x480 - both fit the
        card's 0xC0000 (768 KB) buffer (sub_100045DC maps that size). */
     static constexpr uint32_t kFbSize = 0x000C0000u;
     uint8_t* Framebuffer()            { return fb_.data(); }

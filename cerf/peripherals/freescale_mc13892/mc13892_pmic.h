@@ -9,7 +9,7 @@
 #include <array>
 #include <cstdint>
 
-/* MC13892 (Atlas) PMIC — the SYNC2 board's power IC on i.MX51 I2C2, 7-bit slave
+/* MC13892 (Atlas) PMIC - the SYNC2 board's power IC on i.MX51 I2C2, 7-bit slave
    address 0x08 (pmicPdk_mc13892.dll GetRegister/SetRegister). 64 24-bit
    registers accessed MSB-first: a register access is a 1-byte reg-index write
    followed by a 3-byte data write or read (I2CWrite/ReadThreeBytes). */

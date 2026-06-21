@@ -14,7 +14,7 @@
 namespace {
 
 /* Unfiltered ON PURPOSE: no name->pid map exists for this bundle yet, and
-   identifying which pid runs RunApps is this trace's goal — a pid filter would
+   identifying which pid runs RunApps is this trace's goal - a pid filter would
    hide that process. Each handler logs the FCSE process_id for attribution. */
 class SimpadSl4RunAppsLaunchTrace : public Service {
 public:

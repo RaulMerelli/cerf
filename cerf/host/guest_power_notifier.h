@@ -5,7 +5,7 @@
 /* The single host-side path for surfacing a guest power-state transition to the
    user. Every SoC's power-down / reset detection funnels through here so the
    notification (UART tab + forceful banner, framebuffer re-arm on reboot) is
-   uniform across boards — a new SoC adds only its detection, never its own UI. */
+   uniform across boards - a new SoC adds only its detection, never its own UI. */
 class GuestPowerNotifier : public Service {
 public:
     using Service::Service;

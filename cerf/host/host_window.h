@@ -38,7 +38,7 @@ public:
     void SetGuestResolution(uint32_t w, uint32_t h);
 
     /* UI thread. Fit the window to a new sw x sh guest surface, unless the
-       window is maximized — then keep it as-is and let the canvas viewport /
+       window is maximized - then keep it as-is and let the canvas viewport /
        scrollbars adapt. Used by the Change-resolution dialog. */
     void FitToResolution(uint32_t sw, uint32_t sh);
 
@@ -49,7 +49,7 @@ public:
 
     /* Any thread. Run `job` on the main UI thread; dropped if the window is
        gone. Lets an action run off its caller's thread (a VGA card window
-       ejecting itself must not run the eject on its own UI thread — the eject
+       ejecting itself must not run the eject on its own UI thread - the eject
        joins that thread). */
     void RunOnUiThread(std::function<void()> job);
 

@@ -2,7 +2,7 @@
 
 namespace {
 
-/* PXA255 FFUART — full-function UART, the kernel debug console (base
+/* PXA255 FFUART - full-function UART, the kernel debug console (base
    0x40100000, INTC IS22 Table 4-35). */
 class Pxa255Ffuart : public Pxa255Uart16550 {
 public:

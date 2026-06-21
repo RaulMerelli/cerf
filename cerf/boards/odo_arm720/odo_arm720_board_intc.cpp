@@ -73,7 +73,7 @@ void OdoArm720BoardIntc::DeAssertIrq(int source_bit) {
 void OdoArm720BoardIntc::AssertSubIrq(int main_source_bit, int sub_source_bit) {
     LOG(Caution, "OdoArm720BoardIntc::AssertSubIrq: Odo board "
             "INTC has no sub-interrupt register (main=%d, sub=%d) "
-            "— caller is targeting the wrong SoC\n",
+            "- caller is targeting the wrong SoC\n",
             main_source_bit, sub_source_bit);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
@@ -96,7 +96,7 @@ void OdoArm720BoardIntc::DeliverPendingIrq() {
 uint32_t OdoArm720BoardIntc::ReadReg32(uint32_t offset) {
     if (offset != kSlotCpuIsr && offset != kSlotCpuMr) {
         LOG(Caution, "OdoArm720BoardIntc::ReadReg32: offset 0x%X "
-                "out of range — only 0x00 (cpuIsr) and 0x04 (cpuMr) "
+                "out of range - only 0x00 (cpuIsr) and 0x04 (cpuMr) "
                 "are modeled\n", offset);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }

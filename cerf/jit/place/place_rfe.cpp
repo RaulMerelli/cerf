@@ -8,11 +8,11 @@
 uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
 
-    /* MOV ECX, [ESI + gprs[Rn]] — rn_value into __fastcall arg 1. */
+    /* MOV ECX, [ESI + gprs[Rn]] - rn_value into __fastcall arg 1. */
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rn * 4u));
 
-    /* MOV EDX, <encoded> — pack P/U/W/Rn into __fastcall arg 2:
+    /* MOV EDX, <encoded> - pack P/U/W/Rn into __fastcall arg 2:
        bit 7 = P, bit 6 = U, bit 5 = W, bits 4:0 = Rn. */
     const uint32_t encoded =
         (static_cast<uint32_t>(d->p) << 7) |
@@ -25,7 +25,7 @@ uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     EmitPush32(cursor,
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
 
-    /* CALL RfeHelper. __fastcall callee-cleans the stack arg — no
+    /* CALL RfeHelper. __fastcall callee-cleans the stack arg - no
        ADD ESP after. EAX holds the masked new_pc on return. */
     EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::RfeHelper));
 

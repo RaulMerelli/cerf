@@ -42,7 +42,7 @@ protected:
 };
 
 /* Channel masks for an RGB surface. The reference uses each surface's real
-   m_pPalette masks (carried as pal_entries/mask), never an assumed set — some
+   m_pPalette masks (carried as pal_entries/mask), never an assumed set - some
    CE5 16bpp surfaces are BGR565 (R=0x001F,B=0xF800), not RGB565. Fall back to
    the per-format assumption only when the surface reports no real masks. */
 inline bool ResolveMasks(const CerfBltSurface& s, uint32_t m[3], uint32_t* bpp) {
@@ -121,7 +121,7 @@ inline uint8_t* BltSurfaceAccess::PixelPtr(const Surface& s, int32_t x, int32_t 
     return p;
 }
 
-/* A 24bpp (3-byte) source pixel — or any multi-byte pixel — can straddle a 4KB
+/* A 24bpp (3-byte) source pixel - or any multi-byte pixel - can straddle a 4KB
    page whose two halves map to non-adjacent host pages, so a single host read of
    bpp bytes from PixelPtr would cross into the wrong page. Assemble it byte-by-
    byte: the guest VA is contiguous, so each byte translates independently. */

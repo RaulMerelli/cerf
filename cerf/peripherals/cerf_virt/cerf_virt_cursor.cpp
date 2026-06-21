@@ -30,7 +30,7 @@ uint32_t CerfVirtCursor::ReadWord(uint32_t addr) {
 }
 
 /* Copy the descriptor out of guest memory in the issuing (gwes) context; it may
-   straddle a page, so resolve per page through the live MMU — same as gpe_cmd. */
+   straddle a page, so resolve per page through the live MMU - same as gpe_cmd. */
 bool CerfVirtCursor::ReadBlob(uint32_t va, void* out, uint32_t total) {
     ArmMmu& mmu = emu_.Get<ArmMmu>();
     uint8_t* d = reinterpret_cast<uint8_t*>(out);

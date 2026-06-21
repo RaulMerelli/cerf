@@ -44,7 +44,7 @@ public:
         emu_.Get<Pxa255Gpio>().SetSerialSlave(this);
     }
 
-    /* GPIO write — only GPDR2 direction transitions on GPIO73 frame the bits. */
+    /* GPIO write - only GPDR2 direction transitions on GPIO73 frame the bits. */
     void OnGuestWrite(uint32_t off, uint32_t value) override {
         if (off != kGpdr2) return;
         const bool out = (value & kPinBit) != 0u;
@@ -66,7 +66,7 @@ public:
         }
     }
 
-    /* GPLR read — a read slot. Drive GPIO73 with the next response bit (LSB-first,
+    /* GPLR read - a read slot. Drive GPIO73 with the next response bit (LSB-first,
        sub_800F80AC), 0 otherwise (type-detect/presence read low = present, type 1). */
     uint32_t DriveGplr(uint32_t bank) override {
         if (bank != 2u || !armed_) return 0u;

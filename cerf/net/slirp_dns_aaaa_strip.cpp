@@ -108,7 +108,7 @@ std::vector<uint8_t> BuildAaaaNoDataReply(const uint8_t* query_frame,
     std::memcpy(out.data() + 6, query_frame + 0, 6);             /* src ← query dst (slirp DNS) */
     out[12] = 0x08; out[13] = 0x00;
 
-    /* IPv4 header — fixed 20-byte, no options. */
+    /* IPv4 header - fixed 20-byte, no options. */
     uint8_t* oip = out.data() + 14;
     oip[0] = 0x45;                                               /* ver=4, ihl=5 */
     oip[1] = 0;                                                  /* DSCP/ECN */
@@ -128,7 +128,7 @@ std::vector<uint8_t> BuildAaaaNoDataReply(const uint8_t* query_frame,
     uint16_t ip_ck = InetSum(oip, 20, 0);
     oip[10] = (uint8_t)(ip_ck >> 8); oip[11] = (uint8_t)ip_ck;
 
-    /* UDP header — swap ports; checksum computed after DNS payload written. */
+    /* UDP header - swap ports; checksum computed after DNS payload written. */
     uint8_t* oudp = out.data() + 14 + 20;
     const uint8_t* qudp = query_frame + 14 + qihl;
     oudp[0] = qudp[2]; oudp[1] = qudp[3];                        /* src port ← query dst port (53) */
@@ -145,7 +145,7 @@ std::vector<uint8_t> BuildAaaaNoDataReply(const uint8_t* query_frame,
     odns[2] = (uint8_t)(0x80 | rd);
     odns[3] = (uint8_t)(0x80);                                   /* RA=1, RCODE=0 (NoError) */
     odns[4] = 0; odns[5] = 1;                                    /* QDCOUNT=1 */
-    odns[6] = 0; odns[7] = 0;                                    /* ANCOUNT=0 — NoData */
+    odns[6] = 0; odns[7] = 0;                                    /* ANCOUNT=0 - NoData */
     odns[8] = 0; odns[9] = 0;                                    /* NSCOUNT=0 */
     odns[10] = 0; odns[11] = 0;                                  /* ARCOUNT=0 */
 
@@ -174,7 +174,7 @@ std::vector<uint8_t> BuildAaaaNoDataReply(const uint8_t* query_frame,
 } /* namespace */
 
 bool SlirpBackend::TryInterceptAaaaQuery(const uint8_t* frame, std::size_t len) {
-    if (host_has_v6_) return false;                              /* IPv6 works — let AAAA through */
+    if (host_has_v6_) return false;                              /* IPv6 works - let AAAA through */
 
     size_t dns_off = 0, dns_len = 0, q_name_end = 0;
     if (!IsAaaaQuery(frame, len, &dns_off, &dns_len, &q_name_end)) return false;

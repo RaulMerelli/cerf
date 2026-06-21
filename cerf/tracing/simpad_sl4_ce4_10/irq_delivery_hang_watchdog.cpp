@@ -17,7 +17,7 @@
 namespace {
 
 /* The SIMpad "deep sleep" ~10s into boot is CE's panic/power-off (PowerOffSystem
-   sub_8008810C) after heavy aborts — the same shape seen on Falcon 4220; no
+   sub_8008810C) after heavy aborts - the same shape seen on Falcon 4220; no
    device sleeps immediately after booting. This probe finds the aborts driving
    the panic and dumps the eventual halted state. */
 class SimpadSl4IrqDeliveryHangWatchdog : public Service {
@@ -51,7 +51,7 @@ public:
                 const uint32_t a1  = c.regs[0];
                 const uint32_t far = c.regs[2];
                 const uint32_t fpc = c.ReadVa32(a1 + 160u).value_or(0xDEAD0000u);
-                /* Key on (excType, FAR) only — IRQ entries carry a stale FAR so
+                /* Key on (excType, FAR) only - IRQ entries carry a stale FAR so
                    they collapse to one, while distinct abort addresses surface. */
                 const uint64_t key = (static_cast<uint64_t>(exc) << 32) ^ far;
                 if (seen->size() < 128u && seen->insert(key).second)
@@ -96,7 +96,7 @@ public:
 
             /* coredll!PowerOffSystem entry (0x03F84CF8, shared-DLL VA == runtime).
                UNFILTERED ON PURPOSE: any process may request power-off and naming
-               which one is the goal — pid is logged for attribution, LR matched
+               which one is the goal - pid is logged for attribution, LR matched
                against [MODMAP] to name the caller's module. */
             tm.OnPc(0x03F84CF8u, [](const TraceContext& c) {
                 LOG(Caution, "[POWEROFF] PowerOffSystem() pid=0x%08X lr=0x%08X "
@@ -116,14 +116,14 @@ public:
 
             /* coredll!GwesPowerOffSystem (0x03F7E008) thunk entry: catches the
                external requester before its PSL trap. UNFILTERED ON PURPOSE (any
-               caller) — LR+pid name who requested the suspend (match LR to [MODMAP]). */
+               caller) - LR+pid name who requested the suspend (match LR to [MODMAP]). */
             tm.OnPc(0x03F7E008u, [](const TraceContext& c) {
                 LOG(Caution, "[GPOFFREQ] GwesPowerOffSystem caller lr=0x%08X pid=0x%08X\n",
                     c.regs[14], c.emu.Get<ArmMmu>().State()->process_id);
             });
 
             /* gwes.exe sub_155C8 (suspend helper) entry: LR distinguishes the
-               trigger path — 0x1ABAC = power-KEY handler sub_1A8EC (GPIO->vkey),
+               trigger path - 0x1ABAC = power-KEY handler sub_1A8EC (GPIO->vkey),
                0x2CB78 = IDLE-timer thread sub_2C930. gwes-only code (pid logged). */
             tm.OnPc(0x000155C8u, [](const TraceContext& c) {
                 const uint32_t pid = c.emu.Get<ArmMmu>().State()->process_id;
@@ -142,7 +142,7 @@ public:
 
             /* coredll!SetSystemPowerState (0x03F9DC20) thunk: catches the requester
                in ITS OWN process before the PSL trap. UNFILTERED ON PURPOSE (any
-               requester) — lr+pid name who asked to suspend (match LR to [MODMAP]).
+               requester) - lr+pid name who asked to suspend (match LR to [MODMAP]).
                a2=flags (0x200000=SUSPEND), a3=options. */
             tm.OnPc(0x03F9DC20u, [](const TraceContext& c) {
                 LOG(Caution, "[SPSREQ] SetSystemPowerState flags=0x%08X opt=0x%08X "
@@ -152,7 +152,7 @@ public:
             });
 
             /* pm.dll SetSystemPowerState core sub_3F5296C: a1 = state-name string.
-               UNFILTERED ON PURPOSE (PM API, any requester) — dump the requested
+               UNFILTERED ON PURPOSE (PM API, any requester) - dump the requested
                state name + flags + caller LR to learn WHY the PM powers off. */
             tm.OnPc(0x03F5296Cu, [](const TraceContext& c) {
                 const uint32_t a1 = c.regs[0];

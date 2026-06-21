@@ -56,7 +56,7 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
     const uint32_t slot = (slot_ceiling == 0xFFFFFFFFu)
                         ? 0xFFFFFFFFu : (slot_ceiling - orig_vbase);
 
-    /* Relocate on EITHER trigger: slot overflow, OR a section-0 codebase — a
+    /* Relocate on EITHER trigger: slot overflow, OR a section-0 codebase - a
        runtime-loaded ROM DLL must live in section 1 (SharedDllBase-covered);
        dropping the section-0 test regresses CE4.2/WM5 (codebase 0x01xxxxxx). */
     const uint32_t codebase = orig_vbase + orig_slot_base;
@@ -68,13 +68,13 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
        new_vbase keeps slot_base. */
     if (ce_major > 5 || lowest_code == 0xFFFFFFFFu) {
         LOG(GuestAdditions, "%s image 0x%X overflows victim slot 0x%X; relocation "
-                  "N/A (ce_major=%u lowest_code=0x%08X) — in-place at 0x%08X\n",
+                  "N/A (ce_major=%u lowest_code=0x%08X) - in-place at 0x%08X\n",
             victim_name, image_size, slot, ce_major, lowest_code, orig_vbase);
         return orig_vbase;
     }
     const uint32_t new_code = (lowest_code - image_size) & ~(kDllSlotAlign - 1u);
     if (new_code < kModCodeBase || new_code >= lowest_code) {
-        LOG(GuestAdditions, "%s image 0x%X does not fit section-1 below 0x%08X — "
+        LOG(GuestAdditions, "%s image 0x%X does not fit section-1 below 0x%08X - "
                   "in-place at 0x%08X\n", victim_name, image_size, lowest_code, orig_vbase);
         return orig_vbase;
     }
@@ -82,7 +82,7 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
 
     /* The kernel only loads ROM DLLs inside [DllLoadBase, dlllast); when the
        relocated vbase falls below DllLoadBase, grow the region down by lowering
-       dllfirst's high half (DllLoadBase). Keep the low half — on a CE3 ROM it is
+       dllfirst's high half (DllLoadBase). Keep the low half - on a CE3 ROM it is
        0 (no RW split), so no per-process reservation is added. */
     const uint32_t romhdr_pa     = pt.VaToPa(toc.romhdr_va);
     const uint32_t dllfirst      = mem.ReadWord(romhdr_pa);

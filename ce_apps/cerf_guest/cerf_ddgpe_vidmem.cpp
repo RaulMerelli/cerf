@@ -20,7 +20,7 @@ private:
 };
 
 /* Flip-chain back buffer: CPU-writable guest RAM (DDGPESurf self-alloc) but tagged
-   VIDEOMEMORY so DDGPECreateSurface won't OR in SYSTEMMEMORY — a video/system class
+   VIDEOMEMORY so DDGPECreateSurface won't OR in SYSTEMMEMORY - a video/system class
    mismatch makes ddcore reject the Flip (sub_377C594). SurfaceFbPa keys on FB-region
    residency, not this cap, so it still resolves to the guest-RAM VA. */
 class CerfSysVidSurf : public DDGPESurf {

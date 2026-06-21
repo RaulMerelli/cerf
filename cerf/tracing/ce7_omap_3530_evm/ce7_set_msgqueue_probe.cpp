@@ -57,7 +57,7 @@ public:
             tm.OnPc(kPcSetMsgQueueFailPath, [](const TraceContext& c) {
                 uint32_t cur_q = c.ReadVa32(c.regs[4]).value_or(0xDEADBEEFu);
                 LOG(Trace,
-                    "[smq] FAIL-PATH entry — about to clear m_hNotifyQueue "
+                    "[smq] FAIL-PATH entry - about to clear m_hNotifyQueue "
                     "this=R4=0x%08X current_queue=0x%08X (will become 0)\n",
                     c.regs[4], cur_q);
             });

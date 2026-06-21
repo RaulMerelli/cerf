@@ -11,7 +11,7 @@
 namespace {
 
 /* i.MX51 AUDMUX (Digital Audio Multiplexer), MCIMX51RM Ch (base 0x83FD0000,
-   Table 2-1) — audio careful-stub (agent_docs/rules.md): the audio driver's
+   Table 2-1) - audio careful-stub (agent_docs/rules.md): the audio driver's
    AudMuxContext::MapRegisters (wavedev2_cs42448.dll sub_C0CB0D28) maps 0x3C
    bytes and writes the SSI<->port routing (PTCRn/PDCRn); pure config, no poll. */
 constexpr uint32_t kBase = 0x83FD0000u;

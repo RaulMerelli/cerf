@@ -69,7 +69,7 @@ private:
 
 uint32_t Pxa255I2c::ReadWord(uint32_t addr) {
     switch (addr - MmioBase()) {
-        case kIBMR: return 0x3u;  /* §9.9.1: SCL=1, SDA=1 — idle bus. */
+        case kIBMR: return 0x3u;  /* §9.9.1: SCL=1, SDA=1 - idle bus. */
         case kIDBR: return idbr_;
         case kICR:  return icr_;
         case kISR:  return isr_;
@@ -104,9 +104,9 @@ void Pxa255I2c::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 /* §4.2.5 IS18: the I2C unit drives its INTC source while an enabled service
-   request is pending — ITE (ISR bit6) gated by ITEIE (ICR bit8), IRF (ISR
+   request is pending - ITE (ISR bit6) gated by ITEIE (ICR bit8), IRF (ISR
    bit7) gated by IRFIE (ICR bit9). Level-driven: the guest IST clears ITE/IRF
-   via the ISR W1C to deassert. DO NOT drop this to "set ISR only" — the
+   via the ISR W1C to deassert. DO NOT drop this to "set ISR only" - the
    interrupt-driven bus driver (F75111 keypad init) blocks 3s/byte on
    WaitForSingleObject(I2C event) without the INTC assert. */
 void Pxa255I2c::UpdateIrq() {

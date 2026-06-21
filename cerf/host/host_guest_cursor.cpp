@@ -16,7 +16,7 @@ namespace {
 #endif
 
 /* Disable host cursor scaling for cursors created on this (UI) thread, so the
-   guest cursor renders 1:1 — the guest framebuffer is 1:1, so its cursor must
+   guest cursor renders 1:1 - the guest framebuffer is 1:1, so its cursor must
    be too. Resolved dynamically: absent before Win10 1607, where it no-ops and
    the cursor falls back to the host's DPI/accessibility scaling. */
 void DisableCursorScaling() {

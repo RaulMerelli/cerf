@@ -14,7 +14,7 @@ namespace CerfVirt {
 /* Host validates this on read; mismatch = corrupt VA, halt rather than fill. */
 const uint32_t kCerfGradMagic = 0x43475244u; /* 'CGRD' */
 
-/* CerfGradDescriptor.axis — which axis the colour ramp runs along. */
+/* CerfGradDescriptor.axis - which axis the colour ramp runs along. */
 const uint32_t kCerfGradAxisH = 0u; /* GRADIENT_FILL_RECT_H: colour varies with x */
 const uint32_t kCerfGradAxisV = 1u; /* GRADIENT_FILL_RECT_V: colour varies with y */
 

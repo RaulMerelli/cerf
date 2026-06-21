@@ -73,7 +73,7 @@ void HostInputCapture::Toggle() {
 void HostInputCapture::SetCaptured(bool on) {
     captured_.store(on, std::memory_order_release);
     /* The status-bar lock widget reflects this via its PollDirty on the next
-       UI tick — no direct poke needed. */
+       UI tick - no direct poke needed. */
 }
 
 void HostInputCapture::SendCtrlAltDel() {
@@ -87,7 +87,7 @@ void HostInputCapture::SendCtrlAltDel() {
 }
 
 bool HostInputCapture::OnHookKey(WPARAM wParam, const KBDLLHOOKSTRUCT* k) {
-    /* Only ever act while our window is foreground — otherwise the global
+    /* Only ever act while our window is foreground - otherwise the global
        hook would steal Right Ctrl (and captured keys) from other apps. */
     if (!IsForeground()) return false;
 

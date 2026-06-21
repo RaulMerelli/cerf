@@ -41,12 +41,12 @@ public:
     void PushRxBurst(const uint8_t* data, size_t n);
 
 protected:
-    /* "UART1", "UART3", … — used as the log prefix on TX flush. */
+    /* "UART1", "UART3", … - used as the log prefix on TX flush. */
     virtual const char* ChannelName() const = 0;
 
     /* SA-1110 §9.2.1.1 INTC source bit for this serial port. SP1 = 15,
        SP2 = 16, SP3 = 17. Return -1 (default) to skip IRQ assertion
-       (silent FIFO mode — only useful for ports the kernel polls). */
+       (silent FIFO mode - only useful for ports the kernel polls). */
     virtual int IntcSourceBit() const { return -1; }
 
 private:

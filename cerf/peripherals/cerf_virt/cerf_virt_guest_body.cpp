@@ -44,7 +44,7 @@ private:
     void LoadBody() {
         const auto& subs = emu_.Get<DeviceConfig>().global_rom_substitutions;
         if (subs.empty()) {
-            LOG(Caution, "guest body: global_rom_substitutions empty — no "
+            LOG(Caution, "guest body: global_rom_substitutions empty - no "
                     "cerf_guest body to serve the stub\n");
             CerfFatalExit();
         }
@@ -52,7 +52,7 @@ private:
             emu_.Get<GuestAdditionsBinaries>().StagedPath(subs[0].second);
         std::ifstream f(path, std::ios::binary | std::ios::ate);
         if (!f.is_open()) {
-            LOG(Caution, "guest body: cannot open %s — cerf_guest.dll must be "
+            LOG(Caution, "guest body: cannot open %s - cerf_guest.dll must be "
                     "built and staged before boot\n", path.c_str());
             CerfFatalExit();
         }
@@ -64,7 +64,7 @@ private:
         const uint32_t need = MmioSize();
         if (need > CerfVirt::kGuestBodyMaxSize) {
             LOG(Caution, "guest body: %s needs 0x%X bytes but the body window "
-                    "is only 0x%X (0x%08X..0x%08X) — raise kFramebufferMemBase "
+                    "is only 0x%X (0x%08X..0x%08X) - raise kFramebufferMemBase "
                     "or relocate kGuestBodyBase in cerf_virt_addr_map.h\n",
                 path.c_str(), need, CerfVirt::kGuestBodyMaxSize,
                 CerfVirt::kGuestBodyBase,

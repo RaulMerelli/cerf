@@ -12,7 +12,7 @@ class StateWriter;
 class StateReader;
 
 /* One emulated 16-bit PC Card. Instances live from insert to eject and
-   one card type may occupy two slots at once — multi-instance by
+   one card type may occupy two slots at once - multi-instance by
    contract. Attribute memory is valid on even bytes only; the socket
    controller synthesizes halfword attribute reads. */
 class PcmciaCard {

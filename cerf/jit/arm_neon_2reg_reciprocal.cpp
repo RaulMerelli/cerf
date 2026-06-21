@@ -102,7 +102,7 @@ uint32_t FPRecipEstimate(uint32_t operand_bits) {
     if (exp_bits >= 253u) {
         return sign_bit;
     }
-    /* scaled = '0 01111111110' : operand<22:0> : Zeros(29) — i.e.,
+    /* scaled = '0 01111111110' : operand<22:0> : Zeros(29) - i.e.,
        biased exp=1022 (= 0x3FE), sign=0, fraction = high 23 bits of float
        mantissa placed at bits[51:29] of double. */
     const uint64_t scaled = (uint64_t{0x3FE} << 52)

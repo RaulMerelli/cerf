@@ -73,7 +73,7 @@ void ArmNeonSat::HandleSimd3SameSat(uint32_t op, uint32_t d_idx, uint32_t n_idx,
                     break;
                 }
                 /* VQSHL/VQRSHL (register, A8.8.379/377): data is `b` (D[m]),
-                   shift source is `a` (D[n]) — operand reversal as in VSHL.
+                   shift source is `a` (D[n]) - operand reversal as in VSHL.
                    Right shift never saturates; the SatLeftShift* helpers
                    handle the shift>=0 saturating path. */
                 case kSatShlU: {
@@ -399,7 +399,7 @@ uint64_t ArmNeonSat::SatLeftShiftS(int64_t value, int32_t shift,
         }
         return 0ull;
     }
-    /* shift in (0, esize). Cast to uint64 before shifting — signed-left of
+    /* shift in (0, esize). Cast to uint64 before shifting - signed-left of
        negative is UB. For esize==64, use round-trip arithmetic-shift check
        to detect any overflow past the int64 (= esize) signed range. */
     if (esize == 64u) {

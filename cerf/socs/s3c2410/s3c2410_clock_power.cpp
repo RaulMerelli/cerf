@@ -22,7 +22,7 @@ public:
         emu_.Get<PeripheralDispatcher>().Register(this);
         /* Power-off+wake resets the chip on real S3C2410; CERF's boot-ROM resume
            skips StartUp, so reset CLKCON here on every reset delivery (incl. the
-           deep-sleep wake) — else the OS reads the stale 0x7fff8 power-off magic
+           deep-sleep wake) - else the OS reads the stale 0x7fff8 power-off magic
            back and re-enters sleep. Reset value 0x7FFF0 = S3C2410A UM p.239. */
         emu_.Get<GuestCpuReset>().RegisterResetListener(
             [this] { storage_[0x0Cu / 4u] = 0x7FFF0u; });
@@ -34,7 +34,7 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
-    /* JIT-thread-only register file (no worker thread) — the JIT is paused
+    /* JIT-thread-only register file (no worker thread) - the JIT is paused
        during save/restore, so no lock is needed. */
     void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
     void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }

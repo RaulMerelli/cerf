@@ -19,12 +19,12 @@ public:
     void OnReady() override {
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kWm5BundleCrc32, [&] {
-            /* fsdmgr.Init entry — confirms fsdmgr.dll's Init function
+            /* fsdmgr.Init entry - confirms fsdmgr.dll's Init function
                was actually called. */
             PC_TRACE(0x03F32C90u, "FSDMGR_INIT",
                 "fsdmgr!Init entered BootPhase=R0=0x%08X R1=0x%08X LR=0x%08X SP=0x%08X\n");
 
-            /* sub_3F3840C — fsdmgr.Init(0) calls this at LABEL_15. Walks
+            /* sub_3F3840C - fsdmgr.Init(0) calls this at LABEL_15. Walks
                AutoLoad registry subkeys, matches BootPhase, LoadLibrary's
                each matching driver DLL. */
             PC_TRACE(0x03F3840Cu, "FSDMGR_ENUM",
@@ -80,7 +80,7 @@ public:
                     c.regs[14], c.regs[13]);
             });
 
-            /* Precise call-site hooks inside sub_3F3840C — the bare
+            /* Precise call-site hooks inside sub_3F3840C - the bare
                function-entry hooks above fire on first translation
                from any caller, but the call-site hooks below confirm
                what sub_3F3840C actually passes/receives in its calls. */
@@ -132,11 +132,11 @@ public:
                     realaddr_0, realaddr_1F0, dataptr_0, dataptr_1F0, scan);
             });
 
-            /* coredll sub_3FC1310 — raises exception code 0xC0000094.
+            /* coredll sub_3FC1310 - raises exception code 0xC0000094.
                Reference TX fires 2x. */
             PC_TRACE(0x03FC1310u, "CDLL_RAISE_A",
                 "coredll sub_3FC1310 entered R0=0x%08X R1=0x%08X LR=0x%08X SP=0x%08X\n");
-            /* coredll CaptureDumpFileOnDevice — second RaiseException
+            /* coredll CaptureDumpFileOnDevice - second RaiseException
                site (PSL 0xF000FE38 code 278). */
             PC_TRACE(0x03F7DAF8u, "CDLL_RAISE_B",
                 "coredll CaptureDumpFileOnDevice entered R0=0x%08X R1=0x%08X LR=0x%08X SP=0x%08X\n");

@@ -43,7 +43,7 @@ static DWORD WINAPI CerfDidWorker(LPVOID unused) {
 
     const wchar_t* dll_name = CerfInjectedModuleName();
     if (!dll_name || !dll_name[0]) {
-        CERF_LOG("cerf_guest: driver-in-driver ABORT — own module name unknown");
+        CERF_LOG("cerf_guest: driver-in-driver ABORT - own module name unknown");
         return 0;
     }
     CERF_LOG("cerf_guest: driver-in-driver starting");
@@ -52,7 +52,7 @@ static DWORD WINAPI CerfDidWorker(LPVOID unused) {
 
     HMODULE core = LoadLibraryW(L"coredll.dll");
     if (!core) {
-        CERF_LOG("cerf_guest: driver-in-driver ABORT — no coredll");
+        CERF_LOG("cerf_guest: driver-in-driver ABORT - no coredll");
         return 0;
     }
 
@@ -72,7 +72,7 @@ static DWORD WINAPI CerfDidWorker(LPVOID unused) {
         return 0;
     }
 
-    CERF_LOG("cerf_guest: driver-in-driver ABORT — neither ActivateDeviceEx nor "
+    CERF_LOG("cerf_guest: driver-in-driver ABORT - neither ActivateDeviceEx nor "
              "ActivateDevice exported by coredll");
     return 0;
 }

@@ -38,7 +38,7 @@ public:
             tm.OnPc(kPcCoredllCreateThread,  hit("CreateThread"));
             tm.OnPc(kPcCoredllLoadLibraryEx, hit("LoadLibraryExW"));
 
-            /* Inside-welcome.exe milestones — fires when welcome.exe
+            /* Inside-welcome.exe milestones - fires when welcome.exe
                executes specific PCs. RVAs from IDA of welcome.exe.
                Slot-folded JIT VA == RVA (welcome.exe loaded at slot
                base + RVA, start = 0x11240 < 32 MB so FCSE-folded). */

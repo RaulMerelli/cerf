@@ -23,7 +23,7 @@ extern "C" DWORD WINAPI DDGPEWaitForVerticalBlank(LPDDHAL_WAITFORVERTICALBLANKDA
 extern "C" DWORD WINAPI DDGPECreatePalette(LPDDHAL_CREATEPALETTEDATA);
 
 /* All cerf_guest blits complete synchronously on the host before the HAL call
-   returns, so a surface is never mid-blt — both DDGBS_CANBLT and DDGBS_ISBLTDONE
+   returns, so a surface is never mid-blt - both DDGBS_CANBLT and DDGBS_ISBLTDONE
    are satisfied. The GETBLTSTATUSDATA head (lpDD/lpDDSurface/dwFlags/ddRVal) is
    identical CE5/CE6, so this one handler serves every DDHALINFO generation. */
 extern "C" DWORD WINAPI CerfGetBltStatus(LPDDHAL_GETBLTSTATUSDATA pd) {
@@ -180,7 +180,7 @@ static void CerfFillHelCaps(DDCAPS* pDDCaps) {
     SETROPBIT(pDDCaps->dwRops, WHITENESS);
 }
 
-/* HEL caps filled inline at the WM 112-byte DDCAPS size — CerfFillHelCaps writes a
+/* HEL caps filled inline at the WM 112-byte DDCAPS size - CerfFillHelCaps writes a
    128-byte CE6 DDCAPS and would overrun ddHelCaps into lpdwFourCC. */
 extern "C" BOOL WmHALInit(void* lpddhi) {
     unsigned long vidBase = 0, vidSize = 0, vidFree = 0;
@@ -223,7 +223,7 @@ extern "C" BOOL WmHALInit(void* lpddhi) {
 extern "C" BOOL Ce5HALInit(void* lpddhi);
 
 /* Discriminator is GetVersionEx (measured): 5.0=CE5/460, 5.1/5.2=WM/252,
-   >=6=CE6-CE7/284. NOT g_EngineVersion — WinCE5, Zune and WM5 all report engine
+   >=6=CE6-CE7/284. NOT g_EngineVersion - WinCE5, Zune and WM5 all report engine
    0x40001 yet split 460 vs 252, so keying on it picks the wrong DDHALINFO size. */
 EXTERN_C BOOL WINAPI HALInit(LPDDHALINFO lpddhi, BOOL unused1, DWORD modeidx) {
     OSVERSIONINFOW ovi;

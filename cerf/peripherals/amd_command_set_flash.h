@@ -31,7 +31,7 @@ public:
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 
-    /* HostWidget — generic NOR icon; concretes override the label/tooltip. */
+    /* HostWidget - generic NOR icon; concretes override the label/tooltip. */
     std::wstring WidgetName() const override { return L"NOR Flash"; }
     WidgetGroup  Group()      const override { return WidgetGroup::Storage; }
     std::wstring Tooltip()    const override { return L"NOR Flash"; }

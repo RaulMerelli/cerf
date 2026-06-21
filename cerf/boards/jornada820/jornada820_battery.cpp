@@ -85,7 +85,7 @@ void Jornada820Battery::StreamLoop() {
             if ((intc.GetIcmr() & kSp1IntcMask) != 0) {
 #if CERF_DEV_MODE
                 if (!logged) {
-                    LOG(SocUart, "[J820BATT] SP1 IRQ unmasked (hplib ready) — streaming battery\n");
+                    LOG(SocUart, "[J820BATT] SP1 IRQ unmasked (hplib ready) - streaming battery\n");
                     logged = true;
                 }
 #endif

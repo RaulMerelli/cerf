@@ -17,7 +17,7 @@ namespace {
 
 /* UNFILTERED is required: these ddcore VAs are above the 32MB FCSE fold (shared XIP-DLL
    region, same physical code per process), and the CreateSurface server runs in the
-   GWES/device.exe owner process, never in ddrawtest — a ddrawtest-pid filter never fires. */
+   GWES/device.exe owner process, never in ddrawtest - a ddrawtest-pid filter never fires. */
 class DevEmuCe5DdrawCreateBisect : public Service {
 public:
     using Service::Service;

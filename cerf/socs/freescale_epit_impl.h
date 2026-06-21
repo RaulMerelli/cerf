@@ -20,8 +20,8 @@
 #include <thread>
 
 /* Shared EPIT core. The EPIT IP is register-identical on i.MX31 (MCIMX31RM Ch 33)
-   and i.MX51 (MCIMX51RM Ch 29) — registers/offsets/reset-values/EPITCR-SWR-mode all
-   match (verified MCIMX51RM Table 29-2 + Figure 29-3) — so the model is shared; only
+   and i.MX51 (MCIMX51RM Ch 29) - registers/offsets/reset-values/EPITCR-SWR-mode all
+   match (verified MCIMX51RM Table 29-2 + Figure 29-3) - so the model is shared; only
    the IRQ line differs (AVIC vs TZIC source), per-concrete via Assert/DeassertIrqLine. */
 namespace cerf_freescale_epit_detail {
 
@@ -168,7 +168,7 @@ public:
         cv_.notify_all();
     }
 
-    /* Re-assert the INTC line from the restored OCIF/OCIEN — the EPIT compare
+    /* Re-assert the INTC line from the restored OCIF/OCIEN - the EPIT compare
        output is a level the source re-drives after restore. */
     void PostRestore() override { RefreshIrq(); }
 

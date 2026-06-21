@@ -57,7 +57,7 @@ bool Omap3530Intc::HasPendingUnmasked() const {
 void Omap3530Intc::AssertIrq(int source_bit) {
     if (source_bit < 0 || source_bit >= static_cast<int>(kSourceCount)) {
         LOG(Caution, "Omap3530Intc::AssertIrq: source_bit %d out of "
-                "range — OMAP3 has 96 IRQ sources\n", source_bit);
+                "range - OMAP3 has 96 IRQ sources\n", source_bit);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
@@ -65,11 +65,11 @@ void Omap3530Intc::AssertIrq(int source_bit) {
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
 
-        /* FIQ routing not modelled — CE programs ILR[N].bit0 = 0 for
+        /* FIQ routing not modelled - CE programs ILR[N].bit0 = 0 for
            every source. Halt loudly if a source is configured FIQ. */
         if (ilr_[source_bit] & 0x1u) {
             LOG(Caution, "Omap3530Intc::AssertIrq: source %d routed to "
-                    "FIQ (ILR[%d].bit0 set) — FIQ delivery not modelled\n",
+                    "FIQ (ILR[%d].bit0 set) - FIQ delivery not modelled\n",
                     source_bit, source_bit);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
@@ -86,7 +86,7 @@ void Omap3530Intc::AssertIrq(int source_bit) {
 void Omap3530Intc::DeAssertIrq(int source_bit) {
     if (source_bit < 0 || source_bit >= static_cast<int>(kSourceCount)) {
         LOG(Caution, "Omap3530Intc::DeAssertIrq: source_bit %d out of "
-                "range — OMAP3 has 96 IRQ sources\n", source_bit);
+                "range - OMAP3 has 96 IRQ sources\n", source_bit);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
@@ -273,7 +273,7 @@ void Omap3530Intc::RestoreState(StateReader& r) {
 
 void Omap3530Intc::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored banks_/ilr_ after every
-       peripheral's RestoreState has run — the INTC owns the CPU IRQ line. Same
+       peripheral's RestoreState has run - the INTC owns the CPU IRQ line. Same
        lock-then-notify-outside-lock shape as WriteReg's re-evaluation. */
     bool pending = false;
     {

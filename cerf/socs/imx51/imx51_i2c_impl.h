@@ -13,7 +13,7 @@
 
 namespace cerf_imx51_i2c_detail {
 
-/* i.MX51 I2C controller — Freescale I2C v1 (register offsets + bit semantics:
+/* i.MX51 I2C controller - Freescale I2C v1 (register offsets + bit semantics:
    MCIMX31RM Ch 26, same IP as the i.MX31 I2C; confirmed against the BSP
    i2c.dll IST). Interrupt-mode master FSM with I2cSlave dispatch. */
 constexpr uint32_t kSize = 0x00004000u;     /* AIPS slot (RM Table 2-1) */
@@ -145,7 +145,7 @@ private:
 
     uint16_t MasterReadData() {
         /* i.MX I2C master receive is "delayed by one": reading I2DR returns the
-           byte clocked in by the PREVIOUS read and clocks the next one — the
+           byte clocked in by the PREVIOUS read and clocks the next one - the
            first read after addressing is the dummy read (MCIMX51RM Ch 40,
            Figure 40-15 "Dummy Read from I2DR" in the master-receive flow). */
         const uint8_t out = rx_shift_;

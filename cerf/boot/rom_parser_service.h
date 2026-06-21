@@ -51,7 +51,7 @@ struct ParsedROMHDR {
     uint32_t ulTrackingLen   = 0;
 };
 
-/* ParsedTOC — what the kernel sees at one pTOC slot: a ROMHDR
+/* ParsedTOC - what the kernel sees at one pTOC slot: a ROMHDR
    followed by `romhdr.nummods` TOCentry records, then
    `romhdr.numfiles` FILESentry records. `romhdr_va` is the kernel-VA
    romimage burned into the kernel binary's pTOC slot. */

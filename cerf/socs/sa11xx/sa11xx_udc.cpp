@@ -10,7 +10,7 @@ namespace {
 /* SA-1110 §11.8.14: UDCCR/UDCAR/UDCOMP/UDCIMP at +0x00/04/08/0C,
    UDCCS0/1/2 at +0x10/14/18, UDCD0/UDCWC/UDCDR at +0x1C/20/28,
    UDCSR (W1C) at +0x30. With no USB host attached, UDCSR sees no
-   events — kernel polls find nothing and move on. */
+   events - kernel polls find nothing and move on. */
 
 class Sa11xxUdc : public Peripheral {
 public:

@@ -10,7 +10,7 @@ bool LcdContentLatch::ProbeAndLatch(EmulatedMemory& mem,
     if (latched_.load(std::memory_order_acquire)) return true;
     if (fb_bytes == 0 || stride == 0)             return false;
 
-    /* TryTranslate — fb_pa may not be inside a declared region yet
+    /* TryTranslate - fb_pa may not be inside a declared region yet
        in the early mode-program-before-fb-write window; Translate
        halts on unmapped, TryTranslate returns nullptr so the latch
        just stays false until CE publishes a real fb. */
@@ -43,7 +43,7 @@ bool LcdContentLatch::ProbeAndLatch(const uint8_t* fb, size_t fb_bytes,
         }
         if (!nonzero) {
             /* Content vanished (e.g. hard-reset RAM wipe landed after the
-               baseline was taken) — rebase so any future content latches. */
+               baseline was taken) - rebase so any future content latches. */
             baseline_sig_.store(sig, std::memory_order_release);
             return false;
         }

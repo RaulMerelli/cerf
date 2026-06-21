@@ -14,7 +14,7 @@ namespace {
 
 /* Falcon (Askey PC320/PC331) board CPLD at PA 0xA3CC3000 (carved out of DRAM so
    it routes here). nk.exe OEMIoControl 0x101003C (IOCTL_HAL_REBOOT, sub_800F5E20)
-   writes 3 to PA 0xA3CC380C (offset 0x80C) to reset the board — trigger the warm
+   writes 3 to PA 0xA3CC380C (offset 0x80C) to reset the board - trigger the warm
    reset on that write, else the post-reboot OAL spins and WarmCheck never signals. */
 class FalconBoardCpld : public Peripheral {
 public:

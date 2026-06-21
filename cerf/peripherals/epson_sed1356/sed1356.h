@@ -67,7 +67,7 @@ public:
     uint8_t* VramData()       { return vram_.data(); }
     uint32_t VramSize() const { return vram_size_; }
     /* Fold a display-buffer offset into the populated buffer: the 2 MB
-       aperture aliases it (TM X25B-A-001 §10) — mask if power-of-2, else mod. */
+       aperture aliases it (TM X25B-A-001 §10) - mask if power-of-2, else mod. */
     uint32_t VramWrap(uint32_t off) const {
         return vram_mask_ ? (off & vram_mask_) : (off % vram_size_);
     }

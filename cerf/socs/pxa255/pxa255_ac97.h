@@ -12,7 +12,7 @@
 
 /* PXA255 AC'97 controller (base 0x40500000). Register side is a careful stub
    (GSR codec-ready, CAR link-free) so codec init doesn't hang. Audio output is
-   real and MUST pace the DMA's per-block completion via on_block_done — without
+   real and MUST pace the DMA's per-block completion via on_block_done - without
    it the guest audio thread blocks on missing DMA completions, deadlocking the UI. */
 class Pxa255Ac97 : public Peripheral, public AudioOutSink {
 public:

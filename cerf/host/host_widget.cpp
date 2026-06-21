@@ -4,8 +4,8 @@
 
 namespace {
 constexpr int      kGlowTicks = 3;                 /* ~300 ms at the 100 ms tick */
-constexpr COLORREF kRxColor   = RGB(229, 80, 80);  /* red — input  (rx, left dot)  */
-constexpr COLORREF kTxColor   = RGB(78, 201, 90);  /* green — output (tx, right dot) */
+constexpr COLORREF kRxColor   = RGB(229, 80, 80);  /* red - input  (rx, left dot)  */
+constexpr COLORREF kTxColor   = RGB(78, 201, 90);  /* green - output (tx, right dot) */
 constexpr int      kDotR      = 3;
 constexpr BYTE     kDisabledAlpha = 150;           /* gray blended over a disabled icon */
 

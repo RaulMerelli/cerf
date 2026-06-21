@@ -21,7 +21,7 @@ bool ArmDecoder::DecodeArmLdrexStrex(DecodedInsn* insn, ArmOpcode op) {
         return false;
     }
     if (bits22_21 != 0u) {
-        return false;  /* size != word — halt-on-unknown */
+        return false;  /* size != word - halt-on-unknown */
     }
 
     const uint32_t rn = (op.word >> 16) & 0xFu;

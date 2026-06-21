@@ -67,7 +67,7 @@ public:
             });
 
             /* Track every SCTLR transition: settles whether the kernel ever
-               runs XP=1 (bit23) — decides MMU-walker fix vs SCTLR-handler. */
+               runs XP=1 (bit23) - decides MMU-walker fix vs SCTLR-handler. */
             static std::atomic<uint32_t> last_sctlr{0xFFFFFFFFu};
             tm.OnRunLoopIter([](const TraceContext& c) {
                 const uint32_t s = c.emu.Get<ArmMmu>().State()->control_register.word;
@@ -137,7 +137,7 @@ public:
             });
 
             /* sub_8823ED68 + 0x14: R0 = EPIT clock the kernel read from
-               BSP_ARGS+0xE8 — the value driving the ms-tick scale. */
+               BSP_ARGS+0xE8 - the value driving the ms-tick scale. */
             static std::atomic<uint64_t> hits_epitclk{0};
             tm.OnPc(0x8823ED7Cu, [](const TraceContext& c) {
                 const uint64_t n = hits_epitclk.fetch_add(1, std::memory_order_relaxed);

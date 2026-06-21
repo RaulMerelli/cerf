@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
         return 0;
 
     /* Without this, sub-ms cv_.wait_for/Sleep round to the 15.625 ms
-       Windows default quantum — OST IRQ latency breaks audio + UI. */
+       Windows default quantum - OST IRQ latency breaks audio + UI. */
     timeBeginPeriod(1);
 
     Log::InitDefaultLogFile();

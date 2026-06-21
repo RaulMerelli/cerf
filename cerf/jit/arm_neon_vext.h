@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VEXT — A8.8.316, byte-wise concat-and-select from (Dm:Dn) or
+/* VEXT - A8.8.316, byte-wise concat-and-select from (Dm:Dn) or
    (Qm:Qn). U=0, bit23=1, bits[21:20]=11, bit[4]=0. */
 class ArmNeonVext : public Service {
 public:

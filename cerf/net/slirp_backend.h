@@ -27,7 +27,7 @@ public:
     void SendFrame(const uint8_t* frame, std::size_t len) override;
     void SetReceiveCallback(RxFn cb) override;
 
-    /* Phase 10.b — ICMPv4 echo intercept. libslirp's built-in ICMP path
+    /* Phase 10.b - ICMPv4 echo intercept. libslirp's built-in ICMP path
        relies on SOCK_RAW on Windows (non-admin = WSAEACCES → silent ping
        failure). We intercept echo requests before slirp_input and
        service them with the unprivileged `IcmpSendEcho` Win32 API. */

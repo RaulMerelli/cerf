@@ -10,7 +10,7 @@ namespace {
 
 /* SA-1110 Dev Man §11.9.2-11.9.4: the Serial Port 1 GPCLK block (0x80020000)
    defines registers only at +0x60..+0x70; +0x78..+0xFFFF is reserved and on
-   real HW reads 0 / ignores writes. Reserved offsets here do the same — the
+   real HW reads 0 / ignores writes. Reserved offsets here do the same - the
    G138 OAL's SP1 reset writes 2/4 to +0x80 and 0x10 to +0x84. */
 
 class Sa11xxSp1Gpclk : public Peripheral {

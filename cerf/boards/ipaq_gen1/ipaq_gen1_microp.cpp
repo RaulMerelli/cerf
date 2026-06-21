@@ -24,7 +24,7 @@ constexpr uint8_t kMsgBattery   = 0x9;
 constexpr uint8_t kMsgNvmRead   = 0xB;   /* SSC NVM read: payload [off_lo,off_hi,len] */
 
 /* Sleeve NVM served for kMsgNvmRead. Byte layout MUST match ppcutil
-   sub_1043C0's version-1 parse exactly (markers below) — any deviation fails
+   sub_1043C0's version-1 parse exactly (markers below) - any deviation fails
    the parse, so HH_dm never issues the IOCTL 0x0101010D subcmd-12 that sets
    OAL handshake bit 0xAC02034E.1, and PCMCIA card-detect never enables. */
 constexpr uint8_t kSleeveNvm[] = {

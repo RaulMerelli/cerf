@@ -40,7 +40,7 @@ private:
     void MaybeOpenIpcp();
 
     /* Outbound frames to libslirp are queued under out_mu_ and sent by DrainTx
-       on the JIT thread while holding neither mu_ nor slirp's lock — calling
+       on the JIT thread while holding neither mu_ nor slirp's lock - calling
        SendFrame under mu_ (or from the RX path under slirp's lock) deadlocks
        against the poll thread (slirp_mutex_ <-> mu_). */
     void QueueTx(std::vector<uint8_t> frame);
@@ -48,7 +48,7 @@ private:
     void BuildGratuitousArp(std::vector<uint8_t>& out) const;
 
     /* Feed one held RX frame to the UART when RTS is asserted and the UART has
-       drained — paces delivery to the guest's serial buffer. */
+       drained - paces delivery to the guest's serial buffer. */
     void Pump();
     void PumpLocked();
 
@@ -80,7 +80,7 @@ private:
     std::vector<std::vector<uint8_t>> outbound_;
 
     /* Guest-bound frames queue in rx_hold_ and are fed to the UART one at a
-       time, only while the guest asserts RTS and the UART RX has drained — RTS
+       time, only while the guest asserts RTS and the UART RX has drained - RTS
        flow control + pacing to the guest's serial buffer. Under mu_. */
     bool                              rts_ = true;
     std::vector<std::vector<uint8_t>> rx_hold_;

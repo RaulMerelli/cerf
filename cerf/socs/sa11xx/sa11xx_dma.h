@@ -57,7 +57,7 @@ private:
         uint32_t dbsb = 0;
         uint32_t dbtb = 0;
         /* Buffer claimed by a sink, CompleteTransfer not yet called.
-           §11.6.1.3: RUN clear pauses, RUN re-set resumes the transfer —
+           §11.6.1.3: RUN clear pauses, RUN re-set resumes the transfer -
            a RUN 0→1 edge must not re-submit a buffer a sink still owns. */
         bool in_flight_a = false;
         bool in_flight_b = false;

@@ -39,7 +39,7 @@ private:
     static constexpr uint32_t kPpsrIndex        = 1u;     /* PPSR = +0x4. */
     static constexpr uint32_t kPinMask          = 0x003FFFFFu;  /* bits 21:0 (22 pins). */
 
-    /* Guards PPSR pin state — DriveInputPin runs on peripheral/host threads
+    /* Guards PPSR pin state - DriveInputPin runs on peripheral/host threads
        concurrently with JIT-thread register access. */
     mutable std::mutex mtx_;
 

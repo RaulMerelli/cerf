@@ -36,7 +36,7 @@ public:
 private:
     static constexpr uint32_t kPinMask = 0x0FFFFFFFu;  /* bits 27:0 */
 
-    /* Guards pin/edge state — DriveInputPin runs on peripheral/host
+    /* Guards pin/edge state - DriveInputPin runs on peripheral/host
        threads concurrently with JIT-thread register access. */
     mutable std::mutex mtx_;
 

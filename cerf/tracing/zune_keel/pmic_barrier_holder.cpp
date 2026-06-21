@@ -15,7 +15,7 @@ namespace {
 
 /* Kernel MUTEX_PMIC barrier: sub_8823F0AC acquires (WaitForMultipleObjects
    returns to 0x8823F0D0), sub_8823F114 releases. Track the live balance; if it
-   stays held, report the last acquirer (pid/lr) — the thread stuck holding it. */
+   stays held, report the last acquirer (pid/lr) - the thread stuck holding it. */
 std::atomic<int>      g_balance{0};
 std::atomic<uint32_t> g_holder_pid{0};
 std::atomic<uint32_t> g_holder_lr{0};

@@ -11,7 +11,7 @@
 namespace {
 
 /* i.MX51 HSC (High-Speed Connectivity) @ 0x83FDC000, 16 KB. RM Table 2-1 leaves
-   0x83FD_C000 a GAP; the IMX51RMAD errata's corrected Table 2-1 names it HSC —
+   0x83FD_C000 a GAP; the IMX51RMAD errata's corrected Table 2-1 names it HSC -
    ddraw_ipu's display-commit writes one config register here (no read-back). */
 constexpr uint32_t kBase = 0x83FDC000u;
 constexpr uint32_t kSize = 0x00004000u;  /* 16 KB, errata Table 2-1 */

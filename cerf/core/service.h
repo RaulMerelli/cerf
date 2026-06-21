@@ -31,7 +31,7 @@ public:
 
     /* Runs for every service before any destructor: stop worker threads /
        detach from peers ONLY. Freeing a buffer another service's thread reads
-       must stay in the destructor — this phase is unordered, so a free here
+       must stay in the destructor - this phase is unordered, so a free here
        can still race a peer thread that a later OnShutdown hasn't stopped yet. */
     virtual void OnShutdown() {}
 

@@ -49,7 +49,7 @@ private:
         auto& d  = c.emu.Get<PeripheralDispatcher>();
         auto& mq = c.emu.Get<MediaQMq1188>();
 
-        /* GE dst registers (raw — the per-part base/stride masks live in the GE
+        /* GE dst registers (raw - the per-part base/stride masks live in the GE
            concrete; log raw so the cross-boundary diff is unambiguous). */
         /* Read GE regs via the queued alias (0x1400) not the direct block (0x200):
            the direct block is the SD/MMC controller region, and reading it here

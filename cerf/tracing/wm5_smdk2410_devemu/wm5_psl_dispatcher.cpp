@@ -35,7 +35,7 @@ public:
                     c.regs[3], c.regs[13]);
             });
 
-            /* sub_800B3A0C Duff-device LDR table — captures R4..R11
+            /* sub_800B3A0C Duff-device LDR table - captures R4..R11
                to detect host-register mapping off-by-one. R0 in
                [0x01FFF000..0x01FFFFFF) (coredll per-process .data). */
             for (uint32_t pc = 0x800B3AA4u; pc <= 0x800B3AC0u; pc += 4) {
@@ -51,7 +51,7 @@ public:
                         c.regs[8], c.regs[9], c.regs[10], c.regs[11]);
                 });
             }
-            /* sub_800B3A0C Duff-device STR table — captures stored
+            /* sub_800B3A0C Duff-device STR table - captures stored
                value + R4..R11 to detect divergence. */
             for (uint32_t pc = 0x800B3ACCu; pc <= 0x800B3AE8u; pc += 4) {
                 tm.OnPc(pc, [pc](const TraceContext& c) {
@@ -66,7 +66,7 @@ public:
 
             /* Kernel's MOVS PC, R12 at 0x80077458 returns to user mode.
                R12 = user-resume PC. If R12 == 0x03F5842C (DllEntryPoint),
-               kernel jumps user there directly — loop sustainer. */
+               kernel jumps user there directly - loop sustainer. */
             tm.OnPc(0x80077458u, [](const TraceContext& c) {
                 LOG(Trace, "[KERN_MOVS_PC] at 0x80077458 R12=0x%08X "
                            "R0=0x%08X R1=0x%08X R2=0x%08X R3=0x%08X "

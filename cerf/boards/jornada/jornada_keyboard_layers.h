@@ -15,19 +15,19 @@ inline constexpr uint8_t kNumLockLayer = 3;
 
 struct LayerKey { uint8_t vk; const wchar_t* label; };
 
-/* Layer 1 — Fn held. {}[] are word_FC10A0 col7 on the 720. */
+/* Layer 1 - Fn held. {}[] are word_FC10A0 col7 on the 720. */
 inline constexpr LayerKey kFnLayer[] = {
     { 0x50, L"{" }, { 0xDC, L"}" }, { 0xBA, L"[" }, { 0xDE, L"]" },
     { 0x10, L"Caps Lock" },   /* Fn + Shift */
     { 0x11, L"Num Lock"  },   /* Fn + Ctrl  */
 };
 
-/* Layer 2 — Alt held. */
+/* Layer 2 - Alt held. */
 inline constexpr LayerKey kAltLayer[] = {
     { 0x26, L"PgUp" }, { 0x25, L"Home" }, { 0x28, L"PgDn" }, { 0x27, L"End" },
 };
 
-/* Layer 3 — Num Lock numpad overlay. */
+/* Layer 3 - Num Lock numpad overlay. */
 inline constexpr LayerKey kNumLayer[] = {
     { 0x37, L"7" }, { 0x38, L"8" }, { 0x39, L"9" }, { 0x30, L"/" },
     { 0x55, L"4" }, { 0x49, L"5" }, { 0x4F, L"6" }, { 0x50, L"*" },

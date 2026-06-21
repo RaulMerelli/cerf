@@ -145,7 +145,7 @@ CanvasPresenter::Layout CanvasPresenter::ComputeLayout(int cw, int ch) const {
         L.src_x = 0; L.src_y = 0; L.src_w = sw; L.src_h = sh;
         L.dst_w = scaled_w; L.dst_h = scaled_h;
         /* Fits: center. Overflows: offset by the scroll position and let the
-           present DC clip to the canvas — keeps each guest pixel an exact NxN
+           present DC clip to the canvas - keeps each guest pixel an exact NxN
            block (crisp) while staying scrollable. */
         L.dst_x = (scaled_w <= cw) ? (cw - scaled_w) / 2
                                    : -std::clamp(scroll_x_, 0, scaled_w - cw);

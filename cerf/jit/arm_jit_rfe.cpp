@@ -29,7 +29,7 @@ uint32_t __fastcall ArmJit::RfeHelper(uint32_t rn_value,
     uint8_t* host_pc_ptr = jit->mmu_->TranslateRead(state, address);
     if (!host_pc_ptr) {
         LOG(Caution, "RfeHelper: TranslateRead failed for VA 0x%08X (new_pc slot) "
-                      "— RFE from non-RAM or aborted load not supported\n", address);
+                      "- RFE from non-RAM or aborted load not supported\n", address);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     uint32_t new_pc = *reinterpret_cast<uint32_t*>(host_pc_ptr);
@@ -37,7 +37,7 @@ uint32_t __fastcall ArmJit::RfeHelper(uint32_t rn_value,
     uint8_t* host_cpsr_ptr = jit->mmu_->TranslateRead(state, address + 4u);
     if (!host_cpsr_ptr) {
         LOG(Caution, "RfeHelper: TranslateRead failed for VA 0x%08X (new_cpsr slot)"
-                      " — RFE from non-RAM or aborted load not supported\n",
+                      " - RFE from non-RAM or aborted load not supported\n",
                       address + 4u);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
@@ -49,14 +49,14 @@ uint32_t __fastcall ArmJit::RfeHelper(uint32_t rn_value,
         state->gprs[rn] = u_bit ? (rn_value + 8u) : (rn_value - 8u);
     }
 
-    /* CPSRWriteByInstr(spsr_value, '1111', TRUE) — full CPSR overwrite
+    /* CPSRWriteByInstr(spsr_value, '1111', TRUE) - full CPSR overwrite
        including mode + flags + T. UpdateCpsrWithFlags handles the bank
        swap + IRQ-poll. */
     ArmPsrFull new_psr;
     new_psr.word = new_cpsr;
     ArmCpuUpdateCpsrWithFlags(jit, state, new_psr);
 
-    /* BranchWritePC — bits[1:0] masked per the new ISA. */
+    /* BranchWritePC - bits[1:0] masked per the new ISA. */
     if (state->cpsr.bits.thumb_mode) {
         new_pc &= ~1u;
     } else {

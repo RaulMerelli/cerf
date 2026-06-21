@@ -21,7 +21,7 @@ void ArmNeon2RegUnaryArith::HandleUnaryArith(uint32_t op_sel, uint32_t F,
         uint8_t res[8];
         for (uint32_t e = 0; e < elements; ++e) {
             if (F != 0u) {
-                /* .F32 — decoder rejects esize != 32 in this branch. */
+                /* .F32 - decoder rejects esize != 32 in this branch. */
                 float v;
                 std::memcpy(&v, src + e * 4u, 4);
                 const float w = (op_sel == kAbs) ? ArmVfp::FPAbsS(v)

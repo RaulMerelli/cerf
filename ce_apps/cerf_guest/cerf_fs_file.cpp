@@ -156,7 +156,7 @@ static BOOL RwAtSeek(CerfFile* fc, PVOID buf, DWORD count, PDWORD done,
         if (op == CERF_FS_OP_WRITE) {
             memcpy(io, (unsigned char*)buf + total, chunk);
         } else {
-            /* Fault io's pages in before the host writes file bytes there — a
+            /* Fault io's pages in before the host writes file bytes there - a
                demand-committed page has no L2 entry, so the host's PeekVaToHost
                walk returns null and the read faults (kErrorReadFault). WRITE
                already touches io via the memcpy above. */

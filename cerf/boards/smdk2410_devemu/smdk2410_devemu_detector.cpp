@@ -4,7 +4,7 @@
 
 namespace {
 
-/* dmatrans.dll — the DeviceEmulator's DMA host-transport driver, present on
+/* dmatrans.dll - the DeviceEmulator's DMA host-transport driver, present on
    every DeviceEmulator BSP generation and no other board. Raw-byte scan, not
    a module-name lookup: WM6+ NB0 images keep driver names in IMGFS, which
    RomParser does not parse. */

@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VTBL / VTBX — A8.8.419, U=1, bit23=1, bits[21:20]=11, bits[11:10]=10,
+/* VTBL / VTBX - A8.8.419, U=1, bit23=1, bits[21:20]=11, bits[11:10]=10,
    bit[4]=0. Routed from NeonUnconditionalDecoder. */
 uint8_t* PlaceNeonDataVtbl(uint8_t*      cursor,
                            DecodedInsn*  d,

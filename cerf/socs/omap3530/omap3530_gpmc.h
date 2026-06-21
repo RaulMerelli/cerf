@@ -25,7 +25,7 @@ public:
 
     void PushPrefetchByte16(uint32_t cs, uint16_t value);
 
-    /* Single-byte FIFO write — covers the byte-granular tail of an
+    /* Single-byte FIFO write - covers the byte-granular tail of an
        unaligned memcpy. Goes through the NAND state machine the
        same way as PushPrefetchByte16, but advances data_offset by 1
        instead of 2. */
@@ -116,7 +116,7 @@ private:
     void     WriteNandData16 (uint32_t cs, uint16_t value);
     uint16_t ReadNandData16  (uint32_t cs);
 
-    /* Do NOT wire AssertIrq(20) on IRQENABLE writes — the EVM3530 OAL
+    /* Do NOT wire AssertIrq(20) on IRQENABLE writes - the EVM3530 OAL
        installs no ISR for GPMC, so dispatch lands at an uninitialised
        entry and the kernel prefetch-aborts on OAL static-IO. */
     std::mutex irq_mu_;

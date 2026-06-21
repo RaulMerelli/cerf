@@ -93,7 +93,7 @@ def show_dpi_help(parent: tk.Misc) -> None:
         "Display DPI override",
         "Overrides the logical DPI (pixels-per-inch) the CERF guest display "
         "driver reports to the OS. It changes what the OS believes the screen "
-        "density is — it most likely causes rendering artifacts and broken "
+        "density is - it most likely causes rendering artifacts and broken "
         "graphics.\n\n"
         "Known behaviour:\n"
         "• Restores VGA (2×) mode on Device Emulator ROMs.\n"
@@ -140,7 +140,7 @@ def show_rom_submit_dialog(parent: tk.Misc) -> None:
     choice = show_dialog(
         parent,
         "Please submit ROMs!",
-        "CERF really needs Windows CE ROMs — dumps, backups, recovery "
+        "CERF really needs Windows CE ROMs - dumps, backups, recovery "
         "images, anything. Every submitted image helps preserve these "
         "devices in history (at the very least), and more importantly "
         "lets us bring them to CERF later.\n\n"

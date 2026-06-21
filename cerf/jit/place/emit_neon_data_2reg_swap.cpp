@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VSWP (A8.8.418) — A7.4.5 A=10, bits[10:7]=0000. */
+/* VSWP (A8.8.418) - A7.4.5 A=10, bits[10:7]=0000. */
 uint8_t* PlaceNeonData2RegSwap(uint8_t*      cursor,
                                DecodedInsn*  d,
                                BlockContext* ctx) {

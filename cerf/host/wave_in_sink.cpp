@@ -76,7 +76,7 @@ bool WaveInSink::EnsureFormat(uint32_t sample_rate_hz, uint16_t channels,
                             thread_id_, 0, CALLBACK_THREAD);
     if (r != MMSYSERR_NOERROR) {
         LOG(Caution, "%s: waveInOpen(%u Hz x %u ch x %u bit) failed mmresult=%u "
-                "— microphone capture unavailable\n",
+                "- microphone capture unavailable\n",
                 log_tag_, sample_rate_hz, channels, bits, r);
         in_device_ = nullptr;
         return false;

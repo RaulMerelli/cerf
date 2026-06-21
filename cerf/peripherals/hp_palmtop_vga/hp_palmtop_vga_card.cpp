@@ -144,7 +144,7 @@ void HpPalmtopVgaCard::WriteCommon16(uint32_t offset, uint16_t value) {
 }
 
 /* The card decodes its VGA register file into the PCMCIA I/O region (verified
-   at runtime: the driver's register writes — 0x3C0..0x46E8, 0x43Cx — arrive as
+   at runtime: the driver's register writes - 0x3C0..0x46E8, 0x43Cx - arrive as
    I/O accesses). Registers and framebuffer route identically regardless of
    which region a given window landed in, so I/O delegates to the common path
    (offset < kRegEnd -> controller registers; 0x200000+ -> framebuffer). */

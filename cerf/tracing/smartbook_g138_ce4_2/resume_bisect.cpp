@@ -10,7 +10,7 @@
 namespace {
 
 /* SA-1110 sleep-resume bisect. The StartUp head (RCSR read + SMR branch) runs
-   MMU-off at runtime PA = link VA + 0x34000000 — hooking its link VA never fires;
+   MMU-off at runtime PA = link VA + 0x34000000 - hooking its link VA never fires;
    the OAL sleep/resume routines (sub_8C17E090 / sub_8C17E350) run MMU-on at link VA. */
 class ResumeBisect : public Service {
 public:

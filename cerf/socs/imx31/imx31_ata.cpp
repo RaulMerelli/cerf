@@ -40,7 +40,7 @@ constexpr uint32_t kFifoAlarm    = 0x34u;
 
 /* Drive registers connected to the ATA bus (Table 23-15): DATA is 16-bit at
    0xA0; the 8-bit command-block registers run 0xA4..0xBC at stride 4; the
-   control block (alt status / device control) is at 0xD8 — there is a gap
+   control block (alt status / device control) is at 0xD8 - there is a gap
    (0xC0..0xD4 unused), so it is NOT 0xA0+stride*8. */
 constexpr uint32_t kDriveData    = 0xA0u;
 constexpr uint32_t kDriveTaskLo  = 0xA4u;
@@ -49,7 +49,7 @@ constexpr uint32_t kDriveControl = 0xD8u;
 
 /* INTERRUPT_PENDING/ENABLE bits (§23.3.3.5): the CPU interrupt ipbus_int is
    bits 3-6 only; the drive INTRQ reaches the CPU on ata_intrq2 (bit 3), while
-   ata_intrq1 (bit 7) routes the same INTRQ to the SDMA — drive IRQ on bit 7
+   ata_intrq1 (bit 7) routes the same INTRQ to the SDMA - drive IRQ on bit 7
    alone leaves AVIC source 15 silent for PIO. */
 constexpr uint8_t kPendAtaIntrq1 = 0x80u;  /* bit 7 -> SDMA alarm */
 constexpr uint8_t kPendCtrlIdle  = 0x10u;  /* bit 4: ATA protocol engine idle */
@@ -72,7 +72,7 @@ public:
         bas.EnsureExists();
         const std::string path = bas.GetImagePath();
         if (!disk_.Open(path, bas.GetCapacityBytes())) {
-            LOG(Caution, "[ATA] FATAL: cannot open core disk '%s' — held by "
+            LOG(Caution, "[ATA] FATAL: cannot open core disk '%s' - held by "
                          "another cerf instance, or no write access.\n", path.c_str());
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
@@ -80,7 +80,7 @@ public:
         emu_.Get<HostWidgetRegistry>().Register(this);
         /* Drive RESET- rides the system reset line. The Zune pmc_atapi
            probe reads ERROR expecting the power-on signature 0x01 and
-           never issues SRST — a warm error_=0x00 after a guest reboot
+           never issues SRST - a warm error_=0x00 after a guest reboot
            reads as "bay empty" and the disk never mounts. */
         emu_.Get<GuestCpuReset>().RegisterResetListener([this] {
             drive_.Reset();
@@ -106,7 +106,7 @@ public:
         r.Read(fifo_alarm_);
     }
 
-    /* Re-assert the AVIC line from restored int_enable_ + drive state — the ATA
+    /* Re-assert the AVIC line from restored int_enable_ + drive state - the ATA
        IRQ is a level the source re-drives after restore. */
     void PostRestore() override { UpdateAvic(); }
 
@@ -223,7 +223,7 @@ public:
 private:
 #if CERF_DEV_MODE
     /* Task-file/control accesses only (data FIFO excluded); a status-poll
-       spin would otherwise bury the log — cap at 64 lines per second. */
+       spin would otherwise bury the log - cap at 64 lines per second. */
     void LogTaskFileAccess(const char* op, uint32_t off, uint8_t value) {
         const auto now = std::chrono::steady_clock::now();
         if (now - log_window_start_ > std::chrono::seconds(1)) {
@@ -281,7 +281,7 @@ void Imx31Ata::DrawIcon(HDC dc, const RECT& box) const {
     HGDIOBJ ob   = SelectObject(dc, fill);
     HGDIOBJ op   = SelectObject(dc, pen);
     RoundRect(dc, body.left, body.top, body.right, body.bottom, 3, 3);
-    /* Spindle dot — the platter centre. */
+    /* Spindle dot - the platter centre. */
     HBRUSH spindle = CreateSolidBrush(RGB(170, 175, 185));
     HGDIOBJ os = SelectObject(dc, spindle);
     Ellipse(dc, cx - 2, cy - 2, cx + 3, cy + 3);

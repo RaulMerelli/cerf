@@ -129,7 +129,7 @@ public:
                         wlr.pa, wlr.bytes, wlr.bytes_ok);
 
                     /* Also try walking softkb.dll's known-good VA
-                       (0x40777570) — if that walks ok, the issue is
+                       (0x40777570) - if that walks ok, the issue is
                        specific to the unknown DLL's page range. */
                     if (lr != 0x40777C74u) {
                         WalkResult sk = Walk(c, 0x40777570u);

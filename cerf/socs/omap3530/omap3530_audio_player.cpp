@@ -171,7 +171,7 @@ void Omap3530AudioPlayer::OnPageDone(WAVEHDR* hdr) {
 uint32_t Omap3530AudioPlayer::SampleRateHz() const {
     auto* codec = emu_.TryGet<Twl4030>();
     const uint8_t mode = codec ? codec->AudioReg(kCodecModeSub) : 0u;
-    switch ((mode >> 4) & 0xFu) {   /* CODEC_MODE.APLL_RATE — TPS65950 TRM. */
+    switch ((mode >> 4) & 0xFu) {   /* CODEC_MODE.APLL_RATE - TPS65950 TRM. */
     case 0x0: return 8000;
     case 0x1: return 11025;
     case 0x2: return 12000;

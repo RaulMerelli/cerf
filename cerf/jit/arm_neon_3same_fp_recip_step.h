@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VRECPS / VRSQRTS — A8.8.385 / A8.8.392, opc=1111 C=1 U=0. bit[21]
+/* VRECPS / VRSQRTS - A8.8.385 / A8.8.392, opc=1111 C=1 U=0. bit[21]
    selects: 0=VRECPS (2 - op1*op2), 1=VRSQRTS ((3 - op1*op2) / 2). */
 class ArmNeon3SameFpRecipStep : public Service {
 public:

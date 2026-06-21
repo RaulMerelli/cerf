@@ -50,7 +50,7 @@ bool ArmNeonLoadStoreDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         insn->crm      = op.neon_load_store_single.index_align;
         return true;
     }
-    /* size==11: single-element-to-all-lanes (VLD only) — recognized but
+    /* size==11: single-element-to-all-lanes (VLD only) - recognized but
        not yet implemented. Halt loudly rather than silent UND. */
     insn->cond      = 14;
     insn->immediate = op.word;

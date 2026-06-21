@@ -29,7 +29,7 @@ void NecMobilePro900PcoCompanion::OnBtuartTx(uint8_t b) {
         break;
     case 0x71u:   /* backup-battery request. sub_1BC28B4 has no 0x71 case -> the reply
                      ID is 0x70 (request byte only selects the cell). No separate backup
-                     source; report it as healthy as main (cosmetic — answering clears
+                     source; report it as healthy as main (cosmetic - answering clears
                      the freeze). */
         SendBatteryReply(main_battery_raw_.load(std::memory_order_acquire));
         break;

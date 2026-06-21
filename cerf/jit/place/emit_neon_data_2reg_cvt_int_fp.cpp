@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VCVT int↔fp Advanced SIMD (A8.8.305) — A7.4.5 A=11, bits[10:9]=11,
+/* VCVT int↔fp Advanced SIMD (A8.8.305) - A7.4.5 A=11, bits[10:9]=11,
    bits[8:7]=op. */
 uint8_t* PlaceNeonData2RegCvtIntFp(uint8_t*      cursor,
                                    DecodedInsn*  d,

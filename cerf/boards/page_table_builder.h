@@ -10,7 +10,7 @@
 
 /* Board/BSP bootloader-handoff state: DRAM regions, initial SP, and the
    static cached-DRAM VA→PA map used only for ROM placement and pre-MMU
-   boot — the CE kernel installs its own page tables once it runs, so
+   boot - the CE kernel installs its own page tables once it runs, so
    VaToPa here is NOT the live runtime translation. */
 
 struct DramRegion {
@@ -34,19 +34,19 @@ public:
        sets up its own per-mode stacks shortly after taking control. */
     virtual uint32_t InitStackTopPa() const = 0;
 
-    /* VA→PA in the SoC's full BSP OAT view (every band — DRAM and
+    /* VA→PA in the SoC's full BSP OAT view (every band - DRAM and
        peripheral). Halts on a VA outside every band. */
     virtual uint32_t VaToPa(uint32_t va) const = 0;
 
     virtual std::vector<DramRegion> CachedDramRegions() const = 0;
 
-    /* Every memory-backed region in the SoC's BSP OAT — DRAM + flash
+    /* Every memory-backed region in the SoC's BSP OAT - DRAM + flash
        + on-chip SRAM. EmulatedMemory iterates this on startup;
        anything not listed here is either a peripheral
        (PeripheralDispatcher) or unmapped (faults). */
     virtual std::vector<BackedRegion> BackedMemoryRegions() const = 0;
 
-    /* Every VA span the OAT maps — DRAM, flash AND peripheral. MUST include
+    /* Every VA span the OAT maps - DRAM, flash AND peripheral. MUST include
        MMIO spans (unlike BackedMemoryRegions): StaticWindowHole picks a band
        VA outside these, and a band VA inside an omitted MMIO span gets shadowed
        by the real peripheral mapping so the stub bytes are never served. */

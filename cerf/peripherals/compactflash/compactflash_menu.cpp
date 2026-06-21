@@ -35,7 +35,7 @@ struct SizeDlgCtx {
 
 /* Modal dialog proc for the card-size prompt. A SizeDlgCtx* arrives via lParam
    at WM_INITDIALOG; the chosen size is returned through EndDialog (0 = cancel).
-   Win32 dialog callback — a C function pointer, the sanctioned free-function
+   Win32 dialog callback - a C function pointer, the sanctioned free-function
    exception. */
 INT_PTR CALLBACK SizeDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -54,7 +54,7 @@ INT_PTR CALLBACK SizeDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CTLCOLORBTN:
     case WM_CTLCOLOREDIT: {
         /* A dialog proc returns the CTLCOLOR brush by returning it directly cast
-           to INT_PTR — DWLP_MSGRESULT is ignored for these messages.
+           to INT_PTR - DWLP_MSGRESULT is ignored for these messages.
            https://learn.microsoft.com/windows/win32/dlgbox/wm-ctlcolordlg */
         auto* ctx = reinterpret_cast<SizeDlgCtx*>(GetWindowLongPtrW(dlg, DWLP_USER));
         LRESULT br;
@@ -229,7 +229,7 @@ std::vector<WidgetMenuItem> CompactFlashMenu::BuildInsertMenu(
     std::vector<WidgetMenuItem> items;
 
     /* CF images bundled with the device (cerf.json
-       "additional_packages.compact_flash_cards") — offered only when the
+       "additional_packages.compact_flash_cards") - offered only when the
        image file is actually present in the device directory. */
     const auto& cfg = emu_.Get<DeviceConfig>();
     for (const auto& card : cfg.bundled_compact_flash_cards) {

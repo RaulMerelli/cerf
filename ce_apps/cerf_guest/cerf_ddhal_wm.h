@@ -1,5 +1,5 @@
 /* Windows Mobile (CE 5.1/5.2 kernel, CE6 rendering engine) DirectDraw HAL:
-   CE6-engine callback offsets but a 252-byte DDHALINFO / 112-byte DDCAPS — 16B
+   CE6-engine callback offsets but a 252-byte DDHALINFO / 112-byte DDCAPS - 16B
    smaller than CE6/CE7 (284/128). Sizing it to 284 makes the WM ddcore reject
    the HAL. Verified vs stock DeviceEmulator_lcd.dll (WM5/WM6/WM6.5: *a1=252). */
 #pragma once

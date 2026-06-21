@@ -8,7 +8,7 @@
 /* Unmodeled-device scaffold (NOT a model): stores writes, returns stored/0 on
    reads, logs every access loud (CAUTION). Each access is a peripheral CERF does
    not model; a flood of one offset is a guest busy-waiting on a status bit this
-   scaffold never sets — a hang. Concrete supplies MmioBase()+WindowName(). */
+   scaffold never sets - a hang. Concrete supplies MmioBase()+WindowName(). */
 class NecMobilePro900BoardWindow : public Peripheral {
 public:
     using Peripheral::Peripheral;

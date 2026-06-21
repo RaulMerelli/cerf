@@ -27,7 +27,7 @@ public:
     uint64_t Size()   const { return size_; }
 
     /* Zero-copy pointer to `len` contiguous bytes at `offset`. Valid only until
-       the next View()/Read() — the underlying view may remap. Returns nullptr
+       the next View()/Read() - the underlying view may remap. Returns nullptr
        if the range is out of file bounds or larger than the window (use Read
        for ranges that may exceed one window). */
     const uint8_t* View(uint64_t offset, size_t len);

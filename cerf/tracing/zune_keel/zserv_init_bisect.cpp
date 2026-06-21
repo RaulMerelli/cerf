@@ -37,7 +37,7 @@ public:
             });
 
             /* 0x8821A9B8 = coredll/kernel WaitForSingleObject wrapper. Its LR
-               in services.exe context is ZSERV's own call site — reveals
+               in services.exe context is ZSERV's own call site - reveals
                ZSERV's runtime VA (extracted-PE RVA does not map). */
             tm.OnPc(0x8821A9B8u, [](const TraceContext& c) {
                 const uint32_t pid = c.emu.Get<ArmMmu>().State()->process_id;
@@ -77,7 +77,7 @@ public:
                     c.emu.Get<ArmMmu>().State()->process_id);
             });
             tm.OnPcFiltered(0x3246B3Cu, any, [](const TraceContext&) {
-                LOG(Trace, "[ZSV-GWE] *** WFSO RETURNED — GweApiSetReady SIGNALED "
+                LOG(Trace, "[ZSV-GWE] *** WFSO RETURNED - GweApiSetReady SIGNALED "
                            "*** (gwes completed init)\n");
             });
 
@@ -99,7 +99,7 @@ public:
 
             /* sub_32A4594 = ZAM init: reads registry
                Services\ZSERV\ZAM\DefaultApp and launches it (the Zune UI) via
-               sub_32A26F4, behind an `if(v6>=0)` chain — any gate <0 aborts the
+               sub_32A26F4, behind an `if(v6>=0)` chain - any gate <0 aborts the
                launch. Last gate to fire + first silent = the dead branch. */
             static const Step kZamSteps[] = {
                 {0x325912Cu, "ZSV post-GweReady#1 sub_325912C"},
@@ -124,7 +124,7 @@ public:
                 });
             }
 
-            /* sub_32A4594 ENTERS but gate1 sub_32A2810 never fires — a call in
+            /* sub_32A4594 ENTERS but gate1 sub_32A2810 never fires - a call in
                the entry region blocks (no return). These are the per-call
                return-point PCs; first silent one names the blocking call. */
             static const Step kZamEntry[] = {

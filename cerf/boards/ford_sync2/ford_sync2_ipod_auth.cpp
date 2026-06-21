@@ -26,7 +26,7 @@ public:
     void OnReady() override {
         emu_.Get<Imx51Ecspi1>().AttachSlave(this);
         /* SOMI ready = GPIO4.23 (ipdacp DDKGpioReadDataPin(port 3, pin 23) reads
-           GPIO4 PSR — cspddk's port table is 0-based). Must read high or the
+           GPIO4 PSR - cspddk's port table is 0-based). Must read high or the
            ready-wait sub_C0D8383C times out and IPDMonitorThread reboots; the chip
            has no processing delay in CERF, so hold it high. */
         emu_.Get<Imx51Gpio4>().SetInputPin(23, true);

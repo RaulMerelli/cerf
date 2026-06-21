@@ -26,7 +26,7 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
-    /* JIT-thread-only register file (no worker thread) — the JIT is paused
+    /* JIT-thread-only register file (no worker thread) - the JIT is paused
        during save/restore, so no lock is needed. */
     void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
     void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }

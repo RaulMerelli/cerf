@@ -8,10 +8,10 @@
 #include <optional>
 #include <utility>
 
-/* RenderInto MUST fill every byte of dib_bgra32[0..w*h-1] — the canvas
+/* RenderInto MUST fill every byte of dib_bgra32[0..w*h-1] - the canvas
    does not pre-clear it and it still holds the renderer's previous frame.
    w/h are the native presented-surface size (HostSizeFor's result), the
-   guest-surface DIB — NOT the host window size. */
+   guest-surface DIB - NOT the host window size. */
 
 class FrameRenderer : public Service, public FrameSource {
 public:

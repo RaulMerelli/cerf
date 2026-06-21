@@ -7,7 +7,7 @@
 
 /* Deep-sleep recovery: a SoC power-down register write (e.g. SA-1110 PMCR.SF)
    calls Enter(), which halts the CPU and shows a no-timeout "Shut down CERF?"
-   prompt — Cancel wakes via a sleep-mode reset (GuestCpuReset::SleepWakeReset),
+   prompt - Cancel wakes via a sleep-mode reset (GuestCpuReset::SleepWakeReset),
    OK exits/saves. Generic; each SoC supplies the sleep cause via ResetCauseLatch. */
 /* Implemented by the SoC peripheral owning the sleep-wake reset cause (SA-1110
    RCSR.SMR, PXA255 RCSR.SMR). Non-Service so a Peripheral can implement it; the
@@ -65,7 +65,7 @@ public:
 
     /* Hibernation worker, after a full restore: a machine saved mid-deep-sleep
        comes back with deep_sleep set, so auto-wake it (the dialog's Cancel
-       action) — otherwise the JIT parks forever at "State restored". */
+       action) - otherwise the JIT parks forever at "State restored". */
     void OnFullRestore();
 
 private:

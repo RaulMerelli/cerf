@@ -10,7 +10,7 @@
 
 namespace {
 
-/* i.MX51 VPU at 0x83FF4000 — a Chips&Media CODA video codec, NOT the TVE:
+/* i.MX51 VPU at 0x83FF4000 - a Chips&Media CODA video codec, NOT the TVE:
    MCIMX51RM Table 2-1 mislabels this base "TVE", but vpu.dll's VPU_Init
    MmMapIoSpace's exactly 0x83FF4000 and runs the CODA BIT protocol on it. */
 constexpr uint32_t kBase = 0x83FF4000u;
@@ -51,7 +51,7 @@ public:
         regs_[o >> 2] = v;
         /* vpu.dll VPU_Init sets BIT_BUSY=1, writes BIT_CODE_RUN=1, then spins
            `while(*(base+0x160))` until the BIT core clears BUSY. No real CODA
-           core exists, so the run-kick clears BUSY here — without it VPU_Init
+           core exists, so the run-kick clears BUSY here - without it VPU_Init
            never returns and gwes never launches. */
         if (o == kRegCodeRun && v != 0u)
             regs_[kRegBusy >> 2] = 0u;

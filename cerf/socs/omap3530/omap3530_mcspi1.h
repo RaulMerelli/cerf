@@ -33,7 +33,7 @@ public:
 
     /* RegisterSlave is a cross-thread caller, so the same mutex guards
        state in both methods. The McspiSlave* pointers are host wiring,
-       re-established by RegisterSlave at construction — not serialized. */
+       re-established by RegisterSlave at construction - not serialized. */
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(mu_);
         w.Write(sysconfig_);

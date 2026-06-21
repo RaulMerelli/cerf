@@ -13,7 +13,7 @@ public:
         tm.RegisterForBundle(kCe7BundleCrc32, [&] {
             /* Explorer.exe ROM loadVA=0x8EAFE000, PE ImageBase=0x10000.
                Hook entry points at BOTH user-mode VA (PE) and kernel-
-               cached VA (ROM XIP) — whichever the kernel uses, one
+               cached VA (ROM XIP) - whichever the kernel uses, one
                will fire. */
             tm.OnPc(0x8EB016F4u, [](const TraceContext& c) {
                 LOG(Trace, "[expl] WinMainCRTStartup (rom-VA) LR=0x%08X\n",
@@ -24,7 +24,7 @@ public:
                     "R2(cmd)=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[2], c.regs[14]);
             });
-            /* EXTLoadLibraryEx — user-mode SVC wrapper for LoadLibrary.
+            /* EXTLoadLibraryEx - user-mode SVC wrapper for LoadLibrary.
                Catches every LoadLibrary call from user-mode processes
                that NKLoadLibraryEx (kernel-internal entry) misses. */
             tm.OnPc(0x8C04CB6Cu, [](const TraceContext& c) {

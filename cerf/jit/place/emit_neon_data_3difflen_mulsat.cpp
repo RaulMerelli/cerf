@@ -29,7 +29,7 @@ uint8_t* PlaceNeonData3DiffLenMulSat(uint8_t*      cursor,
     const uint32_t n_idx = (Nbit << 4) | Vn;
     const uint32_t m_idx = (Mbit << 4) | Vm;
 
-    /* U must be 0 — VQDMLAL/VQDMLSL/VQDMULL are signed-only encodings.
+    /* U must be 0 - VQDMLAL/VQDMLSL/VQDMULL are signed-only encodings.
        A7.4.2: "Other encodings in this space are UNDEFINED". */
     if (U != 0u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);

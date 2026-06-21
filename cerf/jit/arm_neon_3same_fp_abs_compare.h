@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VACGE / VACGT — A8.8.281, opc=1110 C=1 U=1. Absolute-value compares;
+/* VACGE / VACGT - A8.8.281, opc=1110 C=1 U=1. Absolute-value compares;
    bit[21] selects ACGE (0) / ACGT (1). VACLE / VACLT are assembler
    pseudo-instructions for swapped-operand VACGE / VACGT and encode as
    the same instruction. */

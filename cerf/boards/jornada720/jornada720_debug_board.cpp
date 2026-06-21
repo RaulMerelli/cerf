@@ -8,7 +8,7 @@
 namespace {
 
 /* Absent Jornada 720 debug board (CL-CD1284) at PA 0x1A000000: reads
-   float 0xFF, writes drop. The range must stay mapped — KernelStart
+   float 0xFF, writes drop. The range must stay mapped - KernelStart
    writes boot-progress codes to +0x400 and the PCMCIA driver strobes
    its power latch there; an unmapped range FATALs the boot. */
 class Jornada720DebugBoard : public Peripheral {

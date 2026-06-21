@@ -64,7 +64,7 @@ public:
     }
     void ClampGuest(int& sx, int& sy) const { canvas_.ClampGuest(sx, sy); }
 
-    /* PresenterCanvasHost — main-window-only concerns layered on the canvas. */
+    /* PresenterCanvasHost - main-window-only concerns layered on the canvas. */
     void OnPresentTick() override;
     bool RenderAltContent(HDC dc, uint32_t* bits, int w, int h) override;
     bool HandleInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,

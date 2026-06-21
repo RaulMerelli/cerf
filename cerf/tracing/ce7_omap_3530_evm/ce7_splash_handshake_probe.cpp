@@ -12,7 +12,7 @@
 
 namespace {
 
-/* StartupScreenThread (splash) PCs — pTh=0xC0473198 historically. */
+/* StartupScreenThread (splash) PCs - pTh=0xC0473198 historically. */
 constexpr uint32_t kPcSplashBlCreateDialog       = 0x125F8u;
 constexpr uint32_t kPcSplashPostCreateDialog     = 0x125FCu;
 constexpr uint32_t kPcSplashBlEvtShutdownSet     = 0x1260Cu;

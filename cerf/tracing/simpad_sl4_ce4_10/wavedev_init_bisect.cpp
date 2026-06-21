@@ -13,7 +13,7 @@
 namespace {
 
 /* wavedev runtime VA is uncertain (IDA imagebase 0x1330000 vs loadVA
-   0x82C4B000), so each point is hooked at BOTH candidates — hooking only one
+   0x82C4B000), so each point is hooked at BOTH candidates - hooking only one
    risks a never-firing hook misread as "path not reached". */
 constexpr uint32_t kDeviceExePid = 0x08000000u;
 constexpr uint32_t kLoadAdjust   = 0x8191B000u;  /* loadVA 0x82C4B000 - imagebase 0x1330000 */

@@ -270,7 +270,7 @@ static void CerfTmDoRun(DWORD gen) {
 
     /* CE CreateProcess does not parse the image out of pszCmdLine. A quoted
        image carries its arguments after the closing quote; an unquoted line
-       is tried whole first (CE paths contain spaces — "\Storage Card\...")
+       is tried whole first (CE paths contain spaces - "\Storage Card\...")
        and only split at the first space when that image does not exist. */
     image = cmd;
     if (cmd[0] == L'"') {

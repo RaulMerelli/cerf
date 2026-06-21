@@ -7,7 +7,7 @@
 
 namespace {
 
-/* J720 kernel per-char debug writer sub_800762A0 (R0 = char) — the
+/* J720 kernel per-char debug writer sub_800762A0 (R0 = char) - the
    OEMWriteDebugString stream. Reassemble into lines. */
 class Jornada720KernelDbgOutput : public Service {
 public:

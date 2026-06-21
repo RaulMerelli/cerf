@@ -88,7 +88,7 @@ void ModemPersonality::ProcessCommandLine() {
                 }
                 break;
             case 'S':
-                /* S-register: Sn=v or Sn? — consume the operands, accept. */
+                /* S-register: Sn=v or Sn? - consume the operands, accept. */
                 while (i + 1 < u.size() &&
                        (isdigit((unsigned char)u[i + 1]) ||
                         u[i + 1] == '=' || u[i + 1] == '?'))

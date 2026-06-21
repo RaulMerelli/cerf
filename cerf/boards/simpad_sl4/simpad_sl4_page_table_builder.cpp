@@ -30,8 +30,8 @@ constexpr OatEntry kOat[] = {
     { 0x80000000u, 0xC1E00000u, MB( 2), OatKind::Dram  }, /* kernel cached window -> DRAM (NK image base maps here) */
     { 0x80200000u, 0x00200000u, MB(14), OatKind::Flash }, /* NOR flash CS0, +2MB (cached) */
     /* CS1 is Flash not Mmio: pTOC=0x81a7a17c (< physlast 0x81a7dc10) puts the
-       ROM TOC + module headers in this band — read-only OS-image content. */
-    { 0x81000000u, 0x08000000u, MB(16), OatKind::Flash }, /* static bank CS1 (cached) — holds ROM TOC + modules */
+       ROM TOC + module headers in this band - read-only OS-image content. */
+    { 0x81000000u, 0x08000000u, MB(16), OatKind::Flash }, /* static bank CS1 (cached) - holds ROM TOC + modules */
     { 0x8C000000u, 0xC0000000u, MB(30), OatKind::Dram  }, /* DRAM bank 0 base (cached) */
     { 0x8DE00000u, 0xC2000000u, MB(32), OatKind::Dram  }, /* DRAM, upper window (cached) */
     { 0x84000000u, 0x00000000u, MB(16), OatKind::Flash }, /* NOR flash CS0 full, uncached view */
@@ -104,7 +104,7 @@ SimpadSl4PageTableBuilder::BackedMemoryRegions() const {
             (e.kind == OatKind::Flash) ? PAGE_READONLY : PAGE_READWRITE;
         regions.push_back({ e.va_base, e.pa_base, e.size, protect });
     }
-    /* Back the boot stub's head copy-source flash window — no OAT entry maps
+    /* Back the boot stub's head copy-source flash window - no OAT entry maps
        a VA to it, so it is not covered by the loop above. */
     regions.push_back({ 0u, simpad_sl4::kHeadCopySrcPa,
                         simpad_sl4::kHeadLen, PAGE_READONLY });

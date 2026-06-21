@@ -10,7 +10,7 @@
 namespace {
 
 /* IPU_CONF enables, MCIMX31RM Fig 44-8 / Table 44-17. SDC_EN bit 4, DI_EN bit 6.
-   Recovery drives the panel via DI alone (DI_EN set, SDC_EN clear) — gating the
+   Recovery drives the panel via DI alone (DI_EN set, SDC_EN clear) - gating the
    display-active check on SDC_EN only leaves the recovery splash blank. */
 constexpr uint32_t kIpuConfSdcEnBit = 1u << 4;
 constexpr uint32_t kIpuConfDiEnBit  = 1u << 6;
@@ -97,7 +97,7 @@ void Imx31Ipu::WriteRegLocked(uint32_t off, uint32_t value) {
 }
 
 void Imx31Ipu::OnIpuConfWriteLocked(uint32_t old_conf, uint32_t new_conf) {
-    /* Publish dims on the display-on edge (SDC_EN or DI_EN) — the guest enabling
+    /* Publish dims on the display-on edge (SDC_EN or DI_EN) - the guest enabling
        the panel is the ODO LCD_ON-edge equivalent, on the JIT thread where
        HostWindow exists. */
     const bool was_on = (old_conf & kIpuConfDisplayOn) != 0;
@@ -119,7 +119,7 @@ void Imx31Ipu::OnImaDataWriteLocked(uint32_t value) {
         cpm_[ima_row_nu_ * kCpmDwordsPerRow + ima_word_nu_] = value;
         /* The bg channel's frame size (FW/FH) is the real display resolution and
            is programmed here, after the panel-enable edge that first sized the
-           window — re-publish so the window tracks it (deduped in Publish). */
+           window - re-publish so the window tracks it (deduped in Publish). */
         if ((ima_row_nu_ >> 1) == kSdcBgChannel) PublishSdcDimsLocked();
     }
     /* §44.3.3.1.9 (PDF p2034): WORD_NU auto-increments per write to
@@ -281,7 +281,7 @@ Imx31Ipu::ChannelFormat Imx31Ipu::GetSdcBgFormat() const {
 void Imx31Ipu::SetupSdcScanout(uint32_t fb_pa, uint32_t w, uint32_t h) {
     std::lock_guard<std::mutex> guard(state_mtx_);
 
-    /* Encode the SDC bg channel CPM descriptor — exact inverse of
+    /* Encode the SDC bg channel CPM descriptor - exact inverse of
        DecodeChannelFormatLocked / GetSdcBgFbPa for RGB565. */
     auto set = [](uint32_t* row, uint32_t lsb, uint32_t width, uint32_t val) {
         for (uint32_t i = 0; i < width; ++i)
@@ -304,7 +304,7 @@ void Imx31Ipu::SetupSdcScanout(uint32_t fb_pa, uint32_t w, uint32_t h) {
 
     regs_[kSdcHorOff / 4u] = (w - 1u) << 16;
     regs_[kSdcVerOff / 4u] = (h - 1u) << 16;
-    /* Leave the display disabled — the guest's IPU_CONF enable write is the edge
+    /* Leave the display disabled - the guest's IPU_CONF enable write is the edge
        that publishes dims (OnIpuConfWriteLocked). Pre-enabling here suppresses
        that edge, and publishing here deadlocks (HostWindow created off-boot-thread). */
 }

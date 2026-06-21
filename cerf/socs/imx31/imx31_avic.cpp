@@ -52,7 +52,7 @@ bool Imx31Avic::FiqActiveLocked() const {
 void Imx31Avic::NotifyLocked() {
     if (FiqActiveLocked()) {
         LOG(SocIntc, "[AVIC] FIQ asserted (FIPND=0x%016llX); ArmJit "
-                     "exception entry path delivers IRQ only — FIQ is a "
+                     "exception entry path delivers IRQ only - FIQ is a "
                      "separate ARM nFIQ line that the JIT exception filter "
                      "does not service\n", (unsigned long long)Fipnd());
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
@@ -119,7 +119,7 @@ uint32_t Imx31Avic::ReadRegLocked(uint32_t off) const {
         case 0x38: return niprio_[1];
         case 0x3C: return niprio_[0];
         /* Table 9-18: [31:16]=source number (0xFFFF if none), [15:0]=its
-           priority. DO NOT OR a valid/active bit into [31:16] — the OAL
+           priority. DO NOT OR a valid/active bit into [31:16] - the OAL
            reads HIWORD as the raw source number and rejects >=0x40 as
            spurious, so a stray high bit makes every IRQ look spurious. */
         case 0x40: return VecsrLocked(Nipnd());
@@ -230,7 +230,7 @@ void Imx31Avic::RestoreState(StateReader& r) {
 
 void Imx31Avic::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored src_hw_/intenable_/
-       intcntl_ after every peripheral's RestoreState has run — the INTC owns the
+       intcntl_ after every peripheral's RestoreState has run - the INTC owns the
        CPU IRQ line. */
     std::lock_guard<std::mutex> guard(state_mtx_);
     NotifyLocked();

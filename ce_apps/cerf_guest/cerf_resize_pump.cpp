@@ -15,7 +15,7 @@
 /* cerf_guest builds against the CE3 SDK (_WIN32_WCE=300), whose winuser.h has
    no ChangeDisplaySettingsEx (the API arrived in CE4+). Resolve it at runtime
    from coredll instead, and define its constants here. On CE3 the export is
-   absent, so the pump self-disables — matching the CE3 fixed-resolution reality. */
+   absent, so the pump self-disables - matching the CE3 fixed-resolution reality. */
 #ifndef CDS_RESET
 #define CDS_RESET 0x40000000u
 #endif
@@ -34,7 +34,7 @@ typedef LONG (WINAPI *PFN_ChangeDisplaySettingsExW)(
     LPCWSTR, DEVMODEW*, HWND, DWORD, LPVOID);
 
 /* Defined in main.cpp. SetMode allocates the primary at these, and
-   CerfEnablePDEVWrap reports them as GDIINFO ulHorzRes/VertRes — which the gwes
+   CerfEnablePDEVWrap reports them as GDIINFO ulHorzRes/VertRes - which the gwes
    CDS applier copies into SM_CXSCREEN/CYSCREEN. So setting them to the target
    before the (marker-matching) CDS is what makes the new resolution take. */
 extern ULONG g_FbWidth, g_FbHeight, g_FbBpp, g_FbStride;

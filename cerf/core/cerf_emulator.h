@@ -43,7 +43,7 @@ public:
     void Provide(T& instance) {
         const int slot = SlotFor<T>();
         if (services_[slot] != nullptr) {
-            LOG(Caution, "Provide<%s>() — slot already occupied. "
+            LOG(Caution, "Provide<%s>() - slot already occupied. "
                     "Two services claimed the same locator slot; for "
                     "REGISTER_SERVICE_AS this means more than one "
                     "ShouldRegister() returned true for the same Base.\n",
@@ -59,7 +59,7 @@ public:
         if (services_[slot] == nullptr) {
             ResolveSlot(slot, typeid(T).name());
             if (services_[slot] == nullptr) {
-                LOG(Caution, "Get<%s>() — no candidate's ShouldRegister "
+                LOG(Caution, "Get<%s>() - no candidate's ShouldRegister "
                         "returned true. Either no impl was registered for "
                         "this Base, or every registered impl decided this "
                         "device wasn't its match.\n", typeid(T).name());
@@ -110,7 +110,7 @@ public:
         for (auto& fn : ServiceFactories()) fn(*this);
     }
 
-    /* Forces resolution of every candidate slot — without this,
+    /* Forces resolution of every candidate slot - without this,
        slots that nothing else Get<>s stay unresolved and their
        winner's OnReady never runs. */
     void ResolveAllSlots() {

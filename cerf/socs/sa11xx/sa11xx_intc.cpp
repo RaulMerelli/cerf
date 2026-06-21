@@ -19,7 +19,7 @@ void Sa11xxIntc::OnReady() {
 
 void Sa11xxIntc::NotifyLocked() {
     if (IcFpLocked() != 0) {
-        LOG(SocIntc, "FIQ asserted (ICFP=0x%08X) — FIQ delivery not "
+        LOG(SocIntc, "FIQ asserted (ICFP=0x%08X) - FIQ delivery not "
                      "wired through ArmJit\n", IcFpLocked());
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
@@ -115,7 +115,7 @@ void Sa11xxIntc::WriteRegLocked(uint32_t off, uint32_t value) {
         default:   break;
     }
     /* §9.2: writes to ICLR / ICCR / read-only addresses don't change
-       IcIp or IcFp — notifying the JIT on every write is wasted work. */
+       IcIp or IcFp - notifying the JIT on every write is wasted work. */
     if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp) {
         NotifyLocked();
     }

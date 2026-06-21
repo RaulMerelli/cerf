@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VMLA.F32 / VMLS.F32 — A7.4.1 opc=1101 B=1 U=0 (A8.8.337). */
+/* VMLA.F32 / VMLS.F32 - A7.4.1 opc=1101 B=1 U=0 (A8.8.337). */
 class ArmNeon3SameFpMulAcc : public Service {
 public:
     using Service::Service;

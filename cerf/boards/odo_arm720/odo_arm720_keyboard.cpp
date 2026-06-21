@@ -27,6 +27,7 @@ constexpr uint32_t kSlotKbIsr         = 0x04u;
 constexpr uint16_t kKbRdrf            = 0x0001u;
 constexpr uint16_t kKbClkEn           = 0x8000u;
 
+
 constexpr uint16_t kKbCsrReadOnlyMask = 0x07FFu;
 constexpr uint16_t kKbCsrRwMask       = static_cast<uint16_t>(
                                           ~kKbCsrReadOnlyMask & 0xFFFFu);
@@ -78,7 +79,7 @@ private:
     void PushByteLocked(uint8_t byte);
 
     /* Caller MUST AssertKeybIrq outside state_mutex_ if true is
-       returned — board INTC has its own mutex; nested lock would
+       returned - board INTC has its own mutex; nested lock would
        deadlock. */
     bool DeliverNextLocked();
 
@@ -174,10 +175,10 @@ void OdoArm720Keyboard::OnHostKey(uint8_t vk, bool key_up) {
 void OdoArm720Keyboard::PushByteLocked(uint8_t byte) {
     const int next_head = (fifo_head_ + 1) % kFifoLen;
     if (next_head == fifo_tail_) {
-        /* Halting on overflow would crash on burst typing —
+        /* Halting on overflow would crash on burst typing -
            mirror PS/2 hardware behavior: lose oldest byte. */
         fifo_tail_ = (fifo_tail_ + 1) % kFifoLen;
-        LOG(Caution, "Odo KB: FIFO overflow — dropping oldest byte "
+        LOG(Caution, "Odo KB: FIFO overflow - dropping oldest byte "
                 "to make room. Burst typing rate exceeds kernel ISR "
                 "drain rate; consider increasing kFifoLen.\n");
     }

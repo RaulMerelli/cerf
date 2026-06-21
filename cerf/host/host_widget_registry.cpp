@@ -68,14 +68,14 @@ HMENU HostWidgetRegistry::BuildContextMenu(HostWidget* w) {
 void HostWidgetRegistry::AppendAllToMenu(HMENU dest) {
     ResetIds();
     /* Reversed (Ordered() is ascending by Group): the highest-rank terminal
-       widget — the capture lock — leads the block, the rest follow. One
+       widget - the capture lock - leads the block, the rest follow. One
        contiguous block, no inter-widget separators. */
     auto ordered = Ordered();
     for (auto it = ordered.rbegin(); it != ordered.rend(); ++it) {
         HostWidget* w = *it;
         auto items = w->BuildMenu();
         if (items.empty()) {
-            /* No menu of its own — a disabled header keeps it discoverable. */
+            /* No menu of its own - a disabled header keeps it discoverable. */
             AppendMenuW(dest, MF_STRING | MF_GRAYED, 0, w->WidgetName().c_str());
         } else if (items.size() == 1 && items[0].submenu.empty()) {
             AppendItems(dest, items);

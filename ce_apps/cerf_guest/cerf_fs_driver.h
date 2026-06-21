@@ -22,7 +22,7 @@ typedef struct CerfVol {
 } CerfVol;
 
 /* Per-open-file context behind a file-API-set handle (CreateAPIHandle). The
-   host has no seek op — position rides each Read/Write — so the FSD tracks it. */
+   host has no seek op - position rides each Read/Write - so the FSD tracks it. */
 typedef struct CerfFile {
     unsigned short fHandle;    /* host-side open-file slot */
     unsigned long  pos;        /* current file position */
@@ -46,7 +46,7 @@ void CerfFsAfsInit(void);
    silently no-ops where the export is absent. Called from CerfFsAfsInit. */
 void   CerfFsNotifyInit(void);
 
-/* AFS[17] FindFirstChangeNotificationW — returns the waitable event handle. */
+/* AFS[17] FindFirstChangeNotificationW - returns the waitable event handle. */
 HANDLE CerfFsFindFirstChangeNotificationW(CerfVol* vol, HANDLE hProc, PCWSTR path,
                                           BOOL subtree, DWORD filter);
 
@@ -56,7 +56,7 @@ extern HANDLE g_hCerfFileAPI;
 extern HANDLE g_hCerfFindAPI;
 
 /* Mints an API-set handle around an open-file/search context and (when hProc is
-   NULL) transfers it to the current process — per FSDMGR AllocFSDHandle.
+   NULL) transfers it to the current process - per FSDMGR AllocFSDHandle.
    Returns INVALID_HANDLE_VALUE on failure. */
 HANDLE CerfFsMakeHandle(HANDLE apiSet, void* ctx, HANDLE hProc);
 
@@ -83,7 +83,7 @@ int CerfFsResultToBool(unsigned long result);
 /* DOS date/time (host fFileTimeDate form) <-> Win32 FILETIME; zeroed on fail. */
 void CerfFsDosToFiletime(unsigned long dos_datetime, FILETIME* out);
 
-/* ---- AFS API-set methods (leading arg == CerfVol*) — cerf_fs_vol.c ------- */
+/* ---- AFS API-set methods (leading arg == CerfVol*) - cerf_fs_vol.c ------- */
 
 BOOL   CerfFsCloseVolume(CerfVol* vol);                                  /* 0  */
 BOOL   CerfFsCreateDirectoryW(CerfVol* vol, PCWSTR path, LPSECURITY_ATTRIBUTES sa); /* 2 */
@@ -105,7 +105,7 @@ BOOL   CerfFsGetDiskFreeSpaceW(CerfVol* vol, PCWSTR path,
 void   CerfFsNotify(CerfVol* vol, DWORD dwFlags);                      /* 15 */
 BOOL   CerfFsRegisterFileSystemFunction(CerfVol* vol, SHELLFILECHANGEFUNC_t pfn); /* 16 */
 
-/* ---- File API-set methods (leading arg == CerfFile*) — cerf_fs_file.c ---- */
+/* ---- File API-set methods (leading arg == CerfFile*) - cerf_fs_file.c ---- */
 
 BOOL  CerfFsCloseFile(CerfFile* f);                                     /* 0  */
 BOOL  CerfFsReadFile(CerfFile* f, PVOID buf, DWORD count, PDWORD done, OVERLAPPED* ov); /* 2 */
@@ -126,7 +126,7 @@ BOOL  CerfFsReadFileWithSeek(CerfFile* f, PVOID buf, DWORD count, PDWORD done,
 BOOL  CerfFsWriteFileWithSeek(CerfFile* f, const void* buf, DWORD count, PDWORD done,
                               OVERLAPPED* ov, DWORD low, DWORD high);   /* 13 */
 
-/* ---- Find API-set methods (leading arg == CerfFind*) — cerf_fs_find.c ---- */
+/* ---- Find API-set methods (leading arg == CerfFind*) - cerf_fs_find.c ---- */
 
 BOOL CerfFsFindClose(CerfFind* s);                                     /* 0  */
 BOOL CerfFsFindNextFileW(CerfFind* s, PWIN32_FIND_DATAW fd);           /* 2  */

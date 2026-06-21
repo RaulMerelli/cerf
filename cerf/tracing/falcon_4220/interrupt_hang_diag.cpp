@@ -39,7 +39,7 @@ public:
 
             /* coredll exports (shared XIP VA → R0 wide-string names the target):
                last LoadLibraryW/ActivateDeviceEx before the park = the blocking
-               driver. DO NOT add a process filter — want all callers. */
+               driver. DO NOT add a process filter - want all callers. */
             tm.OnPc(0x3F883A0u, [](const TraceContext& c) {   /* CreateProcessW */
                 /* lpAppName(R0) is often NULL with the exe in lpCmdLine(R1). */
                 char app[80]; ReadWStr(c, c.regs[0], app, 80);

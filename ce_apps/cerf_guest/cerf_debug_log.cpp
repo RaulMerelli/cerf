@@ -4,7 +4,7 @@
 #include <windows.h>
 
 /* Guest debug-log transport: CerfInitLogging arms this process's log channel and
-   CerfDebugTx / CerfDebugTxX stream characters to it. Always compiled — normal
+   CerfDebugTx / CerfDebugTxX stream characters to it. Always compiled - normal
    driver logs (CERF_LOG) reach cerf.log in production too; the per-op graphics
    tracing tier (CERF_LOG_DEV) is what production strips, at its call sites. */
 

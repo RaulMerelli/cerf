@@ -30,7 +30,7 @@ public:
     std::wstring HostRoot()   const { std::lock_guard<std::mutex> lk(mtx_); return host_root_; }
     std::wstring MountPoint() const { std::lock_guard<std::mutex> lk(mtx_); return mount_point_; }
 
-    /* An empty host root forces disabled — sharing nothing is "off". */
+    /* An empty host root forces disabled - sharing nothing is "off". */
     void Set(bool enabled, std::wstring host_root, std::wstring mount_point) {
         {
             std::lock_guard<std::mutex> lk(mtx_);

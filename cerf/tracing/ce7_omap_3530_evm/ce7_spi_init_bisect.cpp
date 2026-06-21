@@ -19,10 +19,10 @@ constexpr uint32_t kPcPostKernelIoControl = 0xEF182FE0u;  /* IOCTL_HAL_REQUEST_S
 constexpr uint32_t kPcPostCreateIntrEvent = 0xEF182FFCu;
 constexpr uint32_t kPcPostInterruptInit   = 0xEF183018u;
 constexpr uint32_t kPcLabel29             = 0xEF1830BCu;  /* cleanup-and-fail */
-constexpr uint32_t kPcSuccessReturn       = 0xEF183094u;  /* R7=R4 — keep handle */
-constexpr uint32_t kPcSysconfigWrite      = 0xEF183030u;  /* STR R3, [R2,#0x10] — SYSCONFIG SOFTRESET */
-constexpr uint32_t kPcSysstatusRead       = 0xEF183050u;  /* LDR R3, [R3,#0x14] — SYSSTATUS poll */
-constexpr uint32_t kPcSysstatusReadResult = 0xEF183054u;  /* TST R3, #1 — R3 now holds the read value */
+constexpr uint32_t kPcSuccessReturn       = 0xEF183094u;  /* R7=R4 - keep handle */
+constexpr uint32_t kPcSysconfigWrite      = 0xEF183030u;  /* STR R3, [R2,#0x10] - SYSCONFIG SOFTRESET */
+constexpr uint32_t kPcSysstatusRead       = 0xEF183050u;  /* LDR R3, [R3,#0x14] - SYSSTATUS poll */
+constexpr uint32_t kPcSysstatusReadResult = 0xEF183054u;  /* TST R3, #1 - R3 now holds the read value */
 
 constexpr uint32_t kPcSpiOpen             = 0xEF18211Cu;
 constexpr uint32_t kPcSpiConfigure        = 0xEF182200u;
@@ -83,13 +83,13 @@ public:
             });
             tm.OnPc(kPcLabel29, [](const TraceContext& c) {
                 LOG(Trace,
-                    "[spi-init] LABEL_29 reached — SPI_Deinit + return 0 "
+                    "[spi-init] LABEL_29 reached - SPI_Deinit + return 0 "
                     "(R4=pDevice=0x%08X)\n",
                     c.regs[4]);
             });
             tm.OnPc(kPcSuccessReturn, [](const TraceContext& c) {
                 LOG(Trace,
-                    "[spi-init] SUCCESS R4=0x%08X — will return handle\n",
+                    "[spi-init] SUCCESS R4=0x%08X - will return handle\n",
                     c.regs[4]);
             });
             tm.OnPc(kPcSysconfigWrite, [](const TraceContext& c) {

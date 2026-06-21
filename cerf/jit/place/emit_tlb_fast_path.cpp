@@ -9,7 +9,7 @@
 
 /* In: ECX = guest EA. Out: EAX = host pointer (null fault from the helper on a
    miss). ECX must survive for the caller's merged load/store; EBX/ESI are the
-   pinned MMU/CPU bases — this body uses only EAX/EDX as scratch. */
+   pinned MMU/CPU bases - this body uses only EAX/EDX as scratch. */
 uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
     using namespace x86;
     const bool is_write = (access != TlbAccess::kRead);
@@ -93,7 +93,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
         FixupLabel32(smc_done_b, cursor);
     }
 
-    /* Hit: host = foldedVA + entry.va_addend (re-fold EA — EAX was clobbered). */
+    /* Hit: host = foldedVA + entry.va_addend (re-fold EA - EAX was clobbered). */
     EmitMovRegReg      (cursor, kEax, kEcx);
     EmitTestRegImm32   (cursor, kEax, 0xFE000000u);
     uint8_t* nf2 = EmitJnzLabel(cursor);

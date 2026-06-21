@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VPADD (floating-point) — A8.8.363, opc=1101 C=0 U=1 bit[21]=0. */
+/* VPADD (floating-point) - A8.8.363, opc=1101 C=0 U=1 bit[21]=0. */
 uint8_t* PlaceNeonData3SameFpPairAdd(uint8_t*      cursor,
                                      DecodedInsn*  d,
                                      BlockContext* ctx) {

@@ -8,8 +8,8 @@
 
 namespace {
 
-/* SA-1110 Power Manager — Dev Man §9.5.7-9.5.8. PSSR (+0x4) bits 4:0
-   are W1C; POSR (+0x1C) bit 0 OOK (32-kHz oscillator stable) reads 1 —
+/* SA-1110 Power Manager - Dev Man §9.5.7-9.5.8. PSSR (+0x4) bits 4:0
+   are W1C; POSR (+0x1C) bit 0 OOK (32-kHz oscillator stable) reads 1 -
    the emulated oscillator is stable from reset. */
 
 class Sa11xxPowerManager : public Peripheral {

@@ -360,7 +360,7 @@ bool ArmNeon3RegSameDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
     }
     /* VCEQ.F32 / VCGE.F32 / VCGT.F32 (A8.8.291 / A8.8.293 / A8.8.295):
        opc=1110, C=0. (u, bit[21]): (0,0)→EQ, (1,0)→GE, (1,1)→GT.
-       (0,1) is UND in this slot — return false to fall to PlaceNeonUnimplemented. */
+       (0,1) is UND in this slot - return false to fall to PlaceNeonUnimplemented. */
     if (op.neon_data_3reg.opc == 0xEu &&
         op.neon_data_3reg.c == 0u) {
         const uint32_t u_bit = op.neon_data_3reg.u;

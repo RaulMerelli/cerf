@@ -16,7 +16,7 @@ public:
 
     uint32_t Midr() const override { return 0x410fc080u; }
 
-    /* floor(720 000 000 / 32 768) — Cortex-A8 nominal max MPU clock over
+    /* floor(720 000 000 / 32 768) - Cortex-A8 nominal max MPU clock over
        GPTIMER1 32 kHz functional clock. Used by Omap3530Gptimer1 /
        Omap3530Synctimer to convert guest_cycle_counter → ticks. */
     uint32_t CpuToOscrDivider() const override { return 21972u; }

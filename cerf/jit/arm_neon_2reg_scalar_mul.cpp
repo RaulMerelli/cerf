@@ -47,7 +47,7 @@ void ArmNeon2RegScalarMul::HandleScalarMul(uint32_t op_sel, uint32_t F,
         uint8_t res[8];
         for (uint32_t e = 0; e < elements; ++e) {
             if (F != 0u) {
-                /* .F32 — decoder rejects esize != 32. */
+                /* .F32 - decoder rejects esize != 32. */
                 const float n_f = LoadFloatElement(n_src + e * 4u);
                 const float prod = ArmVfp::FPMulS(n_f, scalar_f);
                 float result;
@@ -60,7 +60,7 @@ void ArmNeon2RegScalarMul::HandleScalarMul(uint32_t op_sel, uint32_t F,
                 }
                 std::memcpy(res + e * 4u, &result, 4);
             } else {
-                /* Integer — spec "unsigned = FALSE; Don't care: TRUE produces
+                /* Integer - spec "unsigned = FALSE; Don't care: TRUE produces
                    same functionality": modular `low esize bits` is identical
                    whether we sign- or zero-extend before the multiply. */
                 const uint32_t n_u  =

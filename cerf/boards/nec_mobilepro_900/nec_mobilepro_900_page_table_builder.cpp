@@ -26,9 +26,9 @@ struct OatEntry {
 constexpr OatEntry kOat[] = {
     { 0x80000000u, 0x00000000u, MB(64), OatKind::Flash }, /* static CS0 (boot NOR) */
     /* CS1 is Flash not Mmio: the OS-chain XIP region (physfirst 0x84080000 ->
-       PA 0x04080000) lives here — read-only ROM TOC + module content that must
+       PA 0x04080000) lives here - read-only ROM TOC + module content that must
        be backed, else module loads fault. */
-    { 0x84000000u, 0x04000000u, MB(64), OatKind::Flash }, /* static CS1 — OS-chain XIP image */
+    { 0x84000000u, 0x04000000u, MB(64), OatKind::Flash }, /* static CS1 - OS-chain XIP image */
     { 0x88000000u, 0x08000000u, MB( 1), OatKind::Mmio  }, /* static CS2 board device */
     { 0x88100000u, 0x09000000u, MB( 1), OatKind::Mmio  },
     { 0x88200000u, 0x0A000000u, MB( 1), OatKind::Mmio  },
@@ -53,7 +53,7 @@ constexpr OatEntry kOat[] = {
     { 0x8AF00000u, 0x3B000000u, MB( 1), OatKind::Mmio  },
     { 0x8B000000u, 0x2C000000u, MB(16), OatKind::Mmio  }, /* PCMCIA socket 0 common */
     { 0x8E000000u, 0x2F000000u, MB(16), OatKind::Mmio  },
-    { 0x90000000u, 0xA0000000u, MB(64), OatKind::Dram  }, /* SDRAM — kernel (VA 0x90200000) + RAM */
+    { 0x90000000u, 0xA0000000u, MB(64), OatKind::Dram  }, /* SDRAM - kernel (VA 0x90200000) + RAM */
     { 0x94000000u, 0x40000000u, MB(32), OatKind::Mmio  }, /* PXA255 peripherals (DMA/UART/INTC/GPIO/OST/clk) */
     { 0x96000000u, 0x44000000u, MB( 1), OatKind::Mmio  }, /* PXA255 LCD controller */
     { 0x96100000u, 0x48000000u, MB( 1), OatKind::Mmio  }, /* PXA255 memory controller regs */

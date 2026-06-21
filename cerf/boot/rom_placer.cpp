@@ -39,7 +39,7 @@ void RomPlacer::PlaceRomXips(const ParsedRom& rom, bool volatile_only) {
         if (physfirst < xip.load_offset) {
             LOG(Caution,
                 "RomPlacer %s: xip[%zu] physfirst=0x%08X below "
-                "load_offset=0x%08X — skipping\n",
+                "load_offset=0x%08X - skipping\n",
                 rom.filename.c_str(), i, physfirst, xip.load_offset);
             continue;
         }
@@ -49,7 +49,7 @@ void RomPlacer::PlaceRomXips(const ParsedRom& rom, bool volatile_only) {
         if (file_off >= rom.flat.size()) {
             LOG(Caution,
                 "RomPlacer %s: xip[%zu] file_off=0x%zX past flat "
-                "size=%zu — skipping\n",
+                "size=%zu - skipping\n",
                 rom.filename.c_str(), i, file_off, rom.flat.size());
             continue;
         }
@@ -116,7 +116,7 @@ void RomPlacer::PlaceB000FFSections(const ParsedRom& rom, bool volatile_only) {
     };
 
     /* PlaceRomXips already copied every XIP region's physfirst..physlast, so
-       here we add ONLY the section bytes outside all of them — the multi-XIP
+       here we add ONLY the section bytes outside all of them - the multi-XIP
        XIPCHAIN table living past the kernel ROMHDR's physlast. A single-XIP
        image has no such bytes, so its placement is unchanged. */
     for (const auto& s : rom.b000ff_sections) {
@@ -210,7 +210,7 @@ void RomPlacer::OnReady() {
             } else if (rom.has_imgfs) {
                 LOG(Caution,
                     "RomPlacer %s: IMGFS present but no XIP region maps "
-                    "to a Flash backed region — IMGFS bytes will not be "
+                    "to a Flash backed region - IMGFS bytes will not be "
                     "reachable, userspace mount will fail\n",
                     rom.filename.c_str());
             }

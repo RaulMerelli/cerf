@@ -23,12 +23,12 @@ enum class WidgetGroup : int {
     Indicator,
     Power,
     Debug,
-    /* Terminal range — pinned to the right of the bar (always shown) and to the
+    /* Terminal range - pinned to the right of the bar (always shown) and to the
        top of the Actions menu. The capture lock takes the highest rank so it is
        always the very last; other input widgets sort ahead of it. */
     GuestAdditions = 900,  /* always third from the right / third in Actions */
     InputControl   = 1000, /* input-device widgets, e.g. the touch/pointer switch */
-    InputCapture   = 1100, /* the capture lock — always rightmost / menu-top */
+    InputCapture   = 1100, /* the capture lock - always rightmost / menu-top */
 };
 
 struct WidgetMenuItem {
@@ -63,7 +63,7 @@ public:
     void MarkRx() { rx_pending_.store(true, std::memory_order_relaxed); }
     void MarkTx() { tx_pending_.store(true, std::memory_order_relaxed); }
 
-    /* Returns true while a repaint is still needed — including the tick after
+    /* Returns true while a repaint is still needed - including the tick after
        going idle, else the activity dot is never cleared. UI-thread only. */
     bool SampleActivity();
     void DrawComposited(HDC dc, const RECT& box, COLORREF bar_bg);

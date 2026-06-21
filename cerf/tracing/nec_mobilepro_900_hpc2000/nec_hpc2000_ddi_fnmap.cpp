@@ -14,7 +14,7 @@
    DrvCompletePDEV -> DrvEnableSurface). ddi.dll is XIP/gwes-only so unfiltered. */
 namespace {
 
-/* DrvEnablePDEV (0x011B8594) is omitted — it's already hooked elsewhere in this
+/* DrvEnablePDEV (0x011B8594) is omitted - it's already hooked elsewhere in this
    bundle's traces, and two unfiltered OnPc at one VA halt CERF. */
 constexpr uint32_t kPfns[] = {
     0x011B7BF0u, 0x011B7C3Cu, 0x011B7C1Cu, 0x011B7C7Cu,

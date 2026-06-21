@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VMVN (register) — A8.8.354. */
+/* VMVN (register) - A8.8.354. */
 uint8_t* PlaceNeonData2RegBitwiseNot(uint8_t*      cursor,
                                      DecodedInsn*  d,
                                      BlockContext* ctx) {

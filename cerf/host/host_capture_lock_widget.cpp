@@ -28,8 +28,8 @@ public:
     WidgetGroup  Group() const override { return WidgetGroup::InputCapture; }
     std::wstring Tooltip() const override {
         return emu_.Get<HostInputCapture>().IsCaptured()
-            ? L"Input captured — Right Ctrl (or click) to release"
-            : L"Input free — Right Ctrl (or click) to capture (Alt+Tab etc. -> guest)";
+            ? L"Input captured - Right Ctrl (or click) to release"
+            : L"Input free - Right Ctrl (or click) to capture (Alt+Tab etc. -> guest)";
     }
     void OnPrimaryAction() override { emu_.Get<HostInputCapture>().Toggle(); }
     std::vector<WidgetMenuItem> BuildMenu() override {

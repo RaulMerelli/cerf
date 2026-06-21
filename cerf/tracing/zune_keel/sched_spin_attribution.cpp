@@ -50,7 +50,7 @@ public:
                instructions in, to see steady-state I outside the
                briefly-disabled window the timebase-poll hook lands in. */
             /* 0x8820583C = BX LR, the instruction AFTER MSR CPSR_fc completes.
-               CPSR here is the post-unmask value — shows whether the guest
+               CPSR here is the post-unmask value - shows whether the guest
                actually reaches I=0 interruptible state in steady state. */
             tm.OnPc(0x8820583Cu, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};

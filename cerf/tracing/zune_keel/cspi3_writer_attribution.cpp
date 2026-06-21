@@ -11,9 +11,9 @@
 
 namespace {
 
-/* The CSPI3 XCH writer fired at PC 0x03191820 (LR 0x03191170) — a shared
+/* The CSPI3 XCH writer fired at PC 0x03191820 (LR 0x03191170) - a shared
    slot-1 ROM driver DLL. Dump its bytes + caller to byte-match the owning DLL
-   and identify the CSPI3 SS1 slave. Timing-dependent — may need a few runs. */
+   and identify the CSPI3 SS1 slave. Timing-dependent - may need a few runs. */
 class ZuneKeelCspi3Attribution : public Service {
 public:
     using Service::Service;

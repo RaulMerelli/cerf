@@ -69,7 +69,7 @@ public:
                 /* Full page-table walk for VA 0xD18F0000 (the driver's
                    primary surface VA) to see if VirtualCopy actually
                    created a mapping in RAM tables. ReadVa32 only peeks
-                   TLB — useless for a cold lookup. */
+                   TLB - useless for a cold lookup. */
                 auto& mmu = c.emu.Get<ArmMmu>();
                 auto& mem = c.emu.Get<EmulatedMemory>();
                 const auto& m = *mmu.State();
@@ -117,7 +117,7 @@ public:
                     LOG(Trace, "[disp]   L1@0x%08X=0x%08X UNMAPPED (type=%u)\n",
                         l1_pa, l1, l1_type);
                 }
-                /* And what's actually at PA 0x84800000 — host-side. */
+                /* And what's actually at PA 0x84800000 - host-side. */
                 const uint8_t* pa_host = mem.TryTranslate(0x84800000u);
                 LOG(Trace, "[disp]   PA 0x84800000 host=%p first8=%02X%02X "
                     "%02X%02X %02X%02X %02X%02X\n",
@@ -137,7 +137,7 @@ public:
             });
 
             tm.OnPc(0xEF045580u, [](const TraceContext& c) {
-                LOG(Trace, "[disp] OMAPDDGPE ctor — about to call "
+                LOG(Trace, "[disp] OMAPDDGPE ctor - about to call "
                     "FlatSurfMgr::Initialize R0=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[14]);
             });

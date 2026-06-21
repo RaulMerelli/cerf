@@ -4,7 +4,7 @@
 
 /* Guest-additions task-manager channel contract. The CE toolchain cannot
    include this header, so ce_apps/cerf_guest/cerf_task_manager_pump.cpp
-   duplicates these offsets — any change here must be mirrored there or the
+   duplicates these offsets - any change here must be mirrored there or the
    channel silently desyncs. */
 
 namespace CerfVirt {
@@ -65,7 +65,7 @@ static_assert(sizeof(TaskManagerProcRecord) == 148,
 
 /* One top-level-window row from the guest GetWindow walk; flags bit0 =
    IsWindowVisible. Streamed through the same record window as
-   TaskManagerProcRecord — must NOT exceed its 148 bytes or it overruns the
+   TaskManagerProcRecord - must NOT exceed its 148 bytes or it overruns the
    host record buffer (rec_words_). */
 struct TaskManagerWindowRecord {
     uint32_t hwnd;

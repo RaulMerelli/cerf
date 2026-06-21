@@ -37,7 +37,7 @@ bool NeonUnconditionalDecoder::DecodeData3reg(DecodedInsn* insn, ArmOpcode op) {
         }
     } else {
         /* bit23==1 && c==0. Check bits[21:20]==11 (A7.4.5 / VEXT) BEFORE
-           bit[6] — those regions have bit[6]=Q (variable), so a bit[6]
+           bit[6] - those regions have bit[6]=Q (variable), so a bit[6]
            check first would mis-route. */
         const uint32_t size_bits = (op.word >> 20) & 0x3u;
         if (size_bits == 0x3u) {
@@ -49,7 +49,7 @@ bool NeonUnconditionalDecoder::DecodeData3reg(DecodedInsn* insn, ArmOpcode op) {
                 return true;
             }
             /* VTBL/VTBX (A8.8.419) at bits[11:10]=10. Must intercept
-               BEFORE two_reg_unary_decoder — that decoder dispatches on
+               BEFORE two_reg_unary_decoder - that decoder dispatches on
                bits[10:7] alone and would mis-decode VTBL as VREV when
                Vn[1:0] = 00 (the `a` field reads bits[17:16]). */
             if ((op.neon_data_3reg.opc & 0xCu) == 0x8u) {

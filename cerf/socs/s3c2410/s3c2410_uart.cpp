@@ -51,7 +51,7 @@ public:
     uint32_t ReadWord (uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
-    /* Only the register file is machine state — tx_line_ is a host-side
+    /* Only the register file is machine state - tx_line_ is a host-side
        console line accumulator, rebuilt as the guest writes. */
     void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
     void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }
@@ -76,7 +76,7 @@ uint32_t S3C2410Uart::ReadWord(uint32_t addr) {
     if (slot == kSlotUTRSTAT) {
         value = kUtrstatTxIdle;
     } else if (slot == kSlotURXH) {
-        /* No input source — last-received byte stays at 0. */
+        /* No input source - last-received byte stays at 0. */
         value = 0;
     } else {
         value = storage_[uart_idx][slot];
@@ -103,7 +103,7 @@ void S3C2410Uart::WriteWord(uint32_t addr, uint32_t value) {
 void S3C2410Uart::EmitTxByte(int uart_idx, uint8_t ch) {
     char tag[8];
     std::snprintf(tag, sizeof(tag), "UART%d", uart_idx);
-    /* UART1 is the debug console — only it mirrors to HwScreen. */
+    /* UART1 is the debug console - only it mirrors to HwScreen. */
     emu_.Get<KernelDebugSink>().EmitChar(static_cast<char>(ch), tx_line_[uart_idx],
                                          tag, true);
 }

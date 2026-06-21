@@ -51,7 +51,7 @@ public:
     std::wstring Tooltip() const override {
         auto& cfg = emu_.Get<FolderShareConfig>();
         if (!cfg.Enabled())
-            return L"Shared folder: off — click to configure";
+            return L"Shared folder: off - click to configure";
         return L"Shared folder: " + cfg.HostRoot();
     }
     void OnPrimaryAction() override { ShowConfigDialog(); }
@@ -110,7 +110,7 @@ private:
     void ApplyFromControls(HWND dlg);
     /* Modal host folder picker; returns the chosen path, empty if cancelled. */
     std::wstring PickFolder(HWND owner, const std::wstring& initial);
-    /* Menu shortcuts — flip enabled in place / repoint the shared folder. */
+    /* Menu shortcuts - flip enabled in place / repoint the shared folder. */
     void ToggleEnabled();
     void ChangeFolder();
     static LRESULT CALLBACK DlgProcStatic(HWND, UINT, WPARAM, LPARAM);
@@ -175,7 +175,7 @@ void FolderShareWidget::ChangeFolder() {
     auto& cfg = emu_.Get<FolderShareConfig>();
     const std::wstring picked =
         PickFolder(emu_.Get<HostWindow>().Hwnd(), cfg.HostRoot());
-    if (picked.empty()) return;            /* cancelled — keep current folder */
+    if (picked.empty()) return;            /* cancelled - keep current folder */
     cfg.Set(/*enabled=*/true, picked, L"");  /* repoint and enable in one step */
 }
 

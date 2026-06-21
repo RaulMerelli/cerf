@@ -48,7 +48,7 @@ public:
             };
 
             /* HAL CreateSurface (DDHAL callback). UNFILTERED on purpose: the
-               gem-filtered GEM-CS never fired, so the creator is another process —
+               gem-filtered GEM-CS never fired, so the creator is another process -
                re-adding a gemstone filter silences it again. a7&1 = DISPLAYABLE ->
                video heap (sub_3191CA8), else system; logged pid attributes the fire. */
             tm.OnPc(0x318ECB4u, [](const TraceContext& c) {
@@ -267,7 +267,7 @@ public:
                     d(8), d(0xC), d(0x10), (int32_t)d(0x14), d(0x6C));
             });
             /* sub_34EA944 rasterizer dispatch: R0=PS, R1=primtype. Gated on
-               PS+11728 (locked video buffer) != 0 — else bails with no write.
+               PS+11728 (locked video buffer) != 0 - else bails with no write.
                Does the scene draw run with the buffer locked? */
             tm.OnPcFiltered(0x34EA944u, gem, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};
@@ -292,7 +292,7 @@ public:
                     c.regs[14]);
             });
             /* sub_34EA324 triangle setup: R0=PS. v14=*(PS+0x2E20) is the span-fill
-               callback ptr AND the enable guard — if 0, returns without filling
+               callback ptr AND the enable guard - if 0, returns without filling
                (clip/disabled). R1=vert0 ptr (x,y at [0],[1]). Names the filler to
                hook next + rules out degenerate/offscreen coords. */
             tm.OnPcFiltered(0x34EA324u, gem, [](const TraceContext& c) {
@@ -372,7 +372,7 @@ public:
             });
             /* sub_37A7AC0 @0x37A7B30: per-IID surface proxy constructor call.
                R4=matched table entry, *(R4+4)=ctor, R8=handle, R9=IID. ctor for
-               iid0=0x0B0E83E4 builds srcsurf — the function to decompile next. */
+               iid0=0x0B0E83E4 builds srcsurf - the function to decompile next. */
             tm.OnPcFiltered(0x37A7B30u, gem, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};
                 if (n.fetch_add(1) >= 16) return;
@@ -414,7 +414,7 @@ public:
                     surf, c.ReadVa32(f - 8u).value_or(0xDEADu));
             });
             /* sub_318BC4C @0x318BC78: DDraw HAL one-shot vidmem init. Unfiltered
-               — the HAL's loader process isn't known a priori, and the captured
+               - the HAL's loader process isn't known a priori, and the captured
                AllocPhysMem VA↔PA alias is physical / process-independent so any
                firing process is valid. R0=VA, [R5+0x48]=PA (the scanout base). */
             tm.OnPc(0x318BC78u, [](const TraceContext& c) {
@@ -888,7 +888,7 @@ public:
             });
 
             /* XUI render device dump (render ctx 0x000B5DD0, *ctx=device). Find the
-               render-target surface field — system (host 0x0B) vs the video back
+               render-target surface field - system (host 0x0B) vs the video back
                buffer (host of 0x812AA000). PeekVaToHost in OnRunLoopIter (ReadVa32
                missed); vt = each field's [0] to spot surface vtables (0x37A1AB0). */
             tm.OnRunLoopIter([](const TraceContext& c) {
@@ -941,7 +941,7 @@ public:
             });
 
             /* Resolve the ddraw HAL/runtime callback pointers MEMORY[0x1F6C...] the
-               surface Blt/Flip/Lock forward to — the next straight hop (where the
+               surface Blt/Flip/Lock forward to - the next straight hop (where the
                COLORFILL on srcsurf actually writes). Read the pointer values, don't
                assume "PSL server". slot-0 ddraw data; PeekVaToHost folds by pid. */
             tm.OnRunLoopIter([](const TraceContext& c) {
@@ -967,7 +967,7 @@ public:
                to the DDraw api-set range (0xF0008xxx) to capture which op traps. */
             tm.OnPc(0xFFFF000Cu, [](const TraceContext& c) {
                 const uint32_t trap = c.regs[14] - 4u;  /* LR_abt = trap+4 */
-                /* DDraw Blt (0xF00082F8) / Flip (0xF00082D4) only — 0xF0008400 is a
+                /* DDraw Blt (0xF00082F8) / Flip (0xF00082D4) only - 0xF0008400 is a
                    hot unrelated PSL call that floods the broad range. */
                 if (trap != 0xF00082F8u && trap != 0xF00082D4u) return;
                 static std::atomic<uint32_t> dumped{0};
@@ -1024,7 +1024,7 @@ public:
                 static std::atomic<uint32_t> done{0};
                 if (done.load()) return;
                 auto& mmu = c.emu.Get<ArmMmu>();
-                /* full page-table walk (not fast-path ReadVa32 — that misses on
+                /* full page-table walk (not fast-path ReadVa32 - that misses on
                    non-resident object pages and masks as 0). */
                 auto rd = [&](uint32_t va, uint32_t* out) -> bool {
                     const uint32_t f = va < 0x02000000u
@@ -1035,7 +1035,7 @@ public:
                     return true;
                 };
                 /* latch once the primary iface is resident (its underlying PSL
-                   object is server-side, unmapped in gemstone — only the -8 pointer
+                   object is server-side, unmapped in gemstone - only the -8 pointer
                    value is readable here; resolve it in GWES context). */
                 uint32_t pu = 0;
                 if (!rd(0x0C0B4484u, &pu) || !pu) return;

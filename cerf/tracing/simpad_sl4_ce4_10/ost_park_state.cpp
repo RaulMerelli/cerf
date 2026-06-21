@@ -11,7 +11,7 @@
 
 namespace {
 
-/* device.exe's Sleep(100) never wakes — the OST match stops firing in the idle
+/* device.exe's Sleep(100) never wakes - the OST match stops firing in the idle
    park. Sample the SA-1110 OST registers each window to tell apart: no match
    armed (oier clear / ossr stuck set) vs match armed but OSCR not crossing
    OSMR0 (frozen guest cycles). */

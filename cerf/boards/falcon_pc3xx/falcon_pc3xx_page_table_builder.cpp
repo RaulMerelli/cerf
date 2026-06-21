@@ -25,7 +25,7 @@ struct OatEntry {
    ({0,0,0}-terminated). Cached VA -> PA, size in MB. PXA255 memory map
    per manual 278693-002 Figures 2-2/2-3. */
 constexpr OatEntry kOat[] = {
-    { 0x80000000u, 0xA0000000u, MB(64), OatKind::Dram }, /* SDRAM bank 0 — kernel/ROM image */
+    { 0x80000000u, 0xA0000000u, MB(64), OatKind::Dram }, /* SDRAM bank 0 - kernel/ROM image */
     { 0x84000000u, 0xA8000000u, MB(64), OatKind::Dram }, /* SDRAM bank 2 */
     { 0x9A300000u, 0xE0000000u, MB( 1), OatKind::Mmio }, /* XScale cache-flush region */
     { 0x9A400000u, 0x48000000u, MB( 1), OatKind::Mmio }, /* Memory Controller regs */
@@ -72,7 +72,7 @@ uint32_t FalconPc3xxPageTableBuilder::VaToPa(uint32_t va) const {
 }
 
 /* Carve the board CPLD page (PA 0xA3CC3000) out of RAM backing so its reset
-   register (+0x380C) routes to FalconBoardCpld, not RAM — else WarmCheck's
+   register (+0x380C) routes to FalconBoardCpld, not RAM - else WarmCheck's
    IOCTL_HAL_REBOOT write lands in RAM and the OAL spins forever waiting for the
    reset. The 1 MB section is then non-uniform (arm_mmu_walker handles it). */
 constexpr uint32_t kCpldPa   = 0xA3CC3000u;

@@ -19,7 +19,7 @@
 namespace cerf_freescale_uart_detail {
 
 /* Freescale i.MX UART, register-identical on i.MX31 (MCIMX31RM Ch 31) and i.MX51
-   (MCIMX51RM Ch 59) — same map + reset values — so the model is shared, gated per
+   (MCIMX51RM Ch 59) - same map + reset values - so the model is shared, gated per
    concrete by kSoc. Status regs MUST read fixed idle: if UTS.TXFULL ever reads set
    or USR1.TRDY clear, the guest TX spin never exits. */
 template <uint32_t kBase, int kUartNum, SocFamily kSoc>
@@ -133,7 +133,7 @@ private:
         const uint32_t ucr4 = ctrl_[(kUCR4 - kCtrlLo) / 4u];
         /* The RX aging timer (USR1.AGTIM, MCIMX51RM Table 59-22) delivers any
            pending RxFIFO data below RXTL, so a complete received frame always
-           raises the interrupt regardless of the trigger level — assert on >=1
+           raises the interrupt regardless of the trigger level - assert on >=1
            byte whenever an RX-data interrupt source is enabled. */
         const bool rx_int_en = (ucr1 & kUcr1Rrdyen) || (ucr4 & kUcr4Rdren);
         if (rx_int_en && !rx_fifo_.empty()) AssertRxIrq();

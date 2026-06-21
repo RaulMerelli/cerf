@@ -40,7 +40,7 @@ const uint8_t kCisData[] = {
     /* CISTPL_MANFID 0x0045/0x0401 = "SanDisk CFA" in Linux ide-cs.c's
        id_table. Linux binds its disk driver pre-userspace ONLY on these
        explicit ids (the FUNCID fallback needs a userspace sysfs write,
-       ds.c allow_func_id_match) — other ids = unmountable root on CF. */
+       ds.c allow_func_id_match) - other ids = unmountable root on CF. */
     0x20, 0x04, 0x45, 0x00, 0x01, 0x04,
     0x21, 0x02, 0x04, 0x00,                   /* CISTPL_FUNCID: fixed disk */
     /* CISTPL_FUNCE type 1 (disk), data 1 (ATA): atadisk's DetectATADisk
@@ -104,8 +104,8 @@ std::wstring CompactFlashCard::DisplayName() const {
 }
 
 std::wstring CompactFlashCard::TooltipDetail() const {
-    if (!file_) return DisplayName() + L" — image not found";
-    return DisplayName() + L" — " +
+    if (!file_) return DisplayName() + L" - image not found";
+    return DisplayName() + L" - " +
            std::to_wstring(total_sectors_ / 2048u) + L" MB";
 }
 
@@ -174,8 +174,8 @@ void CompactFlashCard::WriteCommon16(uint32_t offset, uint16_t value) {
 }
 
 /* INTRQ per QEMU hw/ide/core.c v8.2.0: raise on each read/IDENTIFY DRQ
-   block (789-790, 1747-48), each COMPLETED write sector — never the first
-   write DRQ (1024) — and non-data/abort completion (1212-23). nIEN
+   block (789-790, 1747-48), each COMPLETED write sector - never the first
+   write DRQ (1024) - and non-data/abort completion (1212-23). nIEN
    (DevCtl bit1) gates (2800-05); only Status read (2287) or Command
    write (1343) drop the line, alternate status does not. */
 void CompactFlashCard::IrqAssertLocked() {

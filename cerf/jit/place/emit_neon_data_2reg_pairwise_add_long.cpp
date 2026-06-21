@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VPADDL / VPADAL (A8.8.364 / A8.8.361) — A7.4.5 A=00, bits[10:8]=010/110. */
+/* VPADDL / VPADAL (A8.8.364 / A8.8.361) - A7.4.5 A=00, bits[10:8]=010/110. */
 uint8_t* PlaceNeonData2RegPairwiseAddLong(uint8_t*      cursor,
                                           DecodedInsn*  d,
                                           BlockContext* ctx) {

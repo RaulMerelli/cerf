@@ -2,7 +2,7 @@
 
 SCODE CerfDDGPE::BltPrepare(GPEBltParms* p) {
     /* Route to the host when the dst is a 16/24/32bpp addressable surface, or
-       whenever the src is FB-resident — an FB source must never reach the GPE
+       whenever the src is FB-resident - an FB source must never reach the GPE
        CPU blit, which can't read its PA-only bytes. Everything else goes to
        SwBlt, which aperture-maps any FB surface before the CPU blit. */
     ULONG pa;
@@ -65,7 +65,7 @@ SCODE CerfDDGPE::SwFallback(GPEBltParms* p) { return SwBlt(p); }
 
 /* Host reads guest memory via PeekVaToHost, which cannot fault a page in, so
    an ODO demand-pager-recycled source page (L2=0, no TLB) reads unmapped and
-   the host blit is dropped — icon color/mask lost. Touch one byte per
+   the host blit is dropped - icon color/mask lost. Touch one byte per
    spanned 4KB page in-guest first to fault it resident via the normal pager. */
 void CerfDDGPE::FaultResident(GPESurf* surf, int x0, int y0, int x1, int y1) {
     ULONG pa;

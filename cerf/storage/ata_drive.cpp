@@ -62,7 +62,7 @@ void AtaDrive::WriteData(uint16_t value) {
     buf_[buf_pos_++] = value;
     if (buf_pos_ < buf_len_) return;
 
-    /* Whole DRQ block received — flush it to the disk in one go. */
+    /* Whole DRQ block received - flush it to the disk in one go. */
     const uint32_t n = buf_len_ / kWordsPerSector;
     if (!disk_ || !disk_->WriteSectors(xfer_lba_, n, buf_)) {
         AbortCommand(cur_block_ > 1u ? 0xC5u : 0x30u);
@@ -196,7 +196,7 @@ void AtaDrive::ExecCommand(uint8_t cmd) {
             return;
         }
 
-        case 0xC6u:  /* SET MULTIPLE MODE — Sector Count = sectors/block (§8.39) */
+        case 0xC6u:  /* SET MULTIPLE MODE - Sector Count = sectors/block (§8.39) */
             /* The host requests a block size in the Sector Count register; we
                support up to kMaxMultiple (what IDENTIFY word 47 advertises). A
                count of 0 disables multiple mode. */
@@ -213,8 +213,8 @@ void AtaDrive::ExecCommand(uint8_t cmd) {
             CompleteNonData();
             return;
 
-        case 0xE7u:  /* FLUSH CACHE — writes are synchronous, nothing to flush */
-        case 0x91u:  /* INITIALIZE DEVICE PARAMETERS — legacy CHS, LBA in use */
+        case 0xE7u:  /* FLUSH CACHE - writes are synchronous, nothing to flush */
+        case 0x91u:  /* INITIALIZE DEVICE PARAMETERS - legacy CHS, LBA in use */
         case 0xE0u:  /* STANDBY IMMEDIATE (ATA_CMD_STANDBYNOW1) */
         case 0xE1u:  /* IDLE IMMEDIATE (ATA_CMD_IDLEIMMEDIATE) */
         case 0xE2u:  /* STANDBY (ATA_CMD_STANDBY) */
@@ -223,13 +223,13 @@ void AtaDrive::ExecCommand(uint8_t cmd) {
             CompleteNonData();
             return;
 
-        case 0x90u:  /* EXECUTE DEVICE DIAGNOSTIC — device 0 passed */
+        case 0x90u:  /* EXECUTE DEVICE DIAGNOSTIC - device 0 passed */
             error_ = 0x01u;
             status_ = kStRdy;
             irq_ = true;
             return;
 
-        case 0xE5u:  /* CHECK POWER MODE — report active/idle */
+        case 0xE5u:  /* CHECK POWER MODE - report active/idle */
             sector_cnt_ = 0xFFu;
             CompleteNonData();
             return;
@@ -265,7 +265,7 @@ void AtaDrive::BuildIdentify() {
 
     /* Constant words: QEMU v8.2.0 hw/ide/core.c ide_identify(), with the
        DMA/UDMA/LBA48/SMART capability bits cleared (those data paths are not
-       implemented — see the class comment). */
+       implemented - see the class comment). */
     buf_[0]  = 0x0040u;                 /* general config: fixed ATA device */
     buf_[1]  = static_cast<uint16_t>(cyl);
     buf_[3]  = static_cast<uint16_t>(heads);

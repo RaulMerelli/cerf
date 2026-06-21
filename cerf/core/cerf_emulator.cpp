@@ -52,7 +52,7 @@ void CerfEmulator::ResolveSlot(int slot, const char* requester_type_name) {
 
     if (cs.resolving) {
         LOG(Caution, "ShouldRegister cycle while resolving slot for "
-                "%s — a candidate's ShouldRegister called Get<>() back "
+                "%s - a candidate's ShouldRegister called Get<>() back "
                 "into a Base that is itself currently being resolved. "
                 "Break the cycle by deferring one of the dependencies "
                 "to OnReady.\n", requester_type_name);

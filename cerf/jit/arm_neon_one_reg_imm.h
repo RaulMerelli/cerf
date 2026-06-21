@@ -10,7 +10,7 @@ class ArmNeonOneRegImm : public Service {
 public:
     using Service::Service;
 
-    /* Operation selector — the place_fn determines this from the
+    /* Operation selector - the place_fn determines this from the
        (op, cmode) bits per A8.8.339/353/288/359. */
     static constexpr uint32_t kOpVmov = 0u;  /* D[d] = imm64        */
     static constexpr uint32_t kOpVmvn = 1u;  /* D[d] = ~imm64       */

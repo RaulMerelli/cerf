@@ -28,7 +28,7 @@ public:
     uint16_t SubsysMinor()    const { return subsys_minor_; }
     uint16_t ImageFlags()     const { return image_flags_; }
 
-    /* PE Optional Header DataDirectory[i] — fed into e32_rom's
+    /* PE Optional Header DataDirectory[i] - fed into e32_rom's
        e32_unit[i] (i ∈ [0..8]) when building the ROM module record.
        Index out of range returns zeroes. */
     uint32_t DirRva (int i)   const { return (i >= 0 && i < 16) ? dirs_[i].rva  : 0; }

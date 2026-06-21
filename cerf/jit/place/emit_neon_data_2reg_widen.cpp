@@ -7,7 +7,7 @@
 #include "../x86_emit.h"
 
 /* VSHLL T2/A2 (A8.8.397, line 50311 "Or TRUE without change of functionality"
-   — routed through kSiShllS, sign-extension is bit-equivalent at shift=esize). */
+   - routed through kSiShllS, sign-extension is bit-equivalent at shift=esize). */
 uint8_t* PlaceNeonData2RegWiden(uint8_t*      cursor,
                                 DecodedInsn*  d,
                                 BlockContext* ctx) {

@@ -124,7 +124,7 @@ bool SlirpBackend::TryInterceptIcmpEcho(const uint8_t* frame, std::size_t len) {
         if (h == INVALID_HANDLE_VALUE) return;
 
         /* Reply buffer: sizeof(ICMP_ECHO_REPLY) + payload + 8 extra per
-           MS guidance — keeps the ReplyBuffer large enough for the echo
+           MS guidance - keeps the ReplyBuffer large enough for the echo
            reply plus at least one ICMP_ERROR if the ping fails. */
         DWORD reply_size =
             (DWORD)(sizeof(ICMP_ECHO_REPLY) + req.payload.size() + 8);

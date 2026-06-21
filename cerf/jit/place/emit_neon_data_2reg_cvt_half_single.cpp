@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VCVT half↔single Advanced SIMD (A8.8.310) — A7.4.5 A=10, bits[10:7]=11x0
+/* VCVT half↔single Advanced SIMD (A8.8.310) - A7.4.5 A=10, bits[10:7]=11x0
    with bit[6]=0. bit[8]=op selects direction (0=single→half, 1=half→single). */
 uint8_t* PlaceNeonData2RegCvtHalfSingle(uint8_t*      cursor,
                                         DecodedInsn*  d,

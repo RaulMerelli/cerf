@@ -47,7 +47,7 @@ constexpr E32RomLayout kE32RomCE5plus = {
     0x24, 0x6C,
 };
 
-/* e32_subsysmajor lies at +0x0C in BOTH CE3 and CE5+ layouts —
+/* e32_subsysmajor lies at +0x0C in BOTH CE3 and CE5+ layouts -
    safe to read before the layout decision is made. */
 constexpr uint32_t kE32SubsysmajorOff = 0x0C;
 

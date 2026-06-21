@@ -76,7 +76,7 @@ void TraceManager::OnPc(uint32_t runtime_va, TraceHandler handler) {
     for (const auto& e : vec) {
         if (!e.predicate.has_value()) {
             LOG(Caution, "TraceManager::OnPc duplicate registration at "
-                         "runtime_va=0x%08X — another UNFILTERED trace handler "
+                         "runtime_va=0x%08X - another UNFILTERED trace handler "
                          "is already bound at this guest PC. Use OnPcFiltered "
                          "if you intended per-process filtering.\n", runtime_va);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);

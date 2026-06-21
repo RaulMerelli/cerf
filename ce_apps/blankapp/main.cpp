@@ -9,7 +9,7 @@
 #define ID_EXIT   202
 #define ID_EDIT   203
 
-/* Fixed client size — small, frame-bordered, never maximized. */
+/* Fixed client size - small, frame-bordered, never maximized. */
 #define CLIENT_W 200
 #define CLIENT_H 170
 

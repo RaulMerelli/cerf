@@ -16,7 +16,7 @@ class CanvasPresenter {
 public:
     enum class ViewportMode { Original, Aspect, Stretch, Integer };
 
-    /* source may be null — the main canvas binds the board FrameRenderer via
+    /* source may be null - the main canvas binds the board FrameRenderer via
        TryGet, which yields null on a board with no renderer (matching the
        prior HostCanvas behavior). A VGA card always passes its own producer. */
     explicit CanvasPresenter(FrameSource* source) : source_(source) {}
@@ -27,7 +27,7 @@ public:
        created). Bound once, before the first ComposeInto. */
     void SetSource(FrameSource* source) { source_ = source; }
 
-    /* Whether the producer currently has a frame — drives the owner's
+    /* Whether the producer currently has a frame - drives the owner's
        auto-switch-to-framebuffer decision, independent of what is composed. */
     bool SourceHasFrame() const { return source_ && source_->HasFrame(); }
 
@@ -46,7 +46,7 @@ public:
        guest DIB). */
     void SetSurfaceSize(uint32_t w, uint32_t h);
 
-    /* Native guest-surface dimensions — what the producer draws at and the
+    /* Native guest-surface dimensions - what the producer draws at and the
        coordinate span HostToGuest maps against. Atomic so an off-thread
        touch sampler can read them. */
     uint32_t SurfaceWidth () const { return surface_w_.load(std::memory_order_acquire); }
@@ -90,7 +90,7 @@ public:
 private:
     void RebuildGuestDib(uint32_t w, uint32_t h);
 
-    /* Both ComposeInto and HostToGuest derive from this one Layout — separate
+    /* Both ComposeInto and HostToGuest derive from this one Layout - separate
        math would land taps off the rendered image whenever the two drift. */
     struct Layout {
         int  dst_x, dst_y, dst_w, dst_h;
@@ -99,7 +99,7 @@ private:
     };
     Layout ComputeLayout(int canvas_w, int canvas_h) const;
 
-    /* Composed content size in canvas pixels — surface dims, scaled by the
+    /* Composed content size in canvas pixels - surface dims, scaled by the
        factor in Integer mode. Drives scrollbar range and overflow centering. */
     int ContentW() const;
     int ContentH() const;

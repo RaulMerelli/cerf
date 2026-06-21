@@ -6,7 +6,7 @@
 
 /* Board-side consumer of the SA-1111 GPIO port A output pins (the
    PCMCIA/CF power controller hangs off GPIO_A per the PCCR note in
-   Developer's Manual §12.6.2). Optional — boards without a consumer
+   Developer's Manual §12.6.2). Optional - boards without a consumer
    simply have no impl registered. */
 class Sa1111GpioPortASink : public Service {
 public:

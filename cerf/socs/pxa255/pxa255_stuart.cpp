@@ -2,7 +2,7 @@
 
 namespace {
 
-/* PXA255 STUART — standard UART, used by the IrDA driver for SIR (base
+/* PXA255 STUART - standard UART, used by the IrDA driver for SIR (base
    0x40700000, INTC IS20 Table 4-35). */
 class Pxa255Stuart : public Pxa255Uart16550 {
 public:

@@ -1,7 +1,7 @@
 #pragma once
 /* Internal helpers shared between slirp_backend.cpp and its
    sibling TUs (slirp_classify_frame.cpp, slirp_icmp_echo.cpp,
-   slirp_dns_aaaa_strip.cpp). Not part of the public network API —
+   slirp_dns_aaaa_strip.cpp). Not part of the public network API -
    callers outside cerf/net/ must go through SlirpBackend instead. */
 
 #include <cstddef>

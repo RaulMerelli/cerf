@@ -25,7 +25,7 @@ uint8_t* EmitVfpSingleMoveIdx(uint8_t*      cursor,
 
     if (d->l) {
         if (d->rd == 15) {
-            /* Rt=R15 — FPSCR-style NZCV transfer to APSR. */
+            /* Rt=R15 - FPSCR-style NZCV transfer to APSR. */
             EmitPushBaseDisp32(cursor, kStateReg, sn_disp);
             EmitPush32(cursor,
                 static_cast<uint32_t>(
@@ -45,7 +45,7 @@ uint8_t* EmitVfpSingleMoveIdx(uint8_t*      cursor,
     return cursor;
 }
 
-/* VMOV Sn <-> Rt — cp10 single 32-bit transfer. Sn = Vn:N = (Vn<<1)|N
+/* VMOV Sn <-> Rt - cp10 single 32-bit transfer. Sn = Vn:N = (Vn<<1)|N
    (A8.6.341/342); the DP layout (N<<4)|Vn aliases odd single regs. */
 uint8_t* EmitVfpSingleMove(uint8_t*      cursor,
                            DecodedInsn*  d,

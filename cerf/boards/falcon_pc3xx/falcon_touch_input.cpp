@@ -26,7 +26,7 @@ constexpr uint16_t kAdcselY = 0x2000u;
 /* Falcon CPLD = touch.dll DRIVER_GLOBALS. +0x00: OAL samples this on every
    OSMR1 pen-poll tick (ICIP bit27, PXA255 Table 4-36; nk.exe sub_800F33D4);
    if it != live pen state the poll reads "up" and fires spurious pen-ups
-   mid-gesture. (+0x10 pen-up is the OAL's output from that poll — not CERF's.) */
+   mid-gesture. (+0x10 pen-up is the OAL's output from that poll - not CERF's.) */
 constexpr uint32_t kCpldPenState  = 0xA3CC3000u;
 constexpr uint32_t kCpldDataReady = 0xA3CC300Cu;
 /* +0x18 bit0 re-arms the single-shot touch DMA (sub_18E5020(2)); the OAL's
@@ -128,7 +128,7 @@ private:
 
     /* Inverse of the PC3xx factory cal (touch.dll TouchPanelCalibrateAPoint:
        out = 4*(M.raw+off)/DIV, in QUARTER-pixels; gwes.exe sub_20FA0 then /4's
-       it to the screen pixel). Solve M.raw = sx*DIV - off — a /4 here (matching
+       it to the screen pixel). Solve M.raw = sx*DIV - off - a /4 here (matching
        the cal's 4*) lands every tap at sx/4, i.e. clustered at the top-left. */
     static void RawFromScreen(int sx, int sy, uint16_t& raw_x, uint16_t& raw_y) {
         constexpr int64_t kM0 = 556, kM1 = -23408, kM2 = 85992351;

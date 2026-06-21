@@ -30,7 +30,7 @@ public:
 
     /* Synthetic pen tap at a fixed RAW ADC point, bypassing host-coordinate
        mapping. For the bezel soft-button zones touch.dll watches (sub_FB1314:
-       X 31..67 — below MapHostToAdc's X floor, unreachable by host clicks). */
+       X 31..67 - below MapHostToAdc's X floor, unreachable by host clicks). */
     void TapRawAdc(uint16_t adc_x, uint16_t adc_y);
 
 private:

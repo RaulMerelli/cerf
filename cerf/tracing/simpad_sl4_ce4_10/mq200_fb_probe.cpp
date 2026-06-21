@@ -16,7 +16,7 @@ namespace {
 
 /* Off-thread sampler: logs an MQ200 visible-window content hash on every change.
    Time-based (not OnRunLoopIter) so it catches screens that render after the
-   guest idles, when Run() returns — and thus OnRunLoopIter — nearly stop. */
+   guest idles, when Run() returns - and thus OnRunLoopIter - nearly stop. */
 class SimpadSl4Mq200FbProbe : public Service {
 public:
     using Service::Service;

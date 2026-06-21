@@ -81,7 +81,7 @@ void MediaQMq1188::RegWrite(uint32_t addr, uint32_t value) {
     /* GE registers are reached only via the queued alias (0x1400). The 0x200
        block is the GE direct block on the MQ-1132 but the SD/MMC controller on
        the MQ-1188 (mq1188sdmmc.dll maps PA 0x08040200, writes DMA descriptors at
-       0x22C) — routing it to the GE corrupts GE0BR. SD/MMC not yet modelled. */
+       0x22C) - routing it to the GE corrupts GE0BR. SD/MMC not yet modelled. */
     if (roff >= kGeCmdLo && roff < kGeCmdHi) { ge_.WriteReg((roff - kGeCmdLo) / 4u, value); return; }
     if (roff >= kSrcFifoLo && roff < kSrcFifoHi) { ge_.PushSourceFifo(value); return; }
     reg_[roff / 4u] = value;

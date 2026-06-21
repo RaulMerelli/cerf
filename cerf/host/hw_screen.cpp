@@ -97,7 +97,7 @@ void HwScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
     }
 
     /* The boot animation owns the screen until it finishes, even once output
-       has been buffered — the buffered text then appears the instant it ends. */
+       has been buffered - the buffered text then appears the instant it ends. */
     if (!anim.Finished()) {
         anim.DrawInto(dc, width, height);
         DrawBootBar(dib_bgra32, width, height);
@@ -106,7 +106,7 @@ void HwScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
 
     /* An armed gate keeps the held logo even with output already buffered; it
        clears on the next AddLine, so the boot logo persists until fresh TX.
-       With the animation disabled there is no hold to honour — show text. */
+       With the animation disabled there is no hold to honour - show text. */
     if (has_output && (!gate_armed || !anim.Enabled())) {
         anim.DrawDimmedCenterLogo(dc, width, height);
         DrawLog(dc, width, height, snapshot);

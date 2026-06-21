@@ -13,7 +13,7 @@ enum class ShutdownTrigger { WindowClose, DeepSleep };
 
 /* Modal "shut down CERF?" prompt. UI thread only, run from a posted message
    (not inside WM_CLOSE). Returns the user's choice; HostWindow performs the
-   save asynchronously — the dialog itself never saves or pumps for the save. */
+   save asynchronously - the dialog itself never saves or pumps for the save. */
 class ShutdownDialog : public Service {
 public:
     using Service::Service;

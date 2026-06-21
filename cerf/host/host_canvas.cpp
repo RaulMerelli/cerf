@@ -40,7 +40,7 @@ void HostCanvas::SetTab(Tab t, bool user_initiated) {
 
 void HostCanvas::RearmFramebufferAutoSwitch() {
     /* A guest reboot returns to the Framebuffer when video resumes, so the
-       user's prior manual tab pick is stale — clear it too, else once the user
+       user's prior manual tab pick is stale - clear it too, else once the user
        ever switches tabs the reboot auto-switch is suppressed forever. */
     latched_once_     = false;
     user_picked_view_ = false;

@@ -52,6 +52,7 @@ public:
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
     void OnReady() override {
+
         xsize_ = 479;
         ysize_ = 239;
         emu_.Get<PeripheralDispatcher>().Register(this);

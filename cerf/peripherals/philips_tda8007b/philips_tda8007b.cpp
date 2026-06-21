@@ -12,7 +12,7 @@ namespace {
 
 /* Philips TDA8007B smart-card IC (SIMpad SL4 nCS4, PA 0x40000000): 16 byte
    registers at 4-byte stride (tda8007b.dll SCR: sub_1292B20 write / sub_1292B60
-   read). Empty-reader stub — writes store config, reads return cleared/idle so
+   read). Empty-reader stub - writes store config, reads return cleared/idle so
    SCR_Init completes (reg 15 ready-poll breaks on 0, reg 12 bit2 = no card). */
 class PhilipsTda8007b : public Peripheral {
 public:
@@ -35,7 +35,7 @@ public:
         regs_[RegIndex(addr, value)] = value;
     }
 
-    /* The 16 byte registers are the whole SCR state — writes land here,
+    /* The 16 byte registers are the whole SCR state - writes land here,
        reads come straight back. No host-only members to skip. */
     void SaveState(StateWriter& w) override {
         w.WriteBytes(regs_.data(), regs_.size());

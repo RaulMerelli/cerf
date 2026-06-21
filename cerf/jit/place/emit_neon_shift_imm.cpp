@@ -50,7 +50,7 @@ uint8_t* PlaceNeonShiftImm(uint8_t*      cursor,
         esize        = 8u;
         shift_amount = is_left ? (imm6 - 8u) : (16u - imm6);
     } else {
-        /* L:imm6 == 0000xxx — wrong encoding region; defensive UND. */
+        /* L:imm6 == 0000xxx - wrong encoding region; defensive UND. */
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 

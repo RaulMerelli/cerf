@@ -28,7 +28,7 @@
 #include <cstring>
 #include <limits>
 
-/* SlirpTimer — what we hand back to libslirp from timer_new. libslirp
+/* SlirpTimer - what we hand back to libslirp from timer_new. libslirp
    treats it as opaque. We store the callback + arm time. The poll loop
    walks the timer list each iteration and fires anything whose expire
    time has passed. */
@@ -58,7 +58,7 @@ std::array<uint8_t, 6> ParseMac(const std::string& s) {
     return out;
 }
 
-/* libslirp fixed network — 10.0.2.0/24, host 10.0.2.2, dhcp 10.0.2.15,
+/* libslirp fixed network - 10.0.2.0/24, host 10.0.2.2, dhcp 10.0.2.15,
    dns 10.0.2.3. These are libslirp's documented defaults; matching them
    keeps the DHCP/ARP/DNS responder behavior predictable. */
 in_addr MakeAddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
@@ -83,7 +83,7 @@ in6_addr MakeAddr6(uint16_t a, uint16_t b, uint16_t c, uint16_t d,
 }
 
 /* C-shims that bounce SlirpCb pointers into SlirpBackend instance methods.
-   Signatures match libslirp 4.9.1 (SLIRP_CONFIG_VERSION_MAX=6) — note
+   Signatures match libslirp 4.9.1 (SLIRP_CONFIG_VERSION_MAX=6) - note
    slirp_ssize_t for SlirpWriteCb (typedef'd to SSIZE_T on Windows). */
 slirp_ssize_t cb_send_packet(const void* buf, size_t len, void* opaque) {
     static_cast<SlirpBackend*>(opaque)->OnSlirpSendPacket(buf, len);
@@ -108,7 +108,7 @@ void cb_notify(void* opaque) {
     static_cast<SlirpBackend*>(opaque)->OnSlirpNotify();
 }
 /* libslirp v4 callbacks (deprecated since v6, replaced by *_socket variants
-   below). With cfg.version=6 these never fire on Win64 — present only so
+   below). With cfg.version=6 these never fire on Win64 - present only so
    libslirp's null-pointer checks pass and any internal fallback paths work. */
 void cb_register_poll_fd(int /*fd*/, void* /*opaque*/) { /* no-op */ }
 void cb_unregister_poll_fd(int /*fd*/, void* /*opaque*/) { /* no-op */ }
@@ -134,7 +134,7 @@ void SlirpBackend::OnReady() {
     guest_mac_ = ParseMac(cfg.network_mac);
     mtu_ = cfg.network_mtu;
 
-    /* WSAStartup once per process — safe to call repeatedly; ref-counted. */
+    /* WSAStartup once per process - safe to call repeatedly; ref-counted. */
     WSADATA wsa{};
     int wsa_rc = WSAStartup(MAKEWORD(2, 2), &wsa);
     if (wsa_rc != 0) {
@@ -173,7 +173,7 @@ void SlirpBackend::OnReady() {
     sc.outbound_addr6   = nullptr;
     sc.disable_dns      = false;
     sc.disable_dhcp     = false;
-    /* v5+ fields — zero-init via SlirpConfig sc{}; left explicit for clarity. */
+    /* v5+ fields - zero-init via SlirpConfig sc{}; left explicit for clarity. */
     sc.mfr_id           = 0;
     /* sc.oob_eth_addr already zeroed by sc{}. */
 
@@ -187,7 +187,7 @@ void SlirpBackend::OnReady() {
     cbs_->register_poll_fd         = &cb_register_poll_fd;     /* deprecated */
     cbs_->unregister_poll_fd       = &cb_unregister_poll_fd;   /* deprecated */
     cbs_->notify                   = &cb_notify;
-    /* init_completed and timer_new_opaque — v4+ callbacks; libslirp null-
+    /* init_completed and timer_new_opaque - v4+ callbacks; libslirp null-
        checks both before calling (confirmed from slirp.c 4.9.1: `if
        (slirp->cfg_version >= 4 && slirp->cb->init_completed)`). nullptr
        is safe here. */
@@ -212,7 +212,7 @@ void SlirpBackend::OnReady() {
         guest_mac_[0], guest_mac_[1], guest_mac_[2],
         guest_mac_[3], guest_mac_[4], guest_mac_[5],
         host_has_v6 ? "fec0::/64 host6=fec0::2 dns6=fec0::3"
-                    : "LAN-router off (host has no v6 internet — guest stays link-local)",
+                    : "LAN-router off (host has no v6 internet - guest stays link-local)",
         mtu_);
 
     auto register_forwards = [&](const std::string& spec, int is_udp,
@@ -227,7 +227,7 @@ void SlirpBackend::OnReady() {
             pos = (comma == std::string::npos) ? spec.size() : comma + 1;
             size_t colon = tok.find(':');
             if (colon == std::string::npos) {
-                LOG(Caution, "bad %s forward '%s' — expected HOST_PORT:GUEST_PORT\n",
+                LOG(Caution, "bad %s forward '%s' - expected HOST_PORT:GUEST_PORT\n",
                         proto_name, tok.c_str());
                 continue;
             }
@@ -235,7 +235,7 @@ void SlirpBackend::OnReady() {
             int guest_port = std::atoi(tok.substr(colon + 1).c_str());
             if (host_port <= 0 || host_port > 65535 ||
                 guest_port <= 0 || guest_port > 65535) {
-                LOG(Caution, "bad %s forward '%s' — port out of range\n",
+                LOG(Caution, "bad %s forward '%s' - port out of range\n",
                         proto_name, tok.c_str());
                 continue;
             }
@@ -289,7 +289,7 @@ void SlirpBackend::SendFrame(const uint8_t* frame, std::size_t len) {
             (unsigned long long)n, len, tag);
     }
     if (TryInterceptIcmpEcho(frame, len)) return;
-    /* AAAA strip — when the host has no IPv6 internet, reply to AAAA
+    /* AAAA strip - when the host has no IPv6 internet, reply to AAAA
        queries with NoData so the guest never gets unreachable AAAA
        records and wastes time on NS/SYN to them; pass everything else
        through. */
@@ -313,7 +313,7 @@ std::array<uint8_t, 6> SlirpBackend::HostGatewayMacAddress() const {
 
 void SlirpBackend::OnSlirpSendPacket(const void* buf, std::size_t len) {
     /* Delivery runs UNDER rx_cb_mutex_: SetReceiveCallback(nullptr)
-       is the eject quiesce barrier — once it returns, no in-flight
+       is the eject quiesce barrier - once it returns, no in-flight
        frame can re-enter the destroyed card. */
     static std::atomic<uint64_t> rx_count{0};
     uint64_t n = rx_count.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -383,7 +383,7 @@ void SlirpBackend::PollLoop() {
         fds.clear();
         uint32_t timeout_ms = MAX_TIMEOUT_MS;
 
-        /* Step 1 — fill pollfd set (socket-aware v6 API so SOCKET handles
+        /* Step 1 - fill pollfd set (socket-aware v6 API so SOCKET handles
            reach our add-poll callback at full Win64 width). */
         {
             std::lock_guard<std::mutex> lk(slirp_mutex_);
@@ -391,7 +391,7 @@ void SlirpBackend::PollLoop() {
             slirp_pollfds_fill_socket(slirp_, &timeout_ms, &cb_add_poll_socket, &ctx);
         }
 
-        /* Step 2 — clamp timeout to the earliest pending timer. */
+        /* Step 2 - clamp timeout to the earliest pending timer. */
         {
             std::lock_guard<std::mutex> lk(timers_mutex_);
             int64_t now = NowMs();
@@ -403,7 +403,7 @@ void SlirpBackend::PollLoop() {
             }
         }
 
-        /* Step 3 — block on the registered fds, capped by timeout. */
+        /* Step 3 - block on the registered fds, capped by timeout. */
         int npoll = 0;
         if (!fds.empty()) {
             npoll = WSAPoll(fds.data(), (ULONG)fds.size(),
@@ -420,14 +420,14 @@ void SlirpBackend::PollLoop() {
            capture a torn NIC RX state. */
         auto frozen = freeze.WorkerSection();
 
-        /* Step 4 — let libslirp consume any ready fds. */
+        /* Step 4 - let libslirp consume any ready fds. */
         {
             std::lock_guard<std::mutex> lk(slirp_mutex_);
             PollFillCtx ctx{&fds};
             slirp_pollfds_poll(slirp_, npoll < 0 ? 1 : 0, &cb_get_revents, &ctx);
         }
 
-        /* Step 5 — fire any expired timers (outside the timers_ lock). */
+        /* Step 5 - fire any expired timers (outside the timers_ lock). */
         std::vector<SlirpTimer*> due;
         {
             std::lock_guard<std::mutex> lk(timers_mutex_);

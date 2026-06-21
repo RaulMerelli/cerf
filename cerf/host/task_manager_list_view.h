@@ -9,7 +9,7 @@
 #include <vector>
 
 /* The report-mode ListView inside the guest task-manager window. Renders one of
-   two modes — top-level windows or processes — from a CerfVirtTaskManager
+   two modes - top-level windows or processes - from a CerfVirtTaskManager
    snapshot while preserving the selected row (by lParam) across refreshes.
    UI-thread only; a plain helper owned by TaskManagerWindow, not a Service. */
 class TaskManagerListView {

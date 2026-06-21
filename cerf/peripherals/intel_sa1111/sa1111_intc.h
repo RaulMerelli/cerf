@@ -26,13 +26,13 @@ public:
     void PostRestore() override;
 
     /* Source 0..31 → bank 0, 32..63 → bank 1; Raise/Lower drive the raw
-       input line, Raise also sets status. Lower must NOT clear status — the
+       input line, Raise also sets status. Lower must NOT clear status - the
        latch is edge-triggered (Dev Manual Fig 11-1), cleared only by
        INTSTATCLR W1C; clearing on Lower drops an IRQ not yet acked. */
     void RaiseInterrupt(uint8_t source);
     void LowerInterrupt(uint8_t source);
 
-    /* True while any enabled source is pending — the level the chip's
+    /* True while any enabled source is pending - the level the chip's
        cascade output drives onto its SA-1110 GPIO. */
     bool OutputAsserted() const { return (status0_ & enable0_) ||
                                          (status1_ & enable1_); }
@@ -41,7 +41,7 @@ private:
     void DriveCascadeOutput(bool pulse_low_first);
 
     /* Latch sources whose (raw ^ pol) rose 0->1 into status; run on raw AND
-       INTPOL writes — the INTPOL case is the kernel's retrigger (Fig 11-1). */
+       INTPOL writes - the INTPOL case is the kernel's retrigger (Fig 11-1). */
     void LatchEdges(bool bank1);
 
     uint32_t raw0_ = 0, raw1_ = 0;       /* IntRaw(n) per-source input lines. */

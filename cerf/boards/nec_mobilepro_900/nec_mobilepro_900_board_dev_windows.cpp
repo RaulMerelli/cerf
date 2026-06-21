@@ -4,7 +4,7 @@
 
 namespace {
 
-/* Static CS2 board device (PA 0x08000000, OAT VA 0x88000000) — trueffs.dll probes
+/* Static CS2 board device (PA 0x08000000, OAT VA 0x88000000) - trueffs.dll probes
    it for a DiskOnChip flash; returns-0 makes the probe find no signature. */
 class NecMobilePro900Cs2Window : public NecMobilePro900BoardWindow {
 public:

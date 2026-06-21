@@ -23,8 +23,8 @@ struct OatEntry {
 constexpr OatEntry kOat[] = {
     /*  1 */ { 0x84000000u, 0x80000000u, MB(128), OatKind::Dram  }, /* 128 MB SDRAM bank 0 (extension RAM, see above) */
     /*  2 */ { 0x8C000000u, 0xA0000000u, MB(128), OatKind::Dram  }, /* 128 MB SDRAM bank 1 (primary, NK lives here) */
-    /*  3 */ { 0x94000000u, 0x0C000000u, MB(16),  OatKind::Flash }, /* 16 MB  CS0 — OneNAND/NAND flash */
-    /*  4 */ { 0x95000000u, 0x15000000u, MB(16),  OatKind::Mmio  }, /* 16 MB  CS5 — LAN9115 Ethernet */
+    /*  3 */ { 0x94000000u, 0x0C000000u, MB(16),  OatKind::Flash }, /* 16 MB  CS0 - OneNAND/NAND flash */
+    /*  4 */ { 0x95000000u, 0x15000000u, MB(16),  OatKind::Mmio  }, /* 16 MB  CS5 - LAN9115 Ethernet */
     /*  5 */ { 0x96000000u, 0x48000000u, MB(16),  OatKind::Mmio  }, /* 16 MB  L4 Core/Wakeup registers */
     /*  6 */ { 0x97000000u, 0x49000000u, MB(1),   OatKind::Mmio  }, /*  1 MB  L4 Peripheral */
     /*  7 */ { 0x97100000u, 0x68000000u, MB(16),  OatKind::Mmio  }, /* 16 MB  L3 registers */

@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VCEQ / VCGT / VCGE / VCLE / VCLT immediate #0 — A7.4.5 A=01, F-bit
+/* VCEQ / VCGT / VCGE / VCLE / VCLT immediate #0 - A7.4.5 A=01, F-bit
    discriminates integer (F=0) vs .F32 (F=1). */
 uint8_t* PlaceNeonData2RegCompareZero(uint8_t*      cursor,
                                       DecodedInsn*  d,
@@ -27,7 +27,7 @@ uint8_t* PlaceNeonData2RegCompareZero(uint8_t*      cursor,
     const uint32_t m_idx = (Mbit << 4) | Vm;
 
     /* A8.8.292 line 40255 / A8.8.294 line 40475 / A8.8.296 line 40694 /
-       A8.8.298 line 40790 / A8.8.301 line 40964 — common UND form. */
+       A8.8.298 line 40790 / A8.8.301 line 40964 - common UND form. */
     if (size == 3u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

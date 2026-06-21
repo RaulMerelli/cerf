@@ -79,7 +79,7 @@ private:
     HFONT label_font_      = nullptr;
     HFONT disclaimer_font_ = nullptr;
 
-    /* State-machine fields — touched only by Advance/Draw* on the UI thread. */
+    /* State-machine fields - touched only by Advance/Draw* on the UI thread. */
     Phase     phase_        = Phase::CerfFadeIn;
     uint64_t  phase_start_  = 0;
     bool      started_      = false;

@@ -99,7 +99,7 @@ public:
                         c.emu.Get<ArmMmu>().State()->process_id);
                 });
 
-            /* sub_3E170 entry — master DrvEnable workflow.
+            /* sub_3E170 entry - master DrvEnable workflow.
                Reading dword_79E88 here tells us its state BEFORE the
                whole driver-enable chain runs. */
             tm.OnPcFiltered(0x0003E170u, pass_through,

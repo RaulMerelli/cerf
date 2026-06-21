@@ -18,7 +18,7 @@ namespace {
 /* Demand-pager sub_800C2768: the HW L1 table is self-mapped at 0xFFFD0000, so
    the fault's L1 entry is 0xFFFD0000 + 4*((faultVA>>20)&0xFFC). present=1 (that
    entry already non-zero) means the pager no-ops (`if (*l1) return 0;`) = CERF
-   faulted a VA the guest had already mapped — the CERF translate/TLB divergence. */
+   faulted a VA the guest had already mapped - the CERF translate/TLB divergence. */
 class Falcon4220PagingLivelockDiag : public Service {
 public:
     using Service::Service;
@@ -93,7 +93,7 @@ public:
             });
 
             /* Per-window distinct (curId, pc) sampled every 64th Run() and reset
-               per window — names the thread+code spinning during the freeze. */
+               per window - names the thread+code spinning during the freeze. */
             tm.OnRunLoopIter([](const TraceContext& c) {
                 static std::atomic<uint64_t> beat{0};
                 const uint64_t b = beat.fetch_add(1, std::memory_order_relaxed);

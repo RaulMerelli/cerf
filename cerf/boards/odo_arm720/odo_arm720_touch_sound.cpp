@@ -51,9 +51,12 @@ constexpr uint16_t kPenIntrMask        = 0x0010u;
 constexpr uint16_t kIoAdcCntrDoSample     = 0x4000u; /* bit 14 */
 constexpr uint16_t kIoAdcCntrAdcSelY      = 0x0800u; /* bit 11 */
 constexpr uint16_t kIoAdcCntrPenTimingEn  = 0x0400u; /* bit 10 */
+
 constexpr uint16_t kTouchSampleValid      = 0x0FFFu;
 
+
 constexpr int     kCalScaleFactor          = 4;
+
 
 constexpr uint16_t kUcbRegisterPenState   = 0x1000u;
 

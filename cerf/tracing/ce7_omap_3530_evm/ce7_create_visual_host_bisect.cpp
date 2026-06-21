@@ -11,7 +11,7 @@
 
 namespace {
 
-/* FingerKB.dll KeyBoard::CreateVisualHost — split into post-BL probes
+/* FingerKB.dll KeyBoard::CreateVisualHost - split into post-BL probes
    for each major XAML init call. The last one that fires + the next
    one that doesn't names the broken XAML primitive. */
 constexpr uint32_t kPcCvhEntry             = 0x407C598Cu;
@@ -22,7 +22,7 @@ constexpr uint32_t kPcCvhPostCreateHostXml = 0x407C5AE4u;
 constexpr uint32_t kPcCvhPreEvntModify     = 0x407C5B98u;
 constexpr uint32_t kPcCvhExit              = 0x407C5BA4u;
 
-/* KeyBoard::ThreadProc — outer thread entry. */
+/* KeyBoard::ThreadProc - outer thread entry. */
 constexpr uint32_t kPcKbThreadProc         = 0x407C5BB4u;
 
 constexpr uint32_t kVaPCurThd = 0xFFFFC824u;

@@ -24,7 +24,7 @@ public:
 
 /* One physical PCMCIA socket. Lock hierarchy: bus_mutex_ > backend
    rx-callback mutex > card mutex > controller mutex. RaiseIrq/ClearIrq
-   and PcmciaSlotHost callbacks must stay off bus_mutex_ — eject holds
+   and PcmciaSlotHost callbacks must stay off bus_mutex_ - eject holds
    it while the card dtor drains in-flight RX, which runs RaiseIrq. */
 class PcmciaSlot : public HostWidget {
 public:
@@ -86,7 +86,7 @@ private:
     void MenuEject(uint64_t gen);
     void CombinedSwap(uint64_t gen, std::unique_ptr<PcmciaCard> card);
     void MenuInsert(uint64_t gen, const std::string& card_id);
-    /* Insert a pre-built card (gen-guarded) — used by card kinds whose
+    /* Insert a pre-built card (gen-guarded) - used by card kinds whose
        insert menu resolves a host resource (e.g. CompactFlash image). */
     void MenuInsertCard(uint64_t gen, std::unique_ptr<PcmciaCard> card);
     std::vector<WidgetMenuItem> BuildInsertSubmenuLocked(uint64_t gen);

@@ -18,7 +18,7 @@ static BOOL ReadPageGuarded(BYTE* dst, const BYTE* src) {
     }
 }
 
-/* Bounded wide-string copy — CE has no lstrcpynW; keep it dependency-free. */
+/* Bounded wide-string copy - CE has no lstrcpynW; keep it dependency-free. */
 static void CopyStrW(LPWSTR dst, LPCWSTR src, int cch) {
     int i = 0;
     if (cch <= 0) return;
@@ -56,7 +56,7 @@ DWORD WINAPI DumpThread(LPVOID param) {
         BOOL  mapped = FALSE;
         DWORD p, wr = 0;
 
-        if (st->cancel) break;   /* Exit pressed — stop, close file cleanly */
+        if (st->cancel) break;   /* Exit pressed - stop, close file cleanly */
 
         st->cur_pa = pa;
 

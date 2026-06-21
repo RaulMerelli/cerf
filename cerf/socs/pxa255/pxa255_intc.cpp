@@ -19,7 +19,7 @@ void Pxa255Intc::OnReady() {
 
 void Pxa255Intc::NotifyLocked() {
     if (IcFpLocked() != 0) {
-        LOG(SocIntc, "FIQ asserted (ICFP=0x%08X) — FIQ delivery not wired "
+        LOG(SocIntc, "FIQ asserted (ICFP=0x%08X) - FIQ delivery not wired "
                      "through ArmJit\n", IcFpLocked());
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
@@ -107,7 +107,7 @@ void Pxa255Intc::WriteRegLocked(uint32_t off, uint32_t value) {
 #endif
             icmr_ = value; break;              /* ICMR */
         case 0x08: iclr_ = value; break;       /* ICLR */
-        case 0x14: iccr_ = value & 0x1u; break;/* ICCR — DIM (bit0). */
+        case 0x14: iccr_ = value & 0x1u; break;/* ICCR - DIM (bit0). */
         default:   break;                      /* ICIP/ICFP/ICPR read-only. */
     }
     if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp) {
@@ -167,7 +167,7 @@ void Pxa255Intc::RestoreState(StateReader& r) {
 
 void Pxa255Intc::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored ICPR/ICMR/ICLR after
-       every peripheral's RestoreState has run — the INTC owns the CPU IRQ line. */
+       every peripheral's RestoreState has run - the INTC owns the CPU IRQ line. */
     std::lock_guard<std::mutex> guard(state_mtx_);
     NotifyLocked();
 }

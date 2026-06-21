@@ -10,10 +10,10 @@ class ArmNeon2RegNarrow : public Service {
 public:
     using Service::Service;
 
-    static constexpr uint32_t kMovn   = 0u;  /* op=00 — no saturation */
-    static constexpr uint32_t kQmovun = 1u;  /* op=01 — signed→unsigned sat */
-    static constexpr uint32_t kQmovnS = 2u;  /* op=10 — signed→signed sat */
-    static constexpr uint32_t kQmovnU = 3u;  /* op=11 — unsigned→unsigned sat */
+    static constexpr uint32_t kMovn   = 0u;  /* op=00 - no saturation */
+    static constexpr uint32_t kQmovun = 1u;  /* op=01 - signed→unsigned sat */
+    static constexpr uint32_t kQmovnS = 2u;  /* op=10 - signed→signed sat */
+    static constexpr uint32_t kQmovnU = 3u;  /* op=11 - unsigned→unsigned sat */
 
     void HandleNarrow(uint32_t op_sel, uint32_t esize_out,
                       uint32_t d_idx, uint32_t m_idx);

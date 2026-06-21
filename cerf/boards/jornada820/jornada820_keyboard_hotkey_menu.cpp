@@ -12,7 +12,7 @@ struct KeyEntry { const wchar_t* label; uint8_t vk; };
 
 /* Physical J820 app-key row, left-to-right (device-owner photo; 0xC1 Inbox /
    0xC2 IE / 0xC3 Calendar runtime-confirmed). They ride the normal scancode
-   path. NOT the J720 row — copying that mislabels every hardware key. */
+   path. NOT the J720 row - copying that mislabels every hardware key. */
 constexpr KeyEntry kAppRow[] = {
     { L"Inbox",        0xC1 }, { L"Internet Explorer", 0xC2 },
     { L"Calendar",     0xC3 }, { L"Contacts",          0xC4 },

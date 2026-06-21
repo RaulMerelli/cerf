@@ -4,7 +4,7 @@
 
 #include "../core/service.h"
 
-/* VMVN (register) — A8.8.354. Whole-D-register bitwise NOT. */
+/* VMVN (register) - A8.8.354. Whole-D-register bitwise NOT. */
 class ArmNeon2RegBitwiseNot : public Service {
 public:
     using Service::Service;

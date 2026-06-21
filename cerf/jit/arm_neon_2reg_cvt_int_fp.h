@@ -10,10 +10,10 @@ class ArmNeon2RegCvtIntFp : public Service {
 public:
     using Service::Service;
 
-    static constexpr uint32_t kIntSToFp = 0u;  /* op=00 — .F32.S32 (int s→fp) */
-    static constexpr uint32_t kIntUToFp = 1u;  /* op=01 — .F32.U32 (int u→fp) */
-    static constexpr uint32_t kFpToIntS = 2u;  /* op=10 — .S32.F32 (fp→int s) */
-    static constexpr uint32_t kFpToIntU = 3u;  /* op=11 — .U32.F32 (fp→int u) */
+    static constexpr uint32_t kIntSToFp = 0u;  /* op=00 - .F32.S32 (int s→fp) */
+    static constexpr uint32_t kIntUToFp = 1u;  /* op=01 - .F32.U32 (int u→fp) */
+    static constexpr uint32_t kFpToIntS = 2u;  /* op=10 - .S32.F32 (fp→int s) */
+    static constexpr uint32_t kFpToIntU = 3u;  /* op=11 - .U32.F32 (fp→int u) */
 
     void HandleCvtIntFp(uint32_t op_sel, uint32_t d_idx, uint32_t m_idx,
                         uint32_t regs);

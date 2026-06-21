@@ -12,7 +12,7 @@
 /* PXA255 Pulse Width Modulator (manual §4.5, Table 4-46/47/48). Two channels
    at 0x40B00000 (PWM0) and 0x40C00000 (PWM1); a concrete supplies MmioBase.
    The three registers are write-only config with NO status register, so
-   storage IS the complete behaviour — not a stub to flesh out. The Falcon
+   storage IS the complete behaviour - not a stub to flesh out. The Falcon
    backlight (backlite.dll InitializeBacklightHardware) writes them to set
    brightness and faults on the unmapped region. */
 class Pxa255Pwm : public Peripheral {

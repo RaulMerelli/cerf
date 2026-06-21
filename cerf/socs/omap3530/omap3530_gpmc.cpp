@@ -2,7 +2,7 @@
 
 void Omap3530Gpmc::OnReady() {
     Omap3530PrcmStubBlock::OnReady();
-    /* In-RAM blank NAND for CS0 — 256 MB of 0xFF. */
+    /* In-RAM blank NAND for CS0 - 256 MB of 0xFF. */
     nand_[0].storage.assign(kStorageSize, 0xFFu);
     WriteCeBootMbr();
 }
@@ -42,10 +42,10 @@ void Omap3530Gpmc::WriteCeBootMbr() {
     /* spare[14..17] = logicalSectorAddr = 0 */
     spare[14] = 0; spare[15] = 0; spare[16] = 0; spare[17] = 0;
     /* If fDataStatus stays 0xFFFF, BuildupMappingInfo treats sector 0
-       as FREE not MAPPED — no logical-0 mapping is registered. */
+       as FREE not MAPPED - no logical-0 mapping is registered. */
     spare[18] = 0xFBu; spare[19] = 0xFFu;
     /* If oemReserved stays 0xFF, FMD_GetBlockStatus doesn't report
-       BLOCK_STATUS_READONLY — BuildupMappingInfo never enters the
+       BLOCK_STATUS_READONLY - BuildupMappingInfo never enters the
        readonly-block branch that maps logical 0..63 of this block. */
     spare[21] = 0xFDu;
 }
@@ -106,7 +106,7 @@ uint32_t Omap3530Gpmc::ReadWord(uint32_t addr) {
     }
     if (off == 0x54u) {
         /* GPMC_STATUS bit 8 = WAIT0PIN. FMD's NAND_GetStatus polls
-           this bit (NAND_STATUS_READY) — return ready always. */
+           this bit (NAND_STATUS_READY) - return ready always. */
         return 0x00000100u;
     }
     if (off == 0x1F0u) {
@@ -242,7 +242,7 @@ void Omap3530Gpmc::WriteNandAddress(uint32_t cs, uint16_t addr) {
             static_cast<uint8_t>(addr & 0xFFu);
     } else {
         LOG(Caution,
-            "[GPMC] NAND CS%u address byte %d beyond 5 — chip "
+            "[GPMC] NAND CS%u address byte %d beyond 5 - chip "
             "geometry mismatch?\n", cs, chip.addr_idx);
     }
     if (chip.state == NandState::WriteAddr && chip.addr_idx >= 4) {

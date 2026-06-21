@@ -23,7 +23,7 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     const uint32_t n_regs    = is_dp ? (imm8 >> 1) : imm8;
     const uint32_t bytes_per = is_dp ? 8u : 4u;
 
-    /* UNPREDICTABLE encodings — QEMU chooses to UND. */
+    /* UNPREDICTABLE encodings - QEMU chooses to UND. */
     if (n_regs == 0 || (vd + n_regs) > 32u ||
         (is_dp && n_regs > 16u) || rn_idx == 15u) {
         cpu.RaiseUndefinedException(pc);
@@ -135,7 +135,7 @@ inline void StoreFpscrNzcv(ArmCpuState* state, uint32_t nzcv4) {
     state->fpscr = (state->fpscr & ~0xF0000000u) | (nzcv4 << 28);
 }
 
-/* VFP short-vector register sequencing — ARM ARM DDI0100I §C5.1/§C5.3.
+/* VFP short-vector register sequencing - ARM ARM DDI0100I §C5.1/§C5.3.
    Invariant: LEN=0 (default) MUST yield vec_len=1 / identical indices, else
    every scalar VFP op silently changes. dest in bank 0 also scalar; else regs
    iterate within their 8(SP)/4(DP)-reg bank, 2nd src scalar iff in bank 0. */
@@ -291,7 +291,7 @@ uint32_t ArmVfp::ExecuteCdp(uint32_t pc, uint32_t packed) {
                 return 0;
             }
             if (op_sel == 1u) {
-                /* VMOV (register) — Vd = Vm */
+                /* VMOV (register) - Vd = Vm */
                 uint32_t vd[8], vn[8], vm[8];
                 const uint32_t vl = VfpVectorRegs(state, is_dp, true, sd, sn, sm,
                                                   vd, vn, vm);
@@ -342,21 +342,21 @@ uint32_t ArmVfp::ExecuteCdp(uint32_t pc, uint32_t packed) {
             return 1;
         }
         case 0x4: {
-            /* VCMP / VCMPE — quiet vs signalling, same NZCV pack. */
+            /* VCMP / VCMPE - quiet vs signalling, same NZCV pack. */
             const double a = is_dp ? dp_regs[sd] : static_cast<double>(sp_regs[sd]);
             const double b = is_dp ? dp_regs[sm] : static_cast<double>(sp_regs[sm]);
             StoreFpscrNzcv(state, VfpCmpNzcv(a, b));
             return 0;
         }
         case 0x5: {
-            /* VCMP0 / VCMPE0 — compare against +0.0. */
+            /* VCMP0 / VCMPE0 - compare against +0.0. */
             const double a = is_dp ? dp_regs[sd] : static_cast<double>(sp_regs[sd]);
             StoreFpscrNzcv(state, VfpCmpNzcv(a, 0.0));
             return 0;
         }
         case 0x7: {
             /* VCVT single<->double: cp10 = single->double (Dd<-Sm), cp11 =
-               double->single (Sd<-Dm). Do NOT swap — running FCVTDS (cp10)
+               double->single (Sd<-Dm). Do NOT swap - running FCVTDS (cp10)
                through the double->single body writes Sd instead of Dd, leaving
                Dd garbage. */
             if (op_sel == 3u) {

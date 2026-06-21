@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VTRN / VUZP / VZIP (A8.8.420 / A8.8.422 / A8.8.423) — A7.4.5 A=10,
+/* VTRN / VUZP / VZIP (A8.8.420 / A8.8.422 / A8.8.423) - A7.4.5 A=10,
    bits[10:7]=0001/0010/0011. */
 uint8_t* PlaceNeonData2RegShuffle(uint8_t*      cursor,
                                   DecodedInsn*  d,
@@ -30,11 +30,11 @@ uint8_t* PlaceNeonData2RegShuffle(uint8_t*      cursor,
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
     /* VUZP/VZIP additionally UND on D-form .32 per same lines (it's a
-       pseudo-instruction synonym for VTRN.32 — the encoding is reserved). */
+       pseudo-instruction synonym for VTRN.32 - the encoding is reserved). */
     if (op != ArmNeon2RegShuffle::kTrn && Q == 0u && size == 2u) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
-    /* Q && (Vd[0]||Vm[0]) UND — all three ops. */
+    /* Q && (Vd[0]||Vm[0]) UND - all three ops. */
     if (Q != 0u && ((d_idx & 1u) || (m_idx & 1u))) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

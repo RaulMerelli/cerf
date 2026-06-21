@@ -20,7 +20,7 @@ namespace {
 /* Names the deep-sleep resume hang: when the guest stops advancing (guest PC and
    OST OSCR both frozen) no TraceManager hook fires (Run() never returns), so a
    host-thread sampler is the only way to capture the stuck PC + timer/INTC state.
-   Falcon-only, observation-only — reads guest state, never writes it. */
+   Falcon-only, observation-only - reads guest state, never writes it. */
 class FalconResumeStallWatchdog : public Service {
 public:
     using Service::Service;

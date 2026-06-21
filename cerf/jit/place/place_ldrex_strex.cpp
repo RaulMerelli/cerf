@@ -48,7 +48,7 @@ uint8_t* PlaceLdrex(uint8_t*      cursor,
     uint8_t* abort_label = EmitTranslatePrefix(cursor, d, ctx, /*is_write=*/false);
 
     /* Success path. Load 32-bit value from translated host pointer.
-       MOV ECX, [EAX] — 0x8B with ModR/M mod=00 r/m=EAX reg=ECX. */
+       MOV ECX, [EAX] - 0x8B with ModR/M mod=00 r/m=EAX reg=ECX. */
     Emit8(cursor, 0x8B);
     EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEcx);
 
@@ -83,7 +83,7 @@ uint8_t* PlaceStrex(uint8_t*      cursor,
     EmitTestRegReg      (cursor, kEax, kEax);
     uint8_t* fail_label_a = EmitJzLabel32(cursor);
 
-    /* Check address match — CMP ECX (VA from Rn), [ESI + monitor_addr]. */
+    /* Check address match - CMP ECX (VA from Rn), [ESI + monitor_addr]. */
     EmitMovRegBaseDisp32 (cursor, kEcx, kStateReg, GprDisp(d->rn));
     EmitCmpRegBaseDisp32 (cursor, kEcx, kStateReg, MonitorAddrDisp());
     uint8_t* fail_label_b = EmitJnzLabel32(cursor);

@@ -14,7 +14,7 @@ public:
     void OnReady() override {
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kWm5BundleCrc32, [&tm] {
-            /* 0x80094D8C: TST R3,#0x10 — R3 = system trust flags; R5 =
+            /* 0x80094D8C: TST R3,#0x10 - R3 = system trust flags; R5 =
                default-trust value; R6 = module descriptor; R8 = trust dest. */
             tm.OnPc(0x80094D8Cu, [](const TraceContext& c) {
                 auto flags_mem = c.ReadVa32(0x8148C140u);
@@ -29,7 +29,7 @@ public:
                 if (flags_mem)
                     LOG(Trace, "[WM5TRUST]   mem[0x8148C140]=0x%08X\n", *flags_mem);
             });
-            /* 0x80094DBC: CMP R0,#0 after file-path sub_8008E8D4 — R0 =
+            /* 0x80094DBC: CMP R0,#0 after file-path sub_8008E8D4 - R0 =
                verify result (0 reject / 1 untrusted / 2 trusted). */
             tm.OnPc(0x80094DBCu, [](const TraceContext& c) {
                 LOG(Trace, "[WM5TRUST] FSD verify result R0=%u\n", c.regs[0]);

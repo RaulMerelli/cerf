@@ -24,7 +24,7 @@ uint8_t BitRev8(uint8_t v) {
 
 /* Jornada 720 keyboard/touch/battery/PWM MCU (HP doc §4, nk.exe
    sub_8004F244). Wire format: TX byte arrives bit-reversed in frame bits
-   15:8, the response must go back bit-reversed in bits 7:0 — decoding the
+   15:8, the response must go back bit-reversed in bits 7:0 - decoding the
    low byte or skipping BitRev8 re-hangs the OAL's SSSR.RNE poll. */
 class Jornada720Mcu : public Sa11xxSspDevice {
 public:
@@ -42,7 +42,7 @@ public:
 
 private:
     /* HP doc §4.7 command values (+ the 0xD5/0xD7 setters this ROM's OAL
-       actually uses — sub_8004F454 sends D5/D7, level, 0x3F trailer). */
+       actually uses - sub_8004F454 sends D5/D7, level, 0x3F trailer). */
     enum : uint8_t {
         kTxDummy        = 0x11,
         /* The OAL sends the read-clock dummy as raw wire 0x11 (not bit-reversed
@@ -112,7 +112,7 @@ private:
             case kGetTouchSamples: {
                 /* touch.dll sub_FB1DD0 reads the 8 bytes as X1,X2,X3,Y1,Y2,Y3,
                    then a combined-X byte (s1/s2/s3 bits 8,9 at bit pairs 0/2/4)
-                   and a combined-Y byte. Three identical samples per axis — the
+                   and a combined-Y byte. Three identical samples per axis - the
                    driver's median filter (sub_FB1C38) collapses them. */
                 uint16_t ax = 0, ay = 0;
                 emu_.Get<Jornada720Touch>().CurrentAdc(&ax, &ay);
@@ -185,7 +185,7 @@ private:
             case kPwmOff:
                 break;                        /* PWM gating: no CERF effect. */
             default:
-                LOG(Caution, "Jornada720Mcu: unknown command 0x%02X — "
+                LOG(Caution, "Jornada720Mcu: unknown command 0x%02X - "
                     "answering TxDummy\n", cmd);
                 break;
         }

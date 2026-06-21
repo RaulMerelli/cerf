@@ -25,7 +25,7 @@ void KernelDebugSink::EmitChar(char ch, std::string& buf,
                                std::string_view source,
                                bool to_screen, size_t cap) {
     if (ch == '\n') { EmitLine(buf, source, to_screen); buf.clear(); return; }
-    if (ch == '\r') return;  /* CE emits CRLF — drop CR, flush on LF. */
+    if (ch == '\r') return;  /* CE emits CRLF - drop CR, flush on LF. */
     const unsigned char uc = (unsigned char)ch;
     if (uc >= 0x20 && uc < 0x7F) {
         buf.push_back(ch);

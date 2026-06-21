@@ -11,7 +11,7 @@ public:
     void OnReady() override {
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kWm5BundleCrc32, [&] {
-            /* Prefetch-abort handler exit chain — names which exit path
+            /* Prefetch-abort handler exit chain - names which exit path
                NK takes for a fault and what state drives the decision.
                sub_8007B6D8 is the lazy-fill helper; pCurThd[5] gates it. */
 
@@ -52,7 +52,7 @@ public:
                 LOG(Trace, "[PFA_TRACE] PC=0x80077714 (data-abort FAILURE PATH) "
                            "R0=0x%08X\n", c.regs[0]);
             });
-            /* sub_8007B6D8 internal branch decisions — narrows which
+            /* sub_8007B6D8 internal branch decisions - narrows which
                failure path returns 0 for the abort-loop VAs. */
             tm.OnPc(0x8007B7D0u, [](const TraceContext& c) {
                 LOG(Trace, "[L1FILL_DECISION] PC=0x8007B7D0 (MOVS R1,R3 before BEQ v5==0) "

@@ -63,7 +63,7 @@ private:
 
     /* §9.3 reset states: RCNR / RTAR / RTTR are uninitialized after
        hardware reset ("undefined after nRESET"); RTSR HZE/ALE = 0,
-       HZ/AL = unknown. CERF picks 0 for the unknown bits — guest
+       HZ/AL = unknown. CERF picks 0 for the unknown bits - guest
        code clears the W1C bits before relying on them. */
     mutable std::mutex state_mtx_;
     uint32_t rtar_ = 0;
@@ -83,7 +83,7 @@ private:
     uint32_t ReadRegLocked(uint32_t off) const;
     void     WriteReg(uint32_t off, uint32_t value);
 
-    /* §9.2.1.1: drive the RTC interrupt LEVELS into the INTC — alarm
+    /* §9.2.1.1: drive the RTC interrupt LEVELS into the INTC - alarm
        line = AL & ALE, HZ line = HZ & HZE. Caller holds state_mtx_. */
     void PushLevelLocked() const {
         uint32_t level = 0;
@@ -232,7 +232,7 @@ void Sa11xxRtc::RestoreState(StateReader& r) {
 
 void Sa11xxRtc::PostRestore() {
     /* Re-drive the RTC interrupt level after every peripheral (incl. the
-       INTC) has been restored — a level-driving source must re-assert its
+       INTC) has been restored - a level-driving source must re-assert its
        line in PostRestore (see agent_docs/hibernation.md). */
     std::lock_guard<std::mutex> sg(state_mtx_);
     PushLevelLocked();

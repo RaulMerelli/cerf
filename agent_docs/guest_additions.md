@@ -23,28 +23,28 @@ CE version. Two pieces are common to all ROMs:
 - The **full cerf_guest body** is delivered separately over a `cerf_virt` MMIO
   channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`; binaries staged
   by `cerf/boot/guest_additions_binaries.{h,cpp}`). The stub pulls the body bytes
-  and **manual-maps the PE itself** — VirtualAlloc + section copy + base reloc +
-  coredll import bind + entry — so the kernel's verified loader never sees the
+  and **manual-maps the PE itself** - VirtualAlloc + section copy + base reloc +
+  coredll import bind + entry - so the kernel's verified loader never sees the
   unsigned body. This loads past WM5 / WM2003SE module authentication, gives each
   loading process its OWN body image (per-process by construction), and lives in
   CERF-owned memory a firmware RAM wipe can't reach.
 
 Only **how the stub is placed into the ROM** differs by ROM class:
 
-- **XIP / MultiXIP** (`cerf/boot/guest_additions_injector.cpp`) — the ROM carries
+- **XIP / MultiXIP** (`cerf/boot/guest_additions_injector.cpp`) - the ROM carries
   a TOC of XIP modules, so the injector overwrites the victim module's TOC entry
   (its e32/o32/load offsets) to repoint it at the stub. The stub's e32/o32 records
   and section bytes live in a CERF-owned PA band in the `cerf_virt` window
   (`cerf/boot/cerf_injection_region.{h,cpp}`), exposed at a guest-unmapped
-  static-window VA — a hole found by `PageTableBuilder::StaticWindowHole` over the
-  board's `MappedVaSpans()` — and served by an MMU-walker overlay
+  static-window VA - a hole found by `PageTableBuilder::StaticWindowHole` over the
+  board's `MappedVaSpans()` - and served by an MMU-walker overlay
   (`ArmMmu::ServeInjectionBand` at the L1-fault site); never the victim's own
   section bytes. On CE6/7 the stub runs in place from the band (a kernel-VA base
   makes the loader skip ReadSection); on CE3/4/5 the loader copies it to a
   section-1 vbase (`GuestModulePlacer::ComputeVbase`), with the band sections
   flagged MEM_WRITE|SHARED so the loader takes the overlay-servable memcpy without
   a per-process slot-base fold on the device.exe carrier load.
-- **IMGFS** (WM6+; `cerf/boot/imgfs_injector.cpp` + `ce_imgfs_patcher.{h,cpp}`) —
+- **IMGFS** (WM6+; `cerf/boot/imgfs_injector.cpp` + `ce_imgfs_patcher.{h,cpp}`) -
   IMGFS is a flash filesystem (an FTL over the NOR/NAND image), not an XIP TOC,
   so there is no slot to overwrite. The injector allocates fresh FTL flash pages
   (writing each page's logical-sector-map entry so imgfs.dll adopts it), writes
@@ -53,9 +53,9 @@ Only **how the stub is placed into the ROM** differs by ROM class:
   the new pages. The SAME stub is injected; only the placement substrate is the
   FTL instead of the TOC.
 
-Every path flags the stub's writable sections SHARED — via
+Every path flags the stub's writable sections SHARED - via
 `GuestModulePlacer::EffSectionFlags`, or directly alongside MEM_WRITE on the
-CE3/4/5 XIP copy path — and the stub keeps its per-process state pid-keyed; see
+CE3/4/5 XIP copy path - and the stub keeps its per-process state pid-keyed; see
 § The cross-process writable-state invariant for why.
 
 The body's manual-map shape is a load-bearing contract: a single import DLL
@@ -63,14 +63,14 @@ The body's manual-map shape is a load-bearing contract: a single import DLL
 a second import DLL, MOV32 relocations, or a TLS directory silently breaks the
 stub's mapper.
 
-coredll is imported **by name**, not by ordinal — high ordinals are per-CE-version
-with no cross-version contract, names are the contract — and the stub resolves
+coredll is imported **by name**, not by ordinal - high ordinals are per-CE-version
+with no cross-version contract, names are the contract - and the stub resolves
 each name with `GetProcAddress` in the loading process. The trap: a coredll
 function that some target coredll exports **by ordinal only** has no name to
 resolve, so the by-name manual-map fails and the whole body never loads (Pocket
 PC 2000's coredll exports `CeSetExtendedPdata` ordinal-only; older coredlls are
 where this bites). Such a symbol must be **defined locally in cerf_guest** rather
-than imported — a local definition wins over the import-lib thunk, so no coredll
+than imported - a local definition wins over the import-lib thunk, so no coredll
 import is emitted for it. `cerf_cacherangeflush.cpp` and
 `cerf_cesetextendedpdata.cpp` do exactly this for their GENBLT-only symbols
 (both are blit-codegen support, safe to local-no-op). When adding a coredll
@@ -82,7 +82,7 @@ if not, define it locally.
 A host folder is mounted into the guest as a filesystem, live-toggleable at
 runtime, on every CE version. It registers directly on coredll's **AFS API-set
 primitive** (`RegisterAFSName` + `CreateAPISet` + `RegisterAFS`) the way the
-in-ROM `fatfs.dll` does — so it needs no `fsdmgr.dll` at runtime and works
+in-ROM `fatfs.dll` does - so it needs no `fsdmgr.dll` at runtime and works
 uniformly CE3→CE7. The FSD MUST run in **device.exe** (the legitimate FSD host);
 hosting it in gwes is illegal and corrupts cross-process loads. `cerf_guest`
 reaches device.exe via a **driver-in-driver carrier**: it registers a `CDD_*`
@@ -93,7 +93,7 @@ runs the FSD from `CDD_Init`. Guest side: `ce_apps/cerf_guest/cerf_fs_*.c` +
 
 ## The cross-process writable-state invariant
 
-The injected module is loaded by more than one process — gwes (display),
+The injected module is loaded by more than one process - gwes (display),
 device.exe (the FSD carrier), and any DirectDraw-HAL client that loads the
 display driver (`HALInit`). Whether the kernel gives each process its own
 writable copy depends on the module's vbase: a **CE5/FCSE kernel folds a
@@ -102,7 +102,7 @@ ZeroPtr) only when the vbase is in a slot / section-1 region; a module at a high
 shared-region vbase keeps one physical `.data` shared across every loading
 process.** This is why a low-vbase IMGFS victim (WM6.0) tolerated a full
 kernel-loaded body but a high-vbase one (WM6.5) corrupted gwes's globals
-cross-process — and the reason the per-process manual-mapped stub body exists.
+cross-process - and the reason the per-process manual-mapped stub body exists.
 Where the writable statics ARE shared, a per-process `VirtualAlloc` address
 stored in such a static is meaningless in the other process. Two rules follow,
 and both are mandatory for any injected guest module:
@@ -120,17 +120,17 @@ and both are mandatory for any injected guest module:
 
 Corollary: a placement/reservation mechanism that was correct when a module was
 kernel-loaded becomes vestigial once the body is delivered by manual-map
-instead — re-audit load-bearing helpers for vestigiality after any change to how
+instead - re-audit load-bearing helpers for vestigiality after any change to how
 their inputs are produced, rather than assuming they are still required.
 
 ## The version / ROM-class axis
 
-- **FCSE (CE ≤ 5)** — one shared page table; low VAs relocated per process by
+- **FCSE (CE ≤ 5)** - one shared page table; low VAs relocated per process by
   the cp13 FCSE PID. The shared-writable-statics hazard above is an FCSE
   property.
-- **ASID (CE6/7)** — per-process page tables; the same injected module's
+- **ASID (CE6/7)** - per-process page tables; the same injected module's
   writable data is per-process by construction.
-- **ROM classes** — XIP single, MultiXIP, and IMGFS (WM6+). XIP / MultiXIP go
+- **ROM classes** - XIP single, MultiXIP, and IMGFS (WM6+). XIP / MultiXIP go
   through `guest_additions_injector.cpp`; IMGFS through `imgfs_injector.cpp`.
 
 ## Display driver + blit pipeline
@@ -146,7 +146,7 @@ It is the guest-side partner of the host `cerf/peripherals/cerf_virt/` virtual
 framebuffer + `gpe_cmd` accelerator channel: the driver routes blits over that
 channel and the host performs them natively (see `cerf_ddgpe.cpp` for the
 `BltPrepare` routing, `main.cpp` for the channel ABI). What it owns today is the
-universal display path — host-framebuffer rendering plus host-accelerated blits.
+universal display path - host-framebuffer rendering plus host-accelerated blits.
 Planned growth is host-side GPU acceleration, runtime screen resize, and
 host↔guest shared storage / clipboard.
 
@@ -154,7 +154,7 @@ host↔guest shared storage / clipboard.
 (copy, fill, format-convert, palette, masked text, transparency, ROP, …)
 host-side through the virtual accelerator channel. Routing a blit class to the
 guest's software render path (GPE `EmulatedBlt`) because the case is complex,
-format-converting, masked, or transparent is forbidden and is a bailout — "let
+format-converting, masked, or transparent is forbidden and is a bailout - "let
 it stay software" is never the fix. The software path is an extreme edge
 reserved only for genuinely un-accelerable inputs (a guest page that cannot be
 translated), never a design choice for a hard blit; a blit shape that renders
@@ -184,49 +184,49 @@ every guest OS, with no per-version code and no guest-installed driver.
 The guest-additions keyboard registers as one source in the host
 `KeyboardRouter` (`cerf/host/keyboard_router.{h,cpp}`) with the highest source
 priority, so it is the active source whenever guest additions are on. The
-router is board-agnostic host input and is not itself part of guest additions —
+router is board-agnostic host input and is not itself part of guest additions -
 see `subsystems.md`.
 
-The guest-additions mouse registers the same way — one source in the host
+The guest-additions mouse registers the same way - one source in the host
 `PointerRouter` (`cerf/host/pointer_router.{h,cpp}`) at the highest source
 priority, so the GA absolute pointer is the active device whenever guest
 additions are on. The `PointerWidget` switches it for the board's stock
-pointer(s) — needed because some apps (e.g. calibrators) read the stock
+pointer(s) - needed because some apps (e.g. calibrators) read the stock
 touch/mouse stream directly. On a board whose stock pointer is a relative mouse,
 the host-capture mouse lock engages only while that source is active. Router and
-widget are board-agnostic host input, not part of guest additions — see
+widget are board-agnostic host input, not part of guest additions - see
 `subsystems.md`.
 
-## Task manager — host UI + cerf_virt channel + guest pump
+## Task manager - host UI + cerf_virt channel + guest pump
 
 The guest task manager (Guest Additions status-bar widget → non-modal host
 window) lists, kills, and switches to guest processes and runs guest
 executables. Three pieces: the MMIO command/response channel
 `cerf/peripherals/cerf_virt/cerf_virt_task_manager.{h,cpp}` (+ `_regs.h`
-contract — host publishes one command at a time via gen bump; guest answers with
+contract - host publishes one command at a time via gen bump; guest answers with
 response regs + kick; LIST rows stream guest→host one record at a time through a
 register window), the host window + widget
 (`cerf/host/task_manager_window.{h,cpp}`, widget merged into
 `cerf/host/host_auto_resize.{h,cpp}`, pinned in the status bar's terminal
 range), and the guest-side pump `ce_apps/cerf_guest/cerf_task_manager_pump.cpp`.
 
-Channel-design rules this subsystem proved — they bind every future `cerf_virt`
+Channel-design rules this subsystem proved - they bind every future `cerf_virt`
 channel:
 
 - **No user API in a guest pump before full boot.** Pump start is display-driver
   init, mid-boot; a user API there (LoadLibrary included) corrupts gwes boot.
-  Resolve dependencies lazily on first command — commands can only arrive
+  Resolve dependencies lazily on first command - commands can only arrive
   post-boot.
 - **Bulk guest→host data crosses through the MMIO regs page, never as a guest
   table VA the host reads.** FCSE kernels lazily zero L2 entries under
   TLB-resident pages, so a host-side walk fails for memory the guest reads fine;
   `PeekVaToHost` is reliable only for small just-written buffers (the gpe
   descriptors).
-- **cerf_guest.dll's virtual image stays small — big buffers are allocated at
+- **cerf_guest.dll's virtual image stays small - big buffers are allocated at
   first use, not declared as large statics.** The body is delivered over the
   `cerf_virt` body channel and manual-mapped (VirtualAlloc), so a large static
   array bloats the image past the channel's `kGuestBodyMaxSize` cap
   (`cerf_virt_addr_map.h`).
 - **Kernel-loaded guest code (CE6+ drivers) cannot use callback-marshaled
-  APIs** — gwes rejects caller-supplied function pointers from kernel space
+  APIs** - gwes rejects caller-supplied function pointers from kernel space
   (EnumWindows); use handle-walk equivalents (GetWindow chain).

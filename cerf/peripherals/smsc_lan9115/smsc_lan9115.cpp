@@ -9,14 +9,14 @@
 
 /* SMSC LAN9115 Ethernet controller (TP177B, S3C2410 nGCS5). Reported present +
    ready so lan9115.dll MiniportInitialize succeeds; an absent model fails its
-   chip-rev check and NDIS faults (BVA 0x504D4466). No TX/RX/IRQ — boot needs init
+   chip-rev check and NDIS faults (BVA 0x504D4466). No TX/RX/IRQ - boot needs init
    success, not traffic. */
 
 namespace {
 
 /* IoBaseAddress = nGCS5 base = 0x28000000 (registry default.hv
    LAN9115\IoBaseAddress = 0x28000000). lan9115.dll reads ID_REV +0x50, BYTE_TEST
-   +0x64, IRQ_CFG +0x54 — the runtime +0x54 write confirms base 0x28000000. */
+   +0x64, IRQ_CFG +0x54 - the runtime +0x54 write confirms base 0x28000000. */
 constexpr uint32_t kBankBase = 0x28000000u;   /* nGCS5 (OAT 0x8E000000->0x28000000, 32 MB) */
 constexpr uint32_t kBankSize = 0x02000000u;
 constexpr uint32_t kNicOff   = 0x0u;          /* IoBaseAddress == bank base */

@@ -57,8 +57,8 @@ uint32_t Sa11xxUartBase::Utsr1Locked() const {
 static constexpr uint32_t kUtsr0Rfs = 1u << 1;
 static constexpr uint32_t kUtsr0Rid = 1u << 2;
 
-/* SA-1110 §11.11.7.1: UTSR0 TFS = bit 0 — set while the transmit FIFO
-   is half-full or less. §11.11.5.5: UTCR3 TIE = bit 4 — when set, TFS
+/* SA-1110 §11.11.7.1: UTSR0 TFS = bit 0 - set while the transmit FIFO
+   is half-full or less. §11.11.5.5: UTCR3 TIE = bit 4 - when set, TFS
    asserts the UART INTC source. CERF flushes TX synchronously so the
    FIFO is always empty → TFS is always set. */
 static constexpr uint32_t kUtsr0Tfs = 1u << 0;
@@ -130,13 +130,13 @@ void Sa11xxUartBase::WriteReg(uint32_t off, uint32_t value) {
         case 0x0C:
             utcr3_ = value;
             /* RIE may have just been enabled with FIFO already
-               non-empty — re-evaluate the IRQ line now or that data
+               non-empty - re-evaluate the IRQ line now or that data
                sits until the next push/pop. */
             RefreshIrqLocked();
             break;
         case 0x10: utcr4_ = value; break;
         case 0x14:
-            /* TX path: release the lock around TxByte — the
+            /* TX path: release the lock around TxByte - the
                listener can do arbitrary work (e.g. MicroP parser)
                and re-entering with state_mtx_ held risks deadlock. */
             {

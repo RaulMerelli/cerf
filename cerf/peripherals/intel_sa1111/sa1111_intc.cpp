@@ -66,7 +66,7 @@ void Sa1111Intc::WriteWord(uint32_t addr, uint32_t value) {
 
 /* INT output -> SA-1110 GPIO 1 (Linux jornada720.c: IRQ_GPIO1), rising-edge
    sensed. §11.1.1: a status clear pulses INT low and back high while sources
-   remain pending — without that pulse_low_first re-edge on INTSTATCLR the
+   remain pending - without that pulse_low_first re-edge on INTSTATCLR the
    guest ISR services one source and every later one hangs undelivered. */
 void Sa1111Intc::DriveCascadeOutput(bool pulse_low_first) {
     auto& gpio = emu_.Get<Sa11xxGpio>();
@@ -76,7 +76,7 @@ void Sa1111Intc::DriveCascadeOutput(bool pulse_low_first) {
 
 /* Per-source edge latch (Dev Manual Fig 11-1): IntLatched sets on the rising
    edge of (IntRaw ^ IntPol). MUST run on INTPOL writes too, not just raw
-   changes — sa1111_retrigger_*irq toggles INTPOL while the raw line is held
+   changes - sa1111_retrigger_*irq toggles INTPOL while the raw line is held
    to manufacture the re-edge; skip it and that retrigger silently fails. */
 void Sa1111Intc::LatchEdges(bool bank1) {
     if (bank1) {
@@ -104,7 +104,7 @@ void Sa1111Intc::LowerInterrupt(uint8_t source) {
     DriveCascadeOutput(false);
 }
 
-/* Whole register/latch image — every member is a guest-observable
+/* Whole register/latch image - every member is a guest-observable
    integer (raw lines, edge-detect latches, enable/polarity/test/status/
    wake registers). Order mirrors the field declaration order in the .h. */
 void Sa1111Intc::SaveState(StateWriter& w) {

@@ -11,7 +11,7 @@
 #include <vector>
 
 /* Host waveIn capture sink (input twin of WaveOutSink). EnsureFormat MUST run on
-   the audio thread — CALLBACK_THREAD delivers MM_WIM_DATA only there. The sink
+   the audio thread - CALLBACK_THREAD delivers MM_WIM_DATA only there. The sink
    owns the record buffers; the owner reads each MM_WIM_DATA hdr then Requeue()s it. */
 class WaveInSink {
 public:

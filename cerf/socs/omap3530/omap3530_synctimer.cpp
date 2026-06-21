@@ -50,7 +50,7 @@ private:
         return emu_.Get<ArmJit>().CpuState()->guest_cycle_counter;
     }
 
-    /* SYNC counter from guest_cycle_counter — host wall-clock derivation
+    /* SYNC counter from guest_cycle_counter - host wall-clock derivation
        makes two same-input runs see different counter values, breaking
        boot determinism. */
     uint32_t ComputeCounter() const;

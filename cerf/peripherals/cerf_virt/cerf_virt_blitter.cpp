@@ -147,7 +147,7 @@ bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
         ac.alpha_mask = (d_bpp == 4u) ? 0xFF000000u : 0u;
         /* Blend reads channels as (px & mask) >> shift to an 8-bit value, so the
            shift is the mask's trailing-zero count, not the 32-HighBitPos left-pack
-           shift d_shift carries — that one mis-aligns RGB and collapses opaque
+           shift d_shift carries - that one mis-aligns RGB and collapses opaque
            pixels to 0xFF000000 (black). */
         ac.red_shift   = BltAlpha::ShiftOf(d_masks[0]);
         ac.green_shift = BltAlpha::ShiftOf(d_masks[1]);

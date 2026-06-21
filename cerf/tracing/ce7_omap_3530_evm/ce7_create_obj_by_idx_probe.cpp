@@ -146,7 +146,7 @@ public:
                 [](const TraceContext& c) {
                     static uint32_t n = 0;
                     ++n;
-                    /* full trace — no cap, find the failing prop */
+                    /* full trace - no cap, find the failing prop */
                     LOG(Trace,
                         "[vai] pre-BL RegisterDefaultValueForProperty #%u "
                         "R0(this)=0x%08X R1(pdp)=0x%08X\n",
@@ -157,7 +157,7 @@ public:
                 [](const TraceContext& c) {
                     static uint32_t n = 0;
                     ++n;
-                    /* full trace — no cap, find the failing prop */
+                    /* full trace - no cap, find the failing prop */
                     LOG(Trace,
                         "[vai] post-BL RegisterDefaultValueForProperty #%u R0(ret)=0x%08X\n",
                         n, c.regs[0]);

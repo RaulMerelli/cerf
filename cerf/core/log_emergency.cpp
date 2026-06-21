@@ -21,7 +21,7 @@ static void EnsureDbgHelpInited_Locked() {
     g_dbghelp_inited = true;
 }
 
-/* ==== Emergency logging — ucrt-free crash path =========================== */
+/* ==== Emergency logging - ucrt-free crash path =========================== */
 
 static std::atomic<bool> g_emergency_started{false};
 static HANDLE            g_emergency_file   = INVALID_HANDLE_VALUE;
@@ -38,7 +38,7 @@ static void EmergencyWriteRaw(const char* buf, unsigned len) {
 
 /* Suspends every thread in the current process except the caller.
    The process is going to exit anyway, so no matching Resume. Any
-   lock held by a now-frozen thread stays held — Emergency* code must
+   lock held by a now-frozen thread stays held - Emergency* code must
    never wait on such a lock (uses try_lock / ucrt-free primitives). */
 static void FreezeAllOtherThreads() {
     DWORD my_tid = GetCurrentThreadId();
@@ -85,7 +85,7 @@ void Log::EmergencyDumpAllThreadStacks() {
                 Log::Emergency("--- tid=%lu  EIP=0x%p  ESP=0x%p  EBP=0x%p\n",
                                (unsigned long)te.th32ThreadID,
                                (void*)ctx.Eip, (void*)ctx.Esp, (void*)ctx.Ebp);
-                /* Top 16 stack dwords — return-address scan. Any dword
+                /* Top 16 stack dwords - return-address scan. Any dword
                    whose value falls into cerf.exe's .text or a DLL is
                    likely a caller frame. Guard with IsBadReadPtr so a
                    corrupt ESP doesn't nest-fault us. */
@@ -107,7 +107,7 @@ void Log::EmergencyDumpAllThreadStacks() {
 void Log::EmergencyStart() {
     bool expected = false;
     if (!g_emergency_started.compare_exchange_strong(expected, true))
-        return;  /* already in emergency — concurrent handler on another thread */
+        return;  /* already in emergency - concurrent handler on another thread */
     FreezeAllOtherThreads();
     g_emergency_file = CreateFileA("cerf.crash.log", GENERIC_WRITE,
                                    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
@@ -146,7 +146,7 @@ void Log::Emergency(const char* fmt, ...) {
 void Log::EmergencyPrintNativeStack(const char* tag) {
     void* frames[32];
     USHORT n = CaptureStackBackTrace(0, 32, frames, NULL);
-    /* try_lock — if another (now-frozen) thread held dbghelp, we can't
+    /* try_lock - if another (now-frozen) thread held dbghelp, we can't
        safely use it; print raw addresses instead. */
     std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
     bool have_sym = lk.owns_lock();
@@ -176,7 +176,7 @@ void Log::EmergencyPrintNativeStack(const char* tag) {
 
 /* ==== Top-level unhandled-exception filter =============================== */
 
-/* Symbolize one address under the dbghelp mutex (try_lock — a frozen thread
+/* Symbolize one address under the dbghelp mutex (try_lock - a frozen thread
    may hold it). Mirrors EmergencyPrintNativeStack's locking. */
 static void EmergencySymbolizeAddr(const char* tag, void* addr) {
     std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
@@ -200,7 +200,7 @@ static void EmergencySymbolizeAddr(const char* tag, void* addr) {
 
 /* Walk the FAULTING thread's stack from its trap context. The UEF runs on
    the faulting thread, but KiUserExceptionDispatcher breaks the EBP chain, so
-   CaptureStackBackTrace from here only sees the handler frames — StackWalk64
+   CaptureStackBackTrace from here only sees the handler frames - StackWalk64
    seeded from ContextRecord recovers the frames that actually faulted. */
 static void EmergencyWalkFaultingStack(const char* tag, CONTEXT* ctx_in) {
     if (!ctx_in) return;
@@ -276,7 +276,7 @@ void CerfFatalExit(int code) {
     LOG(Caution, "CERF is halting (fatal code = %d)\n", code);
 
     if (code == CERF_FATAL_USER_ERROR) {
-        /* Not a crash — skip the thread-freeze + crash.log + native-stack
+        /* Not a crash - skip the thread-freeze + crash.log + native-stack
            dump so a missing ROM / unsupported board doesn't read as a bug. */
         Log::Close();
         ExitProcess((UINT)code);

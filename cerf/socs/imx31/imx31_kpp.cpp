@@ -18,7 +18,7 @@ constexpr uint32_t kKpsr = 0x02u;
 constexpr uint32_t kKddr = 0x04u;
 constexpr uint32_t kKpdr = 0x06u;
 
-/* KPSR fields — MCIMX31RM Table 27-6. */
+/* KPSR fields - MCIMX31RM Table 27-6. */
 constexpr uint16_t kKpkd = 0x0001u;  /* key depress, W1C */
 constexpr uint16_t kKpkr = 0x0002u;  /* key release, W1C */
 constexpr uint16_t kKdsc = 0x0004u;  /* depress sync clear, self-clearing (reads 0) */
@@ -133,7 +133,7 @@ void Imx31Kpp::ApplyIrq(bool desired) {
     else         avic.DeassertSource(kAvicSourceKpp);
 }
 
-/* Re-assert the AVIC line from the restored key/register state — the KPP IRQ is
+/* Re-assert the AVIC line from the restored key/register state - the KPP IRQ is
    a level the source re-drives after restore (driven directly, not via ApplyIrq,
    whose change-gate skips a level already equal to the restored irq_on_). */
 void Imx31Kpp::PostRestore() {

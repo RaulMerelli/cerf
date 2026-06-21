@@ -23,7 +23,7 @@ public:
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kSimpadSl4Ce4BundleCrc32, [&] {
             /* Unfiltered ON PURPOSE: identifying which process owns this slot VA
-               is the goal — the handler logs process_id as the discovery, so a
+               is the goal - the handler logs process_id as the discovery, so a
                pid filter would hide the answer. */
             auto n = std::make_shared<std::atomic<uint32_t>>(0);
             tm.OnPc(0x01311AC0u, [n](const TraceContext& c) {

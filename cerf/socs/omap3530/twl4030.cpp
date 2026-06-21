@@ -62,7 +62,7 @@ int Twl4030::AddrIndex(uint8_t slave_addr) {
     case kTwlAddr_PWR_RTC:     return 3;
     }
     LOG(Caution, "Twl4030: AddrIndex called with unknown slave_addr "
-            "0x%02X — bus dispatch should have rejected this\n",
+            "0x%02X - bus dispatch should have rejected this\n",
             slave_addr);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }

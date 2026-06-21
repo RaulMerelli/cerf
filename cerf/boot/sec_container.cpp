@@ -35,7 +35,7 @@ bool SecContainer::Open(MappedFile& mf) {
     if (hdr_.chunk_stride <= kChunkHdrLen) return false;   /* data-per-chunk > 0 */
     if (hdr_.chunk_count == 0)             return false;
 
-    /* The catalog at pkcs7_off is a PKCS#7 blob — an ASN.1 SEQUENCE (0x30 0x82). */
+    /* The catalog at pkcs7_off is a PKCS#7 blob - an ASN.1 SEQUENCE (0x30 0x82). */
     const uint8_t* c = mf.View(hdr_.pkcs7_off, 2);
     if (!c || c[0] != 0x30 || c[1] != 0x82) return false;
 

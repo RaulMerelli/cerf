@@ -10,7 +10,7 @@ class StateReader;
 /* A single ATA-6 PIO hard drive, parameterized by a DiskImage*, reusable by any
    ATA host controller. IDENTIFY capability bits are a contract: advertising DMA
    or LBA48 makes the host issue READ DMA / READ SECTORS EXT, which have no
-   implementation until a FIFO/SDMA bulk-data path exists — PIO + LBA28 only. */
+   implementation until a FIFO/SDMA bulk-data path exists - PIO + LBA28 only. */
 class AtaDrive {
 public:
     explicit AtaDrive(DiskImage* disk) : disk_(disk) {}
@@ -24,10 +24,10 @@ public:
         kRegLbaMid     = 4,
         kRegLbaHigh    = 5,
         kRegDevice     = 6,
-        kRegStatus     = 7,  /* read  — reading clears INTRQ */
-        kRegCommand    = 7,  /* write — triggers command execution */
-        kRegAltStatus  = 8,  /* read  — does NOT clear INTRQ */
-        kRegControl    = 8,  /* write — device control (nIEN, SRST) */
+        kRegStatus     = 7,  /* read  - reading clears INTRQ */
+        kRegCommand    = 7,  /* write - triggers command execution */
+        kRegAltStatus  = 8,  /* read  - does NOT clear INTRQ */
+        kRegControl    = 8,  /* write - device control (nIEN, SRST) */
     };
 
     uint8_t  ReadTaskFile (uint8_t idx);
@@ -38,7 +38,7 @@ public:
     /* INTRQ line as seen by the host controller (already masked by nIEN). */
     bool IrqAsserted() const { return irq_ && !nien_; }
 
-    /* True while a PIO data block is staged (DRQ phase) — i.e. the ATA bus is
+    /* True while a PIO data block is staged (DRQ phase) - i.e. the ATA bus is
        active. The controller maps the inverse onto its controller_idle bit. */
     bool DataTransferActive() const { return buf_len_ != 0; }
 
@@ -108,7 +108,7 @@ private:
     /* READ/WRITE MULTIPLE block size in sectors (IDENTIFY word 59, set by SET
        MULTIPLE MODE 0xC6). 0 = multiple mode disabled. cur_block_ is the block
        size of the in-flight transfer: 1 for READ/WRITE SECTORS, multiple_block_
-       for READ/WRITE MULTIPLE — one INTRQ per DRQ block (ATA/ATAPI-6 §8.30/8.60.8). */
+       for READ/WRITE MULTIPLE - one INTRQ per DRQ block (ATA/ATAPI-6 §8.30/8.60.8). */
     uint32_t multiple_block_ = 0;
     uint32_t cur_block_      = 1;
 

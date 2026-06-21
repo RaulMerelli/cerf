@@ -15,7 +15,7 @@ static inline uint32_t ExtractLaneIndex(DecodedInsn* d, uint32_t esize) {
     return (opc1_lsb << 1) | (opc2 >> 1);
 }
 
-/* VMOV (ARM core register to scalar) — A8.8.341, L=0. */
+/* VMOV (ARM core register to scalar) - A8.8.341, L=0. */
 uint8_t* EmitNeonCoreToScalar(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) {
@@ -44,7 +44,7 @@ uint8_t* EmitNeonCoreToScalar(uint8_t*      cursor,
     return cursor;
 }
 
-/* VMOV (scalar to ARM core register) — A8.8.342, L=1. cp_opc<2> = U
+/* VMOV (scalar to ARM core register) - A8.8.342, L=1. cp_opc<2> = U
    (0=signed extend, 1=zero extend) for esize=8/16. */
 uint8_t* EmitNeonScalarToCore(uint8_t*      cursor,
                               DecodedInsn*  d,

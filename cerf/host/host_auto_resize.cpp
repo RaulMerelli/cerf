@@ -42,8 +42,8 @@ void HostAutoResize::OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h) {
 
 std::wstring HostAutoResize::Tooltip() const {
     return Enabled()
-        ? L"Guest Additions — auto-resize ON (click to disable, right-click for tools)"
-        : L"Guest Additions — auto-resize OFF (click to enable, right-click for tools)";
+        ? L"Guest Additions - auto-resize ON (click to disable, right-click for tools)"
+        : L"Guest Additions - auto-resize OFF (click to enable, right-click for tools)";
 }
 
 void HostAutoResize::OnPrimaryAction() { Toggle(); }

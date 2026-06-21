@@ -62,7 +62,7 @@ public:
                 g_pending_names.push_back(image);
             });
             /* sub_8820C86C = kernel module loader; a3 (r2) = module name.
-               Logs every driver DLL as it loads, in order — the last before
+               Logs every driver DLL as it loads, in order - the last before
                device.exe wedges is the driver whose Init is stuck. */
             tm.OnPc(0x8820C86Cu, [](const TraceContext& c) {
                 std::string name = ReadFoldedWcStr(c, c.regs[2], 64);

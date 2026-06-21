@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VMAX.F32 / VMIN.F32 (A8.8.335) — A7.4.1 opc=1111, B=0, U=0. */
+/* VMAX.F32 / VMIN.F32 (A8.8.335) - A7.4.1 opc=1111, B=0, U=0. */
 uint8_t* PlaceNeonData3SameFpMinMax(uint8_t*      cursor,
                                     DecodedInsn*  d,
                                     BlockContext* ctx) {

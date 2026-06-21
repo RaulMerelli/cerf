@@ -67,7 +67,7 @@ void Imx51Ecspi1::RaiseIrqIfPending() {
     auto* intc = emu_.TryGet<IrqController>();
     if (!intc) return;
     /* eCSPI asserts its line while any enabled status bit (STATREG & INTREG) is
-       set — STATREG/INTREG share bit positions (Tables 26-10/26-12). */
+       set - STATREG/INTREG share bit positions (Tables 26-10/26-12). */
     const bool want = (statreg_ & intreg_ & 0xFFu) != 0u;
     if (want) intc->AssertIrq(kTzicSrc);
     else      intc->DeAssertIrq(kTzicSrc);

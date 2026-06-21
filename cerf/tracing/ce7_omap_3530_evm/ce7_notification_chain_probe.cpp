@@ -37,7 +37,7 @@ constexpr uint32_t kPcCdCreateEventW       = 0x40029EF4u;
 constexpr uint32_t kPcCdOpenEventW         = 0x40029F18u;
 constexpr uint32_t kPcCdWaitForSingleObj   = 0x40029FE8u;
 
-/* SetupArguments/SetupCallToUserServer chain — VM ops that may block. */
+/* SetupArguments/SetupCallToUserServer chain - VM ops that may block. */
 constexpr uint32_t kPcSetupCallToUserServer = 0x8C060494u;
 constexpr uint32_t kPcSetupUmodeArgs       = 0x8C05FA8Cu;
 constexpr uint32_t kPcVMReserve            = 0x8C03136Cu;
@@ -145,7 +145,7 @@ public:
                     c.regs[0], c.regs[1], c.regs[14], ttbr);
             });
 
-            /* EVNTModify(lpe, type) — R0=event obj, R1=type (1=PULSE 2=RESET
+            /* EVNTModify(lpe, type) - R0=event obj, R1=type (1=PULSE 2=RESET
                3=SET per CE7). Every event signal in the system goes through
                here. Log everything for known render threads; sample others. */
             tm.OnPc(kPcEvntModify, [](const TraceContext& c) {
@@ -247,7 +247,7 @@ public:
             hook_method(kPcWDRefresh,            "WDRefresh");
             hook_method(kPcEvntResumeMainThread, "EVNTResumeMainThread");
 
-            /* SetupArguments / VM chain — entry & exit per function, splash
+            /* SetupArguments / VM chain - entry & exit per function, splash
                (and other known render threads) only. Whichever entry fires
                but exit doesn't is the hang point. */
             auto hook_enter = [&tm](uint32_t pc, const char* name) {
@@ -368,7 +368,7 @@ public:
             });
 
             tm.OnPc(kPcCdWaitForSingleObj, [](const TraceContext& c) {
-                /* UNFILTERED — log every fire to see if splash actually
+                /* UNFILTERED - log every fire to see if splash actually
                    triggers the PC and what PCURTHD reads at that moment. */
                 static uint32_t total = 0;
                 ++total;

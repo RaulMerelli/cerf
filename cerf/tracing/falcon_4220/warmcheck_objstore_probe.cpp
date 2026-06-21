@@ -36,7 +36,7 @@ public:
                these are the values SDRAM carried across the reset. force_clean is
                the kernel global at 0x822B6650 (cold-boot gate). Kernel VA. */
             /* 0x800F4064: R1 = MEMORY[0xBB300000] (DOC status gating the RAM-clear).
-               0x800F40A4: BL memset(R0=*(romhdr+0x18)=ulRAMFree, 0, 12) — if this
+               0x800F40A4: BL memset(R0=*(romhdr+0x18)=ulRAMFree, 0, 12) - if this
                fires, the guest clears the object-store header; R0 must == fs_heap
                base, confirming this memset is the wipe. */
             tm.OnPc(0x800F4064u, [](const TraceContext& c) {
@@ -57,7 +57,7 @@ public:
                     m8 ? *m8 : 0xDEADu, fc ? *fc : 0xDEADu);
             });
             /* TryTranslate reads PA directly, valid even when the guest MMU is
-               off (unlike ReadVa32) — required to track the fs_heap across the
+               off (unlike ReadVa32) - required to track the fs_heap across the
                MMU-off reset window. fs_heap+4 PA = 0xA22BA004 (OAT 0x80000000->
                0xA0000000). */
             tm.OnRunLoopIter([last = uint32_t(0x1u)](const TraceContext& c) mutable {

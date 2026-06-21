@@ -25,7 +25,7 @@ constexpr uint32_t kOffIsr     = 0x18u;
 constexpr uint32_t kOffEdgeSel = 0x1Cu;
 
 /* Freescale i.MX GPIO. The IP is shared across i.MX31 (MCIMX31RM Ch 5) and i.MX51
-   (MCIMX51RM Ch 35) — same DR/GDIR/PSR/ICR1/ICR2/IMR/ISR — with i.MX51 adding
+   (MCIMX51RM Ch 35) - same DR/GDIR/PSR/ICR1/ICR2/IMR/ISR - with i.MX51 adding
    EDGE_SEL (0x1C); registration is gated per concrete by kSoc. 32-bit access only
    (MCIMX51RM §35.3). */
 template <uint32_t kBase, SocFamily kSoc>
@@ -67,7 +67,7 @@ public:
         }
         switch (off) {
             /* A DR read returns the DR latch only for output bits; input bits
-               (GDIR=0) return the pad value — MCIMX51RM §35.4.2.1 + p1041 NOTE
+               (GDIR=0) return the pad value - MCIMX51RM §35.4.2.1 + p1041 NOTE
                ("while GDIR=0, a read access to DR does not return DR data"). A
                board device drives a pin's pad level via SetInputPin. */
             case kOffDr: {

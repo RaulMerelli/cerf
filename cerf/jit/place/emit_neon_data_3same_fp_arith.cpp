@@ -7,7 +7,7 @@
 #include "../x86_emit.h"
 
 /* VADD.F32 / VSUB.F32 / VMUL.F32 / VABD.F32 (A8.8.283 / A8.8.415 /
-   A8.8.351 / A8.8.279) — A7.4.1 opc=1101. */
+   A8.8.351 / A8.8.279) - A7.4.1 opc=1101. */
 uint8_t* PlaceNeonData3SameFpArith(uint8_t*      cursor,
                                    DecodedInsn*  d,
                                    BlockContext* ctx) {

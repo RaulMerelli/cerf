@@ -6,7 +6,7 @@
 #include "../place_fns.h"
 #include "../x86_emit.h"
 
-/* VRECPS / VRSQRTS — A8.8.385 / A8.8.392, opc=1111 C=1 U=0. bit[21]
+/* VRECPS / VRSQRTS - A8.8.385 / A8.8.392, opc=1111 C=1 U=0. bit[21]
    selects RECPS (0) / RSQRTS (1). */
 uint8_t* PlaceNeonData3SameFpRecipStep(uint8_t*      cursor,
                                        DecodedInsn*  d,

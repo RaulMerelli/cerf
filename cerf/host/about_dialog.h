@@ -10,7 +10,7 @@
 namespace Gdiplus { class Bitmap; }
 
 /* The "About CERF" modal dialog: logo, version, current device, real clickable
-   GitHub/Discord links (SysLink), credits — dark-theme aware. UI-thread only.
+   GitHub/Discord links (SysLink), credits - dark-theme aware. UI-thread only.
    Hidden: the Konami code replays the boot-logo spin inside the box. */
 class AboutDialog : public Service {
 public:

@@ -33,7 +33,7 @@ public:
     /* Re-arm the text-mode gate: after this, the finished boot animation stays
        on the held logo (not text mode) until the NEXT AddLine. Called right
        after the reboot banner so a non-debug board doesn't snap from the OEM
-       hold to a lone banner — it waits for genuine new guest TX first. */
+       hold to a lone banner - it waits for genuine new guest TX first. */
     void ArmTextGate();
 
     /* Render into the host DIB. dc wraps the same pixels for GDI text/logo

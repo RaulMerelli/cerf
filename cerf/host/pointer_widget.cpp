@@ -23,7 +23,7 @@ std::wstring PointerWidget::Tooltip() const {
     auto& router = emu_.Get<PointerRouter>();
     PointerSource* active = router.Active();
     std::wstring tip = active ? active->SourceName() : L"Pointing device";
-    if (router.Sources().size() > 1) tip += L" — click to switch input device";
+    if (router.Sources().size() > 1) tip += L" - click to switch input device";
     return tip;
 }
 

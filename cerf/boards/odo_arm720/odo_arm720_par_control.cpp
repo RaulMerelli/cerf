@@ -12,6 +12,7 @@
 namespace {
 
 
+
 constexpr uint32_t kParControlPaBase = 0x04020000u;
 constexpr uint32_t kParControlSize   = 0x04u;
 
@@ -25,7 +26,7 @@ constexpr uint32_t kParIntr        = 0x00100000u;
 constexpr uint32_t kParAutoFd      = 0x00020000u;
 constexpr uint32_t kParDataIn      = 0x0000FF00u;
 
-/* Peer-driven bits — read returns the peer's view regardless of
+/* Peer-driven bits - read returns the peer's view regardless of
    what the kernel last wrote into these positions. */
 constexpr uint32_t kPeerDrivenMask = kParAutoFd | kParIntr | kParDataIn;
 

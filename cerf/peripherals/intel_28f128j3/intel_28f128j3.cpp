@@ -35,7 +35,7 @@ const uint8_t Intel28F128J3::kCfi[] = {
 
 /* mode_ = CFI command-FSM latch; shadow_ = ID/CFI/lock-presentation undo log
    (the backing is mutated to present those, captured by the Flash section, and
-   undone on read-array — so the undo log must survive a mid-presentation save);
+   undone on read-array - so the undo log must survive a mid-presentation save);
    block_locked_ = persistent per-block lock bits (datasheet Table 5). */
 void Intel28F128J3::SaveState(StateWriter& w) {
     w.Write(mode_);
@@ -79,7 +79,7 @@ void Intel28F128J3::SaveAndWrite(uint32_t addr, uint8_t v) {
 }
 
 /* Write a single CFI/ID/status byte into each chip lane at bus address `addr`:
-   the chip's low byte carries `v`, its upper bytes (x16) carry 0 — so a x16
+   the chip's low byte carries `v`, its upper bytes (x16) carry 0 - so a x16
    pair reads 0x00vv00vv and a x8 pair reads 0xvvvv, matching how the bus
    interleaves the chips. */
 void Intel28F128J3::EmitLaneByte(uint32_t addr, uint8_t v) {

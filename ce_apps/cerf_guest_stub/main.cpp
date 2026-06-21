@@ -25,7 +25,7 @@ static HMODULE s_hinst = NULL;
 /* CE3 ROMs have no DLL-RW reservation (ROMHDR.dllfirst<<16 == 0), so the
    injected module's writable statics are one physical instance shared across
    all loading processes. A body base is a VirtualAlloc VA valid only in its
-   creator — so map state is keyed by pid; gwes and device.exe map their own. */
+   creator - so map state is keyed by pid; gwes and device.exe map their own. */
 #define CERF_STUB_MAX_PROC 8
 typedef struct {
     DWORD               pid;

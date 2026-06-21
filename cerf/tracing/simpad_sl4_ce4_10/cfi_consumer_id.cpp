@@ -14,7 +14,7 @@
 namespace {
 
 /* Unfiltered ON PURPOSE: the CFI-query (0x98) consumer process at slot VA
-   0x2E01A8 is unknown — that's what this probe finds — so no pid filter exists.
+   0x2E01A8 is unknown - that's what this probe finds - so no pid filter exists.
    Dump the writer's instruction bytes to match against each module's .text
    (debugging.md "attribute a user-VA fire by instruction-byte signature"). */
 class SimpadSl4CfiConsumerId : public Service {

@@ -68,7 +68,7 @@ public:
         if (GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &fad)) {
             const uint64_t sz =
                 (uint64_t(fad.nFileSizeHigh) << 32) | fad.nFileSizeLow;
-            if (sz > 0) return;  /* user's disk — never touch */
+            if (sz > 0) return;  /* user's disk - never touch */
         }
         LOG(Boot, "[ZUNE-HDD] no disk image; synthesizing blank Zune 30 HDD "
                   "(MBR + 2 empty FAT32 partitions) at '%s'\n", path.c_str());

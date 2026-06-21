@@ -25,7 +25,7 @@ public:
         tm.RegisterForBundle(kZuneKeelBundleCrc32, [&] {
             const TracePredicate dev =
                 zune_resolver::PidPredicateForName("device.exe");
-            /* 0x30558D0: after MUL R7,R2,R7 — R2=v3[426] (bytes/sector),
+            /* 0x30558D0: after MUL R7,R2,R7 - R2=v3[426] (bytes/sector),
                R7=v17 (expected bytes this chunk), [R6+0x9B0]=sectors this chunk.
                v17>512 vs CERF's single 512-byte sector = the read-loop mismatch. */
             tm.OnPcFiltered(0x30558D0u, dev, [](const TraceContext& c) {
@@ -64,7 +64,7 @@ public:
             });
             /* 0x3055C28: v18 += chunk (R11=v18 bytes so far, R9=this chunk,
                R7=v17 total). Shows whether the read loop advances toward v17
-               or stalls — and whether it needs more FIFO-chunk IRQs than CERF
+               or stalls - and whether it needs more FIFO-chunk IRQs than CERF
                emits (1 per sector). */
             tm.OnPcFiltered(0x3055C28u, dev, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};
@@ -100,7 +100,7 @@ public:
                 LOG(Trace, "[PMC-PIO] inner-loop entry #%u\n", i);
             });
             /* 0x3055BB4 = inner word-read (LDRH R3,[R0],#2); R0=source addr.
-               Counts words the read actually transfers — 0 = no data flow. */
+               Counts words the read actually transfers - 0 = no data flow. */
             tm.OnPcFiltered(0x3055BB4u, dev, [](const TraceContext& c) {
                 static std::atomic<uint32_t> n{0};
                 const uint32_t i = n.fetch_add(1);

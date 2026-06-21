@@ -154,7 +154,7 @@ void ArmNeonSimd3Same::HandleSimd3Same(uint32_t op, uint32_t d_idx, uint32_t n_i
                     break;
                 }
                 /* VSHL (register): data is D[m] (=b); shift is the signed low
-                   byte of D[n] (=a) — operands reversed vs the symmetric ops.
+                   byte of D[n] (=a) - operands reversed vs the symmetric ops.
                    The guards are load-bearing: a C++ shift by >= operand width
                    (the byte ranges to 127) is UB. */
                 case kS3ShlU: {
