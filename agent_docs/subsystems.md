@@ -55,14 +55,13 @@ Concretes' `ShouldRegister` checks
 `emu_.Get<BoardDetector>().GetSoc() == SocFamily::X`. Chip-layer code
 never knows which board it's on - only which chip.
 
-The VA→PA placement map (`PageTableBuilder`) and the MMU base-mask policy
-(`MmuPolicy`) are **not** here, but they split on different axes. VA→PA
-placement is a BSP/board choice (the OEMAddressTable differs per board), so
-its concretes live under `cerf/boards/<board>/` and are selected by
-`GetBoard()`. The MMU base-mask is a CPU-arch property identical across every
-board on that core, so its concretes live under `cerf/cpu/<arch>/` and are
-selected by `GetSoc()` - the same as the other core strategies there
-(`ArmProcessorConfig`, `CoprocEmitter`). Gating a core strategy on
+The VA→PA placement map (`PageTableBuilder`) is **not** here, and the core
+CPU strategies (`ArmProcessorConfig`, `CoprocEmitter`) split on a different
+axis. VA→PA placement is a BSP/board choice (the OEMAddressTable differs per
+board), so its concretes live under `cerf/boards/<board>/` and are selected by
+`GetBoard()`. The core strategies are a CPU-arch property identical across every
+board on that core, so their concretes live under `cerf/cpu/<arch>/` and are
+selected by `GetSoc()`. Gating a core strategy on
 `GetBoard()` leaves every additional board on that SoC with no winner (a
 second SA-1110 board re-stating the die's MIDR is the smell).
 
@@ -109,7 +108,7 @@ code - framework and concretes - lives in this one tree.
 
 ### Trees vs bases
 
-Abstract bases (`BoardDetector`, `PageTableBuilder`, `MmuPolicy`,
+Abstract bases (`BoardDetector`, `PageTableBuilder`,
 `Peripheral`) live next to their consumers (`cerf/boards/`, `cerf/core/`,
 `cerf/cpu/`, `cerf/peripherals/`), not under any per-impl tree.
 

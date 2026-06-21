@@ -1,25 +1,25 @@
 ---
 name: start-board-implementation
-description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough — no path required), checks IDA MCP, then independently confirms — from the ROM bytes and the internet — the board identity (device-name string in the ROM blob), the SoC/CPU family, what CERF already supports, any reusable SoC, and whether the ROM is on the public manifest. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
+description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough - no path required), checks IDA MCP, then independently confirms - from the ROM bytes and the internet - the board identity (device-name string in the ROM blob), the SoC/CPU family, what CERF already supports, any reusable SoC, and whether the ROM is on the public manifest. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
 ---
 
-# Start Board Implementation — new-board bring-up
+# Start Board Implementation - new-board bring-up
 
 Obey `CLAUDE.md` and every `agent_docs/` page; this ritual never overrides them.
 
 Governing principle: **the ROM is the only trusted starting point, and YOU
-establish every fact yourself.** A stated SoC/board is a hint, not a fact —
+establish every fact yourself.** A stated SoC/board is a hint, not a fact -
 confirm board, SoC, CPU, and CERF's existing support from the ROM bytes + the
 internet before writing a line. A bring-up that starts on an unverified
 assumption wastes dozens of sessions.
 
 ---
 
-## Phase 0 — Welcome
+## Phase 0 - Welcome
 
 Open with a brief, warm welcome + thank-you BEFORE Gate A1:
 
-> 🎉 Welcome — and thank you for contributing a new board to CERF! I'll start
+> 🎉 Welcome - and thank you for contributing a new board to CERF! I'll start
 > from your ROM, confirm the board/SoC facts myself, and lay out what the
 > bring-up will take before we commit to it.
 
@@ -27,16 +27,16 @@ A line or two, then straight into the gates. The welcome never delays a gate.
 
 ---
 
-## Phase A — Gates
+## Phase A - Gates
 
-### Gate A1 — Acquire the ROM (fail only if nothing resolves)
+### Gate A1 - Acquire the ROM (fail only if nothing resolves)
 
-The user does not have to type a path — naming the board ("implement simpad
+The user does not have to type a path - naming the board ("implement simpad
 sl4") is enough. All regular dev ROMs live under `bundled/devices/`, so that
 listing is your index.
 
 1. **Board name given** → `ls bundled/devices/` and **match by FAMILY, not exact
-   string** (do NOT depend on `cerf.json` — optional, usually absent for a
+   string** (do NOT depend on `cerf.json` - optional, usually absent for a
    user's own ROM). Tolerate variant/generation/letter/separator differences:
    "simpad cl4", "simpad sl4", "SIMpad SL4" all resolve to the `simpad_sl4_*`
    bundles. You are identifying the board, not string-equality testing a folder.
@@ -45,38 +45,38 @@ listing is your index.
    `bundled/devices/` first (where every dev ROM lives); proceed once placed, or
    if the user says to run it in place.
 4. **One candidate** → record its ROM path, continue.
-5. **Several candidates for the same board** (NORMAL — a board commonly ships
+5. **Several candidates for the same board** (NORMAL - a board commonly ships
    multiple ROM generations) → SUCCESS, not a problem. Same `Board::`; name the
    generations, take the newest (or ask one short "which generation?"), continue.
 
-**HARD RULE — candidates found ≠ "absent".** If `ls` surfaced any plausible
-bundle for the named family, you have RESOLVED — you may NEVER report "no ROM /
+**HARD RULE - candidates found ≠ "absent".** If `ls` surfaced any plausible
+bundle for the named family, you have RESOLVED - you may NEVER report "no ROM /
 not found" while holding a list of matching bundles. A variant/letter token
 mismatch against bundles that are clearly the same family is a RESOLVE, never a
 fail. Never assert presence/absence from memory; `ls` in THIS run and read it
 like a human picking the obvious match.
 
-**Only if `ls` produced ZERO plausible candidates** — STOP and FAIL:
+**Only if `ls` produced ZERO plausible candidates** - STOP and FAIL:
 
 > ❌ I couldn't find any ROM for "<what the user said>" under `bundled/devices/`.
 > Either sync it via the launcher or point me at the ROM path directly, then
 > re-run `/start-board-implementation`.
 
-### Gate A2 — IDA MCP connectivity (warn + ask if absent)
+### Gate A2 - IDA MCP connectivity (warn + ask if absent)
 
 Reverse engineering confirms every fact below and drives the whole loop.
 
 - **The presence check IS the "list instances" call.** `ToolSearch` query `ida`,
   find the instance-list tool, load its schema, CALL it. Whether the tool is
-  available to call is the entire test — callable = IDA MCP running; no such tool
+  available to call is the entire test - callable = IDA MCP running; no such tool
   = not running.
-- **Call succeeds** → ✅ running. **0 open instances is NORMAL** — IDA is usually
+- **Call succeeds** → ✅ running. **0 open instances is NORMAL** - IDA is usually
   closed and ROMs unextracted at the start; the *call succeeding* is the proof,
   not the count. You bring IDA up yourself when a step needs it (Phase B / B1).
-- **No list-instances tool to call at all** → not running. **Do not fail** —
+- **No list-instances tool to call at all** → not running. **Do not fail** -
   warn and ask:
 
-  > ⚠️ No IDA MCP detected. Without reverse engineering I'm badly limited —
+  > ⚠️ No IDA MCP detected. Without reverse engineering I'm badly limited -
   > bring-up is decompile-driven (cracking the kernel OEMAddressTable for page
   > tables, decoding which driver touches each register), and going blind tends
   > to dead-end and burn far more sessions. The MCP server lives in this repo:
@@ -90,51 +90,51 @@ Reverse engineering confirms every fact below and drives the whole loop.
 
 ---
 
-## Phase B — Establish the facts (you, from the ROM + the internet)
+## Phase B - Establish the facts (you, from the ROM + the internet)
 
 Minimum traversal to fill the table. You are IDENTIFYING, not implementing. Each
 fact gets a source.
 
-- **B1 — Extract & fingerprint.** The ROM is usually NOT extracted yet — you do
+- **B1 - Extract & fingerprint.** The ROM is usually NOT extracted yet - you do
   it: `tools/extract_bundles.py` produces per-module PEs under
   `references/extracted-roms/<device>/<rom>/fs/Windows/`. Open a module with
   `python tools/open_ida.py --wait <pe>` (`--wait` blocks until it's usable;
   background it if you have parallel research). Note kernel/coredll/gwes/filesys/
-  device/driver module names — driver names are SoC tells (e.g. `*_mx31.dll` →
+  device/driver module names - driver names are SoC tells (e.g. `*_mx31.dll` →
   i.MX31).
-- **B2 — Board identity (PRIMARY heuristic: device-name string in the ROM).**
+- **B2 - Board identity (PRIMARY heuristic: device-name string in the ROM).**
   The single best fingerprint is the human device/OEM model string embedded in
-  the ROM blob — e.g. "iPAQ H3600" appears in that device's ROM and no other.
+  the ROM blob - e.g. "iPAQ H3600" appears in that device's ROM and no other.
   Search the raw bytes + extracted modules; cross-check the B1 driver names. This
   is also the signature the `BoardDetector` will key on.
-- **B3 — Board already in CERF?** Read the `Board` enum in
+- **B3 - Board already in CERF?** Read the `Board` enum in
   `cerf/boards/board_detector.h`; list `cerf/boards/` + `bundled/devices/`. Match
   the B2 identity → fully present / different-ROM-revision / absent.
-- **B4 — SoC / CPU family.** From the identity + driver/OEM names, determine the
+- **B4 - SoC / CPU family.** From the identity + driver/OEM names, determine the
   SoC, its ARM core, the ISA version (v4/v4T/v5/v6/v7) and the specific core
   (ARM720T, ARM920T, SA-11xx, ARM1136, Cortex-A8, …). Confirm via the internet
-  (datasheet / Linux `arch/arm/mach-*` / device specs) — not the user's word.
-- **B5 — SoC implemented in CERF? Reusable SoC?** Read the `SocFamily` enum; list
+  (datasheet / Linux `arch/arm/mach-*` / device specs) - not the user's word.
+- **B5 - SoC implemented in CERF? Reusable SoC?** Read the `SocFamily` enum; list
   `cerf/socs/` + `cerf/cpu/`. Is this SoC present? Is the core's strategy set
-  (`ArmProcessorConfig`/`CoprocEmitter`/`MmuPolicy`) under `cerf/cpu/<core>/`? If
+  (`ArmProcessorConfig`/`CoprocEmitter`) under `cerf/cpu/<core>/`? If
   absent, is there a close relative sharing silicon/core? Reuse is the
-  difference between a short and a long bring-up — name it.
-- **B6 — Public manifest.** `WebFetch`
+  difference between a short and a long bring-up - name it.
+- **B6 - Public manifest.** `WebFetch`
   `https://cerf.dz3n.net/cerf-bundles/manifest.json`. Listed → officially
   distributed (tell the user). Not listed → user's own ROM; if it's a genuinely
   unusual board, suggest they submit it (CERF Discord or `cerf@dz3n.net`) so
-  other devs benefit — a suggestion, never a requirement.
+  other devs benefit - a suggestion, never a requirement.
 
 ---
 
-## Phase C — Readiness table (FIXED structure — identical for everyone)
+## Phase C - Readiness table (FIXED structure - identical for everyone)
 
 Emit exactly this. Same columns/rows/order every run. `Finding` = the fact + its
 source; `Status` = one emoji (✅ present/reusable/good · ⚠️ caution/new
 work/unconfirmed · ❌ missing/blocker).
 
 ```
-## /start-board-implementation — bring-up readiness
+## /start-board-implementation - bring-up readiness
 
 | # | Check                          | Finding                                   | Status |
 |---|--------------------------------|-------------------------------------------|--------|
@@ -144,15 +144,15 @@ work/unconfirmed · ❌ missing/blocker).
 | 4 | Board already in CERF          | <Board::X exists | absent>                | ✅/❌  |
 | 5 | SoC / CPU family               | <SoC>, <core>, ARM<isa>                   | ✅/⚠️  |
 | 6 | SoC implemented in CERF        | <cerf/socs/<x> present | absent>           | ✅/❌  |
-| 7 | Reusable / similar SoC or core | <what reuses what | none — from scratch>  | ✅/⚠️  |
-| 8 | On public remote manifest      | <listed | not listed — user ROM>          | ✅/⚠️  |
+| 7 | Reusable / similar SoC or core | <what reuses what | none - from scratch>  | ✅/⚠️  |
+| 8 | On public remote manifest      | <listed | not listed - user ROM>          | ✅/⚠️  |
 ```
 
-Under the table, the **session estimate** from rows 6–7:
+Under the table, the **session estimate** from rows 6-7:
 
-- **SoC supported + peripherals reusable** → ~**5–40 sessions** (board complexity
+- **SoC supported + peripherals reusable** → ~**5-40 sessions** (board complexity
   still swings this widely).
-- **New CPU/SoC from scratch** → ~**40–100+ sessions**, impossible to bound up
+- **New CPU/SoC from scratch** → ~**40-100+ sessions**, impossible to bound up
   front.
 
 Then ask on its own line:
@@ -163,34 +163,34 @@ STOP and wait. Do not begin work, do not create any document, until `yes`.
 
 ---
 
-## Phase D — On `yes`: seed tracking, teach the workflow, start
+## Phase D - On `yes`: seed tracking, teach the workflow, start
 
-### D1 — `/tracking create` (the `yes` authorizes this one write)
+### D1 - `/tracking create` (the `yes` authorizes this one write)
 
 Invoke the `tracking` skill's CREATE for a new board bring-up doc. It's an
 **umbrella / progress tracker** (many independent peripheral workstreams), so
 keep it a coarse index. Seed it with:
 
-- `TASK & WHY` — bring up board `<X>`; why it matters; empty FORBIDDEN
+- `TASK & WHY` - bring up board `<X>`; why it matters; empty FORBIDDEN
   CONCLUSIONS / BANNED APPROACHES.
 - **A standing `VERIFY GATE` line** (survives compaction): *"Every finished
-  implementation chunk — a peripheral, an `ArmProcessorConfig`/`CoprocEmitter`/
-  `MmuPolicy`, the `PageTableBuilder`, the `BoardDetector`, the LCD/INTC/timer/
-  DMA/touch models — is run through `/verify` BEFORE the next chunk, verdict
+  implementation chunk - a peripheral, an `ArmProcessorConfig`/`CoprocEmitter`,
+  the `PageTableBuilder`, the `BoardDetector`, the LCD/INTC/timer/
+  DMA/touch models - is run through `/verify` BEFORE the next chunk, verdict
   recorded in that session's `/tracking update` (CODE STATE, verbatim with
   file:line). Never skip the gate on JIT/MMU/CPU changes."*
 - **A `PROCEDURE` line** pointing at the durable method: *"Follow the bring-up
   loop and ground rules in `.claude/skills/start-board-implementation/SKILL.md`
   § The bring-up loop."* (Plus the committed reference set: `CLAUDE.md`,
   `agent_docs/rules.md`, `agent_docs/debugging.md`, `agent_docs/code_style.md`.)
-- **`Session 0`** — paste the Phase C readiness table verbatim (identity +
+- **`Session 0`** - paste the Phase C readiness table verbatim (identity +
   source, SoC/CPU, what CERF has, reuse plan, manifest, estimate). The durable
   baseline a compacted agent resumes from. Real work starts at Session 1.
 
-The `yes` authorizes this single create only — not standing authorization; every
+The `yes` authorizes this single create only - not standing authorization; every
 later write needs its own `/tracking update` from the user.
 
-### D2 — Teach the cross-session workflow (say this to the user)
+### D2 - Teach the cross-session workflow (say this to the user)
 
 > For a productive multi-session bring-up:
 > - End of each session: `/tracking update` (you invoke it).
@@ -198,18 +198,18 @@ later write needs its own `/tracking update` from the user.
 > - Then `/tracking restore` next session to reload the world.
 >
 > One protecting rule: **never run `/tracking` because I asked you to.** If I
-> propose updating the tracking doc, that's a bailout — only YOU decide when a
+> propose updating the tracking doc, that's a bailout - only YOU decide when a
 > session ends. I never raise the tracking document myself.
 
-### D3 — Run the bring-up loop (the procedure below)
+### D3 - Run the bring-up loop (the procedure below)
 
 Pick the entry point from the table, then run § The bring-up loop:
 
-- **New SoC/core (rows 6–7 ❌)** → start at the CPU/JIT strategy set: author
-  `ArmProcessorConfig`, `CoprocEmitter`, `MmuPolicy` from the ARM architecture
+- **New SoC/core (rows 6-7 ❌)** → start at the CPU/JIT strategy set: author
+  `ArmProcessorConfig`, `CoprocEmitter` from the ARM architecture
   reference manual + the core TRM (downloaded to `references/<soc>/` first), then
   the `PageTableBuilder` / memory map, then the peripheral loop.
-- **SoC supported (rows 6–7 ✅)** → start at the `BoardDetector` (keyed on the B2
+- **SoC supported (rows 6-7 ✅)** → start at the `BoardDetector` (keyed on the B2
   device-name string) + the `PageTableBuilder` (crack the kernel's
   OEMAddressTable in IDA), then the peripheral loop.
 
@@ -219,20 +219,20 @@ Pick the entry point from the table, then run § The bring-up loop:
 
 The kernel boots, hits an unimplemented register/MMIO address, and
 `HaltUnsupportedAccess` fatals with the PA + guest PC. **One blocker per cycle**,
-each step obeying the rules in `CLAUDE.md` / `agent_docs/` (don't restate them —
+each step obeying the rules in `CLAUDE.md` / `agent_docs/` (don't restate them -
 follow them):
 
-1. **Build** (`CLAUDE.md` § Build) — confirm it actually succeeded.
+1. **Build** (`CLAUDE.md` § Build) - confirm it actually succeeded.
 2. **Run** with a SHORT GNU `timeout` and a per-task `--log-file`
    (`agent_docs/debugging.md` § Timeout). Never background cerf; never read
    stdout.
-3. **Read the FIRST** `FATAL|unsupported|unmapped|rejected|Halt` line — that PA +
+3. **Read the FIRST** `FATAL|unsupported|unmapped|rejected|Halt` line - that PA +
    guest PC is the blocker.
 4. **Decode the PA → peripheral block** from the datasheet memory map.
 5. **Research it** the nuclear-bisection way (`agent_docs/debugging.md`): find the
    register in the SoC manual, decompile the guest PC that touched it for the
    exact semantics, write the citation excerpt under `references/<soc>/`.
-6. **Implement the blocker fully** — no fake-success stub; the mandatory-real
+6. **Implement the blocker fully** - no fake-success stub; the mandatory-real
    peripherals are never stubbed (`agent_docs/rules.md` § Board Implementation).
 7. **`/verify`**, fix any `CRITICAL PROBLEM FOUND`;
-8. **Repeat** until GUI, then interaction — the user-observable bring-up target.
+8. **Repeat** until GUI, then interaction - the user-observable bring-up target.
