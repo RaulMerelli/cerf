@@ -1,0 +1,49 @@
+#pragma once
+
+#include "../../core/service.h"
+#include "../../storage/disk_image.h"
+
+#include <cstdint>
+#include <string>
+
+/* The Ford SYNC2 writable NAND, persisted as `nand.img` (composes `DiskImage`).
+   Backing bytes are the bitwise complement of the NAND contents, so a never-written
+   sparse hole (DiskImage reads 0x00) presents as the 0xFF erased state the FAL/IPL
+   block scans expect. */
+class Imx51NandStore : public Service {
+public:
+    using Service::Service;
+
+    bool ShouldRegister() override;
+    void OnReady() override;
+
+    static constexpr uint32_t kMainBytes  = 0x1000u;
+    static constexpr uint32_t kSpareBytes = 0x200u;
+
+    /* Full NAND page at main-flash offset `main_off` (4 KB-aligned); an unwritten or
+       erased page yields main = spare = 0xFF. Bytes are RAW: the NFC applies the
+       main[0xF4A]<->spare[0x1C1] BBI swap, so storing served-form here double-swaps. */
+    void ReadPage (uint64_t main_off, uint8_t* main, uint8_t* spare);
+    void WritePage(uint64_t main_off, const uint8_t* main, const uint8_t* spare);
+
+    /* Erase the 512 KB block containing `main_off` -> every page reads 0xFF
+       (punch a hole so the backing reads 0x00 -> complements to 0xFF). */
+    void EraseBlock(uint64_t main_off);
+
+    /* Main-bytes-only read for the mask-ROM IPL stage/scan (within one page). */
+    void ReadMain(uint64_t main_off, void* dst, uint32_t len);
+
+private:
+    /* 2 GB Micron part (NFC READ ID 0x2C/0x48), 512 KB block, 4 KB page. */
+    static constexpr uint64_t kDeviceBytes   = 0x80000000u;
+    static constexpr uint64_t kBlock         = 0x80000u;
+    static constexpr uint32_t kPageStride    = kMainBytes + kSpareBytes;     /* 0x1200 */
+    static constexpr uint32_t kSectorsPerPage = kPageStride / DiskImage::kSectorSize; /* 9 */
+    static constexpr uint32_t kPagesPerBlock = kBlock / kMainBytes;          /* 128 */
+
+    void Seed();
+    std::string ImagePath() const;
+
+    DiskImage img_;
+    uint64_t  device_pages_ = 0;
+};

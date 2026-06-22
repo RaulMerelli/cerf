@@ -1,0 +1,62 @@
+#pragma once
+
+#include "../../peripherals/peripheral_base.h"
+
+#include <array>
+#include <cstdint>
+
+class UsbDeviceHost;
+
+/* i.MX51 USBOH3 (MCIMX51RM Ch 60, base 0x73F80000): OAL PHY config block plus
+   the four ChipIdea/EHCI cores. Core 0 (OTG) runs in device mode for the SBOOT
+   flasher; CERF is the always-present host and drives the device controller's
+   dQH/dTD engine through a registered UsbDeviceHost. */
+class Imx51Usboh3 : public Peripheral {
+public:
+    using Peripheral::Peripheral;
+
+    bool ShouldRegister() override;
+    void OnReady() override;
+
+    uint32_t MmioBase() const override;
+    uint32_t MmioSize() const override;
+
+    uint8_t  ReadByte(uint32_t addr) override;
+    uint16_t ReadHalf(uint32_t addr) override;
+    uint32_t ReadWord(uint32_t addr) override;
+    void     WriteWord(uint32_t addr, uint32_t value) override;
+
+    void SaveState(StateWriter& w) override;
+    void RestoreState(StateReader& r) override;
+
+    void RegisterDeviceHost(UsbDeviceHost* host) { host_ = host; }
+
+    /* Host->device EP0 control SETUP: write the 8-byte packet into the EP0-OUT
+       dQH set-up buffer and raise the setup interrupt. */
+    void DeliverSetup(const uint8_t setup[8]);
+
+private:
+    static constexpr uint32_t kSize        = 0x00004000u;   /* AIPS 16 KB slot */
+    static constexpr uint32_t kCoreSpan    = 0x00000200u;   /* per-core EHCI block */
+    static constexpr uint32_t kNonCore     = 0x00000800u;   /* control block start */
+    static constexpr uint32_t kCores       = kNonCore / kCoreSpan;
+    static constexpr uint8_t  kPhyRegCount = 0x40u;
+
+    bool     Core0IsDevice() const;
+    void     RefreshDeviceIrq();
+    void     ReflectScheduleStatus(uint32_t usbcmd_off, uint32_t usbcmd);
+    uint32_t UlpiTransfer(uint32_t core, uint32_t value);
+
+    /* dQH/dTD device-controller engine (core 0). */
+    uint32_t DqhBase() const;
+    void     ExecutePrime(uint32_t prime_bits);
+    void     ExecuteEndpoint(uint32_t ep, bool dir_in);
+    void     TransferDtdBuffers(const uint32_t pages[5], uint8_t* host,
+                                uint32_t n, bool to_host);
+
+    UsbDeviceHost* host_ = nullptr;
+    bool           reset_seen_ = false;   /* URI cleared; await the reset flush */
+
+    std::array<uint32_t, kSize / 4> regs_{};
+    std::array<std::array<uint8_t, kPhyRegCount>, kCores> phy_{};
+};

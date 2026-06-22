@@ -29,6 +29,10 @@ public:
     bool ReadSectors (uint64_t lba, uint32_t count, void*       dst);
     bool WriteSectors(uint64_t lba, uint32_t count, const void* src);
 
+    /* Deallocate [lba, lba+count) so it reads back zero, keeping the file sparse
+       (FSCTL_SET_ZERO_DATA). */
+    bool PunchHole(uint64_t lba, uint32_t count);
+
 private:
     bool SeekTo(uint64_t lba);
 

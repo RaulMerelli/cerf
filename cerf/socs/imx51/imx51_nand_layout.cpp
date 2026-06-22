@@ -8,54 +8,42 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <cstring>
 
 REGISTER_SERVICE(Imx51NandLayout);
 
 namespace {
 
-/* The flash-0x0 config block (`.sec` offset 0x0): magic word + per-module
-   records from +0x60, stride 0x30 — the same {delim, id@+4, size@+0xC}
-   structure SBOOT reads via its DPS lookup (Bootloader.bin 0x8FF0D63C),
-   decoded from the device `.sec`. */
+/* flash-0x0 config block: magic word + per-module records from +0x60, stride 0x30
+   ({delim, id@+4, size@+0xC}); the same structure SBOOT reads via its DPS lookup
+   (Bootloader.bin 0x8FF0D63C). */
 constexpr uint32_t kCfgMagic  = 0x400DB1B1u;
 constexpr uint32_t kRecDelim  = 0xC001C000u;
 constexpr uint32_t kRecBase   = 0x60u;
 constexpr uint32_t kRecStride = 0x30u;
-/* New-format DPS signature. SBOOT's new DPS_Read (Bootloader.bin 0x8FF0DFBC)
-   accepts 0x400BD8D8 directly (0x8FF0E198); the old config magic 0x400DB1B1 is
-   treated as "old signature" (0x8FF0E1D8) → DPS_Write upgrade, which read-only
-   NAND cannot service. */
+/* New-format DPS signature: SBOOT's new DPS_Read (0x8FF0DFBC) accepts 0x400BD8D8
+   directly (0x8FF0E198); the old config magic 0x400DB1B1 is treated as "old"
+   (0x8FF0E1D8) -> DPS_Write upgrade, which read-only `.sec` NAND cannot service. */
 constexpr uint32_t kDpsMagicNew = 0x400BD8D8u;
 
-/* DPS "Write Complete" pair: the flasher sets [0x38]=[0x3C]=1 on a fully-programmed
-   device (staged_80040000.bin 0x8005A710/0x8005A718). SBOOT launches the OS only if
-   [0x3C]!=0 (Bootloader.bin 0x8FF0B858, else "image was partially programmed"); the
-   `.sec` config is 0 there, so the synthesized DPS must assert it. */
+/* DPS "Write Complete" pair (flasher staged_80040000.bin 0x8005A710/0x8005A718).
+   SBOOT launches the OS only if [0x3C]!=0 (0x8FF0B858, else "image was partially
+   programmed"); the `.sec` config is 0 there, so the synthesized DPS asserts it. */
 constexpr size_t kDpsProgStatusA = 0x38u;
 constexpr size_t kDpsProgStatusB = 0x3Cu;
 
-/* Bootloader version at DPS[0x28]. SBOOT matches it against the running IPL in the
-   low 24 bits (Bootloader.bin 0x8FF0BC30, "_NOT_ matched." → emergency otherwise);
-   the IPL reports 0xAB000002 (handler 0x8FF052E8) and the `.sec` config is 0. */
+/* Bootloader version at DPS[0x28]: SBOOT matches the low 24 bits against the IPL
+   (0x8FF0BC30, else "_NOT_ matched." -> emergency); the IPL reports 0xAB000002
+   (handler 0x8FF052E8) and the `.sec` config is 0. */
 constexpr size_t   kDpsBootVerOff = 0x28u;
 constexpr uint32_t kDpsBootVersion = 0xAB000002u;
 
-/* Bad Block Table signature (Bootloader.bin DPS_ReadBadBlockTable 0x8FF0D7D0,
-   search 0x8FF0D71C). */
+/* Bad Block Table signature (DPS_ReadBadBlockTable 0x8FF0D7D0, search 0x8FF0D71C). */
 constexpr uint32_t kBbtMagic  = 0xB041D283u;
 constexpr uint64_t kPageBytes = 0x1000u;
-/* Loader's own OS-partition signatures, table @ Bootloader.bin 0x8FF03688,
-   compared at 0x8FF0C278 (memcmp4) / +4 (memcmp8). */
-constexpr char kOsSigBadt[]     = "BADT";
-constexpr char kOsSigMsflsh60[] = "MSFLSH60";
-/* OS MSFlash FAL master signature (AutoFlashMDD master scan sub_C09A33B0 reads
-   *buf and requires 0x54444142). */
-constexpr uint32_t kFalMasterMagic = 0x54444142u;
-/* Written-page-marker offset in the NFC spare buffer: chunk 6 of 8 at the NFC's
-   0x40 chunk stride = 0x180. SBOOT's assembler (Bootloader.bin 0x8FF09424) reads it
-   from its linearized copied spare at index (pagesize/512-2)*26 = 156; the 0x40 NFC
-   stride (copy at 0x8FF090F0) maps copied-index 156 to NFC offset 6*0x40 = 0x180. */
+
+/* Written-page marker in the NFC spare buffer: SBOOT's assembler (0x8FF09424) reads
+   copied-index 156, which the 0x40 NFC chunk stride (copy at 0x8FF090F0) maps to NFC
+   spare offset 6*0x40 = 0x180; meta[0]=0x00 marks the page written. */
 constexpr size_t   kBbtMetaSpareOff = 0x180u;
 
 uint32_t Rd32(const uint8_t* p) {
@@ -125,15 +113,15 @@ void Imx51NandLayout::OnReady() {
         start_block += p.nblocks;
         parts_.push_back(p);
 
-        LOG(Boot, "Imx51NandLayout: id=0x%X block %llu (x%llu) -> .sec 0x%llX size 0x%llX\n",
+        LOG(SocNand, "Imx51NandLayout: id=0x%X block %llu (x%llu) -> .sec 0x%llX size 0x%llX\n",
             p.id, static_cast<unsigned long long>(p.start_block),
             static_cast<unsigned long long>(p.nblocks),
             static_cast<unsigned long long>(p.sec_off),
             static_cast<unsigned long long>(p.size));
     }
 
-    /* The image-6 (NK) loader walks the DPS for record.id==6 and reads its
-       StartBlock; the OS partition lives there as [BADT][MSFLSH60][NK id-7 image]. */
+    /* Record the id-6 OS-region StartBlock (where the guest flasher provisions the
+       OS store) and the id-7 NK `.sec` region (PhysToSec's NK remap). */
     for (const auto& p : parts_) {
         if (p.id == 6) os_sig_block_ = p.start_block;
         if (p.id == 7) { nk_sec_off_ = p.sec_off; nk_blocks_ = p.nblocks; }
@@ -158,6 +146,26 @@ std::optional<uint64_t> Imx51NandLayout::PhysToSec(uint64_t phys_off) const {
     return std::nullopt;                              /* unmapped block -> blank */
 }
 
+bool Imx51NandLayout::BuildFactoryPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                                       uint8_t* spare, size_t spare_len) const {
+    if (IsBbtBlock(phys_off)) {
+        BuildBbtPage(phys_off, main, main_len, spare, spare_len);
+        return true;
+    }
+    if (IsDpsOffset(phys_off)) {
+        BuildDpsPage(phys_off, main, main_len, spare, spare_len);
+        return true;
+    }
+    if (phys_off / kBlock < os_sig_block_) {
+        std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
+        std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
+        if (auto sec = PhysToSec(phys_off))
+            emu_.Get<SecFlash>().ReadFlash(*sec, main, main_len);
+        return true;
+    }
+    return false;
+}
+
 bool Imx51NandLayout::IsDpsOffset(uint64_t phys_off) const {
     return device_blocks_ != 0 && (phys_off / kBlock) == device_blocks_ - 1;
 }
@@ -168,8 +176,8 @@ void Imx51NandLayout::BuildDpsPage(uint64_t phys_off, uint8_t* main, size_t main
     std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
     if ((phys_off % kBlock) / kPageBytes != 0) return;   /* page1+: erased terminator */
     /* The DPS manifest is the flash-0x0 config block; copy it, rewrite the magic to
-       the new-format signature (kDpsMagicNew), and patch each module record's
-       StartBlock (rec+8) to its cumulative block (the `.sec` records carry 0). */
+       the new-format signature, and patch each module record's StartBlock (rec+8)
+       to its cumulative block (the `.sec` records carry 0). */
     const size_t cfg = kRecBase + kRecStride * parts_.size();
     emu_.Get<SecFlash>().ReadFlash(0, main, std::min(main_len, cfg));
     Wr32(main, 0, main_len, kDpsMagicNew);
@@ -177,11 +185,9 @@ void Imx51NandLayout::BuildDpsPage(uint64_t phys_off, uint8_t* main, size_t main
     for (size_t i = 0; i < parts_.size(); ++i)
         Wr32(main, kRecBase + i * kRecStride + 8, main_len,
              static_cast<uint32_t>(parts_[i].start_block));
-    /* Assert the flasher's Write-Complete pair so SBOOT treats the image as fully
-       programmed (see kDpsProgStatus* above); both are 32-bit LE 1. */
     Wr32(main, kDpsProgStatusA, main_len, 1);
     Wr32(main, kDpsProgStatusB, main_len, 1);
-    /* Written-page marker so the new DPS_Read's validator (0x8FF0C9A0) accepts it. */
+    /* Written-page marker so the new DPS_Read validator (0x8FF0C9A0) accepts it. */
     if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;
 }
 
@@ -206,37 +212,6 @@ void Imx51NandLayout::BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main
     main[3] = static_cast<uint8_t>(kBbtMagic >> 24);
     main[4] = main[5] = main[6] = main[7] = 0x00;
     /* meta[0]=0x00 marks a written page (validator 0x8FF0C9A0); meta[1..2] stay
-       0xFF so the stored 16-bit checksum reads 0xFFFF and the reader skips it
-       (DPS_ReadBadBlockTable 0x8FF0D8C4). */
+       0xFF so the stored checksum reads 0xFFFF and the reader skips it (0x8FF0D8C4). */
     if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;
 }
-
-bool Imx51NandLayout::IsOsBootSigBlock(uint64_t phys_off) const {
-    const uint64_t blk = phys_off / kBlock;
-    return nk_blocks_ != 0 && (blk == os_sig_block_ || blk == os_sig_block_ + 1);
-}
-
-void Imx51NandLayout::BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_t main_len,
-                                         uint8_t* spare, size_t spare_len) const {
-    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
-    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
-    if ((phys_off % kBlock) / kPageBytes != 0) return;   /* only page0 carries the sig */
-    const bool   badt = (phys_off / kBlock) == os_sig_block_;
-    const char*  sig  = badt ? kOsSigBadt : kOsSigMsflsh60;
-    const size_t n    = badt ? 4u : 8u;
-    if (n <= main_len) std::memcpy(main, sig, n);
-}
-
-bool Imx51NandLayout::IsFalMasterBlock(uint64_t phys_off) const {
-    return phys_off < kPageBytes;   /* physical block 0, page 0 */
-}
-
-void Imx51NandLayout::BuildFalMasterPage(uint64_t /*phys_off*/, uint8_t* main, size_t main_len,
-                                         uint8_t* spare, size_t spare_len) const {
-    std::fill(main, main + main_len, static_cast<uint8_t>(0xFFu));
-    std::fill(spare, spare + spare_len, static_cast<uint8_t>(0xFFu));
-    /* "BADT" + skipped-block count 0; sub_C09A33B0 reads buf[0]=magic, buf[1]=count. */
-    Wr32(main, 0, main_len, kFalMasterMagic);
-    Wr32(main, 4, main_len, 0);
-}
-

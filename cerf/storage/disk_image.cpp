@@ -57,7 +57,7 @@ bool DiskImage::ReadSectors(uint64_t lba, uint32_t count, void* dst) {
     auto* out = static_cast<uint8_t*>(dst);
 
     /* The file grows on write and is shorter than the logical capacity, so any
-       range at/after the physical end is unwritten — return zero for it. */
+       range at/after the physical end is unwritten - return zero for it. */
     LARGE_INTEGER phys{};
     if (!GetFileSizeEx(handle_, &phys)) return false;
     const uint64_t psize = static_cast<uint64_t>(phys.QuadPart);
@@ -78,4 +78,14 @@ bool DiskImage::WriteSectors(uint64_t lba, uint32_t count, const void* src) {
     const DWORD want = count * kSectorSize;
     DWORD put = 0;
     return WriteFile(handle_, src, want, &put, nullptr) && put == want;
+}
+
+bool DiskImage::PunchHole(uint64_t lba, uint32_t count) {
+    if (handle_ == INVALID_HANDLE_VALUE || lba + count > sector_count_) return false;
+    FILE_ZERO_DATA_INFORMATION z{};
+    z.FileOffset.QuadPart      = static_cast<LONGLONG>(lba * kSectorSize);
+    z.BeyondFinalZero.QuadPart = static_cast<LONGLONG>((lba + count) * kSectorSize);
+    DWORD junk = 0;
+    return DeviceIoControl(handle_, FSCTL_SET_ZERO_DATA, &z, sizeof(z),
+                           nullptr, 0, &junk, nullptr) != 0;
 }

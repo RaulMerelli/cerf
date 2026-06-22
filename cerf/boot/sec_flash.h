@@ -23,6 +23,13 @@ public:
         return sec_.ReadFlash(mf_, flash_off, dst, len);
     }
 
+    /* Raw `.sec` package bytes + size - the payload the SBOOT USB flasher
+       downloads, distinct from the de-chunked NAND ReadFlash above. */
+    uint64_t FileSize() const { return mf_.Size(); }
+    size_t   ReadRaw(uint64_t file_off, void* dst, size_t len) {
+        return mf_.Read(file_off, dst, len);
+    }
+
 private:
     MappedFile   mf_;
     SecContainer sec_;

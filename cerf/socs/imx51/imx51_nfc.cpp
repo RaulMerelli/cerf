@@ -1,5 +1,5 @@
 #include "imx51_nfc.h"
-#include "imx51_nand_layout.h"
+#include "imx51_nand_store.h"
 
 #include "../../boards/board_detector.h"
 #include "../../boot/sec_flash.h"
@@ -45,14 +45,17 @@ constexpr uint32_t kLaunchFcmd     = 1u << 0;
 constexpr uint32_t kLaunchFadd     = 1u << 1;
 constexpr uint32_t kLaunchFdiMask  = 1u << 2;
 constexpr uint32_t kLaunchFdoMask  = 0x7u << 3;
-constexpr uint32_t kLaunchAutoRead = 1u << 7;   /* AUTO_READ (RM Table 45-29) */
-constexpr uint32_t kLaunchAutoMask = 0xFFu << 6;
+constexpr uint32_t kLaunchAutoProg  = 1u << 6;   /* AUTO_PROG  (RM Table 45-29) */
+constexpr uint32_t kLaunchAutoRead  = 1u << 7;   /* AUTO_READ  (RM Table 45-29) */
+constexpr uint32_t kLaunchAutoErase = 1u << 9;   /* AUTO_ERASE (RM Table 45-29) */
+constexpr uint32_t kLaunchAutoMask  = 0xFFu << 6;
 
 /* FDO field (LAUNCH_NFC[5:3]) selects the data-output type: FDO=001 = NAND data
    output (MCIMX51RM Fig 45-42, §45.9.2.5), FDO=010 = NAND ID output (Fig 45-43,
    §45.9.2.6). The output depends on the FDO field, NOT on a prior READ-ID. */
 constexpr uint32_t kFdoDataOutput = 0x1u;
 constexpr uint32_t kFdoIdOutput   = 0x2u;
+constexpr uint32_t kFdoStatus     = 0x4u;   /* FDO=100 NAND status output */
 
 constexpr uint32_t kIpcInt  = 1u << 31;
 constexpr uint32_t kIpcRbB  = 1u << 28;
@@ -131,9 +134,11 @@ uint32_t Imx51Nfc::NfcRead(uint32_t addr, uint32_t width) {
         case kIpWrProtect: return wr_protect_;
         case kIpCfg2:      return cfg2_;
         case kIpCfg3:      return cfg3_;
-        case kIpIpc:
-            return (int_pending_ ? kIpcInt : 0) | kIpcRbB |
-                   (creq_ ? (kIpcCreq | kIpcCack) : 0);
+        case kIpIpc: {
+            const uint32_t ipc = (int_pending_ ? kIpcInt : 0) | kIpcRbB |
+                                 (creq_ ? (kIpcCreq | kIpcCack) : 0);
+            return ipc;
+        }
         case kIpAxiError:  return axi_error_;
         case kIpDelayLine: return delay_line_;
     }
@@ -197,9 +202,8 @@ void Imx51Nfc::Launch(uint32_t value) {
         const uint32_t fdo = (value & kLaunchFdoMask) >> 3;
         if (fdo == kFdoIdOutput)        ReadId();
         else if (fdo == kFdoDataOutput) ReadPage();
+        else if (fdo == kFdoStatus)     ReadStatus();
         else {
-            /* The only other FDO mode is status read (FDO=100, §45.9.2.7); the
-               read-only `.sec` boot never issues it, so FATAL if a guest ever does. */
             LOG(Caution, "Imx51Nfc: unhandled FDO field %u in LAUNCH_NFC 0x%08X (cmd=0x%02X)\n",
                 fdo, value, nand_cmd_);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
@@ -209,6 +213,16 @@ void Imx51Nfc::Launch(uint32_t value) {
     }
     if (value & kLaunchAutoRead) {
         AutoRead();
+        int_pending_ = true;
+        return;
+    }
+    if (value & kLaunchAutoProg) {
+        AutoProg();
+        int_pending_ = true;
+        return;
+    }
+    if (value & kLaunchAutoErase) {
+        AutoErase();
         int_pending_ = true;
         return;
     }
@@ -227,31 +241,12 @@ uint64_t Imx51Nfc::FlashOffset() const {
 
 void Imx51Nfc::FillPageBuffer(uint64_t flash_off) {
     std::array<uint8_t, kMainPageBytes> page{};
-    page.fill(0xFFu);
-    spare_.fill(0xFF);   /* virtual NAND: no factory bad blocks -> spare all good */
-    /* The `.sec` is packed by size; the device NAND is block-aligned. Map the
-       physical NAND offset to its `.sec` source (nullopt = blank/erased block).
-       The tail blocks serve synthesized device-state structures the `.sec` lacks:
-       the BBT (sets main+spare) and the DPS manifest. */
-    auto& layout = emu_.Get<Imx51NandLayout>();
-    if (layout.IsFalMasterBlock(flash_off))
-        layout.BuildFalMasterPage(flash_off, page.data(), page.size(),
-                                  spare_.data(), spare_.size());
-    else if (layout.IsBbtBlock(flash_off))
-        layout.BuildBbtPage(flash_off, page.data(), page.size(),
-                            spare_.data(), spare_.size());
-    else if (layout.IsDpsOffset(flash_off))
-        layout.BuildDpsPage(flash_off, page.data(), page.size(),
-                            spare_.data(), spare_.size());
-    else if (layout.IsOsBootSigBlock(flash_off))
-        layout.BuildOsBootSigPage(flash_off, page.data(), page.size(),
-                                  spare_.data(), spare_.size());
-    else if (auto sec = layout.PhysToSec(flash_off))
-        emu_.Get<SecFlash>().ReadFlash(*sec, page.data(), page.size());
-    /* Every block carries its factory BBI in the main page (NXP AN_MX_NAND_BAD_BLOCK
-       §3: BBI in the last NFC main section, read at main[0xF4A]); a virtual chip is
-       all-good, so present 0xFF and displace the `.sec` byte to spare. Without it the
-       FMD bad-block check (0x8FF0A494, reads main[0xF4A]) marks every OS block bad. */
+    /* The NAND is the writable nand.img store (seeded boot region + guest-flashed OS
+       region); an unwritten/erased page reads 0xFF. Stored RAW (pre-BBI-swap). */
+    emu_.Get<Imx51NandStore>().ReadPage(flash_off, page.data(), spare_.data());
+    /* Factory BBI is in the NFC main page (NXP AN_MX_NAND_BAD_BLOCK §3: read at
+       main[0xF4A]); present 0xFF and displace the stored byte to spare, else the FMD
+       bad-block check (0x8FF0A494, reads main[0xF4A]) marks every block bad. */
     std::swap(page[0xF4Au], spare_[0x1C1u]);
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
 }
@@ -273,17 +268,38 @@ void Imx51Nfc::AutoRead() {
     }
     /* AUTO_READ issues the address phases (MCIMX51RM §45.9.1.2), latching the NAND
        address; a later manual FDO data-output (FDO=001) outputs that same latched
-       page, so mirror it into addr_bytes_ — without this the FDO reads stale bytes. */
+       page, so mirror it into addr_bytes_ - without this the FDO reads stale bytes. */
     addr_bytes_[0] = static_cast<uint8_t>(nand_add_[0]);
     addr_bytes_[1] = static_cast<uint8_t>(nand_add_[0] >> 8);
     addr_bytes_[2] = static_cast<uint8_t>(nand_add_[0] >> 16);
     addr_bytes_[3] = static_cast<uint8_t>(nand_add_[0] >> 24);
     addr_bytes_[4] = static_cast<uint8_t>(nand_add_[8]);
     addr_idx_      = static_cast<uint32_t>(addr_bytes_.size());
-    FillPageBuffer(AutoReadFlashOffset());
+    FillPageBuffer(AutoFlashOffset());
 }
 
-uint64_t Imx51Nfc::AutoReadFlashOffset() const {
+void Imx51Nfc::AutoProg() {
+    /* AUTO_PROG (LAUNCH_NFC bit 6, MCIMX51RM Table 45-29): program the NFC main
+       buffer + spare to the addressed page (NAND_ADDRESS0, same group as AUTO_READ).
+       Runtime-grounded: SBOOT's flasher issues LAUNCH=0x40 cmd=0x80 to write here. */
+    std::array<uint8_t, kMainPageBytes> page{};
+    emu_.Get<EmulatedMemory>().CopyOut(kAxiBase, page.data(), page.size());
+    /* Inverse of the ReadPage factory-BBI swap (NXP AN §3): the guest prepared the
+       served form (main[0xF4A]<->spare[0x1C1]); store RAW so a later read of this
+       page returns these exact bytes (round-trip). */
+    std::swap(page[0xF4Au], spare_[0x1C1u]);
+    emu_.Get<Imx51NandStore>().WritePage(AutoFlashOffset(), page.data(), spare_.data());
+}
+
+void Imx51Nfc::AutoErase() {
+    /* AUTO_ERASE (LAUNCH_NFC bit 9, MCIMX51RM Table 45-29; NAND_CMD=0xD060). SBOOT's
+       erase primitive sub_80056244 writes the block's first-page row address
+       (pages_per_block * block) to NAND_ADD0, so the block byte offset = NAND_ADD0
+       << 12 (4 KB page) - a pure row address, unlike the read's column+row. */
+    emu_.Get<Imx51NandStore>().EraseBlock(static_cast<uint64_t>(nand_add_[0]) << 12);
+}
+
+uint64_t Imx51Nfc::AutoFlashOffset() const {
     /* AUTO_READ address from the active group NAND_ADDRESS0 (Table 45-11):
        NAND_ADD0 = ADDRESS0[31:0], NAND_ADD8[7:0] = ADDRESS0[39:32]. */
     return DecodeNandAddr(static_cast<uint8_t>(nand_add_[0]),
@@ -297,6 +313,14 @@ void Imx51Nfc::ReadId() {
     std::array<uint8_t, kMainPageBytes> buf{};
     std::copy(kReadIdBytes.begin(), kReadIdBytes.end(), buf.begin());
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, buf.data(), buf.size());
+}
+
+void Imx51Nfc::ReadStatus() {
+    /* NAND READ STATUS (cmd 0x70, FDO=100): SBOOT's sub_800550E0 launches FDO=100
+       then reads BYTE2 of cfg1 (0x1E34); its caller sub_80056DBC treats bit0 as
+       FAIL. Store writes/erases always succeed -> report ready+pass (RDY|WP_n, bit0=0). */
+    constexpr uint32_t kStatusReadyPass = 0xC0u;
+    cfg1_ = (cfg1_ & ~0x00FF0000u) | (kStatusReadyPass << 16);
 }
 
 void Imx51Nfc::SaveState(StateWriter& w) {

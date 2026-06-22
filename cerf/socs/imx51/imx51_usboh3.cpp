@@ -1,166 +1,336 @@
-#include "../../peripherals/peripheral_base.h"
+#include "imx51_usboh3.h"
+#include "usb_device_host.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../boards/board_detector.h"
+#include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../irq_controller.h"
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace {
 
-/* i.MX51 USBOH3 (MCIMX51RM Ch 60, base 0x73F80000) — R/W store: OAL PHY config
-   (0x800+) + the four ChipIdea/EHCI USB cores (<0x800, 0x200 spacing), each with
-   an attached SMSC USB3317 ULPI PHY reached through that core's ULPI Viewport. */
-constexpr uint32_t kBase     = 0x73F80000u;
-constexpr uint32_t kSize     = 0x00004000u;   /* AIPS 16 KB slot */
-constexpr uint32_t kNonCore  = 0x00000800u;   /* non-core control block start */
-constexpr uint32_t kCoreSpan = 0x00000200u;   /* per-core EHCI block spacing */
-constexpr uint32_t kCores    = kNonCore / kCoreSpan;
+constexpr uint32_t kBase = 0x73F80000u;
 
-constexpr uint32_t kOffUsbcmd = 0x00000140u;  /* USBCMD within each core (EHCI) */
-constexpr uint32_t kUsbcmdReset = 1u << 1;    /* USBCMD.RST */
-constexpr uint32_t kOffCaplen = 0x00000100u;  /* CAPLENGTH(b0)+HCIVERSION(b16) */
-/* CAPLENGTH 0x40 (operational regs at cap+0x40 = core+0x140) | HCIVERSION 0x0100
-   (EHCI 1.00, MCIMX51RM Ch 60 VUSB_HS_HCIVERSION); the EHCI driver reads
-   CAPLENGTH (byte) to locate the operational registers. */
+constexpr uint32_t kOffUsbcmd   = 0x00000140u;  /* USBCMD within each core */
+constexpr uint32_t kUsbcmdReset = 1u << 1;      /* USBCMD.RST */
+constexpr uint32_t kOffCaplen   = 0x00000100u;  /* CAPLENGTH(b0)+HCIVERSION(b16) */
+/* CAPLENGTH 0x40 (operational regs at cap+0x40) | HCIVERSION 0x0100 (EHCI 1.00). */
 constexpr uint32_t kCapReset = 0x01000040u;
 
-/* USBCMD enable bits / USBSTS status bits, MCIMX51RM Ch 60 Table 60-40 (USBCMD,
-   Fig 60-34) + Table 60-41 (USBSTS, Fig 60-15). The host-controller status bits
-   in USBSTS must converge to the enable bits the driver writes in USBCMD; CERF
-   acts instantly so it reflects them on the USBCMD write. */
-constexpr uint32_t kOffUsbsts = 0x00000144u;  /* USBSTS within each core (=USBCMD+4) */
+constexpr uint32_t kOffUsbsts = 0x00000144u;  /* USBSTS (=USBCMD+4) */
 constexpr uint32_t kCmdRs  = 1u << 0;   /* USBCMD.RS  Run/Stop */
-constexpr uint32_t kCmdPse = 1u << 4;   /* USBCMD.PSE Periodic Schedule Enable */
-constexpr uint32_t kCmdAse = 1u << 5;   /* USBCMD.ASE Asynchronous Schedule Enable */
-constexpr uint32_t kStsHch = 1u << 12;  /* USBSTS.HCH HCHalted (RO; set when RS=0) */
-constexpr uint32_t kStsPss = 1u << 14;  /* USBSTS.PS  Periodic Schedule Status (RO==PSE) */
-constexpr uint32_t kStsAss = 1u << 15;  /* USBSTS.AS  Asynchronous Schedule Status (RO==ASE) */
-/* USBSTS read-only host-controller bits (HCHalted, Reclamation b13, PSS, ASS):
-   a guest USBSTS write (write-1-clear of the interrupt bits, e.g. 0xF03F) must
-   leave these untouched — they are owned by ReflectScheduleStatus. */
+constexpr uint32_t kCmdPse = 1u << 4;   /* USBCMD.PSE */
+constexpr uint32_t kCmdAse = 1u << 5;   /* USBCMD.ASE */
+constexpr uint32_t kStsHch = 1u << 12;  /* USBSTS.HCH (RO; set when RS=0) */
+constexpr uint32_t kStsPss = 1u << 14;  /* USBSTS.PS  (RO==PSE) */
+constexpr uint32_t kStsAss = 1u << 15;  /* USBSTS.AS  (RO==ASE) */
 constexpr uint32_t kUsbstsRoMask = kStsHch | (1u << 13) | kStsPss | kStsAss;
 
-constexpr uint32_t kOffUlpiview = 0x00000170u;  /* ULPI Viewport within each core */
-constexpr uint32_t kUlpiWu  = 1u << 31;  /* ULPIWU  (wakeup)  */
-constexpr uint32_t kUlpiRun = 1u << 30;  /* ULPIRUN (xfer)    */
-constexpr uint32_t kUlpiRw  = 1u << 29;  /* ULPIRW  (1=write) */
+constexpr uint32_t kOffUlpiview = 0x00000170u;
+constexpr uint32_t kUlpiWu  = 1u << 31;
+constexpr uint32_t kUlpiRun = 1u << 30;
+constexpr uint32_t kUlpiRw  = 1u << 29;
 
-constexpr uint8_t kPhyRegCount = 0x40u;
-/* SMSC USB3317 ULPI Vendor ID 0x0424 / Product ID 0x0006 (USB331x family, USB3317
-   datasheet); the driver's PHY-presence check reads regs 0..3 and requires both
-   non-zero (sub_C0C5769C/sub_C0C576D4 via BSPUsbCheckPhyAccess sub_C0C58010). */
+/* Device-controller registers within the OTG core (MCIMX51RM Ch 60 Table 60-2). */
+constexpr uint32_t kOffUsbmode      = 0x000001A8u;
+constexpr uint32_t kUsbmodeCmMask   = 0x3u;
+constexpr uint32_t kUsbmodeDevice   = 0x2u;   /* CM=10: device controller */
+constexpr uint32_t kOffPortsc       = 0x00000184u;
+constexpr uint32_t kPortscCcs       = 1u << 0;
+constexpr uint32_t kPortscPe        = 1u << 2;
+constexpr uint32_t kPortscHsp       = 1u << 9;
+constexpr uint32_t kPortscPspdShift = 26;
+constexpr uint32_t kPortscPspdHs    = 0x2u << kPortscPspdShift;
+constexpr uint32_t kPortscDevAttached =
+    kPortscCcs | kPortscPe | kPortscHsp | kPortscPspdHs;
+
+constexpr uint32_t kOffUsbintr       = 0x00000148u;
+constexpr uint32_t kOffEndptlistaddr = 0x00000158u;  /* dQH array base (2 KB aligned) */
+constexpr uint32_t kOffEndptsetupstat= 0x000001ACu;  /* per-EP setup-received (w1c) */
+constexpr uint32_t kOffEndptprime    = 0x000001B0u;  /* per-ep-dir prime (self-clear) */
+constexpr uint32_t kOffEndptflush    = 0x000001B4u;
+constexpr uint32_t kOffEndptcomplete = 0x000001BCu;  /* per-ep-dir complete (w1c) */
+/* USBSTS device interrupt bits (MCIMX51RM Ch 60, p2896-2897). */
+constexpr uint32_t kStsUi  = 1u << 0;   /* USB transaction complete */
+constexpr uint32_t kStsUei = 1u << 1;   /* error */
+constexpr uint32_t kStsPci = 1u << 2;   /* port change detect */
+constexpr uint32_t kStsUri = 1u << 6;   /* USB reset received */
+constexpr uint32_t kDevIntBits = kStsUi | kStsUei | kStsPci | kStsUri;
+constexpr uint32_t kUsbOtgIrq = 18u;    /* TZIC source 18 (SBOOT sub_8005DC4C) */
+
+/* ChipIdea device dQH/dTD layout, MCIMX51RM Fig 60-88/89/90: dQH array indexed
+   (2*ep + dir_in) on a 64-byte stride; the constants below name the field offsets. */
+constexpr uint32_t kDqhStride   = 0x40u;
+constexpr uint32_t kDqhOvNext   = 0x08u;
+constexpr uint32_t kDqhOvCur    = 0x04u;
+constexpr uint32_t kDqhOvToken  = 0x0Cu;
+constexpr uint32_t kSetupBufOff = 0x28u;
+constexpr uint32_t kDtdNext     = 0x00u;
+constexpr uint32_t kDtdToken    = 0x04u;
+constexpr uint32_t kDtdBuf0     = 0x08u;
+constexpr uint32_t kDtdTerminate = 1u;
+constexpr uint32_t kTokenActive  = 0x80u;
+constexpr uint32_t kPageSize     = 0x1000u;
+
 constexpr uint8_t kUsb3317Id[4] = {0x24u, 0x04u, 0x06u, 0x00u};
-
-class Imx51Usboh3 : public Peripheral {
-public:
-    using Peripheral::Peripheral;
-
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::iMX51;
-    }
-    void OnReady() override {
-        for (uint32_t core = 0; core < kNonCore; core += kCoreSpan) {
-            regs_[(core + kOffCaplen) >> 2] = kCapReset;
-            /* Out of reset the host controller is halted: USBCMD.RS reset = 0
-               (Table 60-40) ⇒ USBSTS.HCHalted = 1 (Table 60-41). */
-            regs_[(core + kOffUsbsts) >> 2] = kStsHch;
-        }
-        for (auto& phy : phy_)
-            for (uint8_t i = 0; i < 4; ++i) phy[i] = kUsb3317Id[i];
-        emu_.Get<PeripheralDispatcher>().Register(this);
-    }
-
-    uint32_t MmioBase() const override { return kBase; }
-    uint32_t MmioSize() const override { return kSize; }
-
-    uint8_t ReadByte(uint32_t addr) override {
-        const uint32_t off = addr - kBase;
-        return static_cast<uint8_t>(regs_[off >> 2] >> ((off & 3u) * 8u));
-    }
-    uint16_t ReadHalf(uint32_t addr) override {
-        const uint32_t off = addr - kBase;
-        return static_cast<uint16_t>(regs_[off >> 2] >> ((off & 2u) * 8u));
-    }
-    uint32_t ReadWord(uint32_t addr) override { return regs_[(addr - kBase) >> 2]; }
-    void WriteWord(uint32_t addr, uint32_t value) override {
-        const uint32_t off = addr - kBase;
-        if (off < kNonCore) {
-            const uint32_t coff = off % kCoreSpan;
-            if (coff == kOffUsbcmd) {
-                /* USBCMD.RST self-clears at reset completion (else the host
-                   driver spins in its reset poll). After the write, reflect the
-                   schedule/run enables into USBSTS. */
-                value &= ~kUsbcmdReset;
-                regs_[off >> 2] = value;
-                ReflectScheduleStatus(off, value);
-                return;
-            }
-            if (coff == kOffUsbsts) {
-                /* USBSTS interrupt bits are write-1-clear; the RO status bits
-                   (kUsbstsRoMask) are host-controller-owned and untouched by the
-                   guest write. MCIMX51RM Ch 60 Table 60-41. */
-                const uint32_t old = regs_[off >> 2];
-                regs_[off >> 2] =
-                    (old & kUsbstsRoMask) | (old & ~kUsbstsRoMask & ~value);
-                return;
-            }
-            if (coff == kOffUlpiview) {
-                /* The ULPI Viewport access completes instantly; without it the
-                   driver spins in its PHY-access poll and reboots. */
-                regs_[off >> 2] = UlpiTransfer(off / kCoreSpan, value);
-                return;
-            }
-        }
-        regs_[off >> 2] = value;
-    }
-
-    void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_.data(), sizeof(regs_));
-        w.WriteBytes(phy_.data(), sizeof(phy_));
-    }
-    void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_.data(), sizeof(regs_));
-        r.ReadBytes(phy_.data(), sizeof(phy_));
-    }
-
-private:
-    /* Reflect USBCMD.ASE(b5)/PSE(b4) into USBSTS.ASS(b15)/PSS(b14) and set HCHalted(b12)
-       when RS(b0)=0 — CERF has no schedule engine, so the status bits match instantly.
-       Else hcd_hsh1!sub_C0C64B6C spins (while((USBCMD ^ (USBSTS>>10)) & 0x20) Sleep(1) =
-       wait ASS==ASE) and devmgr's ActivateDevice never returns -> no gwes. RM Ch60 T60-40/41. */
-    void ReflectScheduleStatus(uint32_t usbcmd_off, uint32_t usbcmd) {
-        const uint32_t i = (usbcmd_off >> 2) + 1;  /* USBSTS = USBCMD + 4 */
-        uint32_t s = regs_[i];
-        s = (usbcmd & kCmdAse) ? (s | kStsAss) : (s & ~kStsAss);
-        s = (usbcmd & kCmdPse) ? (s | kStsPss) : (s & ~kStsPss);
-        s = (usbcmd & kCmdRs)  ? (s & ~kStsHch) : (s | kStsHch);
-        regs_[i] = s;
-    }
-
-    /* Run one ULPI Viewport access against the core's USB3317 PHY register file and
-       return the value to latch: RUN/WU clear on completion; a read returns the PHY
-       register in ULPIDATRD (bits 15:8). (USB3317_ReadReg sub_C0C57574,
-       WriteReg sub_C0C57608.) */
-    uint32_t UlpiTransfer(uint32_t core, uint32_t value) {
-        if (value & kUlpiWu)      return value & ~kUlpiWu;
-        if (!(value & kUlpiRun))  return value;
-        auto& phy = phy_[core % kCores];
-        const uint8_t addr = static_cast<uint8_t>(value >> 16) & (kPhyRegCount - 1);
-        if (value & kUlpiRw) {
-            phy[addr] = static_cast<uint8_t>(value);
-            return value & ~kUlpiRun;
-        }
-        return (value & ~kUlpiRun & ~0xFF00u) | (static_cast<uint32_t>(phy[addr]) << 8);
-    }
-
-    std::array<uint32_t, kSize / 4> regs_{};
-    std::array<std::array<uint8_t, kPhyRegCount>, kCores> phy_{};
-};
 
 }  /* namespace */
 
 REGISTER_SERVICE(Imx51Usboh3);
+
+bool Imx51Usboh3::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardDetector>();
+    return bd && bd->GetSoc() == SocFamily::iMX51;
+}
+
+void Imx51Usboh3::OnReady() {
+    for (uint32_t core = 0; core < kNonCore; core += kCoreSpan) {
+        regs_[(core + kOffCaplen) >> 2] = kCapReset;
+        /* Out of reset the host controller is halted (Table 60-40/41). */
+        regs_[(core + kOffUsbsts) >> 2] = kStsHch;
+    }
+    for (auto& phy : phy_)
+        for (uint8_t i = 0; i < 4; ++i) phy[i] = kUsb3317Id[i];
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
+
+uint32_t Imx51Usboh3::MmioBase() const { return kBase; }
+uint32_t Imx51Usboh3::MmioSize() const { return kSize; }
+
+uint8_t Imx51Usboh3::ReadByte(uint32_t addr) {
+    const uint32_t off = addr - kBase;
+    return static_cast<uint8_t>(regs_[off >> 2] >> ((off & 3u) * 8u));
+}
+uint16_t Imx51Usboh3::ReadHalf(uint32_t addr) {
+    const uint32_t off = addr - kBase;
+    return static_cast<uint16_t>(regs_[off >> 2] >> ((off & 2u) * 8u));
+}
+uint32_t Imx51Usboh3::ReadWord(uint32_t addr) {
+    const uint32_t off = addr - kBase;
+    /* Device mode (core0): CERF is the always-present host, so PORTSC1 reflects a
+       connected, enabled, high-speed device port (sub_8005D97C polls it). */
+    if (off == kOffPortsc && Core0IsDevice())
+        return regs_[off >> 2] | kPortscDevAttached;
+    return regs_[off >> 2];
+}
+
+void Imx51Usboh3::WriteWord(uint32_t addr, uint32_t value) {
+    const uint32_t off = addr - kBase;
+    if (off < kNonCore) {
+        const uint32_t coff = off % kCoreSpan;
+        const bool core0_dev = off < kCoreSpan && Core0IsDevice();
+        if (coff == kOffUsbcmd) {
+            value &= ~kUsbcmdReset;   /* RST self-clears at reset completion */
+            const uint32_t old = regs_[off >> 2];
+            regs_[off >> 2] = value;
+            if (core0_dev) {
+                /* RS 0->1: CERF (host) attaches and drives a bus reset ->
+                   USBSTS.URI|PCI, raising the OTG interrupt. */
+                if ((value & kCmdRs) && !(old & kCmdRs))
+                    regs_[kOffUsbsts >> 2] |= kStsUri | kStsPci;
+                RefreshDeviceIrq();
+            } else {
+                ReflectScheduleStatus(off, value);
+            }
+            return;
+        }
+        if (coff == kOffUsbsts) {
+            const uint32_t old = regs_[off >> 2];
+            regs_[off >> 2] = (old & kUsbstsRoMask) | (old & ~kUsbstsRoMask & ~value);
+            if (core0_dev) {
+                RefreshDeviceIrq();
+                /* URI cleared marks the start of SBOOT's reset handler
+                   (sub_8005D554); it clears ENDPTSETUPSTAT next, so enumeration
+                   must wait until the handler's ENDPTFLUSH write below - a SETUP
+                   delivered here would have its ENDPTSETUPSTAT wiped. */
+                if ((old & kStsUri) && (value & kStsUri))
+                    reset_seen_ = true;
+            }
+            return;
+        }
+        if (core0_dev && coff == kOffUsbintr) {
+            regs_[off >> 2] = value;
+            RefreshDeviceIrq();
+            return;
+        }
+        if (core0_dev && (coff == kOffEndptsetupstat || coff == kOffEndptcomplete)) {
+            regs_[off >> 2] &= ~value;   /* write-1-clear */
+            return;
+        }
+        if (core0_dev && coff == kOffEndptprime) {
+            ExecutePrime(value);
+            regs_[off >> 2] = 0;         /* prime self-clears once serviced */
+            return;
+        }
+        if (core0_dev && coff == kOffEndptflush) {
+            regs_[off >> 2] = 0;
+            /* The reset handler's ENDPTFLUSH is the first one after URI; by here
+               it has already cleared ENDPTSETUPSTAT, so the host can deliver its
+               first SETUP and it will survive to the next ISR. */
+            if (reset_seen_) {
+                reset_seen_ = false;
+                if (host_) host_->OnDeviceReset();
+            }
+            return;
+        }
+        if (coff == kOffUlpiview) {
+            regs_[off >> 2] = UlpiTransfer(off / kCoreSpan, value);
+            return;
+        }
+    }
+    regs_[off >> 2] = value;
+}
+
+void Imx51Usboh3::SaveState(StateWriter& w) {
+    w.WriteBytes(regs_.data(), sizeof(regs_));
+    w.WriteBytes(phy_.data(), sizeof(phy_));
+    w.Write<uint8_t>(reset_seen_ ? 1 : 0);
+    if (host_) host_->SaveState(w);   /* forward to the registered USB host driver */
+}
+void Imx51Usboh3::RestoreState(StateReader& r) {
+    r.ReadBytes(regs_.data(), sizeof(regs_));
+    r.ReadBytes(phy_.data(), sizeof(phy_));
+    uint8_t b = 0; r.Read(b); reset_seen_ = b != 0;
+    if (host_) host_->RestoreState(r);
+}
+
+bool Imx51Usboh3::Core0IsDevice() const {
+    return (regs_[kOffUsbmode >> 2] & kUsbmodeCmMask) == kUsbmodeDevice;
+}
+
+void Imx51Usboh3::RefreshDeviceIrq() {
+    const bool pending = (regs_[kOffUsbsts >> 2] & regs_[kOffUsbintr >> 2] &
+                          kDevIntBits) != 0;
+    auto& intc = emu_.Get<IrqController>();
+    if (pending) intc.AssertIrq(static_cast<int>(kUsbOtgIrq));
+    else         intc.DeAssertIrq(static_cast<int>(kUsbOtgIrq));
+}
+
+void Imx51Usboh3::ReflectScheduleStatus(uint32_t usbcmd_off, uint32_t usbcmd) {
+    const uint32_t i = (usbcmd_off >> 2) + 1;  /* USBSTS = USBCMD + 4 */
+    uint32_t s = regs_[i];
+    s = (usbcmd & kCmdAse) ? (s | kStsAss) : (s & ~kStsAss);
+    s = (usbcmd & kCmdPse) ? (s | kStsPss) : (s & ~kStsPss);
+    s = (usbcmd & kCmdRs)  ? (s & ~kStsHch) : (s | kStsHch);
+    regs_[i] = s;
+}
+
+uint32_t Imx51Usboh3::UlpiTransfer(uint32_t core, uint32_t value) {
+    if (value & kUlpiWu)      return value & ~kUlpiWu;
+    if (!(value & kUlpiRun))  return value;
+    auto& phy = phy_[core % kCores];
+    const uint8_t addr = static_cast<uint8_t>(value >> 16) & (kPhyRegCount - 1);
+    if (value & kUlpiRw) {
+        phy[addr] = static_cast<uint8_t>(value);
+        return value & ~kUlpiRun;
+    }
+    return (value & ~kUlpiRun & ~0xFF00u) | (static_cast<uint32_t>(phy[addr]) << 8);
+}
+
+uint32_t Imx51Usboh3::DqhBase() const {
+    return regs_[kOffEndptlistaddr >> 2] & ~0x7FFu;
+}
+
+void Imx51Usboh3::DeliverSetup(const uint8_t setup[8]) {
+    auto& mem = emu_.Get<EmulatedMemory>();
+    const uint32_t base = DqhBase();
+    if (!base || !mem.TryTranslate(base)) {
+        LOG(Caution, "Imx51Usboh3: DeliverSetup with invalid ENDPTLISTADDR=0x%08X\n", base);
+        return;
+    }
+    /* EP0-OUT dQH = index 0; the SETUP buffer is at dQH+0x28. */
+    mem.CopyIn(base + kSetupBufOff, setup, 8);
+    regs_[kOffEndptsetupstat >> 2] |= 1u;   /* EP0 setup received */
+    regs_[kOffUsbsts >> 2] |= kStsUi;
+    RefreshDeviceIrq();
+}
+
+void Imx51Usboh3::ExecutePrime(uint32_t prime_bits) {
+    for (uint32_t ep = 0; ep < 16; ++ep) {
+        if (prime_bits & (1u << ep))          ExecuteEndpoint(ep, false);  /* OUT */
+        if (prime_bits & (1u << (16u + ep)))  ExecuteEndpoint(ep, true);   /* IN  */
+    }
+}
+
+void Imx51Usboh3::ExecuteEndpoint(uint32_t ep, bool dir_in) {
+    auto& mem = emu_.Get<EmulatedMemory>();
+    const uint32_t base = DqhBase();
+    if (!base || !mem.TryTranslate(base)) {
+        LOG(Caution, "Imx51Usboh3: ENDPTPRIME ep%u %s but ENDPTLISTADDR=0x%08X invalid\n",
+            ep, dir_in ? "IN" : "OUT", base);
+        return;
+    }
+    const uint32_t dqh  = base + (ep * 2u + (dir_in ? 1u : 0u)) * kDqhStride;
+    const uint32_t next = mem.ReadWord(dqh + kDqhOvNext);
+    if (next & kDtdTerminate) return;            /* nothing primed */
+
+    uint32_t dtd = next & ~0x1Fu;
+    bool any = false;
+    for (int guard = 0; guard < 64 && dtd; ++guard) {
+        if (!mem.TryTranslate(dtd)) break;
+        const uint32_t token = mem.ReadWord(dtd + kDtdToken);
+        const uint32_t total = (token >> 16) & 0x7FFFu;
+
+        uint32_t pages[5];
+        for (int p = 0; p < 5; ++p) pages[p] = mem.ReadWord(dtd + kDtdBuf0 + p * 4u);
+
+        uint32_t residual = total;
+        if (dir_in) {
+            /* device->host: gather the dTD's buffers, hand them to the host. */
+            std::vector<uint8_t> data(total);
+            TransferDtdBuffers(pages, data.data(), total, /*to_host=*/true);
+            if (host_) host_->OnDeviceIn(ep, data.data(), static_cast<uint32_t>(data.size()));
+            residual = 0;
+        } else {
+            /* host->device: ask the host for up to `total` bytes, scatter them. */
+            std::vector<uint8_t> data(total);
+            const uint32_t got = host_ ? host_->OnDeviceOut(ep, data.data(), total) : 0u;
+            TransferDtdBuffers(pages, data.data(), got, /*to_host=*/false);
+            residual = total - got;
+        }
+
+        /* Retire: clear Active + error/status, set the residual byte count. The
+           dTD token (which SBOOT's dTD wrapper aliases) is what its sub_8005E540
+           reads to detect completion (token & 0x80 == 0). */
+        const uint32_t new_token = residual << 16;
+        mem.WriteWord(dtd + kDtdToken, new_token);
+        const uint32_t dtd_next = mem.ReadWord(dtd + kDtdNext);
+        mem.WriteWord(dqh + kDqhOvCur, dtd);
+        mem.WriteWord(dqh + kDqhOvNext, dtd_next);
+        mem.WriteWord(dqh + kDqhOvToken, new_token);
+        any = true;
+        if (dtd_next & kDtdTerminate) break;
+        dtd = dtd_next & ~0x1Fu;
+    }
+
+    if (any) {
+        regs_[kOffEndptcomplete >> 2] |= dir_in ? (1u << (16u + ep)) : (1u << ep);
+        regs_[kOffUsbsts >> 2] |= kStsUi;
+        RefreshDeviceIrq();
+    }
+}
+
+void Imx51Usboh3::TransferDtdBuffers(const uint32_t pages[5], uint8_t* host,
+                                     uint32_t n, bool to_host) {
+    /* EHCI/ChipIdea dTD buffer pages (RM Fig 60-90): page 0 carries the Current
+       Offset in bits[11:0]; pages 1-4 reserve bits[11:0], so the byte stream
+       continues at each page frame's boundary - mask the offset bits off pages
+       1-4 (a non-zero low value there is reserved, not a data offset). */
+    auto& mem = emu_.Get<EmulatedMemory>();
+    uint32_t left = n, cursor = 0;
+    for (int p = 0; p < 5 && left; ++p) {
+        const uint32_t pa    = (p == 0) ? pages[0] : (pages[p] & ~0xFFFu);
+        const uint32_t inpg  = (p == 0) ? (kPageSize - (pages[0] & 0xFFFu)) : kPageSize;
+        const uint32_t chunk = inpg < left ? inpg : left;
+        if (to_host) mem.CopyOut(pa, host + cursor, chunk);
+        else         mem.CopyIn(pa, host + cursor, chunk);
+        cursor += chunk;
+        left   -= chunk;
+    }
+}

@@ -33,6 +33,7 @@ namespace Log {
         X(SocRtc,      "SOC_RTC",     "any SoC real-time clock")                    \
         X(SocNand,     "SOC_NAND",    "any SoC NAND flash controller")              \
         X(SocReset,    "SOC_RESET",   "any SoC reset controller")                   \
+        X(UsbOtg,      "USB_OTG",     "USB OTG host/device controller")             \
         X(Lcd,         "LCD",         "host display window + per-SoC LCD ctrl")     \
         X(Pcmcia,      "PCMCIA",      "board-level PCMCIA bus controller (PD6710)") \
         X(Trace,       "TRACE",       "TraceManager + device-specific trace files") \

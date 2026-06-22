@@ -7,7 +7,7 @@
 #include <vector>
 
 /* The `.sec` packs partitions by size, but the device NAND holds them
-   block-aligned at cumulative 512 KB StartBlocks — a linear `.sec` map feeds the
+   block-aligned at cumulative 512 KB StartBlocks - a linear `.sec` map feeds the
    stub's block-1 scan the wrong bytes. Placement = the flasher's own algorithm
    (staged_80040000.bin sub_800593c0 + DPS_Write 0x800582FC), verified vs `.sec`. */
 class Imx51NandLayout : public Service {
@@ -21,39 +21,30 @@ public:
        (erased, 0xFF) region: past a module's data, or an unmapped block. */
     std::optional<uint64_t> PhysToSec(uint64_t phys_off) const;
 
-    /* SBOOT scans the last device blocks for a DPS (Device Persistent Storage)
-       manifest the flasher wrote there (DPS_Read 0x8FF0DFBC / OldDPSRead 0x8FF0CAB8);
-       the `.sec` carries none, so CERF synthesizes it in the new format — else SBOOT
-       reads it as old, tries to rewrite it (DPS_Write), and the read-only `.sec` NAND
-       cannot service the write. */
+    /* RAW (pre-NFC-BBI-swap) factory page for the nand.img seed: boot region from
+       the `.sec`, plus the synthesized BBT/DPS. Returns false for the OS region
+       (left erased 0xFF for the guest flasher) - returning true there would pre-fill
+       the OS so the IPL boots a stale image and the flasher never runs. */
+    bool BuildFactoryPage(uint64_t phys_off, uint8_t* main, size_t main_len,
+                          uint8_t* spare, size_t spare_len) const;
+
+    uint64_t OsRegionStartBlock() const { return os_sig_block_; }
+    uint64_t DeviceBlocks() const { return device_blocks_; }
+
+    /* DPS manifest SBOOT reads from the tail blocks (DPS_Read 0x8FF0DFBC); the
+       `.sec` carries none. Synthesize it new-format - else SBOOT reads it as old
+       and issues DPS_Write to upgrade, which the read-only `.sec` NAND cannot
+       service (boot wedges). */
     bool IsDpsOffset(uint64_t phys_off) const;
     void BuildDpsPage(uint64_t phys_off, uint8_t* main, size_t main_len,
                       uint8_t* spare, size_t spare_len) const;
 
-    /* SBOOT's DPS_ReadBadBlockTable (Bootloader.bin 0x8FF0D7D0) scans the tail
-       blocks for a Bad Block Table (signature 0xB041D283); finding none it erases
-       a block to create one, which the read-only `.sec` cannot service. The
-       factory BBT is a per-chip map absent from the `.sec`, so CERF synthesizes an
-       empty (no-bad-block) one. */
+    /* SBOOT's DPS_ReadBadBlockTable (0x8FF0D7D0) scans the tail blocks for a BBT
+       (sig 0xB041D283); finding none it ERASES one - which the read-only `.sec`
+       NAND cannot service. Synthesize an empty (no-bad-block) BBT to avoid that. */
     bool IsBbtBlock(uint64_t phys_off) const;
     void BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main_len,
                       uint8_t* spare, size_t spare_len) const;
-
-    /* SBOOT's image-6 loader (Bootloader.bin 0x8FF0C1E8) reads the id-6 StartBlock
-       as block N="BADT", N+1="MSFLSH60" (the loader's own memcmp constants
-       @0x8FF03688), N+2.. = NK ECEC; the `.sec` lacks this OS layout, so synthesize
-       the two sigs and remap the NK blocks to the id-7 `.sec` image (ECEC at +0x40). */
-    bool IsOsBootSigBlock(uint64_t phys_off) const;
-    void BuildOsBootSigPage(uint64_t phys_off, uint8_t* main, size_t main_len,
-                            uint8_t* spare, size_t spare_len) const;
-
-    /* The FAL master scan (sub_C09A33B0) reads physical block 0 page 0 and requires
-       "BADT"@0; it is the only guest reader there (boot ROM reads flash 0x4000, SBOOT
-       reads the DPS at the tail), so CERF serves the synthesized master here. */
-    bool IsFalMasterBlock(uint64_t phys_off) const;
-    void BuildFalMasterPage(uint64_t phys_off, uint8_t* main, size_t main_len,
-                            uint8_t* spare, size_t spare_len) const;
-
 
 private:
     struct Part {
@@ -68,9 +59,9 @@ private:
     std::vector<Part> parts_;
     uint64_t          device_blocks_ = 0;
 
-    uint64_t os_sig_block_ = 0;   /* id-6 StartBlock = loader's "BADT" block */
-    uint64_t nk_sec_off_   = 0;   /* id-7 NK `.sec` offset (ECEC at +0x40)   */
-    uint64_t nk_blocks_    = 0;   /* id-7 NK block span                      */
+    uint64_t os_sig_block_ = 0;   /* id-6 StartBlock = OS-region start          */
+    uint64_t nk_sec_off_   = 0;   /* id-7 NK `.sec` offset (ECEC at +0x40)      */
+    uint64_t nk_blocks_    = 0;   /* id-7 NK block span                         */
 
     /* 512 KB block (flash-0x0 config header +0x58; MCIMX51RM Table 9-3, S10). */
     static constexpr uint64_t kBlock = 0x80000u;
