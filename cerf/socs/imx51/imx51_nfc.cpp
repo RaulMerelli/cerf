@@ -62,15 +62,19 @@ constexpr uint32_t kIpcRbB  = 1u << 28;
 constexpr uint32_t kIpcCack = 1u << 1;
 constexpr uint32_t kIpcCreq = 1u << 0;
 
-constexpr uint8_t  kNandCmdReadStart = 0x00u;
-constexpr uint8_t  kNandCmdReadId    = 0x90u;
+constexpr uint8_t  kNandCmdReadStart    = 0x00u;
+constexpr uint8_t  kNandCmdReadConfirm  = 0x30u;
+constexpr uint8_t  kNandCmdReadCacheSeq = 0x31u;   /* NAND Read Cache Sequential */
+constexpr uint8_t  kNandCmdReadCacheEnd = 0x3Fu;   /* NAND Read Cache End (last page) */
+constexpr uint8_t  kNandCmdReadId       = 0x90u;
+constexpr uint8_t  kNandCmdReadStatus   = 0x70u;   /* NAND READ STATUS */
+constexpr uint8_t  kNandCmdReset        = 0xFFu;   /* NAND RESET */
 
 constexpr uint32_t kMainPageBytes = 0x1000u;
 
-/* READ ID (0x90) response. mfr 0x2C (Micron) + device 0x48 (the 2 GB 4 KB-page
-   512 KB-block part matching Imx51NandLayout) are grounded from SBOOT's own
-   media-ID table at Bootloader.bin 0x8FF0A94C, which matches on these two bytes;
-   the extended-ID geometry bytes are unused by SBOOT and stay 0. */
+/* READ ID (0x90): byte 0 = 0x2C = Micron (MT29F datasheet Table 7); byte 1 = 0x48
+   = the device ID the Sync2 board's NAND reports (board identity like the OAT, not
+   an MT29F2G08 value 0xAA/0xBA/0xDA/0xCA); SBOOT matches READ-ID against its media table. */
 constexpr std::array<uint8_t, 5> kReadIdBytes = {0x2Cu, 0x48u, 0x00u, 0x00u, 0x00u};
 
 /* Decode the five NAND address cycles (little-endian [col_lo, col_hi, row_lo,
@@ -185,10 +189,31 @@ void Imx51Nfc::NfcWrite(uint32_t addr, uint32_t value, uint32_t width) {
 void Imx51Nfc::Launch(uint32_t value) {
     launch_ = value;
     if (value & kLaunchFcmd) {
-        /* A read-setup (0x00) or READ-ID (0x90) command starts a fresh address
-           cycle; a read-confirm command (0x30) keeps the loaded address bytes. */
-        if (nand_cmd_ == kNandCmdReadStart || nand_cmd_ == kNandCmdReadId)
-            addr_idx_ = 0;
+        switch (nand_cmd_) {
+            case kNandCmdReadStart:        /* read-setup / read-id start a fresh */
+            case kNandCmdReadId:           /* address cycle                       */
+                addr_idx_ = 0;
+                break;
+            case kNandCmdReadConfirm:      /* read-confirm keeps the loaded address */
+            case kNandCmdReadStatus:       /* READ STATUS: command-input only; the   */
+                break;                     /* FDO=100 phase outputs the status byte  */
+            case kNandCmdReadCacheSeq:
+                seq_cache_off_ = seq_data_off_;
+                seq_data_off_ += kMainPageBytes;
+                break;
+            case kNandCmdReadCacheEnd:
+                seq_cache_off_ = seq_data_off_;
+                break;
+            case kNandCmdReset:            /* RESET: return to read mode, drop any */
+                addr_idx_      = 0;        /* in-progress address cycle + Read-Cache */
+                seq_data_off_  = 0;        /* sequence                              */
+                seq_cache_off_ = 0;
+                break;
+            default:
+                LOG(Caution, "Imx51Nfc: unhandled FCMD NAND_CMD=0x%02X (LAUNCH 0x%08X)\n",
+                    nand_cmd_, value);
+                CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
         int_pending_ = true;
         return;
     }
@@ -246,18 +271,18 @@ void Imx51Nfc::FillPageBuffer(uint64_t flash_off) {
     emu_.Get<Imx51NandStore>().ReadPage(flash_off, page.data(), spare_.data());
     /* Factory BBI is in the NFC main page (NXP AN_MX_NAND_BAD_BLOCK §3: read at
        main[0xF4A]); present 0xFF and displace the stored byte to spare, else the FMD
-       bad-block check (0x8FF0A494, reads main[0xF4A]) marks every block bad. */
+       bad-block check (which reads main[0xF4A]) marks every block bad. */
     std::swap(page[0xF4Au], spare_[0x1C1u]);
     emu_.Get<EmulatedMemory>().CopyIn(kAxiBase, page.data(), page.size());
 }
 
 void Imx51Nfc::ReadPage() {
-    const uint64_t off = FlashOffset();
-    FillPageBuffer(off);
+    const bool cache = (nand_cmd_ == kNandCmdReadCacheSeq || nand_cmd_ == kNandCmdReadCacheEnd);
+    FillPageBuffer(cache ? seq_cache_off_ : FlashOffset());
 }
 
 void Imx51Nfc::AutoRead() {
-    /* AUTO_READ: full page-read into the internal RAM buffer (MCIMX51RM §45.9.1.3).
+    /* AUTO_READ: full page-read into the internal RAM buffer (MCIMX51RM §45.9.1.2).
        A 4 KB page forces RBA=000 (NFC_CONFIGURATION1, Table 45-26), so the page
        lands at the AXI buffer base; a non-000 RBA would need a sub-buffer offset. */
     const uint32_t iterations = (cfg1_ >> 8) & 0xFu;
@@ -275,13 +300,14 @@ void Imx51Nfc::AutoRead() {
     addr_bytes_[3] = static_cast<uint8_t>(nand_add_[0] >> 24);
     addr_bytes_[4] = static_cast<uint8_t>(nand_add_[8]);
     addr_idx_      = static_cast<uint32_t>(addr_bytes_.size());
-    FillPageBuffer(AutoFlashOffset());
+    seq_data_off_  = AutoFlashOffset();   /* start page for a following Read-Cache sequence */
+    FillPageBuffer(seq_data_off_);
 }
 
 void Imx51Nfc::AutoProg() {
-    /* AUTO_PROG (LAUNCH_NFC bit 6, MCIMX51RM Table 45-29): program the NFC main
-       buffer + spare to the addressed page (NAND_ADDRESS0, same group as AUTO_READ).
-       Runtime-grounded: SBOOT's flasher issues LAUNCH=0x40 cmd=0x80 to write here. */
+    /* AUTO_PROG (LAUNCH_NFC bit 6, MCIMX51RM §45.9.1.1 + Table 45-29): program the
+       NFC buffer to the addressed page (NAND_ADDRESS0 group). NAND command = PROGRAM
+       PAGE 0x80/0x10 (Micron MT29F datasheet Table 5). */
     std::array<uint8_t, kMainPageBytes> page{};
     emu_.Get<EmulatedMemory>().CopyOut(kAxiBase, page.data(), page.size());
     /* Inverse of the ReadPage factory-BBI swap (NXP AN §3): the guest prepared the
@@ -292,10 +318,10 @@ void Imx51Nfc::AutoProg() {
 }
 
 void Imx51Nfc::AutoErase() {
-    /* AUTO_ERASE (LAUNCH_NFC bit 9, MCIMX51RM Table 45-29; NAND_CMD=0xD060). SBOOT's
-       erase primitive sub_80056244 writes the block's first-page row address
-       (pages_per_block * block) to NAND_ADD0, so the block byte offset = NAND_ADD0
-       << 12 (4 KB page) - a pure row address, unlike the read's column+row. */
+    /* AUTO_ERASE (LAUNCH_NFC bit 9, MCIMX51RM §45.9.1.3 + Table 45-29): NAND command
+       = ERASE BLOCK 0x60/0xD0 (Micron MT29F datasheet Table 5), which takes 3 address
+       cycles = a pure row (block) address with no column, so the block byte offset =
+       NAND_ADD0 << 12 (4 KB page). */
     emu_.Get<Imx51NandStore>().EraseBlock(static_cast<uint64_t>(nand_add_[0]) << 12);
 }
 
@@ -316,11 +342,12 @@ void Imx51Nfc::ReadId() {
 }
 
 void Imx51Nfc::ReadStatus() {
-    /* NAND READ STATUS (cmd 0x70, FDO=100): SBOOT's sub_800550E0 launches FDO=100
-       then reads BYTE2 of cfg1 (0x1E34); its caller sub_80056DBC treats bit0 as
-       FAIL. Store writes/erases always succeed -> report ready+pass (RDY|WP_n, bit0=0). */
-    constexpr uint32_t kStatusReadyPass = 0xC0u;
-    cfg1_ = (cfg1_ & ~0x00FF0000u) | (kStatusReadyPass << 16);
+    /* FDO=100 status output (MCIMX51RM §45.9.2.7 Fig 45-46): present the last NAND
+       status in NFC_CONFIGURATION1.NF_STATUS [23:16] (Table 45-26). Emulated NAND is
+       always ready + pass -> Micron MT29F idle status (datasheet Table 15): SR7 WP_n=1,
+       SR6 RDY=1, SR5 ARDY=1, SR0 FAIL=0 = 0xE0. */
+    constexpr uint32_t kNandStatusReadyPass = 0xE0u;
+    cfg1_ = (cfg1_ & ~0x00FF0000u) | (kNandStatusReadyPass << 16);
 }
 
 void Imx51Nfc::SaveState(StateWriter& w) {
@@ -341,6 +368,8 @@ void Imx51Nfc::SaveState(StateWriter& w) {
     w.Write<uint8_t>(creq_ ? 1 : 0);
     w.WriteBytes(addr_bytes_.data(), addr_bytes_.size());
     w.Write(addr_idx_);
+    w.Write(seq_data_off_);
+    w.Write(seq_cache_off_);
 }
 
 void Imx51Nfc::RestoreState(StateReader& r) {
@@ -362,4 +391,6 @@ void Imx51Nfc::RestoreState(StateReader& r) {
     r.Read(b); creq_ = b != 0;
     r.ReadBytes(addr_bytes_.data(), addr_bytes_.size());
     r.Read(addr_idx_);
+    r.Read(seq_data_off_);
+    r.Read(seq_cache_off_);
 }

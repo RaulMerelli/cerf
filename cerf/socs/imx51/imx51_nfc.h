@@ -63,4 +63,7 @@ private:
 
     std::array<uint8_t, 5> addr_bytes_{};
     uint32_t addr_idx_ = 0;
+
+    uint64_t seq_data_off_  = 0;   /* NAND Read-Cache: page being loaded */
+    uint64_t seq_cache_off_ = 0;   /* NAND Read-Cache: page served by the next data-output */
 };
