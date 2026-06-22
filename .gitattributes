@@ -1,7 +1,29 @@
 ###############################################################################
-# Set default behavior to automatically normalize line endings.
+# Line endings: store LF in the repo AND check out LF on every platform.
+# eol=lf overrides each developer's core.autocrlf, so a fresh clone with
+# autocrlf=true still gets LF working-tree files - no CRLF<->LF churn ever.
 ###############################################################################
-* text=auto
+* text=auto eol=lf
+
+###############################################################################
+# Binary files - never run EOL normalization on these.
+###############################################################################
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.bmp  binary
+*.bin  binary
+*.nb0  binary
+*.pdb  binary
+*.wad  binary
+*.zip  binary
+*.exe  binary
+*.dll  binary
+*.lib  binary
+*.wav  binary
+*.ttf  binary
 
 ###############################################################################
 # Set default behavior for command prompt diff.
