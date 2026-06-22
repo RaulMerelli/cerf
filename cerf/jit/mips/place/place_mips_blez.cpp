@@ -5,12 +5,12 @@
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
 
-/* BEQ rs, rt, offset : conditional branch, taken if the full 64-bit gpr[rs] ==
-   gpr[rt]; the delay slot runs regardless. */
-uint8_t* PlaceMipsBeq(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
+/* BLEZ rs, offset : conditional branch, taken if (int64)gpr[rs] <= 0; the delay
+   slot runs regardless. */
+uint8_t* PlaceMipsBlez(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     const uint32_t soff = static_cast<uint32_t>(static_cast<int32_t>(
                               static_cast<int16_t>(d->imm)));
     const uint32_t btgt = d->guest_address + 4u + (soff << 2);
-    mips_emit::EmitBranchCondEq(cursor, d->rs, d->rt, btgt, /*take_if_equal=*/true);
+    mips_emit::EmitBranchCondLez(cursor, d->rs, btgt);
     return cursor;
 }

@@ -9,8 +9,19 @@
    (place_fn) from the decoded fields. */
 class MipsDecoder {
 public:
-    /* Returns false for an opcode outside the MIPS IV integer set this kernel
-       uses (COP1/FPU included, since the soft-float build never enables CU1) -
-       the engine then raises Reserved/Coprocessor-Unusable. */
+    /* Capability gates from MipsProcessorConfig (set once in MipsJit::OnReady);
+       instruction recognition is config-driven, not hardcoded. */
+    void Configure(bool has_fpu, bool has_llsc) {
+        has_fpu_  = has_fpu;
+        has_llsc_ = has_llsc;
+    }
+
+    /* Returns false for an opcode the running CPU does not implement (COP1 when
+       !HasFpu, LL/SC when !HasLlsc, or a reserved encoding) - the engine then
+       raises Reserved/Coprocessor-Unusable for it. */
     bool Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d);
+
+private:
+    bool has_fpu_  = false;
+    bool has_llsc_ = false;
 };

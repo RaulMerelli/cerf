@@ -4,10 +4,37 @@
 
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../peripherals/peripheral_dispatcher.h"
 
 /* MipsJit guest-memory-access helpers the JIT-emitted code CALLs: translate the
    effective address (kseg fold / software TLB) then load or store, including the
    unaligned LWL / SWL / SWR / SDL / SDR byte merges. */
+
+uint32_t MipsJit::MmioRead(uint32_t pa, uint32_t width, const char* who) {
+    if (peripheral_->IsPeripheralAddress(pa)) {
+        switch (width) {
+            case 1:  return peripheral_->ReadByte(pa);
+            case 2:  return peripheral_->ReadHalf(pa);
+            default: return peripheral_->ReadWord(pa);
+        }
+    }
+    LOG(Caution, "%s: unmapped MMIO read pa=0x%08X (no peripheral registered)\n",
+        who, pa);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
+void MipsJit::MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char* who) {
+    if (peripheral_->IsPeripheralAddress(pa)) {
+        switch (width) {
+            case 1:  peripheral_->WriteByte(pa, static_cast<uint8_t>(value));  return;
+            case 2:  peripheral_->WriteHalf(pa, static_cast<uint16_t>(value)); return;
+            default: peripheral_->WriteWord(pa, value);                        return;
+        }
+    }
+    LOG(Caution, "%s: unmapped MMIO write pa=0x%08X val=0x%08X (no peripheral "
+        "registered)\n", who, pa, value);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
 
 void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* jit) {
     if (va & 3u) {                        /* SW requires a 4-byte-aligned EA */
@@ -28,9 +55,7 @@ void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* j
         std::memcpy(host, &value, sizeof(value));
         return;
     }
-    LOG(Caution, "MipsJit::StoreWordHelper: MMIO write va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    jit->MmioWrite(pa, value, 4, "MipsJit::StoreWordHelper");
 }
 
 void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* jit) {
@@ -53,9 +78,7 @@ void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* j
         std::memcpy(host, &h, sizeof(h));
         return;
     }
-    LOG(Caution, "MipsJit::StoreHalfHelper: MMIO write va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    jit->MmioWrite(pa, value, 2, "MipsJit::StoreHalfHelper");
 }
 
 void __fastcall MipsJit::StoreByteHelper(uint32_t va, uint32_t value, MipsJit* jit) {
@@ -82,9 +105,7 @@ uint32_t __fastcall MipsJit::LoadWordHelper(uint32_t va, MipsJit* jit) {
         std::memcpy(&value, host, sizeof(value));
         return value;
     }
-    LOG(Caution, "MipsJit::LoadWordHelper: MMIO read va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    return jit->MmioRead(pa, 4, "MipsJit::LoadWordHelper");
 }
 
 uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
@@ -100,9 +121,30 @@ uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         return *host;
     }
-    LOG(Caution, "MipsJit::LoadByteHelper: MMIO read va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    return jit->MmioRead(pa, 1, "MipsJit::LoadByteHelper");
+}
+
+uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
+    if (va & 1u) {                        /* LH/LHU require a 2-byte-aligned EA */
+        LOG(Caution, "MipsJit::LoadHalfHelper: misaligned LH va=0x%08X "
+                "(AdEL exception delivery not yet implemented)\n", va);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    uint32_t pa = 0;
+    const MipsTlbResult r =
+        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
+    if (r != MipsTlbResult::kMatch) {
+        LOG(Caution, "MipsJit::LoadHalfHelper: TLB result %d on read va=0x%08X "
+                "(CP0 exception delivery not yet implemented)\n",
+                static_cast<int>(r), va);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
+        uint16_t value = 0;
+        std::memcpy(&value, host, sizeof(value));
+        return value;                     /* zero-extended into the uint32 return */
+    }
+    return jit->MmioRead(pa, 2, "MipsJit::LoadHalfHelper");
 }
 
 uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
@@ -125,8 +167,11 @@ uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
         std::memcpy(&value, host, sizeof(value));
         return value;
     }
-    LOG(Caution, "MipsJit::LoadDwordHelper: MMIO read va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
+    if (jit->peripheral_->IsPeripheralAddress(pa)) {
+        return jit->peripheral_->ReadDword(pa);
+    }
+    LOG(Caution, "MipsJit::LoadDwordHelper: unmapped MMIO read va=0x%08X pa=0x%08X "
+            "(no peripheral registered)\n", va, pa);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
@@ -141,9 +186,8 @@ void MipsJit::StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
     }
     uint8_t* host = jit->memory_->TryTranslateWrite(pa);
     if (!host) {
-        LOG(Caution, "%s: unwritable/MMIO byte va=0x%08X pa=0x%08X "
-                "(MMIO dispatch not yet implemented)\n", who, va, pa);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->MmioWrite(pa, value, 1, who);
+        return;
     }
     *host = value;
 }
@@ -226,7 +270,11 @@ void __fastcall MipsJit::StoreDwordHelper(uint32_t va, uint32_t rt, MipsJit* jit
         std::memcpy(host, &jit->cpu_state_.gpr[rt], sizeof(uint64_t));
         return;
     }
-    LOG(Caution, "MipsJit::StoreDwordHelper: MMIO write va=0x%08X pa=0x%08X "
-            "(peripheral MMIO dispatch not yet implemented)\n", va, pa);
+    if (jit->peripheral_->IsPeripheralAddress(pa)) {
+        jit->peripheral_->WriteDword(pa, jit->cpu_state_.gpr[rt]);
+        return;
+    }
+    LOG(Caution, "MipsJit::StoreDwordHelper: unmapped MMIO write va=0x%08X pa=0x%08X "
+            "(no peripheral registered)\n", va, pa);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }

@@ -5,17 +5,19 @@
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
 #include "../../x86_emit.h"
+#include "../mips_jit.h"
+#include "../../cpu/mips_processor_config.h"
 
 /* MFC0 rt, rd : gpr[rt] = sext64(cp0[rd]) - a 32-bit CP0 read sign-extended to
    64 bits (QEMU translate.c gen_mfc0_load32: ext_i32_tl), sel 0. An unmodelled
-   rd or sel != 0 routes to the loud stub. */
+   or SoC-absent rd (or sel != 0) routes to the loud stub. */
 uint8_t* PlaceMipsMfc0(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx) {
     using namespace x86;
     if ((d->raw & 0x7u) != 0u) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     const int32_t off = Cp0RegOffset(d->rd);
-    if (off < 0) {
+    if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     if (d->rt == 0) {

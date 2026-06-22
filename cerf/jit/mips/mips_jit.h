@@ -15,6 +15,7 @@
 
 class EmulatedMemory;
 class PeripheralDispatcher;
+class MipsProcessorConfig;
 
 class MipsJit : public GuestEngine {
 public:
@@ -41,9 +42,15 @@ public:
        loud-fatals until CP0 Integer Overflow exception delivery exists. */
     static void __cdecl ArithOverflowHelper(MipsJit* jit, uint32_t pc);
 
-    /* TlbwiHelper: write the CP0_Index-selected software-TLB entry from EntryHi/
-       EntryLo0/EntryLo1/PageMask (the TLBWI instruction). __fastcall: jit in ECX. */
+    /* TLBWI: drive the indexed software-TLB write (and its JIT block-cache
+       invalidation) via MipsMmu::WriteIndexed. __fastcall: jit in ECX. */
     static void __fastcall TlbwiHelper(MipsJit* jit);
+
+    /* After a delay slot: set pc from branch_state/btarget/bcond, clear it, and
+       return 1 (resolved) / 0 (branch_state was kNone, so a normally-entered
+       block's insn[0] continues). QEMU gen_branch. __fastcall: fallthrough VA in
+       ECX, jit in EDX. */
+    static int __fastcall ResolveBranchHelper(uint32_t fallthrough, MipsJit* jit);
 
     void     Run() override;
     bool     DeepSleep()    const override { return cpu_state_.deep_sleep != 0; }
@@ -75,6 +82,11 @@ public:
        place fn sign- or zero-extends per LB/LBU. Bytes are always aligned.
        __fastcall: VA in ECX, jit in EDX. */
     static uint32_t __fastcall LoadByteHelper(uint32_t va, MipsJit* jit);
+
+    /* LoadHalfHelper returns mem[EA] (the raw 16-bit halfword) zero-extended in
+       EAX; the place fn sign- or zero-extends per LH/LHU. EA must be 2-aligned.
+       __fastcall: VA in ECX, jit in EDX. */
+    static uint32_t __fastcall LoadHalfHelper(uint32_t va, MipsJit* jit);
 
     /* LwlHelper: unaligned load-word-left - merge the aligned word at va&~3 into
        gpr[rt]'s high bytes (keep the low), sign-extend. __fastcall: VA=ECX,
@@ -114,6 +126,7 @@ public:
     MipsMmu*     Mmu()        { return &mmu_; }
     MipsDecoder* Decoder()    { return &decoder_; }
     PeripheralDispatcher* Peripheral() { return peripheral_; }
+    MipsProcessorConfig*  CpuConfig()  { return cpu_config_; }
 
     std::mutex& InterruptLock() { return interrupt_lock_; }
     void SetInterruptPending();
@@ -134,8 +147,9 @@ private:
     MipsMmu         mmu_;
     MipsDecoder     decoder_;
 
-    EmulatedMemory*       memory_     = nullptr;
-    PeripheralDispatcher* peripheral_ = nullptr;
+    EmulatedMemory*       memory_      = nullptr;
+    PeripheralDispatcher* peripheral_  = nullptr;
+    MipsProcessorConfig*  cpu_config_  = nullptr;
 
     void*       idle_event_ = nullptr;
     std::mutex  interrupt_lock_;
@@ -152,9 +166,11 @@ private:
     static void StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
                                const char* who);
 
-    /* Drop JIT block-cache shortcuts for the valid VA pages of a replaced TLB
-       entry (QEMU r4k_invalidate_tlb -> tlb_flush_page, tlb_helper.c:1378). */
-    void InvalidateBlockCacheForTlbEntry(const MipsTlbEntry& old);
+    /* Route a guest access whose PA is not RAM-backed to the peripheral MMIO
+       dispatcher (width = 1/2/4 bytes); loud-fatal when no peripheral claims
+       the PA (truly unmapped). `who` tags the diagnostic. */
+    uint32_t MmioRead (uint32_t pa, uint32_t width, const char* who);
+    void     MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char* who);
     int   LocateEntrypoints();
     void  JitCreateEntrypoints(JitBlock* containing_block, uint8_t* prefix_slab);
     size_t JitGenerateCode(uint8_t* code_location, int entrypoint_count);

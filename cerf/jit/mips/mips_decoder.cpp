@@ -103,6 +103,15 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
             d->is_likely = 1;
             return true;
 
+        /* CP1 (FPU) coprocessor: present iff the SoC has an FPU. On a no-FPU /
+           soft-float build COP1 is a Reserved/Coprocessor-Unusable encoding. */
+        case MipsOp::kCOP1:
+            return has_fpu_;
+
+        /* LL / SC atomics: present iff the SoC implements them. */
+        case MipsOp::kLL:    case MipsOp::kSC:
+            return has_llsc_;
+
         /* I-type ALU + load/store + cache hint. */
         case MipsOp::kADDI:  case MipsOp::kADDIU:
         case MipsOp::kDADDIU:
@@ -111,14 +120,14 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kXORI:  case MipsOp::kLUI:
         case MipsOp::kLB:    case MipsOp::kLH:    case MipsOp::kLWL:
         case MipsOp::kLW:    case MipsOp::kLBU:   case MipsOp::kLHU:
-        case MipsOp::kLWR:   case MipsOp::kSB:    case MipsOp::kSH:
+        case MipsOp::kLWR:   case MipsOp::kLWU:   case MipsOp::kSB:    case MipsOp::kSH:
         case MipsOp::kSWL:   case MipsOp::kSW:    case MipsOp::kSWR:
         case MipsOp::kSDL:   case MipsOp::kSDR:
-        case MipsOp::kLD:    case MipsOp::kLL:    case MipsOp::kSC:    case MipsOp::kSD:
+        case MipsOp::kLD:    case MipsOp::kSD:
         case MipsOp::kCACHE: case MipsOp::kPREF:
             return true;
 
         default:
-            return false;   /* incl. COP1 (FPU): soft-float, CU1 never set */
+            return false;   /* reserved encoding for this CPU */
     }
 }

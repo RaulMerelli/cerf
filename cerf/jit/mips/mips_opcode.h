@@ -38,6 +38,7 @@ namespace MipsOp {            /* major opcode, bits 31..26 */
     constexpr uint32_t kLBU     = 0x24;
     constexpr uint32_t kLHU     = 0x25;
     constexpr uint32_t kLWR     = 0x26;
+    constexpr uint32_t kLWU     = 0x27;   /* load word unsigned (MIPS III/64, zero-extend) */
     constexpr uint32_t kSB      = 0x28;
     constexpr uint32_t kSH      = 0x29;
     constexpr uint32_t kSWL     = 0x2A;

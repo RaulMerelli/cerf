@@ -1,19 +1,16 @@
 #include "../mips_place_fns.h"
 
-#include <cstddef>
 #include <cstdint>
 
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
 
-/* BLTZ rs, offset: branch if (int64)gpr[rs] < 0 (delay slot runs regardless). */
+/* BLTZ rs, offset : conditional branch, taken if (int64)gpr[rs] < 0; the delay
+   slot runs regardless. */
 uint8_t* PlaceMipsBltz(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
-    const int32_t  pc_off = static_cast<int32_t>(offsetof(MipsCpuState, pc));
     const uint32_t soff = static_cast<uint32_t>(static_cast<int32_t>(
                               static_cast<int16_t>(d->imm)));
     const uint32_t btgt = d->guest_address + 4u + (soff << 2);
-    const uint32_t fall = d->guest_address + 8u;
-    mips_emit::EmitSignBranch64(cursor, d->rs, btgt, fall, pc_off,
-                                /*take_if_negative=*/true);
+    mips_emit::EmitBranchCondSign(cursor, d->rs, btgt, /*take_if_neg=*/true);
     return cursor;
 }

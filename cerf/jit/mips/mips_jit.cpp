@@ -9,6 +9,7 @@
 
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../cpu/mips_processor_config.h"
 #include "../../boards/page_table_builder.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -54,7 +55,12 @@ MipsPlaceFn SelectPlaceFn(const MipsDecodedInsn* d) {
         case MipsOp::kLWL:   return &PlaceMipsLwl;
         case MipsOp::kSWL:   return &PlaceMipsSwl;
         case MipsOp::kLB:    return &PlaceMipsLb;
+        case MipsOp::kLHU:   return &PlaceMipsLhu;
+        case MipsOp::kLBU:   return &PlaceMipsLbu;
+        case MipsOp::kLWU:   return &PlaceMipsLwu;
         case MipsOp::kBGTZ:  return &PlaceMipsBgtz;
+        case MipsOp::kBLEZ:  return &PlaceMipsBlez;
+        case MipsOp::kPREF:  return &PlaceMipsNop;   /* prefetch hint: NOP (QEMU OPC_PREF translate.c:14676) */
         case MipsOp::kREGIMM:
             if (d->rt == MipsRegimm::kBLTZ)        return &PlaceMipsBltz;
             if (d->rt == MipsRegimm::kBGEZ)        return &PlaceMipsBgez;
@@ -65,13 +71,19 @@ MipsPlaceFn SelectPlaceFn(const MipsDecodedInsn* d) {
             if (d->raw == 0u)                      return &PlaceMipsNop;  /* SLL r0,r0,0 */
             if (d->funct == MipsSpecial::kSLL)     return &PlaceMipsSll;
             if (d->funct == MipsSpecial::kSRL)     return &PlaceMipsSrl;
+            if (d->funct == MipsSpecial::kSRA)     return &PlaceMipsSra;
             if (d->funct == MipsSpecial::kSRLV)    return &PlaceMipsSrlv;
+            if (d->funct == MipsSpecial::kSLLV)    return &PlaceMipsSllv;
             if (d->funct == MipsSpecial::kADD)     return &PlaceMipsAdd;
             if (d->funct == MipsSpecial::kADDU)    return &PlaceMipsAddu;
             if (d->funct == MipsSpecial::kSUBU)    return &PlaceMipsSubu;
             if (d->funct == MipsSpecial::kOR)      return &PlaceMipsOr;
             if (d->funct == MipsSpecial::kAND)     return &PlaceMipsAnd;
             if (d->funct == MipsSpecial::kXOR)     return &PlaceMipsXor;
+            if (d->funct == MipsSpecial::kNOR)     return &PlaceMipsNor;
+            if (d->funct == MipsSpecial::kDIVU)    return &PlaceMipsDivu;
+            if (d->funct == MipsSpecial::kMFHI)    return &PlaceMipsMfhi;
+            if (d->funct == MipsSpecial::kMFLO)    return &PlaceMipsMflo;
             if (d->funct == MipsSpecial::kSLTU)    return &PlaceMipsSltu;
             if (d->funct == MipsSpecial::kJR)      return &PlaceMipsJr;
             if (d->funct == MipsSpecial::kJALR)    return &PlaceMipsJalr;
@@ -119,6 +131,23 @@ void MipsJit::OnReady() {
         pg_count = dram.front().size   >> 12;
     }
     blocks_.Initialize(pg_base, pg_count);
+    mmu_.Bind(&blocks_);
+
+    /* Per-SoC CPU silicon facts come from MipsProcessorConfig, not the engine -
+       the MIPS analog of seeding ArmProcessorConfig MIDR / HasX(). */
+    auto& cpu_cfg = emu_.Get<MipsProcessorConfig>();
+    cpu_config_           = &cpu_cfg;
+    cpu_state_.cp0_prid   = cpu_cfg.Prid();
+    cpu_state_.nb_tlb     = cpu_cfg.TlbSize();
+    cpu_state_.tlb_in_use = cpu_state_.nb_tlb;
+
+    /* The decoder implements MIPS ISA IV only. */
+    if (cpu_cfg.IsaLevel() != MipsIsaLevel::kMips4) {
+        LOG(Caution, "MipsJit: unsupported ISA level %u (engine implements MIPS IV)\n",
+            static_cast<uint32_t>(cpu_cfg.IsaLevel()));
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    decoder_.Configure(cpu_cfg.HasFpu(), cpu_cfg.HasLlsc());
 
     idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!idle_event_) {
@@ -211,7 +240,7 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
         uint32_t pa = 0;
         if (mmu_.Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa) !=
             MipsTlbResult::kMatch) {
-            break;  /* TLB/address fault: JitCompile raises the CP0 exception */
+            break;  /* TLB/address fault */
         }
         uint8_t* host = memory_->TryTranslate(pa);
         if (!host) {
@@ -220,8 +249,14 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
 
         uint32_t word;
         std::memcpy(&word, host, sizeof(word));
-        decoder_.Decode(word, guest_pc, &insn);
-        insn.place_fn = SelectPlaceFn(&insn);
+        if (decoder_.Decode(word, guest_pc, &insn)) {
+            insn.place_fn = SelectPlaceFn(&insn);
+        } else {
+            /* Encoding not valid for this CPU's capabilities (COP1 when !HasFpu,
+               LL/SC when !HasLlsc, or a reserved opcode) -> Reserved Instruction.
+               CP0 exception delivery is not yet built, so it surfaces loudly. */
+            insn.place_fn = &PlaceMipsUndefined;
+        }
 
         if (delay_pending) {            /* this insn was the branch's delay slot */
             ++i;
@@ -232,13 +267,10 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
         }
     }
 
-    /* Drop a trailing branch whose delay slot wasn't captured (page end / insn
-       cap / unfetchable slot): JitGenerateCode would treat the block as
-       straight-line and overwrite the branch's pc. It re-heads the next block. */
-    if (i > 0 && block_ctx_.insns[i - 1].is_branch) {
-        --i;
-    }
-
+    /* A trailing branch (page end / cap before its delay slot) is KEPT, not
+       dropped: its place fn set branch_state, the block exits with pc=branch+4,
+       and the carried state resolves in the next block (QEMU DISAS_TOO_MANY +
+       save_cpu_state). Dropping it was the cross-page "decoded 0 insns" defect. */
     block_ctx_.num_insns = i;
 }
 
@@ -276,37 +308,19 @@ void __cdecl MipsJit::ArithOverflowHelper(MipsJit* /* jit */, uint32_t pc) {
 }
 
 void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {
-    const MipsTlbEntry old = jit->mmu_.WriteIndexed(&jit->cpu_state_);
-    jit->InvalidateBlockCacheForTlbEntry(old);
+    jit->mmu_.WriteIndexed(&jit->cpu_state_);
 }
 
-void MipsJit::InvalidateBlockCacheForTlbEntry(const MipsTlbEntry& old) {
-    /* QEMU r4k_invalidate_tlb (tlb_helper.c:1378): skip when the old entry is
-       non-global and its ASID differs from the current EntryHi ASID. */
-    const uint32_t cur_asid = cpu_state_.cp0_entryhi & 0xFFu;
-    const bool global =
-        (old.entry_lo0 & old.entry_lo1 & MipsEntryLo::kGlobal) != 0;
-    if (!global && (old.entry_hi & 0xFFu) != cur_asid) {
-        return;
+int __fastcall MipsJit::ResolveBranchHelper(uint32_t fallthrough, MipsJit* jit) {
+    MipsCpuState& s = jit->cpu_state_;
+    if (s.branch_state == MipsBranch::kNone) {
+        return 0;
     }
-    const uint32_t mask = old.page_mask | 0x1FFFu;      /* PageMask | ~(PAGE_MASK<<1) */
-    const uint32_t vpn  = old.entry_hi & 0xFFFFE000u;   /* VPN2 = EntryHi[31:13] */
-    if (old.entry_lo0 & MipsEntryLo::kValid) {           /* even sub-page (tlb_helper.c:1415) */
-        uint32_t addr = vpn & ~mask;
-        const uint32_t end = addr | (mask >> 1);
-        while (addr < end) {
-            blocks_.JumpCacheClearPage(addr);
-            addr += 0x1000u;
-        }
-    }
-    if (old.entry_lo1 & MipsEntryLo::kValid) {           /* odd sub-page (tlb_helper.c:1428) */
-        uint32_t addr = (vpn & ~mask) | ((mask >> 1) + 1u);
-        const uint32_t end = addr | mask;
-        while (addr - 1u < end) {
-            blocks_.JumpCacheClearPage(addr);
-            addr += 0x1000u;
-        }
-    }
+    s.pc = (s.branch_state == MipsBranch::kCond)
+               ? (s.bcond ? s.btarget : fallthrough)  /* gen_branch BC */
+               : s.btarget;                            /* gen_branch B / BR */
+    s.branch_state = MipsBranch::kNone;
+    return 1;
 }
 
 /* __cdecl(native_pc, state). After the 4 register PUSHes the args sit at
@@ -342,25 +356,46 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
         static_cast<int32_t>(offsetof(MipsCpuState, guest_cycle_counter));
     constexpr int32_t kPcOff =
         static_cast<int32_t>(offsetof(MipsCpuState, pc));
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
+
+    bool terminated = false;  /* a within-block delay-slot resolve emitted the ret */
 
     for (uint32_t i = 0; i < block_ctx_.num_insns; ++i) {
         MipsDecodedInsn& insn = block_ctx_.insns[i];
         EmitAddBaseDisp32Imm8(code_location, kStateReg, kCycleOff, 1);
         code_location = insn.place_fn(code_location, &insn, &block_ctx_);
+
+        if (i > 0 && block_ctx_.insns[i - 1].is_branch) {
+            /* Within-block delay slot (block's last insn): branch_state is pending
+               (set by insns[i-1]); resolve and exit (QEMU gen_branch). */
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEdx, self);
+            EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
+            EmitRetn(code_location, 0);
+            terminated = true;
+            break;  /* nothing executes after a branch's delay slot */
+        }
+        if (i == 0 && !insn.is_branch) {
+            /* insn[0] may be a delay slot entered from a branch in the prior block
+               (branch_state pending). Resolve-if-pending; a normal entry returns 0
+               and the block continues (QEMU delay-slot-entry TB + gen_branch). */
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEdx, self);
+            EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
+            EmitTestRegReg(code_location, kEax, kEax);
+            uint8_t* j_continue = EmitJzLabel(code_location);
+            EmitRetn(code_location, 0);
+            FixupLabel(j_continue, code_location);
+        }
     }
 
-    /* JitDecode ends a block after a branch's delay slot, so a branch-terminated
-       block has the branch at [num-2] (its place fn sets pc). A straight-line
-       block (hit page end / insn cap) needs pc set to the next sequential PC. */
-    const bool branch_terminated =
-        block_ctx_.num_insns >= 2 &&
-        block_ctx_.insns[block_ctx_.num_insns - 2].is_branch;
-    if (!branch_terminated) {
+    if (!terminated) {
         const uint32_t next_pc =
             block_ctx_.insns[block_ctx_.num_insns - 1].guest_address + 4u;
         EmitMovBaseDisp32Imm32(code_location, kStateReg, kPcOff, next_pc);
+        EmitRetn(code_location, 0);
     }
-    EmitRetn(code_location, 0);
 
     return static_cast<size_t>(code_location - start);
 }
+

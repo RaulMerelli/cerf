@@ -116,30 +116,6 @@ inline void EmitRtypeArith64(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t rt,
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprHiOff(rd), x86::kEax);
 }
 
-/* Equality-conditional branch: pc = (gpr[rs]==gpr[rt])==take_if_equal ? btgt
-   : fall. Full 64-bit compare (both halves). Shared by BEQ (take_if_equal=true)
-   and BNE (false); the delay slot is emitted separately by the block. */
-inline void EmitEqBranch64(uint8_t*& c, uint32_t rs, uint32_t rt,
-                           uint32_t btgt, uint32_t fall, int32_t pc_off,
-                           bool take_if_equal) {
-    const uint32_t pc_equal = take_if_equal ? btgt : fall;
-    const uint32_t pc_neq   = take_if_equal ? fall : btgt;
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
-    x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
-    uint8_t* j_neq_lo = x86::EmitJnzLabel(c);
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
-    x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rt));
-    uint8_t* j_neq_hi = x86::EmitJnzLabel(c);
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, pc_off, pc_equal);
-    uint8_t* j_done = x86::EmitJmpLabel(c);
-    uint8_t* neq_label = c;
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, pc_off, pc_neq);
-    uint8_t* done_label = c;
-    x86::FixupLabel(j_neq_lo, neq_label);
-    x86::FixupLabel(j_neq_hi, neq_label);
-    x86::FixupLabel(j_done, done_label);
-}
-
 /* rd = (gpr[rs] < sext64(imm16)) ? 1 : 0, 64-bit compare via SUB low / SBB high
    then a SETcc, result 0/1 (hi=0). setcc_op is the x86 SETcc second opcode byte:
    SETB 0x92 (unsigned <, SLTIU) or SETL 0x9C (signed <, SLTI). No flag-clobbering
@@ -166,26 +142,6 @@ inline void EmitSltImm64(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t imm16,
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, GprHiOff(rd), 0);
 }
 
-/* Sign-conditional branch on the 64-bit sign of gpr[rs] (= bit 31 of rs.hi):
-   BLTZ (take_if_negative=true) takes when negative, BGEZ (false) when
-   non-negative. pc_off is the cpu_state.pc offset; the delay slot is emitted
-   separately by the block. */
-inline void EmitSignBranch64(uint8_t*& c, uint32_t rs, uint32_t btgt, uint32_t fall,
-                             int32_t pc_off, bool take_if_negative) {
-    const uint32_t pc_if_neg    = take_if_negative ? btgt : fall;
-    const uint32_t pc_if_nonneg = take_if_negative ? fall : btgt;
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
-    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
-    uint8_t* j_neg = x86::EmitJsLabel32(c);          /* SF=1 -> rs.hi<0 -> value<0 */
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, pc_off, pc_if_nonneg);
-    uint8_t* j_done = x86::EmitJmpLabel(c);
-    uint8_t* neg_label = c;
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, pc_off, pc_if_neg);
-    uint8_t* done_label = c;
-    x86::FixupLabel32(j_neg, neg_label);
-    x86::FixupLabel(j_done, done_label);
-}
-
 /* Tail of a trapping 32-bit add (ADD / ADDI): EAX holds the result with OF set;
    on signed overflow call overflow_helper, else sign-extend EAX into gpr[dst]
    (no store when dst==0). */
@@ -199,6 +155,114 @@ inline void EmitTrappingArith32Tail(uint8_t*& c, uint32_t dst, void* jit,
     if (dst != 0) {
         EmitStoreGprSextEax(c, dst);
     }
+}
+
+inline int32_t BranchStateOff() { return static_cast<int32_t>(offsetof(MipsCpuState, branch_state)); }
+inline int32_t BtargetOff()     { return static_cast<int32_t>(offsetof(MipsCpuState, btarget)); }
+inline int32_t BcondOff()       { return static_cast<int32_t>(offsetof(MipsCpuState, bcond)); }
+
+/* j/jal: record an unconditional branch to a compile-time target (QEMU
+   gen_compute_branch OPC_J/JAL -> MIPS_HFLAG_B). */
+inline void EmitBranchUncond(uint8_t*& c, uint32_t btarget) {
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kUncond);
+}
+
+/* jr/jalr: btarget = gpr[rs] low 32, read NOW (the delay slot may clobber rs).
+   QEMU gen_compute_branch OPC_JR/JALR gen_load_gpr(btarget, rs) -> MIPS_HFLAG_BR. */
+inline void EmitBranchRegister(uint8_t*& c, uint32_t rs) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BtargetOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kRegister);
+}
+
+/* beq/bne: bcond = (gpr[rs]==gpr[rt]) 64-bit for take_if_equal, else negated,
+   computed NOW (delay slot may clobber rs/rt). QEMU OPC_BEQ/BNE -> MIPS_HFLAG_BC. */
+inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t btarget,
+                             bool take_if_equal) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
+    x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
+    uint8_t* j_neq_lo = x86::EmitJnzLabel(c);
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rt));
+    uint8_t* j_neq_hi = x86::EmitJnzLabel(c);
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 1u : 0u);   /* equal */
+    uint8_t* j_done = x86::EmitJmpLabel(c);
+    uint8_t* neq_label = c;
+    x86::FixupLabel(j_neq_lo, neq_label);
+    x86::FixupLabel(j_neq_hi, neq_label);
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 0u : 1u);   /* not equal */
+    x86::FixupLabel(j_done, c);
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+}
+
+/* bltz/bgez: bcond = sign of the 64-bit gpr[rs] (= hi bit31): take_if_neg for
+   BLTZ, !take_if_neg for BGEZ. QEMU OPC_BLTZ/BGEZ setcondi LT/GE 0. */
+inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
+                               bool take_if_neg) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
+    uint8_t* j_neg = x86::EmitJsLabel32(c);
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 0u : 1u);     /* >= 0 */
+    uint8_t* j_done = x86::EmitJmpLabel(c);
+    uint8_t* neg_label = c;
+    x86::FixupLabel32(j_neg, neg_label);
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 1u : 0u);     /* < 0 */
+    x86::FixupLabel(j_done, c);
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+}
+
+/* bgtz: bcond = (int64)gpr[rs] > 0 (hi>0, or hi==0 && lo!=0). A hi==0 value with
+   lo bit31 set is +2^31 (>0), so the test must not collapse to a 32-bit signed
+   lo>0. QEMU OPC_BGTZ setcondi GT 0. */
+inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
+    uint8_t* j_neg = x86::EmitJsLabel32(c);     /* hi<0 -> value<0 -> not >0 */
+    uint8_t* j_pos = x86::EmitJnzLabel(c);      /* hi>0 -> >0 */
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));  /* hi==0 */
+    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
+    uint8_t* j_lo_nz = x86::EmitJnzLabel(c);    /* lo!=0 -> >0 */
+    uint8_t* nottaken_label = c;
+    x86::FixupLabel32(j_neg, nottaken_label);
+    x86::EmitMovRegImm32(c, x86::kEax, 0u);     /* hi==0 && lo==0 -> ==0 -> not >0 */
+    uint8_t* j_done = x86::EmitJmpLabel(c);
+    uint8_t* taken_label = c;
+    x86::FixupLabel(j_pos, taken_label);
+    x86::FixupLabel(j_lo_nz, taken_label);
+    x86::EmitMovRegImm32(c, x86::kEax, 1u);
+    x86::FixupLabel(j_done, c);
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+}
+
+/* blez: bcond = (int64)gpr[rs] <= 0 (hi<0, or hi==0 && lo==0) - the negation of
+   the bgtz >0 test. QEMU OPC_BLEZ setcondi LE 0. */
+inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
+    uint8_t* j_taken_neg = x86::EmitJsLabel32(c);   /* hi<0 -> value<0 -> <=0 */
+    uint8_t* j_nt_hi = x86::EmitJnzLabel(c);        /* hi>0 -> >0 -> not <=0 */
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));  /* hi==0 */
+    x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
+    uint8_t* j_nt_lo = x86::EmitJnzLabel(c);        /* lo!=0 -> >0 -> not <=0 */
+    uint8_t* taken_label = c;                        /* hi<0 (js) or hi==0 && lo==0 */
+    x86::FixupLabel32(j_taken_neg, taken_label);
+    x86::EmitMovRegImm32(c, x86::kEax, 1u);
+    uint8_t* j_done = x86::EmitJmpLabel(c);
+    uint8_t* nt_label = c;
+    x86::FixupLabel(j_nt_hi, nt_label);
+    x86::FixupLabel(j_nt_lo, nt_label);
+    x86::EmitMovRegImm32(c, x86::kEax, 0u);
+    x86::FixupLabel(j_done, c);
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
 }
 
 }  // namespace mips_emit

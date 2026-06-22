@@ -23,6 +23,8 @@ namespace MipsCp0 {
     constexpr uint32_t kEPC      = 14;
     constexpr uint32_t kPRId     = 15;
     constexpr uint32_t kConfig   = 16;
+    constexpr uint32_t kWatchLo  = 18;
+    constexpr uint32_t kWatchHi  = 19;
     constexpr uint32_t kErrorEPC = 30;
 }
 
@@ -49,20 +51,35 @@ namespace MipsCauseBit {
     constexpr uint32_t kExcCode = 2;  /* exception code = bits 2..6 */
 }
 
-/* One R4000-style TLB entry maps a VPN2 pair to two physical pages (even
- * page via entry_lo0, odd via entry_lo1). Source: VR5500 software-TLB +
- * QEMU r4k_tlb_t; CE OAL tlb.s programs entry via entryhi/entrylo0/entrylo1
- * + index then tlbwi. */
+constexpr uint32_t kMipsNumGpr     = 32;
+
+/* Branch/delay-slot carry type. Mirrors QEMU hflags branch field (cpu.h
+   MIPS_HFLAG_B/BC/BR :1151-1153): a branch records its kind here, the delay slot
+   runs, then the resolve sets pc. kLikely (BL) / register-exchange (BX) are not
+   reached on this soft-float VR5500 build and route to the loud stub. */
+namespace MipsBranch {
+    constexpr uint32_t kNone     = 0;
+    constexpr uint32_t kUncond   = 1;  /* MIPS_HFLAG_B  - j / jal / always-taken */
+    constexpr uint32_t kCond     = 2;  /* MIPS_HFLAG_BC - beq/bne/bgtz/bltz/bgez */
+    constexpr uint32_t kRegister = 3;  /* MIPS_HFLAG_BR - jr / jalr */
+}
+
+/* One R4000-style TLB entry. Source: QEMU target/mips internal.h r4k_tlb_t;
+   VR5500 omits MMID/XI/RI/EHINV. pfn halves are masked & <<12 (r4k_fill_tlb). */
 struct MipsTlbEntry {
-    uint32_t entry_hi;   /* VPN2 (bits 31..13) + ASID (bits 7..0) */
-    uint32_t page_mask;  /* page-size mask (0 => 4 KiB pages) */
-    uint32_t entry_lo0;  /* even page: PFN (bits 25..6) + C(5..3) D(2) V(1) G(0) */
-    uint32_t entry_lo1;  /* odd page */
+    uint32_t vpn;        /* CP0_EntryHi & (TARGET_PAGE_MASK<<1) - the VPN2 tag */
+    uint32_t page_mask;  /* CP0_PageMask */
+    uint16_t asid;       /* CP0_EntryHi & ASID (VR5500: 0xFF) */
+    uint8_t  g;          /* global: EntryLo0 & EntryLo1 & 1 */
+    uint8_t  v0, d0, c0; /* even page: valid / dirty / cache attr (bits 5:3) */
+    uint8_t  v1, d1, c1; /* odd page */
+    uint64_t pfn[2];     /* even/odd physical frame */
 };
 
-/* tlb.s OEMTLBSize = 47 (loops indices down to wired), i.e. 48 entries 0..47. */
-constexpr uint32_t kMipsTlbEntries = 48;
-constexpr uint32_t kMipsNumGpr     = 32;
+/* QEMU mips-defs.h:5 MIPS_TLB_MAX = 128: the tlb[] array bound. The live joint
+   entry count (nb_tlb) is a per-SoC fact from MipsProcessorConfig::TlbSize()
+   seeded into MipsCpuState::nb_tlb; [nb_tlb, tlb_in_use) hold tlbwr shadows. */
+constexpr uint32_t kMipsTlbMax = 128;
 
 struct MipsCpuState {
     /* GPRs are 64-bit: VR5500 is a 64-bit MIPS IV core and the kernel uses
@@ -73,6 +90,13 @@ struct MipsCpuState {
     uint64_t hi;                 /* MULT/DIV/DMULT/DDIV result high */
     uint64_t lo;                 /* MULT/DIV/DMULT/DDIV result low */
     uint32_t pc;                 /* current guest PC (32-bit addressing) */
+
+    /* Branch/delay-slot carry (QEMU gen_compute_branch:4382, gen_branch:10949,
+       save_cpu_state:1280). A branch sets these, NOT pc, and they persist across
+       blocks so a branch at a page's last word resolves in the next block. */
+    uint32_t branch_state;       /* MipsBranch::kNone/kUncond/kCond/kRegister */
+    uint32_t btarget;            /* target VA (uncond/cond) or gpr[rs] (register) */
+    uint32_t bcond;              /* cond: computed condition 0/1, read at resolve */
 
     /* CP0 system-control registers CE drives + the kernel reads. */
     uint32_t cp0_index;
@@ -91,11 +115,15 @@ struct MipsCpuState {
     uint32_t cp0_epc;
     uint32_t cp0_prid;
     uint32_t cp0_config;
+    uint32_t cp0_watchlo;        /* CP0 WatchLo (present iff MipsProcessorConfig::HasWatch) */
+    uint32_t cp0_watchhi;        /* CP0 WatchHi */
     uint32_t cp0_errorepc;
 
-    /* Software-managed TLB array (the guest kernel owns the page tables and
-     * refills this on TLB-miss exceptions; CERF never walks page tables). */
-    MipsTlbEntry tlb[kMipsTlbEntries];
+    /* Software-managed TLB (guest kernel owns page tables; CERF never walks
+       them). Faithful QEMU r4k: [0,nb_tlb) live + [nb_tlb,tlb_in_use) shadow. */
+    MipsTlbEntry tlb[kMipsTlbMax];
+    uint32_t     nb_tlb;       /* live joint-TLB entry count (MipsProcessorConfig::TlbSize) */
+    uint32_t     tlb_in_use;   /* = nb_tlb at reset (QEMU cpu.c:291) */
 
     /* LL/SC: LL records the linked address + arms llbit; a conflicting store
      * clears llbit; SC succeeds iff llbit still set. */
@@ -133,6 +161,8 @@ inline int32_t Cp0RegOffset(uint32_t rd) {
         case MipsCp0::kEPC:      return static_cast<int32_t>(offsetof(MipsCpuState, cp0_epc));
         case MipsCp0::kPRId:     return static_cast<int32_t>(offsetof(MipsCpuState, cp0_prid));
         case MipsCp0::kConfig:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_config));
+        case MipsCp0::kWatchLo:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_watchlo));
+        case MipsCp0::kWatchHi:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_watchhi));
         case MipsCp0::kErrorEPC: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_errorepc));
         default:                 return -1;
     }
