@@ -19,6 +19,7 @@ public:
 
     Board       GetBoard()  const override { return Board::FalconPC3xx; }
     SocFamily   GetSoc()    const override { return SocFamily::PXA25x; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Datalogic Falcon 4220 (PC3xx), "
                "Intel XScale PXA255 (ARMv5TE), Windows CE .NET 4.2";

@@ -14,6 +14,7 @@ public:
 
     Board       GetBoard()  const override { return Board::SiemensP177; }
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Siemens SIMATIC TP177B 4\" (S3C2410, P177 BSP)";
     }

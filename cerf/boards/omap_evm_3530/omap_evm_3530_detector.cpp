@@ -16,6 +16,7 @@ public:
 
     Board       GetBoard()  const override { return Board::OmapEvm3530; }
     SocFamily   GetSoc()    const override { return SocFamily::OMAP3530; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "TI OMAP 3530 EVM (Cortex-A8) + ti_evm_3530 BSP (CE 7)";
     }

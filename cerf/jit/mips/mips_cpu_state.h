@@ -1,0 +1,112 @@
+#pragma once
+
+#include <cstdint>
+
+/* MIPS (NEC VR5500, MIPS IV, soft-float) CPU state. Once the MIPS engine
+   emits against this POD, reordering/resizing corrupts every emitted access. */
+
+namespace MipsCp0 {
+    constexpr uint32_t kIndex    = 0;
+    constexpr uint32_t kRandom   = 1;
+    constexpr uint32_t kEntryLo0 = 2;
+    constexpr uint32_t kEntryLo1 = 3;
+    constexpr uint32_t kContext  = 4;
+    constexpr uint32_t kPageMask = 5;
+    constexpr uint32_t kWired    = 6;
+    constexpr uint32_t kBadVAddr = 8;
+    constexpr uint32_t kCount    = 9;
+    constexpr uint32_t kEntryHi  = 10;
+    constexpr uint32_t kCompare  = 11;
+    constexpr uint32_t kStatus   = 12;
+    constexpr uint32_t kCause    = 13;
+    constexpr uint32_t kEPC      = 14;
+    constexpr uint32_t kPRId     = 15;
+    constexpr uint32_t kConfig   = 16;
+    constexpr uint32_t kErrorEPC = 30;
+}
+
+/* CP0 Status bit positions (MIPS R4000 / VR5500). Source: QEMU target/mips
+ * cpu.h CP0St_*. The boot value start() writes (0x14410000) sets CU0(28),
+ * FR(26), BEV(22) and leaves CU1(29) CLEAR -> FPU disabled (soft-float). */
+namespace MipsStatusBit {
+    constexpr uint32_t kCU1 = 29;  /* coprocessor-1 (FPU) usable */
+    constexpr uint32_t kCU0 = 28;
+    constexpr uint32_t kFR  = 26;
+    constexpr uint32_t kBEV = 22;  /* bootstrap exception vectors (0xBFC0xxxx) */
+    constexpr uint32_t kIM  = 8;   /* interrupt mask IM0..IM7 = bits 8..15 */
+    constexpr uint32_t kKSU = 3;   /* KSU mode bits (kernel/supervisor/user) */
+    constexpr uint32_t kERL = 2;   /* error level */
+    constexpr uint32_t kEXL = 1;   /* exception level */
+    constexpr uint32_t kIE  = 0;   /* global interrupt enable */
+}
+
+/* CP0 Cause bit positions. Source: QEMU target/mips cpu.h CP0Ca_*. */
+namespace MipsCauseBit {
+    constexpr uint32_t kBD      = 31; /* last exception taken in a branch delay slot */
+    constexpr uint32_t kIV      = 23; /* use special interrupt vector */
+    constexpr uint32_t kIP      = 8;  /* pending interrupts IP0..IP7 = bits 8..15 */
+    constexpr uint32_t kExcCode = 2;  /* exception code = bits 2..6 */
+}
+
+/* One R4000-style TLB entry maps a VPN2 pair to two physical pages (even
+ * page via entry_lo0, odd via entry_lo1). Source: VR5500 software-TLB +
+ * QEMU r4k_tlb_t; CE OAL tlb.s programs entry via entryhi/entrylo0/entrylo1
+ * + index then tlbwi. */
+struct MipsTlbEntry {
+    uint32_t entry_hi;   /* VPN2 (bits 31..13) + ASID (bits 7..0) */
+    uint32_t page_mask;  /* page-size mask (0 => 4 KiB pages) */
+    uint32_t entry_lo0;  /* even page: PFN (bits 25..6) + C(5..3) D(2) V(1) G(0) */
+    uint32_t entry_lo1;  /* odd page */
+};
+
+/* tlb.s OEMTLBSize = 47 (loops indices down to wired), i.e. 48 entries 0..47. */
+constexpr uint32_t kMipsTlbEntries = 48;
+constexpr uint32_t kMipsNumGpr     = 32;
+
+struct MipsCpuState {
+    /* GPRs are 64-bit: VR5500 is a 64-bit MIPS IV core and the kernel uses
+       genuine 64-bit values (e.g. memset builds a 64-bit fill via dsll32/daddu
+       and stores it with sd). 32-bit ALU ops sign-extend their result into the
+       full register; logical/doubleword ops are full-width. r0 reads as 0. */
+    uint64_t gpr[kMipsNumGpr];
+    uint64_t hi;                 /* MULT/DIV/DMULT/DDIV result high */
+    uint64_t lo;                 /* MULT/DIV/DMULT/DDIV result low */
+    uint32_t pc;                 /* current guest PC (32-bit addressing) */
+
+    /* CP0 system-control registers CE drives + the kernel reads. */
+    uint32_t cp0_index;
+    uint32_t cp0_random;
+    uint32_t cp0_entrylo0;
+    uint32_t cp0_entrylo1;
+    uint32_t cp0_context;
+    uint32_t cp0_pagemask;
+    uint32_t cp0_wired;
+    uint32_t cp0_badvaddr;
+    uint32_t cp0_count;
+    uint32_t cp0_entryhi;
+    uint32_t cp0_compare;
+    uint32_t cp0_status;
+    uint32_t cp0_cause;
+    uint32_t cp0_epc;
+    uint32_t cp0_prid;
+    uint32_t cp0_config;
+    uint32_t cp0_errorepc;
+
+    /* Software-managed TLB array (the guest kernel owns the page tables and
+     * refills this on TLB-miss exceptions; CERF never walks page tables). */
+    MipsTlbEntry tlb[kMipsTlbEntries];
+
+    /* LL/SC: LL records the linked address + arms llbit; a conflicting store
+     * clears llbit; SC succeeds iff llbit still set. */
+    uint32_t llbit;
+    uint32_t ll_addr;
+
+    /* Emulator-side fields, polled by the JIT run loop at safe boundaries and
+     * written from peripheral threads (single-word stores are atomic on x86).
+     * Mirrors ArmCpuState so the shared JitRunner / hibernation contract
+     * applies uniformly across ISAs. */
+    uint32_t irq_interrupt_pending;
+    uint32_t reset_pending;
+    uint32_t deep_sleep;
+    uint32_t guest_cycle_counter;
+};

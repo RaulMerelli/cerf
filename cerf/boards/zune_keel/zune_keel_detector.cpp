@@ -14,6 +14,7 @@ public:
 
     Board       GetBoard()  const override { return Board::ZuneKeel; }
     SocFamily   GetSoc()    const override { return SocFamily::iMX31; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Microsoft Zune 30 (codename Keel), "
                "Freescale i.MX31L (ARM1136JF-S)";

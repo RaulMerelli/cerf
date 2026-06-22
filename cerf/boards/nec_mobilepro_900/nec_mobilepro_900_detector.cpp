@@ -17,6 +17,7 @@ public:
 
     Board       GetBoard()  const override { return Board::NecMobilePro900; }
     SocFamily   GetSoc()    const override { return SocFamily::PXA25x; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "NEC MobilePro 900 (P530), Intel XScale PXA255 (ARMv5TE)";
     }

@@ -3,18 +3,10 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
-#include "arm/arm_jit.h"
-#include "arm/cpu_state.h"
+#include "guest_engine.h"
 
 #include <chrono>
 #include <intrin.h>
-
-#if CERF_DEV_MODE
-#include "../tracing/trace_manager.h"
-#include "arm/arm_cpu.h"
-#include "arm/arm_cpu_ops.h"
-#include "arm/cpu_state.h"
-#endif
 
 REGISTER_SERVICE(JitRunner);
 
@@ -72,59 +64,56 @@ void JitRunner::Resume() {
 }
 
 void JitRunner::RunLoop() {
-    LOG(Jit, "JitRunner::RunLoop: entered, resolving ArmJit\n");
-    /* Resolve ArmJit lazily on the JIT thread - first Get<T> walks the
-       OnReady dependency chain. A Get<ArmJit>() in JitRunner::OnReady
-       is service pre-warming, forbidden by agent_docs/rules.md. */
-    auto& jit = emu_.Get<ArmJit>();
-    LOG(Jit, "JitRunner::RunLoop: ArmJit resolved, entering loop\n");
+    LOG(Jit, "JitRunner::RunLoop: entered, resolving engine\n");
+    /* Resolve the guest engine lazily on the JIT thread - first Get<T> walks the
+       OnReady dependency chain. A Get<> in JitRunner::OnReady is service
+       pre-warming, forbidden by agent_docs/rules.md. */
+    auto& engine = emu_.Get<GuestEngine>();
+    LOG(Jit, "JitRunner::RunLoop: engine resolved, entering loop\n");
 
 #if CERF_DEV_MODE
-    auto&        probe = emu_.Get<RateProbe>();
-    auto&        tm    = emu_.Get<TraceManager>();
-    ArmCpuState* state = jit.CpuState();
+    auto& probe = emu_.Get<RateProbe>();
 #endif
 
     bool prev_deep_sleep = false;
     while (!stop_requested_.load(std::memory_order_acquire)) {
 #if CERF_DEV_MODE
         const uint64_t t0 = __rdtsc();
-        jit.Run();
+        engine.Run();
         probe.AddTsc(RateProbe::TimeCounter::JitRun, __rdtsc() - t0);
         probe.Inc(RateProbe::Counter::JitRuns);
-        tm.DispatchRunLoopIter(state->gprs, ArmCpuGetCpsrWithFlags(state));
+        engine.DispatchTraceIter();
 #else
-        jit.Run();
+        engine.Run();
 #endif
-        ArmCpuState* cpu = jit.CpuState();
-        const bool ds = cpu->deep_sleep != 0;
+        const bool ds = engine.DeepSleep();
         if (ds != prev_deep_sleep) {
-            LOG(SocReset, "[DEEPSLEEP] RunLoop: deep_sleep %d->%d reset_pending=%u pause=%d\n",
-                prev_deep_sleep, ds, cpu->reset_pending,
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: deep_sleep %d->%d reset_pending=%d pause=%d\n",
+                prev_deep_sleep, ds, static_cast<int>(engine.ResetPending()),
                 static_cast<int>(pause_requested_.load(std::memory_order_acquire)));
             prev_deep_sleep = ds;
         }
-        if (pause_requested_.load(std::memory_order_acquire) || cpu->deep_sleep) {
+        if (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep()) {
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
             pause_cv_.notify_all();
-            LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%u reset_pending=%u pause=%d pc=0x%08X\n",
-                cpu->deep_sleep, cpu->reset_pending,
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
+                static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),
                 static_cast<int>(pause_requested_.load(std::memory_order_acquire)),
-                cpu->gprs[15]);
+                engine.Pc());
             /* Bounded wait: the wake (reset_pending) is signalled via idle_event_,
                not pause_cv_, so an unbounded wait would never observe it and the
                deep-sleep park would never wake. */
             while (!stop_requested_.load(std::memory_order_acquire) &&
-                   !cpu->reset_pending &&
-                   (pause_requested_.load(std::memory_order_acquire) || cpu->deep_sleep)) {
+                   !engine.ResetPending() &&
+                   (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep())) {
                 pause_cv_.wait_for(lk, std::chrono::milliseconds(20));
             }
             paused_ = false;
-            LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%u reset_pending=%u pause=%d pc=0x%08X\n",
-                cpu->deep_sleep, cpu->reset_pending,
+            LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
+                static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),
                 static_cast<int>(pause_requested_.load(std::memory_order_acquire)),
-                cpu->gprs[15]);
+                engine.Pc());
         }
     }
 

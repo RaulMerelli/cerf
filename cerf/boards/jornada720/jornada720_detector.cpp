@@ -16,6 +16,7 @@ public:
 
     Board       GetBoard()  const override { return Board::Jornada720; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM";
     }

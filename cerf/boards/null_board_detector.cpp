@@ -10,6 +10,7 @@ public:
 
     Board       GetBoard()  const override { return Board::Unknown; }
     SocFamily   GetSoc()    const override { return SocFamily::Unknown; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override { return "Unknown / unsupported"; }
 };
 

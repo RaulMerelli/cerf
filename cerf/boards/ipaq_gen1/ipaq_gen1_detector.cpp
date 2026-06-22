@@ -19,6 +19,7 @@ public:
 
     Board       GetBoard()  const override { return Board::IpaqGen1; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Compaq iPAQ 1st gen (H31xx/H36xx), Intel SA-1110 StrongARM";
     }

@@ -107,7 +107,11 @@ void CerfEmulator::ResolveSlot(int slot, const char* requester_type_name) {
 
     if (winner_svc) {
         services_[slot] = winner_slot_ptr;
-        owned_.push_back(std::move(cs.entries[winner_idx].instance));
+        auto& we = cs.entries[winner_idx];
+        if (we.concrete_slot >= 0) {
+            services_[we.concrete_slot] = we.concrete_ptr;  /* also resolvable by own type */
+        }
+        owned_.push_back(std::move(we.instance));
     }
     cs.entries.clear();        /* drop losers; release their resources */
 

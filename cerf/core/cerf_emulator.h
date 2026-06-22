@@ -99,7 +99,30 @@ public:
         candidate_slots_[slot].entries.push_back(CandidateEntry{
             std::unique_ptr<Service>(svc_ptr),
             static_cast<void*>(base_ptr),
-            fallback
+            fallback,
+            -1,
+            nullptr
+        });
+    }
+
+    /* Backs REGISTER_SERVICE_AS: registers Concrete as a candidate for Base's
+       slot, and on win also fills Concrete's own slot - so Get<Base> and
+       Get<Concrete> both reach the one instance. Single ownership. */
+    template<typename Concrete, typename Base>
+    void AddCandidateAlsoSelf(std::unique_ptr<Concrete> instance, bool fallback = false) {
+        static_assert(std::is_base_of_v<Base, Concrete>,
+            "AddCandidateAlsoSelf Concrete must derive from Base.");
+        static_assert(std::is_base_of_v<Service, Base>,
+            "AddCandidateAlsoSelf Base must derive from Service.");
+        Concrete* concrete_ptr = instance.release();
+        Base*     base_ptr     = concrete_ptr;
+        Service*  svc_ptr      = static_cast<Service*>(base_ptr);
+        candidate_slots_[SlotFor<Base>()].entries.push_back(CandidateEntry{
+            std::unique_ptr<Service>(svc_ptr),
+            static_cast<void*>(base_ptr),
+            fallback,
+            SlotFor<Concrete>(),
+            static_cast<void*>(concrete_ptr)
         });
     }
 
@@ -133,9 +156,11 @@ private:
     void Shutdown();   /* quiesce every service before destroying any */
 
     struct CandidateEntry {
-        std::unique_ptr<Service> instance;   /* owns lifetime, calls ~Service */
-        void*                    slot_ptr;   /* Base* re-cast to void* */
+        std::unique_ptr<Service> instance;     /* owns lifetime, calls ~Service */
+        void*                    slot_ptr;     /* Base* re-cast to void* */
         bool                     is_fallback;
+        int                      concrete_slot; /* -1 = none; else also resolvable by own type */
+        void*                    concrete_ptr;  /* Concrete* re-cast to void* */
     };
     struct CandidateSlot {
         std::vector<CandidateEntry> entries;
@@ -167,11 +192,11 @@ private:
 #define REGISTER_SERVICE_AS(Type, Base) \
     static bool _reg_svc_##Type = (CerfEmulator::AddServiceFactory( \
         [](CerfEmulator& emu) { \
-            emu.AddCandidate<Base>(std::make_unique<Type>(emu)); \
+            emu.AddCandidateAlsoSelf<Type, Base>(std::make_unique<Type>(emu)); \
         }), true)
 
 #define REGISTER_SERVICE_AS_FALLBACK(Type, Base) \
     static bool _reg_svc_##Type = (CerfEmulator::AddServiceFactory( \
         [](CerfEmulator& emu) { \
-            emu.AddCandidate<Base>(std::make_unique<Type>(emu), true); \
+            emu.AddCandidateAlsoSelf<Type, Base>(std::make_unique<Type>(emu), true); \
         }), true)

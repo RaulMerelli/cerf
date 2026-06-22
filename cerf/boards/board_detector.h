@@ -27,6 +27,8 @@ enum class SocFamily {
     TegraAPX,
 };
 
+enum class CpuArch { Arm, Mips };
+
 enum class Board {
     Unknown,
     Smdk2410DevEmu,   /* Microsoft DeviceEmulator BSP on Samsung SMDK2410 */
@@ -80,6 +82,7 @@ public:
     virtual Board       GetBoard()    const = 0;
     virtual SocFamily   GetSoc()      const = 0;
     virtual const char* BoardName()   const = 0;
+    virtual CpuArch     GetCpuArch()  const = 0;
 
     /* Short consumer name shown on the HwScreen boot animation beneath the OEM
        logo ("Starting <name>..."). Defaults to the full BoardName(); boards

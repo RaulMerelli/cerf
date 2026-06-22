@@ -17,6 +17,7 @@ public:
 
     Board       GetBoard()  const override { return Board::SmartBookG138; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "SmartBook G138 (webpad), Intel SA-1110 StrongARM + MediaQ MQ200";
     }

@@ -16,6 +16,7 @@ public:
 
     Board       GetBoard()  const override { return Board::OdoArm720; }
     SocFamily   GetSoc()    const override { return SocFamily::Poseidon; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Microsoft Windows CE Hardware Reference Platform, Philips Poseidon ASIC, ARM720T";
     }

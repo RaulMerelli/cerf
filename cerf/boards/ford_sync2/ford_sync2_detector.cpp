@@ -19,6 +19,7 @@ public:
 
     Board       GetBoard()  const override { return Board::FordSyncGen2; }
     SocFamily   GetSoc()    const override { return SocFamily::iMX51; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "Ford SYNC Gen2 APIM (i.MX51 Cortex-A8, Windows Embedded Compact)";
     }

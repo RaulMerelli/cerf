@@ -18,6 +18,7 @@ public:
 
     Board       GetBoard()  const override { return Board::Smdk2410DevEmu; }
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
+    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     const char* BoardName() const override {
         return "SMDK2410 + Microsoft DeviceEmulator BSP";
     }
