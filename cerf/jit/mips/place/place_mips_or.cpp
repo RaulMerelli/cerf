@@ -1,19 +1,9 @@
 #include "../mips_place_fns.h"
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
 
-/* OR rd, rs, rt : rd = rs | rt, full 64-bit (both dwords). */
+/* OR rd, rs, rt : rd = rs | rt, full 64-bit (both halves). */
 uint8_t* PlaceMipsOr(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
-    using namespace x86;
-    if (d->rd == 0) {
-        return cursor;
-    }
-    mips_emit::EmitLoadGprLo(cursor, kEax, d->rs);
-    EmitOrRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rt));
-    EmitMovBaseDisp32Reg(cursor, kStateReg, mips_emit::GprLoOff(d->rd), kEax);
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprHiOff(d->rs));
-    EmitOrRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprHiOff(d->rt));
-    EmitMovBaseDisp32Reg(cursor, kStateReg, mips_emit::GprHiOff(d->rd), kEax);
+    mips_emit::EmitRtypeBitwise64(cursor, d->rd, d->rs, d->rt, 0x0B);  /* OR r32,r/m32 */
     return cursor;
 }

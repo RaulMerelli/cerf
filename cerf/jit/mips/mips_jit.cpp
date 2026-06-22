@@ -9,6 +9,9 @@
 
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../boards/page_table_builder.h"
+#include "../../boot/rom_parser_service.h"
+#include "../../peripherals/peripheral_dispatcher.h"
 #include "../x86_emit.h"
 #include "mips_opcode.h"
 #include "mips_place_fns.h"
@@ -31,18 +34,59 @@ MipsPlaceFn SelectPlaceFn(const MipsDecodedInsn* d) {
     switch (d->op) {
         case MipsOp::kLUI:   return &PlaceMipsLui;
         case MipsOp::kADDIU: return &PlaceMipsAddiu;
+        case MipsOp::kADDI:  return &PlaceMipsAddi;
+        case MipsOp::kSLTIU: return &PlaceMipsSltiu;
+        case MipsOp::kSLTI:  return &PlaceMipsSlti;
+        case MipsOp::kDADDIU: return &PlaceMipsDaddiu;
         case MipsOp::kORI:   return &PlaceMipsOri;
+        case MipsOp::kANDI:  return &PlaceMipsAndi;
         case MipsOp::kJ:     return &PlaceMipsJ;
         case MipsOp::kJAL:   return &PlaceMipsJal;
+        case MipsOp::kLW:    return &PlaceMipsLw;
+        case MipsOp::kLD:    return &PlaceMipsLd;
+        case MipsOp::kSW:    return &PlaceMipsSw;
+        case MipsOp::kSH:    return &PlaceMipsSh;
+        case MipsOp::kSB:    return &PlaceMipsSb;
+        case MipsOp::kSD:    return &PlaceMipsSd;
+        case MipsOp::kSDR:   return &PlaceMipsSdr;
+        case MipsOp::kSDL:   return &PlaceMipsSdl;
+        case MipsOp::kSWR:   return &PlaceMipsSwr;
+        case MipsOp::kLWL:   return &PlaceMipsLwl;
+        case MipsOp::kSWL:   return &PlaceMipsSwl;
+        case MipsOp::kLB:    return &PlaceMipsLb;
+        case MipsOp::kBGTZ:  return &PlaceMipsBgtz;
+        case MipsOp::kREGIMM:
+            if (d->rt == MipsRegimm::kBLTZ)        return &PlaceMipsBltz;
+            if (d->rt == MipsRegimm::kBGEZ)        return &PlaceMipsBgez;
+            return &PlaceMipsUndefined;
+        case MipsOp::kBEQ:   return &PlaceMipsBeq;
+        case MipsOp::kBNE:   return &PlaceMipsBne;
         case MipsOp::kSPECIAL:
             if (d->raw == 0u)                      return &PlaceMipsNop;  /* SLL r0,r0,0 */
+            if (d->funct == MipsSpecial::kSLL)     return &PlaceMipsSll;
+            if (d->funct == MipsSpecial::kSRL)     return &PlaceMipsSrl;
+            if (d->funct == MipsSpecial::kSRLV)    return &PlaceMipsSrlv;
+            if (d->funct == MipsSpecial::kADD)     return &PlaceMipsAdd;
             if (d->funct == MipsSpecial::kADDU)    return &PlaceMipsAddu;
+            if (d->funct == MipsSpecial::kSUBU)    return &PlaceMipsSubu;
             if (d->funct == MipsSpecial::kOR)      return &PlaceMipsOr;
+            if (d->funct == MipsSpecial::kAND)     return &PlaceMipsAnd;
+            if (d->funct == MipsSpecial::kXOR)     return &PlaceMipsXor;
+            if (d->funct == MipsSpecial::kSLTU)    return &PlaceMipsSltu;
             if (d->funct == MipsSpecial::kJR)      return &PlaceMipsJr;
             if (d->funct == MipsSpecial::kJALR)    return &PlaceMipsJalr;
+            if (d->funct == MipsSpecial::kDADDU)   return &PlaceMipsDaddu;
+            if (d->funct == MipsSpecial::kDSUBU)   return &PlaceMipsDsubu;
+            if (d->funct == MipsSpecial::kMOVZ)    return &PlaceMipsMovz;
+            if (d->funct == MipsSpecial::kDSLL32)  return &PlaceMipsDsll32;
+            if (d->funct == MipsSpecial::kDSRL32)  return &PlaceMipsDsrl32;
             return &PlaceMipsUndefined;
         case MipsOp::kCOP0:
             if (d->rs == MipsCop0Rs::kMTC0)        return &PlaceMipsMtc0;
+            if (d->rs == MipsCop0Rs::kMFC0)        return &PlaceMipsMfc0;
+            if (d->rs >= MipsCop0Rs::kCO) {        /* CO bit set: dispatch on funct */
+                if (d->funct == MipsCop0Funct::kTLBWI) return &PlaceMipsTlbwi;
+            }
             return &PlaceMipsUndefined;
         default:
             return &PlaceMipsUndefined;
@@ -50,6 +94,51 @@ MipsPlaceFn SelectPlaceFn(const MipsDecodedInsn* d) {
 }
 
 }  // namespace
+
+REGISTER_SERVICE_AS(MipsJit, GuestEngine);
+
+MipsJit::~MipsJit() {
+    if (idle_event_) {
+        CloseHandle(idle_event_);
+        idle_event_ = nullptr;
+    }
+}
+
+void MipsJit::OnReady() {
+    LOG(Jit, "MipsJit::OnReady: resolving dependencies\n");
+    memory_     = &emu_.Get<EmulatedMemory>();
+    peripheral_ = &emu_.Get<PeripheralDispatcher>();
+
+    arena_.Initialize();
+
+    /* Size the per-physical-page block index over the board's DRAM extent. */
+    const auto dram = emu_.Get<PageTableBuilder>().CachedDramRegions();
+    uint32_t pg_base = 0, pg_count = 0;
+    if (!dram.empty()) {
+        pg_base  = dram.front().pa_base >> 12;
+        pg_count = dram.front().size   >> 12;
+    }
+    blocks_.Initialize(pg_base, pg_count);
+
+    idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (!idle_event_) {
+        LOG(Caution, "MipsJit: CreateEventW(idle_event) failed gle=%lu\n",
+            GetLastError());
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+
+    block_ctx_.jit = this;
+
+    /* Cold reset PC is the kernel entry kseg0 VA itself: the VR5500 fetches
+       kseg0 through the unmapped window (MMU folds it to PA), so feeding a
+       physical address here would re-enter JitCompile translating a PA as a
+       kuseg VA and TLB-miss. */
+    cpu_state_.pc = emu_.Get<RomParserService>().EntryVa();
+
+    LOG(Jit, "MipsJit::OnReady: bringup done; entry VA=0x%08X dram_pa_base=0x%08X "
+             "pg_count=%u\n",
+        cpu_state_.pc, pg_base << 12, pg_count);
+}
 
 void* MipsJit::JitCompile(uint32_t guest_pc) {
     guest_pc &= ~0x3u;
@@ -154,19 +243,11 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
 }
 
 void* MipsJit::FindBlockNativeStart(uint32_t guest_pc) {
-    if (void* n = blocks_.JumpCacheLookup(guest_pc)) {
-        return n;
-    }
-    JitBlock* b = blocks_.global.FindExact(guest_pc);
-    if (!b) {
-        const uint8_t asid = static_cast<uint8_t>(cpu_state_.cp0_entryhi & 0xFFu);
-        b = blocks_.per_asid[asid].FindExact(guest_pc);
-    }
-    if (b && b->native_start) {
-        blocks_.JumpCacheInsert(guest_pc, b->native_start);
-        return b->native_start;
-    }
-    return nullptr;
+    /* VA jump cache only: a miss returns null so Run() routes to JitCompile,
+       which re-resolves phys from the fetch and reuses a cached block only on a
+       phys_start match - so a TLB remap of a mapped-segment VA never runs a
+       stale block (QEMU tb_jmp_cache fast path, tb-jmp-cache.h). */
+    return blocks_.JumpCacheLookup(guest_pc);
 }
 
 void MipsJit::Run() {
@@ -186,6 +267,46 @@ void __cdecl MipsJit::UnimplementedHelper(MipsJit* /* jit */, uint32_t pc, uint3
     LOG(Caution, "MipsJit: unimplemented instruction 0x%08X at guest PC 0x%08X\n",
         raw, pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
+void __cdecl MipsJit::ArithOverflowHelper(MipsJit* /* jit */, uint32_t pc) {
+    LOG(Caution, "MipsJit: integer overflow at guest PC 0x%08X "
+            "(Integer Overflow exception delivery not yet implemented)\n", pc);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
+void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {
+    const MipsTlbEntry old = jit->mmu_.WriteIndexed(&jit->cpu_state_);
+    jit->InvalidateBlockCacheForTlbEntry(old);
+}
+
+void MipsJit::InvalidateBlockCacheForTlbEntry(const MipsTlbEntry& old) {
+    /* QEMU r4k_invalidate_tlb (tlb_helper.c:1378): skip when the old entry is
+       non-global and its ASID differs from the current EntryHi ASID. */
+    const uint32_t cur_asid = cpu_state_.cp0_entryhi & 0xFFu;
+    const bool global =
+        (old.entry_lo0 & old.entry_lo1 & MipsEntryLo::kGlobal) != 0;
+    if (!global && (old.entry_hi & 0xFFu) != cur_asid) {
+        return;
+    }
+    const uint32_t mask = old.page_mask | 0x1FFFu;      /* PageMask | ~(PAGE_MASK<<1) */
+    const uint32_t vpn  = old.entry_hi & 0xFFFFE000u;   /* VPN2 = EntryHi[31:13] */
+    if (old.entry_lo0 & MipsEntryLo::kValid) {           /* even sub-page (tlb_helper.c:1415) */
+        uint32_t addr = vpn & ~mask;
+        const uint32_t end = addr | (mask >> 1);
+        while (addr < end) {
+            blocks_.JumpCacheClearPage(addr);
+            addr += 0x1000u;
+        }
+    }
+    if (old.entry_lo1 & MipsEntryLo::kValid) {           /* odd sub-page (tlb_helper.c:1428) */
+        uint32_t addr = (vpn & ~mask) | ((mask >> 1) + 1u);
+        const uint32_t end = addr | mask;
+        while (addr - 1u < end) {
+            blocks_.JumpCacheClearPage(addr);
+            addr += 0x1000u;
+        }
+    }
 }
 
 /* __cdecl(native_pc, state). After the 4 register PUSHes the args sit at

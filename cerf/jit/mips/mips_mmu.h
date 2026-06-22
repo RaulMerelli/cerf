@@ -39,11 +39,11 @@ public:
        address; otherwise the caller raises the indicated CP0 exception. */
     MipsTlbResult Translate(MipsCpuState* st, uint32_t va, MipsAccess acc, uint32_t* pa);
 
-    /* CP0 TLB instructions: write the indexed/random entry from EntryHi/
-       EntryLo0/EntryLo1/PageMask (tlbwi/tlbwr), read an indexed entry back into
-       those regs (tlbr), and probe for a VPN/ASID match setting CP0_Index
-       (tlbp, Index bit31 set on no-match). */
-    void WriteIndexed(MipsCpuState* st);
+    /* CP0 TLB instructions (tlbwi/tlbwr/tlbr/tlbp). WriteIndexed returns the
+       replaced OLD entry so the caller drops block-cache shortcuts for its VA
+       pages - else a stale VA->native block runs after the remap (QEMU
+       r4k_invalidate_tlb before r4k_fill_tlb, tlb_helper.c:160). */
+    MipsTlbEntry WriteIndexed(MipsCpuState* st);
     void WriteRandom(MipsCpuState* st);
     void Read(MipsCpuState* st);
     void Probe(MipsCpuState* st);

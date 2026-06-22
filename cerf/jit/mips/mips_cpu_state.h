@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 /* MIPS (NEC VR5500, MIPS IV, soft-float) CPU state. Once the MIPS engine
@@ -110,3 +111,36 @@ struct MipsCpuState {
     uint32_t deep_sleep;
     uint32_t guest_cycle_counter;
 };
+
+/* CP0 register number -> byte offset of its field in MipsCpuState, or -1 for a
+   register CERF does not model. Shared by the MFC0 (read) and MTC0 (write) place
+   fns so the reg->field map exists once. */
+inline int32_t Cp0RegOffset(uint32_t rd) {
+    switch (rd) {
+        case MipsCp0::kIndex:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_index));
+        case MipsCp0::kRandom:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_random));
+        case MipsCp0::kEntryLo0: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_entrylo0));
+        case MipsCp0::kEntryLo1: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_entrylo1));
+        case MipsCp0::kContext:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_context));
+        case MipsCp0::kPageMask: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_pagemask));
+        case MipsCp0::kWired:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_wired));
+        case MipsCp0::kBadVAddr: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_badvaddr));
+        case MipsCp0::kCount:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_count));
+        case MipsCp0::kEntryHi:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_entryhi));
+        case MipsCp0::kCompare:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_compare));
+        case MipsCp0::kStatus:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_status));
+        case MipsCp0::kCause:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_cause));
+        case MipsCp0::kEPC:      return static_cast<int32_t>(offsetof(MipsCpuState, cp0_epc));
+        case MipsCp0::kPRId:     return static_cast<int32_t>(offsetof(MipsCpuState, cp0_prid));
+        case MipsCp0::kConfig:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_config));
+        case MipsCp0::kErrorEPC: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_errorepc));
+        default:                 return -1;
+    }
+}
+
+/* True iff MTC0 may write this register. PRId is read-only silicon; Random is
+   the hardware free-running index; BadVAddr is set by the fault path - all three
+   are MFC0-readable but not MTC0-writable. */
+inline bool Cp0RegWritable(uint32_t rd) {
+    return rd != MipsCp0::kPRId && rd != MipsCp0::kRandom && rd != MipsCp0::kBadVAddr;
+}

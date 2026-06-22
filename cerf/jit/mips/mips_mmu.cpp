@@ -54,13 +54,15 @@ MipsTlbResult MipsMmu::Translate(MipsCpuState* st, uint32_t va, MipsAccess acc, 
     return TlbLookup(st, va, acc, pa);              /* kseg2/kseg3 */
 }
 
-void MipsMmu::WriteIndexed(MipsCpuState* st) {
+MipsTlbEntry MipsMmu::WriteIndexed(MipsCpuState* st) {
     uint32_t idx = (st->cp0_index & 0x7FFFFFFF) % kMipsTlbEntries;
     MipsTlbEntry& e = st->tlb[idx];
+    const MipsTlbEntry old = e;
     e.entry_hi   = st->cp0_entryhi;
     e.page_mask  = st->cp0_pagemask;
     e.entry_lo0  = st->cp0_entrylo0;
     e.entry_lo1  = st->cp0_entrylo1;
+    return old;
 }
 
 void MipsMmu::WriteRandom(MipsCpuState* st) {

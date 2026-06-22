@@ -30,6 +30,7 @@ namespace MipsOp {            /* major opcode, bits 31..26 */
     constexpr uint32_t kBNEL    = 0x15;
     constexpr uint32_t kBLEZL   = 0x16;
     constexpr uint32_t kBGTZL   = 0x17;
+    constexpr uint32_t kDADDIU  = 0x19;   /* doubleword add immediate unsigned (64-bit, no trap) */
     constexpr uint32_t kLB      = 0x20;
     constexpr uint32_t kLH      = 0x21;
     constexpr uint32_t kLWL     = 0x22;
@@ -41,13 +42,17 @@ namespace MipsOp {            /* major opcode, bits 31..26 */
     constexpr uint32_t kSH      = 0x29;
     constexpr uint32_t kSWL     = 0x2A;
     constexpr uint32_t kSW      = 0x2B;
+    constexpr uint32_t kSDL     = 0x2C;   /* store doubleword left (unaligned) */
+    constexpr uint32_t kSDR     = 0x2D;   /* store doubleword right (unaligned) */
     constexpr uint32_t kSWR     = 0x2E;
     constexpr uint32_t kCACHE   = 0x2F;
+    constexpr uint32_t kLD      = 0x37;   /* load doubleword (64-bit) */
     constexpr uint32_t kLL      = 0x30;
     constexpr uint32_t kLWC1    = 0x31;
     constexpr uint32_t kPREF    = 0x33;
     constexpr uint32_t kSC      = 0x38;
     constexpr uint32_t kSWC1    = 0x39;
+    constexpr uint32_t kSD      = 0x3F;   /* store doubleword (64-bit) */
 }
 
 namespace MipsSpecial {       /* funct, bits 5..0 (op == SPECIAL) */
@@ -76,12 +81,16 @@ namespace MipsSpecial {       /* funct, bits 5..0 (op == SPECIAL) */
     constexpr uint32_t kADDU    = 0x21;
     constexpr uint32_t kSUB     = 0x22;
     constexpr uint32_t kSUBU    = 0x23;
+    constexpr uint32_t kDADDU   = 0x2D;   /* doubleword add unsigned (64-bit, no trap) */
     constexpr uint32_t kAND     = 0x24;
     constexpr uint32_t kOR      = 0x25;
     constexpr uint32_t kXOR     = 0x26;
     constexpr uint32_t kNOR     = 0x27;
     constexpr uint32_t kSLT     = 0x2A;
     constexpr uint32_t kSLTU    = 0x2B;
+    constexpr uint32_t kDSUBU   = 0x2F;   /* doubleword subtract unsigned (64-bit, no trap) */
+    constexpr uint32_t kDSLL32  = 0x3C;   /* doubleword shift left logical +32 (64-bit) */
+    constexpr uint32_t kDSRL32  = 0x3E;   /* doubleword shift right logical +32 (R bit = DROTR32) */
 }
 
 namespace MipsRegimm {        /* rt, bits 20..16 (op == REGIMM) */

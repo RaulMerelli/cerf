@@ -20,6 +20,10 @@ bool RecognizedSpecial(uint32_t funct) {
         case MipsSpecial::kAND:  case MipsSpecial::kOR:
         case MipsSpecial::kXOR:  case MipsSpecial::kNOR:
         case MipsSpecial::kSLT:  case MipsSpecial::kSLTU:
+        case MipsSpecial::kDADDU:
+        case MipsSpecial::kDSUBU:
+        case MipsSpecial::kDSLL32:
+        case MipsSpecial::kDSRL32:
             return true;
         default:
             return false;
@@ -101,6 +105,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
 
         /* I-type ALU + load/store + cache hint. */
         case MipsOp::kADDI:  case MipsOp::kADDIU:
+        case MipsOp::kDADDIU:
         case MipsOp::kSLTI:  case MipsOp::kSLTIU:
         case MipsOp::kANDI:  case MipsOp::kORI:
         case MipsOp::kXORI:  case MipsOp::kLUI:
@@ -108,7 +113,8 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kLW:    case MipsOp::kLBU:   case MipsOp::kLHU:
         case MipsOp::kLWR:   case MipsOp::kSB:    case MipsOp::kSH:
         case MipsOp::kSWL:   case MipsOp::kSW:    case MipsOp::kSWR:
-        case MipsOp::kLL:    case MipsOp::kSC:
+        case MipsOp::kSDL:   case MipsOp::kSDR:
+        case MipsOp::kLD:    case MipsOp::kLL:    case MipsOp::kSC:    case MipsOp::kSD:
         case MipsOp::kCACHE: case MipsOp::kPREF:
             return true;
 

@@ -25,6 +25,9 @@ enum class SocFamily {
                   ROM's OAL: BSP source path MX51_FSL_V2 + "i.MX51" string +
                   silicon-register init in nk.exe start() (0x80101000). */
     TegraAPX,
+    VR5500,    /* NEC VR5500, MIPS IV core (64-bit silicon, soft-float CE build),
+                  little-endian. CERF's first non-ARM guest ISA. VR5500 CPU module
+                  on the SolutionGear2 (SG2) board with the ALi M1535+ southbridge. */
 };
 
 enum class CpuArch { Arm, Mips };
@@ -69,6 +72,10 @@ enum class Board {
                          MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). ROM
                          fingerprint: the OEM eboot device name "Book_HPC" (both
                          ROM generations; the "G138" token is 4.2-only). */
+    NecRockhopper,    /* NEC Rockhopper (DDB-VR5500A): NEC VR5500 CPU module on the
+                         SolutionGear2 (SG2) motherboard, ALi M1535+ southbridge,
+                         Windows CE 6, MIPS IV. ROM fingerprint: the wide
+                         "SG2_VR5500" platform-type string (IOCTL_PLATFORM_TYPE). */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
