@@ -2,8 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../jit/arm_cpu.h"
-#include "../../jit/cpu_state.h"
+#include "../../jit/arm/arm_cpu.h"
+#include "../../jit/arm/cpu_state.h"
 #include "bundle.h"
 
 #include <cstdint>

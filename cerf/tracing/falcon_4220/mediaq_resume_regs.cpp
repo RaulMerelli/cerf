@@ -3,8 +3,8 @@
 #include "../../boards/board_detector.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../jit/arm_jit.h"
-#include "../../jit/cpu_state.h"
+#include "../../jit/arm/arm_jit.h"
+#include "../../jit/arm/cpu_state.h"
 #include "../../peripherals/mediaq_mq1188/mediaq_mq1188.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 

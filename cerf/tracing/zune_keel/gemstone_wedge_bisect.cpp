@@ -2,9 +2,9 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../jit/arm_cpu.h"
-#include "../../jit/arm_mmu.h"
-#include "../../jit/cpu_state.h"
+#include "../../jit/arm/arm_cpu.h"
+#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/arm/cpu_state.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../socs/imx31/imx31_ipu.h"
 #include "bundle.h"

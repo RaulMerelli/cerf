@@ -5,7 +5,7 @@
 #include "../core/device_config.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
-#include "../jit/arm_mmu.h"
+#include "../jit/arm/arm_mmu.h"
 #include "../peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 REGISTER_SERVICE(CerfInjectionRegion);

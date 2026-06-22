@@ -4,8 +4,8 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../cpu/arm_processor_config.h"
-#include "../../jit/arm_jit.h"
-#include "../../jit/cpu_state.h"
+#include "../../jit/arm/arm_jit.h"
+#include "../../jit/arm/cpu_state.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 

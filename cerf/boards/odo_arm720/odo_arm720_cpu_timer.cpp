@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../jit/arm_jit.h"
+#include "../../jit/arm/arm_jit.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 

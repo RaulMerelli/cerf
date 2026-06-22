@@ -2,7 +2,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm_jit.h"
+#include "../jit/arm/arm_jit.h"
 #include "../state/shutdown_dialog.h"
 #include "guest_power_notifier.h"
 #include "host_window.h"

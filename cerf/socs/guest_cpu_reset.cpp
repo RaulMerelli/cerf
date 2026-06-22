@@ -3,7 +3,7 @@
 #include "../boot/guest_cold_boot.h"
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm_jit.h"
+#include "../jit/arm/arm_jit.h"
 
 REGISTER_SERVICE(GuestCpuReset);
 

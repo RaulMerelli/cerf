@@ -2,9 +2,9 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm_cpu_ops.h"
-#include "../jit/arm_jit.h"
-#include "../jit/cpu_state.h"
+#include "../jit/arm/arm_cpu_ops.h"
+#include "../jit/arm/arm_jit.h"
+#include "../jit/arm/cpu_state.h"
 
 #include <typeinfo>
 

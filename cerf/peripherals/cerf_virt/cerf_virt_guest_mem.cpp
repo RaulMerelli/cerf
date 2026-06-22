@@ -1,7 +1,7 @@
 #include "cerf_virt_guest_mem.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../jit/arm_mmu.h"
+#include "../../jit/arm/arm_mmu.h"
 
 #include <cstring>
 

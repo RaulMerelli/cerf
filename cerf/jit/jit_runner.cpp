@@ -3,17 +3,17 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
-#include "arm_jit.h"
-#include "cpu_state.h"
+#include "arm/arm_jit.h"
+#include "arm/cpu_state.h"
 
 #include <chrono>
 #include <intrin.h>
 
 #if CERF_DEV_MODE
 #include "../tracing/trace_manager.h"
-#include "arm_cpu.h"
-#include "arm_cpu_ops.h"
-#include "cpu_state.h"
+#include "arm/arm_cpu.h"
+#include "arm/arm_cpu_ops.h"
+#include "arm/cpu_state.h"
 #endif
 
 REGISTER_SERVICE(JitRunner);

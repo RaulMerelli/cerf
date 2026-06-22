@@ -4,7 +4,7 @@
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
 #include "../host/guest_power_notifier.h"
-#include "../jit/arm_jit.h"
+#include "../jit/arm/arm_jit.h"
 #include "../socs/guest_cpu_reset.h"
 
 REGISTER_SERVICE(GuestColdBoot);

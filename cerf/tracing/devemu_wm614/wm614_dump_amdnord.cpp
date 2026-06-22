@@ -1,7 +1,7 @@
 #include "../trace_manager.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../jit/arm_mmu.h"
+#include "../../jit/arm/arm_mmu.h"
 #include "devemu_wm614_bundle.h"
 
 #include <fstream>

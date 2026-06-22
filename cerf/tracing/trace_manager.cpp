@@ -3,7 +3,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../boot/rom_parser_service.h"
-#include "../jit/arm_mmu.h"
+#include "../jit/arm/arm_mmu.h"
 
 REGISTER_SERVICE(TraceManager);
 

@@ -4,7 +4,7 @@
 #include "cerf_virt_blt_pixelops.h"
 #include "cerf_virt_framebuffer.h"
 #include "cerf_virt_addr_map.h"
-#include "../../jit/arm_mmu.h"
+#include "../../jit/arm/arm_mmu.h"
 
 #include <cstdint>
 

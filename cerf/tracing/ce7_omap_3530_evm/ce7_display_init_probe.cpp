@@ -2,8 +2,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../jit/arm_mmu.h"
-#include "../../jit/arm_mmu_state.h"
+#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/arm/arm_mmu_state.h"
 #include "ce7_bundle.h"
 
 #include <cstring>

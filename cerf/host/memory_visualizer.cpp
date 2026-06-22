@@ -5,7 +5,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
-#include "../jit/arm_mmu.h"
+#include "../jit/arm/arm_mmu.h"
 #include "frame_renderer.h"
 
 #include <windowsx.h>
