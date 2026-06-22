@@ -7,6 +7,7 @@
 #include "../../core/cerf_paths.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../host/host_widget_registry.h"
 
 #include <array>
 #include <cstring>
@@ -42,6 +43,8 @@ void Imx51NandStore::OnReady() {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
+    emu_.Get<HostWidgetRegistry>().Register(this);
+
     if (existed) {
         LOG(SocNand, "Imx51NandStore: using existing '%s' (%llu pages)\n",
             path.c_str(), static_cast<unsigned long long>(device_pages_));
@@ -60,6 +63,7 @@ void Imx51NandStore::OnReady() {
 }
 
 void Imx51NandStore::ReadPage(uint64_t main_off, uint8_t* main, uint8_t* spare) {
+    MarkRx();
     const uint64_t page = main_off / kMainBytes;
     std::array<uint8_t, kPageStride> buf{};
     if (page >= device_pages_ ||
@@ -74,6 +78,7 @@ void Imx51NandStore::ReadPage(uint64_t main_off, uint8_t* main, uint8_t* spare) 
 }
 
 void Imx51NandStore::WritePage(uint64_t main_off, const uint8_t* main, const uint8_t* spare) {
+    MarkTx();
     const uint64_t page = main_off / kMainBytes;
     if (page >= device_pages_) {
         LOG(Caution, "Imx51NandStore: program out-of-range page %llu (off 0x%llX)\n",
@@ -128,4 +133,8 @@ void Imx51NandStore::Seed() {
     LOG(SocNand, "Imx51NandStore: seeded %llu pages (boot region blocks 0..%llu + BBT/DPS)\n",
         static_cast<unsigned long long>(seeded),
         static_cast<unsigned long long>(os_start ? os_start - 1 : 0));
+}
+
+void Imx51NandStore::DrawIcon(HDC dc, const RECT& box) const {
+    DrawChipIcon(dc, box);
 }

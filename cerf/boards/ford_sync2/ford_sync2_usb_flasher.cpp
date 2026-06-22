@@ -5,6 +5,9 @@
 #include "../../core/log.h"
 #include "../../core/service.h"
 #include "../../boards/board_detector.h"
+#include "../../host/host_icon_cache.h"
+#include "../../host/host_widget.h"
+#include "../../host/host_widget_registry.h"
 #include "../../socs/imx51/imx51_usboh3.h"
 #include "../../state/state_stream.h"
 
@@ -25,7 +28,7 @@ void Wr32(uint8_t* p, uint32_t v) {
    flasher). Control-request encodings grounded in SBOOT sub_8005F0A4 /
    sub_8005EAFC / sub_8005EE80 / sub_8005EECC; the post-enumeration download
    protocol in sub_8004FF60. */
-class FordSync2UsbFlasher : public Service, public UsbDeviceHost {
+class FordSync2UsbFlasher : public Service, public UsbDeviceHost, public HostWidget {
 public:
     using Service::Service;
 
@@ -36,6 +39,7 @@ public:
 
     void OnReady() override {
         emu_.Get<Imx51Usboh3>().RegisterDeviceHost(this);
+        emu_.Get<HostWidgetRegistry>().Register(this);
     }
 
     void OnDeviceReset() override {
@@ -75,6 +79,14 @@ public:
         r.Read(cat_remaining_);
         r.Read(seg_off_);
         r.Read(seg_remaining_);
+    }
+
+    // Once we have USB somewhere, this should become hot-pluggable device follwing PCMCIA example
+    std::wstring WidgetName() const override { return L"USB"; }
+    WidgetGroup  Group() const override { return WidgetGroup::Usb; }
+    std::wstring Tooltip() const override { return L"USB - [Ford Sync 2] Factory Flashing Tool"; }
+    void DrawIcon(HDC dc, const RECT& box) const override {
+        emu_.Get<HostIconCache>().DrawCentered(dc, box, L"ICON_USB_FORD_FLASHER");
     }
 
 private:
@@ -163,13 +175,16 @@ private:
 
     /* Host->device bulk OUT: feed the Ford download protocol. */
     uint32_t ServeDownload(uint8_t* dst, uint32_t max) {
+        uint32_t got = 0;
         switch (dl_) {
-            case DlPhase::kTxnInfo: return SendTxnInfo(dst, max);
-            case DlPhase::kImgHdr:  return SendImgHdr(dst, max);
-            case DlPhase::kCat:     return SendCat(dst, max);
-            case DlPhase::kSegment: return SendSeg(dst, max);
+            case DlPhase::kTxnInfo: got = SendTxnInfo(dst, max); break;
+            case DlPhase::kImgHdr:  got = SendImgHdr(dst, max);  break;
+            case DlPhase::kCat:     got = SendCat(dst, max);     break;
+            case DlPhase::kSegment: got = SendSeg(dst, max);     break;
             default:                return 0;   /* download complete */
         }
+        if (got) MarkTx();
+        return got;
     }
 
     /* 60-byte TransactionInfo (sub_8004FF60: gate sig + size==60; type@+0x18=0 =

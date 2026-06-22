@@ -37,6 +37,27 @@ void DimRect(HDC dc, const RECT& box, COLORREF bar_bg) {
 }
 }  /* namespace */
 
+void HostWidget::DrawChipIcon(HDC dc, const RECT& box) {
+    const int cx = (box.left + box.right) / 2;
+    const int cy = (box.top + box.bottom) / 2;
+    const RECT body = { cx - 8, cy - 6, cx + 8, cy + 6 };
+
+    HBRUSH  fill = CreateSolidBrush(RGB(40, 44, 52));
+    HPEN    pen  = CreatePen(PS_SOLID, 1, RGB(150, 150, 160));
+    HGDIOBJ ob   = SelectObject(dc, fill);
+    HGDIOBJ op   = SelectObject(dc, pen);
+    Rectangle(dc, body.left, body.top, body.right, body.bottom);
+    for (int i = -1; i <= 1; ++i) {
+        const int px = cx + i * 5;
+        MoveToEx(dc, px, body.top - 2, nullptr);    LineTo(dc, px, body.top);
+        MoveToEx(dc, px, body.bottom - 1, nullptr); LineTo(dc, px, body.bottom + 1);
+    }
+    SelectObject(dc, ob);
+    SelectObject(dc, op);
+    DeleteObject(fill);
+    DeleteObject(pen);
+}
+
 bool HostWidget::SampleActivity() {
     if (rx_pending_.exchange(false, std::memory_order_relaxed)) rx_glow_ = kGlowTicks;
     else if (rx_glow_ > 0)                                      --rx_glow_;

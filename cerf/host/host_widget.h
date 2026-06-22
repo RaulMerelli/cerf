@@ -20,6 +20,7 @@ enum class WidgetGroup : int {
     Storage   = 0,
     Network,
     Pcmcia,
+    Usb,
     Indicator,
     Power,
     Debug,
@@ -57,6 +58,8 @@ public:
     /* Custom GDI icon drawn into box. (An HICON/.ico path arrives with the
        resource infrastructure in a later phase; today every widget draws.) */
     virtual void DrawIcon(HDC dc, const RECT& box) const = 0;
+
+    static void DrawChipIcon(HDC dc, const RECT& box);
 
     /* Hot-path safe: an implementer marks data activity from its read/write
        path. One relaxed atomic store, no lock. */

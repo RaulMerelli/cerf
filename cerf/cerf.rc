@@ -24,6 +24,8 @@ ICON_PCMCIA_ETHERNET     ICON "assets/pcmcia_enabled_ethernet.ico"
 ICON_PCMCIA_VGA          ICON "assets/pcmcia_enabled_vga.ico"
 ICON_PCMCIA_SERIAL_COM   ICON "assets/pcmcia_enabled_serial_com.ico"
 ICON_PCMCIA_SERIAL_MODEM ICON "assets/pcmcia_enabled_serial_modem.ico"
+ICON_USB                 ICON "assets/usb.ico"
+ICON_USB_FORD_FLASHER    ICON "assets/usb_ford_flasher.ico"
 
 CERF_LOGO     RCDATA "../gweslab.png"
 OEM_COMPAQ    RCDATA "assets/oem/logo_compaq.png"

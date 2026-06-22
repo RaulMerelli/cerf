@@ -8,6 +8,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../guest_cpu_reset.h"
 
 #include <algorithm>
 #include <array>
@@ -65,6 +66,7 @@ public:
         entry_pa_   = hdr.jump_vector;
         Stage();
         emu_.Get<GuestColdBoot>().RegisterReplay([this] { Stage(); });
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this] { Stage(); });
 
         LOG(Boot, "Imx51NandBootloaderBoot: flash_header @ flash 0x%llX "
                   "(image base 0x%llX) -> staged %u B at NFC RAM 0x%08X, "

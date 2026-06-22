@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/service.h"
+#include "../../host/host_widget.h"
 #include "../../storage/disk_image.h"
 
 #include <cstdint>
@@ -10,7 +11,7 @@
    Backing bytes are the bitwise complement of the NAND contents, so a never-written
    sparse hole (DiskImage reads 0x00) presents as the 0xFF erased state the FAL/IPL
    block scans expect. */
-class Imx51NandStore : public Service {
+class Imx51NandStore : public Service, public HostWidget {
 public:
     using Service::Service;
 
@@ -32,6 +33,11 @@ public:
 
     /* Main-bytes-only read for the mask-ROM IPL stage/scan (within one page). */
     void ReadMain(uint64_t main_off, void* dst, uint32_t len);
+
+    std::wstring WidgetName() const override { return L"NAND Flash"; }
+    WidgetGroup  Group() const override { return WidgetGroup::Storage; }
+    std::wstring Tooltip() const override { return L"NAND Flash storage (nand.img)"; }
+    void         DrawIcon(HDC dc, const RECT& box) const override;
 
 private:
     /* 2 GB Micron part (NFC READ ID 0x2C/0x48), 512 KB block, 4 KB page. */
