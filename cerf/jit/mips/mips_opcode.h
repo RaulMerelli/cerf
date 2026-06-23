@@ -30,7 +30,10 @@ namespace MipsOp {            /* major opcode, bits 31..26 */
     constexpr uint32_t kBNEL    = 0x15;
     constexpr uint32_t kBLEZL   = 0x16;
     constexpr uint32_t kBGTZL   = 0x17;
+    constexpr uint32_t kDADDI   = 0x18;   /* doubleword add immediate (64-bit, traps on overflow) */
     constexpr uint32_t kDADDIU  = 0x19;   /* doubleword add immediate unsigned (64-bit, no trap) */
+    constexpr uint32_t kLDL     = 0x1A;   /* load doubleword left (unaligned, 64-bit) */
+    constexpr uint32_t kLDR     = 0x1B;   /* load doubleword right (unaligned, 64-bit) */
     constexpr uint32_t kLB      = 0x20;
     constexpr uint32_t kLH      = 0x21;
     constexpr uint32_t kLWL     = 0x22;
@@ -82,7 +85,9 @@ namespace MipsSpecial {       /* funct, bits 5..0 (op == SPECIAL) */
     constexpr uint32_t kADDU    = 0x21;
     constexpr uint32_t kSUB     = 0x22;
     constexpr uint32_t kSUBU    = 0x23;
+    constexpr uint32_t kDADD    = 0x2C;   /* doubleword add (64-bit, traps on overflow) */
     constexpr uint32_t kDADDU   = 0x2D;   /* doubleword add unsigned (64-bit, no trap) */
+    constexpr uint32_t kDSUB    = 0x2E;   /* doubleword subtract (64-bit, traps on overflow) */
     constexpr uint32_t kAND     = 0x24;
     constexpr uint32_t kOR      = 0x25;
     constexpr uint32_t kXOR     = 0x26;
@@ -90,6 +95,17 @@ namespace MipsSpecial {       /* funct, bits 5..0 (op == SPECIAL) */
     constexpr uint32_t kSLT     = 0x2A;
     constexpr uint32_t kSLTU    = 0x2B;
     constexpr uint32_t kDSUBU   = 0x2F;   /* doubleword subtract unsigned (64-bit, no trap) */
+    constexpr uint32_t kDMULT   = 0x1C;   /* doubleword signed multiply -> {HI,LO} (128-bit) */
+    constexpr uint32_t kDMULTU  = 0x1D;   /* doubleword unsigned multiply -> {HI,LO} (128-bit) */
+    constexpr uint32_t kDDIV    = 0x1E;   /* doubleword signed divide -> LO=quot HI=rem */
+    constexpr uint32_t kDDIVU   = 0x1F;   /* doubleword unsigned divide -> LO=quot HI=rem */
+    constexpr uint32_t kDSLLV   = 0x14;   /* doubleword variable shift left logical (count rs&63) */
+    constexpr uint32_t kDSRLV   = 0x16;   /* doubleword variable shift right logical (count rs&63) */
+    constexpr uint32_t kDSRAV   = 0x17;   /* doubleword variable shift right arithmetic (count rs&63) */
+    constexpr uint32_t kDSLL    = 0x38;   /* doubleword shift left logical (64-bit, sa 0..31) */
+    constexpr uint32_t kDSRA    = 0x3B;   /* doubleword shift right arithmetic (64-bit, sa 0..31) */
+    constexpr uint32_t kDSRA32  = 0x3F;   /* doubleword shift right arithmetic +32 (64-bit) */
+    constexpr uint32_t kDSRL    = 0x3A;   /* doubleword shift right logical (64-bit, sa 0..31) */
     constexpr uint32_t kDSLL32  = 0x3C;   /* doubleword shift left logical +32 (64-bit) */
     constexpr uint32_t kDSRL32  = 0x3E;   /* doubleword shift right logical +32 (R bit = DROTR32) */
 }
@@ -104,9 +120,11 @@ namespace MipsRegimm {        /* rt, bits 20..16 (op == REGIMM) */
 }
 
 namespace MipsCop0Rs {        /* rs, bits 25..21 (op == COP0) */
-    constexpr uint32_t kMFC0 = 0x00;
-    constexpr uint32_t kMTC0 = 0x04;
-    constexpr uint32_t kCO   = 0x10;  /* rs bit 25 set => dispatch on funct below */
+    constexpr uint32_t kMFC0  = 0x00;
+    constexpr uint32_t kDMFC0 = 0x01;  /* doubleword move from CP0 (64-bit GPR side) */
+    constexpr uint32_t kMTC0  = 0x04;
+    constexpr uint32_t kDMTC0 = 0x05;  /* doubleword move to CP0 (64-bit GPR side) */
+    constexpr uint32_t kCO    = 0x10;  /* rs bit 25 set => dispatch on funct below */
 }
 
 namespace MipsCop0Funct {     /* funct, bits 5..0 (COP0 CO operations) */

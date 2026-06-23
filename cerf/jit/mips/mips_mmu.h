@@ -46,8 +46,14 @@ public:
        address; otherwise the caller raises the indicated CP0 exception. */
     MipsTlbResult Translate(MipsCpuState* st, uint32_t va, MipsAccess acc, uint32_t* pa);
 
+    /* True iff va's page is global (kseg0/kseg1, or a TLB entry with G=1). The
+       JIT routes a global page's block to the shared `global` index, else to
+       per_asid[EntryHi.ASID]. */
+    bool ExecPageGlobal(MipsCpuState* st, uint32_t va);
+
     /* CP0 TLB instructions, faithful to QEMU r4k_helper_tlb{wi,wr,p,r}. */
     void WriteIndexed(MipsCpuState* st);   /* tlbwi */
+    void WriteRandom (MipsCpuState* st);   /* tlbwr */
     void Probe       (MipsCpuState* st);   /* tlbp  */
     void Read        (MipsCpuState* st);   /* tlbr  */
 
@@ -64,5 +70,11 @@ private:
     void InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra); /* r4k_invalidate_tlb */
     void FlushExtra  (MipsCpuState* st, uint32_t first);             /* r4k_mips_tlb_flush_extra */
 
+    /* cpu_mips_get_random (cp0_helper.c:204): the tlbwr index. QEMU keeps the LCG
+       seed + last index in process statics; here they are per-instance state. */
+    uint32_t RandomIndex(MipsCpuState* st);
+
     IsaBlockSpace* blocks_ = nullptr;
+    uint32_t lcg_seed_        = 1;
+    uint32_t prev_random_idx_ = 0;
 };

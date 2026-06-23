@@ -43,6 +43,17 @@ inline void EmitStoreGprSextImm32(uint8_t*& c, uint32_t r, uint32_t v) {
     EmitStoreGprImm64(c, r, v, (v & 0x80000000u) ? 0xFFFFFFFFu : 0u);
 }
 
+/* Copy the full 64-bit gpr[rs] into a CpuState field at field_off (MTHI/MTLO:
+   hi/lo = gpr[rs], QEMU gen_HILO acc==0 -> tcg_gen_mov_tl, full width). Two
+   32-bit MOVs through EAX. rs==0 copies 0 (gpr[0] is hardwired 0), matching
+   QEMU's reg==0 -> movi 0. field_off = offsetof(MipsCpuState, hi|lo). */
+inline void EmitMoveGpr64ToField(uint8_t*& c, int32_t field_off, uint32_t rs) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, field_off, x86::kEax);
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, field_off + 4, x86::kEax);
+}
+
 /* rd = sext32(rt[31:0] shifted by sa), for the immediate 32-bit shifts. ext is
    the x86 0xC1 /ext field: SHL 4 (SLL), SHR 5 (SRL), SAR 7 (SRA). sa==0 emits no
    shift (canonical sext-word). No store when rd==0. */
@@ -58,6 +69,36 @@ inline void EmitShiftImm32Sext(uint8_t*& c, uint32_t rd, uint32_t rt, uint32_t s
         x86::Emit8(c, static_cast<uint8_t>(sa));
     }
     EmitStoreGprSextEax(c, rd);
+}
+
+/* rd = gpr[rt] shifted by sa, 64-bit, sa in [0,31] (the +32 forms DSLL32/DSRL32/
+   DSRA32 are separate). left -> SHLD edx,eax + outer-shift eax (DSLL); !left ->
+   SHRD eax,edx + outer-shift edx (DSRL/DSRA). outer_ext = 0xC1 /ext: SHL 4, SHR 5,
+   SAR 7. rd==0 NOP. (QEMU gen_shift_imm OPC_DSLL/DSRL/DSRA.) */
+inline void EmitDShiftImm(uint8_t*& c, uint32_t rd, uint32_t rt, uint8_t sa,
+                          bool left, uint8_t outer_ext) {
+    if (rd == 0) {
+        return;
+    }
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));  /* EAX = rt.lo */
+    x86::EmitMovRegBaseDisp32(c, x86::kEdx, x86::kStateReg, GprHiOff(rt));  /* EDX = rt.hi */
+    if (sa != 0) {
+        if (left) {
+            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xA4);          /* SHLD edx,eax,sa */
+            x86::EmitModRmReg(c, 3, x86::kEdx, x86::kEax);
+            x86::Emit8(c, sa);
+            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEax, outer_ext);  /* SHL eax,sa */
+            x86::Emit8(c, sa);
+        } else {
+            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xAC);          /* SHRD eax,edx,sa */
+            x86::EmitModRmReg(c, 3, x86::kEax, x86::kEdx);
+            x86::Emit8(c, sa);
+            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEdx, outer_ext);  /* SHR/SAR edx,sa */
+            x86::Emit8(c, sa);
+        }
+    }
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprLoOff(rd), x86::kEax);
+    x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprHiOff(rd), x86::kEdx);
 }
 
 /* rd = rs <op> rt, full 64-bit (both halves), for R-type bitwise ops. alu_opcode
@@ -130,7 +171,11 @@ inline void EmitSltImm64(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t imm16,
     const uint8_t imm_hi8 = (imm16 & 0x8000u) ? 0xFFu : 0x00u;
     x86::EmitXorRegReg(c, x86::kEcx, x86::kEcx);                          /* ECX = 0 */
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
-    x86::EmitSubRegImm32(c, x86::kEax, imm_lo);            /* CF = low borrow */
+    /* SUB EAX, imm_lo as the EAX form (0x2D id) - the borrow CF MUST be set for
+       the SBB high half. EmitSubRegImm32 emits DEC for imm==1, and DEC does not
+       affect CF (Intel SDM Vol.2), which silently broke SLTIU/SLTI(rs,1). */
+    x86::Emit8(c, 0x2D);
+    x86::Emit32(c, imm_lo);                                /* CF = low borrow */
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));  /* MOV keeps CF */
     x86::Emit8(c, 0x83);                                   /* SBB eax, imm8 (83 /3 ib) */
     x86::EmitModRmReg(c, 3, x86::kEax, 3);
@@ -157,6 +202,41 @@ inline void EmitTrappingArith32Tail(uint8_t*& c, uint32_t dst, void* jit,
     }
 }
 
+/* Tail of a trapping 64-bit add/sub (DADD/DADDI/DSUB): EDX:EAX holds the result
+   with x86 OF reflecting the 64-bit signed overflow; on overflow call
+   overflow_helper, else store EDX:EAX into gpr[dst] (no store when dst==0; the
+   overflow helper never returns, so the skipped pushes keep the stack balanced). */
+inline void EmitTrappingArith64Tail(uint8_t*& c, uint32_t dst, void* jit,
+                                    void* overflow_helper, uint32_t guest_addr) {
+    uint8_t* j_ok = x86::EmitJnoLabel(c);
+    x86::EmitPush32(c, guest_addr);
+    x86::EmitPush32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+    x86::EmitCall(c, overflow_helper);
+    x86::FixupLabel(j_ok, c);
+    if (dst != 0) {
+        x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprLoOff(dst), x86::kEax);
+        x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprHiOff(dst), x86::kEdx);
+    }
+}
+
+/* rd = rs <op> rt, 64-bit with overflow trap (DADD/DSUB). lo_op = the low-half
+   "OP eax,r/m32" primary (ADD 0x03 / SUB 0x2B); hi_op = the carry-aware high-half
+   (ADC 0x13 / SBB 0x1B). The MOV between halves preserves CF; OF after hi_op is the
+   64-bit signed overflow. No flag-clobbering op may sit between the halves. */
+inline void EmitTrappingArith64RR(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t rt,
+                                  uint8_t lo_op, uint8_t hi_op, void* jit,
+                                  void* overflow_helper, uint32_t guest_addr) {
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
+    x86::Emit8(c, lo_op);
+    x86::EmitModRmReg(c, 2, x86::kStateReg, x86::kEax);   /* OP eax, [esi+rt.lo] */
+    x86::Emit32(c, static_cast<uint32_t>(GprLoOff(rt)));
+    x86::EmitMovRegBaseDisp32(c, x86::kEdx, x86::kStateReg, GprHiOff(rs));
+    x86::Emit8(c, hi_op);
+    x86::EmitModRmReg(c, 2, x86::kStateReg, x86::kEdx);   /* OP edx, [esi+rt.hi] */
+    x86::Emit32(c, static_cast<uint32_t>(GprHiOff(rt)));
+    EmitTrappingArith64Tail(c, rd, jit, overflow_helper, guest_addr);
+}
+
 inline int32_t BranchStateOff() { return static_cast<int32_t>(offsetof(MipsCpuState, branch_state)); }
 inline int32_t BtargetOff()     { return static_cast<int32_t>(offsetof(MipsCpuState, btarget)); }
 inline int32_t BcondOff()       { return static_cast<int32_t>(offsetof(MipsCpuState, bcond)); }
@@ -179,7 +259,7 @@ inline void EmitBranchRegister(uint8_t*& c, uint32_t rs) {
 /* beq/bne: bcond = (gpr[rs]==gpr[rt]) 64-bit for take_if_equal, else negated,
    computed NOW (delay slot may clobber rs/rt). QEMU OPC_BEQ/BNE -> MIPS_HFLAG_BC. */
 inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t btarget,
-                             bool take_if_equal) {
+                             bool take_if_equal, uint32_t branch_state) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
     x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
     uint8_t* j_neq_lo = x86::EmitJnzLabel(c);
@@ -195,13 +275,13 @@ inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t bta
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 /* bltz/bgez: bcond = sign of the 64-bit gpr[rs] (= hi bit31): take_if_neg for
    BLTZ, !take_if_neg for BGEZ. QEMU OPC_BLTZ/BGEZ setcondi LT/GE 0. */
 inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
-                               bool take_if_neg) {
+                               bool take_if_neg, uint32_t branch_state) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_neg = x86::EmitJsLabel32(c);
@@ -213,13 +293,14 @@ inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 /* bgtz: bcond = (int64)gpr[rs] > 0 (hi>0, or hi==0 && lo!=0). A hi==0 value with
    lo bit31 set is +2^31 (>0), so the test must not collapse to a 32-bit signed
    lo>0. QEMU OPC_BGTZ setcondi GT 0. */
-inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget) {
+inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget,
+                              uint32_t branch_state) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_neg = x86::EmitJsLabel32(c);     /* hi<0 -> value<0 -> not >0 */
@@ -238,12 +319,13 @@ inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget) {
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 /* blez: bcond = (int64)gpr[rs] <= 0 (hi<0, or hi==0 && lo==0) - the negation of
    the bgtz >0 test. QEMU OPC_BLEZ setcondi LE 0. */
-inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget) {
+inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget,
+                              uint32_t branch_state) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_taken_neg = x86::EmitJsLabel32(c);   /* hi<0 -> value<0 -> <=0 */
@@ -262,7 +344,7 @@ inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget) {
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
-    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kCond);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 }  // namespace mips_emit

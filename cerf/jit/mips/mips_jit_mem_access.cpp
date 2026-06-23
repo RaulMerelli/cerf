@@ -38,18 +38,13 @@ void MipsJit::MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char*
 
 void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* jit) {
     if (va & 3u) {                        /* SW requires a 4-byte-aligned EA */
-        LOG(Caution, "MipsJit::StoreWordHelper: misaligned SW va=0x%08X "
-                "(AdES exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kWrite);   /* AdES; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::StoreWordHelper: TLB result %d on write va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
         std::memcpy(host, &value, sizeof(value));
@@ -60,18 +55,13 @@ void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* j
 
 void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* jit) {
     if (va & 1u) {                        /* SH requires a 2-byte-aligned EA */
-        LOG(Caution, "MipsJit::StoreHalfHelper: misaligned SH va=0x%08X "
-                "(AdES exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kWrite);   /* AdES; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::StoreHalfHelper: TLB result %d on write va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
         const uint16_t h = static_cast<uint16_t>(value);
@@ -87,18 +77,13 @@ void __fastcall MipsJit::StoreByteHelper(uint32_t va, uint32_t value, MipsJit* j
 
 uint32_t __fastcall MipsJit::LoadWordHelper(uint32_t va, MipsJit* jit) {
     if (va & 3u) {                        /* LW requires a 4-byte-aligned EA */
-        LOG(Caution, "MipsJit::LoadWordHelper: misaligned LW va=0x%08X "
-                "(AdEL exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kRead);    /* AdEL; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::LoadWordHelper: TLB result %d on read va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         uint32_t value = 0;
@@ -113,10 +98,7 @@ uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::LoadByteHelper: TLB result %d on read va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         return *host;
@@ -126,18 +108,13 @@ uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
 
 uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
     if (va & 1u) {                        /* LH/LHU require a 2-byte-aligned EA */
-        LOG(Caution, "MipsJit::LoadHalfHelper: misaligned LH va=0x%08X "
-                "(AdEL exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kRead);    /* AdEL; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::LoadHalfHelper: TLB result %d on read va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         uint16_t value = 0;
@@ -149,18 +126,13 @@ uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
 
 uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
     if (va & 7u) {                        /* LD requires an 8-byte-aligned EA */
-        LOG(Caution, "MipsJit::LoadDwordHelper: misaligned LD va=0x%08X "
-                "(AdEL exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kRead);    /* AdEL; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::LoadDwordHelper: TLB result %d on read va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         uint64_t value = 0;
@@ -178,11 +150,10 @@ uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
 void MipsJit::StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
                             const char* who) {
     uint32_t pa = 0;
-    if (jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa) !=
-        MipsTlbResult::kMatch) {
-        LOG(Caution, "%s: TLB fault on byte va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n", who, va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    const MipsTlbResult r =
+        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
+    if (r != MipsTlbResult::kMatch) {
+        jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     uint8_t* host = jit->memory_->TryTranslateWrite(pa);
     if (!host) {
@@ -229,6 +200,52 @@ void __fastcall MipsJit::LwlHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
     }
 }
 
+void __fastcall MipsJit::LwrHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
+    /* LE: load the aligned word, shift it right by s=(va&3)*8 so the right
+       bytes land in rt's low end, keep rt's high bytes via (~1)<<(s^31), OR,
+       sign-extend the 32-bit result. (QEMU translate.c gen_lxr + ext32s,
+       OPC_LWR, MO_UL.) */
+    const uint32_t s         = (va & 3u) * 8u;
+    const uint32_t w         = LoadWordHelper(va & ~3u, jit);  /* aligned: translate+load+fault */
+    const uint32_t loaded    = w >> s;
+    const uint32_t keep_mask = 0xFFFFFFFEu << (s ^ 31u);       /* (~1) << (s^31) */
+    const uint32_t old       = static_cast<uint32_t>(jit->cpu_state_.gpr[rt]);
+    const uint32_t merged    = loaded | (old & keep_mask);
+    if (rt != 0) {
+        jit->cpu_state_.gpr[rt] =
+            static_cast<uint64_t>(static_cast<int64_t>(static_cast<int32_t>(merged)));
+    }
+}
+
+void __fastcall MipsJit::LdlHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
+    /* LE: load the aligned doubleword, shift it left by shift=((va&7)^7)*8 so the
+       left bytes land in rt's high end, keep rt's low bytes via ~((~0)<<shift), OR.
+       Full 64-bit (no sext). (QEMU translate.c gen_lxl, OPC_LDL, MO_UQ.) */
+    const uint32_t shift  = ((va & 7u) ^ 7u) * 8u;
+    const uint64_t w      = LoadDwordHelper(va & ~7u, jit);  /* aligned: translate+load+fault */
+    const uint64_t old    = jit->cpu_state_.gpr[rt];
+    const uint64_t mask   = (~0ull) << shift;
+    const uint64_t merged = (w << shift) | (old & ~mask);
+    if (rt != 0) {
+        jit->cpu_state_.gpr[rt] = merged;
+    }
+}
+
+void __fastcall MipsJit::LdrHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
+    /* LE: load the aligned dword, shift it right by s=(va&7)*8 so the right bytes
+       land in rt's low end, keep rt's high bytes via (~1)<<(s^63), OR. Full 64-bit
+       (no sext). (QEMU translate.c gen_lxr, OPC_LDR, MO_UQ.) */
+    const uint32_t s         = (va & 7u) * 8u;
+    const uint64_t w         = LoadDwordHelper(va & ~7u, jit);  /* aligned: translate+load+fault */
+    const uint64_t loaded    = w >> s;
+    const uint64_t keep_mask = (~1ull) << (s ^ 63u);
+    const uint64_t old       = jit->cpu_state_.gpr[rt];
+    const uint64_t merged    = loaded | (old & keep_mask);
+    if (rt != 0) {
+        jit->cpu_state_.gpr[rt] = merged;
+    }
+}
+
 void __fastcall MipsJit::SwrHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
     /* Little-endian SWR: store the low ((va&3)^3)+1 bytes of gpr[rt][31:0],
        byte n -> mem[va+n] = rt>>(n*8). (QEMU tcg/ldst_helper.c helper_swr.) */
@@ -253,18 +270,13 @@ void __fastcall MipsJit::SwlHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
 
 void __fastcall MipsJit::StoreDwordHelper(uint32_t va, uint32_t rt, MipsJit* jit) {
     if (va & 7u) {                        /* SD requires an 8-byte-aligned EA */
-        LOG(Caution, "MipsJit::StoreDwordHelper: misaligned SD va=0x%08X "
-                "(AdES exception delivery not yet implemented)\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseAddressError(va, MipsAccess::kWrite);   /* AdES; SEH unwind */
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
         jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::StoreDwordHelper: TLB result %d on write va=0x%08X "
-                "(CP0 exception delivery not yet implemented)\n",
-                static_cast<int>(r), va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
         std::memcpy(host, &jit->cpu_state_.gpr[rt], sizeof(uint64_t));

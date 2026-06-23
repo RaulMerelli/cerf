@@ -10,99 +10,31 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../cpu/mips_processor_config.h"
+#include "mips_cp0_emitter.h"
 #include "../../boards/page_table_builder.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../tracing/trace_manager.h"
 #include "../x86_emit.h"
-#include "mips_opcode.h"
 #include "mips_place_fns.h"
 
 namespace {
 
-int MipsDispatchFaultFilter(EXCEPTION_POINTERS* ep, uint32_t guest_pc) {
+int MipsDispatchFaultFilter(EXCEPTION_POINTERS* ep, uint32_t guest_pc,
+                            bool* host_fault) {
+    const DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code == MipsJit::kGuestExceptionCode) {
+        /* A guest CP0 exception a memory/arith helper raised: pc + CP0 already
+           point at the vector, so the handler returns cleanly and the next run
+           loop iteration dispatches the handler. */
+        *host_fault = false;
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+    *host_fault = true;
     LOG(Caution,
         "MipsJit: host exception 0x%08lX at host addr %p while running guest PC 0x%08X\n",
-        ep->ExceptionRecord->ExceptionCode,
-        ep->ExceptionRecord->ExceptionAddress,
-        guest_pc);
+        code, ep->ExceptionRecord->ExceptionAddress, guest_pc);
     return EXCEPTION_EXECUTE_HANDLER;
-}
-
-/* Decode -> emit dispatch. Implemented opcodes map to their place fn; every
-   other (recognized-but-unimplemented or reserved) maps to the loud-fatal stub
-   so the bring-up loop surfaces it on first execution. */
-MipsPlaceFn SelectPlaceFn(const MipsDecodedInsn* d) {
-    switch (d->op) {
-        case MipsOp::kLUI:   return &PlaceMipsLui;
-        case MipsOp::kADDIU: return &PlaceMipsAddiu;
-        case MipsOp::kADDI:  return &PlaceMipsAddi;
-        case MipsOp::kSLTIU: return &PlaceMipsSltiu;
-        case MipsOp::kSLTI:  return &PlaceMipsSlti;
-        case MipsOp::kDADDIU: return &PlaceMipsDaddiu;
-        case MipsOp::kORI:   return &PlaceMipsOri;
-        case MipsOp::kANDI:  return &PlaceMipsAndi;
-        case MipsOp::kJ:     return &PlaceMipsJ;
-        case MipsOp::kJAL:   return &PlaceMipsJal;
-        case MipsOp::kLW:    return &PlaceMipsLw;
-        case MipsOp::kLD:    return &PlaceMipsLd;
-        case MipsOp::kSW:    return &PlaceMipsSw;
-        case MipsOp::kSH:    return &PlaceMipsSh;
-        case MipsOp::kSB:    return &PlaceMipsSb;
-        case MipsOp::kSD:    return &PlaceMipsSd;
-        case MipsOp::kSDR:   return &PlaceMipsSdr;
-        case MipsOp::kSDL:   return &PlaceMipsSdl;
-        case MipsOp::kSWR:   return &PlaceMipsSwr;
-        case MipsOp::kLWL:   return &PlaceMipsLwl;
-        case MipsOp::kSWL:   return &PlaceMipsSwl;
-        case MipsOp::kLB:    return &PlaceMipsLb;
-        case MipsOp::kLHU:   return &PlaceMipsLhu;
-        case MipsOp::kLBU:   return &PlaceMipsLbu;
-        case MipsOp::kLWU:   return &PlaceMipsLwu;
-        case MipsOp::kBGTZ:  return &PlaceMipsBgtz;
-        case MipsOp::kBLEZ:  return &PlaceMipsBlez;
-        case MipsOp::kPREF:  return &PlaceMipsNop;   /* prefetch hint: NOP (QEMU OPC_PREF translate.c:14676) */
-        case MipsOp::kREGIMM:
-            if (d->rt == MipsRegimm::kBLTZ)        return &PlaceMipsBltz;
-            if (d->rt == MipsRegimm::kBGEZ)        return &PlaceMipsBgez;
-            return &PlaceMipsUndefined;
-        case MipsOp::kBEQ:   return &PlaceMipsBeq;
-        case MipsOp::kBNE:   return &PlaceMipsBne;
-        case MipsOp::kSPECIAL:
-            if (d->raw == 0u)                      return &PlaceMipsNop;  /* SLL r0,r0,0 */
-            if (d->funct == MipsSpecial::kSLL)     return &PlaceMipsSll;
-            if (d->funct == MipsSpecial::kSRL)     return &PlaceMipsSrl;
-            if (d->funct == MipsSpecial::kSRA)     return &PlaceMipsSra;
-            if (d->funct == MipsSpecial::kSRLV)    return &PlaceMipsSrlv;
-            if (d->funct == MipsSpecial::kSLLV)    return &PlaceMipsSllv;
-            if (d->funct == MipsSpecial::kADD)     return &PlaceMipsAdd;
-            if (d->funct == MipsSpecial::kADDU)    return &PlaceMipsAddu;
-            if (d->funct == MipsSpecial::kSUBU)    return &PlaceMipsSubu;
-            if (d->funct == MipsSpecial::kOR)      return &PlaceMipsOr;
-            if (d->funct == MipsSpecial::kAND)     return &PlaceMipsAnd;
-            if (d->funct == MipsSpecial::kXOR)     return &PlaceMipsXor;
-            if (d->funct == MipsSpecial::kNOR)     return &PlaceMipsNor;
-            if (d->funct == MipsSpecial::kDIVU)    return &PlaceMipsDivu;
-            if (d->funct == MipsSpecial::kMFHI)    return &PlaceMipsMfhi;
-            if (d->funct == MipsSpecial::kMFLO)    return &PlaceMipsMflo;
-            if (d->funct == MipsSpecial::kSLTU)    return &PlaceMipsSltu;
-            if (d->funct == MipsSpecial::kJR)      return &PlaceMipsJr;
-            if (d->funct == MipsSpecial::kJALR)    return &PlaceMipsJalr;
-            if (d->funct == MipsSpecial::kDADDU)   return &PlaceMipsDaddu;
-            if (d->funct == MipsSpecial::kDSUBU)   return &PlaceMipsDsubu;
-            if (d->funct == MipsSpecial::kMOVZ)    return &PlaceMipsMovz;
-            if (d->funct == MipsSpecial::kDSLL32)  return &PlaceMipsDsll32;
-            if (d->funct == MipsSpecial::kDSRL32)  return &PlaceMipsDsrl32;
-            return &PlaceMipsUndefined;
-        case MipsOp::kCOP0:
-            if (d->rs == MipsCop0Rs::kMTC0)        return &PlaceMipsMtc0;
-            if (d->rs == MipsCop0Rs::kMFC0)        return &PlaceMipsMfc0;
-            if (d->rs >= MipsCop0Rs::kCO) {        /* CO bit set: dispatch on funct */
-                if (d->funct == MipsCop0Funct::kTLBWI) return &PlaceMipsTlbwi;
-            }
-            return &PlaceMipsUndefined;
-        default:
-            return &PlaceMipsUndefined;
-    }
 }
 
 }  // namespace
@@ -137,6 +69,7 @@ void MipsJit::OnReady() {
        the MIPS analog of seeding ArmProcessorConfig MIDR / HasX(). */
     auto& cpu_cfg = emu_.Get<MipsProcessorConfig>();
     cpu_config_           = &cpu_cfg;
+    cp0_emitter_          = &emu_.Get<MipsCp0Emitter>();
     cpu_state_.cp0_prid   = cpu_cfg.Prid();
     cpu_state_.nb_tlb     = cpu_cfg.TlbSize();
     cpu_state_.tlb_in_use = cpu_state_.nb_tlb;
@@ -173,18 +106,29 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
     guest_pc &= ~0x3u;
 
     uint32_t pa0 = 0;
-    if (mmu_.Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa0) !=
-        MipsTlbResult::kMatch) {
-        LOG(Caution, "MipsJit::JitCompile: fetch fault at guest PC 0x%08X\n", guest_pc);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    const MipsTlbResult fr =
+        mmu_.Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa0);
+    if (fr != MipsTlbResult::kMatch) {
+        /* Instruction-fetch TLB miss/invalid: deliver TLBL so the guest's refill
+           handler maps the page, then bail - Run re-dispatches at the vector. */
+        DeliverFetchTlbException(guest_pc, fr);
+        return nullptr;
     }
     block_ctx_.block_phys_page_base = pa0 & 0xFFFFF000u;
     const uint32_t phys_start = block_ctx_.block_phys_page_base | (guest_pc & 0xFFFu);
 
-    if (JitBlock* ex = blocks_.global.FindExact(guest_pc)) {
+    /* Global (kseg / G=1) blocks live in the shared `global` index; per-process
+       (G=0) blocks in per_asid[ASID]. */
+    const uint8_t asid = static_cast<uint8_t>(cpu_state_.cp0_entryhi & 0xFFu);
+    const bool outer_global = mmu_.ExecPageGlobal(&cpu_state_, guest_pc);
+    JitBlockIndex& idx = outer_global ? blocks_.global : blocks_.per_asid[asid];
+
+    JitBlock* ex = blocks_.per_asid[asid].FindExact(guest_pc);
+    if (!ex) ex = blocks_.global.FindExact(guest_pc);
+    if (ex) {
         if (ex->native_start && ex->phys_start == phys_start) {
             blocks_.JumpCacheInsert(guest_pc, ex->native_start);
-            return ex->native_start;
+            return ex->native_start;     /* phys-checked reuse */
         }
         blocks_.RemoveExact(guest_pc);   /* stale phys at same VA - evict */
     }
@@ -216,8 +160,9 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
     nb.guest_end    = block_ctx_.insns[block_ctx_.num_insns - 1].guest_address + 3u;
     nb.phys_start   = phys_start;
     nb.native_start = code;
-    JitBlock* stored = blocks_.global.PlaceOuterAt(slab, nb);
-    blocks_.IndexInsert(stored, &blocks_.global);
+    JitBlock* stored = idx.PlaceOuterAt(slab, nb);
+    blocks_.IndexInsert(stored, &idx);
+    if (!outer_global) blocks_.MarkPopulated(asid);
 
     const size_t code_size = JitGenerateCode(code, 1);
     arena_.FreeUnusedTail(code + code_size);
@@ -262,6 +207,10 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
             ++i;
             break;                      /* block ends after the delay slot */
         }
+        if (insn.is_eret) {             /* ERET ends the block; it has no delay slot */
+            ++i;
+            break;
+        }
         if (insn.is_branch) {
             delay_pending = true;       /* next insn is the delay slot, then end */
         }
@@ -275,23 +224,47 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
 }
 
 void* MipsJit::FindBlockNativeStart(uint32_t guest_pc) {
-    /* VA jump cache only: a miss returns null so Run() routes to JitCompile,
-       which re-resolves phys from the fetch and reuses a cached block only on a
-       phys_start match - so a TLB remap of a mapped-segment VA never runs a
-       stale block (QEMU tb_jmp_cache fast path, tb-jmp-cache.h). */
+    /* VA jump-cache lookup; null on miss -> Run() routes to JitCompile. */
     return blocks_.JumpCacheLookup(guest_pc);
 }
 
+void MipsJit::ContextSwitchFlush() {
+    blocks_.JumpCacheFlush();
+}
+
+void __fastcall MipsJit::Mtc0EntryHiHelper(uint32_t value, MipsJit* jit) {
+    /* helper_mtc0_entryhi (cp0_helper.c:1142): write VPN2+ASID, preserve the
+       reserved field, flush on an ASID change. mask = (TARGET_PAGE_MASK<<1)|ASID. */
+    constexpr uint32_t kMask = 0xFFFFE0FFu;
+    MipsCpuState& s = jit->cpu_state_;
+    const uint32_t old = s.cp0_entryhi;
+    const uint32_t val = (value & kMask) | (old & ~kMask);
+    s.cp0_entryhi = val;
+    if ((old & 0xFFu) != (val & 0xFFu)) {
+        jit->ContextSwitchFlush();
+    }
+}
+
 void MipsJit::Run() {
+    /* branch_state==kNone gate: never take an interrupt between a branch and its
+       not-yet-run delay slot, or the delay slot is skipped on ERET resume. */
+    TimerPoll();
+    if (cpu_state_.branch_state == MipsBranch::kNone && InterruptReady()) {
+        DeliverInterrupt();
+    }
     const uint32_t pc = cpu_state_.pc;
     void* native = FindBlockNativeStart(pc);
     if (!native) {
         native = JitCompile(pc);
+        if (!native) return;  /* fetch TLB exception delivered; pc=vector, next Run() dispatches it */
     }
+    bool host_fault = false;
     __try {
         Dispatch(native, &cpu_state_);
-    } __except (MipsDispatchFaultFilter(GetExceptionInformation(), pc)) {
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    } __except (MipsDispatchFaultFilter(GetExceptionInformation(), pc, &host_fault)) {
+        if (host_fault) {
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
     }
 }
 
@@ -301,14 +274,41 @@ void __cdecl MipsJit::UnimplementedHelper(MipsJit* /* jit */, uint32_t pc, uint3
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
-void __cdecl MipsJit::ArithOverflowHelper(MipsJit* /* jit */, uint32_t pc) {
-    LOG(Caution, "MipsJit: integer overflow at guest PC 0x%08X "
-            "(Integer Overflow exception delivery not yet implemented)\n", pc);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+void __cdecl MipsJit::ArithOverflowHelper(MipsJit* jit, uint32_t /* pc */) {
+    /* The faulting PC is already live in cpu_state_.pc (per-insn materialization);
+       RaiseOverflowException reads it for EPC and never returns (SEH unwind). */
+    jit->RaiseOverflowException();
+}
+
+void __cdecl MipsJit::TraceDispatchPcHelper(MipsJit* jit, uint32_t pc) {
+    jit->emu_.Get<TraceManager>().DispatchPcMips(pc, &jit->cpu_state_);
+}
+
+std::optional<uint8_t*> MipsJit::PeekGuestVa(uint32_t va) {
+    uint32_t pa = 0;
+    if (mmu_.Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
+        MipsTlbResult::kMatch) {
+        return std::nullopt;
+    }
+    uint8_t* host = memory_->TryTranslate(pa);
+    if (!host) return std::nullopt;
+    return host;
 }
 
 void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {
     jit->mmu_.WriteIndexed(&jit->cpu_state_);
+}
+
+void __fastcall MipsJit::TlbwrHelper(MipsJit* jit) {
+    jit->mmu_.WriteRandom(&jit->cpu_state_);
+}
+
+void __fastcall MipsJit::TlbpHelper(MipsJit* jit) {
+    jit->mmu_.Probe(&jit->cpu_state_);
+}
+
+void __fastcall MipsJit::TlbrHelper(MipsJit* jit) {
+    jit->mmu_.Read(&jit->cpu_state_);
 }
 
 int __fastcall MipsJit::ResolveBranchHelper(uint32_t fallthrough, MipsJit* jit) {
@@ -318,9 +318,19 @@ int __fastcall MipsJit::ResolveBranchHelper(uint32_t fallthrough, MipsJit* jit) 
     }
     s.pc = (s.branch_state == MipsBranch::kCond)
                ? (s.bcond ? s.btarget : fallthrough)  /* gen_branch BC */
-               : s.btarget;                            /* gen_branch B / BR */
+               : s.btarget;                            /* gen_branch B / BR / BL-taken */
     s.branch_state = MipsBranch::kNone;
     return 1;
+}
+
+int __fastcall MipsJit::NullifyLikelyHelper(uint32_t fallthrough, MipsJit* jit) {
+    MipsCpuState& s = jit->cpu_state_;
+    if (s.branch_state == MipsBranch::kCondLikely && s.bcond == 0) {
+        s.pc = fallthrough;            /* skip the delay slot (QEMU pc_next+4) */
+        s.branch_state = MipsBranch::kNone;
+        return 1;
+    }
+    return 0;                          /* taken, or not a likely delay slot */
 }
 
 /* __cdecl(native_pc, state). After the 4 register PUSHes the args sit at
@@ -356,15 +366,68 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
         static_cast<int32_t>(offsetof(MipsCpuState, guest_cycle_counter));
     constexpr int32_t kPcOff =
         static_cast<int32_t>(offsetof(MipsCpuState, pc));
+    constexpr int32_t kBranchStateOff =
+        static_cast<int32_t>(offsetof(MipsCpuState, branch_state));
     const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
+
+    /* Resolve once so the per-insn HasPcTrace is a single map lookup, not a
+       service-locator call (mirrors ArmJit::JitGenerateCode). */
+    TraceManager& tm = emu_.Get<TraceManager>();
 
     bool terminated = false;  /* a within-block delay-slot resolve emitted the ret */
 
     for (uint32_t i = 0; i < block_ctx_.num_insns; ++i) {
         MipsDecodedInsn& insn = block_ctx_.insns[i];
+        /* Materialize this insn's guest PC before it runs so a fault inside any
+           memory/arith helper sees the precise faulting PC in cpu_state_.pc
+           (exception_resume_pc / EPC). Hot-path cost; perf-optimizable later. */
+        EmitMovBaseDisp32Imm32(code_location, kStateReg, kPcOff, insn.guest_address);
+
+        /* Trace hook (only emitted for a registered PC): cpu_state_.pc is now
+           this insn, so the handler observes state as the insn is about to run.
+           __cdecl(jit, pc) - push pc then jit (right-to-left). */
+        if (tm.HasPcTrace(insn.guest_address)) {
+            EmitPush32(code_location, insn.guest_address);
+            EmitPush32(code_location, self);
+            EmitCall(code_location, reinterpret_cast<void*>(&TraceDispatchPcHelper));
+            EmitAddRegImm32(code_location, kEsp, 8);
+        }
+
         EmitAddBaseDisp32Imm8(code_location, kStateReg, kCycleOff, 1);
+
+        /* Branch-likely delay-slot nullify (QEMU decode_opc "blikely not taken"):
+           MUST emit BEFORE the delay slot's place_fn so a not-taken *L skips it.
+           Cross-block insn[0] gates on branch_state to keep normal entry cheap. */
+        const bool inblock_likely_ds =
+            (i > 0 && block_ctx_.insns[i - 1].is_branch &&
+             block_ctx_.insns[i - 1].is_likely);
+        const bool xblock_ds = (i == 0 && !insn.is_branch);
+        if (inblock_likely_ds || xblock_ds) {
+            uint8_t* j_skip_gate = nullptr;
+            if (xblock_ds) {
+                EmitMovRegBaseDisp32(code_location, kEax, kStateReg, kBranchStateOff);
+                EmitCmpRegImm32(code_location, kEax, MipsBranch::kCondLikely);
+                j_skip_gate = EmitJnzLabel(code_location);
+            }
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEdx, self);
+            EmitCall(code_location, reinterpret_cast<void*>(&NullifyLikelyHelper));
+            EmitTestRegReg(code_location, kEax, kEax);
+            uint8_t* j_run = EmitJzLabel(code_location);
+            EmitRetn(code_location, 0);              /* nullified: pc set, exit block */
+            FixupLabel(j_run, code_location);
+            if (j_skip_gate) FixupLabel(j_skip_gate, code_location);
+        }
+
         code_location = insn.place_fn(code_location, &insn, &block_ctx_);
 
+        if (insn.is_eret) {
+            /* EretHelper already set pc from EPC/ErrorEPC; suppress the
+               straight-line pc override and exit. */
+            EmitRetn(code_location, 0);
+            terminated = true;
+            break;
+        }
         if (i > 0 && block_ctx_.insns[i - 1].is_branch) {
             /* Within-block delay slot (block's last insn): branch_state is pending
                (set by insns[i-1]); resolve and exit (QEMU gen_branch). */

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "../core/service.h"
 
@@ -16,4 +17,6 @@ public:
     virtual bool     ResetPending() const = 0;
     virtual uint32_t Pc()           const = 0;
     virtual void     DispatchTraceIter()  = 0;
+
+    virtual std::optional<uint8_t*> PeekGuestVa(uint32_t va) = 0;
 };

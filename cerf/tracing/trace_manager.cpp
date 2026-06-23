@@ -3,7 +3,8 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../boot/rom_parser_service.h"
-#include "../jit/arm/arm_mmu.h"
+#include "../jit/guest_engine.h"
+#include "../jit/mips/mips_cpu_state.h"
 
 REGISTER_SERVICE(TraceManager);
 
@@ -27,19 +28,19 @@ uint32_t Crc32Update(uint32_t crc, const uint8_t* data, size_t n) {
 }  /* namespace */
 
 std::optional<uint8_t> TraceContext::ReadVa8(uint32_t va) const {
-    auto host = emu.Get<ArmMmu>().PeekDataTlb(va);
+    auto host = emu.Get<GuestEngine>().PeekGuestVa(va);
     if (!host) return std::nullopt;
     return **host;
 }
 
 std::optional<uint16_t> TraceContext::ReadVa16(uint32_t va) const {
-    auto host = emu.Get<ArmMmu>().PeekDataTlb(va);
+    auto host = emu.Get<GuestEngine>().PeekGuestVa(va);
     if (!host) return std::nullopt;
     return *reinterpret_cast<const uint16_t*>(*host);
 }
 
 std::optional<uint32_t> TraceContext::ReadVa32(uint32_t va) const {
-    auto host = emu.Get<ArmMmu>().PeekDataTlb(va);
+    auto host = emu.Get<GuestEngine>().PeekGuestVa(va);
     if (!host) return std::nullopt;
     return *reinterpret_cast<const uint32_t*>(*host);
 }
@@ -98,15 +99,24 @@ bool TraceManager::HasPcTrace(uint32_t pc) const {
     return pc_traces_.count(pc) > 0;
 }
 
-void TraceManager::DispatchPc(uint32_t pc,
-                              const uint32_t* regs, uint32_t cpsr) {
+void TraceManager::DispatchContext(uint32_t pc, const TraceContext& ctx) {
     auto it = pc_traces_.find(pc);
     if (it == pc_traces_.end()) return;
-    TraceContext ctx{regs, cpsr, pc, emu_};
     for (const auto& e : it->second) {
         if (e.predicate.has_value() && !(*e.predicate)(ctx)) continue;
         e.handler(ctx);
     }
+}
+
+void TraceManager::DispatchPc(uint32_t pc,
+                              const uint32_t* regs, uint32_t cpsr) {
+    TraceContext ctx{regs, cpsr, pc, emu_};
+    DispatchContext(pc, ctx);
+}
+
+void TraceManager::DispatchPcMips(uint32_t pc, const MipsCpuState* st) {
+    TraceContext ctx{nullptr, 0u, pc, emu_, st};
+    DispatchContext(pc, ctx);
 }
 
 #if CERF_DEV_MODE
@@ -115,10 +125,20 @@ void TraceManager::OnRunLoopIter(TraceHandler handler) {
     iter_handlers_.push_back(std::move(handler));
 }
 
+void TraceManager::DispatchIterContext(const TraceContext& ctx) {
+    for (auto& h : iter_handlers_) h(ctx);
+}
+
 void TraceManager::DispatchRunLoopIter(const uint32_t* regs, uint32_t cpsr) {
     if (iter_handlers_.empty()) return;
     TraceContext ctx{regs, cpsr, regs[15], emu_};
-    for (auto& h : iter_handlers_) h(ctx);
+    DispatchIterContext(ctx);
+}
+
+void TraceManager::DispatchRunLoopIterMips(const MipsCpuState* st) {
+    if (iter_handlers_.empty()) return;
+    TraceContext ctx{nullptr, 0u, st->pc, emu_, st};
+    DispatchIterContext(ctx);
 }
 
 #endif  /* CERF_DEV_MODE */

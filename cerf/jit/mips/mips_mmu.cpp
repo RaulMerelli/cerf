@@ -66,6 +66,24 @@ MipsTlbResult MipsMmu::Translate(MipsCpuState* st, uint32_t va, MipsAccess acc,
     return MapAddress(st, va, acc, pa);             /* kseg2/kseg3 */
 }
 
+bool MipsMmu::ExecPageGlobal(MipsCpuState* st, uint32_t va) {
+    /* kseg0/kseg1 (unmapped kernel windows) are global. */
+    if (va >= MipsSeg::kKusegEnd && va < MipsSeg::kKseg2Base) {
+        return true;
+    }
+    /* Mapped segment: the matching live TLB entry's G bit (r4k_map_address match
+       predicate, tlb_helper.c:393). No match -> not global. */
+    const uint16_t asid = st->cp0_entryhi & kAsidMask;
+    for (uint32_t i = 0; i < st->tlb_in_use; i++) {
+        const MipsTlbEntry& e = st->tlb[i];
+        const uint32_t mask = e.page_mask | 0x1FFFu;
+        if ((e.g || e.asid == asid) && (e.vpn & ~mask) == (va & ~mask)) {
+            return e.g != 0;
+        }
+    }
+    return false;
+}
+
 void MipsMmu::FillTlb(MipsCpuState* st, uint32_t idx) {
     /* r4k_fill_tlb (tlb_helper.c:52). mask = CP0_PageMask >> (TARGET_PAGE_BITS+1). */
     const uint32_t mask = st->cp0_pagemask >> 13;
@@ -88,8 +106,8 @@ void MipsMmu::InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra) {
     /* r4k_invalidate_tlb (tlb_helper.c:1378). */
     MipsTlbEntry& e = st->tlb[idx];
     const uint16_t asid = st->cp0_entryhi & kAsidMask;
-    /* The qemu TLB is flushed when the ASID changes, so entries whose ASID no
-       longer matches need no per-page flush here (tlb_helper.c:1393). */
+    /* A non-global entry whose ASID differs from the current one is skipped
+       (tlb_helper.c:1393). */
     if (e.g == 0 && e.asid != asid) {
         return;
     }
@@ -145,6 +163,30 @@ void MipsMmu::WriteIndexed(MipsCpuState* st) {
     }
     InvalidateTlb(st, idx, false);
     FillTlb(st, idx);
+}
+
+uint32_t MipsMmu::RandomIndex(MipsCpuState* st) {
+    /* cpu_mips_get_random (cp0_helper.c:204): a Linear Congruential Generator
+       (ISO/IEC 9899) over [Wired, nb_tlb-1], never returning the previous index. */
+    const uint32_t nb_rand = st->nb_tlb - st->cp0_wired;
+    if (nb_rand == 1) {
+        return st->nb_tlb - 1u;
+    }
+    uint32_t idx;
+    do {
+        lcg_seed_ = 1103515245u * lcg_seed_ + 12345u;
+        idx = (lcg_seed_ >> 16) % nb_rand + st->cp0_wired;
+    } while (idx == prev_random_idx_);
+    prev_random_idx_ = idx;
+    return idx;
+}
+
+void MipsMmu::WriteRandom(MipsCpuState* st) {
+    /* r4k_helper_tlbwr (tlb_helper.c:164): write the entry at a random index,
+       shadowing the discarded one (use_extra) so a probe can still find it. */
+    const uint32_t r = RandomIndex(st);
+    InvalidateTlb(st, r, true);
+    FillTlb(st, r);
 }
 
 void MipsMmu::Probe(MipsCpuState* st) {

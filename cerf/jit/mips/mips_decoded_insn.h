@@ -32,6 +32,7 @@ struct MipsDecodedInsn {
        branch is not taken (MIPS II+ branch-likely). */
     uint32_t is_branch : 1;
     uint32_t is_likely : 1;
+    uint32_t is_eret   : 1;   /* COP0 ERET: ends the block, no delay slot */
 
     JitBlock* entry_point;
     uint8_t*  jmp_fixup_location;

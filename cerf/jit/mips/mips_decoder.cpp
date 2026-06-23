@@ -20,10 +20,23 @@ bool RecognizedSpecial(uint32_t funct) {
         case MipsSpecial::kAND:  case MipsSpecial::kOR:
         case MipsSpecial::kXOR:  case MipsSpecial::kNOR:
         case MipsSpecial::kSLT:  case MipsSpecial::kSLTU:
+        case MipsSpecial::kDADD:
         case MipsSpecial::kDADDU:
+        case MipsSpecial::kDSUB:
         case MipsSpecial::kDSUBU:
+        case MipsSpecial::kDMULT:
+        case MipsSpecial::kDMULTU:
+        case MipsSpecial::kDDIV:
+        case MipsSpecial::kDDIVU:
+        case MipsSpecial::kDSLLV:
+        case MipsSpecial::kDSRLV:
+        case MipsSpecial::kDSRAV:
+        case MipsSpecial::kDSLL:
+        case MipsSpecial::kDSRL:
+        case MipsSpecial::kDSRA:
         case MipsSpecial::kDSLL32:
         case MipsSpecial::kDSRL32:
+        case MipsSpecial::kDSRA32:
             return true;
         default:
             return false;
@@ -31,7 +44,8 @@ bool RecognizedSpecial(uint32_t funct) {
 }
 
 bool RecognizedCop0(const MipsDecodedInsn* d) {
-    if (d->rs == MipsCop0Rs::kMFC0 || d->rs == MipsCop0Rs::kMTC0) {
+    if (d->rs == MipsCop0Rs::kMFC0  || d->rs == MipsCop0Rs::kMTC0 ||
+        d->rs == MipsCop0Rs::kDMFC0 || d->rs == MipsCop0Rs::kDMTC0) {
         return true;
     }
     if (d->rs >= MipsCop0Rs::kCO) {     /* CO bit set: dispatch on funct */
@@ -64,6 +78,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
     d->target             = word & 0x03ffffff;
     d->is_branch          = 0;
     d->is_likely          = 0;
+    d->is_eret            = 0;
     d->entry_point        = nullptr;
     d->jmp_fixup_location = nullptr;
 
@@ -89,6 +104,9 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
             }
 
         case MipsOp::kCOP0:
+            if (d->rs >= MipsCop0Rs::kCO && d->funct == MipsCop0Funct::kERET) {
+                d->is_eret = 1;   /* ERET ends the block and has no delay slot */
+            }
             return RecognizedCop0(d);
 
         /* Branches with a delay slot. */
@@ -114,7 +132,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
 
         /* I-type ALU + load/store + cache hint. */
         case MipsOp::kADDI:  case MipsOp::kADDIU:
-        case MipsOp::kDADDIU:
+        case MipsOp::kDADDI: case MipsOp::kDADDIU:
         case MipsOp::kSLTI:  case MipsOp::kSLTIU:
         case MipsOp::kANDI:  case MipsOp::kORI:
         case MipsOp::kXORI:  case MipsOp::kLUI:
@@ -122,7 +140,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kLW:    case MipsOp::kLBU:   case MipsOp::kLHU:
         case MipsOp::kLWR:   case MipsOp::kLWU:   case MipsOp::kSB:    case MipsOp::kSH:
         case MipsOp::kSWL:   case MipsOp::kSW:    case MipsOp::kSWR:
-        case MipsOp::kSDL:   case MipsOp::kSDR:
+        case MipsOp::kSDL:   case MipsOp::kSDR:   case MipsOp::kLDL:   case MipsOp::kLDR:
         case MipsOp::kLD:    case MipsOp::kSD:
         case MipsOp::kCACHE: case MipsOp::kPREF:
             return true;

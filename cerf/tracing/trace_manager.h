@@ -9,16 +9,18 @@
 #include <vector>
 
 class CerfEmulator;
+struct MipsCpuState;
 
-/* TraceContext - read-only snapshot the JIT hands to a trace handler.
-   `regs[15] == pc`; `regs[13]` SP; `regs[14]` LR. ReadVa* peek the
-   data-TLB fast path via ArmMmu::PeekDataTlb - nullopt when the page
-   is not currently TLB-cached (no MMU walk, no abort raise). */
+/* TraceContext - read-only snapshot the JIT hands to a trace handler. Only the
+   active ISA's view is non-null: ARM populates `regs`(`regs[15]`==pc)+`cpsr`
+   (mips==null); MIPS populates `mips` (regs==null). A handler dereferencing the
+   other ISA's view reads null. `pc`/`ReadVa*` are ISA-neutral. */
 struct TraceContext {
     const uint32_t* regs;
     uint32_t        cpsr;
     uint32_t        pc;
     CerfEmulator&   emu;
+    const MipsCpuState* mips = nullptr;
 
     std::optional<uint8_t>  ReadVa8 (uint32_t va) const;
     std::optional<uint16_t> ReadVa16(uint32_t va) const;
@@ -47,20 +49,26 @@ public:
        branch on size(). */
     bool HasPcTrace (uint32_t pc) const;
 
-    /* Dispatch site called from the JIT translator. */
+    /* Dispatch sites called from the JIT translator (one per live ISA). */
     void DispatchPc(uint32_t pc, const uint32_t* regs, uint32_t cpsr);
+    void DispatchPcMips(uint32_t pc, const MipsCpuState* st);
 
     uint32_t BundleCrc32() const { return bundle_crc32_; }
 
 #if CERF_DEV_MODE
     void OnRunLoopIter(TraceHandler handler);
     void DispatchRunLoopIter(const uint32_t* regs, uint32_t cpsr);
+    void DispatchRunLoopIterMips(const MipsCpuState* st);
 #endif
 
 private:
     /* Computes CRC32 over concatenated RomParserService::Loaded()[i].raw
        bytes in load order. Empty when no ROMs loaded. */
     uint32_t ComputeBundleCrc32() const;
+
+    /* Shared PC-trace fan-out for both ISAs: lookup pc, run predicate+handler
+       over the prebuilt context. */
+    void DispatchContext(uint32_t pc, const TraceContext& ctx);
 
     uint32_t bundle_crc32_   = 0;
     uint32_t bundles_matched_ = 0;
@@ -73,6 +81,7 @@ private:
     std::unordered_map<uint32_t, std::vector<PcEntry>> pc_traces_;
 
 #if CERF_DEV_MODE
+    void DispatchIterContext(const TraceContext& ctx);
     std::vector<TraceHandler> iter_handlers_;
 #endif
 };

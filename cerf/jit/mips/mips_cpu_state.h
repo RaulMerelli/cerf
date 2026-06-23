@@ -51,17 +51,41 @@ namespace MipsCauseBit {
     constexpr uint32_t kExcCode = 2;  /* exception code = bits 2..6 */
 }
 
+/* CP0 Cause.ExcCode values (MIPS Vol III Table; QEMU tlb_helper.c do_interrupt
+   `cause` assignments). Only the ones CERF raises are listed. */
+namespace MipsExcCode {
+    constexpr uint32_t kInt = 0;   /* interrupt */
+    constexpr uint32_t kMod = 1;   /* TLB modified (store to a clean page) */
+    constexpr uint32_t kTLBL = 2;  /* TLB miss/invalid on load or fetch */
+    constexpr uint32_t kTLBS = 3;  /* TLB miss/invalid on store */
+    constexpr uint32_t kAdEL = 4;  /* address error on load/fetch */
+    constexpr uint32_t kAdES = 5;  /* address error on store */
+    constexpr uint32_t kSys = 8;   /* syscall */
+    constexpr uint32_t kBp  = 9;   /* breakpoint */
+    constexpr uint32_t kRI  = 10;  /* reserved instruction */
+    constexpr uint32_t kOv  = 12;  /* arithmetic overflow */
+}
+
+/* Exception vector bases (R4000 / VR5500, pre-Release-2: no writable EBase).
+   QEMU do_interrupt: BEV ? exception_base(0xBFC00000)+0x200 : EBase(0x80000000);
+   offset 0x000 for a TLB-refill (NOMATCH, EXL was 0), else 0x180. */
+namespace MipsExcVector {
+    constexpr uint32_t kBaseNormal = 0x80000000u;  /* Status.BEV = 0 */
+    constexpr uint32_t kBaseBev    = 0xBFC00200u;  /* Status.BEV = 1 */
+    constexpr uint32_t kOffRefill  = 0x000u;       /* TLB refill (TLBL/TLBS, NOMATCH, !EXL) */
+    constexpr uint32_t kOffGeneral = 0x180u;       /* all other exceptions */
+}
+
 constexpr uint32_t kMipsNumGpr     = 32;
 
-/* Branch/delay-slot carry type. Mirrors QEMU hflags branch field (cpu.h
-   MIPS_HFLAG_B/BC/BR :1151-1153): a branch records its kind here, the delay slot
-   runs, then the resolve sets pc. kLikely (BL) / register-exchange (BX) are not
-   reached on this soft-float VR5500 build and route to the loud stub. */
+/* Branch/delay-slot carry kind = QEMU hflags branch field (cpu.h
+   MIPS_HFLAG_B/BC/BL/BR); set by the branch, read after the delay slot. */
 namespace MipsBranch {
-    constexpr uint32_t kNone     = 0;
-    constexpr uint32_t kUncond   = 1;  /* MIPS_HFLAG_B  - j / jal / always-taken */
-    constexpr uint32_t kCond     = 2;  /* MIPS_HFLAG_BC - beq/bne/bgtz/bltz/bgez */
-    constexpr uint32_t kRegister = 3;  /* MIPS_HFLAG_BR - jr / jalr */
+    constexpr uint32_t kNone       = 0;
+    constexpr uint32_t kUncond     = 1;  /* MIPS_HFLAG_B  - j / jal */
+    constexpr uint32_t kCond       = 2;  /* MIPS_HFLAG_BC - beq/bne/bgtz/blez/bltz/bgez */
+    constexpr uint32_t kRegister   = 3;  /* MIPS_HFLAG_BR - jr / jalr */
+    constexpr uint32_t kCondLikely = 4;  /* MIPS_HFLAG_BL - *L: not-taken nullifies delay slot */
 }
 
 /* One R4000-style TLB entry. Source: QEMU target/mips internal.h r4k_tlb_t;
@@ -138,6 +162,13 @@ struct MipsCpuState {
     uint32_t reset_pending;
     uint32_t deep_sleep;
     uint32_t guest_cycle_counter;
+
+    /* In-core R4000 Count/Compare timer (the CE scheduler tick = IP7 on this
+       pre-R2 core). Count is driven off guest_cycle_counter on the JIT thread;
+       count_anchor is the cycle value at the last advance, timer_armed gates a
+       single IP7 raise per Compare write (QEMU cp0_timer.c). */
+    uint32_t count_anchor;
+    uint32_t timer_armed;
 };
 
 /* CP0 register number -> byte offset of its field in MipsCpuState, or -1 for a
