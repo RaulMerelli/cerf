@@ -10,15 +10,17 @@
 #include "keyboard_router.h"
 #include "lcd_scan_tick.h"
 #include "memory_visualizer.h"
-#include "hw_boot_animation.h"
+#include "boot_screen.h"
 #include "hw_screen.h"
 
 REGISTER_SERVICE(HostCanvas);
 
 void HostCanvas::CreateOn(HWND parent, const RECT& rect,
                           uint32_t surf_w, uint32_t surf_h) {
+    tab_ = emu_.Get<DeviceConfig>().start_tab;
     canvas_.SetSource(emu_.TryGet<FrameRenderer>());
     canvas_.CreateOn(parent, rect, surf_w, surf_h);
+    canvas_.SetFramebufferActive(tab_ == Tab::Framebuffer);
 }
 
 void HostCanvas::Reposition(const RECT& r) {
@@ -52,7 +54,7 @@ void HostCanvas::OnPresentTick() {
     const bool has_frame = canvas_.SourceHasFrame();
     if (has_frame && !latched_once_) {
         latched_once_ = true;
-        emu_.Get<HwBootAnimation>().OnFramebufferLatched();
+        emu_.Get<BootScreen>().OnFramebufferLatched();
         if (!user_picked_view_) {
             tab_ = Tab::Framebuffer;
             canvas_.SetFramebufferActive(true);
@@ -63,8 +65,8 @@ void HostCanvas::OnPresentTick() {
        (Jornada 820), so the framebuffer never repaints and OnFramebufferLatched
        never fires. While stuck on the Resuming screen, send Tab via the active
        keyboard source every second to undim it; give up + warn after 10s. */
-    auto& boot = emu_.Get<HwBootAnimation>();
-    const bool stuck = (tab_ == Tab::Hw) && !latched_once_ && boot.IsResuming();
+    auto& boot = emu_.Get<BootScreen>();
+    const bool stuck = !latched_once_ && boot.IsResuming();
     if (!stuck) {
         resume_nudge_start_ms_ = 0;
         resume_nudge_warned_   = false;
@@ -94,6 +96,10 @@ void HostCanvas::OnPresentTick() {
 
 bool HostCanvas::RenderAltContent(HDC dc, uint32_t* bits, int w, int h) {
     if (tab_ == Tab::Framebuffer) return false;   /* canvas composes the frame */
+    if (tab_ == Tab::Boot) {
+        emu_.Get<BootScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
+        return true;
+    }
     if (tab_ == Tab::MemoryVisualizer) {
         if (auto* mv = emu_.TryGet<MemoryVisualizer>())
             mv->RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);

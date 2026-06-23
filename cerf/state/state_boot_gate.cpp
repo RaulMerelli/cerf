@@ -19,7 +19,9 @@ void StateBootGate::Run() {
        for a keypress before falling through to a cold boot. */
     switch (emu_.Get<DeviceConfig>().boot_mode) {
         case StateBootMode::Cold:   break;                                /* ignore state.img */
-        case StateBootMode::Warm:   hib.Restore(L"", /*ram_only=*/true);  break;
-        case StateBootMode::Resume: hib.Restore(L"", /*ram_only=*/false); break;
+        case StateBootMode::Warm:
+            hib.Restore(L"", /*ram_only=*/true,  /*cold_boot_on_failure=*/true);  break;
+        case StateBootMode::Resume:
+            hib.Restore(L"", /*ram_only=*/false, /*cold_boot_on_failure=*/true);  break;
     }
 }

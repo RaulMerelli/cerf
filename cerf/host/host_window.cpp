@@ -3,17 +3,13 @@
 #include "host_window.h"
 
 #include <string>
-#include <vector>
 
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
-#include "../core/device_meta_label.h"
 #include "../core/log.h"
-#include "../core/string_utils.h"
 #include "../jit/jit_runner.h"
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
 #include "../state/shutdown_dialog.h"
-#include "../version.h"
 #include "host_auto_resize.h"
 #include "frame_renderer.h"
 #include "host_canvas.h"
@@ -23,6 +19,7 @@
 #include "host_status_bar.h"
 #include "host_widget_registry.h"
 #include "initial_window_size.h"
+#include "window_title.h"
 #include "../state/hibernation.h"
 
 REGISTER_SERVICE(HostWindow);
@@ -32,7 +29,7 @@ namespace {
 constexpr wchar_t  kWindowClass[]  = L"CerfHostWindow";
 constexpr UINT     kLcdResizeMsg   = WM_APP + 1;
 constexpr UINT     kGuestRemodeMsg = WM_APP + 2;
-constexpr UINT     kShowHwMsg    = WM_APP + 3;
+constexpr UINT     kShowTabMsg     = WM_APP + 3;   /* wParam = HostCanvas::Tab, lParam = rearm */
 constexpr UINT     kRunJobMsg      = WM_APP + 4;   /* lParam = heap std::function */
 constexpr UINT     kShutdownMsg    = WM_APP + 5;   /* posted from WM_CLOSE */
 constexpr UINT_PTR kResizeDebounceTimer = 1;
@@ -60,25 +57,6 @@ void HostWindow::StopUiThread() {
         if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         ui_thread_.join();
     }
-}
-
-std::wstring HostWindow::ComposeWindowTitle() const {
-    const DeviceMeta& meta = emu_.Get<DeviceConfig>().meta;
-
-    std::vector<std::wstring> parts;
-    if (!meta.device_name.empty())
-        parts.push_back(Utf8ToWide(meta.device_name.c_str()));
-    const std::string os = OsDisplayLabel(meta);
-    if (!os.empty())
-        parts.push_back(Utf8ToWide(os.c_str()));
-    parts.push_back(L"CERF " CERF_VERSION_DISPLAY_WSTR);
-
-    std::wstring title;
-    for (size_t i = 0; i < parts.size(); ++i) {
-        if (i) title += L" • ";   /* bullet separator */
-        title += parts[i];
-    }
-    return title;
 }
 
 void HostWindow::OnReady() {
@@ -135,7 +113,14 @@ void HostWindow::FitToResolution(uint32_t sw, uint32_t sh) {
 
 void HostWindow::ShowHwScreenTab(bool rearm_framebuffer) {
     if (hwnd_)
-        PostMessageW(hwnd_, kShowHwMsg, rearm_framebuffer ? 1u : 0u, 0);
+        PostMessageW(hwnd_, kShowTabMsg, (WPARAM)HostCanvas::Tab::Hw,
+                     rearm_framebuffer ? 1 : 0);
+}
+
+void HostWindow::ShowStartupTab(bool rearm_framebuffer) {
+    if (hwnd_)
+        PostMessageW(hwnd_, kShowTabMsg, (WPARAM)emu_.Get<DeviceConfig>().start_tab,
+                     rearm_framebuffer ? 1 : 0);
 }
 
 void HostWindow::RunOnUiThread(std::function<void()> job) {
@@ -280,7 +265,7 @@ void HostWindow::UiThreadMain() {
     AdjustWindowRectEx(&r, style, /*bMenu=*/TRUE, 0);
 
     HMENU menu = emu_.Get<HostMenu>().Build();
-    const std::wstring title = ComposeWindowTitle();
+    const std::wstring title = emu_.Get<WindowTitle>().Compose();
     hwnd_ = CreateWindowExW(0, kWindowClass, title.c_str(),
                             style, CW_USEDEFAULT, CW_USEDEFAULT,
                             r.right - r.left, r.bottom - r.top,
@@ -362,10 +347,10 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
-    if (msg == kShowHwMsg) {
+    if (msg == kShowTabMsg) {
         auto& canvas = emu_.Get<HostCanvas>();
-        canvas.SetTab(HostCanvas::Tab::Hw, /*user_initiated=*/false);
-        if (wp) canvas.RearmFramebufferAutoSwitch();
+        canvas.SetTab((HostCanvas::Tab)wp, /*user_initiated=*/false);
+        if (lp) canvas.RearmFramebufferAutoSwitch();
         return 0;
     }
 

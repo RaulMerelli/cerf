@@ -16,7 +16,6 @@
 #include "../host/guest_deep_sleep.h"
 #include "../host/host_widget_registry.h"
 #include "../host/host_window.h"
-#include "../host/hw_boot_animation.h"
 #include "../host/hw_screen.h"
 #include "../jit/arm/arm_cpu.h"
 #include "../jit/arm/arm_jit.h"
@@ -81,15 +80,14 @@ void Hibernation::Progress(const char* fmt, ...) {
     LOG(Cerf, "[HIBERNATE] %s\n", buf);
 }
 
-void Hibernation::AwaitFailureAck() {
-    /* Restore failed: the screen must show this text immediately, not after the
-       boot animation would otherwise finish. */
-    emu_.Get<HwBootAnimation>().Abort();
-    Progress("Press any key to continue.");
+void Hibernation::AwaitFailureAck(bool cold_boot) {
+    Progress(cold_boot ? "Press any key for cold boot."
+                       : "Press any key to resume.");
     auto& kp = emu_.Get<HostKeyPrompt>();
     kp.Arm();
     kp.Wait(INFINITE);
     kp.Disarm();
+    Progress(cold_boot ? "Performing cold boot..." : "Resuming...");
 }
 
 std::wstring Hibernation::DefaultStatePath() const {
@@ -265,7 +263,8 @@ void Hibernation::RestorePresentation(StateReader& r) {
     });
 }
 
-bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
+bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
+                          bool cold_boot_on_failure) {
     const std::wstring path = path_in.empty() ? DefaultStatePath() : path_in;
     auto& runner = emu_.Get<JitRunner>();
 
@@ -275,7 +274,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
     StateReader r(path);
     if (!r.Ok()) {
         Progress("Cannot open state image.");
-        AwaitFailureAck();
+        AwaitFailureAck(cold_boot_on_failure);
         emu_.Get<HostWindow>().ShowHwScreenTab(true);
         return false;
     }
@@ -328,7 +327,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only) {
            reason, then continue: a runtime load resumes the guest, a
            boot-time load falls through to a cold boot. */
         Progress("Restore FAILED.");
-        AwaitFailureAck();
+        AwaitFailureAck(cold_boot_on_failure);
     }
     runner.Resume();
 

@@ -25,7 +25,8 @@ void PrintUsage(const char* prog) {
     printf("  --recovery               Boot the device's recovery ROM (rom.recovery) instead of primary\n");
     printf("  --boot=resume|cold|warm  Saved-state boot action when state.img exists\n");
     printf("                           (resume=full restore, warm=RAM+flash only, cold=ignore)\n");
-    printf("  --boot-anim=enable|disable  HwScreen logo boot animation (default: off in dev, on in release)\n");
+    printf("  --tab=boot|hw|fb         Startup tab: boot screen, hardware console, or framebuffer\n");
+    printf("                           (default: hw in dev, boot in release)\n");
     printf("  --full-screen            Enter borderless fullscreen (Right Ctrl+F) once the window is shown\n");
     printf("  --help                   Show this help\n");
     printf("\n");

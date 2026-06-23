@@ -28,6 +28,7 @@ ICON_USB                 ICON "assets/usb.ico"
 ICON_USB_FORD_FLASHER    ICON "assets/usb_ford_flasher.ico"
 
 CERF_LOGO     RCDATA "../gweslab.png"
+OEM_WINCE     RCDATA "assets/oem/logo_wince.png"
 OEM_COMPAQ    RCDATA "assets/oem/logo_compaq.png"
 OEM_FORD      RCDATA "assets/oem/logo_ford.png"
 OEM_HP        RCDATA "assets/oem/logo_hp.png"

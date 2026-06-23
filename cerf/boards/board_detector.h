@@ -91,16 +91,16 @@ public:
     virtual const char* BoardName()   const = 0;
     virtual CpuArch     GetCpuArch()  const = 0;
 
-    /* Short consumer name shown on the HwScreen boot animation beneath the OEM
-       logo ("Starting <name>..."). Defaults to the full BoardName(); boards
+    /* Short consumer name shown on the boot screen beneath the OEM logo
+       ("Starting <name>..."). Defaults to the full BoardName(); boards
        override with a brief device name. */
     virtual const char* GetShortBoardName() const { return BoardName(); }
 
     /* RT_RCDATA resource name of the board's OEM boot logo (a PNG embedded via
-       cerf.rc), or nullptr when the board has no OEM logo - HwScreen then shows
-       only the CERF logo. HwScreen owns decoding; the detector stays free of
-       any GDI/Win32 dependency (a wchar_t* resource name needs no windows.h). */
-    virtual const wchar_t* GetBootLogoResource() const { return nullptr; }
+       cerf.rc). Defaults to the generic Windows CE logo; boards override with
+       their own. BootScreen owns decoding; the detector stays free of any
+       GDI/Win32 dependency (a wchar_t* resource name needs no windows.h). */
+    virtual const wchar_t* GetBootLogoResource() const { return L"OEM_WINCE"; }
 
     /* Cosmetic pre-boot window-size hint for boards with a single fixed LCD.
        Never route actual sizing through this - the real resolution comes

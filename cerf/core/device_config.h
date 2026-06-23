@@ -31,6 +31,17 @@ enum class StateBootMode {
     Cold,     /* ignore state.img, cold boot */
 };
 
+/* The host canvas tabs. The startup / reboot / resume tab (--tab=boot|hw|fb)
+   selects one; MemoryVisualizer is a dev-only tab, not a startup choice.
+   Defined here (not in HostCanvas) so core config can name it without core
+   depending on the host layer; HostCanvas aliases it as HostCanvas::Tab. */
+enum class CanvasTab {
+    Boot,            /* CERF/OEM logo boot screen */
+    Hw,              /* hardware text console (UART / debug output) */
+    Framebuffer,     /* live guest framebuffer */
+    MemoryVisualizer,/* dev memory visualizer */
+};
+
 struct DeviceConfig : public Service {
     using Service::Service;
 
@@ -79,14 +90,13 @@ struct DeviceConfig : public Service {
     bool boot_in_recovery = false;
     bool guest_additions = false;
 
-    /* HwScreen boot animation (CERF/OEM logo intro). Dev builds default OFF so
-       debug output shows instantly; production defaults ON. --boot-anim=
-       enable|disable overrides either way. */
-    bool boot_anim =
+    /* Startup tab. Dev builds default to the hardware console so debug output
+       shows instantly; production defaults to the boot screen. --tab overrides. */
+    CanvasTab start_tab =
 #if CERF_DEV_MODE
-        false;
+        CanvasTab::Hw;
 #else
-        true;
+        CanvasTab::Boot;
 #endif
 
     /* Dev builds default to cold so iteration never auto-resumes a stale

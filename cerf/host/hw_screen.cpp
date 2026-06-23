@@ -3,9 +3,8 @@
 #include "hw_screen.h"
 
 #include "../core/cerf_emulator.h"
-#include "emulation_pause.h"
-#include "hw_boot_animation.h"
-#include "uart_boot_bar_data.h"
+#include "boot_bar.h"
+#include "boot_screen.h"
 
 #include <algorithm>
 #include <cstring>
@@ -61,59 +60,21 @@ void HwScreen::AddLine(std::string_view line) {
     std::lock_guard<std::mutex> lk(mtx_);
     if (lines_.size() >= kMaxLines) lines_.pop_front();
     lines_.emplace_back(line);
-    has_output_      = true;
-    text_gate_armed_ = false;   /* a new line disarms the post-reboot hold gate */
-}
-
-bool HwScreen::HasOutput() const {
-    std::lock_guard<std::mutex> lk(mtx_);
-    return has_output_;
-}
-
-void HwScreen::Clear() {
-    std::lock_guard<std::mutex> lk(mtx_);
-    lines_.clear();
-}
-
-void HwScreen::ArmTextGate() {
-    std::lock_guard<std::mutex> lk(mtx_);
-    text_gate_armed_ = true;
 }
 
 void HwScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
                           uint32_t width, uint32_t height) {
     std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
 
-    auto& anim = emu_.Get<HwBootAnimation>();
-    anim.Advance(emu_.Get<EmulationPause>().AnimationTickMs());
-
-    bool has_output, gate_armed;
     std::vector<std::string> snapshot;
     {
         std::lock_guard<std::mutex> lk(mtx_);
-        has_output = has_output_;
-        gate_armed = text_gate_armed_;
         snapshot.assign(lines_.begin(), lines_.end());
     }
 
-    /* The boot animation owns the screen until it finishes, even once output
-       has been buffered - the buffered text then appears the instant it ends. */
-    if (!anim.Finished()) {
-        anim.DrawInto(dc, width, height);
-        DrawBootBar(dib_bgra32, width, height);
-        return;
-    }
-
-    /* An armed gate keeps the held logo even with output already buffered; it
-       clears on the next AddLine, so the boot logo persists until fresh TX.
-       With the animation disabled there is no hold to honour - show text. */
-    if (has_output && (!gate_armed || !anim.Enabled())) {
-        anim.DrawDimmedCenterLogo(dc, width, height);
-        DrawLog(dc, width, height, snapshot);
-    } else {
-        anim.DrawHeldFinal(dc, width, height);
-    }
-    DrawBootBar(dib_bgra32, width, height);
+    emu_.Get<BootScreen>().DrawWatermark(dc, width, height);
+    DrawLog(dc, width, height, snapshot);
+    emu_.Get<BootBar>().RenderInto(dib_bgra32, width, height);
 }
 
 void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
@@ -170,40 +131,4 @@ void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
         y += line_height;
     }
     SelectObject(dc, old_font);
-}
-
-void HwScreen::DrawBootBar(uint32_t* dib_bgra32,
-                           uint32_t width, uint32_t height) const {
-    if (height < kUartBootBarHeight || width == 0) return;
-
-    const uint64_t cycle_ms = 4000;
-    const uint32_t phase_ms =
-        (uint32_t)(emu_.Get<EmulationPause>().AnimationTickMs() % cycle_ms);
-    const int      x_origin = (int)(((uint64_t)phase_ms * width) / cycle_ms);
-    const int      y_origin = (int)height - (int)kUartBootBarHeight;
-
-    for (uint32_t py = 0; py < kUartBootBarHeight; ++py) {
-        const int dst_y = y_origin + (int)py;
-        if (dst_y < 0 || dst_y >= (int)height) continue;
-        const uint32_t* src_row = &kUartBootBarPixels[py * kUartBootBarWidth];
-        uint32_t*       dst_row = dib_bgra32 + (size_t)dst_y * width;
-        for (uint32_t px = 0; px < kUartBootBarWidth; ++px) {
-            const int dst_x = (x_origin + (int)px) % (int)width;
-            const uint32_t s  = src_row[px];
-            const uint32_t sa = (s >> 24) & 0xFFu;
-            if (sa == 0) continue;
-            const uint32_t sr = (s >> 16) & 0xFFu;
-            const uint32_t sg = (s >>  8) & 0xFFu;
-            const uint32_t sb =  s        & 0xFFu;
-            const uint32_t d  = dst_row[dst_x];
-            const uint32_t dr = (d >> 16) & 0xFFu;
-            const uint32_t dg = (d >>  8) & 0xFFu;
-            const uint32_t db =  d        & 0xFFu;
-            const uint32_t inv = 255u - sa;
-            const uint32_t out_r = (sr * sa + dr * inv) / 255u;
-            const uint32_t out_g = (sg * sa + dg * inv) / 255u;
-            const uint32_t out_b = (sb * sa + db * inv) / 255u;
-            dst_row[dst_x] = 0xFF000000u | (out_r << 16) | (out_g << 8) | out_b;
-        }
-    }
 }

@@ -330,11 +330,12 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             else if (strcmp(v, "warm")   == 0) config.boot_mode = StateBootMode::Warm;
             else if (strcmp(v, "cold")   == 0) config.boot_mode = StateBootMode::Cold;
             else Fatal("(command line)", "--boot must be resume, warm, or cold");
-        } else if (strncmp(a, kArgBootAnim, sizeof(kArgBootAnim) - 1) == 0) {
-            const char* v = a + sizeof(kArgBootAnim) - 1;
-            if      (strcmp(v, "enable")  == 0) config.boot_anim = true;
-            else if (strcmp(v, "disable") == 0) config.boot_anim = false;
-            else Fatal("(command line)", "--boot-anim must be enable or disable");
+        } else if (strncmp(a, kArgTab, sizeof(kArgTab) - 1) == 0) {
+            const char* v = a + sizeof(kArgTab) - 1;
+            if      (strcmp(v, "boot") == 0) config.start_tab = CanvasTab::Boot;
+            else if (strcmp(v, "hw")   == 0) config.start_tab = CanvasTab::Hw;
+            else if (strcmp(v, "fb")   == 0) config.start_tab = CanvasTab::Framebuffer;
+            else Fatal("(command line)", "--tab must be boot, hw, or fb");
         }
     }
 }

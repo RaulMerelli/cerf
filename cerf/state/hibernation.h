@@ -33,7 +33,8 @@ public:
        section (warm boot): cold-entry CPU/cp15/peripherals stay intact
        for the kernel to re-init. */
     bool Save(const std::wstring& path);
-    bool Restore(const std::wstring& path, bool ram_only = false);
+    bool Restore(const std::wstring& path, bool ram_only = false,
+                 bool cold_boot_on_failure = false);
 
     /* Runs the op on a worker. on_done (if set) fires on that worker thread
        at completion - UI work inside it must marshal to the UI thread.
@@ -50,9 +51,7 @@ private:
     void     RestorePresentation(StateReader& r);
     uint32_t PeripheralLayoutSig() const;
     void     Progress(const char* fmt, ...);
-    /* Hold the UART screen on a restore failure until the user presses a key
-       to acknowledge the rejection reason. */
-    void     AwaitFailureAck();
+    void     AwaitFailureAck(bool cold_boot);
     void     JoinWorker();
 
     std::thread worker_;

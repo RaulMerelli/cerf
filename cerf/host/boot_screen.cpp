@@ -1,18 +1,20 @@
 #define NOMINMAX
 
-#include "hw_boot_animation.h"
+#include "boot_screen.h"
 
 #include "../boards/board_detector.h"
 #include "../core/cerf_emulator.h"
-#include "../core/device_config.h"
 #include "../core/string_utils.h"
+#include "boot_bar.h"
+#include "emulation_pause.h"
 #include "host_gdiplus.h"
 
 #include <algorithm>
+#include <cstring>
 #include <objbase.h>
 #include <gdiplus.h>
 
-REGISTER_SERVICE(HwBootAnimation);
+REGISTER_SERVICE(BootScreen);
 
 namespace {
 
@@ -40,29 +42,43 @@ const wchar_t*     kResumeStalledHint =
 
 }  /* namespace */
 
-HwBootAnimation::~HwBootAnimation() {
-    delete cerf_logo_;
-    delete oem_logo_;
+BootScreen::~BootScreen() {
     if (label_font_)      DeleteObject(label_font_);
     if (disclaimer_font_) DeleteObject(disclaimer_font_);
 }
 
-void HwBootAnimation::OnReady() {
+void BootScreen::OnShutdown() {
+    /* Free GDI+ bitmaps here, not in ~BootScreen: OnShutdown runs before any
+       destructor, so HostGdiPlus (GdiplusShutdown in its dtor) is still up.
+       Deleting a Bitmap after GdiplusShutdown faults. */
+    delete cerf_logo_; cerf_logo_ = nullptr;
+    delete oem_logo_;  oem_logo_  = nullptr;
+}
+
+void BootScreen::OnReady() {
     auto& bd      = emu_.Get<BoardDetector>();
     oem_resource_ = bd.GetBootLogoResource();
     short_name_   = Utf8ToWide(bd.GetShortBoardName());
-    enabled_      = emu_.Get<DeviceConfig>().boot_anim;
 }
 
-void HwBootAnimation::EnsureLogosLoaded() {
+void BootScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
+                            uint32_t width, uint32_t height) {
+    std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
+    Advance(emu_.Get<EmulationPause>().AnimationTickMs());
+    if (!Finished()) DrawAnimation(dc, width, height);
+    else             DrawHeldFinal(dc, width, height);
+    emu_.Get<BootBar>().RenderInto(dib_bgra32, width, height);
+}
+
+void BootScreen::EnsureLogosLoaded() {
     if (logos_loaded_) return;
     logos_loaded_ = true;
     auto& gdip = emu_.Get<HostGdiPlus>();
     cerf_logo_ = gdip.DecodeResourcePng(L"CERF_LOGO");
-    if (oem_resource_) oem_logo_ = gdip.DecodeResourcePng(oem_resource_);
+    oem_logo_  = gdip.DecodeResourcePng(oem_resource_);
 }
 
-void HwBootAnimation::EnsureFonts() {
+void BootScreen::EnsureFonts() {
     if (!label_font_)
         label_font_ = CreateFontW(-kLabelFontPx, 0, 0, 0, FW_BOLD, FALSE, FALSE,
                                   FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
@@ -75,7 +91,7 @@ void HwBootAnimation::EnsureFonts() {
                                        VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
 }
 
-std::wstring HwBootAnimation::CurrentLabelText() const {
+std::wstring BootScreen::CurrentLabelText() const {
     if (fb_latched_)                          return L"Switched to LCD";
     if (label_mode_ == LabelMode::Resuming)   return L"Resuming...";
     if (label_mode_ == LabelMode::Restarting) return L"Restarting...";
@@ -84,43 +100,34 @@ std::wstring HwBootAnimation::CurrentLabelText() const {
 
 /* In Resuming mode the panel may be dimmed-until-input and the framebuffer tab
    not shown yet; the disclaimer becomes a hint to reach it via View -> Framebuffer. */
-const wchar_t* HwBootAnimation::CurrentDisclaimerText() const {
+const wchar_t* BootScreen::CurrentDisclaimerText() const {
     if (label_mode_ != LabelMode::Resuming) return kDisclaimer;
     return resume_stalled_ ? kResumeStalledHint : kResumeHint;
 }
 
-bool HwBootAnimation::IsResuming() const {
+bool BootScreen::IsResuming() const {
     return label_mode_ == LabelMode::Resuming && !fb_latched_;
 }
 
-void HwBootAnimation::SetResumeStalled() { resume_stalled_ = true; }
+void BootScreen::SetResumeStalled() { resume_stalled_ = true; }
 
-void HwBootAnimation::Advance(uint64_t now) {
-    if (!enabled_) {
-        /* Animation off: the screen stays in the finished state. The
-           framebuffer-latch request still sets the "Switched to LCD" label;
-           restart/abort requests are absorbed (no animation to drive). */
-        if (fb_latched_req_.exchange(false)) fb_latched_ = true;
-        restart_req_.exchange(false);
-        abort_req_.exchange(false);
-        phase_  = Phase::Finished;
-        cur_op_ = 1.0f;
-        return;
-    }
-
+void BootScreen::Advance(uint64_t now) {
     if (!started_) { started_ = true; phase_ = Phase::CerfFadeIn; phase_start_ = now; }
 
     if (restart_req_.exchange(false)) {
         label_mode_  = restart_resuming_.load(std::memory_order_acquire)
                            ? LabelMode::Resuming : LabelMode::Restarting;
         fb_latched_  = false;
+        /* Drop a latch request the previous session left pending (Advance stops
+           once the framebuffer tab takes over, so it was never consumed); else
+           it fires this same Advance and flips the fresh label to "Switched to
+           LCD". The resumed guest's first frame re-latches later. */
+        fb_latched_req_.store(false, std::memory_order_release);
         resume_stalled_ = false;
-        entered_oem_ = true;
         phase_       = Phase::OemFadeIn;
         phase_start_ = now;
     }
     if (fb_latched_req_.exchange(false)) { fb_latched_ = true; phase_ = Phase::Finished; }
-    if (abort_req_.exchange(false))      { phase_ = Phase::Finished; }
 
     const uint64_t elapsed = (now >= phase_start_) ? (now - phase_start_) : 0;
 
@@ -135,10 +142,7 @@ void HwBootAnimation::Advance(uint64_t now) {
             break;
         case Phase::CerfFadeOut:
             cur_op_ = std::max(0.0f, 1.0f - (float)elapsed / (float)kCerfFadeOutMs);
-            if (elapsed >= kCerfFadeOutMs) {
-                if (oem_resource_) { phase_ = Phase::OemFadeIn; phase_start_ = now; entered_oem_ = true; }
-                else               { phase_ = Phase::Finished; }
-            }
+            if (elapsed >= kCerfFadeOutMs) { phase_ = Phase::OemFadeIn; phase_start_ = now; }
             break;
         case Phase::OemFadeIn:
             cur_op_ = std::min(1.0f, (float)elapsed / (float)kOemFadeInMs);
@@ -154,10 +158,10 @@ void HwBootAnimation::Advance(uint64_t now) {
     }
 }
 
-void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
-                                    bool use_oem, float opacity,
-                                    bool show_label, const std::wstring& label,
-                                    bool show_disclaimer, bool cerf_native_size) {
+void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
+                               bool use_oem, float opacity,
+                               bool show_label, const std::wstring& label,
+                               bool show_disclaimer, bool cerf_native_size) {
     EnsureLogosLoaded();
     opacity = std::clamp(opacity, 0.0f, 1.0f);
 
@@ -177,7 +181,7 @@ void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
             dst_w = std::max(1, (int)(bw * s));
             dst_h = std::max(1, (int)(bh * s));
         } else if (cerf_native_size) {
-            dst_w = bw;   /* native 1024x1024, window-independent (text-mode watermark) */
+            dst_w = bw;   /* native size, window-independent (text-mode watermark) */
             dst_h = bh;
         } else {
             const uint32_t md = std::min(width, height);
@@ -187,8 +191,8 @@ void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     }
 
     /* With a label below (OEM phase / held), the logo sits above centre to
-       leave room; without one (CERF intro, dimmed text-mode watermark) it is
-       centred on the screen. */
+       leave room; without one (CERF intro, text-mode watermark) it is centred
+       on the screen. */
     const int cx = (int)width / 2;
     const int cy = show_label ? (int)(height * 0.40f) : (int)height / 2;
 
@@ -254,7 +258,7 @@ void HwBootAnimation::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     }
 }
 
-void HwBootAnimation::DrawInto(HDC dc, uint32_t width, uint32_t height) {
+void BootScreen::DrawAnimation(HDC dc, uint32_t width, uint32_t height) {
     switch (phase_) {
         case Phase::CerfFadeIn:
         case Phase::CerfHold:
@@ -275,28 +279,21 @@ void HwBootAnimation::DrawInto(HDC dc, uint32_t width, uint32_t height) {
     }
 }
 
-void HwBootAnimation::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
-    if (entered_oem_) {
-        const bool oem = (oem_logo_ != nullptr);
-        DrawLogoFrame(dc, width, height, oem, 1.0f,
-                      /*label=*/true, CurrentLabelText(),
-                      /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
-    } else {
-        /* No OEM logo and never reached an OEM phase: the CERF intro faded to
-           black. Leave a dim watermark; surface the LCD hint once relatched. */
-        DrawLogoFrame(dc, width, height, /*use_oem=*/false, kDimOpacity,
-                      fb_latched_, L"Switched to LCD", /*disclaimer=*/false);
-    }
+void BootScreen::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
+    const bool oem = (oem_logo_ != nullptr);
+    DrawLogoFrame(dc, width, height, oem, 1.0f,
+                  /*label=*/true, CurrentLabelText(),
+                  /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
 }
 
-void HwBootAnimation::DrawDimmedCenterLogo(HDC dc, uint32_t width, uint32_t height) {
+void BootScreen::DrawWatermark(HDC dc, uint32_t width, uint32_t height) {
     DrawLogoFrame(dc, width, height, /*use_oem=*/false, kDimOpacity,
-                  /*label=*/false, L"", /*disclaimer=*/false, /*cerf_native_size=*/true);
+                  /*label=*/false, L"", /*disclaimer=*/false,
+                  /*cerf_native_size=*/true);
 }
 
-void HwBootAnimation::Restart(bool resuming) {
+void BootScreen::Restart(bool resuming) {
     restart_resuming_.store(resuming, std::memory_order_release);
     restart_req_.store(true, std::memory_order_release);
 }
-void HwBootAnimation::Abort()              { abort_req_.store(true); }
-void HwBootAnimation::OnFramebufferLatched() { fb_latched_req_.store(true); }
+void BootScreen::OnFramebufferLatched() { fb_latched_req_.store(true); }

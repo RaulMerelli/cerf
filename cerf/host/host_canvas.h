@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/device_config.h"
 #include "../core/service.h"
 #include "presenter_canvas.h"
 
@@ -13,7 +14,7 @@ class HostCanvas : public Service, public PresenterCanvasHost {
 public:
     using Service::Service;
 
-    enum class Tab { Hw, Framebuffer, MemoryVisualizer };
+    using Tab = CanvasTab;
     using ViewportMode = PresenterCanvas::ViewportMode;
 
     /* UI thread. Create the child window inside `parent` at `rect`, with the
@@ -72,7 +73,7 @@ public:
     bool ShouldDesaturatePresent() override;
 
 private:
-    Tab  tab_  = Tab::Hw;
+    Tab  tab_  = Tab::Boot;   /* set from DeviceConfig.start_tab in CreateOn */
     bool user_picked_view_ = false;
     bool latched_once_     = false;
 

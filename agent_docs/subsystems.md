@@ -193,13 +193,17 @@ concretes (strategy pattern, selected by `BoardDetector`).
   guest panel-enable edge to size the window to the guest surface.
   - `cerf/host/host_window.{h,cpp}`
 
-- **`HostCanvas`** - the child window for the drawable area. Owns the two
-  **tabs** (`Tab::Hw` = hardware/boot/debug-console screen, `Tab::Framebuffer` =
-  the live guest framebuffer), the viewport mode (Original / Aspect /
-  Stretch, optional antialias), the scrollbars, and the single
-  host-pixel↔guest-surface coordinate transform (`HostToGuest`) so taps
-  land on the rendered image. Publishes the atomic guest-surface
-  dimensions the touch sampler reads. - `cerf/host/host_canvas.{h,cpp}`
+- **`HostCanvas`** - the child window for the drawable area. Owns the
+  **tabs** (`Tab::Boot` = boot screen, `Tab::Hw` = hardware text console,
+  `Tab::Framebuffer` = the live guest framebuffer, `Tab::MemoryVisualizer` =
+  dev), the viewport mode (Original / Aspect / Stretch, optional antialias),
+  the scrollbars, and the single host-pixel↔guest-surface coordinate transform
+  (`HostToGuest`) so taps land on the rendered image. The startup tab is
+  `DeviceConfig.start_tab` (`--tab=boot|hw|fb`); on the first presented guest
+  frame it auto-switches to `Tab::Framebuffer` unless the user has picked a tab.
+  `Tab` is an alias of the core `CanvasTab` enum (so core config can name the
+  startup tab without depending on the host layer). Publishes the atomic
+  guest-surface dimensions the touch sampler reads. - `cerf/host/host_canvas.{h,cpp}`
 
 - **`FrameRenderer`** (abstract) - `RenderInto(dib_bgra32, w, h)` fills a
   BGRA32 guest-surface DIB; `HostSizeFor` lets a rotating renderer swap
@@ -208,20 +212,24 @@ concretes (strategy pattern, selected by `BoardDetector`).
   under `cerf/boards/<board>/`, and the guest-additions virtual framebuffer
   under `cerf/peripherals/cerf_virt/`. - `cerf/host/frame_renderer.h`
 
-- **`HwScreen`** - the hardware screen behind the `Tab::Hw` tab: the bounded
-  text-mode RX/TX line buffer for guest UART / OEM-debug output and CERF's own
-  notices (power events, save/restore progress). `AddLine` appends a line,
-  `RenderInto` orchestrates the frame (delegating the logo/boot animation to
-  `HwBootAnimation`, then the scrolling log + boot bar). - `cerf/host/hw_screen.{h,cpp}`
+- **`HwScreen`** - the hardware text console behind the `Tab::Hw` tab: the
+  bounded text-mode RX/TX line buffer for guest UART / OEM-debug output and
+  CERF's own notices (power events, save/restore progress). `AddLine` appends a
+  line; `RenderInto` draws the scrolling log over the `BootBar`.
+  - `cerf/host/hw_screen.{h,cpp}`
 
-- **`HwBootAnimation`** - the `HwScreen` boot-visual owner: the CERF-logo
+- **`BootScreen`** - the boot screen behind the `Tab::Boot` tab: the CERF-logo
   fade-in/hold/fade-out intro, the optional OEM-logo fade-in ("Starting
   <board>…", logo + short name from `BoardDetector::GetBootLogoResource` /
-  `GetShortBoardName`), and the held / dimmed-center final states. Time-driven
+  `GetShortBoardName`), the held final state, and the `BootBar`. Time-driven
   off the 60 Hz present loop (no thread); `Restart` (guest reboot →
-  "Restarting…"), `Abort` (restore failure), and `OnFramebufferLatched`
+  "Restarting…", deep-sleep wake → "Resuming…") and `OnFramebufferLatched`
   ("Switched to LCD") are its cross-thread control hooks.
-  - `cerf/host/hw_boot_animation.{h,cpp}`
+  - `cerf/host/boot_screen.{h,cpp}`
+
+- **`BootBar`** - the bottom CPU-activity bar shared by the Boot Screen and
+  Hardware Screen tabs: a scrolling strip advanced off the host animation clock,
+  so it freezes when emulation is paused. - `cerf/host/boot_bar.{h,cpp}`
 
 - **`TouchInput`** (abstract) - `OnPenDown/Move/Up` + `OnCaptureLost` in
   guest-surface coordinates; the board's touch peripheral concrete turns

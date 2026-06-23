@@ -42,10 +42,16 @@ public:
        scrollbars adapt. Used by the Change-resolution dialog. */
     void FitToResolution(uint32_t sw, uint32_t sh);
 
-    /* Any thread. Marshal a switch to the UART tab to the UI thread (so a guest
-       power-down / reboot banner is visible). rearm_framebuffer re-arms the
-       framebuffer auto-switch so a rebooting guest's video returns to it. */
+    /* Any thread. Marshal a switch to the Hardware Screen (text) tab to the UI
+       thread (so a guest power-down / save-progress notice is visible).
+       rearm_framebuffer re-arms the framebuffer auto-switch so a rebooting
+       guest's video returns to it. */
     void ShowHwScreenTab(bool rearm_framebuffer);
+
+    /* Any thread. Switch to the configured startup tab (DeviceConfig.start_tab):
+       the boot screen in production, the hardware screen in dev. Used on guest
+       reboot / deep-sleep resume. */
+    void ShowStartupTab(bool rearm_framebuffer);
 
     /* Any thread. Run `job` on the main UI thread; dropped if the window is
        gone. Lets an action run off its caller's thread (a VGA card window
@@ -80,10 +86,6 @@ private:
        the save-completion callback. */
     void  RunShutdownPrompt();
     void  BeginShutdownTeardown();
-
-    /* "{device_name} • {os} • CERF {ver}" from cerf.json meta; empty meta
-       fields are dropped, so an absent meta block yields just "CERF {ver}". */
-    std::wstring ComposeWindowTitle() const;
 
     /* Guest-additions: when adopt-resolution is enabled, size the guest surface
        to the work area of the monitor this window landed on, minus the exact
