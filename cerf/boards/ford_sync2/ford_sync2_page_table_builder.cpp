@@ -95,6 +95,11 @@ FordSyncGen2PageTableBuilder::BackedMemoryRegions() const {
        in place). Page 1 (spare + AXI registers, 0xCFFF1000) stays unbacked so it
        reaches Imx51NfcAxiWindow. */
     regions.push_back({ 0x9F5F0000u, 0xCFFF0000u, 0x1000u, PAGE_READWRITE });
+    /* CSD1 is physically 256 MB; the OAT caches only its low 243 MB (VA above
+       0x9F300000 is reused for MMIO). The HW_REV>=10 graphics reserve (ipuv3_base
+       sub_C0A41460: PA 0xAEC00000+20 MB, reached via MmMapIoSpace) needs its tail
+       past the cached CSD1 backed as DRAM, else the IPU/GPU EMEM access faults. */
+    regions.push_back({ 0xAF300000u, 0xAF300000u, MB(13), PAGE_READWRITE });
     return regions;
 }
 
