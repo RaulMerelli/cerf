@@ -5,7 +5,7 @@
 #include "../../boards/board_detector.h"
 #include "../../state/state_stream.h"
 
-#include <functional>
+#include <cstddef>
 
 namespace {
 constexpr uint8_t kStsOutputBufFull = 0x01;
@@ -17,18 +17,17 @@ constexpr uint8_t kCmdWriteModeByte = 0x60;
 constexpr uint8_t kCmdSelfTest      = 0xAA;   /* -> 0x55 */
 constexpr uint8_t kCmdKbdIfaceTest  = 0xAB;   /* -> 0x00 */
 constexpr uint8_t kCmdAuxDeviceWrite = 0xD4;  /* next data byte goes to the mouse */
+
+constexpr uint8_t kModeKbdIntEnable = 0x01;
+constexpr uint8_t kModeAuxIntEnable = 0x02;
 }  // namespace
 
 REGISTER_SERVICE(I8042Controller);
 
-/* No IRQ sink yet: during driver init every keyboard/mouse response is read by
-   polling OBF, so the devices never need to raise an interrupt. The data IRQ
-   (host keystroke/motion -> 8259 -> VRC5477 INTC -> CP0) is wired with host
-   input in a later step; until then on_data is empty. */
 I8042Controller::I8042Controller(CerfEmulator& emu)
     : Service(emu),
-      kbd_(std::function<void()>{}),
-      mouse_(std::function<void()>{}) {}
+      kbd_([this] { RaiseFromKbd(); }),
+      mouse_([this] { RaiseFromMouse(); }) {}
 
 bool I8042Controller::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardDetector>();
@@ -43,16 +42,54 @@ void I8042Controller::DrainMouse() {
     while (mouse_.HasData()) obuf_.emplace_back(mouse_.ReadData(), true);
 }
 
+void I8042Controller::PumpDevicesLocked() {
+    DrainKbd();
+    DrainMouse();
+}
+
+void I8042Controller::RaiseFromKbd() {
+    if ((cmd_byte_ & kModeKbdIntEnable) && kbd_irq_sink_) kbd_irq_sink_();
+}
+
+void I8042Controller::RaiseFromMouse() {
+    if ((cmd_byte_ & kModeAuxIntEnable) && aux_irq_sink_) aux_irq_sink_();
+}
+
+void I8042Controller::HostKeyboardScancodes(const uint8_t* bytes, size_t n) {
+    kbd_.QueueScancodes(bytes, n);   /* on_data -> RaiseFromKbd raises IRQ1 */
+}
+
+void I8042Controller::HostMouseMotion(int dx, int dy, uint32_t button_mask) {
+    mouse_.QueueMotion(dx, dy, button_mask);   /* on_data -> RaiseFromMouse raises IRQ12 */
+}
+
 uint8_t I8042Controller::ReadData() {
-    std::lock_guard<std::mutex> lk(mtx_);
-    if (obuf_.empty()) return 0;
-    const uint8_t b = obuf_.front().first;
-    obuf_.pop_front();
+    bool raise_kbd = false, raise_aux = false;
+    uint8_t b = 0;
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        PumpDevicesLocked();
+        if (!obuf_.empty()) {
+            b = obuf_.front().first;
+            obuf_.pop_front();
+        }
+        /* Reloading the OBF with the next byte re-raises the IRQ so the ISR drains
+           a multi-byte sequence one byte per interrupt (KeybdPdd_GetEventEx2 reads
+           one byte per call). Single controller responses leave obuf empty -> no
+           spurious raise. */
+        if (!obuf_.empty()) {
+            if (obuf_.front().second) raise_aux = true;
+            else                      raise_kbd = true;
+        }
+    }
+    if (raise_kbd) RaiseFromKbd();
+    if (raise_aux) RaiseFromMouse();
     return b;
 }
 
 uint8_t I8042Controller::ReadStatus() {
     std::lock_guard<std::mutex> lk(mtx_);
+    PumpDevicesLocked();
     uint8_t s = 0;
     if (!obuf_.empty()) {
         s |= kStsOutputBufFull;

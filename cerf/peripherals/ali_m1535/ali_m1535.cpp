@@ -5,9 +5,11 @@
 #include "../../boards/board_detector.h"
 #include "../peripheral_dispatcher.h"
 #include "../intel_i8042/i8042_controller.h"
+#include "../../socs/vrc5477/vrc5477_intc.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>
+#include <mutex>
 
 
 namespace {
@@ -22,33 +24,39 @@ enum : uint32_t {
     kElcr1   = 0x4D0, kElcr2    = 0x4D1,    /* BSP_REG_PA_M1535_EDGE1/2 */
 };
 
-/* One Intel 8259A. The init sequence is ICW1 (cmd, bit4 set) then ICW2/ICW3/ICW4
-   on the data port; afterward the data port is OCW1 (IMR), and the cmd port is
-   OCW2 (EOI) or OCW3 (read-register select). Source: 8259A datasheet register
-   model, exercised exactly as BSPIntrInit programs it. */
+constexpr uint32_t kIrqIntc      = 10;
+constexpr int      kPic1CascadeLine = 2;
+constexpr int      kPic1KbdLine     = 1;   /* keyboard = IRQ1 (IRQ_PIC_1) */
+constexpr int      kPic2MouseLine   = 4;   /* mouse = IRQ12 -> PIC2 local line 12-8 (IRQ_PIC_12) */
+
+/* One Intel 8259A (ICW1-4 init, OCW1 mask, OCW2 EOI, OCW3 poll P=bit2 /
+   read-select RR=bit1+RIS=bit0). Edge IRRs latch on RaiseEdge; the OCW3 poll
+   acks like an INTA (IRR->ISR). Exercised by SG2 OAL BSPIntrInit/BSPIntrActiveIrq. */
 struct Pic8259 {
-    uint8_t imr = 0;          /* OCW1 interrupt mask */
-    uint8_t irr = 0;          /* interrupt request (set by sources - none during boot) */
+    uint8_t imr = 0;
+    uint8_t irr = 0;          /* request latch (edge) + bit2 = slave output mirror */
     uint8_t isr = 0;          /* in-service */
     uint8_t icw1 = 0, icw2 = 0, icw3 = 0, icw4 = 0;
     uint8_t init_step = 0;    /* 0 = operational, 1=expect ICW2, 2=ICW3, 3=ICW4 */
     bool    icw4_needed = false;
     bool    single = false;
     bool    read_isr = false; /* OCW3 RIS: cmd-port read returns ISR vs IRR */
+    bool    poll_pending = false;
 
     void WriteCmd(uint8_t v) {
         if (v & 0x10) {                       /* ICW1 */
             icw1 = v; icw4_needed = v & 0x01; single = v & 0x02;
-            imr = 0; isr = 0; read_isr = false; init_step = 1;
+            imr = 0; isr = 0; read_isr = false; poll_pending = false; init_step = 1;
         } else if (v & 0x08) {                /* OCW3 */
-            if (v & 0x02) read_isr = (v & 0x01);   /* RR set: RIS selects IRR/ISR */
+            if (v & 0x04) poll_pending = true;        /* P: next cmd-port read = poll word */
+            else if (v & 0x02) read_isr = (v & 0x01); /* RR set: RIS selects IRR/ISR */
         } else {                              /* OCW2 */
             if (v & 0x20) {                   /* EOI */
                 if (v & 0x40) {               /* specific EOI: clear named level */
-                    isr &= ~(1u << (v & 0x07));
+                    isr &= static_cast<uint8_t>(~(1u << (v & 0x07)));
                 } else if (isr) {             /* non-specific EOI: clear highest priority */
                     for (uint8_t b = 0; b < 8; ++b) {
-                        if (isr & (1u << b)) { isr &= ~(1u << b); break; }
+                        if (isr & (1u << b)) { isr &= static_cast<uint8_t>(~(1u << b)); break; }
                     }
                 }
             }
@@ -64,7 +72,32 @@ struct Pic8259 {
         }
     }
 
-    uint8_t ReadCmd()  const { return read_isr ? isr : irr; }
+    void RaiseEdge(int line)   { irr |= static_cast<uint8_t>(1u << line); }
+    void SetCascade(bool level) {
+        if (level) irr |= static_cast<uint8_t>(1u << kPic1CascadeLine);
+        else       irr &= static_cast<uint8_t>(~(1u << kPic1CascadeLine));
+    }
+    uint8_t PendingUnmasked() const { return static_cast<uint8_t>(irr & ~imr); }
+    bool    Output() const { return PendingUnmasked() != 0; }
+
+    /* OCW3 poll acknowledge: highest-priority unmasked request -> set ISR, clear
+       its IRR latch (except the master cascade bit, a level mirror of the slave).
+       Returns the poll word (bit7=pending, bits[2:0]=line). */
+    uint8_t PollAck(bool is_master) {
+        const uint8_t p = PendingUnmasked();
+        if (!p) return 0;
+        int b = 0;
+        for (; b < 8; ++b) if (p & (1u << b)) break;
+        isr |= static_cast<uint8_t>(1u << b);
+        if (!(is_master && b == kPic1CascadeLine))
+            irr &= static_cast<uint8_t>(~(1u << b));
+        return static_cast<uint8_t>(0x80 | b);
+    }
+
+    uint8_t ReadCmd(bool is_master) {
+        if (poll_pending) { poll_pending = false; return PollAck(is_master); }
+        return read_isr ? isr : irr;
+    }
     uint8_t ReadData() const { return imr; }
 };
 
@@ -76,7 +109,12 @@ public:
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetBoard() == Board::NecRockhopper;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        auto& kbc = emu_.Get<I8042Controller>();
+        kbc.SetKbdIrqSink([this] { RaiseKbdIrq(); });
+        kbc.SetAuxIrqSink([this] { RaiseMouseIrq(); });
+    }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
@@ -86,19 +124,48 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override {
+        std::lock_guard<std::mutex> lk(pic_mtx_);
+        RecomputeOutputLocked();
+    }
 
 private:
+    /* i8042 OBF -> 8259 edge. Called from the i8042 IRQ sinks (host-input thread
+       or the JIT thread on a read-pop re-raise). */
+    void RaiseKbdIrq() {
+        std::lock_guard<std::mutex> lk(pic_mtx_);
+        pic_[0].RaiseEdge(kPic1KbdLine);
+        RecomputeOutputLocked();
+    }
+    void RaiseMouseIrq() {
+        std::lock_guard<std::mutex> lk(pic_mtx_);
+        pic_[1].RaiseEdge(kPic2MouseLine);
+        RecomputeOutputLocked();
+    }
+
+    /* Propagate slave->master cascade, then drive IRQ_INTC from the PIC1 output
+       level. Caller holds pic_mtx_. */
+    void RecomputeOutputLocked() {
+        pic_[0].SetCascade(pic_[1].Output());
+        auto& intc = emu_.Get<Vrc5477Intc>();
+        if (pic_[0].Output()) intc.AssertSource(kIrqIntc);
+        else                  intc.DeassertSource(kIrqIntc);
+    }
+
+    std::mutex pic_mtx_;
     Pic8259 pic_[2];          /* [0] = master (0x20), [1] = slave (0xA0) */
     uint8_t elcr_[2] = {0, 0};
 };
 
 uint8_t AliM1535::ReadByte(uint32_t addr) {
-    switch (addr - kBase) {
-        case kKbcData:   return emu_.Get<I8042Controller>().ReadData();
-        case kKbcStatus: return emu_.Get<I8042Controller>().ReadStatus();
-        case kPic1Cmd:  return pic_[0].ReadCmd();
+    const uint32_t off = addr - kBase;
+    if (off == kKbcData)   return emu_.Get<I8042Controller>().ReadData();
+    if (off == kKbcStatus) return emu_.Get<I8042Controller>().ReadStatus();
+    std::lock_guard<std::mutex> lk(pic_mtx_);
+    switch (off) {
+        case kPic1Cmd:  { const uint8_t v = pic_[0].ReadCmd(true);  RecomputeOutputLocked(); return v; }
         case kPic1Data: return pic_[0].ReadData();
-        case kPic2Cmd:  return pic_[1].ReadCmd();
+        case kPic2Cmd:  { const uint8_t v = pic_[1].ReadCmd(false); RecomputeOutputLocked(); return v; }
         case kPic2Data: return pic_[1].ReadData();
         case kElcr1:    return elcr_[0];
         case kElcr2:    return elcr_[1];
@@ -107,13 +174,15 @@ uint8_t AliM1535::ReadByte(uint32_t addr) {
 }
 
 void AliM1535::WriteByte(uint32_t addr, uint8_t value) {
-    switch (addr - kBase) {
-        case kKbcData:   emu_.Get<I8042Controller>().WriteData(value);    break;
-        case kKbcStatus: emu_.Get<I8042Controller>().WriteCommand(value); break;
-        case kPic1Cmd:  pic_[0].WriteCmd(value);  break;
-        case kPic1Data: pic_[0].WriteData(value); break;
-        case kPic2Cmd:  pic_[1].WriteCmd(value);  break;
-        case kPic2Data: pic_[1].WriteData(value); break;
+    const uint32_t off = addr - kBase;
+    if (off == kKbcData)   { emu_.Get<I8042Controller>().WriteData(value);    return; }
+    if (off == kKbcStatus) { emu_.Get<I8042Controller>().WriteCommand(value); return; }
+    std::lock_guard<std::mutex> lk(pic_mtx_);
+    switch (off) {
+        case kPic1Cmd:  pic_[0].WriteCmd(value);  RecomputeOutputLocked(); break;
+        case kPic1Data: pic_[0].WriteData(value); RecomputeOutputLocked(); break;
+        case kPic2Cmd:  pic_[1].WriteCmd(value);  RecomputeOutputLocked(); break;
+        case kPic2Data: pic_[1].WriteData(value); RecomputeOutputLocked(); break;
         case kElcr1:    elcr_[0] = value; break;
         case kElcr2:    elcr_[1] = value; break;
         default:        HaltUnsupportedAccess("WriteByte", addr, value);
@@ -121,6 +190,7 @@ void AliM1535::WriteByte(uint32_t addr, uint8_t value) {
 }
 
 void AliM1535::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(pic_mtx_);
     for (const Pic8259& p : pic_) {
         w.Write(p.imr); w.Write(p.irr); w.Write(p.isr);
         w.Write(p.icw1); w.Write(p.icw2); w.Write(p.icw3); w.Write(p.icw4);
@@ -128,12 +198,14 @@ void AliM1535::SaveState(StateWriter& w) {
         w.Write(static_cast<uint8_t>(p.icw4_needed ? 1u : 0u));
         w.Write(static_cast<uint8_t>(p.single ? 1u : 0u));
         w.Write(static_cast<uint8_t>(p.read_isr ? 1u : 0u));
+        w.Write(static_cast<uint8_t>(p.poll_pending ? 1u : 0u));
     }
     w.WriteBytes(elcr_, sizeof(elcr_));
     emu_.Get<I8042Controller>().SaveState(w);   /* delegated sub-block (not auto-enumerated) */
 }
 
 void AliM1535::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(pic_mtx_);
     for (Pic8259& p : pic_) {
         r.Read(p.imr); r.Read(p.irr); r.Read(p.isr);
         r.Read(p.icw1); r.Read(p.icw2); r.Read(p.icw3); r.Read(p.icw4);
@@ -142,6 +214,7 @@ void AliM1535::RestoreState(StateReader& r) {
         r.Read(b); p.icw4_needed = b != 0;
         r.Read(b); p.single = b != 0;
         r.Read(b); p.read_isr = b != 0;
+        r.Read(b); p.poll_pending = b != 0;
     }
     r.ReadBytes(elcr_, sizeof(elcr_));
     emu_.Get<I8042Controller>().RestoreState(r);

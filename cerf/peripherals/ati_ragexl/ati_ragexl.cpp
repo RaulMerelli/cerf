@@ -59,6 +59,14 @@ constexpr uint32_t kRegCrtcOffPitch   = 0x414u;      /* OFFSET bits 0:19 (*8B), 
 constexpr uint32_t kRegCrtcGenCntl    = 0x41Cu;      /* PIX_WIDTH bits 8:10, CrtcEnable, DisplayDis */
 constexpr uint32_t kCrtcEnable        = 0x02000000u;
 
+constexpr uint32_t kRegCurClr0         = 0x460u;
+constexpr uint32_t kRegCurClr1         = 0x464u;
+constexpr uint32_t kRegCurOffset       = 0x468u;
+constexpr uint32_t kRegCurHorzVertPosn = 0x46Cu;
+constexpr uint32_t kRegCurHorzVertOff  = 0x470u;
+constexpr uint32_t kRegGenTestCntl     = 0x4D0u;
+constexpr uint32_t kHwCursorEnable     = 0x80u;
+
 struct Bar {
     uint32_t size_mask = 0;   /* e.g. 0xFF800000 for 8 MB; 0 = BAR not implemented */
     uint32_t flags     = 0;   /* low type/prefetch bits OR'd into reads */
@@ -135,11 +143,33 @@ public:
         return f;
     }
 
+    Cursor CurrentCursor() const override {
+        Cursor c;
+        c.enabled = (RegOut(kRegGenTestCntl, 4) & kHwCursorEnable) != 0u;
+        if (!c.enabled) return c;
+        const uint32_t posn = RegOut(kRegCurHorzVertPosn, 4);
+        const uint32_t off  = RegOut(kRegCurHorzVertOff, 4);
+        c.x = static_cast<int>(posn & 0xFFFFu);
+        c.y = static_cast<int>((posn >> 16) & 0xFFFFu);
+        c.visible_w = 64u - (off & 0x3Fu);          /* CUR_HORZ_OFF crops the trailing columns */
+        c.visible_h = 64u - ((off >> 16) & 0x3Fu);  /* CUR_VERT_OFF crops the trailing rows */
+        c.clr0 = (RegOut(kRegCurClr0, 4) >> 8) & 0xFFFFFFu;   /* 0xRRGGBBxx -> 0xRRGGBB */
+        c.clr1 = (RegOut(kRegCurClr1, 4) >> 8) & 0xFFFFFFu;
+        const size_t base = static_cast<size_t>(RegOut(kRegCurOffset, 4)) * 8u;  /* 8-byte units */
+        if (base + 64u * 16u > fb_.size()) {        /* sprite must live inside the framebuffer */
+            c.enabled = false;
+            return c;
+        }
+        c.def = fb_.data() + base;
+        return c;
+    }
+
 private:
     static uint32_t PixWidthToBpp(uint32_t code) {
         switch (code) {
-            case 2: return 8;  case 3: return 15; case 4: return 16;
-            case 5: return 24; case 6: return 32; default: return 0;
+            case 1: return 4;  case 2: return 8;  case 3: return 15;
+            case 4: return 16; case 5: return 24; case 6: return 32;
+            default: return 0;
         }
     }
     void MaybeSignalDisplay() {

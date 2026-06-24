@@ -245,10 +245,25 @@ void __fastcall MipsJit::Mtc0EntryHiHelper(uint32_t value, MipsJit* jit) {
     }
 }
 
+void MipsJit::SignalIdleWake() {
+    if (idle_event_) SetEvent(idle_event_);
+}
+
+void MipsJit::SetExternalInterruptLevel(uint32_t ip_mask) {
+    external_ip_.store(ip_mask, std::memory_order_release);
+    SignalIdleWake();
+}
+
 void MipsJit::Run() {
     /* branch_state==kNone gate: never take an interrupt between a branch and its
        not-yet-run delay slot, or the delay slot is skipped on ERET resume. */
     TimerPoll();
+    /* Fold the INTC-driven device IRQ level (IP5:2) into cp0_cause on this thread
+       (cp0_cause is JIT-owned; only external_ip_ crosses threads). */
+    constexpr uint32_t kDeviceIpMask = 0x00003C00u;   /* Cause.IP2..IP5 (bits 10..13) */
+    cpu_state_.cp0_cause =
+        (cpu_state_.cp0_cause & ~kDeviceIpMask) |
+        (external_ip_.load(std::memory_order_acquire) & kDeviceIpMask);
     if (cpu_state_.branch_state == MipsBranch::kNone && InterruptReady()) {
         DeliverInterrupt();
     }

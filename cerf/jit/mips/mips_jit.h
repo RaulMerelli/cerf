@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <optional>
@@ -218,9 +219,11 @@ public:
     MipsProcessorConfig*  CpuConfig()  { return cpu_config_; }
     MipsCp0Emitter*       Cp0Emitter() { return cp0_emitter_; }
 
-    std::mutex& InterruptLock() { return interrupt_lock_; }
-    void SetInterruptPending();
-    void ClearInterruptPending();
+    /* INTC pushes the live Cause.IP[5:2] LEVEL (not a latch); Run() reconciles
+       cp0_cause from it on the JIT thread. Pass the full current level every
+       time - a missed deassert leaves the IP bit stuck and the guest re-enters
+       its ISR forever. */
+    void SetExternalInterruptLevel(uint32_t ip_mask);
     void SignalIdleWake();
     void* IdleEvent() const { return idle_event_; }
 
@@ -244,6 +247,7 @@ private:
 
     void*       idle_event_ = nullptr;
     std::mutex  interrupt_lock_;
+    std::atomic<uint32_t> external_ip_{0};   /* Cause.IP[5:2] driven by the INTC */
     uint8_t*    interrupt_check_ = nullptr;
     uint8_t*    branch_helper_   = nullptr;
     bool        tc_flush_pending_ = false;

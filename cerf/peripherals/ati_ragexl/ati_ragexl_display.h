@@ -23,5 +23,17 @@ public:
         size_t         fb_size = 0;
     };
 
-    virtual Frame CurrentFrame() const = 0;
+    struct Cursor {
+        bool           enabled   = false;
+        int            x         = 0;   /* CUR_HORZ_VERT_POSN screen top-left */
+        int            y         = 0;
+        uint32_t       visible_w = 0;   /* 64 - CUR_HORZ_OFF (cropped extent) */
+        uint32_t       visible_h = 0;   /* 64 - CUR_VERT_OFF */
+        uint32_t       clr0      = 0;   /* 0xRRGGBB for pixel code 00 */
+        uint32_t       clr1      = 0;   /* 0xRRGGBB for pixel code 01 */
+        const uint8_t* def       = nullptr;  /* FB ptr to the sprite (>= 64*16 bytes) */
+    };
+
+    virtual Frame  CurrentFrame()  const = 0;
+    virtual Cursor CurrentCursor() const = 0;
 };

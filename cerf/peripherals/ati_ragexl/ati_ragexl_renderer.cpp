@@ -47,9 +47,43 @@ public:
             uint32_t* dst = dib + (size_t)y * host_w;
             for (uint32_t x = 0; x < cw; ++x) dst[x] = DecodePixel(line, x, f.bpp);
         }
+
+        const auto cur = emu_.Get<RageXlDisplay>().CurrentCursor();
+        if (cur.enabled && cur.def) CompositeCursor(dib, host_w, cw, ch, cur);
     }
 
 private:
+    static void CompositeCursor(uint32_t* dib, uint32_t host_w, uint32_t cw,
+                                uint32_t ch, const RageXlDisplay::Cursor& cur) {
+        const uint32_t rows = (cur.visible_h < 64u) ? cur.visible_h : 64u;
+        const uint32_t cols = (cur.visible_w < 64u) ? cur.visible_w : 64u;
+        for (uint32_t row = 0; row < rows; ++row) {
+            const int sy = cur.y + static_cast<int>(row);
+            if (sy < 0 || static_cast<uint32_t>(sy) >= ch) continue;
+            const uint8_t* rp = cur.def + (size_t)row * 16u;
+            uint32_t d0, d1, d2, d3;
+            std::memcpy(&d0, rp + 0, 4);  std::memcpy(&d1, rp + 4, 4);
+            std::memcpy(&d2, rp + 8, 4);  std::memcpy(&d3, rp + 12, 4);
+            const uint16_t w[8] = {
+                (uint16_t)(d2 & 0xFFFFu), (uint16_t)(d2 >> 16),
+                (uint16_t)(d3 & 0xFFFFu), (uint16_t)(d3 >> 16),
+                (uint16_t)(d0 & 0xFFFFu), (uint16_t)(d0 >> 16),
+                (uint16_t)(d1 & 0xFFFFu), (uint16_t)(d1 >> 16),
+            };
+            uint32_t* dst = dib + (size_t)sy * host_w;
+            for (uint32_t col = 0; col < cols; ++col) {
+                const int sx = cur.x + static_cast<int>(col);
+                if (sx < 0 || static_cast<uint32_t>(sx) >= cw) continue;
+                switch ((w[col >> 3] >> ((col & 7u) * 2u)) & 3u) {
+                    case 0: dst[sx] = 0xFF000000u | cur.clr0; break;
+                    case 1: dst[sx] = 0xFF000000u | cur.clr1; break;
+                    case 2: break;
+                    case 3: dst[sx] = 0xFF000000u | (~dst[sx] & 0xFFFFFFu); break;
+                }
+            }
+        }
+    }
+
     static uint32_t Pack(uint32_t r, uint32_t g, uint32_t b) {
         return 0xFF000000u | (r << 16) | (g << 8) | b;
     }

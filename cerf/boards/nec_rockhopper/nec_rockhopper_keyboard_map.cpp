@@ -7,13 +7,13 @@
 
 namespace {
 
-class OdoArm720KeyboardMap : public KeyboardMap {
+class NecRockhopperKeyboardMap : public KeyboardMap {
 public:
     using KeyboardMap::KeyboardMap;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoard() == Board::NecRockhopper;
     }
 
     void OnReady() override { bindings_ = Ps2Set2KeyBindings(); }
@@ -26,4 +26,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(OdoArm720KeyboardMap, KeyboardMap);
+REGISTER_SERVICE_AS(NecRockhopperKeyboardMap, KeyboardMap);
