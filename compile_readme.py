@@ -72,7 +72,7 @@ def build_supported_devices():
             if index == 0:
                 rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
                 lines.append(f'      <td{rowspan} align="center">'
-                             f'<b>{icon_img("chip.png", "Chip")} {soc.family}</b>'
+                             f'<b>{icon_img("chip.png", "Chip")} {soc.family} ({soc.cpu})</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
             cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b>']
             cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
@@ -109,7 +109,7 @@ def build_changelog():
         lines.append('    ' + row.strip().replace('\n', '\n    '))
     if len(rows) > CHANGELOG_RECENT:
         lines.append('    <tr>')
-        lines.append('      <td colspan="2"><b>Previous versions</b> — '
+        lines.append('      <td colspan="2"><b>Previous versions</b> - '
                      f'see the <a href="{CHANGELOG_LINK}">full changelog</a>.</td>')
         lines.append('    </tr>')
     lines.append('  </tbody>')

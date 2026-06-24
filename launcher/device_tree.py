@@ -9,7 +9,8 @@ from tkinter import ttk
 from typing import Callable, Dict, List, Optional
 
 from device_state import DeviceBundle, PackageStatus
-from supported_devices import board_sort_key, board_support_state, sort_text
+from supported_devices import (board_soc_cpu, board_sort_key,
+                               board_support_state, sort_text)
 from ui_theme import BG_LIGHTER, FG, STATE_TINT
 
 
@@ -259,6 +260,9 @@ class DeviceTreePanel:
             state = d.state_label
             os_label = _table_os_label(d)
             soc = d.meta.soc_family or ""
+            cpu = board_soc_cpu(d.meta.board_name, d.meta.board_prev_names)
+            if soc and cpu:
+                soc = f"{soc} ({cpu})"
             tree.insert(group_iid, "end", iid=d.name,
                         text=_table_device_label(d),
                         values=(os_label, board, soc, state),

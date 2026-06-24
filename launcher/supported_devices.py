@@ -63,6 +63,7 @@ class OperatingSystem(NamedTuple):
 class Soc(NamedTuple):
     family: str  # e.g. "Intel SA-1110"
     arch: str  # e.g. "StrongARM"
+    cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"
 
 
 HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000", "os_old_ce.png")
@@ -80,13 +81,14 @@ WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5", "os_ppc2002.png")
 WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6", "os_wm6.png")
 ZUNE_OS_5 = OperatingSystem("Windows CE 5", "os_zune.png")
 
-SOC_SA1100 = Soc("Intel SA-1100", "StrongARM")
-SOC_SA1110 = Soc("Intel SA-1110", "StrongARM")
-SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE")
-SOC_ODO = Soc("ARM720T", "ARMv4T")
-SOC_OMAP3530 = Soc("TI OMAP 3530", "Cortex-A8")
-SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136")
-SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T")
+SOC_SA1100 = Soc("Intel SA-1100", "StrongARM", "ARM")
+SOC_SA1110 = Soc("Intel SA-1110", "StrongARM", "ARM")
+SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE", "ARM")
+SOC_ODO = Soc("ARM720T", "ARMv4T", "ARM")
+SOC_OMAP3530 = Soc("TI OMAP 3530", "Cortex-A8", "ARM")
+SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136", "ARM")
+SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
+SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
 
 # Feature icons in display order, shared by the launcher side panel and
 # compile_readme.py. (features key, icon file under assets/icons, label).
@@ -364,6 +366,18 @@ BOARDS_INFORMATION = [
         ],
     },
     {
+        "name": "NEC Rockhopper SG2_VR5500",
+        "supported": True,
+        "soc": SOC_VR5500,
+        "operating_systems": [WINDOWS_CE_6],
+        "features": {
+            "display": True,
+            "mouse": True,
+            "keyboard": True,
+            "suspend": False,
+        },
+    },
+    {
         "name": "Siemens P177",
         "supported": True,
         "soc": SOC_S3C2410,
@@ -462,6 +476,18 @@ def board_extra_notes(board_name: str, prev_names: Sequence[str] = ()) -> List[s
     if not isinstance(notes, list):
         return []
     return [n for n in notes if isinstance(n, str) and n.strip()]
+
+
+def board_soc_cpu(board_name: str, prev_names: Sequence[str] = ()) -> Optional[str]:
+    """CPU instruction-set family (e.g. "ARM" / "MIPS") for the board's SoC;
+    None when the launcher has no SoC data for it."""
+    entry = _board_entry(board_name, prev_names)
+    if entry is None:
+        return None
+    soc = entry.get("soc")
+    if soc is None:
+        return None
+    return soc.cpu
 
 
 def board_features(board_name: str, prev_names: Sequence[str] = ()) -> dict:
