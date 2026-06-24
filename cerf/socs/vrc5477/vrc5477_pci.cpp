@@ -1,42 +1,102 @@
-#include "../../peripherals/peripheral_base.h"
+#include "../../peripherals/pci/pci_host_bridge.h"
+#include "../../peripherals/pci/pci_device.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_detector.h"
-#include "../../peripherals/peripheral_dispatcher.h"
 
 #include <cstdint>
+#include <vector>
 
-/* NEC VRC5477 external PCI host-bridge memory window (also carries config
-   cycles). An unclaimed address MUST read all-ones (PCI master abort = device
-   absent); returning 0 reads as a present device with vendor id 0 and mis-drives
-   PCI enumeration. Device models are added as the boot demands them. */
 
 namespace {
 
-constexpr uint32_t kPciMemBase = 0x08000000u;   /* BSP_REG_PA_PCI_MEM */
-constexpr uint32_t kPciMemSize = 0x08000000u;   /* BSP_REG_PCI_MEMSIZE */
+constexpr uint32_t kPciMemBase = 0x08000000u;    /* PCIW0 & PCI_INIT_ADDR_MASK */
 
-class Vrc5477Pci : public Peripheral {
+constexpr uint32_t kPciInitTypeMask = 7u << 1;   /* PCI_INIT_TYPE_MASK */
+constexpr uint32_t kPciInitTypeCfg  = 5u << 1;   /* PCI_INIT_TYPE_CFG  */
+
+constexpr uint32_t kOffPciw0     = 0x60u;
+constexpr uint32_t kOffPciInit00 = 0x2F0u;
+
+class Vrc5477Pci : public PciHostBridge {
 public:
-    using Peripheral::Peripheral;
+    using PciHostBridge::PciHostBridge;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
         return bd && bd->GetSoc() == SocFamily::VR5500;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
-    uint32_t MmioBase() const override { return kPciMemBase; }
-    uint32_t MmioSize() const override { return kPciMemSize; }
+    void RegisterPciDevice(PciDevice* dev) override { devices_.push_back(dev); }
 
-    uint8_t  ReadByte (uint32_t) override { return 0xFFu; }
-    uint16_t ReadHalf (uint32_t) override { return 0xFFFFu; }
-    uint32_t ReadWord (uint32_t) override { return 0xFFFFFFFFu; }
-    void WriteByte(uint32_t, uint8_t)  override {}
-    void WriteHalf(uint32_t, uint16_t) override {}
-    void WriteWord(uint32_t, uint32_t) override {}
+    uint32_t CtrlReadReg(uint32_t off) override {
+        if (off == kOffPciInit00) return pciinit00_;
+        if (off == kOffPciw0)     return pciw0_;
+        return 0;
+    }
+    void CtrlWriteReg(uint32_t off, uint32_t v) override {
+        if (off == kOffPciInit00)      pciinit00_ = v;
+        else if (off == kOffPciw0)     pciw0_ = v;
+    }
+
+    uint32_t WindowRead(uint32_t addr, unsigned size) override {
+        if (IsConfigCycle()) {
+            PciDevice* d = nullptr; uint32_t reg = 0;
+            if (!DecodeConfig(addr, &d, &reg)) return AllOnes(size);
+            return Extract(d->ConfigRead(reg & ~3u), addr, size);
+        }
+        for (PciDevice* d : devices_)
+            if (d->MemClaims(addr)) return d->MemRead(addr, size);
+        return AllOnes(size);
+    }
+    void WindowWrite(uint32_t addr, uint32_t v, unsigned size) override {
+        if (IsConfigCycle()) {
+            PciDevice* d = nullptr; uint32_t reg = 0;
+            if (!DecodeConfig(addr, &d, &reg)) return;
+            if (size >= 4) { d->ConfigWrite(reg & ~3u, v); return; }
+            d->ConfigWrite(reg & ~3u, Merge(d->ConfigRead(reg & ~3u), v, reg, size));
+            return;
+        }
+        for (PciDevice* d : devices_)
+            if (d->MemClaims(addr)) { d->MemWrite(addr, v, size); return; }
+    }
+
+private:
+    bool IsConfigCycle() const { return (pciinit00_ & kPciInitTypeMask) == kPciInitTypeCfg; }
+
+    bool DecodeConfig(uint32_t addr, PciDevice** out_dev, uint32_t* out_reg) {
+        const uint32_t off    = addr - kPciMemBase;
+        const uint32_t devsel = off & ~0x7FFu;        /* bits >=11 hold 1<<(dev+10) */
+        const uint32_t fnc    = (off >> 8) & 7u;
+        for (uint32_t dev = 1; dev <= 21; ++dev) {
+            if (devsel != (1u << (dev + 10))) continue;
+            for (PciDevice* d : devices_)
+                if (d->PciDev() == dev && d->PciFnc() == fnc) {
+                    *out_dev = d; *out_reg = off & 0xFFu; return true;
+                }
+            return false;                              /* valid slot, no device = absent */
+        }
+        return false;
+    }
+
+    static uint32_t AllOnes(unsigned size) {
+        return size >= 4 ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1u);
+    }
+    static uint32_t Extract(uint32_t dword, uint32_t addr, unsigned size) {
+        const uint32_t v = dword >> ((addr & 3u) * 8u);
+        return size >= 4 ? v : (v & ((1u << (size * 8)) - 1u));
+    }
+    static uint32_t Merge(uint32_t dword, uint32_t v, uint32_t reg, unsigned size) {
+        const unsigned shift = (reg & 3u) * 8u;
+        const uint32_t mask  = ((1u << (size * 8)) - 1u) << shift;
+        return (dword & ~mask) | ((v << shift) & mask);
+    }
+
+    std::vector<PciDevice*> devices_;
+    uint32_t pciinit00_ = 0;
+    uint32_t pciw0_     = 0;
 };
 
-}  /* namespace */
+REGISTER_SERVICE_AS(Vrc5477Pci, PciHostBridge);
 
-REGISTER_SERVICE(Vrc5477Pci);
+}  /* namespace */

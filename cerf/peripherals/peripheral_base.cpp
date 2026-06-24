@@ -5,6 +5,7 @@
 #include "../jit/arm/arm_cpu_ops.h"
 #include "../jit/arm/arm_jit.h"
 #include "../jit/arm/cpu_state.h"
+#include "../jit/guest_engine.h"
 
 #include <typeinfo>
 
@@ -45,19 +46,18 @@ void Peripheral::HaltUnsupportedAccess(const char* op,
     LOG(Caution, "Peripheral '%s' rejected %s at 0x%08X (value 0x%016llX)\n",
             typeid(*this).name(), op, addr,
             static_cast<unsigned long long>(value));
-    /* Dump JIT register state at fault time so the rejecting call site
-       is visible in the log. Mirrors Mmu::RaiseAbort's diagnostic dump.
-       Same pattern: every peripheral halt is a FATAL, register state at
-       the halt is always useful to the next investigator. */
-    auto* state      = emu_.Get<ArmJit>().CpuState();
-    const auto& r    = state->gprs;
-    const uint32_t c = ArmCpuGetCpsrWithFlags(state);
-    LOG(Caution, "      guest PC=0x%08X CPSR=0x%08X\n", r[15], c);
-    LOG(Caution, "      R0=0x%08X  R1=0x%08X  R2=0x%08X  R3=0x%08X "
-                 "R4=0x%08X  R5=0x%08X  R6=0x%08X  R7=0x%08X\n",
-        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
-    LOG(Caution, "      R8=0x%08X  R9=0x%08X  R10=0x%08X R11=0x%08X "
-                 "R12=0x%08X SP=0x%08X  LR=0x%08X\n",
-        r[8], r[9], r[10], r[11], r[12], r[13], r[14]);
+    LOG(Caution, "      guest PC=0x%08X\n", emu_.Get<GuestEngine>().Pc());
+    if (auto* arm = emu_.TryGet<ArmJit>()) {
+        auto* state      = arm->CpuState();
+        const auto& r    = state->gprs;
+        const uint32_t c = ArmCpuGetCpsrWithFlags(state);
+        LOG(Caution, "      CPSR=0x%08X\n", c);
+        LOG(Caution, "      R0=0x%08X  R1=0x%08X  R2=0x%08X  R3=0x%08X "
+                     "R4=0x%08X  R5=0x%08X  R6=0x%08X  R7=0x%08X\n",
+            r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+        LOG(Caution, "      R8=0x%08X  R9=0x%08X  R10=0x%08X R11=0x%08X "
+                     "R12=0x%08X SP=0x%08X  LR=0x%08X\n",
+            r[8], r[9], r[10], r[11], r[12], r[13], r[14]);
+    }
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }

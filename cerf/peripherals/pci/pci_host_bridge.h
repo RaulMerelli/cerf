@@ -1,0 +1,24 @@
+#pragma once
+
+#include "../../core/service.h"
+
+#include <cstdint>
+
+class PciDevice;
+
+/* Abstract PCI host bridge. CtrlReadReg/CtrlWriteReg are the host-bridge control
+   registers (PCIINIT00/PCIW0) delegated in from the SoC block that owns them;
+   WindowRead/WindowWrite are the PCI memory-window cycles forwarded from the window
+   Peripheral. */
+class PciHostBridge : public Service {
+public:
+    using Service::Service;
+
+    virtual void RegisterPciDevice(PciDevice* dev) = 0;
+
+    virtual uint32_t CtrlReadReg(uint32_t block_off) = 0;
+    virtual void     CtrlWriteReg(uint32_t block_off, uint32_t value) = 0;
+
+    virtual uint32_t WindowRead(uint32_t addr, unsigned size) = 0;
+    virtual void     WindowWrite(uint32_t addr, uint32_t value, unsigned size) = 0;
+};

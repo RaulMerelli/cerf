@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../peripherals/pci/pci_host_bridge.h"
 #include "../../state/state_stream.h"
 #include "vrc5477_intc.h"
 
@@ -18,6 +19,11 @@ constexpr uint32_t kBlockSize = 0x800u;       /* low system-controller register 
 
 constexpr uint32_t kIntcLo = 0x400u;          /* INTC sub-block, delegated to Vrc5477Intc */
 constexpr uint32_t kIntcHi = 0x490u;
+
+/* PCI host-bridge control registers delegated to the PciHostBridge (it needs them
+   to decode config-vs-memory window cycles): PCIW0 @0x60, PCIINIT00 @0x2F0. */
+constexpr uint32_t kPciW0    = 0x60u;
+constexpr uint32_t kPciInit00 = 0x2F0u;
 
 /* Active sub-blocks that generate interrupts/transfers loud-fatal here until each
    has its own full peripheral: store/readback would silently stub them (no IRQ,
@@ -64,6 +70,10 @@ private:
             if (sizeof(T) != 4) HaltUnsupportedAccess("INTC sub-word read", addr, 0);
             return static_cast<T>(emu_.Get<Vrc5477Intc>().ReadReg(off - kIntcLo));
         }
+        if (off == kPciW0 || off == kPciInit00) {
+            if (sizeof(T) != 4) HaltUnsupportedAccess("PCI ctrl sub-word read", addr, 0);
+            return static_cast<T>(emu_.Get<PciHostBridge>().CtrlReadReg(off));
+        }
         const char* which = nullptr;
         if (IsActiveBlock(off, &which)) {
             LOG(Caution, "Vrc5477SysCon: %s read off=0x%03X not implemented "
@@ -79,6 +89,11 @@ private:
         if (off >= kIntcLo && off < kIntcHi) {
             if (sizeof(T) != 4) HaltUnsupportedAccess("INTC sub-word write", addr, v);
             emu_.Get<Vrc5477Intc>().WriteReg(off - kIntcLo, static_cast<uint32_t>(v));
+            return;
+        }
+        if (off == kPciW0 || off == kPciInit00) {
+            if (sizeof(T) != 4) HaltUnsupportedAccess("PCI ctrl sub-word write", addr, v);
+            emu_.Get<PciHostBridge>().CtrlWriteReg(off, static_cast<uint32_t>(v));
             return;
         }
         const char* which = nullptr;
