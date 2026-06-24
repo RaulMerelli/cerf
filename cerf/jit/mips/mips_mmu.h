@@ -5,6 +5,8 @@
 #include "mips_cpu_state.h"
 
 struct IsaBlockSpace;
+class StateWriter;
+class StateReader;
 
 namespace MipsSeg {
     constexpr uint32_t kKusegEnd     = 0x80000000;  /* kuseg  0x00000000..0x7FFFFFFF, TLB-mapped */
@@ -60,6 +62,11 @@ public:
     /* cpu_mips_tlb_flush: drop the whole jump cache + discard all shadow
        entries (tlb_helper.c:492). Called on a CP0 ASID change. */
     void FlushAll(MipsCpuState* st);
+
+    /* Hibernation: the TLB array lives in MipsCpuState (saved with the CPU
+       blob); this serializes the tlbwr replacement-index RNG state. */
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
 
 private:
     /* r4k_map_address (tlb_helper.c:393) - the mapped-segment TLB walk over

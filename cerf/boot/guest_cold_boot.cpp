@@ -4,7 +4,7 @@
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
 #include "../host/guest_power_notifier.h"
-#include "../jit/arm/arm_jit.h"
+#include "../jit/guest_engine.h"
 #include "../socs/guest_cpu_reset.h"
 
 REGISTER_SERVICE(GuestColdBoot);
@@ -37,6 +37,6 @@ void GuestColdBoot::ExecuteIfPending() {
     /* Every cached translation read pre-wipe bytes. Whole-cache flush is
        safe at the reset-delivery point: the helper unwinds to the
        dispatcher without re-entering arena code. */
-    emu_.Get<ArmJit>().FlushTranslationCache(0, 0xFFFFFFFFu);
+    emu_.Get<GuestEngine>().FlushTranslationCache(0, 0xFFFFFFFFu);
     emu_.Get<GuestPowerNotifier>().NotifyHardReset();
 }

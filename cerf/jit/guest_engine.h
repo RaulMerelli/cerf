@@ -5,6 +5,9 @@
 
 #include "../core/service.h"
 
+class StateWriter;
+class StateReader;
+
 /* The guest CPU engine JitRunner drives. ArmJit and MipsJit implement it; the
    active engine registers itself in OnReady (Provide<GuestEngine>) and JitRunner
    resolves Get<GuestEngine>(). */
@@ -19,4 +22,17 @@ public:
     virtual void     DispatchTraceIter()  = 0;
 
     virtual std::optional<uint8_t*> PeekGuestVa(uint32_t va) = 0;
+
+    /* ISA-neutral hibernation seam (the Cpu/Mmu .img sections route here). */
+    virtual void SaveCpuState(StateWriter& w)    = 0;
+    virtual void RestoreCpuState(StateReader& r) = 0;
+    virtual void SaveMmuState(StateWriter& w)    = 0;
+    virtual void RestoreMmuState(StateReader& r) = 0;
+
+    virtual void ResyncInterruptPoll() = 0;
+    virtual void FlushTranslationCache(uint32_t va, uint32_t length) = 0;
+
+    /* Pend a CPU reset (GuestCpuReset/GuestColdBoot route here). is_resume
+       selects the deep-sleep-wake notification over the reboot one. */
+    virtual void SetResetPending(bool is_resume) = 0;
 };

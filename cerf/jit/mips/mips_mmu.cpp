@@ -1,6 +1,7 @@
 #include "mips_mmu.h"
 
 #include "../isa_block_space.h"
+#include "../../state/state_stream.h"
 
 /* Faithful transcription of QEMU target/mips tlb_helper.c r4k_* for the VR5500
    (R4000-class, 32-bit kernel, MI/MMID and XI/RI/EHINV absent). TARGET_PAGE_BITS
@@ -240,4 +241,14 @@ void MipsMmu::FlushAll(MipsCpuState* st) {
        discard all shadow entries. */
     blocks_->JumpCacheFlush();
     st->tlb_in_use = st->nb_tlb;
+}
+
+void MipsMmu::SaveState(StateWriter& w) const {
+    w.Write(lcg_seed_);
+    w.Write(prev_random_idx_);
+}
+
+void MipsMmu::RestoreState(StateReader& r) {
+    r.Read(lcg_seed_);
+    r.Read(prev_random_idx_);
 }

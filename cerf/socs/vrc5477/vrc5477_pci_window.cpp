@@ -46,6 +46,11 @@ public:
         Bridge().WindowWrite(a + 4, static_cast<uint32_t>(v >> 32), 4);
     }
 
+    /* The enumerated PCI Peripheral is the hibernation entry point for the
+       (non-Peripheral) bridge + its devices. */
+    void SaveState(StateWriter& w) override    { Bridge().SaveState(w); }
+    void RestoreState(StateReader& r) override { Bridge().RestoreState(r); }
+
 private:
     PciHostBridge& Bridge() { return emu_.Get<PciHostBridge>(); }
 };

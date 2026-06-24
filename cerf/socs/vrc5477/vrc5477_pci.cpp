@@ -2,7 +2,9 @@
 #include "../../peripherals/pci/pci_device.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../boards/board_detector.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <vector>
@@ -59,6 +61,40 @@ public:
         }
         for (PciDevice* d : devices_)
             if (d->MemClaims(addr)) { d->MemWrite(addr, v, size); return; }
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(pciinit00_);
+        w.Write(pciw0_);
+        w.Write<uint32_t>(static_cast<uint32_t>(devices_.size()));
+        for (PciDevice* d : devices_) {
+            w.Write<uint16_t>(static_cast<uint16_t>((d->PciDev() << 8) | d->PciFnc()));
+            d->SaveState(w);
+        }
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(pciinit00_);
+        r.Read(pciw0_);
+        uint32_t n = 0;
+        r.Read(n);
+        if (n != devices_.size()) {
+            LOG(Caution, "Vrc5477Pci: device count %u != live %zu\n", n, devices_.size());
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        for (uint32_t i = 0; i < n; ++i) {
+            uint16_t tag = 0;
+            r.Read(tag);
+            const uint8_t dev = static_cast<uint8_t>(tag >> 8);
+            const uint8_t fnc = static_cast<uint8_t>(tag & 0xFFu);
+            PciDevice* match = nullptr;
+            for (PciDevice* d : devices_)
+                if (d->PciDev() == dev && d->PciFnc() == fnc) { match = d; break; }
+            if (!match) {
+                LOG(Caution, "Vrc5477Pci: no live device for tag dev=%u fnc=%u\n", dev, fnc);
+                CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+            }
+            match->RestoreState(r);
+        }
     }
 
 private:

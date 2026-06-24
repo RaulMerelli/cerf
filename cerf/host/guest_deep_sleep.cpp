@@ -3,6 +3,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../jit/arm/arm_jit.h"
+#include "../jit/guest_engine.h"
 #include "../state/shutdown_dialog.h"
 #include "guest_power_notifier.h"
 #include "host_window.h"
@@ -56,7 +57,7 @@ void GuestDeepSleep::DeliverWake() {
 
 void GuestDeepSleep::OnFullRestore() {
     /* A machine restored mid-deep-sleep wakes the same way Cancel does, no prompt. */
-    if (emu_.Get<ArmJit>().CpuState()->deep_sleep) DeliverWake();
+    if (emu_.Get<GuestEngine>().DeepSleep()) DeliverWake();
 }
 
 void GuestDeepSleep::Recover() {

@@ -255,6 +255,7 @@ void MipsJit::SetExternalInterruptLevel(uint32_t ip_mask) {
 }
 
 void MipsJit::Run() {
+    if (cpu_state_.reset_pending) { DeliverReset(); return; }
     /* branch_state==kNone gate: never take an interrupt between a branch and its
        not-yet-run delay slot, or the delay slot is skipped on ERET resume. */
     TimerPoll();

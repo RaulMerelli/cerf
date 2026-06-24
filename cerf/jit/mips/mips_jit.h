@@ -227,10 +227,15 @@ public:
     void SignalIdleWake();
     void* IdleEvent() const { return idle_event_; }
 
-    void SetResetPending(bool is_resume = false);
+    void SetResetPending(bool is_resume = false) override;
     void NotifyResetDelivered();
 
-    void FlushTranslationCache(uint32_t va, uint32_t length);
+    void SaveCpuState(StateWriter& w)    override;
+    void RestoreCpuState(StateReader& r) override;
+    void SaveMmuState(StateWriter& w)    override;
+    void RestoreMmuState(StateReader& r) override;
+    void ResyncInterruptPoll() override;
+    void FlushTranslationCache(uint32_t va, uint32_t length) override;
 
 private:
     JitCodeArena    arena_;
@@ -299,6 +304,11 @@ private:
     /* Drop the VA jump cache on an address-space switch (QEMU tlb_flush ->
        tcg_flush_jmp_cache); the per-ASID block indices persist. */
     void ContextSwitchFlush();
+
+    /* Reset delivery (top of Run when reset_pending): run the reset-line
+       listeners + armed cold-boot RAM wipe/replay, then re-establish the
+       cold-power-on CPU state and re-enter at the kernel entry VA. */
+    void DeliverReset();
 
     void* JitCompile(uint32_t guest_pc);
     void  JitDecode(uint32_t guest_pc);

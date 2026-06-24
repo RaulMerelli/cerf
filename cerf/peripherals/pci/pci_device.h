@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+class StateWriter;
+class StateReader;
+
 /* A device on a PCI bus, routed to by a PciHostBridge. The device owns its 256-byte
    type-0 config space (including BARs) and the memory its BARs map into PCI memory
    space. Config access is dword-granular (the VRC5477 OAL issues dword window cycles;
@@ -9,6 +12,12 @@
 class PciDevice {
 public:
     virtual ~PciDevice() = default;
+
+    /* Hibernation: a device with mutable config/BAR/register state overrides
+       these; a stateless device keeps the no-op default. The bridge drives them
+       (a PciDevice is not a Peripheral, so the hibernation walk can't reach it). */
+    virtual void SaveState(StateWriter&) {}
+    virtual void RestoreState(StateReader&) {}
 
     /* Location on bus 0 (the only bus the VRC5477 external host bridge drives). */
     virtual uint8_t PciDev() const = 0;

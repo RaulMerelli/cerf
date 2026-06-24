@@ -6,6 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_detector.h"
 #include "../../host/host_window.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <vector>
@@ -121,6 +122,36 @@ public:
         if (MmioHit(addr)) { MmioWrite(addr - bars_[2].base, value, size); return; }
         LogMmio("write", addr, value);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(command_);
+        w.WriteBytes(bars_, sizeof(bars_));
+        w.Write<uint32_t>(static_cast<uint32_t>(fb_.size()));
+        w.WriteBytes(fb_.data(), fb_.size());
+        w.WriteBytes(regs_, sizeof(regs_));
+        w.Write(clock_cntl_);
+        w.WriteBytes(pll_, sizeof(pll_));
+        w.Write(crtc_vline_);
+        w.Write(signaled_w_);
+        w.Write(signaled_h_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(command_);
+        r.ReadBytes(bars_, sizeof(bars_));
+        uint32_t fbsz = 0;
+        r.Read(fbsz);
+        if (fbsz != fb_.size()) {
+            LOG(Caution, "AtiRageXl: state fb size %u != live %zu\n", fbsz, fb_.size());
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        r.ReadBytes(fb_.data(), fb_.size());
+        r.ReadBytes(regs_, sizeof(regs_));
+        r.Read(clock_cntl_);
+        r.ReadBytes(pll_, sizeof(pll_));
+        r.Read(crtc_vline_);
+        r.Read(signaled_w_);
+        r.Read(signaled_h_);
     }
 
     Frame CurrentFrame() const override {

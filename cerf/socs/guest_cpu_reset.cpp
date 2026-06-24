@@ -3,7 +3,7 @@
 #include "../boot/guest_cold_boot.h"
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm/arm_jit.h"
+#include "../jit/guest_engine.h"
 
 REGISTER_SERVICE(GuestCpuReset);
 
@@ -19,17 +19,17 @@ void GuestCpuReset::SetCauseLatch(ResetCauseLatch* latch) {
 
 void GuestCpuReset::WarmReset() {
     if (latch_) latch_->LatchWarmReset();
-    emu_.Get<ArmJit>().SetResetPending();
+    emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::ColdReset() {
     if (latch_) latch_->LatchColdReset();
-    emu_.Get<ArmJit>().SetResetPending();
+    emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::WatchdogReset() {
     if (latch_) latch_->LatchWatchdogReset();
-    emu_.Get<ArmJit>().SetResetPending();
+    emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::RegisterResetListener(std::function<void()> fn) {

@@ -17,9 +17,7 @@
 #include "../host/host_widget_registry.h"
 #include "../host/host_window.h"
 #include "../host/hw_screen.h"
-#include "../jit/arm/arm_cpu.h"
-#include "../jit/arm/arm_jit.h"
-#include "../jit/arm/arm_mmu.h"
+#include "../jit/guest_engine.h"
 #include "../jit/jit_runner.h"
 #include "../peripherals/peripheral_base.h"
 #include "../peripherals/peripheral_dispatcher.h"
@@ -184,8 +182,8 @@ bool Hibernation::Save(const std::wstring& path_in) {
                           &len, sizeof(len));
             };
 
-            section(StateSection::Cpu, [&] { emu_.Get<ArmCpu>().SaveState(w); });
-            section(StateSection::Mmu, [&] { emu_.Get<ArmMmu>().SaveState(w); });
+            section(StateSection::Cpu, [&] { emu_.Get<GuestEngine>().SaveCpuState(w); });
+            section(StateSection::Mmu, [&] { emu_.Get<GuestEngine>().SaveMmuState(w); });
 
             const uint64_t ram = emu_.Get<EmulatedMemory>().VolatileByteCount();
             Progress("Saving RAM (%llu MB)...",
@@ -299,8 +297,8 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                 sid == StateSection::Ram || sid == StateSection::Flash;
             if (apply) {
                 switch (sid) {
-                    case StateSection::Cpu:    emu_.Get<ArmCpu>().RestoreState(r); break;
-                    case StateSection::Mmu:    emu_.Get<ArmMmu>().RestoreState(r); break;
+                    case StateSection::Cpu:    emu_.Get<GuestEngine>().RestoreCpuState(r); break;
+                    case StateSection::Mmu:    emu_.Get<GuestEngine>().RestoreMmuState(r); break;
                     case StateSection::Ram:    emu_.Get<EmulatedMemory>().RestoreState(r); break;
                     case StateSection::Flash:  emu_.Get<EmulatedMemory>().RestoreFlashRegions(r); break;
                     case StateSection::Periph: RestorePeripherals(r); break;
@@ -313,8 +311,8 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                and guards an asymmetric peripheral impl from desyncing. */
             r.SeekTo(body_start + sh.length);
         }
-        if (!ram_only) emu_.Get<ArmJit>().ResyncInterruptPoll();
-        emu_.Get<ArmJit>().FlushTranslationCache(0, 0xFFFFFFFFu);
+        if (!ram_only) emu_.Get<GuestEngine>().ResyncInterruptPoll();
+        emu_.Get<GuestEngine>().FlushTranslationCache(0, 0xFFFFFFFFu);
         ok = r.Ok();
     }
     snap.unlock();
