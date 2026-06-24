@@ -608,7 +608,8 @@ def main() -> int:
             f"comment only when the WHY is non-obvious. Keep it short.'\n\n"
             f"PRE-EXISTING COMMENTS ARE NOT EXCLUDED. You touched this "
             f"file — you own its rot. 'It was already there' / 'another "
-            f"session wrote it' is not a defence.\n\n"
+            f"session wrote it' is not a defence.\n\nYou are very bad "
+            f"at writing code comments - consider NOT WRITING them at all. Please."
             f"Hits:\n{sample}"
         )
 
