@@ -375,6 +375,8 @@ BOARDS_INFORMATION = [
             "mouse": True,
             "keyboard": True,
             "suspend": False,
+            "sound": False,
+            "guest_additions": False,
         },
     },
     {
