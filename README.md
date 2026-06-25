@@ -234,6 +234,8 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>NEC Rockhopper SG2_VR5500 (MIPS) support</li>
               <li>Ford SYNC 2 support</li>
               <li>CERF/Launcher UI/UX improvements</li>
+              <li>Added tools\fileserver.py in build directory (simple directory serving web server)</li>
+              <li>Microsoft Reference Platform: added full PS/2 key mapping set</li>
             </ul>
           </td>
         </tr>
