@@ -11,8 +11,11 @@ $build = "$PSScriptRoot/../../tools/build_ce_app.ps1"
     -CoreLibDir "$SDK/ce211-hpcpro/lib/arm" `
     -WceVersion "211" -SubsystemVersion "2.11"
 
-& $build -Type exe -Target romdump.exe -Arch mips -MipsIsa mips2 -ObjDir obj_mips `
+& $build -Type exe -Target romdump.exe -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 `
     -Sources main.cpp,dump.cpp,paint.cpp -Entry WinMain -Libs coredll -Rc romdump.rc `
     -SdkIncludes "$SDK/ce211-hpcpro/include" `
     -CoreLibDir "$SDK/ce211-hpcpro/lib/mips" `
     -WceVersion "211" -SubsystemVersion "2.11"
+
+& $build -Type exe -Target romdump.exe -Arch mips -MipsIsa mips4 -ObjDir obj_mips4 `
+    -Sources main.cpp,dump.cpp,paint.cpp -Entry WinMain -Libs coredll -Rc romdump.rc

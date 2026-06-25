@@ -113,7 +113,8 @@ $env:PATH = "$SDK\bin\I386\$BinArch;$SDK\bin\I386;" + $env:PATH
 $Config = if ($env:CE_APPS_CONFIG) { $env:CE_APPS_CONFIG } else { "Release" }
 $Mode   = if ($env:CE_APPS_MODE)   { $env:CE_APPS_MODE }   else { "dev" }
 $devModeFlag = if ($Mode -eq "production") { "0" } else { "1" }
-$OutDir = Join-Path $RepoRoot "build/$Config/Win32/ce_apps/$Arch"
+$ArchSub = if ($Arch -eq "mips") { $MipsIsa } else { $Arch }
+$OutDir = Join-Path $RepoRoot "build/$Config/Win32/ce_apps/$ArchSub"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $StagedTarget = Join-Path $OutDir $Target
 

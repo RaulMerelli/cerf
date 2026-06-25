@@ -1,22 +1,41 @@
-# Regenerates the ce6-oak/Lib/Armv4 display libraries from their WINCE600
-# Platform Builder sources with ARMv4 codegen. Not part of the build:
-# requires a local references/WINCE600 tree; run manually, then place the
-# outputs into the WindowsCE-Build-Tools submodule.
-param()
+param(
+    [ValidateSet("arm","mips2","mips4")][string]$Arch = "arm"
+)
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot/..").Path
 $SDK      = Join-Path $RepoRoot "references/WindowsCE-Build-Tools"
 $WINCE    = Join-Path $RepoRoot "references/WINCE600"
-$CL       = Join-Path $SDK "bin/I386/ARM/cl.exe"
 $LINK     = Join-Path $SDK "bin/I386/link.exe"
 $DISPLAY  = Join-Path $WINCE "PUBLIC/COMMON/OAK/DRIVERS/DISPLAY"
+$CPULIBS  = Join-Path $WINCE "PUBLIC/COMMON/OAK/CPULIBS"
+
+switch ($Arch) {
+    "mips2" {
+        $CL = Join-Path $SDK "bin/I386/MIPS/cl.exe"
+        $BinArch = "MIPS"
+        $ArchFlags = @("-QMmips2", "-QMFPE", "-D_M_MRX000=4000", "-D_MIPS_", "-DR4000", "-DMIPS")
+        $GenbltCpuDir = Join-Path $CPULIBS "MIPS/GENBLT_CPU"
+    }
+    "mips4" {
+        $CL = Join-Path $SDK "bin/I386/MIPS/cl.exe"
+        $BinArch = "MIPS"
+        $ArchFlags = @("-QMmips4", "-QMn32", "-QMFPE", "-D_MIPS64", "-D_MIPS_", "-DR4000", "-DMIPS")
+        $GenbltCpuDir = Join-Path $CPULIBS "MIPS/GENBLT_CPU"
+    }
+    default {
+        $CL = Join-Path $SDK "bin/I386/ARM/cl.exe"
+        $BinArch = "ARM"
+        $ArchFlags = @("/QRarch4", "/DARM", "/D_ARM_", "/DARMV4")
+        $GenbltCpuDir = Join-Path $CPULIBS "ARM/GENBLT_CPU"
+    }
+}
 
 if (-not (Test-Path $CL))     { throw "WCE toolchain missing: $CL" }
 if (-not (Test-Path $WINCE))  { throw "WINCE600 sources missing: $WINCE" }
-$env:PATH = "$SDK\bin\I386\ARM;$SDK\bin\I386;" + $env:PATH
+$env:PATH = "$SDK\bin\I386\$BinArch;$SDK\bin\I386;" + $env:PATH
 
-$OutDir = Join-Path $RepoRoot "tmp/ce_libs"
+$OutDir = Join-Path $RepoRoot "tmp/ce_libs/$Arch"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $IncDirs = @(
@@ -33,7 +52,7 @@ $LibDirs = [ordered]@{
     "emulrotate" = (Join-Path $DISPLAY "EMULROTATE")
     "genblt"     = (Join-Path $DISPLAY "GENBLT/GENBLT")
     "aablt"      = (Join-Path $DISPLAY "AABLT")
-    "genblt_cpu" = (Join-Path $WINCE "PUBLIC/COMMON/OAK/CPULIBS/ARM/GENBLT_CPU")
+    "genblt_cpu" = $GenbltCpuDir
 }
 
 # SOURCES= block of an NMAKE 'sources' file: backslash-continued file list.
@@ -84,7 +103,7 @@ foreach ($name in $LibDirs.Keys) {
         $obj = Join-Path $objDir ([System.IO.Path]::ChangeExtension($s, ".obj"))
         $objs += $obj
         Write-Host "[CELIB] cl  $name/$s"
-        & $CL /nologo /c /W3 /O2 /QRarch4 /DUNICODE /D_UNICODE /DUNDER_CE /DWINCEOEM /DARM /D_ARM_ /DARMV4 /D_WIN32_WCE=600 "/Fo$obj" @incFlags (Join-Path $dir $s)
+        & $CL /nologo /c /W3 /O2 @ArchFlags /DUNICODE /D_UNICODE /DUNDER_CE /DWINCEOEM /D_WIN32_WCE=600 "/Fo$obj" @incFlags (Join-Path $dir $s)
         if ($LASTEXITCODE -ne 0) { throw "Compile failed: $name/$s" }
     }
 

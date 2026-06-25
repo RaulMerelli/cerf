@@ -15,6 +15,18 @@ EXPORTS
     __dptofp
     __litofp
     __ultofp
+    __ll_div
+    __ll_mul
+    __ll_rem
+    __ll_lshift
+    __ll_rshift
+    __ll_bit
+    __ll_to
+    __ull_div
+    __ull_rem
+    __ull_rshift
+    __ull_bit
+    __ull_to
     ??0exception@std@@QAA@ABV01@@Z
     ??0exception@std@@QAA@PBD@Z
     ??0exception@std@@QAA@XZ

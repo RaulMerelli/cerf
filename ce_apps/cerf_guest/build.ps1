@@ -35,12 +35,21 @@ $baseInc = @("$PSScriptRoot/shim","$tools/ce6-oak/INC")
     -ForcedInclude "ce6_shim.h","cerf_debug_log.h" `
     -LinkExtras "/MERGE:.rdata=.text"
 
-# MIPS-IV soft-float (e.g. NEC VR5500) against the stock Mipsiv OAK libs.
 & "$PSScriptRoot/../../tools/build_ce_app.ps1" `
-    -Type dll -Target cerf_guest.dll -Arch mips -ObjDir obj_mips -DefFile cerf_guest.def `
+    -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips4 -ObjDir obj_mips4 -DefFile cerf_guest.def `
     -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes ($baseInc + "$tools/ce42-standard/Include/Mipsiv") `
     -ExtraLibPaths "$tools/ce6-oak/Lib/Mipsiv/retail" `
+    -Libs $libs `
+    -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
+    -ForcedInclude "ce6_shim.h","cerf_debug_log.h" `
+    -LinkExtras "/MERGE:.rdata=.text"
+
+& "$PSScriptRoot/../../tools/build_ce_app.ps1" `
+    -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 -DefFile cerf_guest.def `
+    -Sources $sources -Entry DllEntryPoint `
+    -ExtraIncludes ($baseInc + "$tools/ce42-standard/Include/Mipsii") `
+    -ExtraLibPaths "$tools/ce6-oak/Lib/Mipsii/retail" `
     -Libs $libs `
     -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
     -ForcedInclude "ce6_shim.h","cerf_debug_log.h" `

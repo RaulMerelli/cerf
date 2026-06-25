@@ -4,20 +4,22 @@
 #include "../core/string_utils.h"
 #include "../cpu/arm_processor_config.h"
 #include "../boards/board_detector.h"
+#include "rom_parser_service.h"
 
 REGISTER_SERVICE(GuestAdditionsBinaries);
 
 namespace {
 constexpr const char* kBodyDll = "cerf_guest.dll";
 constexpr const char* kStubDll = "cerf_guest_stub.dll";
+constexpr uint16_t kImageFileMachineMipsFpu = 0x366;
 }  /* namespace */
 
-/* ce_apps build-output arch subdir for the current guest CPU. MIPS guests have
-   no ArmProcessorConfig, so the arch is decided before that service is touched;
-   Thumb-capable ARM cores get the interworking build, no-Thumb cores pure ARM. */
 std::string GuestAdditionsBinaries::ArchDir() {
-    if (emu_.Get<BoardDetector>().GetCpuArch() == CpuArch::Mips)
-        return "mips";
+    if (emu_.Get<BoardDetector>().GetCpuArch() == CpuArch::Mips) {
+        const ParsedRom& rom = emu_.Get<RomParserService>().Primary();
+        const uint16_t cpu = rom.xips.empty() ? 0 : rom.xips[0].toc.romhdr.usCPUType;
+        return cpu == kImageFileMachineMipsFpu ? "mips4" : "mips2";
+    }
     return emu_.Get<ArmProcessorConfig>().HasThumb() ? "arm_thumb" : "arm";
 }
 

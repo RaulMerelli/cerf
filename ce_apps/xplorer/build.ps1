@@ -12,8 +12,11 @@ $src   = "main.c,xplorer_view.c,xplorer_icons.c,xplorer_desktop.c,xplorer_taskba
     -CoreLibDir "$SDK/ce211-hpcpro/lib/arm" `
     -WceVersion "211" -SubsystemVersion "2.11"
 
-& $build -Type exe -Target xplorer.exe -Arch mips -MipsIsa mips2 -ObjDir obj_mips `
+& $build -Type exe -Target xplorer.exe -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 `
     -Sources ($src -split ",") -Entry WinMain -Libs coredll `
     -SdkIncludes "$SDK/ce211-hpcpro/include" `
     -CoreLibDir "$SDK/ce211-hpcpro/lib/mips" `
     -WceVersion "211" -SubsystemVersion "2.11"
+
+& $build -Type exe -Target xplorer.exe -Arch mips -MipsIsa mips4 -ObjDir obj_mips4 `
+    -Sources ($src -split ",") -Entry WinMain -Libs coredll

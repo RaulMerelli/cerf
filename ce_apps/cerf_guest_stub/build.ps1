@@ -26,11 +26,18 @@ $baseInc = @("$PSScriptRoot/../cerf_guest",
     -ForcedInclude "ce6_shim.h" `
     -LinkExtras "/MERGE:.rdata=.text"
 
-# MIPS-IV soft-float (e.g. NEC VR5500).
 & "$PSScriptRoot/../../tools/build_ce_app.ps1" `
-    -Type dll -Target cerf_guest_stub.dll -Arch mips -ObjDir obj_mips -DefFile cerf_guest_stub.def `
+    -Type dll -Target cerf_guest_stub.dll -Arch mips -MipsIsa mips4 -ObjDir obj_mips4 -DefFile cerf_guest_stub.def `
     -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes ($baseInc + "$tools/ce42-standard/Include/Mipsiv") `
+    -Libs coredll `
+    -ForcedInclude "ce6_shim.h" `
+    -LinkExtras "/MERGE:.rdata=.text"
+
+& "$PSScriptRoot/../../tools/build_ce_app.ps1" `
+    -Type dll -Target cerf_guest_stub.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 -DefFile cerf_guest_stub.def `
+    -Sources $sources -Entry DllEntryPoint `
+    -ExtraIncludes ($baseInc + "$tools/ce42-standard/Include/Mipsii") `
     -Libs coredll `
     -ForcedInclude "ce6_shim.h" `
     -LinkExtras "/MERGE:.rdata=.text"
