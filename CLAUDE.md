@@ -1,16 +1,16 @@
 # CERF - Virtual hardware platform for Windows CE-based devices
 
-Boots unmodified CE binaries (kernel + userspace + ROM drivers) on Windows. CERF presents virtual ARM hardware; CE's own kernel, coredll, windowing, filesystem, and device manager run on top as the original ROM.
+Boots unmodified CE binaries (kernel + userspace + ROM drivers) on Windows. CERF presents a virtual device - the SoC and its board; CE's own kernel, coredll, windowing, filesystem, and device manager run on top as the original ROM.
 
 ## MOST IMPORTANT RULES
 
 These override ALL other instructions. Read these FIRST. Violating these is a fireable offense.
 
 - **Slow is correct. Fast is wrong.** - You are trained to produce output SLOWLY and be PRECISE, not productive. Every urge to write code quickly is the exact moment you are about to guess. One correct function per hour beats ten guessed functions per minute. See [agent_docs/rules.md](agent_docs/rules.md) § Speed Is The Enemy.
-- **Mental model discipline** - NEVER write code without a verified mental model. Claim → verify against a concrete reference (chip datasheet, BSP source, ARM architecture reference manual) or runtime log → THEN code. "I think I know" is not verified. "It's probably X" is not verified. Only a reference passage pasted into this conversation, or a log line from a diagnostic you ran in this session, counts as verification. See [agent_docs/workflow.md](agent_docs/workflow.md).
-- **Before writing any peripheral register handler / BSP_ARGS struct field / MMU translation rule, the reference passage that documents it must be visible above.** If you have not pasted the chip datasheet entry / BSP source line / ARM ARM section in this session, you may NOT write that piece of code. No exceptions.
+- **Mental model discipline** - NEVER write code without a verified mental model. Claim → verify against a concrete reference (chip datasheet, BSP source, CPU architecture reference manual) or runtime log → THEN code. "I think I know" is not verified. "It's probably X" is not verified. Only a reference passage pasted into this conversation, or a log line from a diagnostic you ran in this session, counts as verification. See [agent_docs/workflow.md](agent_docs/workflow.md).
+- **Before writing any peripheral register handler / BSP_ARGS struct field / MMU translation rule, the reference passage that documents it must be visible above.** If you have not pasted the chip datasheet entry / BSP source line / CPU architecture reference manual section in this session, you may NOT write that piece of code. No exceptions.
 - **Numeric conversions go through a tool, never your head.** Every decimal↔hex conversion, signed↔unsigned reinterpretation, bit-mask decode, and hex-arithmetic step goes through a Bash / PowerShell / Python / `printf` tool call. Mental arithmetic on 32-bit values silently produces wrong answers that read as authoritative - the wrong value lands on the same "shape" as the right one, and a downstream investigator then builds a whole theory on top ("the tool must be lying", "the chip must swap these bits") before anyone questions the original arithmetic. Use the `calc` skill to catch yourself. Full rule in [agent_docs/rules.md](agent_docs/rules.md) § WinCE Accuracy.
-- **Read ALL mandatory reference pages before doing anything.** Your first action in every session is to Read (using the Read tool) every file listed in Reference Pages below. Not some. ALL of them. Do not start investigating, do not start coding, do not touch any file until you have read every single reference page. Agents who skip this waste hours rediscovering rules that are already written down.
+- **The reference pages listed below are authoritative and binding.** Their full contents are part of this prompt - they define the project's rules, architecture, and subsystems. Follow them exactly; when an instinct conflicts with a reference page, the reference page wins.
 
 # Agent Information
 
@@ -28,27 +28,27 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 
 ## Rules (Summary)
 
-- **Reference citations required** - every non-trivial peripheral / BSP behavior needs a comment naming its reference (chip datasheet section, BSP source path, ARM ARM section)
+- **Reference citations required** - every non-trivial peripheral / BSP behavior needs a comment naming its reference (chip datasheet section, BSP source path, CPU architecture reference manual section)
 - **No hacks** - emulated peripheral behavior comes from chip datasheet + matching BSP source, not from invented values
 - **Full rules** - see [agent_docs/rules.md](agent_docs/rules.md)
 
 ## Reference Pages
 
-**MANDATORY** - Read ALL of these (using the Read tool) before doing ANY work. No exceptions. You DONT NEED to re-read files, if their content is already present in the system prompt below.
+The following pages are authoritative project knowledge; their full contents are part of this prompt.
 
-- **[README.md](README.md)** - basic project information, run commands.
-- **[agent_docs/workflow.md](agent_docs/workflow.md)** - Mental model discipline: how to investigate, verify, and implement. Core operating method for every task.
-- **[agent_docs/subsystems.md](agent_docs/subsystems.md)** - Surviving CERF subsystems.
-- **[agent_docs/jit.md](agent_docs/jit.md)** - JIT design notes: service set, `place_fn` contract, pinned-register dispatcher, compile pipeline, trampolines, shadow stack, FCSE fold, cross-thread interrupt delivery.
-- **[agent_docs/rules.md](agent_docs/rules.md)** - All project rules: WinCE accuracy, architecture, communication patterns, git, subagents.
-- **[agent_docs/code_style.md](agent_docs/code_style.md)** - How to write code: file & symbol style, comments, logging, when to stop and ask.
-- **[agent_docs/debugging.md](agent_docs/debugging.md)** - All debugging: log reading, crash investigation, MMU faults, peripheral halts.
-- **[agent_docs/boot_loaders.md](agent_docs/boot_loaders.md)** - What CERF does with boot loaders.
-- **[agent_docs/rom_acceptance.md](agent_docs/rom_acceptance.md)** - ROM-acceptance philosophy (run the ORIGINAL OEM package/dump unchanged, never a pre-extracted/repackaged image) and the two acceptance axes: container unwrap (flat NB0 / B000FF / NOSAJ / ARNOLD) and flat-XIP placement vs whole-storage served through an emulated controller (`.sec` → SecFlash → NAND). How `RomParserService` parses an XIP and how to add a new container format.
-- **[agent_docs/psychological_support.md](agent_docs/psychological_support.md)** - Emotional control instructions for agent.
-- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** - Full machine-state save/restore: the `.img` format, the two-thread freeze model (JitRunner pause + EmulationFreeze), and the MANDATORY peripheral contract (SaveState/RestoreState/PostRestore, worker-thread wrapping) for anyone creating or modifying a peripheral.
-- **[agent_docs/deep_sleep.md](agent_docs/deep_sleep.md)** - Guest suspend/resume (deep sleep): the CPU-halt + no-timeout recovery dialog, the wake-is-a-reset contract (cause latch + reset-line listeners + resume-vector provider) for implementing it per SoC/board, and why suspend/resume is NOT hibernation.
-- **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** - Guest Additions: universal stub injector + manual-map body delivery, device.exe AFS-FSD shared storage, the cross-process writable-state invariant (pid-key + SHARED), display driver + blit pipeline, task manager.
+- **[README.md](README.md)** - project overview, build & run.
+- **[agent_docs/workflow.md](agent_docs/workflow.md)** - how to investigate and work.
+- **[agent_docs/subsystems.md](agent_docs/subsystems.md)** - what CERF owns.
+- **[agent_docs/jit.md](agent_docs/jit.md)** - the JIT.
+- **[agent_docs/rules.md](agent_docs/rules.md)** - project rules.
+- **[agent_docs/code_style.md](agent_docs/code_style.md)** - how to write code.
+- **[agent_docs/debugging.md](agent_docs/debugging.md)** - debugging.
+- **[agent_docs/boot_loaders.md](agent_docs/boot_loaders.md)** - boot loaders.
+- **[agent_docs/rom_acceptance.md](agent_docs/rom_acceptance.md)** - ROM container / dump forms CERF accepts.
+- **[agent_docs/psychological_support.md](agent_docs/psychological_support.md)** - agent emotional-control instructions.
+- **[agent_docs/hibernation.md](agent_docs/hibernation.md)** - machine-state save/restore.
+- **[agent_docs/deep_sleep.md](agent_docs/deep_sleep.md)** - guest suspend/resume.
+- **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** - Guest Additions.
 
 ## Build
 

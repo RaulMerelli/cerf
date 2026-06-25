@@ -73,10 +73,14 @@ simply refused by `ValidateHeader`, exactly as intended.
 
 Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Presentation**.
 
-- **Cpu** - the flat `ArmCpuState` POD blob (`cerf/jit/cpu_state.h`), including
-  `guest_cycle_counter`, CPSR, banked regs, and `irq_interrupt_pending`.
-- **Mmu** - cp15 persistent register fields only. The TLBs + SMC bitmaps are
-  derived state → flushed on restore (`ArmTlbFlushAll`), never serialized.
+- **Cpu** - the engine's flat CPU-state POD via the ISA-neutral
+  `GuestEngine::SaveCpuState` / `RestoreCpuState` seam: the ARM engine
+  serializes `ArmCpuState` (GPRs, `guest_cycle_counter`, CPSR, banked regs,
+  `irq_interrupt_pending`), the MIPS engine `MipsCpuState`.
+- **Mmu** - the engine's persistent MMU state via `GuestEngine::SaveMmuState` /
+  `RestoreMmuState`. ARM: cp15 persistent register fields only - the TLBs + SMC
+  bitmaps are derived state → flushed on restore (`ArmTlbFlushAll`), never
+  serialized. MIPS: the `MipsMmu` residual state.
 - **Ram** - `EmulatedMemory` volatile (PAGE_READWRITE) regions.
 - **Flash** - `EmulatedMemory` backed PAGE_READONLY / PAGE_EXECUTE_READ regions
   (flash writes-since-boot ARE machine state). Applied on warm boot too - flash
@@ -88,8 +92,9 @@ Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Pre
 
 The JIT translation cache is **flushed**, never saved
 (`FlushTranslationCache(0, 0xFFFFFFFF)`). After a full restore,
-`ArmJit::ResyncInterruptPoll()` re-derives the interrupt-poll trampoline byte from
-the restored CPU state - without it a restored-pending IRQ is silently missed.
+`GuestEngine::ResyncInterruptPoll()` re-arms interrupt delivery from the
+restored state - the ARM engine re-derives the interrupt-poll trampoline byte;
+miss it and a restored-pending IRQ is silently dropped.
 
 ## The two-thread freeze model - read before touching ANY peripheral
 

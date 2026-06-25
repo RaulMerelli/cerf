@@ -1,7 +1,7 @@
 # ROM Acceptance - what CERF eats and how
 
 CERF runs the original device's software unchanged. The CE binaries - kernel,
-OAL, drivers, userspace - are the ROM's own ARM code (see `agent_docs/rules.md`
+OAL, drivers, userspace - are the ROM's own guest code (see `agent_docs/rules.md`
 § WinCE Accuracy). This page is about the layer below that: what *file* CERF
 accepts as "the ROM", and how it turns that file into a running guest.
 
@@ -139,7 +139,11 @@ left to read its own storage.
 `RomParserService::OnReady` resolves the file set: an explicit `rom_primary`
 (+ `rom_extensions`, or `rom_recovery` under `--recovery`) from `DeviceConfig`,
 else the first `*.nb0` / `*.bin` / `*.fim` found in the device directory.
-`cerf.json` is optional metadata and is never the source of an operational ROM
-fact (`agent_docs/rules.md`). The bundled device tree
+Selecting which file boots when a bundle ships several - a multi-ROM-file
+bundle such as a ROM plus a separate EEPROM image, which ROM content alone
+cannot disambiguate - is the one operational job `cerf.json`'s `rom` block
+legitimately does. Device facts (board, SoC, version, memory map) and the
+XIP / base / entry resolution above still come from the ROM's own bytes, never
+`cerf.json` or `meta` (`agent_docs/rules.md`). The bundled device tree
 (`bundled/devices/<name>/`) holds the original OEM file - the package or dump as
 shipped, not a derived artifact.

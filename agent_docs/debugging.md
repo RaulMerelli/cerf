@@ -1,7 +1,7 @@
 # Debugging - v2
 
 CERF's host-side surface is virtual hardware: peripherals, MMU, JIT, ROM
-loader. CE-side code is real ARM running through the JIT. Crashes
+loader. CE-side code is real guest code running through the JIT. Crashes
 therefore land in one of a small number of shapes. This page is the
 playbook for each.
 
@@ -46,6 +46,14 @@ open in IDA. There is no captured hardware trace and none is needed - so
 **"I have no reference" / "I'd need a real-hardware trace or a TX log" is
 never true and never a stop condition; it is a bailout.** Diff CERF's
 behavior against the guest code, not against any external capture.
+
+Equally forbidden is escalating to the user to *supply* the unobtainable -
+a real-device log, an NDA datasheet, or to buy / wire-tap / dump a physical
+unit. The boards CERF emulates are obscure and often unpurchasable; the user
+has no such artifacts and cannot get them, and asking is a bailout that
+stalls the work. The guest binary in IDA plus public datasheets / Linux /
+QEMU is the complete reference set - if a fact is not in them, decompile
+harder, never escalate to hardware.
 
 The method is always nuclear bisection: drill into the last function,
 deeper through each layer / binary / library, hooking each candidate,
@@ -291,19 +299,21 @@ making forward progress, or is it idle / spinning / waiting?
 Once the slowdown is fixed, re-run at the original timeout. The
 target should now fire within it.
 
-## Crash shape #1 - guest hits an undecodable ARM instruction
+## Crash shape #1 - guest hits an undecodable instruction
 
 The JIT decoder couldn't translate an instruction at some guest PC.
-v2 doesn't halt CERF in this case; `ArmCpu::RaiseUndefinedException`
-vectors the guest into its own Undefined-mode handler at vector 0x4
-and the guest decides what to do (most CE kernels fault the
-offending thread). The symptom on the CERF side is therefore a
-guest-side fault / hang / wrong behavior, not a `[FATAL]` line. To
-catch it early, hook the Undefined-exception path in the JIT (set
-`OnPc` at `ArmCpu::RaiseUndefinedExceptionHelper`'s entry) and log
-the offending PC + insn bytes. The instruction bytes at `pc` are
-not what the kernel or driver expects to be there. **Almost always
-not a JIT bug** - the bytes at that PA in DRAM are wrong because
+The two engines diverge here. The **ARM engine** does not halt CERF:
+`ArmCpu::RaiseUndefinedException` vectors the guest into its own
+Undefined-mode handler at vector 0x4 and the guest decides what to do
+(most CE kernels fault the offending thread), so the symptom is a
+guest-side fault / hang / wrong behavior, not a `[FATAL]` line - catch
+it early by hooking `OnPc` at `ArmCpu::RaiseUndefinedExceptionHelper`'s
+entry and logging the offending PC + insn bytes. The **MIPS engine**
+instead loud-fatals via `MipsJit::UnimplementedHelper` (logs op + PC,
+then `CerfFatalExit`), so an undecodable / unimplemented MIPS opcode
+surfaces as a `[FATAL]` directly. Either way the instruction bytes at
+`pc` are not what the kernel or driver expects to be there. **Almost
+always not a JIT bug** - the bytes at that PA in DRAM are wrong because
 something corrupted them.
 
 Investigation:
@@ -334,6 +344,13 @@ Investigation:
 ```
 [FATAL] Mmu translation fault on read|write|fetch vaddr=0xNNNNNNNN: <reason> (SCTLR=0x… TTBR0=0x… DACR=0x…)
 ```
+
+This is the ARM engine's fault shape (the cp15 register dump gives it
+away). The MIPS engine does not fatal on a normal TLB miss - it
+delivers it to the guest as a CP0 `TLBL` / `TLBS` exception
+(`MipsJit::RaiseTlbException` / `DeliverFetchTlbException`) and the
+guest's own refill handler runs; a MIPS access that is genuinely
+unmapped surfaces through the peripheral / unmapped-PA path (shape #3).
 
 Means: the kernel's page table walker (or CERF's MMU emulator) couldn't
 resolve the VA to a PA. Either:
@@ -442,10 +459,15 @@ bisections - belong in **device-specific trace files** under
 See `agent_docs/subsystems.md` § TraceManager for the framework's
 hook surfaces (`OnPc`, `OnPcFiltered`, `OnRunLoopIter`) and how
 device-specific files key off the bundle CRC32. **There is no
-`OnRead` / `OnWrite` memory-watch primitive** - see subsystems.md for
-the full reason; the short version is that page-level slow-path
-exclusion altered guest IRQ delivery alignment enough to manufacture
-Heisenbugs that did not exist in production CERF.
+`OnRead` / `OnWrite` memory-watch primitive.** A watched VA forces
+every access on its containing 4 KB page off the JIT's GuestTlb fast
+path (through the MMU walk + dispatcher chain, 30-50× slower); that
+slowdown shifts guest IRQ-delivery timing relative to the kernel
+scheduler enough to manufacture Heisenbug races / deadlocks that do
+NOT exist in production CERF, and moving the watch to a less-hot page
+only relocates the race. Observe a write by hooking `OnPc` at the
+writer PC and reading the freshly-written value with
+`c.ReadVa8 / 16 / 32` instead.
 
 ### `OnPc` / `OnPcFiltered` - picking a hook VA
 

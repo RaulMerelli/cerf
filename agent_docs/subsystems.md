@@ -1,8 +1,8 @@
 # CERF Subsystems
 
 The host-side subsystem set is small. CE-side binaries (kernel, OAL, drivers,
-userspace) run unmodified as ARM code through the JIT - they are not host
-subsystems. This page lists what CERF itself owns.
+userspace) run unmodified as guest code through the JIT - they
+are not host subsystems. This page lists what CERF itself owns.
 
 ## CerfEmulator
 
@@ -14,26 +14,16 @@ service state are forbidden.
 
 - `cerf/core/cerf_emulator.h`, `cerf/core/service.h`
 
-## ARM JIT
+## Guest CPU JIT
 
-ARM machine code runs through a block JIT. Every ROM binary -
+Guest code runs through a block JIT. Every ROM binary -
 `nk.exe` / `coredll.dll` / `gwes.exe` / `filesys.exe` / `device.exe` /
-userspace EXEs / driver DLLs - is the original ARM code, translated
-to host machine code on the fly. Both ARM-mode and Thumb-mode go
-through the same `ArmJit` service; there is no per-SoC `ArmJit`
-strategy. Per-SoC variation (PC store offset, base-restored-abort
-model, cache-line size, MIDR/CTR values, coprocessor emit shape)
-lives in `ArmProcessorConfig` and `CoprocEmitter` strategies
-selected by SoC family - never as `if (soc == X)` branches inside
-the JIT body.
-
-The JIT subsystem is its own service constellation under `cerf/jit/`:
-`ArmJit`, `ArmCpu`, `ArmMmu`, `ArmDecoder`, `ArmProcessorConfig`,
-`CoprocEmitter`, `ArmCp15SctlrHandler`, `JitRunner`. Full design
-notes - the `place_fn` contract, the pinned-register dispatcher,
-the compile pipeline, the trampoline pattern, FCSE fold, shadow
-stack, cross-thread interrupt delivery, SEH fault filter - live at
-[agent_docs/jit.md](jit.md).
+userspace EXEs / driver DLLs - is the original guest code, translated
+to host x86 on the fly. `JitRunner` drives an abstract `GuestEngine`
+service; the concrete engine for the board's CPU architecture implements
+it, selected by `BoardDetector::GetCpuArch()`. Per-SoC variation lives in
+per-core strategy services selected by `GetSoc()`, never as
+`if (soc == X)` branches in the JIT body.
 
 - `cerf/jit/`, [agent_docs/jit.md](jit.md)
 
@@ -60,7 +50,7 @@ CPU strategies (`ArmProcessorConfig`, `CoprocEmitter`) split on a different
 axis. VA→PA placement is a BSP/board choice (the OEMAddressTable differs per
 board), so its concretes live under `cerf/boards/<board>/` and are selected by
 `GetBoard()`. The core strategies are a CPU-arch property identical across every
-board on that core, so their concretes live under `cerf/cpu/<arch>/` and are
+board on that core, so their concretes live under `cerf/cpu/<core>/` and are
 selected by `GetSoc()`. Gating a core strategy on
 `GetBoard()` leaves every additional board on that SoC with no winner (a
 second SA-1110 board re-stating the die's MIDR is the smell).
@@ -249,6 +239,17 @@ concretes (strategy pattern, selected by `BoardDetector`).
   widget switches the active source and persists the choice across hibernation.
   - `cerf/host/keyboard_router.{h,cpp}`
 
+- **`PointerRouter` / `PointerWidget`** - the pointer-source registry and
+  host-mouse funnel, mirroring `KeyboardRouter`. Pointing-device sources (a
+  board's touch / mouse, the guest-additions absolute pointer) self-register;
+  the router forwards host mouse messages to the single active source, chosen
+  by highest priority at boot. When more than one is registered, the
+  `PointerWidget` status-bar widget switches the active source - some apps
+  (calibrators) read the stock touch/mouse stream directly - and persists the
+  choice across hibernation. On a board whose stock pointer is a relative
+  mouse, the host-capture mouse lock engages only while that source is active.
+  - `cerf/host/pointer_router.{h,cpp}`, `cerf/host/pointer_widget.{h,cpp}`
+
 - **`HostInputCapture`** - the low-level keyboard hook + capture toggle (so
   the guest receives keys the host shell would otherwise eat); forwards to
   `KeyboardInput` and synthesizes Ctrl-Alt-Del. Installed/removed on the UI
@@ -281,63 +282,22 @@ concretes (strategy pattern, selected by `BoardDetector`).
 
 ## TraceManager
 
-Always-built developer debugging facility for putting in-host C++ handlers
-behind specific guest PC addresses, guest memory addresses, and per-JIT-Run
-iteration ticks - without polluting permanent code with bug-specific
-diagnostics. Hot paths are zero-overhead when no traces are registered
-(empty-container short-circuit). The PC-trace surface and CRC gate
-compile in every configuration; the RunLoop-iter surface is dev-only.
-Production registers only the kernel-debug (`nkdbg/`) hooks; dev
-additionally registers bug-specific trace files.
+Always-built developer facility for hanging in-host C++ handlers off guest PC
+addresses and per-`Run` iteration ticks, so bug-specific diagnostics never
+pollute permanent code. Hot paths are zero-overhead when no traces are
+registered (empty-container short-circuit). Hook surfaces: `OnPc` /
+`OnPcFiltered` (per-instruction, the filtered form taking a fire-time process
+predicate), compiled in every configuration, and `OnRunLoopIter` (dev-only).
+Handlers read guest memory through `TraceContext::ReadVa8 / 16 / 32` -
+GuestTlb fast-path peeks with no MMU side effects.
 
-Two hook surfaces:
+**There is no OnRead / OnWrite memory-watch primitive** - hook `OnPc` at the
+writer PC and read the value with `ReadVa8 / 16 / 32` instead; the timing reason
+it cannot exist is in [agent_docs/debugging.md](debugging.md) § TraceManager.
 
-- **PC trace** (`OnPc(runtime_va, handler)`) - handler fires once per
-  execution of the guest instruction at `runtime_va`. Implemented in
-  the JIT block compiler (`cerf/jit/arm_jit_generate_code.cpp`): for
-  each decoded instruction at compile time, if
-  `TraceManager::HasPcTrace(pc)` returns true, the compiler emits an
-  x86 `CALL` to `ArmJit::TraceDispatchPcHelper` immediately before the
-  instruction's `place_fn` emit; the helper routes through
-  `TraceManager::DispatchPc(pc, regs, cpsr)`. The trace call is
-  placed inside the same cond-guarded region as the instruction's
-  emit - for conditional ARM instructions, the trace fires iff the
-  condition is true at runtime, the same condition under which the
-  guarded instruction itself executes.
-- **RunLoop iter** (`OnRunLoopIter(handler)`, dev builds only) - handler fires after each
-  `ArmJit::Run()` return in `JitRunner::RunLoop`. Used for value-change
-  pollers and one-shot startup audits.
-
-**There is no OnRead / OnWrite memory-watch primitive.** A prior
-design exposed one and it was a footgun: every watched VA forced
-every memory access on the containing 4 KB page through an MMU walk
-+ PeripheralDispatcher + EmulatedMemory + dispatch callback chain
-instead of the JIT's GuestTlb fast path, slowing those accesses
-30-50×. The cumulative slowdown shifted guest IRQ delivery
-alignment relative to the kernel scheduler, and that shift CREATED
-Heisenbug-shaped races / deadlocks that did NOT exist in production
-CERF. The wm5_smdk2410_devemu boot-stall investigation burned 20+
-human hours chasing one of these - production builds (trace files
-excluded) reproduced zero stalls in 15 runs, dev builds with one
-OnWrite on a thread-descriptor page stalled 20-40% of runs.
-
-"Move the watch to a less-hot page" doesn't solve it - any
-page-exclusion shifts the timing race somewhere else where it can
-manifest as a different false bug. There is no safe page. The
-mechanism itself is what's unsafe.
-
-To observe a memory write, hook `OnPc` at the writer instruction PC
-and read the freshly-written value via `c.ReadVa8 / 16 / 32(va)` on
-the `TraceContext` inside the handler (these go through
-`ArmMmu::PeekDataTlb`, GuestTlb fast-path only, no side effects).
-For values whose writer PC is unknown, poll via `OnRunLoopIter` (no
-per-access overhead between `ArmJit::Run()` returns). For all
-writers of a value, attach `OnPc` to each writer site individually.
-
-`TraceContext` (passed to every handler) carries the 16 GPRs, CPSR, PC, and
-a `CerfEmulator&` for service access. `ReadVa8 / 16 / 32` are read-only
-GuestTlb-fast-path peeks (no MMU side effects, return `std::nullopt` for
-pages not currently fast-path-mapped).
+Usage - picking a hook VA, per-process filtering, when to trace vs `LOG`,
+adding a device trace file - is in [agent_docs/debugging.md](debugging.md)
+§ TraceManager.
 
 - `cerf/tracing/trace_manager.{h,cpp}`, `Trace` log channel.
 
@@ -410,15 +370,17 @@ and is gated like any other channel - only the assembled debug line is `Nkdbg`.
 
 - A Windows CE ROM image, `*.nb0` or `*.bin`. CERF picks up whichever
   is present; the filename does not matter.
-- `cerf.json` - per-device runtime configuration. The `meta` block
-  identifies the device (display name, board name, SoC family, OS
-  name + version, year - used by the launcher and status displays).
-  Optional `board` / `network` / `rom` blocks override `DeviceConfig`
-  defaults. A missing file means CERF uses `DeviceConfig` defaults
-  plus CLI overrides.
-- `cerf.json` is completely optional and has no value for `cerf.exe`.
-- You can't use `meta` in `cerf.json` for `cerf.exe` for anything more
-  serious than displaying device name beatified string - it's metadata.
+- `cerf.json` - optional per-device configuration; every field is optional and
+  `cerf.exe` runs without the file. The one case it is genuinely required is a
+  multi-partition / multi-file bundle (e.g. a ROM plus a separate EEPROM image
+  present together): the `rom` block then names which file boots and which is
+  data, so CERF does not have to guess. Everything else it carries is a user
+  convenience - the `meta` block is launcher-only metadata (display name,
+  board, SoC, OS, year), and `board` / `network` / `rom` overrides let a user
+  pre-bake options they would otherwise pass through the launcher or CLI each
+  time (a custom screen resolution on boards that support one or for a
+  guest-additions boot, force-flipping a flag). A missing file means CERF uses
+  `DeviceConfig` defaults plus CLI overrides.
 
 `bundled/devices/` is synced via `./launcher`,
 which downloads the public manifest and installs selected bundles.
@@ -457,14 +419,14 @@ supported-boards / board-quirk list (`supported_devices.py`), whose per-board
 - `launcher/` (`launcher.py`, `bundles.py`, `operations.py`,
 `supported_devices.py`)
 
-## CE Apps - CERF-built ARM CE binaries
+## CE Apps - CERF-built CE binaries
 
-`ce_apps/<name>/` directories build small Windows CE ARM EXEs and DLLs
+`ce_apps/<name>/` directories build small Windows CE EXEs and DLLs
 against the per-CE-era SDKs in `references/WindowsCE-Build-Tools/`
-(`ce3-oak` … `ce7-oak`). Used as bundled samples; in v1 they drove the
-test harness. Each directory has a `main.c` and a one-line `build.ps1` that
-delegates to `tools/build_ce_app.ps1`; the top-level `build.ps1` walks
-every `ce_apps/*/build.ps1` after msbuild succeeds. Outputs land at
-`build/<Config>/Win32/ce_apps/<name>.{exe,dll}`. Today it hosts the
-`cerf_guest` guest-additions display driver alongside sample
-binaries; it is the home for any CERF-built CE binary.
+(`ce3-oak` … `ce7-oak`), per guest architecture. Each
+directory has a `main.c` and a one-line `build.ps1` that delegates to
+`tools/build_ce_app.ps1`; the top-level `build.ps1` walks every
+`ce_apps/*/build.ps1` after msbuild succeeds. Outputs land at
+`build/<Config>/Win32/ce_apps/<arch>/`. It hosts the `cerf_guest`
+guest-additions display driver alongside sample binaries; it is the home
+for any CERF-built CE binary.

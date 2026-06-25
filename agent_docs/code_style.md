@@ -20,7 +20,7 @@ This page is MANDATORY and complements `rules.md` (behavioral rules) and
 - **Default: no comment.** Well-named identifiers explain the WHAT. Don't narrate what the next three lines do. This applies in every file type - YAML, MSBuild (`.vcxproj` / `.targets` / `.props`), PowerShell, batch, CMake - not just `.cpp` / `.h`. Multi-line essays above a one-line build step or a single cmdlet are slop; agents repeatedly exempt "build infrastructure" from the rule and they shouldn't.
 - **Write a comment only when the WHY is non-obvious** - a hidden CE invariant, a subtle encoding, a workaround whose removal would break a specific app, a pointer-truncation hazard. Keep it short.
 - **Never reference any document that isn't durably committed to the repo. Checklists (anything under `docs/ai_checklists/`) are additionally CONFIDENTIAL - they are private design material, not part of the public repo, and never will be. The `docs/ai_checklists/` path is `.gitignore`d, so `git stash` (with or without `-u`), `git diff`, and `git status` do not see those files; edits to a checklist survive every git operation transparently and any procedure that proposes to stash, stage, or diff a checklist change is incoherent - operate on checklists as plain disk files only.** Code that mentions a checklist's filename, section numbers (`§3.1`, `§7.2`, …), phase names, internal taxonomy, or any other design vocabulary lifted from it LEAKS the checklist to every reader of the public source. That is a confidentiality breach, separate from and on top of the rotting-reference problem. Tasks, PRs, tickets, agent-curated planning files, gitignored work-in-progress, scratch design docs, "the MPA design", "see the spec" all rot the same way; checklists rot AND breach confidentiality, so the prohibition is absolute and total. Forbidden examples (do not write, do not approximate, do not rephrase): `/* added for clipboard fix */`, `/* per checklist §3.1 */`, `/* see docs/ai_checklists/foo.md */`, `/* per the MPA design */`, `/* Step 11 of the spec */`, `/* see Phase 2 */`. References to durably-committed material (`agent_docs/rules.md`, `CLAUDE.md`, sibling source files in this repo, chip datasheet section numbers, BSP source paths) are fine. Test before adding: would a fresh developer at a fresh clone of this repo understand the WHY from this comment alone, with no checklist in hand? If yes, the comment stands; if no, inline the rationale or skip the comment.
-- **Reference citations ARE comments.** Non-trivial peripheral / BSP behavior needs a comment naming the reference (chip datasheet section, BSP source path, ARM ARM section). A citation attached to code you did not actually read is fabrication.
+- **Reference citations ARE comments.** Non-trivial peripheral / BSP behavior needs a comment naming the reference (chip datasheet section, BSP source path, architecture reference manual section). A citation attached to code you did not actually read is fabrication.
 - **No "removed X" / "TODO later" comments** for work that's actually done. If the code is gone, the comment is gone.
 - **A comment that still makes sense moved to a random file is dead weight** - useful comments are glued to the specific code below them (non-obvious invariants, CE quirks, pointer-truncation hazards); generic narration ("lives in X", "moved to Y", "added for debugging", "out-of-line in Z") reads the same anywhere because it says nothing about what's actually there.
 
@@ -125,7 +125,7 @@ A sibling file `pxa27x_foo_peripheral.cpp` whose `ShouldRegister` checks `SocFam
 
 If other services need to call into this one, consumers must depend on an interface, not on any specific impl. Declare a pure-virtual base that derives from `Service`, put each concrete impl in its own file, and register each with `REGISTER_SERVICE_AS(Impl, Base)`. Consumer code calls `emu.Get<Base>()`; the winning impl (chosen by `ShouldRegister()`) is what comes back.
 
-Verified example - `cerf/socs/page_table_builder.h` + `cerf/socs/s3c2410/s3c2410_page_table_builder.cpp`:
+Verified example - `cerf/boards/page_table_builder.h` + `cerf/boards/smdk2410_devemu/smdk2410_devemu_page_table_builder.cpp`:
 
 ```cpp
 /* page_table_builder.h - abstract base. */
@@ -137,30 +137,30 @@ public:
     /* ... */
 };
 
-/* s3c2410_page_table_builder.cpp - one concrete impl. */
-class S3C2410PageTableBuilder : public PageTableBuilder {
+/* smdk2410_devemu_page_table_builder.cpp - one concrete impl. */
+class Smdk2410DevEmuPageTableBuilder : public PageTableBuilder {
 public:
     using PageTableBuilder::PageTableBuilder;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardDetector>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
 
-    uint32_t InitStackTopPa() const override { /* S3C2410 DRAM top */ }
-    uint32_t VaToPa(uint32_t va) const override { /* S3C2410 OEMAddressTable mapping */ }
+    uint32_t InitStackTopPa() const override { /* SMDK2410 DRAM top */ }
+    uint32_t VaToPa(uint32_t va) const override { /* SMDK2410 OEMAddressTable mapping */ }
 };
-REGISTER_SERVICE_AS(S3C2410PageTableBuilder, PageTableBuilder);
+REGISTER_SERVICE_AS(Smdk2410DevEmuPageTableBuilder, PageTableBuilder);
 ```
 
-A sibling `pxa27x_page_table_builder.cpp` registers itself for `SocFamily::PXA27x` and so on. Consumers always write `emu.Get<PageTableBuilder>()` - they neither know nor care which concrete answered.
+A sibling `jornada720_page_table_builder.cpp` registers itself for `Board::Jornada720` and so on. Consumers always write `emu.Get<PageTableBuilder>()` - they neither know nor care which concrete answered. (`PageTableBuilder` is the VA→PA map, a per-board choice, so its concretes select on `GetBoard()`; a SoC-family strategy like `ArmProcessorConfig` selects on `GetSoc()` instead.)
 
 #### Rules that apply to both shapes
 
 - **Exactly one impl wins for a required base.** Two `ShouldRegister` returning `true` for the same base is a bug; two returning `false` for a required base is also a bug. `BoardDetector` is the gate - its `GetSoc()` / `GetBoard()` answers come from heuristic ROM fingerprinting at boot, so each board lands in exactly one bucket. Optional bases (a peripheral that not every board has) may have zero winners - consumers use `emu.TryGet<Base>()` and tolerate absence.
 - **`ShouldRegister` may resolve any service via `emu_.Get<>()`** - same lazy/recursive shape as `OnReady`. The framework defers slot resolution until first `Get<>` and walks each candidate's `ShouldRegister` on demand, so a strategy whose decision depends on another service (e.g. "register this MMU policy iff `Get<BoardDetector>().GetSoc() == SocFamily::S3C2410`") composes cleanly. Cycles (`A.ShouldRegister` → `Get<B>` → `B.ShouldRegister` → `Get<A>`) halt loudly. NEVER reach into a specific concrete subclass by name (e.g. `Smdk2410DevEmuDetector::Fingerprint`) - that's a Dependency Inversion violation; depend on the abstract `Base` only.
 - **Never put `if (board == X)` or `if (soc == X)` inside the impl body.** The impl already represents one specific board / SoC; that branch belongs in `ShouldRegister` and nowhere else. If two boards share most of an impl and diverge in one method, the divergence goes into a separate Service that the shared impl resolves via `emu_.Get<>()` - not an inline branch.
-- **A shared-capable ISA capability goes in the shared path behind a `ProcessorConfig::HasX()` flag, never localized in one SoC's strategy.** When an instruction-set capability (VFP, NEON, DSP, …) currently appears on only one implemented SoC, its decode/dispatch still belongs in the shared decoder / emit path gated by an `ArmProcessorConfig` capability flag, not hardcoded into that SoC's `CoprocEmitter` / strategy. "Only one current SoC has it" is an artifact of the implemented-SoC set, not a property of the capability, and localizing it forces an expensive later re-extraction into the shared path.
+- **A shared-capable ISA capability goes in the shared path behind a `ProcessorConfig::HasX()` flag, never localized in one SoC's strategy.** When an instruction-set capability (VFP, NEON, DSP, …) currently appears on only one implemented SoC, its decode/dispatch still belongs in the shared decoder / emit path gated by the engine's processor-config capability flag (`ArmProcessorConfig` / `MipsProcessorConfig` `HasX()`), not hardcoded into that SoC's coprocessor emitter (`CoprocEmitter` / `MipsCp0Emitter`) or strategy. "Only one current SoC has it" is an artifact of the implemented-SoC set, not a property of the capability, and localizing it forces an expensive later re-extraction into the shared path.
 - **One concrete per file, filename matches the class name exactly.** `S3C2410FooPeripheral` → `s3c2410_foo_peripheral.{h,cpp}`, `PXA27xFooPeripheral` → `pxa27x_foo_peripheral.{h,cpp}`. Never gang two concretes into one file. Same strict naming rule as § Writing a service: snake_case of the full class name, no abbreviation, no rename, no dropped suffix. The 500-line cap and the "split into multiple services" rule apply identically here - if a concrete impl outgrows its file, split it into smaller services, not into sidecar `.cpp` files.
 - **Intra-board per-ROM / per-version variation is a ROM-gated strategy service.** When one board's behavior must differ across its ROM generations (CE versions, firmware revisions) - e.g. CERF models bootloaders, and two bootloader versions write identical data at shifted offsets - model it as per-version strategy services (a base service + per-generation impls), each impl's `ShouldRegister` reading the distinguishing fact *from the ROM*; never an inline per-ROM `if`, never a sidecar (`cerf.json`/`meta`) or whole-image-CRC gate. The only legitimate CE/OS-version source is the kernel's subsystem version read from the loaded ROM (available to every service). The gate is a fingerprint that matches every ROM of that generation, so a new ROM of a known generation Just Works. **Boundary condition (the approach's own fail case):** substituting a per-version *seed* for the bootloader's output is legitimate ONLY when the OEM shipped a small, enumerable set of generations - if an OEM shipped many ROMs per generation, the seeded data cannot be enumerated by version and the bootloader itself must be modeled/executed instead; flag this boundary rather than assuming. This pattern is the home for per-ROM-within-a-board variation, which the three-tree (board / SoC / off-chip-part) model has no default slot for - that absence is what pushes agents to improvise with `meta` or CRC.
 
@@ -169,7 +169,7 @@ A sibling `pxa27x_page_table_builder.cpp` registers itself for `SocFamily::PXA27
 - You're about to introduce a static or global to hold service state because the architecture won't let you avoid it. STOP and ask - the architecture is wrong, not your code.
 - You need to put logic somewhere and no existing service owns that responsibility, and the new service's name is unclear. STOP and ask - don't guess a name and create a file.
 - You're about to bypass a CERF abstraction (storage overlay, OAL bridge, emulated peripheral) to call host directly because it "would be simpler". STOP and ask - that's the symptom of the abstraction being misshapen, not of the bypass being correct.
-- You're about to write code whose behavior you cannot state as a verifiable claim grounded in a chip datasheet, BSP source, ARM ARM section, or runtime log. STOP and ask - see `rules.md` § Mental Model Discipline.
+- You're about to write code whose behavior you cannot state as a verifiable claim grounded in a chip datasheet, BSP source, architecture reference manual section, or runtime log. STOP and ask - see `rules.md` § Mental Model Discipline.
 - A host caller seems to need to share host stateful subsystem with the guest and you cannot name a concrete CE app feature that requires the share. STOP and ask - see § Internal State vs Host State.
 
 The cost of asking is one message. The cost of a wrong abstraction is hours of unwinding.

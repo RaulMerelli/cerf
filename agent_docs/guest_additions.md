@@ -5,7 +5,7 @@ board's stock display driver with the universal `cerf_guest` driver and brings
 up a set of host-integration features on top of it: host-framebuffer rendering,
 host-accelerated blitting, a mouse-pointer cursor, keyboard injection, dynamic
 screen resolution, shared host-folder storage, and a guest task manager. The subsystem spans host
-C++ under `cerf/boot/` + `cerf/peripherals/cerf_virt/` and guest ARM code under
+C++ under `cerf/boot/` + `cerf/peripherals/cerf_virt/` and guest CE code under
 `ce_apps/cerf_guest/` + `ce_apps/cerf_guest_stub/`.
 
 ## How cerf_guest is injected (the universal mechanism)
@@ -21,8 +21,10 @@ CE version. Two pieces are common to all ROMs:
   own image. Keeping it tiny sidesteps the per-CE-version slot-size limits the
   full body would hit.
 - The **full cerf_guest body** is delivered separately over a `cerf_virt` MMIO
-  channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`; binaries staged
-  by `cerf/boot/guest_additions_binaries.{h,cpp}`). The stub pulls the body bytes
+  channel (`cerf/peripherals/cerf_virt/cerf_virt_guest_body.cpp`). The stub +
+  body are staged per guest architecture under `ce_apps/<arch>/`, selected by
+  `GuestAdditionsBinaries::ArchDir` (`cerf/boot/guest_additions_binaries.{h,cpp}`)
+  off `GetCpuArch()` plus the ROM's CPU subtype. The stub pulls the body bytes
   and **manual-maps the PE itself** - VirtualAlloc + section copy + base reloc +
   coredll import bind + entry - so the kernel's verified loader never sees the
   unsigned body. This loads past WM5 / WM2003SE module authentication, gives each
