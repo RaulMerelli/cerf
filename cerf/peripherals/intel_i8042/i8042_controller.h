@@ -40,14 +40,9 @@ public:
 private:
     enum class Pending { kNone, kWriteCmdByte, kAuxWrite };
 
-    void DrainKbd();    /* pull keyboard responses into the output buffer (main) */
-    void DrainMouse();  /* pull mouse responses into the output buffer (aux) */
-    void PumpDevicesLocked();  /* drain both devices' pending bytes into obuf */
-
-    /* on_data hooks (kbd_/mouse_): raise the channel's IRQ edge. MUST NOT take
-       mtx_ - they fire from inside kbd_/mouse_ ReadData while a drain holds it. */
-    void RaiseFromKbd();
-    void RaiseFromMouse();
+    int  LoadOutputLocked();      /* 0=none, 1=kbd channel, 2=aux/mouse */
+    void RaiseLoadedIrq(int which);
+    void PumpAndRaise();
 
     std::mutex mtx_;
     uint8_t    cmd_byte_ = 0;
@@ -56,9 +51,10 @@ private:
     std::function<void()> kbd_irq_sink_;
     std::function<void()> aux_irq_sink_;
 
-    /* Shared 8042 output buffer; each entry tags whether the byte is aux (mouse)
-       data so the status AUX bit (0x20) reflects the byte at the head. */
-    std::deque<std::pair<uint8_t, bool>> obuf_;
+    uint8_t out_byte_ = 0;
+    bool    out_full_ = false;
+    bool    out_aux_  = false;
+    std::deque<uint8_t> ctrl_resp_;
 
     Ps2Keyboard kbd_;
     Ps2Mouse    mouse_;

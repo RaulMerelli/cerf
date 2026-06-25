@@ -31,4 +31,10 @@ public:
     virtual bool     MemClaims(uint32_t pci_addr) const = 0;
     virtual uint32_t MemRead(uint32_t pci_addr, unsigned size) = 0;
     virtual void     MemWrite(uint32_t pci_addr, uint32_t value, unsigned size) = 0;
+
+    /* PCI I/O space (a bridge that forwards an I/O window - e.g. a CardBus bridge
+       to a 16-bit card - claims a PCI I/O address). Default: no I/O. */
+    virtual bool     IoClaims(uint32_t /*pci_io*/) const { return false; }
+    virtual uint32_t IoRead(uint32_t /*pci_io*/, unsigned /*size*/) { return 0xFFFFFFFFu; }
+    virtual void     IoWrite(uint32_t /*pci_io*/, uint32_t /*value*/, unsigned /*size*/) {}
 };

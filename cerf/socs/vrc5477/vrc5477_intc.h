@@ -45,4 +45,5 @@ private:
     uint32_t busctrl_    = 0;
     uint32_t nmistat_    = 0;
     uint32_t pending_    = 0;   /* live source request level (set by sources / AssertSource) */
+    uint32_t line_level_ = 0;
 };

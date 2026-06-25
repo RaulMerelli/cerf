@@ -63,6 +63,16 @@ public:
             if (d->MemClaims(addr)) { d->MemWrite(addr, v, size); return; }
     }
 
+    uint32_t WindowIoRead(uint32_t pci_io, unsigned size) override {
+        for (PciDevice* d : devices_)
+            if (d->IoClaims(pci_io)) return d->IoRead(pci_io, size);
+        return AllOnes(size);
+    }
+    void WindowIoWrite(uint32_t pci_io, uint32_t v, unsigned size) override {
+        for (PciDevice* d : devices_)
+            if (d->IoClaims(pci_io)) { d->IoWrite(pci_io, v, size); return; }
+    }
+
     void SaveState(StateWriter& w) override {
         w.Write(pciinit00_);
         w.Write(pciw0_);

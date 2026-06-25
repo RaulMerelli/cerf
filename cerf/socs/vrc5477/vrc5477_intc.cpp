@@ -1,6 +1,7 @@
 #include "vrc5477_intc.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/rate_probe.h"
 #include "../../boards/board_detector.h"
 #include "../../jit/mips/mips_jit.h"
 #include "../../state/state_stream.h"
@@ -48,8 +49,10 @@ void Vrc5477Intc::AssertSource(uint32_t irq) {
     if (irq >= 32) return;
     std::lock_guard<std::mutex> lk(state_mtx_);
     const uint32_t mask = 1u << irq;
+    line_level_ |= mask;
     if ((pending_ & mask) == 0) {
         pending_ |= mask;
+        emu_.Get<RateProbe>().Inc(RateProbe::Counter::IntcAsserts);
         NotifyLocked();
     }
 }
@@ -58,8 +61,10 @@ void Vrc5477Intc::DeassertSource(uint32_t irq) {
     if (irq >= 32) return;
     std::lock_guard<std::mutex> lk(state_mtx_);
     const uint32_t mask = 1u << irq;
+    line_level_ &= ~mask;
     if ((pending_ & mask) != 0) {
         pending_ &= ~mask;
+        emu_.Get<RateProbe>().Inc(RateProbe::Counter::IntcDeasserts);
         NotifyLocked();
     }
 }
@@ -93,7 +98,9 @@ void Vrc5477Intc::WriteReg(uint32_t off, uint32_t value) {
         case kINTCTRL1: intctrl_[1] = value; NotifyLocked(); break;
         case kINTCTRL2: intctrl_[2] = value; NotifyLocked(); break;
         case kINTCTRL3: intctrl_[3] = value; NotifyLocked(); break;
-        case kINTCLR32: pending_ &= ~value;  NotifyLocked(); break;   /* W1C latched edges */
+        case kINTCLR32:
+            pending_ = (pending_ & ~value) | line_level_;  /* W1C clears edge latches; level sources follow their still-driven line */
+            NotifyLocked(); break;
         case kINTPPES0: intppes0_ = value; break;
         case kINTPPES1: intppes1_ = value; break;
         case kCPUSTAT:  cpustat_  = value; break;
@@ -107,6 +114,7 @@ void Vrc5477Intc::SaveState(StateWriter& w) {
     for (uint32_t v : intctrl_) w.Write(v);
     w.Write(intppes0_); w.Write(intppes1_);
     w.Write(cpustat_);  w.Write(busctrl_); w.Write(nmistat_); w.Write(pending_);
+    w.Write(line_level_);
 }
 
 void Vrc5477Intc::RestoreState(StateReader& r) {
@@ -114,6 +122,7 @@ void Vrc5477Intc::RestoreState(StateReader& r) {
     for (uint32_t& v : intctrl_) r.Read(v);
     r.Read(intppes0_); r.Read(intppes1_);
     r.Read(cpustat_);  r.Read(busctrl_); r.Read(nmistat_); r.Read(pending_);
+    r.Read(line_level_);
 }
 
 void Vrc5477Intc::Renotify() {
