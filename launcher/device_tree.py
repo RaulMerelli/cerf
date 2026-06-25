@@ -141,22 +141,14 @@ class DeviceTreePanel:
 
         filter_bar = ttk.Frame(frame)
         filter_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
-        self.var_filter_mode = tk.StringVar(value="hide_unsupported")
+        self.var_hide_unsupported = tk.BooleanVar(value=True)
         self.var_hide_no_metadata = tk.BooleanVar(value=True)
-        ttk.Radiobutton(filter_bar, text="Hide unsupported",
-                        variable=self.var_filter_mode,
-                        value="hide_unsupported",
-                        command=self._filter_mode_changed).pack(side="left")
-        self.chk_hide_no_metadata = ttk.Checkbutton(
-            filter_bar, text="Hide without metadata",
-            variable=self.var_hide_no_metadata,
-            command=self._refill)
-        self.chk_hide_no_metadata.pack(side="left", padx=(8, 0))
-        ttk.Radiobutton(filter_bar, text="Show all",
-                        variable=self.var_filter_mode,
-                        value="show_all",
-                        command=self._filter_mode_changed).pack(side="left",
-                                                                padx=(8, 0))
+        ttk.Checkbutton(filter_bar, text="Hide unsupported",
+                        variable=self.var_hide_unsupported,
+                        command=self._refill).pack(side="left")
+        ttk.Checkbutton(filter_bar, text="Hide without metadata",
+                        variable=self.var_hide_no_metadata,
+                        command=self._refill).pack(side="left", padx=(8, 0))
         self.var_search = tk.StringVar(value="")
         search_entry = ttk.Entry(filter_bar, textvariable=self.var_search,
                                  width=22)
@@ -199,12 +191,6 @@ class DeviceTreePanel:
                                          command=on_update_all)
         self.btn_update_all.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
-    def _filter_mode_changed(self) -> None:
-        strict_available = self.var_filter_mode.get() == "hide_unsupported"
-        self.chk_hide_no_metadata.config(
-            state="normal" if strict_available else "disabled")
-        self._refill()
-
     def set_busy(self, busy: bool) -> None:
         state = "disabled" if busy else "normal"
         self.btn_refresh.config(state=state)
@@ -234,20 +220,20 @@ class DeviceTreePanel:
 
         tree.delete(*tree.get_children())
         self._payload.clear()
-        hide = self.var_filter_mode.get() == "hide_unsupported"
-        hide_no_metadata = hide and self.var_hide_no_metadata.get()
+        hide_unsupported = self.var_hide_unsupported.get()
+        hide_no_metadata = self.var_hide_no_metadata.get()
         query = self.var_search.get().strip().lower()
         group_iids: Dict[str, str] = {}
         device_iids: List[str] = []
         for d in self.devices:
-            # "Hide unsupported" drops explicit supported:False boards; with
-            # "Hide without metadata" also checked, unknown boards (no
-            # board_name, or not in supported_devices.py -> state None) are
-            # dropped too, leaving only supported:True.
-            if hide:
+            # "Hide unsupported" drops explicit supported:False boards.
+            # "Hide without metadata" drops unknown boards (no board_name, or
+            # not in supported_devices.py -> state None). The two are
+            # independent.
+            if hide_unsupported or hide_no_metadata:
                 state_flag = board_support_state(d.meta.board_name,
                                                  d.meta.board_prev_names)
-                if state_flag is False:
+                if hide_unsupported and state_flag is False:
                     continue
                 if hide_no_metadata and state_flag is None:
                     continue
