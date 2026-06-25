@@ -377,6 +377,8 @@ BOARDS_INFORMATION = [
             "suspend": False,
             "sound": False,
             "guest_additions": False,
+            "pcmcia": True,
+            "network": True
         },
     },
     {

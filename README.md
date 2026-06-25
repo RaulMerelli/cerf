@@ -96,7 +96,7 @@ Download WIP build (5.1) from artifacs [![build](https://github.com/gweslab/cerf
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>NEC Rockhopper SG2_VR5500</b><br/>
         <img src="launcher/assets/icons/os_ce.png" width="16" height="16" title="Windows CE 6" alt="Windows CE 6"/> Windows CE 6
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/mouse.png" width="16" height="16" title="Mouse" alt="Mouse"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/></td>
     </tr>
     <tr>
       <td align="center"><b><img src="launcher/assets/icons/badge_arm.png" align="middle" title="ARM" alt="ARM"/> TI OMAP 3530</b><br/><sub>Cortex-A8</sub></td>
