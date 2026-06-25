@@ -233,6 +233,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
             <ul>
               <li>NEC Rockhopper SG2_VR5500 (MIPS) support</li>
               <li>Ford SYNC 2 support</li>
+              <li>CERF/Launcher UI/UX improvements</li>
             </ul>
           </td>
         </tr>
