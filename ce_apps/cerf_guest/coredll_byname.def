@@ -4,6 +4,17 @@
 ; coredll import lib that cerf_guest links ahead of the SDK ordinal lib.
 LIBRARY coredll.dll
 EXPORTS
+    ; MIPS soft-float emulation routines the compiler emits under -QMFPE; coredll
+    ; exports them by name.
+    __fpadd
+    __fpsub
+    __fpmul
+    __fpdiv
+    __fptoul
+    __fptodp
+    __dptofp
+    __litofp
+    __ultofp
     ??0exception@std@@QAA@ABV01@@Z
     ??0exception@std@@QAA@PBD@Z
     ??0exception@std@@QAA@XZ
@@ -966,7 +977,6 @@ EXPORTS
     MoveToEx
     MoveWindow
     MsgWaitForMultipleObjectsEx
-    MulDiv
     MultiByteToWideChar
     NKDbgPrintfW
     NKvDbgPrintfW

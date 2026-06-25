@@ -31,10 +31,6 @@ namespace {
 
 constexpr uint32_t kPageMask = 0xFFFu;
 
-/* The tiny carrier injected as the victim; the full cerf_guest body is served
-   separately over the cerf_virt body channel and LoadLibrary'd by the stub. */
-constexpr const char* kStubDll = "cerf_guest_stub.dll";
-
 constexpr uint32_t kImgScnMemShared = 0x10000000u;
 constexpr uint32_t kImgScnMemWrite  = 0x80000000u;
 
@@ -68,25 +64,25 @@ public:
         LOG(GuestAdditions, "CE major=%u; e32_rom layout=%s\n",
             ce_major_, layout_name);
 
-        const auto& subs = emu_.Get<DeviceConfig>().global_rom_substitutions;
-        if (subs.empty()) {
+        const auto& victims = emu_.Get<DeviceConfig>().guest_additions_victims;
+        if (victims.empty()) {
             LOG(Caution, "guest_additions enabled but cerf.json "
-                    "global_substitutions_inside_rom is empty\n");
+                    "video_driver_names_for_guest_additions is empty\n");
             CerfFatalExit();
         }
 
         const std::string stub_path =
-            emu_.Get<GuestAdditionsBinaries>().StagedPath(kStubDll);
+            emu_.Get<GuestAdditionsBinaries>().StubPath();
 
         auto& imgfs = emu_.Get<ImgfsInjector>();
         int matched = 0;
-        for (const auto& sub : subs) {
+        for (const auto& victim : victims) {
             /* IMGFS injects the SAME stub, not the full body: a kernel-loaded
                full body shares one .data across gwes + the device.exe carrier at
                the high victim vbase (the CE5 loader doesn't per-process it) and
                corrupts gwes's globals; the stub manual-maps the body per-process. */
-            if (Replace(sub.first.c_str(), stub_path)) ++matched;
-            if (imgfs.ReplaceVictim(sub.first.c_str(), stub_path)) ++matched;
+            if (Replace(victim.c_str(), stub_path)) ++matched;
+            if (imgfs.ReplaceVictim(victim.c_str(), stub_path)) ++matched;
         }
         if (matched == 0) {
             LOG(Caution, "no display-driver victim matched\n");

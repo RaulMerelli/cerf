@@ -117,11 +117,11 @@ struct DeviceConfig : public Service {
        after the host window is shown. CLI-only launch preference, default off. */
     bool start_fullscreen = false;
 
-    /* Guest-additions ROM-module substitutions from the GLOBAL cerf.json
-       ("global_substitutions_inside_rom"): {ROM module name -> ce_apps DLL}.
-       GuestAdditionsInjector replaces each present ROM module with the named
-       CERF-built binary from build/<cfg>/Win32/ce_apps/. */
-    std::vector<std::pair<std::string, std::string>> global_rom_substitutions;
+    /* Guest-additions victim display-driver module names from the GLOBAL
+       cerf.json ("video_driver_names_for_guest_additions"): the ROM modules to
+       replace with the injected cerf_guest stub. The cerf_guest / cerf_guest_stub
+       binary names are owned by GuestAdditionsBinaries, not cerf.json. */
+    std::vector<std::string> guest_additions_victims;
 
     /* When true, ConfigLoader overwrites board_configurable_screen_* with the
        host monitor size (host_w-10 x host_h-40, capped 3840x2160) so a

@@ -42,14 +42,7 @@ public:
 
 private:
     void LoadBody() {
-        const auto& subs = emu_.Get<DeviceConfig>().global_rom_substitutions;
-        if (subs.empty()) {
-            LOG(Caution, "guest body: global_rom_substitutions empty - no "
-                    "cerf_guest body to serve the stub\n");
-            CerfFatalExit();
-        }
-        const std::string path =
-            emu_.Get<GuestAdditionsBinaries>().StagedPath(subs[0].second);
+        const std::string path = emu_.Get<GuestAdditionsBinaries>().BodyPath();
         std::ifstream f(path, std::ios::binary | std::ios::ate);
         if (!f.is_open()) {
             LOG(Caution, "guest body: cannot open %s - cerf_guest.dll must be "

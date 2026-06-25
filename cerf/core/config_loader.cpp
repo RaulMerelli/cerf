@@ -229,23 +229,20 @@ void LoadAdditionalPackages(const json& root, DeviceConfig& config,
     }
 }
 
-/* Global cerf.json guest-additions substitution map:
-   "global_substitutions_inside_rom": { "romModule": "ceAppsDll", ... }. */
 void LoadGlobalSubstitutions(const json& root, DeviceConfig& config,
                              const std::string& path) {
-    const char* k = "global_substitutions_inside_rom";
+    const char* k = "video_driver_names_for_guest_additions";
     if (!root.contains(k)) return;
-    const auto& o = root[k];
-    if (!o.is_object())
-        Fatal(path, std::string("'") + k + "' must be an object "
-                    "{ \"romModule\": \"ceAppsDll\" }");
-    config.global_rom_substitutions.clear();
-    for (auto it = o.begin(); it != o.end(); ++it) {
-        if (!it.value().is_string())
-            Fatal(path, std::string(k) + "." + it.key()
-                        + " must be a string (ce_apps DLL name)");
-        config.global_rom_substitutions.emplace_back(
-            it.key(), it.value().get<std::string>());
+    const auto& a = root[k];
+    if (!a.is_array())
+        Fatal(path, std::string("'") + k + "' must be an array of "
+                    "ROM display-driver module names");
+    config.guest_additions_victims.clear();
+    for (const auto& v : a) {
+        if (!v.is_string())
+            Fatal(path, std::string(k) + "[] must be a string "
+                        "(ROM module name)");
+        config.guest_additions_victims.push_back(v.get<std::string>());
     }
 }
 

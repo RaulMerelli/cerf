@@ -1,6 +1,8 @@
-# Shared builder for CERF's CE 3.0 apps and DLLs: plain ARMv4 by default,
-# ARMV4I Thumb-interworking with -Interwork. Raising the subsystem stamp
-# from 3.00 locks the resulting binaries out of CE3 kernels.
+# Shared builder for CERF's CE apps and DLLs. -Arch selects the guest CPU:
+#   arm        plain ARMv4 (no-Thumb cores)
+#   arm_thumb  ARMV4I Thumb-interworking (Thumb-capable cores)
+# Outputs are staged per-arch under build/<cfg>/Win32/ce_apps/<arch>/. Raising
+# the subsystem stamp from 3.00 locks the resulting binaries out of CE3 kernels.
 param(
     [Parameter(Mandatory)][ValidateSet("exe","dll")][string]$Type,
     [Parameter(Mandatory)][string]$Target,
@@ -13,9 +15,12 @@ param(
     [string[]]$ForcedInclude = @(),
     [string]$DefFile,
     [string]$ObjDir = ".",
-    [switch]$Interwork,
+    [ValidateSet("arm","arm_thumb","mips")][string]$Arch = "arm",
+    # MIPS ISA level (only with -Arch mips): mips4 = MIPS-IV soft-float (machine
+    # MIPSFPU), mips2 = MIPS-II (machine MIPS); must match the SDK coredll machine.
+    [ValidateSet("mips4","mips2")][string]$MipsIsa = "mips4",
     # PE subsystem stamp. Default 3.00; lower it (e.g. "2.11") to let the
-    # binary load on older H/PC Pro kernels — a lower stamp still loads on
+    # binary load on older H/PC Pro kernels - a lower stamp still loads on
     # CE3+, a higher one locks the binary out of older kernels.
     [string]$SubsystemVersion = "3.00",
     # Target a different CE SDK than the default CE3/HPC2000 set. When
@@ -25,7 +30,7 @@ param(
     [string[]]$SdkIncludes = @(),
     [string]$CoreLibDir = "",
     [string]$WceVersion = "300",
-    # Optional resource script (.rc) compiled to .res and linked in — e.g. to
+    # Optional resource script (.rc) compiled to .res and linked in - e.g. to
     # give the EXE a shell/title-bar icon. Use classic BMP icon frames; CE's
     # shell does not render PNG-compressed (Vista) .ico entries.
     [string]$Rc = "",
@@ -38,11 +43,49 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot/..").Path
 $SDK  = Join-Path $RepoRoot "references/WindowsCE-Build-Tools"
-$CL   = Join-Path $SDK "bin/I386/ARM/cl.exe"
 $LINK = Join-Path $SDK "bin/I386/link.exe"
-# NB: not $RC — PowerShell variable names are case-insensitive, so $RC would
+# NB: not $RC - PowerShell variable names are case-insensitive, so $RC would
 # alias the $Rc parameter (the .rc path) and clobber it.
 $RESC = Join-Path $SDK "bin/I386/rc.exe"
+
+switch ($Arch) {
+    "mips" {
+        $CL = Join-Path $SDK "bin/I386/MIPS/cl.exe"
+        $BinArch = "MIPS"
+        if ($MipsIsa -eq "mips2") {
+            $Machine = "MIPS"
+            $ArchFlags = @("-QMmips2", "-QMFPE", "-D_M_MRX000=4000", "-D_MIPS_", "-DR4000")
+            $DefLibSub = "Mipsii"
+        } else {
+            $Machine = "MIPSFPU"
+            $ArchFlags = @("-QMmips4", "-QMn32", "-QMFPE", "-D_MIPS64", "-D_MIPS_", "-DR4000")
+            $DefLibSub = "Mipsiv"
+        }
+        # Bare MIPS platform macro: CE SDK headers gate arch blocks (e.g.
+        # stdlib.h _JBLEN) on defined(MIPS).
+        $CpuMacros = @("-DMIPS")
+        # MIPS codegen emits shared prologue/epilogue register-save helpers
+        # (__prologue_helper_s0_sN) from the C runtime, not auto-linked under
+        # /nodefaultlib.
+        $ImplicitLibs = @("corelibc")
+    }
+    "arm_thumb" {
+        $CL = Join-Path $SDK "bin/I386/ARM/cl.exe"
+        $BinArch = "ARM"; $Machine = "THUMB"
+        $ArchFlags = @("/QRarch4T", "/QRinterwork-return", "/DARMV4I")
+        $CpuMacros = @("/DARM", "/D_ARM_")
+        $DefLibSub = "Armv4i"
+        $ImplicitLibs = @()
+    }
+    default {
+        $CL = Join-Path $SDK "bin/I386/ARM/cl.exe"
+        $BinArch = "ARM"; $Machine = "ARM"
+        $ArchFlags = @("/QRarch4", "/DARMV4")
+        $CpuMacros = @("/DARM", "/D_ARM_")
+        $DefLibSub = "Armv4"
+        $ImplicitLibs = @()
+    }
+}
 
 $IncDirs = @()
 foreach ($i in $ExtraIncludes) { $IncDirs += (Resolve-Path $i).Path }
@@ -56,11 +99,7 @@ if ($SdkIncludes.Count) {
 }
 $IncDirs += $RepoRoot
 $LIB       = if ($CoreLibDir) { (Resolve-Path $CoreLibDir).Path }
-             else { Join-Path $SDK $(if ($Interwork) { "ce42-standard/Lib/Armv4i" }
-                                     else            { "ce42-standard/Lib/Armv4"  }) }
-$Machine   = if ($Interwork) { "THUMB" } else { "ARM" }
-$ArchFlags = if ($Interwork) { @("/QRarch4T", "/QRinterwork-return", "/DARMV4I") }
-             else            { @("/QRarch4", "/DARMV4") }
+             else { Join-Path $SDK "ce42-standard/Lib/$DefLibSub" }
 $Subsystem = "windowsce,$SubsystemVersion"
 $WceDef    = "_WIN32_WCE=$WceVersion"
 
@@ -69,12 +108,12 @@ if (-not (Test-Path $LINK)) { throw "WCE toolchain missing: $LINK" }
 
 # cl.exe and link.exe both depend on companion DLLs (c1.dll / c1xx.dll / c2.dll
 # next to cl, mspdb*.dll under bin/I386). Wire PATH up before either is invoked.
-$env:PATH = "$SDK\bin\I386\ARM;$SDK\bin\I386;" + $env:PATH
+$env:PATH = "$SDK\bin\I386\$BinArch;$SDK\bin\I386;" + $env:PATH
 
 $Config = if ($env:CE_APPS_CONFIG) { $env:CE_APPS_CONFIG } else { "Release" }
 $Mode   = if ($env:CE_APPS_MODE)   { $env:CE_APPS_MODE }   else { "dev" }
 $devModeFlag = if ($Mode -eq "production") { "0" } else { "1" }
-$OutDir = Join-Path $RepoRoot "build/$Config/Win32/ce_apps"
+$OutDir = Join-Path $RepoRoot "build/$Config/Win32/ce_apps/$Arch"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $StagedTarget = Join-Path $OutDir $Target
 
@@ -92,12 +131,14 @@ if ($CoreDllDef) {
     if ($LASTEXITCODE -ne 0) { throw "by-name coredll import lib build failed: $CoreDllDef" }
 }
 
-# Mode-change marker — bust .obj cache if CERF_DEV_MODE flipped between runs.
+# Bust the .obj cache when CERF_DEV_MODE, the arch, or the MIPS ISA changes - a
+# timestamp check can't see a flag change.
 $modeMarker = Join-Path $ObjDir ".build_mode"
+$buildKey   = "$Mode-$Arch-$MipsIsa"
 $cachedMode = if (Test-Path $modeMarker) { (Get-Content $modeMarker -Raw).Trim() } else { "" }
-if ($cachedMode -ne $Mode) {
+if ($cachedMode -ne $buildKey) {
     Get-ChildItem -Path $ObjDir -Filter "*.obj" -ErrorAction SilentlyContinue | Remove-Item -Force
-    Set-Content -Path $modeMarker -Value $Mode -Encoding ASCII -NoNewline
+    Set-Content -Path $modeMarker -Value $buildKey -Encoding ASCII -NoNewline
 }
 
 # Compile: .obj files land in $ObjDir (default: the per-app dir, co-located
@@ -116,7 +157,7 @@ foreach ($src in $Sources) {
         foreach ($i in $IncDirs) { $incFlags += @("/I", $i) }
         $fiFlag = @()
         foreach ($fi in $ForcedInclude) { $fiFlag += @("/FI", $fi) }
-        & $CL /nologo /c /W3 /WX /O2 @ArchFlags /DUNICODE /D_UNICODE /DUNDER_CE /DARM /D_ARM_ "/D$WceDef" "/DCERF_DEV_MODE=$devModeFlag" "/Fo$obj" @incFlags @fiFlag $src
+        & $CL /nologo /c /W3 /WX /O2 @ArchFlags @CpuMacros /DUNICODE /D_UNICODE /DUNDER_CE "/D$WceDef" "/DCERF_DEV_MODE=$devModeFlag" "/Fo$obj" @incFlags @fiFlag $src
         if ($LASTEXITCODE -ne 0) { throw "Compile failed: $src" }
     }
 }
@@ -173,6 +214,7 @@ if ($needLink) {
     $linkArgs += $objs
     if ($res) { $linkArgs += $res }
     foreach ($lib in $Libs) { $linkArgs += "$lib.lib" }
+    foreach ($lib in $ImplicitLibs) { $linkArgs += "$lib.lib" }
     & $LINK @linkArgs
     if ($LASTEXITCODE -ne 0) { throw "Link failed: $Target" }
     Write-Host "[CE]      $((Get-Item $StagedTarget).Length) bytes"
