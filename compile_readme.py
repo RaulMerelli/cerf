@@ -78,7 +78,7 @@ def build_supported_devices():
             if index == 0:
                 rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
                 lines.append(f'      <td{rowspan} align="center">'
-                             f'<b>{badge_img(soc.cpu)} {soc.family}</b>'
+                             f'{badge_img(soc.cpu)}<br/><b>{soc.family}</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
             cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b>']
             cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
