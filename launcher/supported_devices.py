@@ -380,6 +380,7 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "network": True
         },
+        "notes": ["MIPS IV ROM is incompatible with MIPS II apps. Prefer using MIPS II ROM."]
     },
     {
         "name": "Siemens P177",
