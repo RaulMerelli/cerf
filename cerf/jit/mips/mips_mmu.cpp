@@ -53,6 +53,11 @@ MipsTlbResult MipsMmu::MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc,
 
 MipsTlbResult MipsMmu::Translate(MipsCpuState* st, uint32_t va, MipsAccess acc,
                                  uint32_t* pa) {
+    if (injection_band_size_ != 0u &&
+        va - injection_band_va_ < injection_band_size_) {
+        *pa = injection_band_pa_ + (va - injection_band_va_);
+        return MipsTlbResult::kMatch;
+    }
     if (va < MipsSeg::kKusegEnd) {
         return MapAddress(st, va, acc, pa);         /* kuseg */
     }

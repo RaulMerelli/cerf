@@ -21,3 +21,7 @@ void MipsJit::FlushTranslationCache(uint32_t /*va*/, uint32_t /*length*/) {
     arena_.Flush();
     blocks_.FlushAll();
 }
+
+void MipsJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
+    mmu_.SetInjectionBand(va, pa, size);
+}

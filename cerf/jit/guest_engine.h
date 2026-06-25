@@ -35,4 +35,8 @@ public:
     /* Pend a CPU reset (GuestCpuReset/GuestColdBoot route here). is_resume
        selects the deep-sleep-wake notification over the reboot one. */
     virtual void SetResetPending(bool is_resume) = 0;
+
+    virtual void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) = 0;
+
+    virtual uint8_t* ResolveGuestVaToHost(uint32_t va) = 0;
 };

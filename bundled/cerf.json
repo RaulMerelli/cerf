@@ -6,6 +6,7 @@
     "s3c2410disp.dll",
     "ddi_tievm3530.dll",
     "ddraw_ipu_sdc.dll",
-    "ddi_mq200.dll"
+    "ddi_mq200.dll",
+    "ddi_ragexl.dll"
   ]
 }

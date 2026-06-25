@@ -63,6 +63,12 @@ public:
        entries (tlb_helper.c:492). Called on a CP0 ASID change. */
     void FlushAll(MipsCpuState* st);
 
+    void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
+        injection_band_va_   = va;
+        injection_band_pa_   = pa;
+        injection_band_size_ = size;
+    }
+
     /* Hibernation: the TLB array lives in MipsCpuState (saved with the CPU
        blob); this serializes the tlbwr replacement-index RNG state. */
     void SaveState(StateWriter& w) const;
@@ -84,4 +90,7 @@ private:
     IsaBlockSpace* blocks_ = nullptr;
     uint32_t lcg_seed_        = 1;
     uint32_t prev_random_idx_ = 0;
+    uint32_t injection_band_va_   = 0;
+    uint32_t injection_band_pa_   = 0;
+    uint32_t injection_band_size_ = 0;
 };

@@ -5,7 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/guest_engine.h"
 
 #include <vector>
 
@@ -19,7 +19,7 @@ bool CerfVirtGradientFiller::ShouldRegister() {
 
 void CerfVirtGradientFiller::OnReady() {
     fb_  = &emu_.Get<CerfVirtFramebuffer>();
-    mmu_ = &emu_.Get<ArmMmu>();
+    engine_ = &emu_.Get<GuestEngine>();
 }
 
 namespace {

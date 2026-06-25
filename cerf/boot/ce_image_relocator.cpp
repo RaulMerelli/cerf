@@ -28,6 +28,24 @@ int SectionIndexForRva(const PeImage& pe, uint32_t rva) {
     return -1;
 }
 
+bool IsMipsMachine(uint16_t m) {
+    return m == 0x162 || m == 0x166 || m == 0x168 || m == 0x169 ||
+           m == 0x266 || m == 0x366 || m == 0x466;
+}
+
+uint16_t Read16(const std::vector<uint8_t>& b, uint32_t off) {
+    uint16_t v; std::memcpy(&v, b.data() + off, 2); return v;
+}
+uint32_t Read32(const std::vector<uint8_t>& b, uint32_t off) {
+    uint32_t v; std::memcpy(&v, b.data() + off, 4); return v;
+}
+void Write16(std::vector<uint8_t>& b, uint32_t off, uint16_t v) {
+    std::memcpy(b.data() + off, &v, 2);
+}
+void Write32(std::vector<uint8_t>& b, uint32_t off, uint32_t v) {
+    std::memcpy(b.data() + off, &v, 4);
+}
+
 }
 
 void ApplyRelocations(std::vector<uint8_t>& bytes,
@@ -44,6 +62,10 @@ void ApplyRelocations(std::vector<uint8_t>& bytes,
     const uint32_t reloc_off = RvaToFileOff(pe, reloc_rva);
     if (!reloc_off) return;
 
+    const bool is_mips = IsMipsMachine(pe.Machine());
+    uint32_t hi_off  = 0;       /* MIPS HIGH/LOW pairing: file off of the saved hi word */
+    bool     have_hi = false;
+
     uint32_t cursor = reloc_off;
     const uint32_t end = reloc_off + reloc_size;
     while (cursor + 8 <= end && cursor + 8 <= bytes.size()) {
@@ -59,12 +81,13 @@ void ApplyRelocations(std::vector<uint8_t>& bytes,
             const uint32_t type   = (entry >> 12) & 0xF;
             const uint32_t offset = entry & 0xFFF;
             if (type == 0) continue;            /* IMAGE_REL_BASED_ABSOLUTE - padding */
+
+            const uint32_t tgt_rva = page_va + offset;
+            const uint32_t tgt_off = RvaToFileOff(pe, tgt_rva);
+
             if (type == 3) {                    /* IMAGE_REL_BASED_HIGHLOW */
-                const uint32_t tgt_rva = page_va + offset;
-                const uint32_t tgt_off = RvaToFileOff(pe, tgt_rva);
                 if (tgt_off && tgt_off + 4 <= bytes.size()) {
-                    uint32_t v;
-                    std::memcpy(&v, bytes.data() + tgt_off, 4);
+                    uint32_t v = Read32(bytes, tgt_off);
                     /* v is a link-time absolute pointer; rebase by the runtime
                        address of the section it points into (writable data ->
                        slot-0, code/RO -> slot-1), else by code_delta. */
@@ -76,10 +99,64 @@ void ApplyRelocations(std::vector<uint8_t>& bytes,
                     } else {
                         v = uint32_t(int64_t(v) + code_delta);
                     }
-                    std::memcpy(bytes.data() + tgt_off, &v, 4);
+                    Write32(bytes, tgt_off, v);
                     ++out_patched;
                 }
                 continue;
+            }
+
+            if (is_mips) {
+                if (type == 1) {                /* IMAGE_REL_BASED_HIGH - pair with next LOW */
+                    hi_off  = tgt_off;
+                    have_hi = (tgt_off != 0);
+                    ++out_patched;
+                    continue;
+                }
+                if (type == 2) {                /* IMAGE_REL_BASED_LOW */
+                    if (tgt_off && tgt_off + 2 <= bytes.size()) {
+                        const uint16_t lo = Read16(bytes, tgt_off);
+                        if (have_hi && hi_off + 2 <= bytes.size()) {
+                            const uint16_t hi = Read16(bytes, hi_off);
+                            const uint32_t fv =
+                                (uint32_t(hi) << 16) + lo + uint32_t(code_delta);
+                            Write16(bytes, hi_off, uint16_t((fv + 0x8000u) >> 16));
+                            Write16(bytes, tgt_off, uint16_t(fv & 0xFFFFu));
+                        } else {
+                            const uint32_t fv =
+                                uint32_t(int32_t(int16_t(lo)) + code_delta);
+                            Write16(bytes, tgt_off, uint16_t(fv & 0xFFFFu));
+                        }
+                        ++out_patched;
+                    }
+                    have_hi = false;
+                    continue;
+                }
+                if (type == 4) {                /* IMAGE_REL_BASED_HIGHADJ - next entry = raw low */
+                    uint16_t low_raw = 0;
+                    if (i + 1 < entry_count &&
+                        cursor + 8 + (i+1)*2 + 2 <= bytes.size())
+                        low_raw = Read16(bytes, cursor + 8 + (i+1)*2);
+                    if (tgt_off && tgt_off + 2 <= bytes.size()) {
+                        uint16_t hi = Read16(bytes, tgt_off);
+                        hi = uint16_t(hi + uint16_t(
+                            (int32_t(int16_t(low_raw)) + code_delta + 0x8000) >> 16));
+                        Write16(bytes, tgt_off, hi);
+                        ++out_patched;
+                    }
+                    ++i;                        /* consume the raw-low slot */
+                    continue;
+                }
+                if (type == 5) {                /* IMAGE_REL_BASED_MIPS_JMPADDR */
+                    if (tgt_off && tgt_off + 4 <= bytes.size()) {
+                        const uint32_t instr = Read32(bytes, tgt_off);
+                        const uint32_t fv =
+                            (instr & 0x03FFFFFFu) + uint32_t(code_delta >> 2);
+                        Write32(bytes, tgt_off,
+                                (instr & 0xFC000000u) | (fv & 0x03FFFFFFu));
+                        ++out_patched;
+                    }
+                    continue;
+                }
             }
             ++out_unhandled;
         }

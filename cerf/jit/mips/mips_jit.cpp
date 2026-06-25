@@ -311,6 +311,16 @@ std::optional<uint8_t*> MipsJit::PeekGuestVa(uint32_t va) {
     return host;
 }
 
+uint8_t* MipsJit::ResolveGuestVaToHost(uint32_t va) {
+    uint32_t pa = 0;
+    if (mmu_.Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
+        MipsTlbResult::kMatch) {
+        return nullptr;
+    }
+    uint8_t* w = memory_->TryTranslateWrite(pa);
+    return w ? w : memory_->TryTranslate(pa);
+}
+
 void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {
     jit->mmu_.WriteIndexed(&jit->cpu_state_);
 }

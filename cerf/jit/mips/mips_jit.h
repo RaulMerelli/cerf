@@ -113,6 +113,7 @@ public:
     }
 
     std::optional<uint8_t*> PeekGuestVa(uint32_t va) override;
+    uint8_t* ResolveGuestVaToHost(uint32_t va) override;
 
     void* FindBlockNativeStart(uint32_t guest_pc);
 
@@ -236,6 +237,7 @@ public:
     void RestoreMmuState(StateReader& r) override;
     void ResyncInterruptPoll() override;
     void FlushTranslationCache(uint32_t va, uint32_t length) override;
+    void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;
 
 private:
     JitCodeArena    arena_;

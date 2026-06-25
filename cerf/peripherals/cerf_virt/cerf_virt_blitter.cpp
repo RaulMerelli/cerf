@@ -7,7 +7,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/guest_engine.h"
 
 namespace CerfVirt {
 
@@ -19,7 +19,7 @@ bool CerfVirtBlitter::ShouldRegister() {
 
 void CerfVirtBlitter::OnReady() {
     fb_  = &emu_.Get<CerfVirtFramebuffer>();
-    mmu_ = &emu_.Get<ArmMmu>();
+    engine_ = &emu_.Get<GuestEngine>();
 }
 
 namespace {
@@ -106,7 +106,7 @@ bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
                page-safe, avoiding a per-pixel MMU walk + page-boundary cross. */
             const uint32_t count = 1u << src_bits;               /* 2/4/16/256 */
             for (uint32_t i = 0; i < count; ++i) {
-                uint8_t* lp = mmu_->PeekVaToHost(d.lookup_va + i * 4u);
+                uint8_t* lp = engine_->ResolveGuestVaToHost(d.lookup_va + i * 4u);
                 if (!lp) return false;
                 pal_lut[i] = *reinterpret_cast<uint32_t*>(lp);
             }

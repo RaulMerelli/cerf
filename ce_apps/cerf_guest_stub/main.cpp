@@ -94,15 +94,51 @@ static void* CerfMapBody(const UCHAR* img) {
         const IMAGE_BASE_RELOCATION* rb =
             (const IMAGE_BASE_RELOCATION*)(base + rd->VirtualAddress);
         ULONG done = 0;
+#if defined(MIPS)
+        USHORT* pHi = NULL;
+        BOOL    matchedHi = FALSE;
+#endif
         while (done < rd->Size && rb->SizeOfBlock) {
             ULONG cnt = (rb->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / 2;
             const USHORT* ent = (const USHORT*)((const UCHAR*)rb + sizeof(IMAGE_BASE_RELOCATION));
             for (ULONG j = 0; j < cnt; ++j) {
                 USHORT type = (USHORT)(ent[j] >> 12);
                 USHORT off  = (USHORT)(ent[j] & 0x0FFF);
+                UCHAR* fa   = base + rb->VirtualAddress + off;
                 if (type == IMAGE_REL_BASED_HIGHLOW)
-                    *(ULONG*)(base + rb->VirtualAddress + off) += (ULONG)delta;
-                else if (type != IMAGE_REL_BASED_ABSOLUTE) {
+                    *(ULONG*)fa += (ULONG)delta;
+                else if (type == IMAGE_REL_BASED_ABSOLUTE) {
+                }
+#if defined(MIPS)
+                else if (type == IMAGE_REL_BASED_HIGH) {
+                    pHi = (USHORT*)fa; matchedHi = TRUE;
+                }
+                else if (type == IMAGE_REL_BASED_LOW) {
+                    USHORT* pLo = (USHORT*)fa;
+                    if (matchedHi) {
+                        ULONG fv = ((ULONG)(*pHi) << 16) + *pLo + (ULONG)delta;
+                        *pHi = (USHORT)((fv + 0x8000u) >> 16);
+                        *pLo = (USHORT)(fv & 0xFFFFu);
+                        matchedHi = FALSE;
+                    } else {
+                        ULONG fv = (ULONG)((LONG)(SHORT)*pLo + delta);
+                        *pLo = (USHORT)(fv & 0xFFFFu);
+                    }
+                }
+                else if (type == IMAGE_REL_BASED_HIGHADJ) {
+                    USHORT* pHiA = (USHORT*)fa;
+                    SHORT lowRaw = (j + 1 < cnt) ? (SHORT)ent[j + 1] : (SHORT)0;
+                    *pHiA = (USHORT)(*pHiA +
+                        (USHORT)(((LONG)lowRaw + delta + 0x8000) >> 16));
+                    ++j;
+                }
+                else if (type == IMAGE_REL_BASED_MIPS_JMPADDR) {
+                    ULONG* pI = (ULONG*)fa;
+                    ULONG fv = (*pI & 0x03FFFFFFu) + (ULONG)(delta >> 2);
+                    *pI = (*pI & 0xFC000000u) | (fv & 0x03FFFFFFu);
+                }
+#endif
+                else {
                     CERF_LOG_X("map: unhandled reloc type", type);
                     return NULL;
                 }

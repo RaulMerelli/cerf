@@ -376,7 +376,7 @@ BOARDS_INFORMATION = [
             "keyboard": True,
             "suspend": False,
             "sound": False,
-            "guest_additions": False,
+            "guest_additions": True,
             "pcmcia": True,
             "network": True
         },

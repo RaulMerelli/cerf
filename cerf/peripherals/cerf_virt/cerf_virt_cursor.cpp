@@ -6,7 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/guest_engine.h"
 #include "../../state/state_stream.h"
 
 #include <cstring>
@@ -32,11 +32,11 @@ uint32_t CerfVirtCursor::ReadWord(uint32_t addr) {
 /* Copy the descriptor out of guest memory in the issuing (gwes) context; it may
    straddle a page, so resolve per page through the live MMU - same as gpe_cmd. */
 bool CerfVirtCursor::ReadBlob(uint32_t va, void* out, uint32_t total) {
-    ArmMmu& mmu = emu_.Get<ArmMmu>();
+    GuestEngine& engine = emu_.Get<GuestEngine>();
     uint8_t* d = reinterpret_cast<uint8_t*>(out);
     uint32_t done = 0;
     while (done < total) {
-        uint8_t* p = mmu.PeekVaToHost(va + done);
+        uint8_t* p = engine.ResolveGuestVaToHost(va + done);
         if (!p) return false;
         const uint32_t page_left = 0x1000u - ((va + done) & 0x0FFFu);
         const uint32_t n = (total - done) < page_left ? (total - done) : page_left;

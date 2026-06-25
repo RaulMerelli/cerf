@@ -4,14 +4,14 @@
 #include "cerf_virt_blt_pixelops.h"
 #include "cerf_virt_framebuffer.h"
 #include "cerf_virt_addr_map.h"
-#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/guest_engine.h"
 
 #include <cstdint>
 
 namespace CerfVirt {
 
 /* Surface pixel addressing shared by the GPE host operations (blit, gradient,
-   line). Non-Service base: each operation Service derives it and sets fb_/mmu_
+   line). Non-Service base: each operation Service derives it and sets fb_/engine_
    in OnReady, so the inner-loop accessors resolve guest-VA / FB-PA surfaces
    uniformly. */
 class BltSurfaceAccess {
@@ -38,7 +38,7 @@ protected:
                                 uint32_t bpp, uint32_t value);
 
     CerfVirtFramebuffer* fb_ = nullptr;
-    ArmMmu*              mmu_ = nullptr;
+    GuestEngine*         engine_ = nullptr;
 };
 
 /* Channel masks for an RGB surface. The reference uses each surface's real
@@ -89,7 +89,7 @@ inline uint8_t* BltSurfaceAccess::RotatedPixelPtr(const Surface& s, int32_t x,
     default:             off = y * stride + x * bpp;                  break;
     }
     if (!s.is_va) return s.host_base + off;
-    return mmu_->PeekVaToHost(d.buffer + (uint32_t)off);
+    return engine_->ResolveGuestVaToHost(d.buffer + (uint32_t)off);
 }
 
 /* Host pointer to pixel (x,y) plus the contiguous byte run available from there
@@ -114,7 +114,7 @@ inline uint8_t* BltSurfaceAccess::PixelPtr(const Surface& s, int32_t x, int32_t 
         return s.host_base + off;
     }
     const uint32_t va = s.desc->buffer + off;
-    uint8_t* p = mmu_->PeekVaToHost(va);
+    uint8_t* p = engine_->ResolveGuestVaToHost(va);
     if (!p) return nullptr;
     const uint32_t page_left = 0x1000u - (va & 0x0FFFu);
     *run = run_bytes < page_left ? run_bytes : page_left;
@@ -132,7 +132,7 @@ inline uint32_t BltSurfaceAccess::ReadStraddlePixel(const Surface& s, int32_t x,
         const uint32_t va = s.desc->buffer
                           + (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
         for (uint32_t i = 0; i < bpp; ++i) {
-            uint8_t* bp = mmu_->PeekVaToHost(va + i);
+            uint8_t* bp = engine_->ResolveGuestVaToHost(va + i);
             if (bp) v |= (uint32_t)(*bp) << (8u * i);
         }
     } else {
@@ -154,7 +154,7 @@ inline void BltSurfaceAccess::WriteStraddlePixel(const Surface& s, int32_t x,
         const uint32_t va = s.desc->buffer
                           + (uint32_t)y * (uint32_t)s.desc->stride + (uint32_t)x * bpp;
         for (uint32_t i = 0; i < bpp; ++i) {
-            uint8_t* bp = mmu_->PeekVaToHost(va + i);
+            uint8_t* bp = engine_->ResolveGuestVaToHost(va + i);
             if (bp) *bp = (uint8_t)(value >> (8u * i));
         }
     } else {
