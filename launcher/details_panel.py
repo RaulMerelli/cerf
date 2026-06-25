@@ -51,6 +51,7 @@ class DetailsPanel:
                 ("Board",        "board_name"),
                 ("SoC family",   "soc_family"),
                 ("OS",           "os_version"),
+                ("Language",     "os_language"),
                 ("Year",         "device_year"),
                 ("Size",         "size"),
                 ("Download",     "download_size"),
@@ -157,6 +158,7 @@ class DetailsPanel:
         self.soc_family_label.config(image=badge or "",
                                      compound="left" if badge else "none")
         self.meta_vars["os_version"] .set(device.meta.os_version or "-")
+        self.meta_vars["os_language"].set(device.meta.os_language or "-")
         self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "-")
         remote = device.remote
         self.meta_vars["size"].set(

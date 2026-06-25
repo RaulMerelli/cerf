@@ -52,6 +52,8 @@ class DeviceMeta:
     os_name: str = ""
     os_ver_major: int = 0
     os_ver_minor: int = 0
+    os_ver_build: int = 0
+    os_language: str = ""
     device_year: int = 0
     os_year: int = 0
     os_notes: List[str] = field(default_factory=list)
@@ -62,7 +64,10 @@ class DeviceMeta:
     @property
     def os_version(self) -> str:
         if self.os_name and (self.os_ver_major or self.os_ver_minor):
-            return f"{self.os_name} (CE {self.os_ver_major}.{self.os_ver_minor})"
+            ver = f"CE {self.os_ver_major}.{self.os_ver_minor}"
+            if self.os_ver_build:
+                ver += f".{self.os_ver_build}"
+            return f"{self.os_name} ({ver})"
         if self.os_name:
             return self.os_name
         return ""
@@ -214,6 +219,8 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[in
             meta.os_name = _str_or_empty(os_block.get("name"))
             meta.os_ver_major = _int_or_zero(os_block.get("ver_major"))
             meta.os_ver_minor = _int_or_zero(os_block.get("ver_minor"))
+            meta.os_ver_build = _int_or_zero(os_block.get("ver_build"))
+            meta.os_language = _str_or_empty(os_block.get("language"))
             meta.os_year = _int_or_zero(os_block.get("year"))
             meta.os_notes = _str_list(os_block.get("notes"))
 

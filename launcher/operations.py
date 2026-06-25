@@ -241,6 +241,10 @@ class BundleManager:
                     existing.meta.os_ver_major = remote_meta.os_ver_major
                 if not existing.meta.os_ver_minor:
                     existing.meta.os_ver_minor = remote_meta.os_ver_minor
+                if not existing.meta.os_ver_build:
+                    existing.meta.os_ver_build = remote_meta.os_ver_build
+                if not existing.meta.os_language:
+                    existing.meta.os_language = remote_meta.os_language
                 if not existing.meta.device_year:
                     existing.meta.device_year = remote_meta.device_year
                 if not existing.meta.os_year:

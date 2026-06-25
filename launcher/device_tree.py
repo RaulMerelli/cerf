@@ -86,13 +86,22 @@ def _table_os_label(d: DeviceBundle) -> str:
     name = meta.os_name.strip() if isinstance(meta.os_name, str) else ""
     major = _int_metadata(meta.os_ver_major)
     minor = _int_metadata(meta.os_ver_minor)
+    build = _int_metadata(meta.os_ver_build)
+    language = meta.os_language.strip() if isinstance(meta.os_language, str) else ""
     year = _int_metadata(meta.os_year)
-    # Parenthetical gathers CE version then OS year: "(CE 4.2, 2003)",
-    # "(CE 4.2)", or "(2003)". The CE version is dropped when the name
-    # already spells it out (e.g. "Windows CE 4.2").
+    # Parenthetical gathers CE version, then language, then OS year:
+    # "(CE 4.2.1234, DE, 2003)", "(CE 4.2, 2003)", "(2003)". The build is
+    # appended to the CE version when present; language is omitted when absent.
+    # The CE version is dropped when the name already spells it out
+    # (e.g. "Windows CE 4.2").
     paren: List[str] = []
     if (major or minor) and not _os_name_has_version(name, major, minor):
-        paren.append(f"CE {major}.{minor}")
+        version = f"CE {major}.{minor}"
+        if build:
+            version += f".{build}"
+        paren.append(version)
+    if language:
+        paren.append(language)
     if year:
         paren.append(str(year))
     base = name or ("Unknown OS" if paren else "")
