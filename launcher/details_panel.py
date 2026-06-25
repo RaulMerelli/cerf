@@ -21,10 +21,11 @@ from supported_devices import (
     FEATURE_SPECS,
     board_extra_notes,
     board_features,
+    board_soc_cpu,
     dynamic_extra_notes,
 )
 from ui_dialogs import ask_yesno, bind_tooltip, show_error
-from ui_theme import FG, LINK_FG
+from ui_theme import FG, LINK_FG, load_badge
 
 
 class DetailsPanel:
@@ -38,6 +39,7 @@ class DetailsPanel:
         self._bind_wheel = bind_wheel
         self._on_state_changed = on_state_changed
         self._icon_cache: Dict[tuple[str, bool], Optional[tk.PhotoImage]] = {}
+        self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
         self._state_device: Optional[DeviceBundle] = None
 
         meta = ttk.LabelFrame(inner, text="Device", padding=8)
@@ -57,8 +59,13 @@ class DetailsPanel:
             ttk.Label(meta, text=label + ":").grid(row=i, column=0, sticky="w", padx=(0, 8))
             var = tk.StringVar(value="-")
             self.meta_vars[key] = var
-            ttk.Label(meta, textvariable=var, wraplength=220,
-                      justify="left").grid(row=i, column=1, sticky="w")
+            value_lbl = ttk.Label(meta, textvariable=var, wraplength=220,
+                                  justify="left")
+            value_lbl.grid(row=i, column=1, sticky="w")
+            # The SoC row carries the CPU-arch badge before its text (a Label
+            # supports compound image+text, unlike the device-tree cells).
+            if key == "soc_family":
+                self.soc_family_label = value_lbl
 
         # Source credit row: shown only when a source name exists; the name
         # becomes a clickable link when the source carries a URL.
@@ -145,6 +152,10 @@ class DetailsPanel:
         self.meta_vars["device_name"].set(device.meta.device_name or device.name)
         self.meta_vars["board_name"] .set(device.meta.board_name or "-")
         self.meta_vars["soc_family"] .set(device.meta.soc_family or "-")
+        badge = self._badge_image(
+            board_soc_cpu(device.meta.board_name, device.meta.board_prev_names))
+        self.soc_family_label.config(image=badge or "",
+                                     compound="left" if badge else "none")
         self.meta_vars["os_version"] .set(device.meta.os_version or "-")
         self.meta_vars["device_year"].set(str(device.meta.device_year) if device.meta.device_year else "-")
         remote = device.remote
@@ -282,6 +293,9 @@ class DetailsPanel:
             self.features_frame.grid()
         else:
             self.features_frame.grid_remove()
+
+    def _badge_image(self, cpu: Optional[str]) -> Optional[tk.PhotoImage]:
+        return load_badge(self._icons_dir, cpu, self._badge_cache)
 
     def _feature_icon(self, filename: str, gray: bool) -> Optional[tk.PhotoImage]:
         cache_key = (filename, gray)

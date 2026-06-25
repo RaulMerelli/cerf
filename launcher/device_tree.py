@@ -5,13 +5,14 @@ from __future__ import annotations
 import re
 import tkinter as tk
 from dataclasses import dataclass
+from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Dict, List, Optional
 
 from device_state import DeviceBundle, PackageStatus
 from supported_devices import (board_soc_cpu, board_sort_key,
                                board_support_state, sort_text)
-from ui_theme import BG_LIGHTER, FG, STATE_TINT
+from ui_theme import BG_LIGHTER, FG, STATE_TINT, load_badge
 
 
 # Board-group / package row iids contain ':' which is invalid in Windows
@@ -122,9 +123,13 @@ class DeviceTreePanel:
                  on_select: Callable[[TreeSelection], None],
                  on_activate: Callable[[TreeSelection], None],
                  on_refresh: Callable[[], None],
-                 on_update_all: Callable[[], None]):
+                 on_update_all: Callable[[], None],
+                 icons_dir: Optional[Path] = None):
         self._on_select = on_select
         self._on_activate = on_activate
+        self._icons_dir = icons_dir
+        self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
+        self._badge_tags: set[str] = set()
         self.devices: List[DeviceBundle] = []
         self._payload: Dict[str, TreeSelection] = {}
 
@@ -261,14 +266,16 @@ class DeviceTreePanel:
             os_label = _table_os_label(d)
             soc = d.meta.soc_family or ""
             cpu = board_soc_cpu(d.meta.board_name, d.meta.board_prev_names)
-            if soc and cpu:
-                soc = f"{soc} ({cpu})"
+            badge = load_badge(self._icons_dir, cpu, self._badge_cache) \
+                if soc else None
             tree.insert(group_iid, "end", iid=d.name,
                         text=_table_device_label(d),
                         values=(os_label, board, soc, state),
                         open=prior_open.get(d.name,
                                             bool(d.packages) or bool(d.meta.os_notes)),
                         tags=(state,))
+            if badge is not None:
+                self._set_soc_badge(d.name, cpu, badge)
             self._payload[d.name] = TreeSelection(kind="device", device=d)
             device_iids.append(d.name)
             self._insert_os_note_rows(d)
@@ -280,6 +287,17 @@ class DeviceTreePanel:
         elif device_iids:
             tree.selection_set(device_iids[0])
             tree.see(device_iids[0])
+
+    def _set_soc_badge(self, iid: str, cpu: str, badge: tk.PhotoImage) -> None:
+        # TIP 552: a cell tag carries the -image; `tag cell add` scopes it to
+        # the {item, soc} cell only (no row tag, so it never bleeds into #0).
+        # ttk.Treeview's Python wrapper has no `tag cell`, so call Tcl directly.
+        tag = f"archbadge-{cpu.lower()}"
+        w = str(self.tree)
+        if tag not in self._badge_tags:
+            self.tree.tk.call(w, "tag", "configure", tag, "-image", badge)
+            self._badge_tags.add(tag)
+        self.tree.tk.call(w, "tag", "cell", "add", tag, [[iid, "soc"]])
 
     def _insert_os_note_rows(self, d: DeviceBundle) -> None:
         # meta.os.notes as indented child rows in the OS column, each led by

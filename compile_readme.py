@@ -29,6 +29,12 @@ def icon_img(filename, title):
             f'title="{title}" alt="{title}"/>')
 
 
+def badge_img(cpu):
+    # CPU-arch badge PNG (tools/make_badges.py); intrinsic size, no scaling.
+    return (f'<img src="{ICONS_DIR}/badge_{cpu.lower()}.png" '
+            f'align="middle" title="{cpu}" alt="{cpu}"/>')
+
+
 def features_cell(features):
     icons = [icon_img(filename, label)
              for key, filename, label in FEATURE_SPECS if features.get(key)]
@@ -72,7 +78,7 @@ def build_supported_devices():
             if index == 0:
                 rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
                 lines.append(f'      <td{rowspan} align="center">'
-                             f'<b>{icon_img("chip.png", "Chip")} {soc.family} ({soc.cpu})</b>'
+                             f'<b>{badge_img(soc.cpu)} {soc.family}</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
             cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b>']
             cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'

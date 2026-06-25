@@ -5,7 +5,9 @@ from __future__ import annotations
 import ctypes
 import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
+from typing import Dict, Optional
 
 from device_state import (
     STATE_AVAILABLE,
@@ -32,6 +34,22 @@ STATE_TINT = {
     STATE_AVAILABLE: BG_FIELD,
     STATE_USER:      "#3a1e3a",
 }
+
+
+def load_badge(icons_dir: Optional[Path], cpu: Optional[str],
+               cache: Dict[str, Optional[tk.PhotoImage]]
+               ) -> Optional[tk.PhotoImage]:
+    """CPU-arch badge PNG (badge_<cpu>.png) at native size; cached in `cache`
+    and kept referenced so Tk doesn't GC it. Returns None when unavailable."""
+    if not cpu or icons_dir is None:
+        return None
+    key = cpu.lower()
+    if key not in cache:
+        try:
+            cache[key] = tk.PhotoImage(file=str(icons_dir / f"badge_{key}.png"))
+        except tk.TclError:
+            cache[key] = None
+    return cache[key]
 
 
 def enable_dpi_awareness() -> None:

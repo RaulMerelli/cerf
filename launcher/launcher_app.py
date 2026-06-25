@@ -82,7 +82,8 @@ class LauncherApp(tk.Tk):
             on_select=self._on_tree_select,
             on_activate=self._on_tree_activate,
             on_refresh=self._refresh_manifest,
-            on_update_all=self._update_all)
+            on_update_all=self._update_all,
+            icons_dir=resolve_icons_dir())
 
         right = ttk.Frame(outer)
         right.grid(row=0, column=1, sticky="nsew")
