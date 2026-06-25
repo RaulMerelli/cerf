@@ -516,12 +516,16 @@ class RomContext(NamedTuple):
     os_ver_minor: int
     board_names: Sequence[str]  # current board name first, then prev names
     features: Dict[str, bool]
+    cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"; "" when unknown
 
     def os_contains(self, fragment: str) -> bool:
         return sort_text(fragment) in sort_text(self.os_name)
 
     def board_is(self, name: str) -> bool:
         return sort_text(name) in {sort_text(b) for b in self.board_names}
+
+    def cpu_is(self, name: str) -> bool:
+        return sort_text(name) == sort_text(self.cpu)
 
     def has_feature(self, key: str) -> bool:
         # True only when present AND working; False = present-but-unsupported.
@@ -578,6 +582,10 @@ DYNAMIC_NOTES = [
         and rom.os_contains("Smartphone"),
         note="Guest additions break or cause visual artifacts on Smartphone OS.",
     ),
+    DynamicNote(
+        applies=lambda rom: rom.cpu_is("MIPS"),
+        note="MIPS support is bare-bones and slow - expect the unexpected.",
+    ),
 ]
 
 
@@ -596,5 +604,6 @@ def dynamic_extra_notes(
         os_ver_minor=os_ver_minor,
         board_names=(board_name, *prev_names),
         features=board_features(board_name, prev_names),
+        cpu=board_soc_cpu(board_name, prev_names) or "",
     )
     return [entry.note for entry in DYNAMIC_NOTES if entry.applies(rom)]
