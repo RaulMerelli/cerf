@@ -30,13 +30,13 @@ def resolve_cerf_exe() -> Optional[Path]:
 def resolve_icon() -> Optional[Path]:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        candidate = Path(meipass) / "cerf.ico"
+        candidate = Path(meipass) / "launcher.ico"
         if candidate.is_file():
             return candidate
-    candidate = exe_dir() / "cerf.ico"
+    candidate = exe_dir() / "launcher.ico"
     if candidate.is_file():
         return candidate
-    repo_candidate = exe_dir() / ".." / "cerf" / "assets" / "cerf.ico"
+    repo_candidate = exe_dir() / ".." / "cerf" / "assets" / "launcher.ico"
     if repo_candidate.is_file():
         return repo_candidate.resolve()
     return None

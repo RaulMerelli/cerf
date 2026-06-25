@@ -7,7 +7,7 @@ import zipfile
 
 THIS_DIR = Path(os.path.abspath(SPEC)).parent
 REPO_ROOT = THIS_DIR.parent
-ICON_PATH    = str(REPO_ROOT / "cerf" / "assets" / "cerf.ico")
+ICON_PATH    = str(REPO_ROOT / "cerf" / "assets" / "launcher.ico")
 VERSION_PATH = str(REPO_ROOT / "cerf" / "version.h")
 
 # Tcl/Tk 9 embeds its script libraries as a zip appended to the Tcl/Tk DLLs
