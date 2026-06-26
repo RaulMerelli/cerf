@@ -9,6 +9,7 @@
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 #include "uart_endpoint.h"
+#include "freescale_sdma_bus.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,7 +24,7 @@ namespace cerf_freescale_uart_detail {
    concrete by kSoc. Status regs MUST read fixed idle: if UTS.TXFULL ever reads set
    or USR1.TRDY clear, the guest TX spin never exits. */
 template <uint32_t kBase, int kUartNum, SocFamily kSoc>
-class FreescaleUartBase : public Peripheral {
+class FreescaleUartBase : public Peripheral, public FreescaleSdmaPeripheral {
 public:
     using Peripheral::Peripheral;
 
@@ -66,9 +67,28 @@ public:
     /* A board wires an off-chip device (e.g. the SYNC2 VMCU) to this UART. */
     void AttachEndpoint(UartEndpoint* ep) { endpoint_ = ep; }
 
-    /* The endpoint pushes reply bytes into the guest RxFIFO; raises the RX
-       interrupt if the guest enabled it (UCR1.RRDYEN / UCR4.RDREN). */
+    /* Wire this UART to the i.MX SDMA: its driver moves TX/RX through DMA rather
+       than UTXD/URXD when bound. tx_event / rx_event are the SDMA DMA-request
+       events (MCIMX51RM Table 3-2). */
+    void BindSdma(FreescaleSdmaBus* bus, uint32_t tx_event, uint32_t rx_event) {
+        sdma_bus_ = bus;
+        rx_dma_event_ = rx_event;
+        if (bus) {
+            bus->RegisterSdmaEvent(tx_event, this, true);
+            bus->RegisterSdmaEvent(rx_event, this, false);
+        }
+    }
+
+    /* FreescaleSdmaPeripheral: a byte the SDMA read from a TX channel's buffer. */
+    void SdmaTxByte(uint8_t byte) override { EmitTx(byte); }
+
+    /* The endpoint pushes reply bytes into the guest. With a DMA-driven serial
+       driver the bytes are delivered into the armed RX DMA channel; otherwise into
+       the RxFIFO, raising the RX interrupt if the guest enabled it. */
     void InjectRx(const uint8_t* data, size_t n) {
+        if (sdma_bus_ && rx_dma_event_ != 0
+            && sdma_bus_->SdmaRxDeliver(rx_dma_event_, data, n))
+            return;
         for (size_t i = 0; i < n; ++i) rx_fifo_.push_back(data[i]);
         UpdateRxIrq();
     }
@@ -195,6 +215,8 @@ private:
 
     UartEndpoint*        endpoint_ = nullptr;
     std::deque<uint8_t>  rx_fifo_;
+    FreescaleSdmaBus*    sdma_bus_      = nullptr;
+    uint32_t             rx_dma_event_  = 0;
 };
 
 }  /* namespace cerf_freescale_uart_detail */

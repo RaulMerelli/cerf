@@ -38,18 +38,10 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
 
     for (uint32_t i = 0; i < n_regs; i++) {
-        uint8_t* host = is_load
-            ? mmu.TranslateRead (state, addr)
-            : mmu.TranslateWrite(state, addr);
-        if (!host) {
+        const uint32_t off = is_dp ? ((vd + i) * 8u) : ((vd + i) * 4u);
+        if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes_per, is_load)) {
             cpu.RaiseAbortDataException(pc);
             return 1;
-        }
-        const uint32_t off = is_dp ? ((vd + i) * 8u) : ((vd + i) * 4u);
-        if (is_load) {
-            std::memcpy(vfp_base + off, host, bytes_per);
-        } else {
-            std::memcpy(host, vfp_base + off, bytes_per);
         }
         addr += bytes_per;
     }
@@ -95,20 +87,11 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     }
     addr += static_cast<uint32_t>(signed_off);
 
-    uint8_t* host = is_load
-        ? mmu.TranslateRead (state, addr)
-        : mmu.TranslateWrite(state, addr);
-    if (!host) {
-        cpu.RaiseAbortDataException(pc);
-        return 1;
-    }
-
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
     const uint32_t off = is_dp ? (vd * 8u) : (vd * 4u);
-    if (is_load) {
-        std::memcpy(vfp_base + off, host, bytes);
-    } else {
-        std::memcpy(host, vfp_base + off, bytes);
+    if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes, is_load)) {
+        cpu.RaiseAbortDataException(pc);
+        return 1;
     }
     return 0;
 }
@@ -266,30 +249,33 @@ uint32_t ArmVfp::ExecuteCdp(uint32_t pc, uint32_t packed) {
     const uint32_t bit6 =  op6;
     const uint32_t op_sel = (bit7 << 1) | bit6;
 
+    /* VMOV (immediate): in the "Other FP data-processing" space, op6 (bit[6])==0
+       uniquely selects it for ANY opc2 - every register op has bit[6]==1 (ARM ARM
+       DDI0406C Table A7-17). crn IS imm4H, crm is imm4L; decode it BEFORE
+       switch(crn), which keys on crn as an opcode. VFPExpandImm per A8.8.339. */
+    if (op6 == 0u) {
+        const uint32_t imm8 = (crn << 4) | crm;
+        const uint32_t a = (imm8 >> 7) & 1u;
+        const uint32_t b = (imm8 >> 6) & 1u;
+        const uint32_t cdef = imm8 & 0x3Fu;
+        if (is_dp) {
+            uint64_t bits = (static_cast<uint64_t>(a) << 63)
+                          | (static_cast<uint64_t>(!b ? 1u : 0u) << 62)
+                          | (static_cast<uint64_t>(b ? 0xFFu : 0u) << 54)
+                          | (static_cast<uint64_t>(cdef) << 48);
+            std::memcpy(&dp_regs[sd], &bits, 8);
+        } else {
+            uint32_t bits = (a << 31)
+                          | ((!b ? 1u : 0u) << 30)
+                          | ((b ? 0x1Fu : 0u) << 25)
+                          | (cdef << 19);
+            std::memcpy(&sp_regs[sd], &bits, 4);
+        }
+        return 0;
+    }
+
     switch (crn) {
         case 0x0: {
-            if (op_sel == 0u) {
-                const uint32_t imm4h = crn;
-                const uint32_t imm4l = crm;
-                const uint32_t imm8 = (imm4h << 4) | imm4l;
-                const uint32_t a = (imm8 >> 7) & 1u;
-                const uint32_t b = (imm8 >> 6) & 1u;
-                const uint32_t cdef = imm8 & 0x3Fu;
-                if (is_dp) {
-                    uint64_t bits = (static_cast<uint64_t>(a) << 63)
-                                  | (static_cast<uint64_t>(!b ? 1u : 0u) << 62)
-                                  | (static_cast<uint64_t>(b ? 0xFFu : 0u) << 54)
-                                  | (static_cast<uint64_t>(cdef) << 48);
-                    std::memcpy(&dp_regs[sd], &bits, 8);
-                } else {
-                    uint32_t bits = (a << 31)
-                                  | ((!b ? 1u : 0u) << 30)
-                                  | ((b ? 0x1Fu : 0u) << 25)
-                                  | (cdef << 19);
-                    std::memcpy(&sp_regs[sd], &bits, 4);
-                }
-                return 0;
-            }
             if (op_sel == 1u) {
                 /* VMOV (register) - Vd = Vm */
                 uint32_t vd[8], vn[8], vm[8];

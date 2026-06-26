@@ -64,20 +64,13 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
         return 1;
     }
 
-    /* Each D-register is 8 contiguous bytes; on little-endian the
-       per-element loop (any esize) collapses to a contiguous copy. */
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
     uint32_t addr = base;
     for (uint32_t r = 0; r < regs; ++r) {
-        uint8_t* host = is_load ? mmu.TranslateRead (state, addr)
-                                : mmu.TranslateWrite(state, addr);
-        if (!host) {
+        if (!mmu.AccessPaged(state, addr, vfp_base + (d_idx + r) * 8u, 8u, is_load)) {
             cpu.RaiseAbortDataException(pc);
             return 1;
         }
-        const uint32_t off = (d_idx + r) * 8u;
-        if (is_load) std::memcpy(vfp_base + off, host, 8);
-        else         std::memcpy(host, vfp_base + off, 8);
         addr += 8u;
     }
 
@@ -131,15 +124,11 @@ uint32_t ArmNeon::HandleLoadStoreInterleaved(uint32_t pc, uint32_t d_idx, uint32
     for (uint32_t r = 0; r < regs; ++r) {
         for (uint32_t e = 0; e < elements; ++e) {
             for (uint32_t k = 0; k < nstreams; ++k) {
-                uint8_t* host = is_load ? mmu.TranslateRead (state, addr)
-                                        : mmu.TranslateWrite(state, addr);
-                if (!host) {
+                uint8_t* lane = vfp_base + (d_idx + k * inc + r) * 8u + e * ebytes;
+                if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load)) {
                     cpu.RaiseAbortDataException(pc);
                     return 1;
                 }
-                uint8_t* lane = vfp_base + (d_idx + k * inc + r) * 8u + e * ebytes;
-                if (is_load) std::memcpy(lane, host, ebytes);
-                else         std::memcpy(host, lane, ebytes);
                 addr += ebytes;
             }
         }
@@ -188,15 +177,11 @@ uint32_t ArmNeon::HandleLoadStoreSingleLane(uint32_t pc, uint32_t d_idx, uint32_
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
     uint32_t addr = base;
     for (uint32_t k = 0; k < nstreams; ++k) {
-        uint8_t* host = is_load ? mmu.TranslateRead (state, addr)
-                                : mmu.TranslateWrite(state, addr);
-        if (!host) {
+        uint8_t* lane = vfp_base + (d_idx + k * inc) * 8u + index * ebytes;
+        if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load)) {
             cpu.RaiseAbortDataException(pc);
             return 1;
         }
-        uint8_t* lane = vfp_base + (d_idx + k * inc) * 8u + index * ebytes;
-        if (is_load) std::memcpy(lane, host, ebytes);
-        else         std::memcpy(host, lane, ebytes);
         addr += ebytes;
     }
 
