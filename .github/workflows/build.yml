@@ -81,4 +81,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: CERF-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}-${{matrix.configuration}}-${{matrix.platform}}
-          path: ./build/
+          path: ./build/${{matrix.configuration}}/${{matrix.platform}}/
