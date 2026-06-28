@@ -72,26 +72,27 @@ void TraceManager::RegisterForBundle(
     register_fn();
 }
 
+void TraceManager::GuardUnique(uint32_t runtime_va) {
+    if (pc_traces_.count(runtime_va) == 0) return;
+    LOG(Caution, "TraceManager duplicate registration at runtime_va=0x%08X - a "
+                 "trace handler is already bound at this guest PC. A VA may be "
+                 "hooked exactly once, by OnPc or OnPcFiltered (not both, not "
+                 "twice).\n", runtime_va);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
 void TraceManager::OnPc(uint32_t runtime_va, TraceHandler handler) {
-    auto& vec = pc_traces_[runtime_va];
-    for (const auto& e : vec) {
-        if (!e.predicate.has_value()) {
-            LOG(Caution, "TraceManager::OnPc duplicate registration at "
-                         "runtime_va=0x%08X - another UNFILTERED trace handler "
-                         "is already bound at this guest PC. Use OnPcFiltered "
-                         "if you intended per-process filtering.\n", runtime_va);
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-    }
-    vec.push_back({std::nullopt, std::move(handler)});
+    GuardUnique(runtime_va);
+    pc_traces_[runtime_va] = {std::nullopt, std::move(handler)};
 }
 
 void TraceManager::OnPcFiltered(uint32_t       runtime_va,
                                 TracePredicate predicate,
                                 TraceHandler   handler) {
-    pc_traces_[runtime_va].push_back(
+    GuardUnique(runtime_va);
+    pc_traces_[runtime_va] =
         {std::optional<TracePredicate>{std::move(predicate)},
-         std::move(handler)});
+         std::move(handler)};
 }
 
 bool TraceManager::HasPcTrace(uint32_t pc) const {
@@ -102,10 +103,9 @@ bool TraceManager::HasPcTrace(uint32_t pc) const {
 void TraceManager::DispatchContext(uint32_t pc, const TraceContext& ctx) {
     auto it = pc_traces_.find(pc);
     if (it == pc_traces_.end()) return;
-    for (const auto& e : it->second) {
-        if (e.predicate.has_value() && !(*e.predicate)(ctx)) continue;
-        e.handler(ctx);
-    }
+    const PcEntry& e = it->second;
+    if (e.predicate.has_value() && !(*e.predicate)(ctx)) return;
+    e.handler(ctx);
 }
 
 void TraceManager::DispatchPc(uint32_t pc,

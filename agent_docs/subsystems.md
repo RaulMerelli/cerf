@@ -288,12 +288,8 @@ pollute permanent code. Hot paths are zero-overhead when no traces are
 registered (empty-container short-circuit). Hook surfaces: `OnPc` /
 `OnPcFiltered` (per-instruction, the filtered form taking a fire-time process
 predicate), compiled in every configuration, and `OnRunLoopIter` (dev-only).
-Handlers read guest memory through `TraceContext::ReadVa8 / 16 / 32` -
-GuestTlb fast-path peeks with no MMU side effects.
-
-**There is no OnRead / OnWrite memory-watch primitive** - hook `OnPc` at the
-writer PC and read the value with `ReadVa8 / 16 / 32` instead; the timing reason
-it cannot exist is in [agent_docs/debugging.md](debugging.md) § TraceManager.
+Handlers read guest memory through `TraceContext::ReadVa8 / 16 / 32`
+(`GuestEngine::PeekGuestVa`), with no MMU side effects.
 
 Usage - picking a hook VA, per-process filtering, when to trace vs `LOG`,
 adding a device trace file - is in [agent_docs/debugging.md](debugging.md)

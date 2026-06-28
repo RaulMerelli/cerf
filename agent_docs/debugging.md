@@ -166,9 +166,7 @@ branch is named.
 - **Wrong value?** Hook `OnPc` at the writer instruction (find it
   in IDA via a memory-write xref to the field), read the value via
   `c.ReadVa8/16/32(va)` inside the handler. The PC at which the
-  value changes from correct to wrong is your bug. There is no
-  `OnRead` / `OnWrite` primitive - see `subsystems.md` § TraceManager
-  for why.
+  value changes from correct to wrong is your bug.
 - **Missing call?** PC hook the function that should be called.
   No fire = trace backwards by hooking its expected caller.
 - **Guest powers off / "deep sleeps" seconds after booting?** That IS a
@@ -458,16 +456,7 @@ bisections - belong in **device-specific trace files** under
 
 See `agent_docs/subsystems.md` § TraceManager for the framework's
 hook surfaces (`OnPc`, `OnPcFiltered`, `OnRunLoopIter`) and how
-device-specific files key off the bundle CRC32. **There is no
-`OnRead` / `OnWrite` memory-watch primitive.** A watched VA forces
-every access on its containing 4 KB page off the JIT's GuestTlb fast
-path (through the MMU walk + dispatcher chain, 30-50× slower); that
-slowdown shifts guest IRQ-delivery timing relative to the kernel
-scheduler enough to manufacture Heisenbug races / deadlocks that do
-NOT exist in production CERF, and moving the watch to a less-hot page
-only relocates the race. Observe a write by hooking `OnPc` at the
-writer PC and reading the freshly-written value with
-`c.ReadVa8 / 16 / 32` instead.
+device-specific files key off the bundle CRC32.
 
 ### `OnPc` / `OnPcFiltered` - picking a hook VA
 
@@ -559,8 +548,7 @@ a name lookup is not.
    whose `OnReady` calls `emu_.Get<TraceManager>().RegisterForBundle(
    kBundleCrc32, [&]{ ... });`. Inside the lambda, call `OnPc` and
    `OnRunLoopIter` as needed. Read memory inside handlers via
-   `c.ReadVa8/16/32(va)` - there is no `OnRead`/`OnWrite`
-   primitive.
+   `c.ReadVa8/16/32(va)`.
 4. `REGISTER_SERVICE(YourTraceClass);` at the bottom.
 5. Build with `build.ps1` (default `-Mode dev`). The trace file is
    compiled in. `build.ps1 -Mode production` excludes the entire

@@ -70,6 +70,10 @@ private:
        over the prebuilt context. */
     void DispatchContext(uint32_t pc, const TraceContext& ctx);
 
+    /* Halts if a hook is already bound at runtime_va - a VA may be hooked
+       exactly once, via OnPc or OnPcFiltered. */
+    void GuardUnique(uint32_t runtime_va);
+
     uint32_t bundle_crc32_   = 0;
     uint32_t bundles_matched_ = 0;
     uint32_t bundles_skipped_ = 0;
@@ -78,7 +82,7 @@ private:
         std::optional<TracePredicate> predicate;
         TraceHandler                  handler;
     };
-    std::unordered_map<uint32_t, std::vector<PcEntry>> pc_traces_;
+    std::unordered_map<uint32_t, PcEntry> pc_traces_;
 
 #if CERF_DEV_MODE
     void DispatchIterContext(const TraceContext& ctx);
