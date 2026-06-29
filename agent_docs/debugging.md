@@ -554,12 +554,13 @@ a name lookup is not.
    compiled in. `build.ps1 -Mode production` excludes the entire
    `cerf/tracing/<bundle>/` subtree from the build.
 
-Trace files are committed and kept. They're gated by bundle CRC32
-(silent no-op on any other bundle) and excluded from production
-builds, so they cost nothing at runtime and serve as regression
-alarms + documentation of the hooks that pinned each bug. Don't
-delete them on a whim. Cleanup is a board-level operation done once
-a board is fully implemented, not per-investigation.
+Per-device trace files are gitignored - personal debugging
+scaffolding, not committed source. Only each `cerf/tracing/<bundle>/`
+directory's `nkdbg/` hooks and `*bundle*.h` CRC header are tracked; the
+rest stays on your disk and persists across your local sessions (check
+your existing hooks before re-deriving a path), but never enters the
+repo. They're gated by bundle CRC32 (silent no-op on any other bundle)
+and excluded from production builds, so they cost nothing at runtime.
 
 ## Reading cerf.crash.log effectively
 

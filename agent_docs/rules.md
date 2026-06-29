@@ -137,7 +137,7 @@ Heuristics and similar ambigous approaches are forbidden in JIT/MMU. They are fo
 - **Always `git status` first** - before any add/commit/push, run git status and read the output. Verify staged files are exactly what you expect. Never blindly stage or commit.
 - **Commit messages describe the diff, not the discussion** - title and body cover what the change does to the project, not the conversation that produced it. Edit narrative ("reframed", "replaced X framing"), removed-section names, and user-feedback labels are private session context and stay out of git log.
 - **Scratch / audit directories live under the gitignored `tmp/`, never at the repo root** - top-level scratch dirs become untracked entries in `git status`, get sucked into `git stash -u` and `git add .`, and on Windows can't be cleaned by git if any shell process has them as cwd. Every script-generated artifact, every audit output, every helper script goes under `tmp/<task-or-date>/`.
-- Gitignored main paths are: references/, docs/ai_checklists/, build/
+- Gitignored main paths are: references/, docs/ai_checklists/, build/, and per-device trace files under cerf/tracing/<bundle>/ (everything except each bundle's nkdbg/ and *bundle*.h)
 
 ## Documentation Targets
 - **User memory is off-limits** - durable rules and project knowledge belong in `CLAUDE.md` or under `agent_docs/`. Existing user-memory entries are legacy; do not add new ones - you seem to flood your own database every session for no reason and never learn lesson from user memory. Promotion proposals (e.g. via `/session-feedback`) that would otherwise land in user memory must be redirected to the matching `agent_docs/` page or `CLAUDE.md` instead. If user told you to write something in user memory, then do it.

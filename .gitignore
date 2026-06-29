@@ -301,3 +301,8 @@ docs/ai_checklists/
 
 # vcpkg manifest-mode local install directory (libslirp, glib built per-machine)
 vcpkg_installed/
+
+cerf/tracing/*/**
+!cerf/tracing/*/nkdbg/
+!cerf/tracing/*/nkdbg/**
+!cerf/tracing/*/*bundle*.h
