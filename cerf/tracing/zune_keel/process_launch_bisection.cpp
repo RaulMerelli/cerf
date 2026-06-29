@@ -115,17 +115,6 @@ public:
             /* device.exe infinite waits (sub_8821A5F8 = kernel
                WaitForMultipleObjects; R3==INFINITE). Filtered to device.exe so
                only its blocking waits show - the steady one is its wedge. */
-            tm.OnPcFiltered(0x8821A5F8u, device_exe, [](const TraceContext& c) {
-                if (c.regs[3] != 0xFFFFFFFFu) return;
-                static std::atomic<uint32_t> n{0};
-                const uint32_t i = n.fetch_add(1);
-                auto h = c.ReadVa32(c.regs[1]);
-                if (i < 16 || (i & 0x3Fu) == 0) {
-                    LOG(Trace, "[WAIT-INF] #%u count=%u hnd0=0x%08X lr=0x%08X\n",
-                        i, c.regs[0], h.has_value() ? *h : 0xFFFFFFFFu,
-                        c.regs[14]);
-                }
-            });
 
             /* Kernel startup (process-agnostic): filesys.exe create result +
                the SYSTEM/FSReady handshake. */

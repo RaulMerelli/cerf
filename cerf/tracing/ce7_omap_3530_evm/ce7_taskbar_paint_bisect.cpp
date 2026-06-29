@@ -178,72 +178,7 @@ public:
             /* gwes-side: filtered by taskbar hwnd in R0. The predicate
                admits the hook iff the live hwnd matches what we
                captured from CTaskBar::Create above. */
-            tm.OnPcFiltered(kPcGwesShowWindow_I, IsTaskbarHwnd,
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!ShowWindow_I (taskbar) hwnd=0x%08X "
-                        "nCmdShow=%d LR=0x%08X\n",
-                        c.regs[0], static_cast<int32_t>(c.regs[1]),
-                        c.regs[14]);
-                });
-            tm.OnPcFiltered(kPcGwesInvalidateRect_I, IsTaskbarHwnd,
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!InvalidateRect_I (taskbar) "
-                        "hwnd=0x%08X lpRect=0x%08X bErase=%u LR=0x%08X\n",
-                        c.regs[0], c.regs[1], c.regs[2], c.regs[14]);
-                });
-            tm.OnPcFiltered(kPcGwesBeginPaint_I, IsTaskbarHwnd,
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!BeginPaint_I (taskbar) hwnd=0x%08X "
-                        "lpPaint=0x%08X LR=0x%08X\n",
-                        c.regs[0], c.regs[1], c.regs[14]);
-                });
-            tm.OnPcFiltered(kPcGwesEndPaint_I, IsTaskbarHwnd,
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!EndPaint_I (taskbar) hwnd=0x%08X "
-                        "lpPaint=0x%08X LR=0x%08X\n",
-                        c.regs[0], c.regs[1], c.regs[14]);
-                });
-            tm.OnPcFiltered(kPcGwesRepaintProc, IsTaskbarHwnd,
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!RepaintProc (taskbar) hwnd=0x%08X "
-                        "lParam=0x%08X LR=0x%08X\n",
-                        c.regs[0], c.regs[1], c.regs[14]);
-                });
-            tm.OnPcFiltered(kPcGwesAddPaintRequest,
-                [](const TraceContext& c) {
-                    /* AddPaintRequest's hwnd is R1 not R0 (R0 is the
-                       MsgQueue this). */
-                    const uint32_t tb =
-                        g_taskbar_hwnd.load(std::memory_order_relaxed);
-                    return tb != 0u && c.regs[1] == tb;
-                },
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!AddPaintRequest (taskbar) "
-                        "MQ=0x%08X hwnd=0x%08X LR=0x%08X\n",
-                        c.regs[0], c.regs[1], c.regs[14]);
-                });
 
-            tm.OnPcFiltered(kPcGwesCallWindowProcW_I,
-                [](const TraceContext& c) {
-                    const uint32_t tb =
-                        g_taskbar_hwnd.load(std::memory_order_relaxed);
-                    return tb != 0u && c.regs[1] == tb;
-                },
-                [](const TraceContext& c) {
-                    LOG(Trace,
-                        "[tb] gwes!CallWindowProcW_I (taskbar) "
-                        "hwnd=0x%08X msg=0x%04X wParam=0x%08X "
-                        "lParam(stk)=0x%08X LR=0x%08X\n",
-                        c.regs[1], c.regs[2], c.regs[3],
-                        c.ReadVa32(c.regs[13]).value_or(0xDEADBEEFu),
-                        c.regs[14]);
-                });
 
             tm.OnPc(kPcGwesInvalidateRectPreTest,
                 [](const TraceContext& c) {
@@ -391,26 +326,6 @@ public:
                         parent_e4, c.regs[14]);
                 });
 
-            tm.OnPcFiltered(kPcGwesMwbEntry,
-                [](const TraceContext&) { return true; },
-                [](const TraceContext& c) {
-                    const uint32_t pcwnd = c.regs[2];
-                    const uint32_t ir    = c.regs[3];
-                    const uint32_t hwnd =
-                        c.ReadVa32(pcwnd + 0x78u).value_or(0u);
-                    const uint32_t tb =
-                        g_taskbar_hwnd.load(std::memory_order_relaxed);
-                    static uint32_t n_all = 0;
-                    ++n_all;
-                    const bool is_tb = (tb != 0u && hwnd == tb);
-                    if (!is_tb && n_all > 30 && (n_all % 200u) != 0u)
-                        return;
-                    LOG(Trace,
-                        "[tb] MWB-entry pcwnd=0x%08X hwnd=0x%08X "
-                        "ir=0x%08X LR=0x%08X (%s)\n",
-                        pcwnd, hwnd, ir, c.regs[14],
-                        is_tb ? "TASKBAR" : "other");
-                });
 
             tm.OnPc(kPcGwesMwbProceed,
                 [](const TraceContext& c) {
@@ -521,72 +436,9 @@ public:
                         c.regs[4], c.regs[0]);
                 });
 
-            tm.OnPcFiltered(kPcMwbTopLoopV8Check,
-                [](const TraceContext&) { return true; },
-                [](const TraceContext& c) {
-                    const uint32_t pcwnd = c.regs[4];
-                    const uint32_t v8    = c.regs[10];
-                    const uint32_t hwnd =
-                        c.ReadVa32(pcwnd + 0x78u).value_or(0u);
-                    LOG(Trace,
-                        "[tb] MWB-top-loop ITER pcwnd=0x%08X hwnd=0x%08X "
-                        "v8-at-entry=0x%08X\n",
-                        pcwnd, hwnd, v8);
-                });
 
-            tm.OnPcFiltered(kPcMwbTopLoopVisCheck,
-                [](const TraceContext&) { return true; },
-                [](const TraceContext& c) {
-                    const uint32_t pcwnd = c.regs[4];
-                    const uint32_t grfStyle = c.regs[3];
-                    const uint32_t hwnd =
-                        c.ReadVa32(pcwnd + 0x78u).value_or(0u);
-                    LOG(Trace,
-                        "[tb] MWB-top-loop VIS pcwnd=0x%08X hwnd=0x%08X "
-                        "grfStyle=0x%08X WS_VISIBLE=%u\n",
-                        pcwnd, hwnd, grfStyle, (grfStyle >> 28) & 1u);
-                });
 
-            tm.OnPcFiltered(kPcMwbTopLoopIntersect,
-                [](const TraceContext&) { return true; },
-                [](const TraceContext& c) {
-                    const uint32_t pcwnd = c.regs[4];
-                    const uint32_t intersect = c.regs[0];
-                    const uint32_t hwnd =
-                        c.ReadVa32(pcwnd + 0x78u).value_or(0u);
-                    const uint32_t rc_left =
-                        c.ReadVa32(pcwnd + 0x38u).value_or(0u);
-                    const uint32_t rc_top =
-                        c.ReadVa32(pcwnd + 0x3Cu).value_or(0u);
-                    const uint32_t rc_right =
-                        c.ReadVa32(pcwnd + 0x40u).value_or(0u);
-                    const uint32_t rc_bottom =
-                        c.ReadVa32(pcwnd + 0x44u).value_or(0u);
-                    LOG(Trace,
-                        "[tb] MWB-top-loop INTERSECT pcwnd=0x%08X hwnd=0x%08X "
-                        "rc=(%d,%d,%d,%d) result=%u\n",
-                        pcwnd, hwnd,
-                        static_cast<int32_t>(rc_left),
-                        static_cast<int32_t>(rc_top),
-                        static_cast<int32_t>(rc_right),
-                        static_cast<int32_t>(rc_bottom),
-                        intersect);
-                });
 
-            tm.OnPcFiltered(kPcMwbTopLoopCombine,
-                [](const TraceContext&) { return true; },
-                [](const TraceContext& c) {
-                    const uint32_t pcwnd = c.regs[4];
-                    const uint32_t combine = c.regs[0];
-                    const uint32_t hwnd =
-                        c.ReadVa32(pcwnd + 0x78u).value_or(0u);
-                    const uint32_t hrgnVis =
-                        c.ReadVa32(pcwnd + 0xC8u).value_or(0u);
-                    LOG(Trace,
-                        "[tb] MWB-top-loop COMBINE pcwnd=0x%08X hwnd=0x%08X "
-                        "hrgnVisible=0x%08X result=%u (1=NULLREGION→skip)\n",
-                        pcwnd, hwnd, hrgnVis, combine);
-                });
 
             tm.OnPc(kPcMwbTopLoopPostRemove,
                 [](const TraceContext& c) {

@@ -272,23 +272,9 @@ public:
                 LOG(Trace, "[cvw] CreateViewWindow EPILOGUE  R0(hr)=0x%08X LR=0x%08X\n",
                     c.regs[0], c.regs[14]);
             });
-            tm.OnPcFiltered(kPcGwesShowWindowI, expl_only, [](const TraceContext& c) {
-                LOG(Trace, "[gwes] ShowWindow_I ENTRY hwndThis=0x%08X nCmdShow=%d LR=0x%08X SP=0x%08X\n",
-                    c.regs[0], static_cast<int32_t>(c.regs[1]), c.regs[14], c.regs[13]);
-            });
             tm.OnPcFiltered(kPcGwesSendSizeMoveMsgs, expl_only, [](const TraceContext& c) {
                 LOG(Trace, "[gwes] SendSizeMoveMsgs ENTRY this=0x%08X LR=0x%08X SP=0x%08X\n",
                     c.regs[0], c.regs[14], c.regs[13]);
-            });
-            tm.OnPcFiltered(kPcGwesSetWindowPosI, expl_only, [](const TraceContext& c) {
-                LOG(Trace, "[gwes] SetWindowPos_I ENTRY hwnd=0x%08X hwndAfter=0x%08X x=%d y=%d cx=%d cy=%d "
-                    "uFlags(stack)=0x%08X LR=0x%08X SP=0x%08X\n",
-                    c.regs[0], c.regs[1],
-                    static_cast<int32_t>(c.regs[2]), static_cast<int32_t>(c.regs[3]),
-                    static_cast<int32_t>(c.ReadVa32(c.regs[13]).value_or(0xDEADBEEFu)),
-                    static_cast<int32_t>(c.ReadVa32(c.regs[13] + 4).value_or(0xDEADBEEFu)),
-                    c.ReadVa32(c.regs[13] + 8).value_or(0xDEADBEEFu),
-                    c.regs[14], c.regs[13]);
             });
             tm.OnPcFiltered(kPcGwesSetWindowPosWorker, expl_only, [](const TraceContext& c) {
                 static uint32_t count = 0;
@@ -332,13 +318,6 @@ public:
                 LOG(Trace, "[wait] MsgWaitForMultipleObjectsEx #%u cObjs=%u pHandles=0x%08X h0=0x%08X dwMs=%u dwWakeMask=0x%08X LR=0x%08X SP=0x%08X\n",
                     count, c.regs[0], c.regs[1], h0, c.regs[2], c.regs[3], c.regs[14], c.regs[13]);
             });
-            tm.OnPcFiltered(kPcKernelNKSleep, expl_only, [](const TraceContext& c) {
-                static uint32_t count = 0;
-                ++count;
-                if (count > 30 && (count % 100u) != 0u) return;
-                LOG(Trace, "[wait] NKSleep #%u dwMs=%u LR=0x%08X\n",
-                    count, c.regs[0], c.regs[14]);
-            });
             tm.OnPcFiltered(kPcKernelNKSleepTillTick, expl_only, [](const TraceContext& c) {
                 static uint32_t count = 0;
                 ++count;
@@ -368,17 +347,6 @@ public:
                 ++count;
                 LOG(Trace, "[hapi] LockServerWithId #%u dwProcId=0x%08X LR=0x%08X SP=0x%08X\n",
                     count, c.regs[0], c.regs[14], c.regs[13]);
-            });
-            tm.OnPc(kPcKernelLockServerWithId, [](const TraceContext& c) {
-                if (c.regs[0] != 0x01C80012u) return;
-                static uint32_t count = 0;
-                ++count;
-                auto& mmu = c.emu.Get<ArmMmu>();
-                const uint32_t ttbr = mmu.State()->translation_table_base.word
-                                    & 0xFFFFC000u;
-                const uint32_t pcurthd = c.ReadVa32(0xFFFFC824u).value_or(0xDEADBEEFu);
-                LOG(Trace, "[hapi-tgt0x01C80012] #%u TTBR0=0x%08X PCURTHD=0x%08X LR=0x%08X SP=0x%08X\n",
-                    count, ttbr, pcurthd, c.regs[14], c.regs[13]);
             });
             tm.OnPcFiltered(0x8C0605F8u, expl_only, [](const TraceContext& c) {
                 static uint32_t count = 0;
@@ -600,25 +568,6 @@ public:
 
             /* NKWaitForMultipleObjects entry @ 0x8C050B30 - IDA-verified
                function start in kernel.dll. Captures cObjs/h0/Timeout. */
-            tm.OnPcFiltered(0x8C050B30u, expl_only, [](const TraceContext& c) {
-                static uint32_t count = 0;
-                ++count;
-                if (count <= 50 || (count % 5000u) == 0u) {
-                    uint32_t h0 = c.ReadVa32(c.regs[1]).value_or(0xDEADBEEFu);
-                    LOG(Trace, "[wait-expl] NKWFMO #%u cObjs=%u h0=0x%08X fAll=%u "
-                        "Timeout=%u LR=0x%08X SP=0x%08X R4=0x%08X R5=0x%08X R6=0x%08X R7=0x%08X\n",
-                        count, c.regs[0], h0, c.regs[2], c.regs[3],
-                        c.regs[14], c.regs[13],
-                        c.regs[4], c.regs[5], c.regs[6], c.regs[7]);
-                    /* Dump 24 stack words to find user-mode return chain. */
-                    for (uint32_t i = 0; i < 24; ++i) {
-                        const uint32_t a = c.regs[13] + i * 4u;
-                        auto v = c.ReadVa32(a);
-                        LOG(Trace, "[wait-expl]   stk #%u +0x%02X @0x%08X = 0x%08X\n",
-                            count, i * 4u, a, v.value_or(0xDEADBEEFu));
-                    }
-                }
-            });
 
             /* Poll explorer's PC every JIT iteration. Logs unique PCs +
                fire count to identify where explorer parks in the hang

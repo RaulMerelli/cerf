@@ -66,18 +66,6 @@ public:
             });
             /* sub_34EA324 stores the selector result at a1[2950] (the fn ptr that
                later crashes to 0x18811881); a1=r0 = D3DM render ctx. */
-            tm.OnPcFiltered(0x34EA324u, gem, [](const TraceContext& c) {
-                static std::atomic<uint32_t> n{0};
-                if (n.fetch_add(1) >= 6) return;
-                const uint32_t a1 = c.regs[0];
-                auto rd = [&](uint32_t idx) {
-                    return c.ReadVa32(a1 + idx * 4u).value_or(0xDEADBEEFu);
-                };
-                LOG(Trace, "[XUI-CTX] a1=%08X dst[2932]=%08X stride[2912]=%u "
-                           "fnptr[2948..52]=%08X %08X %08X %08X %08X\n",
-                    a1, rd(2932), rd(2912),
-                    rd(2948), rd(2949), rd(2950), rd(2951), rd(2952));
-            });
             /* The post-boot scene wedges re-applying one property forever
                (XuiObjectSetProperty 0x349C2EC -> sub_349C018 -> XuiSoundSetFile,
                identical args, ~8000x, frame never Present'd). Dump the return
@@ -299,19 +287,6 @@ public:
                 LOG(Trace, "[DDC-BLT] sub_376BE70 pid=%08X lr=%08X\n",
                     c.emu.Get<ArmMmu>().State()->process_id, c.regs[14]);
             });
-            tm.OnPcFiltered(0xFFFF0010u,
-                [bltGen, fltGen](const TraceContext& c) {
-                    return c.emu.Get<ArmMmu>().State()->process_id == 0x08000000u
-                        && bltGen->load() != fltGen->load();
-                },
-                [bltGen, fltGen](const TraceContext& c) {
-                    fltGen->store(bltGen->load());
-                    const auto* ms = c.emu.Get<ArmMmu>().State();
-                    LOG(Trace, "[BLT-FLT] far=%08X status=%08X bankedLR=%08X "
-                               "r0=%08X r1=%08X r2=%08X r3=%08X\n",
-                        ms->fault_address, ms->fault_status.word, c.regs[14],
-                        c.regs[0], c.regs[1], c.regs[2], c.regs[3]);
-                });
 
             /* 0x377CA68 = the verified 0x80070057 mem-class-mismatch reject in ddcore's
                Flip server (sub_377C594). Keep `any`-filtered, NOT gemstone: the Flip

@@ -225,12 +225,6 @@ public:
                     c.ReadVa32(0xFFFFC898u).value_or(0xFFFFFFFFu));
             });
 
-            /* Learn the paint thread at the GPE blit core (GWES-only running thread). */
-            tm.OnPcFiltered(0x184B308u, in_gwes, [](const TraceContext& c) {
-                const uint32_t cur = c.ReadVa32(0xFFFFC894u).value_or(0u);
-                if (cur >= 0x80000000u)
-                    g_paintThread.store(cur, std::memory_order_relaxed);
-            });
             /* Classify the paint stall: low2==1 runnable-but-not-scheduled (snap who
                runs instead + priorities) vs low2==2 blocked-on-wait. */
             tm.OnRunLoopIter([](const TraceContext& c) {

@@ -367,25 +367,6 @@ public:
                     c.regs[0], c.regs[1], name, c.regs[14], ttbr);
             });
 
-            tm.OnPc(kPcCdWaitForSingleObj, [](const TraceContext& c) {
-                /* UNFILTERED - log every fire to see if splash actually
-                   triggers the PC and what PCURTHD reads at that moment. */
-                static uint32_t total = 0;
-                ++total;
-                if (total > 200 && (total % 200u) != 0u) return;
-                const uint32_t pcurthd =
-                    c.ReadVa32(kVaPCurThd).value_or(0xDEADBEEFu);
-                const char* who = PthName(pcurthd);
-                auto& mmu = c.emu.Get<ArmMmu>();
-                const uint32_t ttbr =
-                    mmu.State()->translation_table_base.word & 0xFFFFC000u;
-                LOG(Trace,
-                    "[nc-sig] xxx_WaitForSingleObject ANY #%u "
-                    "WHO=%s pTh=0x%08X hHandle=0x%08X dwMs=0x%08X "
-                    "LR=0x%08X TTBR0=0x%08X CPSR=0x%08X\n",
-                    total, who ? who : "(other)", pcurthd,
-                    c.regs[0], c.regs[1], c.regs[14], ttbr, c.cpsr);
-            });
 
             /* ObjectCall (kernel API dispatcher entry). Reads pcstk->phd
                (+0x50) and pcstk->iMethod (+0x58) to identify exactly which

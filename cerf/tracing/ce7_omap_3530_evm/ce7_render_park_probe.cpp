@@ -104,14 +104,6 @@ public:
     void OnReady() override {
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kCe7BundleCrc32, [&] {
-            tm.OnPc(kPcDoWaitWithWaitStruct,
-                [](const TraceContext& c) {
-                    const uint32_t pcurthd =
-                        c.ReadVa32(kVaPCurThd).value_or(0u);
-                    const char* who = PthName(pcurthd);
-                    if (!who) return;
-                    DumpWaitStruct(c, "render-park-dwws", who, pcurthd);
-                });
 
             tm.OnPc(kPcSchlWaitOneMore,
                 [](const TraceContext& c) {
@@ -282,32 +274,6 @@ public:
                         c.regs[14], c.regs[13], ttbr, c.cpsr);
                 });
 
-            tm.OnPc(kPcKernelMDCallUserHAPI,
-                [](const TraceContext& c) {
-                    const uint32_t pcurthd =
-                        c.ReadVa32(kVaPCurThd).value_or(0u);
-                    const char* who = PthName(pcurthd);
-                    if (!who) return;
-                    const uint32_t phd = c.regs[0];
-                    const uint32_t phc = c.regs[1];
-                    uint32_t h[8], p[8];
-                    for (int i = 0; i < 8; ++i) {
-                        h[i] = c.ReadVa32(phd + i * 4u).value_or(0xDEADBEEFu);
-                        p[i] = c.ReadVa32(phc + i * 4u).value_or(0xDEADBEEFu);
-                    }
-                    auto& mmu = c.emu.Get<ArmMmu>();
-                    const uint32_t ttbr =
-                        mmu.State()->translation_table_base.word
-                        & 0xFFFFC000u;
-                    LOG(Trace,
-                        "[render-park-hapi] WHO=%s pTh=0x%08X phd=0x%08X "
-                        "phc=0x%08X LR=0x%08X SP=0x%08X TTBR0=0x%08X "
-                        "phd[0..7]={%08X %08X %08X %08X %08X %08X %08X %08X} "
-                        "phc[0..7]={%08X %08X %08X %08X %08X %08X %08X %08X}\n",
-                        who, pcurthd, phd, phc, c.regs[14], c.regs[13], ttbr,
-                        h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7],
-                        p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-                });
 
             tm.OnRunLoopIter([
                 seen = std::unordered_set<uint32_t>{},

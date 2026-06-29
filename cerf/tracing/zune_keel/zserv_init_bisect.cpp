@@ -23,32 +23,10 @@ public:
     void OnReady() override {
         auto& tm = emu_.Get<TraceManager>();
         tm.RegisterForBundle(kZuneKeelBundleCrc32, [&] {
-            tm.OnPc(0x8821A5F8u, [](const TraceContext& c) {
-                const uint32_t pid = c.emu.Get<ArmMmu>().State()->process_id;
-                if (pid != 0x0A000000u) return;           /* services.exe only */
-                static std::atomic<uint32_t> n{0};
-                const uint32_t i = n.fetch_add(1);
-                if (i >= 24 && (i & 0x1Fu) != 0) return;
-                auto h = c.ReadVa32(c.regs[1]);
-                LOG(Trace, "[SVCWAIT] #%u count=%u timeout=0x%08X hnd0=0x%08X "
-                           "lr=0x%08X\n",
-                    i, c.regs[0], c.regs[3],
-                    h.has_value() ? *h : 0xDEADBEEFu, c.regs[14]);
-            });
 
             /* 0x8821A9B8 = coredll/kernel WaitForSingleObject wrapper. Its LR
                in services.exe context is ZSERV's own call site - reveals
                ZSERV's runtime VA (extracted-PE RVA does not map). */
-            tm.OnPc(0x8821A9B8u, [](const TraceContext& c) {
-                const uint32_t pid = c.emu.Get<ArmMmu>().State()->process_id;
-                if (pid != 0x0A000000u) return;
-                static std::atomic<uint32_t> n{0};
-                const uint32_t i = n.fetch_add(1);
-                if (i >= 24 && (i & 0x1Fu) != 0) return;
-                LOG(Trace, "[WFSO-CALLER] #%u hnd=0x%08X timeout=0x%08X "
-                           "callerLR=0x%08X\n",
-                    i, c.regs[0], c.regs[1], c.regs[14]);
-            });
 
             /* ZSERV: 0x3241B3C = ZSV_Init entry; sub_3246B0C does
                OpenEvent(GweApiSetReady) @0x3246B28, WFSO(-1) @0x3246B38,
