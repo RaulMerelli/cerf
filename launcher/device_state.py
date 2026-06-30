@@ -268,6 +268,77 @@ def write_cerf_json(path: Path, obj: dict) -> None:
     os.replace(tmp, path)
 
 
+CERF_USER_JSON_FILENAME = "cerf-user.json"
+
+
+def _load_json_object(path: Path):
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            obj = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def _extract_persist_fields(obj) -> dict:
+    out: dict = {}
+    if not isinstance(obj, dict):
+        return out
+    net = obj.get("network")
+    if isinstance(net, dict) and isinstance(net.get("enabled"), bool):
+        out["network_enabled"] = net["enabled"]
+    if isinstance(obj.get("guest_additions"), bool):
+        out["guest_additions"] = obj["guest_additions"]
+    if isinstance(obj.get("full_screen"), bool):
+        out["full_screen"] = obj["full_screen"]
+    board = obj.get("board")
+    if isinstance(board, dict):
+        w = board.get("configurable_screen_width")
+        h = board.get("configurable_screen_height")
+        d = board.get("configurable_screen_dpi")
+        if isinstance(w, int) and w > 0:
+            out["width"] = w
+        if isinstance(h, int) and h > 0:
+            out["height"] = h
+        if isinstance(d, int) and d > 0:
+            out["dpi"] = d
+    return out
+
+
+def read_persist_fields(device_dir: Path) -> tuple[dict, dict]:
+    base = _extract_persist_fields(_load_json_object(device_dir / "cerf.json"))
+    override = _extract_persist_fields(
+        _load_json_object(device_dir / CERF_USER_JSON_FILENAME))
+    return base, override
+
+
+def write_persist_overrides(device_dir: Path, fields: dict) -> None:
+    path = device_dir / CERF_USER_JSON_FILENAME
+    obj: dict = {}
+    if "network_enabled" in fields:
+        obj["network"] = {"enabled": fields["network_enabled"]}
+    if "guest_additions" in fields:
+        obj["guest_additions"] = fields["guest_additions"]
+    if "full_screen" in fields:
+        obj["full_screen"] = fields["full_screen"]
+    board: dict = {}
+    if "width" in fields:
+        board["configurable_screen_width"] = fields["width"]
+    if "height" in fields:
+        board["configurable_screen_height"] = fields["height"]
+    if "dpi" in fields:
+        board["configurable_screen_dpi"] = fields["dpi"]
+    if board:
+        obj["board"] = board
+    if not obj:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return
+    write_cerf_json(path, obj)
+
+
 def write_cerf_json_if_changed(path: Path, obj: dict) -> bool:
     """Rewrite cerf.json only when its parsed content differs from obj.
     Comparison is semantic (parsed JSON), so reformatting / key reordering

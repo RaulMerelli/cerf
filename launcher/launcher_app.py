@@ -115,7 +115,7 @@ class LauncherApp(tk.Tk):
         self.btn_update.grid  (row=0, column=1, sticky="ew", padx=4)
         self.btn_delete.grid  (row=0, column=2, sticky="ew", padx=(4, 0))
 
-        self.launch_options = LaunchOptionsPanel(inner, self, row=6)
+        self.launch_options = LaunchOptionsPanel(inner, self, self.manager.devices_dir, row=6)
 
         # Launch bar is pinned below the scroll area (right row 1), so it stays
         # visible no matter how far the options scroll or how short the window.

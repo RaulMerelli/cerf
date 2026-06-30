@@ -115,6 +115,11 @@ void LoadFeatures(const json& root, DeviceConfig& config, const std::string& pat
             Fatal(path, "'guest_additions' must be a boolean");
         config.guest_additions = root["guest_additions"].get<bool>();
     }
+    if (root.contains("full_screen")) {
+        if (!root["full_screen"].is_boolean())
+            Fatal(path, "'full_screen' must be a boolean");
+        config.start_fullscreen = root["full_screen"].get<bool>();
+    }
     const char* k = "adopt_guest_additions_resolution_for_host_screen";
     if (root.contains(k)) {
         if (!root[k].is_boolean())
@@ -291,6 +296,18 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
         LoadRom     (dev, config,      dev_path);
         LoadFeatures(dev, config,      dev_path);
         LoadAdditionalPackages(dev, config, dev_path);
+    }
+
+    const std::string user_path = GetDeviceDir(device_name) + "cerf-user.json";
+    json user = ReadJsonFile(user_path);
+    if (!user.is_null()) {
+        LOG(Cfg, "Loading user device config: %s\n", user_path.c_str());
+        LoadMeta    (user, config.meta, user_path);
+        LoadBoard   (user, config,      user_path);
+        LoadNetwork (user, config,      user_path);
+        LoadRom     (user, config,      user_path);
+        LoadFeatures(user, config,      user_path);
+        LoadAdditionalPackages(user, config, user_path);
     }
 
     /* Device-config CLI overrides, applied after cerf.json so the command

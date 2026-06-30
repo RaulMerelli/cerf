@@ -6,7 +6,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import List, Optional
 
-from device_state import DeviceBundle
+from pathlib import Path
+
+from device_state import (
+    DeviceBundle,
+    read_persist_fields,
+    write_persist_overrides,
+)
 from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
 from ui_theme import BG_FIELD, FG_DIM
 
@@ -48,53 +54,54 @@ DPI_SLIDER_MAX = 480
 
 
 class LaunchOptionsPanel:
-    def __init__(self, inner: ttk.Frame, parent_window: tk.Misc, row: int):
+    def __init__(self, inner: ttk.Frame, parent_window: tk.Misc,
+                 devices_dir: Path, row: int):
         self._window = parent_window
         self._device: Optional[DeviceBundle] = None
+        self._devices_dir = devices_dir
+        self._device_dir: Optional[Path] = None
+        self._baseline: dict = {}
+        self._restoring = False
 
         opts = ttk.LabelFrame(inner, text="Launch options", padding=8)
         opts.grid(row=row, column=0, sticky="ew", pady=(0, 8))
         opts.columnconfigure(1, weight=1)
         self.frame = opts
         self.var_log_all   = tk.BooleanVar(value=False)
-        self.var_flush     = tk.BooleanVar(value=False)
-        self.var_flood     = tk.BooleanVar(value=False)
         self.var_no_net    = tk.BooleanVar(value=False)
         self.var_full_screen = tk.BooleanVar(value=False)
         self.var_guest_additions = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text="Enable all log channels", variable=self.var_log_all).grid(row=0, column=0, columnspan=2, sticky="w")
-        ttk.Checkbutton(opts, text="Flush logs immediately",
-                        variable=self.var_flush).grid(row=1, column=0, columnspan=2, sticky="w")
-        ttk.Checkbutton(opts, text="Allow stdout flood",
-                        variable=self.var_flood).grid(row=2, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(opts, text="Disable network backend",
-                        variable=self.var_no_net).grid(row=3, column=0, columnspan=2, sticky="w")
+                        variable=self.var_no_net,
+                        command=self._persist).grid(row=1, column=0, columnspan=2, sticky="w")
         ttk.Checkbutton(opts, text="Borderless full screen",
-                        variable=self.var_full_screen).grid(row=4, column=0, columnspan=2, sticky="w")
+                        variable=self.var_full_screen,
+                        command=self._persist).grid(row=2, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=5, column=0, columnspan=3, sticky="ew", pady=6)
+        ttk.Separator(opts).grid(row=3, column=0, columnspan=3, sticky="ew", pady=6)
 
         guest = ttk.Frame(opts)
-        guest.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        guest.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(0, 6))
         guest.columnconfigure(0, weight=1)
         ttk.Checkbutton(guest, text="Enable guest additions",
                         variable=self.var_guest_additions,
-                        command=self.refresh_resolution_state,
+                        command=self._on_guest_additions_changed,
                         style="Guest.TCheckbutton").grid(row=0, column=0, sticky="w")
         ttk.Button(guest, text="?", width=2, style="Help.TButton",
                    command=lambda: show_guest_additions_help(self._window)).grid(row=0, column=1, sticky="e")
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=7, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        ttk.Separator(opts).grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 6))
 
         self.res_note = ttk.Label(opts, text="Resolution override:")
-        self.res_note.grid(row=8, column=0, columnspan=3, sticky="w")
+        self.res_note.grid(row=6, column=0, columnspan=3, sticky="w")
         self.var_width  = tk.StringVar(value="240")
         self.var_height = tk.StringVar(value="320")
         numeric_vcmd = (parent_window.register(self._is_optional_uint), "%P")
         res_fields = ttk.Frame(opts)
-        res_fields.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        res_fields.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(2, 0))
         res_fields.columnconfigure(5, weight=1)
         self.width_entry = ttk.Entry(res_fields, textvariable=self.var_width, width=8,
                                      validate="key", validatecommand=numeric_vcmd)
@@ -120,22 +127,22 @@ class LaunchOptionsPanel:
         self.var_height.trace_add("write", self._on_res_text_changed)
         self._sync_slider_to_text()
 
-        ttk.Separator(opts).grid(row=10, column=0, columnspan=3, sticky="ew", pady=6)
+        ttk.Separator(opts).grid(row=8, column=0, columnspan=3, sticky="ew", pady=6)
         self.var_override_dpi = tk.BooleanVar(value=False)
         self.var_dpi = tk.StringVar(value="96")
         dpi_head = ttk.Frame(opts)
-        dpi_head.grid(row=11, column=0, columnspan=3, sticky="ew")
+        dpi_head.grid(row=9, column=0, columnspan=3, sticky="ew")
         dpi_head.columnconfigure(0, weight=1)
         self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
                                          variable=self.var_override_dpi,
-                                         command=self._refresh_dpi_state)
+                                         command=self._on_override_dpi_changed)
         self.dpi_check.grid(row=0, column=0, sticky="w")
         self.dpi_help_btn = ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
                                        command=lambda: show_dpi_help(self._window))
         self.dpi_help_btn.grid(row=0, column=1, sticky="e")
 
         dpi_fields = ttk.Frame(opts)
-        dpi_fields.grid(row=12, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        dpi_fields.grid(row=10, column=0, columnspan=3, sticky="ew", pady=(2, 0))
         dpi_fields.columnconfigure(3, weight=1)
         ttk.Label(dpi_fields, text="DPI").grid(row=0, column=0, sticky="w")
         self.dpi_entry = ttk.Entry(dpi_fields, textvariable=self.var_dpi, width=8,
@@ -152,15 +159,103 @@ class LaunchOptionsPanel:
 
     def set_device(self, device: Optional[DeviceBundle]) -> None:
         self._device = device
+        self._device_dir = None
+        base: dict = {}
+        override: dict = {}
+        if device is not None and device.is_installed:
+            self._device_dir = self._devices_dir / device.name
+            base, override = read_persist_fields(self._device_dir)
+        self._baseline = self._resolve_baseline(base, device)
+        eff = dict(self._baseline)
+        eff.update(override)
+        self._restoring = True
+        try:
+            self.var_no_net.set(not eff["network_enabled"])
+            self.var_guest_additions.set(eff["guest_additions"])
+            self.var_full_screen.set(eff["full_screen"])
+            self.var_width.set(str(eff["width"]))
+            self.var_height.set(str(eff["height"]))
+            if "dpi" in eff:
+                self.var_override_dpi.set(True)
+                self.var_dpi.set(str(eff["dpi"]))
+            else:
+                self.var_override_dpi.set(False)
+            self._sync_slider_to_text()
+            self._sync_dpi_slider_to_text()
+        finally:
+            self._restoring = False
         self.refresh_resolution_state()
+
+    def _resolve_baseline(self, base: dict,
+                          device: Optional[DeviceBundle]) -> dict:
+        b: dict = {}
+        b["network_enabled"] = base.get("network_enabled", True)
+        b["guest_additions"] = base.get("guest_additions", False)
+        b["full_screen"] = base.get("full_screen", False)
+        if "width" in base:
+            b["width"] = base["width"]
+        elif device is not None and device.default_screen_width:
+            b["width"] = device.default_screen_width
+        else:
+            b["width"] = 240
+        if "height" in base:
+            b["height"] = base["height"]
+        elif device is not None and device.default_screen_height:
+            b["height"] = device.default_screen_height
+        else:
+            b["height"] = 320
+        if "dpi" in base:
+            b["dpi"] = base["dpi"]
+        return b
+
+    def _current_fields(self) -> dict:
+        f: dict = {}
+        f["network_enabled"] = not self.var_no_net.get()
+        f["guest_additions"] = self.var_guest_additions.get()
+        f["full_screen"] = self.var_full_screen.get()
+        w = self._optional_uint(self.var_width)
+        if w is not None:
+            f["width"] = w
+        h = self._optional_uint(self.var_height)
+        if h is not None:
+            f["height"] = h
+        if self.var_guest_additions.get() and self.var_override_dpi.get():
+            d = self._optional_uint(self.var_dpi)
+            if d is not None:
+                f["dpi"] = d
+        return f
+
+    def _optional_uint(self, var: tk.StringVar) -> Optional[int]:
+        try:
+            v = int(var.get().strip())
+        except ValueError:
+            return None
+        return v if v > 0 else None
+
+    def _persist(self) -> None:
+        if self._restoring or self._device_dir is None:
+            return
+        cur = self._current_fields()
+        override: dict = {}
+        for k in ("network_enabled", "guest_additions", "full_screen",
+                  "width", "height", "dpi"):
+            if k in cur and cur[k] != self._baseline.get(k):
+                override[k] = cur[k]
+        write_persist_overrides(self._device_dir, override)
+
+    def _on_guest_additions_changed(self) -> None:
+        self.refresh_resolution_state()
+        self._persist()
+
+    def _on_override_dpi_changed(self) -> None:
+        self._refresh_dpi_state()
+        self._persist()
 
     def collect_args(self, device: DeviceBundle) -> Optional[List[str]]:
         """Build the cerf.exe argument tail for the chosen options. Returns
         None (after showing an error) when the resolution fields are invalid."""
         argv: List[str] = [f"--device={device.name}"]
         if self.var_log_all.get(): argv.append("--log=ALL")
-        if self.var_flush.get():  argv.append("--flush-outputs")
-        if self.var_flood.get():  argv.append("--allow-flood")
         if self.var_no_net.get(): argv.append("--disable-network")
         if self.var_full_screen.get(): argv.append("--full-screen")
         guest_additions = self.var_guest_additions.get()
@@ -207,17 +302,6 @@ class LaunchOptionsPanel:
         var.set(str(value))
         return value
 
-    def _apply_resolution_defaults(self, device: Optional[DeviceBundle]) -> None:
-        if device is not None and device.default_screen_width:
-            self.var_width.set(str(device.default_screen_width))
-        elif not self.var_width.get().strip():
-            self.var_width.set("240")
-
-        if device is not None and device.default_screen_height:
-            self.var_height.set(str(device.default_screen_height))
-        elif not self.var_height.get().strip():
-            self.var_height.set("320")
-
     def _set_resolution_fields_enabled(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
         self.width_entry.config(state=state)
@@ -231,7 +315,6 @@ class LaunchOptionsPanel:
         if self.var_guest_additions.get():
             self.res_note.config(text="CERF display driver resolution:")
             self._set_resolution_fields_enabled(True)
-            self._apply_resolution_defaults(device)
             return
 
         if device is not None and device.screen_supported is False:
@@ -241,7 +324,6 @@ class LaunchOptionsPanel:
 
         self.res_note.config(text="Resolution override:")
         self._set_resolution_fields_enabled(True)
-        self._apply_resolution_defaults(device)
 
     def _on_res_slider(self, value: str) -> None:
         if self._res_sync_guard:
@@ -259,11 +341,13 @@ class LaunchOptionsPanel:
         finally:
             self._res_sync_guard = False
         self.res_preset_label.config(text=f"{w} × {h}")
+        self._persist()
 
     def _on_res_text_changed(self, *_args: object) -> None:
         if self._res_sync_guard:
             return
         self._sync_slider_to_text()
+        self._persist()
 
     def _sync_slider_to_text(self) -> None:
         try:
@@ -317,11 +401,13 @@ class LaunchOptionsPanel:
             self.var_dpi.set(str(int(round(float(value)))))
         finally:
             self._dpi_sync_guard = False
+        self._persist()
 
     def _on_dpi_text_changed(self, *_args: object) -> None:
         if self._dpi_sync_guard:
             return
         self._sync_dpi_slider_to_text()
+        self._persist()
 
     def _sync_dpi_slider_to_text(self) -> None:
         try:
