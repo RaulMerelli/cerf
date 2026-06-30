@@ -2,7 +2,7 @@
 
 #include "s3c2410_lcd.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../cpu/emulated_memory.h"
@@ -40,7 +40,7 @@ public:
            is board wiring. Both these S3C2410 boards drive the on-die
            LCDC - DevEmu's guest programs it at runtime; P177's
            bootloader presets it pre-kernel. */
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const Board b = bd->GetBoard();
         return b == Board::Smdk2410DevEmu || b == Board::SiemensP177;

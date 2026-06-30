@@ -1,6 +1,6 @@
 #include "../../socs/sa11xx/sa11xx_dma_audio_player.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -23,7 +23,7 @@ public:
     using Sa11xxDmaAudioPlayer::Sa11xxDmaAudioPlayer;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SmartBookG138;
     }
 

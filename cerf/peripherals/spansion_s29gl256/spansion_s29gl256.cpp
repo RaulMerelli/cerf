@@ -1,6 +1,6 @@
 #include "../amd_command_set_flash.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -25,7 +25,7 @@ public:
     using AmdCommandSetFlash::AmdCommandSetFlash;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SiemensP177;
     }
 

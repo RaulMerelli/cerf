@@ -1,7 +1,5 @@
 #include "imx51_nfc.h"
 
-#include "../../boards/board_detector.h"
-#include "../../boot/sec_flash.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
@@ -19,10 +17,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        if (!bd || bd->GetSoc() != SocFamily::iMX51) return false;
-        auto* sf = emu_.TryGet<SecFlash>();
-        return sf && sf->IsPresent();
+        return emu_.TryGet<Imx51Nfc>() != nullptr;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 

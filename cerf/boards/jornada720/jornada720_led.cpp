@@ -4,7 +4,7 @@
 #include "../../host/host_gdiplus.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 REGISTER_SERVICE(Jornada720Led);
 
@@ -16,7 +16,7 @@ const COLORREF kClrRim  = RGB(150, 160, 150);
 }  /* namespace */
 
 bool Jornada720Led::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada720;
 }
 

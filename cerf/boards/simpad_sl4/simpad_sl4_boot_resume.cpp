@@ -1,7 +1,7 @@
 #include "../../core/service.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
@@ -15,7 +15,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SimpadSl4;
     }
     void OnReady() override {

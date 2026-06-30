@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "nec_mobilepro_900_pco_companion.h"
 
 #include <cmath>
@@ -33,7 +33,7 @@ constexpr Band kBands[] = {
 }  /* namespace */
 
 bool NecMobilePro900Battery::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::NecMobilePro900;
 }
 

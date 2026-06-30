@@ -6,7 +6,7 @@
 #include "../../socs/sa11xx/sa11xx_intc.h"
 #include "../../socs/sa11xx/sa11xx_sp1_uart.h"
 #include "../../state/emulation_freeze.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <array>
 #include <chrono>
@@ -44,7 +44,7 @@ std::array<uint8_t, 14> BuildPacket(int percent, bool on_battery) {
 }  /* namespace */
 
 bool Jornada820Battery::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada820;
 }
 

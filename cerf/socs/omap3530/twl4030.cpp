@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 namespace {
 constexpr uint8_t kTwlAddr_USB         = 0x48;
@@ -12,7 +12,7 @@ constexpr uint8_t kTwlAddr_PWR_RTC     = 0x4B;
 }  /* namespace */
 
 bool Twl4030::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 

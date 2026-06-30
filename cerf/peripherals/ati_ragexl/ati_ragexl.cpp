@@ -4,7 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../host/host_window.h"
 #include "../../state/state_stream.h"
 
@@ -81,7 +81,7 @@ public:
     explicit AtiRageXl(CerfEmulator& emu) : RageXlDisplay(emu) {}
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecRockhopper;
     }
     void OnReady() override {

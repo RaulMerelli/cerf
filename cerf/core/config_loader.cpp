@@ -82,6 +82,9 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
     if (!b.is_object())
         Fatal(path, "'board' must be an object");
 
+    if (b.contains("id"))
+        config.board_id = ReadOptString(b, "id", path, "board");
+
     if (b.contains("configurable_screen_width")) {
         int n = ReadOptInt(b, "configurable_screen_width", path, "board");
         if (n < 1)
@@ -296,6 +299,10 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
         const char* a = argv[i];
         if (strcmp(a, kArgDisableNetwork) == 0) {
             config.network_enabled = false;
+        } else if (strncmp(a, kArgBoardId, sizeof(kArgBoardId) - 1) == 0) {
+            config.board_id = a + sizeof(kArgBoardId) - 1;
+        } else if (strncmp(a, kArgRomPrimary, sizeof(kArgRomPrimary) - 1) == 0) {
+            config.rom_primary = a + sizeof(kArgRomPrimary) - 1;
         } else if (strcmp(a, kArgGuestAdditions) == 0) {
             config.guest_additions = true;
         } else if (strcmp(a, kArgRecovery) == 0) {

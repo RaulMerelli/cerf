@@ -1,6 +1,6 @@
 #include "../../peripherals/intel_sa1111/sa1111_gpio_port_a_sink.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/pcmcia/pcmcia_slot.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
@@ -19,7 +19,7 @@ public:
     using Sa1111GpioPortASink::Sa1111GpioPortASink;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
 

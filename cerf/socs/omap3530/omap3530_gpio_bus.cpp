@@ -1,14 +1,14 @@
 #include "omap3530_gpio_bus.h"
 #include "omap3530_prcm_stub_block.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
 REGISTER_SERVICE(Omap3530GpioBus);
 
 bool Omap3530GpioBus::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 

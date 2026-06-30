@@ -1,7 +1,7 @@
 #include "../mips_processor_config.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 namespace {
 
@@ -12,7 +12,7 @@ public:
     using MipsProcessorConfig::MipsProcessorConfig;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::VR5500;
     }
 

@@ -1,24 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class SimpadSl4Detector : public BoardDetector {
+class SimpadSl4Context : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        /* Both SIMpad SL4 ROM generations (HPC2000 CE3 and CE .NET 4.10)
-           carry the literal "SIMpad" (exact case) in the image; no other
-           CERF board's ROM does (iPAQ uses "Compaq iPAQ", Jornadas use
-           "Jornada"). */
-        return RomContainsString("SIMpad");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::SimpadSl4; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "Siemens SIMpad SL4 (Webpad), Intel SA-1110 StrongARM";
     }
@@ -34,4 +27,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(SimpadSl4Detector, BoardDetector);
+REGISTER_SERVICE_AS(SimpadSl4Context, BoardContext);

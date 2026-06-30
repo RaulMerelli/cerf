@@ -6,7 +6,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/vrc5477/vrc5477_intc.h"
 #include "../../state/state_stream.h"
@@ -62,7 +62,7 @@ public:
     TiCardbusBridge(CerfEmulator& emu) : Service(emu), slot_(emu, *this, L"PCMCIA") {}
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecRockhopper;
     }
     void OnReady() override {

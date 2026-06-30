@@ -1,6 +1,6 @@
 #include "mediaq_mq1188.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_window.h"
@@ -10,7 +10,7 @@
 #include <cstring>
 
 bool MediaQMq1188::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::FalconPC3xx;
 }
 

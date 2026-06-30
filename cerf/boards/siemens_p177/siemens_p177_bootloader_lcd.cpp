@@ -2,7 +2,7 @@
 #include "../../core/log.h"
 #include "../../core/service.h"
 #include "../../socs/s3c2410/s3c2410_lcd.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <cstdint>
 
@@ -72,7 +72,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SiemensP177;
     }
 

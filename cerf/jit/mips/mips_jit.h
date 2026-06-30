@@ -6,7 +6,7 @@
 #include <optional>
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../tracing/trace_manager.h"
 #include "../guest_engine.h"
 #include "../jit_code_arena.h"
@@ -28,7 +28,7 @@ public:
 
     void OnReady() override;
     bool ShouldRegister() override {
-        return emu_.Get<BoardDetector>().GetCpuArch() == CpuArch::Mips;
+        return emu_.Get<BoardContext>().GetCpuArch() == CpuArch::Mips;
     }
 
     MipsCpuState* CpuState() { return &cpu_state_; }

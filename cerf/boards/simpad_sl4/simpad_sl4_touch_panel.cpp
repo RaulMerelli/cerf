@@ -1,6 +1,6 @@
 #include "simpad_sl4_touch_panel.h"
 
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 
@@ -10,7 +10,7 @@ constexpr uint32_t kUcbIrqGpio = 22;         /* GPIO_UCB1300_IRQ (mach-sa1100/si
 }  /* namespace */
 
 bool SimpadSl4TouchPanel::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::SimpadSl4;
 }
 

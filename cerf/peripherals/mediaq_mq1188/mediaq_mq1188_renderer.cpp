@@ -2,7 +2,7 @@
 
 #include "mediaq_mq1188.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/frame_renderer.h"
@@ -22,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 

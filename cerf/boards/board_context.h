@@ -4,8 +4,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
-#include <vector>
 
 enum class SocFamily {
     Unknown,
@@ -31,6 +31,8 @@ enum class SocFamily {
 };
 
 enum class CpuArch { Arm, Mips };
+
+enum class RomPlacingMode { FlatContainer, Imx51Nand, Unknown };
 
 enum class Board {
     Unknown,
@@ -63,33 +65,33 @@ enum class Board {
                          Windows CE .NET 4.2. */
     FordSyncGen2,     /* Ford SYNC Generation II (APIM, board id EA5T-14D544-BA),
                          Freescale i.MX51 (ARM Cortex-A8), Windows Embedded
-                         Compact. Automotive head unit. ROM fingerprint: the
-                         "Ford Sync GenII" string in nk.exe. */
+                         Compact. Automotive head unit. */
     SiemensP177,      /* Siemens SIMATIC TP177B 4" HMI panel, Samsung S3C2410
-                         (ARM920T), Windows CE 5.0 / Siemens P177 BSP. ROM
-                         fingerprint: "\platform\P177\target" in nk.exe. */
+                         (ARM920T), Windows CE 5.0 / Siemens P177 BSP. */
     SmartBookG138,    /* SmartBook G138 webpad, Intel SA-1110 StrongARM + MediaQ
-                         MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). ROM
-                         fingerprint: the OEM eboot device name "Book_HPC" (both
-                         ROM generations; the "G138" token is 4.2-only). */
+                         MQ200 display, Windows CE .NET 4.x (4.1 + 4.2 ROMs). */
     NecRockhopper,    /* NEC Rockhopper (DDB-VR5500A): NEC VR5500 CPU module on the
                          SolutionGear2 (SG2) motherboard, ALi M1535+ southbridge,
-                         Windows CE 6, MIPS IV. ROM fingerprint: the wide
-                         "SG2_VR5500" platform-type string (IOCTL_PLATFORM_TYPE). */
+                         Windows CE 6, MIPS IV. */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
 struct PreferredWindowSize { uint32_t width; uint32_t height; };
 
-class BoardDetector : public Service {
+struct BoardIdEntry { const char* id; Board board; };
+
+class BoardContext : public Service {
 public:
     using Service::Service;
+
+    bool ShouldRegister() override;
     void OnReady() override;
 
-    virtual Board       GetBoard()    const = 0;
-    virtual SocFamily   GetSoc()      const = 0;
-    virtual const char* BoardName()   const = 0;
-    virtual CpuArch     GetCpuArch()  const = 0;
+    virtual Board          GetBoard()          const = 0;
+    virtual SocFamily      GetSoc()             const = 0;
+    virtual const char*    BoardName()          const = 0;
+    virtual CpuArch        GetCpuArch()         const = 0;
+    virtual RomPlacingMode GetRomPlacingMode()  const = 0;
 
     /* Short consumer name shown on the boot screen beneath the OEM logo
        ("Starting <name>..."). Defaults to the full BoardName(); boards
@@ -98,7 +100,7 @@ public:
 
     /* RT_RCDATA resource name of the board's OEM boot logo (a PNG embedded via
        cerf.rc). Defaults to the generic Windows CE logo; boards override with
-       their own. BootScreen owns decoding; the detector stays free of any
+       their own. BootScreen owns decoding; the context stays free of any
        GDI/Win32 dependency (a wchar_t* resource name needs no windows.h). */
     virtual const wchar_t* GetBootLogoResource() const { return L"OEM_WINCE"; }
 
@@ -116,20 +118,8 @@ public:
        XUI/D3-Mobile only accepts 16bpp RGB565; CE3 imgdecmp rejects 32bpp. */
     virtual uint32_t GetGuestAdditionsColorDepth() const { return 32u; }
 
-    static const char*  SocFamilyName(SocFamily f);
+    static const char* SocFamilyName(SocFamily f);
 
-protected:
-    /* NameContains is ASCII-only - UTF-16 needles need ContainsString.
-       ModuleNames omits IMGFS-table filenames (WM6+ NB0) - those need
-       RomContainsString. */
-    std::string          ModuleNames   () const;
-    std::vector<uint8_t> ReadKernelBlob() const;
-    bool                 RomContainsString(const char* needle) const;
-    /* Scans the de-chunked `.sec` NAND flash (low region, where the OS XIP
-       images live) for the needle. False when the device has no `.sec`. */
-    bool                 SecContainsString(const char* needle) const;
-    static bool          ContainsString(const uint8_t* data, size_t size,
-                                        const char* needle);
-    static bool          NameContains  (const std::string& names,
-                                        const char* needle);
+    static std::span<const BoardIdEntry> BoardIds();
+    static Board                         BoardFromId(const std::string& id);
 };

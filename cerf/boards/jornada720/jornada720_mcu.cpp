@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "jornada720_battery.h"
 #include "jornada720_keyboard.h"
 #include "jornada720_led.h"
@@ -31,7 +31,7 @@ public:
     using Sa11xxSspDevice::Sa11xxSspDevice;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
 

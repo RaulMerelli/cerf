@@ -1,43 +1,42 @@
 #define NOMINMAX
 
-#include "../boards/board_detector.h"
-#include "../boot/rom_parser_service.h"
-#include "cerf_emulator.h"
-#include "log.h"
-#include "service.h"
+#include "board_not_found_service.h"
 
+#include "../boards/board_context.h"
+#include "cerf_emulator.h"
+#include "device_config.h"
+#include "log.h"
+
+#include <string>
 #include <windows.h>
 
-namespace {
+REGISTER_SERVICE(BoardNotFoundService);
 
-class BoardNotFoundService : public Service {
-public:
-    using Service::Service;
+bool BoardNotFoundService::ShouldRegister() {
+    return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
+}
 
-    bool ShouldRegister() override {
-        /* "Unsupported board" only applies once a ROM actually loaded; a
-           missing ROM is DeviceNotFoundService's job (launcher bootstrap),
-           so defer when the parser found nothing to inspect. */
-        return emu_.Get<RomParserService>().Ok()
-            && emu_.Get<BoardDetector>().GetBoard() == Board::Unknown;
-    }
-
-    void OnReady() override {
-        LOG(Caution, "no BoardDetector candidate matched this ROM -- CERF "
-                     "does not support this board / device.\n");
+void BoardNotFoundService::EnsureFound() {
+    const std::string& id = emu_.Get<DeviceConfig>().board_id;
+    if (id.empty())
+        LOG(Caution, "no board selected: set cerf.json board.id or pass "
+                     "--board-id=ID (run --help for the id list)\n");
+    else
+        LOG(Caution, "unrecognised board id '%s': run --help for the "
+                     "supported id list\n", id.c_str());
 
 #if !CERF_DEV_MODE
-        MessageBoxA(nullptr,
-                    "CERF doesn't support this board / device.\n\n"
-                    "No BoardDetector matched the loaded ROM. CERF will exit.",
-                    "CERF: unsupported board",
-                    MB_OK | MB_ICONERROR);
+    const std::string msg =
+        id.empty()
+            ? std::string(
+                  "No board selected.\n\nSet \"board\": { \"id\": ... } in "
+                  "cerf.json, or pass --board-id=ID. CERF will exit.")
+            : ("Unrecognised board id '" + id +
+               "'.\n\nRun cerf.exe --help for the supported id list. "
+               "CERF will exit.");
+    MessageBoxA(nullptr, msg.c_str(), "CERF: unsupported board",
+                MB_OK | MB_ICONERROR);
 #endif
 
-        CerfFatalExit(CERF_FATAL_USER_ERROR);
-    }
-};
-
-}  /* namespace */
-
-REGISTER_SERVICE(BoardNotFoundService);
+    CerfFatalExit(CERF_FATAL_USER_ERROR);
+}

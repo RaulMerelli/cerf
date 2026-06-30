@@ -1,23 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class SmartBookG138Detector : public BoardDetector {
+class SmartBookG138Context : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        /* "Book_HPC" is the OEM device name in the SmartBook eboot banner,
-           present in both the CE 4.1 and 4.2 .fim images (the "G138" build-path
-           token is only in the 4.2 ROM). */
-        return RomContainsString("Book_HPC");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::SmartBookG138; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "SmartBook G138 (webpad), Intel SA-1110 StrongARM + MediaQ MQ200";
     }
@@ -33,4 +27,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(SmartBookG138Detector, BoardDetector);
+REGISTER_SERVICE_AS(SmartBookG138Context, BoardContext);

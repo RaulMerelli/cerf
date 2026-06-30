@@ -1,7 +1,7 @@
 #include "../../host/touch_input.h"
 
 #include "simpad_sl4_touch_panel.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -13,7 +13,7 @@ public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SimpadSl4;
     }
 

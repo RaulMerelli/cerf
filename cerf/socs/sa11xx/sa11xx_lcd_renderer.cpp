@@ -2,7 +2,7 @@
 
 #include "sa11xx_lcd.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -48,7 +48,7 @@ public:
            The Jornada 720 panel hangs off the external SED1356; its OAL
            writes LCCR0=0 and this renderer must not win FrameRenderer
            there. */
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 

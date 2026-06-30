@@ -4,7 +4,7 @@
 #include "cerf_virt_framebuffer.h"
 
 #include "cerf_virt_addr_map.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -71,7 +71,7 @@ void CerfVirtFramebuffer::OnReady() {
     const auto& cfg = emu_.Get<DeviceConfig>();
     width_  = cfg.board_configurable_screen_width;
     height_ = cfg.board_configurable_screen_height;
-    bpp_    = emu_.Get<BoardDetector>().GetGuestAdditionsColorDepth();
+    bpp_    = emu_.Get<BoardContext>().GetGuestAdditionsColorDepth();
     region_bytes_ = ComputeRegionBytes();
     bytes_.assign(region_bytes_, 0);
     LOG(Periph, "[CerfVirtFramebuffer] %ux%u %ubpp stride=%u "

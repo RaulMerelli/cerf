@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "msystems_docg3_base.h"
@@ -78,7 +78,7 @@ public:
     bool ShouldRegister() override {
         /* Off-chip part: register on each board that wires it. The matching
            board supplies its base via MsystemsDocG3Base. */
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 

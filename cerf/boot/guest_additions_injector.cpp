@@ -11,6 +11,8 @@
 #include "pe_image.h"
 #include "rom_parser_service.h"
 #include "rom_placer.h"
+
+#include "../boards/board_context.h"
 #include "rom_record_layout.h"
 
 #include "../core/cerf_emulator.h"
@@ -42,7 +44,9 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        return emu_.Get<DeviceConfig>().guest_additions;
+        return emu_.Get<DeviceConfig>().guest_additions
+            && emu_.Get<BoardContext>().GetRomPlacingMode()
+                   == RomPlacingMode::FlatContainer;
     }
 
     void OnReady() override {

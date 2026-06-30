@@ -2,12 +2,12 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../socs/pxa255/pxa255_btuart.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 REGISTER_SERVICE(NecMobilePro900PcoCompanion);
 
 bool NecMobilePro900PcoCompanion::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::NecMobilePro900;
 }
 

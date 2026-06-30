@@ -80,7 +80,8 @@ def build_supported_devices():
                 lines.append(f'      <td{rowspan} align="center">'
                              f'{badge_img(soc.cpu)}<br/><b>{soc.family}</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
-            cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b>']
+            cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b> '
+                    f'<code>{board["board_id"]}</code>']
             cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
                      for guest_os in board['operating_systems']]
             lines.append('      <td>')

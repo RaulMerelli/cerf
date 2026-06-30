@@ -7,7 +7,7 @@
 #include "../../jit/arm/cpu_state.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 #include "omap3530_intc.h"
@@ -69,7 +69,7 @@ public:
     }
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::OMAP3530;
     }
     void OnReady() override {

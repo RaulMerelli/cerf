@@ -10,6 +10,7 @@
 #include "pe_image.h"
 #include "rom_parser_service.h"
 
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
@@ -66,7 +67,8 @@ inline uint32_t Rd32(const uint8_t* p) {
 
 bool ImgfsInjector::ShouldRegister() {
     if (!emu_.Get<DeviceConfig>().guest_additions) return false;
-    return true;
+    return emu_.Get<BoardContext>().GetRomPlacingMode()
+        == RomPlacingMode::FlatContainer;
 }
 
 void ImgfsInjector::OnReady() {

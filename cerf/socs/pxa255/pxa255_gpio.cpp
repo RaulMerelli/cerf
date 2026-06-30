@@ -1,13 +1,13 @@
 #include "pxa255_gpio.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "pxa255_intc.h"
 
 bool Pxa255Gpio::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::PXA25x;
 }
 

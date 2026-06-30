@@ -6,7 +6,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../../socs/sa11xx/sa11xx_ssp_device.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <deque>
 
@@ -21,7 +21,7 @@ public:
     using Sa11xxSspDevice::Sa11xxSspDevice;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
 
@@ -81,7 +81,7 @@ class Jornada820KeyboardInput : public KeyboardInput {
 public:
     using KeyboardInput::KeyboardInput;
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
@@ -96,7 +96,7 @@ REGISTER_SERVICE(Jornada820KeyboardInput);
 REGISTER_SERVICE(Jornada820Keyboard);
 
 bool Jornada820Keyboard::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada820;
 }
 

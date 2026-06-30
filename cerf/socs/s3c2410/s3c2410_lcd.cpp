@@ -1,6 +1,6 @@
 #include "s3c2410_lcd.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_window.h"
@@ -8,7 +8,7 @@
 #include "../../state/state_stream.h"
 
 bool S3C2410Lcd::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::S3C2410;
 }
 

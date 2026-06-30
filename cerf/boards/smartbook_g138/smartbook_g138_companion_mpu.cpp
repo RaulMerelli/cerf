@@ -1,7 +1,7 @@
 #include "../../core/service.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../host/host_canvas.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
@@ -27,7 +27,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SmartBookG138;
     }
 
@@ -74,7 +74,7 @@ public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SmartBookG138;
     }
 
@@ -171,7 +171,7 @@ public:
     using KeyboardInput::KeyboardInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SmartBookG138;
     }
 

@@ -1,6 +1,6 @@
 #include "../board_ata_service.h"
 
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -53,7 +53,7 @@ public:
     using BoardAtaService::BoardAtaService;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::ZuneKeel;
     }
 

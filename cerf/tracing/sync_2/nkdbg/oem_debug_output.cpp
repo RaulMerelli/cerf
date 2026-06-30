@@ -1,7 +1,7 @@
 #include "../../kernel_debug_sink.h"
 #include "../../trace_manager.h"
 #include "../../../core/cerf_emulator.h"
-#include "../../../boards/board_detector.h"
+#include "../../../boards/board_context.h"
 
 #include <string>
 
@@ -16,7 +16,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
 

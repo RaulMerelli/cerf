@@ -4,7 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../jit/mips/mips_block_context.h"
 #include "../../jit/mips/mips_cpu_state.h"
 #include "../../jit/mips/mips_decoded_insn.h"
@@ -31,7 +31,7 @@ public:
     using MipsCp0Emitter::MipsCp0Emitter;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::VR5500;
     }
 

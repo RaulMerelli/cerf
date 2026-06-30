@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../freescale_uart_impl.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 /* MCIMX51RM Table 2-2: UART1 at 0x73FB_C000. Named (not anonymous) so the SYNC2
    Bluetooth (Broadcom BCM4325) HCI companion can resolve it to attach its

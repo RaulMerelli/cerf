@@ -1,13 +1,13 @@
 #include "ti_tsc2046_touch.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
 REGISTER_SERVICE(Tsc2046Touch);
 
 bool Tsc2046Touch::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
     const auto b = bd->GetBoard();
     return b == Board::OmapEvm3530;

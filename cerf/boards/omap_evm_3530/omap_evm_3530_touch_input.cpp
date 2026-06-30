@@ -2,7 +2,7 @@
 #include "../../host/touch_input.h"
 #include "../../peripherals/ti_tsc2046/ti_tsc2046_touch.h"
 #include "../../socs/omap3530/omap3530_gpio_bus.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
@@ -19,7 +19,7 @@ public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::OmapEvm3530;
     }
 

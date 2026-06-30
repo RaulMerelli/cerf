@@ -61,10 +61,20 @@ Use **`launcher.exe`** - it downloads the right ROM bundle and boots it. That's 
 If you have your own dump for a board that's **already supported** (e.g. a different region/revision of the same device), drop it in by hand:
 
 1. Create a folder under `devices/` (next to `cerf.exe`), e.g. `devices/mydump/`.
-2. Put the ROM image in it - any `*.nb0` or `*.bin`; the filename doesn't matter, CERF auto-detects it.
-3. Run `cerf.exe --device=mydump`.
+2. Put the ROM image in it (e.g. `mykernel.nb0`).
+3. Add a `cerf.json` in that folder naming the board and the ROM file:
 
-No `cerf.json` is required for this - it's optional and only carries display metadata plus a few board overrides. (Multi-partition ROMs, configurable-resolution boards, and network tweaks are the cases that need one; see [device_config.h](cerf/core/device_config.h) for the schema.)
+   ```json
+   {
+     "board": { "id": "jornada_720" },
+     "rom":   { "primary": "mykernel.nb0" }
+   }
+   ```
+
+   The board id is the one for your device - see the **Supported boards** table above, or run `cerf.exe --help` for the full list.
+4. Run `cerf.exe --device=mydump`.
+
+The board id and the primary ROM are both required - give them in `cerf.json` as above, or on the command line: `cerf.exe --device=mydump --board-id=jornada_720 --rom-primary=mykernel.nb0`. `rom.primary` can name the OEM file as shipped, not just a flat image: CERF unwraps recognised containers (multi-XIP, vendor packages) and serves whole-storage dumps (NAND/flash images) on its own - see [how CERF boots ROM containers](agent_docs/rom_acceptance.md). Beyond the two required fields, `cerf.json` is optional and carries display metadata plus a few board overrides (configurable-resolution boards, network tweaks); see [device_config.h](cerf/core/device_config.h) for the schema.
 
 ### Bringing up a board CERF does _not_ support yet
 

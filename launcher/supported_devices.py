@@ -1,28 +1,18 @@
 """Local, developer-editable knowledge about device boards.
 
 This list is the launcher's own opinion about which boards cerf.exe can
-actually run, keyed on the ``meta.board_name`` value a bundle's cerf.json
-carries. Edit it by hand when a new board lands in cerf.exe's BoardDetector
-(see ``cerf/boards/board_detector.h``) or when a board's quirks change.
+actually run, keyed on the ``board.id`` a bundle's cerf.json carries. Edit it
+by hand when a new board lands in cerf.exe's BoardContext (see
+``cerf/boards/board_context.h``) or when a board's quirks change.
 compile_readme.py renders the same data into README.md's "Supported boards"
 table, so the launcher and the README never drift apart.
 
-Semantics (matched case-insensitively on ``name``):
-  * ``supported: True``  -> cerf.exe has a real BoardDetector for this board.
-  * ``supported: False`` -> known board cerf.exe cannot run yet; hidden by
-                            the "Hide unsupported" filter.
-  * board not listed here, or a bundle with no board_name -> UNKNOWN. The
-    launcher passes no judgement: shown under "Hide unsupported" unless its
-    "Hide without metadata" checkbox is also on (the startup default, which
-    leaves only supported:True boards visible).
-
-Board renames: a bundle's cerf.json may carry ``meta.board_prev_names`` -
-the board's earlier ``board_name`` values. A bundle matches an entry when
-ANY of the bundle's names (current first, then previous) equals the entry's
-``name``. The rename history lives ONLY in the remote cerf.json: when a
-board is renamed there, the old name goes into its ``board_prev_names``, so
-launchers shipped with the old name in this list keep recognising the board
-without an update.
+Semantics (matched on ``board_id``):
+  * ``supported: True``  -> cerf.exe runs this board; shown by default.
+  * ``supported: False`` -> early WIP: cerf.exe has the board_id but it is
+                            not user-ready; hidden by the "Hide unsupported"
+                            filter and absent from the README.
+  * a board.id with no entry here -> unsupported; hidden by "Hide unsupported".
 
 ``notes`` here EXTEND (do not replace) the per-ROM ``meta.notes`` shown in
 the side panel. Use them for board-wide quirks that apply to every ROM on
@@ -52,7 +42,7 @@ the README table (and available to the launcher):
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, NamedTuple, Optional, Sequence
+from typing import Callable, Dict, List, NamedTuple, Optional
 
 
 class OperatingSystem(NamedTuple):
@@ -87,6 +77,7 @@ SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE", "ARM")
 SOC_ODO = Soc("ARM720T", "ARMv4T", "ARM")
 SOC_OMAP3530 = Soc("TI OMAP 3530", "Cortex-A8", "ARM")
 SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136", "ARM")
+SOC_IMX51 = Soc("Freescale i.MX51", "Cortex-A8", "ARM")
 SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
 SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
 
@@ -115,6 +106,7 @@ GUEST_ADDITIONS_POINTER_WARN = "Guest additions mouse does not work in some apps
 BOARDS_INFORMATION = [
     {
         "name": "Device Emulator",
+        "board_id": "devemu",
         "supported": True,
         "soc": SOC_S3C2410,
         "operating_systems": [
@@ -142,12 +134,8 @@ BOARDS_INFORMATION = [
         ],
     },
     {
-        "name": "SMDK2410 Sample",
-        "supported": False,
-        "notes": [],
-    },
-    {
         "name": "Falcon 4220",
+        "board_id": "falcon_4220",
         "supported": True,
         "soc": SOC_PXA255,
         "operating_systems": [WINDOWS_CE_NET],
@@ -170,6 +158,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "iPAQ H3100/H3600/H3700",
+        "board_id": "ipaq_gen1",
         "supported": True,
         "soc": SOC_SA1110,
         "operating_systems": [POCKET_PC_2000, POCKET_PC_2002],
@@ -188,26 +177,8 @@ BOARDS_INFORMATION = [
         "notes": [GUEST_ADDITIONS_POINTER_WARN],
     },
     {
-        "name": "iPAQ h4000",
-        "supported": False,
-        "notes": [],
-    },
-    {
-        "name": "LXE MX3X",
-        "supported": False,
-    },
-    {
-        "name": "iPAQ rx1900",
-        "supported": False,
-        "notes": [],
-    },
-    {
-        "name": "iPAQ rx3000",
-        "supported": False,
-        "notes": [],
-    },
-    {
         "name": "HP Jornada 820",
+        "board_id": "jornada_820",
         "supported": True,
         "soc": SOC_SA1100,
         "operating_systems": [HANDHELD_PC_PRO],
@@ -226,6 +197,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "HP Jornada 720",
+        "board_id": "jornada_720",
         "supported": True,
         "soc": SOC_SA1110,
         "operating_systems": [HANDHELD_PC_2000],
@@ -250,6 +222,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "Microsoft Windows CE Hardware Reference Platform",
+        "board_id": "odo",
         "supported": True,
         "soc": SOC_ODO,
         "operating_systems": [WINDOWS_CE_211, WINDOWS_CE_3],
@@ -268,6 +241,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "OMAP 3530 EVM",
+        "board_id": "omap_3530_evm",
         "supported": True,
         "soc": SOC_OMAP3530,
         "operating_systems": [WINDOWS_CE_7],
@@ -286,6 +260,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "Zune 30",
+        "board_id": "zune_30",
         "supported": True,
         "soc": SOC_IMX31L,
         "operating_systems": [ZUNE_OS_5],
@@ -305,27 +280,8 @@ BOARDS_INFORMATION = [
         ],
     },
     {
-        "name": "Asus Mypal A6x6",
-        "supported": False,
-        "notes": [],
-    },
-    {
-        "name": "Zune 80 / 120",
-        "supported": False,
-        "notes": [],
-    },
-    {
-        "name": "Zune HD",
-        "supported": False,
-        "notes": [],
-    },
-    {
-        "name": "Zune 4 / 8 / 16",
-        "supported": False,
-        "notes": [],
-    },
-    {
         "name": "Siemens SIMpad SL4",
+        "board_id": "simpad_sl4",
         "supported": True,
         "soc": SOC_SA1110,
         "operating_systems": [HANDHELD_PC_2000, WINDOWS_CE_NET],
@@ -345,6 +301,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "NEC MobilePro 900",
+        "board_id": "nec_mobilepro_900",
         "supported": True,
         "soc": SOC_PXA255,
         "operating_systems": [HANDHELD_PC_2000, WINDOWS_CE_NET],
@@ -367,6 +324,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "NEC Rockhopper SG2_VR5500",
+        "board_id": "nec_rockhopper",
         "supported": True,
         "soc": SOC_VR5500,
         "operating_systems": [WINDOWS_CE_6],
@@ -378,12 +336,15 @@ BOARDS_INFORMATION = [
             "sound": False,
             "guest_additions": True,
             "pcmcia": True,
-            "network": True
+            "network": True,
         },
-        "notes": ["MIPS IV ROM is incompatible with MIPS II apps. Prefer using MIPS II ROM."]
+        "notes": [
+            "MIPS IV ROM is incompatible with MIPS II apps. Prefer using MIPS II ROM."
+        ],
     },
     {
         "name": "Siemens P177",
+        "board_id": "siemens_p177",
         "supported": True,
         "soc": SOC_S3C2410,
         "operating_systems": [WINDOWS_CE_5],
@@ -397,6 +358,7 @@ BOARDS_INFORMATION = [
     },
     {
         "name": "SmartBook G138",
+        "board_id": "smartbook_g138",
         "supported": True,
         "soc": SOC_SA1110,
         "operating_systems": [WINDOWS_CE_NET],
@@ -409,13 +371,24 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
             "battery": False,
             "mic": False,
-            "suspend": True
+            "suspend": True,
         },
     },
     {
-        "name": "Siemens KTP4 Mobile (ZEUS/etcha)",
+        "name": "Ford SYNC 2",
+        "board_id": "ford_sync_2",
         "supported": False,
-        "notes": [],
+        "soc": SOC_IMX51,
+        "operating_systems": [WINDOWS_CE_6],
+        "features": {
+            "display": True,
+            "touch": True,
+            "guest_additions": True,
+            "sound": False,
+        },
+        "notes": [
+            "On the first boot, guest flashes ~2GB NAND inside device dir from .sec file. It will take some time and x2 disk space. After first boot, you can remove .sec file if you are not going to re-flash."
+        ]
     },
 ]
 
@@ -445,36 +418,28 @@ def board_sort_key(board_name: object) -> tuple[int, str]:
     return (tier, board)
 
 
-def _board_entry(board_name: str, prev_names: Sequence[str] = ()) -> Optional[dict]:
-    # Bundle's current name first so it always wins over a previous-name
-    # match if a rename ever leaves both listed as separate entries.
-    for candidate in (board_name, *prev_names):
-        if not isinstance(candidate, str):
-            continue
-        key = candidate.strip().casefold()
-        if not key:
-            continue
-        for entry in BOARDS_INFORMATION:
-            name = entry.get("name")
-            if isinstance(name, str) and name.strip().casefold() == key:
-                return entry
+def _board_entry(board_id: str) -> Optional[dict]:
+    if not isinstance(board_id, str) or not board_id.strip():
+        return None
+    key = board_id.strip()
+    for entry in BOARDS_INFORMATION:
+        if entry.get("board_id") == key:
+            return entry
     return None
 
 
-def board_support_state(
-    board_name: str, prev_names: Sequence[str] = ()
-) -> Optional[bool]:
-    """True/False if the board is a known supported/unsupported board;
-    None when the launcher has no opinion (unknown board, no board_name)."""
-    entry = _board_entry(board_name, prev_names)
+def board_support_state(board_id: str) -> Optional[bool]:
+    """True/False for a known board_id; None when no entry matches (board_id
+    absent or not in this list -> unsupported)."""
+    entry = _board_entry(board_id)
     if entry is None:
         return None
     return bool(entry.get("supported", False))
 
 
-def board_extra_notes(board_name: str, prev_names: Sequence[str] = ()) -> List[str]:
+def board_extra_notes(board_id: str) -> List[str]:
     """Board-wide quirk notes that extend a ROM's own meta.notes."""
-    entry = _board_entry(board_name, prev_names)
+    entry = _board_entry(board_id)
     if entry is None:
         return []
     notes = entry.get("notes")
@@ -483,10 +448,10 @@ def board_extra_notes(board_name: str, prev_names: Sequence[str] = ()) -> List[s
     return [n for n in notes if isinstance(n, str) and n.strip()]
 
 
-def board_soc_cpu(board_name: str, prev_names: Sequence[str] = ()) -> Optional[str]:
+def board_soc_cpu(board_id: str) -> Optional[str]:
     """CPU instruction-set family (e.g. "ARM" / "MIPS") for the board's SoC;
     None when the launcher has no SoC data for it."""
-    entry = _board_entry(board_name, prev_names)
+    entry = _board_entry(board_id)
     if entry is None:
         return None
     soc = entry.get("soc")
@@ -495,10 +460,10 @@ def board_soc_cpu(board_name: str, prev_names: Sequence[str] = ()) -> Optional[s
     return soc.cpu
 
 
-def board_features(board_name: str, prev_names: Sequence[str] = ()) -> dict:
+def board_features(board_id: str) -> dict:
     """Capability -> bool map for the board; empty when the launcher has no
-    feature data for it (unknown board, or no features declared)."""
-    entry = _board_entry(board_name, prev_names)
+    feature data for it (unknown board_id, or no features declared)."""
+    entry = _board_entry(board_id)
     if entry is None:
         return {}
     features = entry.get("features")
@@ -515,15 +480,15 @@ class RomContext(NamedTuple):
     os_name: str
     os_ver_major: int
     os_ver_minor: int
-    board_names: Sequence[str]  # current board name first, then prev names
+    board_id: str
     features: Dict[str, bool]
     cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"; "" when unknown
 
     def os_contains(self, fragment: str) -> bool:
         return sort_text(fragment) in sort_text(self.os_name)
 
-    def board_is(self, name: str) -> bool:
-        return sort_text(name) in {sort_text(b) for b in self.board_names}
+    def board_is(self, board_id: str) -> bool:
+        return self.board_id == board_id
 
     def cpu_is(self, name: str) -> bool:
         return sort_text(name) == sort_text(self.cpu)
@@ -568,19 +533,17 @@ DYNAMIC_NOTES = [
         note=CE4_SHARED_STORAGE_BROKEN,
     ),
     DynamicNote(
-        applies=lambda rom: rom.board_is("Device Emulator")
+        applies=lambda rom: rom.board_is("devemu")
         and rom.os_contains("Windows Mobile")
         and rom.os_ver_major >= 6,
         note="This ROM is most likely IMGFS, guest additions will break the boot.",
     ),
     DynamicNote(
-        applies=lambda rom: rom.board_is("Device Emulator")
-        and rom.os_contains("Smartphone"),
+        applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
         note="Keyboard is misbehaving on Smartphone ROMs.",
     ),
     DynamicNote(
-        applies=lambda rom: rom.board_is("Device Emulator")
-        and rom.os_contains("Smartphone"),
+        applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
         note="Guest additions break or cause visual artifacts on Smartphone OS.",
     ),
     DynamicNote(
@@ -594,8 +557,7 @@ def dynamic_extra_notes(
     os_name: str,
     os_ver_major: int,
     os_ver_minor: int,
-    board_name: str,
-    prev_names: Sequence[str] = (),
+    board_id: str,
 ) -> List[str]:
     """Predicate-gated additional notes for one selected ROM; extend the
     ROM's meta.notes and board_extra_notes() in the side panel."""
@@ -603,8 +565,8 @@ def dynamic_extra_notes(
         os_name=os_name,
         os_ver_major=os_ver_major,
         os_ver_minor=os_ver_minor,
-        board_names=(board_name, *prev_names),
-        features=board_features(board_name, prev_names),
-        cpu=board_soc_cpu(board_name, prev_names) or "",
+        board_id=board_id,
+        features=board_features(board_id),
+        cpu=board_soc_cpu(board_id) or "",
     )
     return [entry.note for entry in DYNAMIC_NOTES if entry.applies(rom)]

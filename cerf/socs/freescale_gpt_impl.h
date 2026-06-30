@@ -4,7 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../boards/board_detector.h"
+#include "../boards/board_context.h"
 #include "../cpu/arm_processor_config.h"
 #include "../jit/arm/arm_jit.h"
 #include "../jit/arm/cpu_state.h"
@@ -30,7 +30,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == kSoc;
     }
 

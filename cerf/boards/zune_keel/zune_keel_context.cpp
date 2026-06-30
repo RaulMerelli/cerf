@@ -1,20 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class ZuneKeelDetector : public BoardDetector {
+class ZuneKeelContext : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        return NameContains(ModuleNames(), "pyxis_keybd");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::ZuneKeel; }
     SocFamily   GetSoc()    const override { return SocFamily::iMX31; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "Microsoft Zune 30 (codename Keel), "
                "Freescale i.MX31L (ARM1136JF-S)";
@@ -31,4 +28,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(ZuneKeelDetector, BoardDetector);
+REGISTER_SERVICE_AS(ZuneKeelContext, BoardContext);

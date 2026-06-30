@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "jornada820_companion_asic.h"
 
 namespace {
@@ -25,7 +25,7 @@ Jornada820Pcmcia::Jornada820Pcmcia(CerfEmulator& emu)
       slot1_(emu, *this, L"CompactFlash slot") {}
 
 bool Jornada820Pcmcia::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada820;
 }
 

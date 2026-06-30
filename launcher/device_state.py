@@ -45,9 +45,7 @@ class DeviceSource:
 class DeviceMeta:
     device_name: str = ""
     board_name: str = ""
-    # Earlier board_name values of the same board, so supported_devices.py
-    # matching survives board renames across launcher/manifest version skew.
-    board_prev_names: List[str] = field(default_factory=list)
+    board_id: str = ""
     soc_family: str = ""
     os_name: str = ""
     os_ver_major: int = 0
@@ -197,7 +195,6 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[in
     if isinstance(m, dict):
         meta.device_name = _str_or_empty(m.get("device_name"))
         meta.board_name = _str_or_empty(m.get("board_name"))
-        meta.board_prev_names = _str_list(m.get("board_prev_names"))
         meta.soc_family = _str_or_empty(m.get("soc_family"))
         meta.device_year = _int_or_zero(m.get("device_year"))
         meta.description = _str_or_empty(m.get("description"))
@@ -226,6 +223,7 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[bool], Optional[in
 
     board = obj.get("board")
     if isinstance(board, dict):
+        meta.board_id = _str_or_empty(board.get("id"))
         s = board.get("configurable_screen_resolution_supported")
         if isinstance(s, bool):
             screen_supported = s

@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 
@@ -45,7 +45,7 @@ public:
     }
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::S3C2410;
     }
     void OnReady() override {

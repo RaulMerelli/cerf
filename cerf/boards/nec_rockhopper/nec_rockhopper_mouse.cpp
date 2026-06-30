@@ -1,7 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/relative_mouse_input.h"
 #include "../../peripherals/intel_i8042/i8042_controller.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 namespace {
 
@@ -12,7 +12,7 @@ public:
     using RelativeMouseInput::RelativeMouseInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecRockhopper;
     }
 

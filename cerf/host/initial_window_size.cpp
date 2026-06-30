@@ -1,6 +1,6 @@
 #include "initial_window_size.h"
 
-#include "../boards/board_detector.h"
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 
@@ -12,7 +12,7 @@ InitialWindowSize::Size InitialWindowSize::Resolve() const {
     uint32_t h = dc.board_configurable_screen_height;
 
     if (!dc.guest_additions && !dc.board_configurable_screen_explicit)
-        if (auto pref = emu_.Get<BoardDetector>().GetPreferredWindowSize()) {
+        if (auto pref = emu_.Get<BoardContext>().GetPreferredWindowSize()) {
             w = pref->width;
             h = pref->height;
         }

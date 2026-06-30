@@ -1,6 +1,6 @@
 #include "../../peripherals/cirrus_pd6710/pd6710_management_irq_line.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/irq_controller.h"
 
@@ -13,7 +13,7 @@ public:
     using Pd6710ManagementIrqLine::Pd6710ManagementIrqLine;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
 

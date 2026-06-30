@@ -1,6 +1,6 @@
 #include "omap3530_dss.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_window.h"
@@ -9,7 +9,7 @@
 #include "../irq_controller.h"
 
 bool Omap3530Dss::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 

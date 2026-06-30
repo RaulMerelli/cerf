@@ -3,7 +3,7 @@
 #include "../../peripherals/uart16550/uart16550.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
 #include "pxa255_intc.h"
 
@@ -18,7 +18,7 @@ public:
     using Uart16550::Uart16550;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::PXA25x;
     }
 

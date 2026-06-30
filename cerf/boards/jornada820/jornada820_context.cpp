@@ -1,22 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class Jornada820Detector : public BoardDetector {
+class Jornada820Context : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        /* Device-identity string "HP, Jornada 820, ..." in the ROM
-           (UTF-16, nk.exe @ 0x38FA8); occurs in no other CERF bundle. */
-        return RomContainsString("Jornada 820");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::Jornada820; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1100; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "HP Jornada 820 Handheld PC, Intel SA-1100 StrongARM";
     }
@@ -34,4 +29,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Jornada820Detector, BoardDetector);
+REGISTER_SERVICE_AS(Jornada820Context, BoardContext);

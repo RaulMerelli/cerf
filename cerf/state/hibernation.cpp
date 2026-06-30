@@ -111,14 +111,14 @@ uint32_t Hibernation::PeripheralLayoutSig() const {
 }
 
 void Hibernation::WriteHeader(StateWriter& w) const {
-    auto& rom = emu_.Get<RomParserService>();
+    auto* rom = emu_.TryGet<RomParserService>();
     StateImageHeader h{};
     std::memcpy(h.magic, kStateMagic, sizeof(h.magic));
     h.format_version    = kStateFormatVersion;
-    h.rom_entry_va      = rom.Primary().entry_va;
+    h.rom_entry_va      = (rom && rom->Ok()) ? rom->Primary().entry_va : 0;
     h.periph_layout_sig = PeripheralLayoutSig();
     uint64_t total = 0;
-    for (const auto& p : rom.Loaded()) total += p.raw.size();
+    if (rom) for (const auto& p : rom->Loaded()) total += p.raw.size();
     h.rom_total_bytes = total;
     h.guest_additions = emu_.Get<DeviceConfig>().guest_additions ? 1u : 0u;
     w.Write(h);
@@ -136,10 +136,11 @@ bool Hibernation::ValidateHeader(StateReader& r) {
                  h.format_version, kStateFormatVersion);
         return false;
     }
-    auto& rom = emu_.Get<RomParserService>();
+    auto* rom = emu_.TryGet<RomParserService>();
     uint64_t total = 0;
-    for (const auto& p : rom.Loaded()) total += p.raw.size();
-    if (h.rom_entry_va != rom.Primary().entry_va || h.rom_total_bytes != total) {
+    if (rom) for (const auto& p : rom->Loaded()) total += p.raw.size();
+    const uint32_t entry = (rom && rom->Ok()) ? rom->Primary().entry_va : 0;
+    if (h.rom_entry_va != entry || h.rom_total_bytes != total) {
         Progress("State image is for a different ROM - refusing."); return false;
     }
     if (h.periph_layout_sig != PeripheralLayoutSig()) {

@@ -1,7 +1,7 @@
 #include "../../peripherals/epson_sed1356/sed1356_config.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 namespace {
 
@@ -13,7 +13,7 @@ public:
     using Sed1356Config::Sed1356Config;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
 

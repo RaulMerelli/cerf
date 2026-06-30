@@ -1,7 +1,7 @@
 #include "../../socs/spi_slave.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../socs/imx51/imx51_ecspi1.h"
 #include "../../socs/imx51/imx51_gpio4.h"
 #include "../../state/state_stream.h"
@@ -19,7 +19,7 @@ public:
     using SpiSlave::SpiSlave;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
 

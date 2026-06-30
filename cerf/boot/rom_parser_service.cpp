@@ -5,6 +5,7 @@
 #include "ce_imgfs_walker.h"
 #include "rom_image_parse.h"
 
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
@@ -52,30 +53,6 @@ bool EqualIgnoreCase(const std::string& a, const char* b) {
     return true;
 }
 
-/* Scan a directory for the first *.nb0 / *.bin / *.fim file (single-ROM
-   auto-detect mode when cerf.json lists no partitions). */
-std::string FindFirstRomFile(const std::string& device_dir) {
-    const std::wstring pattern = Utf8ToWide((device_dir + "*").c_str());
-    WIN32_FIND_DATAW fd{};
-    HANDLE h = FindFirstFileW(pattern.c_str(), &fd);
-    if (h == INVALID_HANDLE_VALUE) return {};
-    std::string result;
-    do {
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-        std::string name = WideToUtf8(fd.cFileName);
-        if (name.size() < 5) continue;
-        std::string ext = name.substr(name.size() - 4);
-        for (auto& c : ext) c = AsciiLower(c);
-        if (ext == ".nb0" || ext == ".bin" || ext == ".fim"
-            || ext == ".nbf") {
-            result = name;
-            break;
-        }
-    } while (FindNextFileW(h, &fd));
-    FindClose(h);
-    return result;
-}
-
 std::vector<uint8_t> ReadWholeFile(const std::string& path) {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
     if (!f.is_open()) return {};
@@ -87,6 +64,11 @@ std::vector<uint8_t> ReadWholeFile(const std::string& path) {
 }
 
 }  /* namespace */
+
+bool RomParserService::ShouldRegister() {
+    return emu_.Get<BoardContext>().GetRomPlacingMode()
+        == RomPlacingMode::FlatContainer;
+}
 
 bool RomParserService::ParseOne(ParsedRom& rom) {
     rom.raw = ReadWholeFile(rom.path);
@@ -340,8 +322,8 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 }
 
 void RomParserService::OnReady() {
-    const auto&       cfg         = emu_.Get<DeviceConfig>();
-    const std::string device_dir  = GetDeviceDir(cfg.device_name);
+    const auto&       cfg        = emu_.Get<DeviceConfig>();
+    const std::string device_dir = GetDeviceDir(cfg.device_name);
 
     std::vector<std::string> filenames;
     if (cfg.boot_in_recovery) {
@@ -355,7 +337,13 @@ void RomParserService::OnReady() {
         LOG(Boot, "RomParser: RECOVERY MODE - booting %s\n",
             cfg.rom_recovery.c_str());
         filenames.push_back(cfg.rom_recovery);
-    } else if (!cfg.rom_primary.empty()) {
+    } else {
+        if (cfg.rom_primary.empty()) {
+            LOG(Caution, "RomParser: device '%s' declares no rom.primary "
+                         "(set rom.primary in cerf.json or pass "
+                         "--rom-primary=FILE)\n", cfg.device_name.c_str());
+            return;
+        }
         filenames.push_back(cfg.rom_primary);
         for (const auto& ext : cfg.rom_extensions) filenames.push_back(ext);
         if (!cfg.rom_recovery.empty()) {
@@ -363,13 +351,6 @@ void RomParserService::OnReady() {
                       "(pass --recovery to boot it)\n",
                 cfg.rom_recovery.c_str());
         }
-    } else {
-        const std::string fname = FindFirstRomFile(device_dir);
-        if (fname.empty()) {
-            LOG(Caution, "RomParser: no .nb0 / .bin in %s\n", device_dir.c_str());
-            return;
-        }
-        filenames.push_back(fname);
     }
 
     loaded_.reserve(filenames.size());

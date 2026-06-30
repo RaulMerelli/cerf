@@ -9,7 +9,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pxa255/pxa255_ac97.h"
 #include "../../state/emulation_freeze.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <algorithm>
 #include <atomic>
@@ -52,7 +52,7 @@ public:
     }
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 

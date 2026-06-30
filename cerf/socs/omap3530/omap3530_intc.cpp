@@ -8,14 +8,14 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 #include <bit>
 #include <cstdint>
 #include <mutex>
 
 bool Omap3530Intc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 
@@ -295,7 +295,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::OMAP3530;
     }
     void OnReady() override {

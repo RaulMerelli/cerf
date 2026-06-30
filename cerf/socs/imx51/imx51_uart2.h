@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../freescale_uart_impl.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 /* MCIMX51RM Table 2-1: UART2 at 0x73FC_0000. Named (not anonymous) so the SYNC2
    VMCU companion peer can resolve it to attach its endpoint + inject RX. */

@@ -7,7 +7,7 @@
 #include "../../jit/arm/cpu_state.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
 
 #include <mutex>
@@ -24,7 +24,7 @@ constexpr uint32_t kSlotCpuMr         = 0x04u;
 }  /* namespace */
 
 bool OdoArm720BoardIntc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::OdoArm720;
 }
 
@@ -211,7 +211,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
     void OnReady() override {

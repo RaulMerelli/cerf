@@ -2,6 +2,7 @@
 
 #include "sec_flash.h"
 
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
@@ -16,45 +17,33 @@ REGISTER_SERVICE(SecFlash);
 
 namespace {
 
-std::string FindSecFile(const std::string& device_dir) {
-    const std::wstring pattern = Utf8ToWide((device_dir + "*.sec").c_str());
-    WIN32_FIND_DATAW fd{};
-    HANDLE h = FindFirstFileW(pattern.c_str(), &fd);
-    if (h == INVALID_HANDLE_VALUE) return {};
-    std::string name;
-    do {
-        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            name = WideToUtf8(fd.cFileName);
-            break;
-        }
-    } while (FindNextFileW(h, &fd));
-    FindClose(h);
-    return name;
+bool FileExists(const std::string& path) {
+    const DWORD a = ::GetFileAttributesW(Utf8ToWide(path.c_str()).c_str());
+    return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
 }  /* namespace */
 
 bool SecFlash::ShouldRegister() {
+    if (emu_.Get<BoardContext>().GetBoard() != Board::FordSyncGen2) return false;
     const auto& cfg = emu_.Get<DeviceConfig>();
-    return !FindSecFile(GetDeviceDir(cfg.device_name)).empty();
+    if (cfg.rom_primary.empty()) return false;
+    return FileExists(GetDeviceDir(cfg.device_name) + cfg.rom_primary);
 }
 
 void SecFlash::OnReady() {
     const auto&       cfg  = emu_.Get<DeviceConfig>();
-    const std::string dir  = GetDeviceDir(cfg.device_name);
-    const std::string name = FindSecFile(dir);
-    if (name.empty()) return;
+    const std::string path = GetDeviceDir(cfg.device_name) + cfg.rom_primary;
 
-    if (!mf_.Open(dir + name)) {
-        LOG(Caution, "SecFlash: failed to map %s%s\n", dir.c_str(), name.c_str());
+    if (!mf_.Open(path)) {
+        LOG(Caution, "SecFlash: failed to map %s\n", path.c_str());
         return;
     }
     if (!sec_.Open(mf_)) {
-        LOG(Caution, "SecFlash: %s%s is not a valid .sec container\n",
-            dir.c_str(), name.c_str());
+        LOG(Caution, "SecFlash: %s is not a valid .sec container\n", path.c_str());
         return;
     }
-    LOG(Boot, "SecFlash: %s%s - %u chunks, %.1f MB de-chunked flash\n",
-        dir.c_str(), name.c_str(), sec_.Header().chunk_count,
+    LOG(Boot, "SecFlash: %s - %u chunks, %.1f MB de-chunked flash\n",
+        path.c_str(), sec_.Header().chunk_count,
         double(FlashSize()) / 1024.0 / 1024.0);
 }

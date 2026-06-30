@@ -1,22 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class Jornada720Detector : public BoardDetector {
+class Jornada720Context : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        /* Device-identity string "Jornada 720" in the ROM (UTF-16);
-           occurs in no other CERF bundle. */
-        return RomContainsString("Jornada 720");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::Jornada720; }
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM";
     }
@@ -32,4 +27,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Jornada720Detector, BoardDetector);
+REGISTER_SERVICE_AS(Jornada720Context, BoardContext);

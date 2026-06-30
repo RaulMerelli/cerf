@@ -1,4 +1,4 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "zune_keel_framebuffer.h"
 
 #include "../../core/cerf_emulator.h"
@@ -13,7 +13,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::ZuneKeel;
     }
 

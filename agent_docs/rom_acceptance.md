@@ -96,7 +96,7 @@ Mirror the existing ones - they share a shape:
   recovered by validating the candidate ROMHDR against the container's own
   invariants (NOSAJ checks `physlast - physfirst == span`; ARNOLD checks
   `physfirst == candidate base`). This is ROM-content validation, the same kind
-  `BoardDetector` and the ECEC resolver already do - not a JIT/MMU heuristic.
+  the ECEC resolver already does - not a JIT/MMU heuristic.
 - A detection branch + an `is_<format>` flag in `ParseOne` / `ParsedRom` that
   sets `rom.flat` and `rom.flat_base_va`, then lets the shared ECEC/ROMHDR/TOC
   path run.
@@ -136,14 +136,13 @@ left to read its own storage.
 
 ## Where the file comes from
 
-`RomParserService::OnReady` resolves the file set: an explicit `rom_primary`
-(+ `rom_extensions`, or `rom_recovery` under `--recovery`) from `DeviceConfig`,
-else the first `*.nb0` / `*.bin` / `*.fim` found in the device directory.
-Selecting which file boots when a bundle ships several - a multi-ROM-file
-bundle such as a ROM plus a separate EEPROM image, which ROM content alone
-cannot disambiguate - is the one operational job `cerf.json`'s `rom` block
-legitimately does. Device facts (board, SoC, version, memory map) and the
-XIP / base / entry resolution above still come from the ROM's own bytes, never
-`cerf.json` or `meta` (`agent_docs/rules.md`). The bundled device tree
-(`bundled/devices/<name>/`) holds the original OEM file - the package or dump as
-shipped, not a derived artifact.
+`RomParserService::OnReady` resolves the file set from `DeviceConfig`:
+`rom_primary` (+ `rom_extensions`, or `rom_recovery` under `--recovery`), named
+in `cerf.json`'s `rom` block or via `--rom-primary` - the bootable file is
+declared, not searched for. The board is declared the same way (`cerf.json
+board.id` / `--board-id`), which selects the `BoardContext`. SoC, OS version,
+memory map, and the XIP / base / entry resolution above all still come from the
+ROM's own bytes, never `cerf.json` or `meta` (`agent_docs/rules.md` § "Per-device
+facts come from the ROM"). The bundled device tree (`bundled/devices/<name>/`)
+holds the original OEM file - the package or dump as shipped, not a derived
+artifact.

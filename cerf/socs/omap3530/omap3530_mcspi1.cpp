@@ -1,6 +1,6 @@
 #include "omap3530_mcspi1.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -40,7 +40,7 @@ constexpr uint32_t kRevisionValue      = 0x00000021u;
 REGISTER_SERVICE(Omap3530Mcspi1);
 
 bool Omap3530Mcspi1::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 

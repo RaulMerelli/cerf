@@ -1,4 +1,4 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../boot/guest_cold_boot.h"
 #include "../../core/cerf_emulator.h"
@@ -22,7 +22,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         if (!bd || bd->GetBoard() != Board::Smdk2410DevEmu) return false;
         return !emu_.Get<DeviceConfig>().guest_additions;
     }

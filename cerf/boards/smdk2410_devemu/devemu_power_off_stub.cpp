@@ -1,4 +1,4 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../boot/board_boot_placer.h"
 #include "../../boot/guest_cold_boot.h"
@@ -23,7 +23,7 @@ public:
     using BoardBootPlacer::BoardBootPlacer;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
 

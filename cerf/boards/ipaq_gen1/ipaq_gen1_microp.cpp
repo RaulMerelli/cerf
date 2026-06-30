@@ -1,6 +1,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/service.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
 #include "../../socs/sa11xx/sa11xx_sp1_uart.h"
@@ -65,7 +65,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 
@@ -188,7 +188,7 @@ public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 

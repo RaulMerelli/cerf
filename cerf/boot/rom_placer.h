@@ -12,6 +12,7 @@ struct ParsedRom;
 class RomPlacer : public Service {
 public:
     using Service::Service;
+    bool ShouldRegister() override;
     void OnReady() override;
 
 private:

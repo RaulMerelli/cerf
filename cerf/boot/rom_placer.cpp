@@ -6,6 +6,7 @@
 #include "guest_cold_boot.h"
 #include "rom_parser_service.h"
 
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
@@ -16,6 +17,11 @@
 #include <cstring>
 
 REGISTER_SERVICE(RomPlacer);
+
+bool RomPlacer::ShouldRegister() {
+    return emu_.Get<BoardContext>().GetRomPlacingMode()
+        == RomPlacingMode::FlatContainer;
+}
 
 bool RomPlacer::IsVolatilePa(uint32_t pa) {
     for (const auto& r : emu_.Get<PageTableBuilder>().BackedMemoryRegions()) {

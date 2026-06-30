@@ -1,7 +1,7 @@
 #include "../../core/service.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../socs/imx51/imx51_kpp.h"
 #include "../../socs/imx51/imx51_gpio3.h"
 
@@ -24,7 +24,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
     void OnReady() override {

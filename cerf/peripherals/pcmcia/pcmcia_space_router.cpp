@@ -1,6 +1,6 @@
 #include "pcmcia_space_router.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "pcmcia_slot.h"
@@ -15,7 +15,7 @@ constexpr uint16_t kFloat16 = 0xFFFFu;
 }  /* namespace */
 
 bool PcmciaSpaceRouter::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
     const SocFamily soc = bd->GetSoc();
     return soc == SocFamily::SA1110 || soc == SocFamily::PXA25x ||

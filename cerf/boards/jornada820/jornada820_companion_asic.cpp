@@ -1,7 +1,7 @@
 #include "jornada820_companion_asic.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/guest_cpu_reset.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
@@ -16,7 +16,7 @@ constexpr uint32_t kGpio = 14u;
 }  /* namespace */
 
 bool Jornada820CompanionAsic::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada820;
 }
 

@@ -2,9 +2,10 @@
 
 #include "../../boot/boot_mode.h"
 
-#include "../../boards/board_detector.h"
+#include "imx51_nand_store.h"
+
+#include "../../boards/board_context.h"
 #include "../../boot/guest_cold_boot.h"
-#include "../../boot/sec_flash.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
@@ -44,18 +45,16 @@ public:
     using BootMode::BootMode;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
-        if (!bd || bd->GetSoc() != SocFamily::iMX51) return false;
-        auto* sf = emu_.TryGet<SecFlash>();
-        return sf && sf->IsPresent();
+        return emu_.Get<BoardContext>().GetRomPlacingMode()
+            == RomPlacingMode::Imx51Nand;
     }
 
     void OnReady() override {
-        auto& sf = emu_.Get<SecFlash>();
+        auto& store = emu_.Get<Imx51NandStore>();
 
         uint64_t      hdr_off = 0;
         FlashHeaderV1 hdr{};
-        if (!FindHeader(sf, hdr_off, hdr)) {
+        if (!FindHeader(store, hdr_off, hdr)) {
             LOG(Caution, "Imx51NandBootloaderBoot: no flash_header_v1 in the "
                          "first %llu KB of NAND flash\n",
                 static_cast<unsigned long long>(kHeaderScanBytes / 1024));
@@ -80,12 +79,11 @@ public:
     uint32_t ColdStackPa() override { return kInitStackPa; }
 
 private:
-    bool FindHeader(SecFlash& sf, uint64_t& hdr_off, FlashHeaderV1& out) {
-        const uint64_t limit = std::min<uint64_t>(kHeaderScanBytes, sf.FlashSize());
+    bool FindHeader(Imx51NandStore& store, uint64_t& hdr_off, FlashHeaderV1& out) {
         for (uint64_t off = kFlashHdrOffset;
-             off + sizeof(FlashHeaderV1) <= limit; off += kFlashHdrOffset) {
+             off + sizeof(FlashHeaderV1) <= kHeaderScanBytes; off += kFlashHdrOffset) {
             FlashHeaderV1 h{};
-            if (sf.ReadFlash(off, &h, sizeof(h)) != sizeof(h)) break;
+            store.ReadMain(off, &h, sizeof(h));
             if (h.barker != kAppCodeBarker)                          continue;
             if (h.jump_vector < kNfcRamBase ||
                 h.jump_vector >= kNfcRamBase + kNfcRamSize)          continue;
@@ -98,11 +96,11 @@ private:
     }
 
     void Stage() {
-        auto& sf  = emu_.Get<SecFlash>();
-        auto& mem = emu_.Get<EmulatedMemory>();
+        auto& store = emu_.Get<Imx51NandStore>();
+        auto& mem   = emu_.Get<EmulatedMemory>();
         std::array<uint8_t, kNfcRamSize> buf{};
-        const size_t got = sf.ReadFlash(image_base_, buf.data(), buf.size());
-        mem.CopyIn(kNfcRamBase, buf.data(), static_cast<uint32_t>(got));
+        store.ReadMain(image_base_, buf.data(), buf.size());
+        mem.CopyIn(kNfcRamBase, buf.data(), buf.size());
     }
 
     uint64_t image_base_ = 0;

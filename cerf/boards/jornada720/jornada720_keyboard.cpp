@@ -5,7 +5,7 @@
 #include "../../host/keyboard_map.h"
 #include "../../host/keyboard_router.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 namespace {
 
@@ -13,7 +13,7 @@ class Jornada720KeyboardInput : public KeyboardInput {
 public:
     using KeyboardInput::KeyboardInput;
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada720;
     }
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
@@ -28,7 +28,7 @@ REGISTER_SERVICE(Jornada720Keyboard);
 REGISTER_SERVICE(Jornada720KeyboardInput);
 
 bool Jornada720Keyboard::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada720;
 }
 

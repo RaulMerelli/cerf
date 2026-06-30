@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../socs/imx51/imx51_uart1.h"
 #include "../../state/state_stream.h"
 
@@ -49,7 +49,7 @@ constexpr uint16_t kDefaultPageTimeout = 0x2000u;
 }  // namespace
 
 bool FordSync2BtHci::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::FordSyncGen2;
 }
 

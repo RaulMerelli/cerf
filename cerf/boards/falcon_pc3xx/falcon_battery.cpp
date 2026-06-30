@@ -5,7 +5,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
 #include "../../state/state_stream.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <cstdint>
 
@@ -35,7 +35,7 @@ public:
     explicit FalconBattery(CerfEmulator& e) : Service(e), battery_(e) {}
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 

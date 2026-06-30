@@ -102,13 +102,14 @@ fact gets a source.
   background it if you have parallel research). Note kernel/coredll/gwes/filesys/
   device/driver module names - driver names are SoC tells (e.g. `*_mx31.dll` →
   i.MX31).
-- **B2 - Board identity (PRIMARY heuristic: device-name string in the ROM).**
-  The single best fingerprint is the human device/OEM model string embedded in
-  the ROM blob - e.g. "iPAQ H3600" appears in that device's ROM and no other.
-  Search the raw bytes + extracted modules; cross-check the B1 driver names. This
-  is also the signature the `BoardDetector` will key on.
+- **B2 - Board identity (device-name string in the ROM).** The best way to
+  recognise the board is the human device/OEM model string embedded in the ROM
+  blob - e.g. "iPAQ H3600" appears in that device's ROM and no other. Search the
+  raw bytes + extracted modules; cross-check the B1 driver names. This identifies
+  *which* board you are bringing up; the running emulator selects it from the
+  declared `board_id` (`cerf.json board.id` / `--board-id`), not by scanning.
 - **B3 - Board already in CERF?** Read the `Board` enum in
-  `cerf/boards/board_detector.h`; list `cerf/boards/` + `bundled/devices/`. Match
+  `cerf/boards/board_context.h`; list `cerf/boards/` + `bundled/devices/`. Match
   the B2 identity → fully present / different-ROM-revision / absent.
 - **B4 - SoC / CPU family.** From the identity + driver/OEM names, determine the
   SoC, its ARM core, the ISA version (v4/v4T/v5/v6/v7) and the specific core
@@ -175,7 +176,7 @@ keep it a coarse index. Seed it with:
   CONCLUSIONS / BANNED APPROACHES.
 - **A standing `VERIFY GATE` line** (survives compaction): *"Every finished
   implementation chunk - a peripheral, an `ArmProcessorConfig`/`CoprocEmitter`,
-  the `PageTableBuilder`, the `BoardDetector`, the LCD/INTC/timer/
+  the `PageTableBuilder`, the `BoardContext`, the LCD/INTC/timer/
   DMA/touch models - is run through `/verify` BEFORE the next chunk, verdict
   recorded in that session's `/tracking update` (CODE STATE, verbatim with
   file:line). Never skip the gate on JIT/MMU/CPU changes."*
@@ -209,9 +210,11 @@ Pick the entry point from the table, then run § The bring-up loop:
   `ArmProcessorConfig`, `CoprocEmitter` from the ARM architecture
   reference manual + the core TRM (downloaded to `references/<soc>/` first), then
   the `PageTableBuilder` / memory map, then the peripheral loop.
-- **SoC supported (rows 6-7 ✅)** → start at the `BoardDetector` (keyed on the B2
-  device-name string) + the `PageTableBuilder` (crack the kernel's
-  OEMAddressTable in IDA), then the peripheral loop.
+- **SoC supported (rows 6-7 ✅)** → start at the `BoardContext` (a new concrete
+  reporting the board's constants; give the board an id, add it to the
+  `BoardContext` id table, and set `board.id` + `rom.primary` in the bundle's
+  cerf.json) + the `PageTableBuilder` (crack the kernel's OEMAddressTable in
+  IDA), then the peripheral loop.
 
 ---
 

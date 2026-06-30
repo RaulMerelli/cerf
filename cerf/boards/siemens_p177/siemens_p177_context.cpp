@@ -1,20 +1,17 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
-class SiemensP177Detector : public BoardDetector {
+class SiemensP177Context : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        return RomContainsString(R"(\platform\P177\target)");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()  const override { return Board::SiemensP177; }
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName() const override {
         return "Siemens SIMATIC TP177B 4\" (S3C2410, P177 BSP)";
     }
@@ -27,4 +24,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(SiemensP177Detector, BoardDetector);
+REGISTER_SERVICE_AS(SiemensP177Context, BoardContext);

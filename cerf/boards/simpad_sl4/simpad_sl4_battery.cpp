@@ -2,10 +2,10 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 bool SimpadSl4Battery::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::SimpadSl4;
 }
 

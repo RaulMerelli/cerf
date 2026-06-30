@@ -1,6 +1,6 @@
 #include "simpad_sl4_boot.h"
 
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../boot/board_boot_placer.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
@@ -17,7 +17,7 @@ public:
     using BoardBootPlacer::BoardBootPlacer;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SimpadSl4;
     }
 

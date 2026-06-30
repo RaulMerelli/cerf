@@ -231,8 +231,8 @@ class BundleManager:
                     existing.meta.device_name = remote_meta.device_name
                 if not existing.meta.board_name:
                     existing.meta.board_name = remote_meta.board_name
-                if not existing.meta.board_prev_names:
-                    existing.meta.board_prev_names = remote_meta.board_prev_names
+                if not existing.meta.board_id:
+                    existing.meta.board_id = remote_meta.board_id
                 if not existing.meta.soc_family:
                     existing.meta.soc_family = remote_meta.soc_family
                 if not existing.meta.os_name:

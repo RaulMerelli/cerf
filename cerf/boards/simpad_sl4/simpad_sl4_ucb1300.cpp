@@ -3,7 +3,7 @@
 #include "simpad_sl4_touch_panel.h"
 #include "simpad_sl4_battery.h"
 #include "simpad_sl4_keypad.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 
 #include <array>
@@ -48,7 +48,7 @@ public:
     using Sa11xxMcpCodec::Sa11xxMcpCodec;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SimpadSl4;
     }
 

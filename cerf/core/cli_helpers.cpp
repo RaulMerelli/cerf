@@ -1,5 +1,6 @@
 #include "cli_helpers.h"
 #include "log.h"
+#include "../boards/board_context.h"
 #include <cstdio>
 
 void PrintUsage(const char* prog) {
@@ -8,6 +9,8 @@ void PrintUsage(const char* prog) {
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");
     printf("  --device=NAME            Bundle to boot (default from cerf.json)\n");
+    printf("  --board-id=ID            Board to emulate (overrides cerf.json board.id; see list below)\n");
+    printf("  --rom-primary=FILE       Boot this ROM container (overrides cerf.json rom.primary)\n");
     printf("  --log=CATEGORIES         Enable only listed log categories (comma-sep)\n");
     printf("  --no-log=CATEGORIES      Disable specific categories\n");
     printf("  --log-file=PATH          Write logs to PATH (default cerf.log next to exe)\n");
@@ -30,5 +33,12 @@ void PrintUsage(const char* prog) {
     printf("  --full-screen            Enter borderless fullscreen (Right Ctrl+F) once the window is shown\n");
     printf("  --help                   Show this help\n");
     printf("\n");
+    printf("Board ids (cerf.json board.id / --board-id):\n  ");
+    bool first = true;
+    for (const auto& e : BoardContext::BoardIds()) {
+        printf("%s%s", first ? "" : ", ", e.id);
+        first = false;
+    }
+    printf("\n\n");
     Log::PrintCategoryList();
 }

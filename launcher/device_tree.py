@@ -151,13 +151,9 @@ class DeviceTreePanel:
         filter_bar = ttk.Frame(frame)
         filter_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self.var_hide_unsupported = tk.BooleanVar(value=True)
-        self.var_hide_no_metadata = tk.BooleanVar(value=True)
         ttk.Checkbutton(filter_bar, text="Hide unsupported",
                         variable=self.var_hide_unsupported,
                         command=self._refill).pack(side="left")
-        ttk.Checkbutton(filter_bar, text="Hide without metadata",
-                        variable=self.var_hide_no_metadata,
-                        command=self._refill).pack(side="left", padx=(8, 0))
         self.var_search = tk.StringVar(value="")
         search_entry = ttk.Entry(filter_bar, textvariable=self.var_search,
                                  width=22)
@@ -230,22 +226,14 @@ class DeviceTreePanel:
         tree.delete(*tree.get_children())
         self._payload.clear()
         hide_unsupported = self.var_hide_unsupported.get()
-        hide_no_metadata = self.var_hide_no_metadata.get()
         query = self.var_search.get().strip().lower()
         group_iids: Dict[str, str] = {}
         device_iids: List[str] = []
         for d in self.devices:
-            # "Hide unsupported" drops explicit supported:False boards.
-            # "Hide without metadata" drops unknown boards (no board_name, or
-            # not in supported_devices.py -> state None). The two are
-            # independent.
-            if hide_unsupported or hide_no_metadata:
-                state_flag = board_support_state(d.meta.board_name,
-                                                 d.meta.board_prev_names)
-                if hide_unsupported and state_flag is False:
-                    continue
-                if hide_no_metadata and state_flag is None:
-                    continue
+            # Drops anything not supported:True - both WIP (supported:False)
+            # and an unrecognised board.id (no supported_devices.py entry).
+            if hide_unsupported and board_support_state(d.meta.board_id) is not True:
+                continue
             if query and query not in _device_search_haystack(d):
                 continue
             board = d.meta.board_name or ""
@@ -260,7 +248,7 @@ class DeviceTreePanel:
             state = d.state_label
             os_label = _table_os_label(d)
             soc = d.meta.soc_family or ""
-            cpu = board_soc_cpu(d.meta.board_name, d.meta.board_prev_names)
+            cpu = board_soc_cpu(d.meta.board_id)
             badge = load_badge(self._icons_dir, cpu, self._badge_cache) \
                 if soc else None
             tree.insert(group_iid, "end", iid=d.name,

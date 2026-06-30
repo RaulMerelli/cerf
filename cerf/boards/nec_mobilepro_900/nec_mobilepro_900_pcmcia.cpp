@@ -6,7 +6,7 @@
 #include "../../peripherals/pcmcia/pcmcia_card_catalog.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 namespace {
 
@@ -23,7 +23,7 @@ NecMobilePro900Pcmcia::NecMobilePro900Pcmcia(CerfEmulator& emu)
       slot1_(emu, *this, L"PC Card slot") {}
 
 bool NecMobilePro900Pcmcia::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::NecMobilePro900;
 }
 

@@ -1,6 +1,6 @@
 #include "page_table_builder.h"
 
-#include "board_detector.h"
+#include "board_context.h"
 #include "../core/cerf_emulator.h"
 
 namespace {
@@ -10,7 +10,7 @@ public:
     using PageTableBuilder::PageTableBuilder;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardDetector>().GetBoard() == Board::Unknown;
+        return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
     }
 
     uint32_t InitStackTopPa() const override { return 0; }

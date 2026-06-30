@@ -53,8 +53,9 @@ void TraceManager::OnReady() {
 
 uint32_t TraceManager::ComputeBundleCrc32() const {
     uint32_t crc = 0;
-    for (const auto& rom : emu_.Get<RomParserService>().Loaded()) {
-        crc = Crc32Update(crc, rom.raw.data(), rom.raw.size());
+    if (auto* rom = emu_.TryGet<RomParserService>()) {
+        for (const auto& r : rom->Loaded())
+            crc = Crc32Update(crc, r.raw.data(), r.raw.size());
     }
     return crc;
 }

@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -12,7 +12,7 @@
    reserved bits 31:22 read 0. */
 
 bool Sa11xxPpc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && (bd->GetSoc() == SocFamily::SA1110 ||
                   bd->GetSoc() == SocFamily::SA1100);
 }

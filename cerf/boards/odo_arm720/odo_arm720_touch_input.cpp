@@ -1,6 +1,6 @@
 #include "../../host/touch_input.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 
 #include "odo_arm720_touch_sound.h"
@@ -12,7 +12,7 @@ public:
     using TouchInput::TouchInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
 

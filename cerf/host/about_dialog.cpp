@@ -6,7 +6,7 @@
 #include <gdiplus.h>
 #include <shellapi.h>
 
-#include "../boards/board_detector.h"
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/string_utils.h"
 #include "../version.h"
@@ -92,9 +92,9 @@ void AboutDialog::BuildControls(HWND hwnd) {
        tx, 180, tw, 18, IDC_TAGLINE);
 
     /* Current device, straight from the ROM-fingerprinting detector. */
-    auto& bd = emu_.Get<BoardDetector>();
+    auto& bd = emu_.Get<BoardContext>();
     std::wstring dev = L"Emulating:  " + Utf8ToWide(bd.BoardName());
-    const char* soc = BoardDetector::SocFamilyName(bd.GetSoc());
+    const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
     if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
         dev += L"  ·  " + Utf8ToWide(soc);
     mk(L"STATIC", dev.c_str(), SS_CENTER, tx, 206, tw, 18, IDC_DEVICE);

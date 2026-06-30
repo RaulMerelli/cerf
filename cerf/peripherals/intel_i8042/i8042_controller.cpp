@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
 
 #include <cstddef>
@@ -30,7 +30,7 @@ I8042Controller::I8042Controller(CerfEmulator& emu)
       mouse_([] {}) {}
 
 bool I8042Controller::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::NecRockhopper;
 }
 

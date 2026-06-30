@@ -51,6 +51,8 @@ struct DeviceConfig : public Service {
 
     std::string device_name;
 
+    std::string board_id;
+
     DeviceMeta meta;
 
     uint32_t board_configurable_screen_width  = 800;

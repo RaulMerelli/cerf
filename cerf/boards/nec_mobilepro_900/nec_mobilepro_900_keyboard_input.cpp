@@ -9,7 +9,7 @@
 #include "../../host/keyboard_map.h"
 #include "../../host/keyboard_router.h"
 #include "../../state/emulation_freeze.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "nec_mobilepro_900_pco_companion.h"
 
 #include <array>
@@ -43,7 +43,7 @@ public:
     }
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecMobilePro900;
     }
 

@@ -13,6 +13,8 @@ struct CerfConfig {
    DeviceConfig after cerf.json loads (so CLI overrides the json value).
    Listed here so ParseCerfArgs can recognize them instead of rejecting
    them as unknown. */
+inline constexpr char kArgBoardId[]        = "--board-id=";
+inline constexpr char kArgRomPrimary[]     = "--rom-primary=";
 inline constexpr char kArgScreenWidth[]    = "--screen-width=";
 inline constexpr char kArgScreenHeight[]   = "--screen-height=";
 inline constexpr char kArgScreenDpi[]      = "--screen-dpi=";

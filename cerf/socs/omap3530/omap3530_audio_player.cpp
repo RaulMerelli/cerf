@@ -2,7 +2,7 @@
 
 #include "omap3530_audio_player.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
@@ -18,7 +18,7 @@ constexpr uint8_t kCodecModeSub = 0x01u;   /* TWL_CODEC_MODE = 0x00490001. */
 }  /* namespace */
 
 bool Omap3530AudioPlayer::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::OMAP3530;
 }
 

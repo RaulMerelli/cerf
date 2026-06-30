@@ -1,6 +1,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <array>
 #include <cstdint>
@@ -42,7 +42,7 @@ public:
     using KeyboardMap::KeyboardMap;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecMobilePro900;
     }
 

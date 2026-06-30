@@ -153,8 +153,7 @@ class DetailsPanel:
         self.meta_vars["device_name"].set(device.meta.device_name or device.name)
         self.meta_vars["board_name"] .set(device.meta.board_name or "-")
         self.meta_vars["soc_family"] .set(device.meta.soc_family or "-")
-        badge = self._badge_image(
-            board_soc_cpu(device.meta.board_name, device.meta.board_prev_names))
+        badge = self._badge_image(board_soc_cpu(device.meta.board_id))
         self.soc_family_label.config(image=badge or "",
                                      compound="left" if badge else "none")
         self.meta_vars["os_version"] .set(device.meta.os_version or "-")
@@ -223,13 +222,11 @@ class DetailsPanel:
         # ROM-specific notes first, then board-wide quirks, then
         # predicate-gated dynamic notes - both from supported_devices.py.
         notes: List[str] = list(device.meta.notes)
-        notes += board_extra_notes(device.meta.board_name,
-                                   device.meta.board_prev_names)
+        notes += board_extra_notes(device.meta.board_id)
         notes += dynamic_extra_notes(device.meta.os_name,
                                      device.meta.os_ver_major,
                                      device.meta.os_ver_minor,
-                                     device.meta.board_name,
-                                     device.meta.board_prev_names)
+                                     device.meta.board_id)
         if notes:
             self.notes_label.config(text="\n".join(f"• {n}" for n in notes))
             self.notes_frame.grid()
@@ -274,8 +271,7 @@ class DetailsPanel:
     def _update_features(self, device: DeviceBundle) -> None:
         for child in self.features_icons.winfo_children():
             child.destroy()
-        features = board_features(device.meta.board_name,
-                                  device.meta.board_prev_names)
+        features = board_features(device.meta.board_id)
         shown = 0
         for key, filename, label in FEATURE_SPECS:
             if key not in features:  # absent -> board has no such hardware

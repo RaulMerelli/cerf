@@ -1,23 +1,19 @@
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include "../../core/cerf_emulator.h"
 
 namespace {
 
 /* NEC Rockhopper (DDB-VR5500A): VR5500 CPU module on the SolutionGear2 (SG2)
-   board, Windows CE 6, MIPS IV. Fingerprint: the board-unique "SG2_VR5500"
-   platform-type token (BSP IOCTL_PLATFORM_TYPE). */
-class NecRockhopperDetector : public BoardDetector {
+   board, Windows CE 6, MIPS IV. */
+class NecRockhopperContext : public BoardContext {
 public:
-    using BoardDetector::BoardDetector;
-
-    bool ShouldRegister() override {
-        return RomContainsString("SG2_VR5500");
-    }
+    using BoardContext::BoardContext;
 
     Board       GetBoard()   const override { return Board::NecRockhopper; }
     SocFamily   GetSoc()     const override { return SocFamily::VR5500; }
     CpuArch     GetCpuArch() const override { return CpuArch::Mips; }
+    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char* BoardName()  const override {
         return "NEC Rockhopper (DDB-VR5500A, MIPS VR5500, Windows CE 6)";
     }
@@ -31,4 +27,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(NecRockhopperDetector, BoardDetector);
+REGISTER_SERVICE_AS(NecRockhopperContext, BoardContext);

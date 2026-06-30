@@ -2,7 +2,7 @@
 
 #include "imx31_ipu.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -30,7 +30,7 @@ public:
 
     bool ShouldRegister() override {
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::iMX31;
     }
 

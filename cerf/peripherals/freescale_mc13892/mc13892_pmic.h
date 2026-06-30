@@ -2,7 +2,7 @@
 
 #include "../../socs/i2c_slave.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../state/state_stream.h"
 
@@ -18,7 +18,7 @@ public:
     using I2cSlave::I2cSlave;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
 

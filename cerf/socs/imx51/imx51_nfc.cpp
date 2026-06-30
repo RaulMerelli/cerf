@@ -1,8 +1,6 @@
 #include "imx51_nfc.h"
 #include "imx51_nand_store.h"
 
-#include "../../boards/board_detector.h"
-#include "../../boot/sec_flash.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
@@ -91,10 +89,7 @@ uint64_t DecodeNandAddr(uint8_t a0, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t 
 REGISTER_SERVICE(Imx51Nfc);
 
 bool Imx51Nfc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
-    if (!bd || bd->GetSoc() != SocFamily::iMX51) return false;
-    auto* sf = emu_.TryGet<SecFlash>();
-    return sf && sf->IsPresent();
+    return emu_.TryGet<Imx51NandStore>() != nullptr;
 }
 
 void Imx51Nfc::OnReady() {

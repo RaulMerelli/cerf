@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/rate_probe.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../jit/mips/mips_jit.h"
 #include "../../state/state_stream.h"
 
@@ -22,7 +22,7 @@ constexpr uint32_t kIpForOutput0 = 1u << 10;
 REGISTER_SERVICE(Vrc5477Intc);
 
 bool Vrc5477Intc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::VR5500;
 }
 

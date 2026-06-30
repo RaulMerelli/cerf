@@ -1,6 +1,6 @@
 #include "coproc_emitter.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -10,7 +10,7 @@ public:
     using CoprocEmitter::CoprocEmitter;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardDetector>().GetBoard() == Board::Unknown;
+        return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t* cursor, DecodedInsn*,

@@ -21,7 +21,7 @@ Guest code runs through a block JIT. Every ROM binary -
 userspace EXEs / driver DLLs - is the original guest code, translated
 to host x86 on the fly. `JitRunner` drives an abstract `GuestEngine`
 service; the concrete engine for the board's CPU architecture implements
-it, selected by `BoardDetector::GetCpuArch()`. Per-SoC variation lives in
+it, selected by `BoardContext::GetCpuArch()`. Per-SoC variation lives in
 per-core strategy services selected by `GetSoc()`, never as
 `if (soc == X)` branches in the JIT body.
 
@@ -42,7 +42,7 @@ Poseidon, … added when their boards land). Contains:
   etc.
 
 Concretes' `ShouldRegister` checks
-`emu_.Get<BoardDetector>().GetSoc() == SocFamily::X`. Chip-layer code
+`emu_.Get<BoardContext>().GetSoc() == SocFamily::X`. Chip-layer code
 never knows which board it's on - only which chip.
 
 The VA→PA placement map (`PageTableBuilder`) is **not** here, and the core
@@ -59,9 +59,9 @@ second SA-1110 board re-stating the die's MIDR is the smell).
 
 One directory per supported board. Contains:
 
-- `<board>_detector.cpp` - the concrete `BoardDetector` impl (heuristically
-  fingerprints the ROM bundle by a board-unique driver-blob signature in
-  the TOC; reports `Board` and `SocFamily` constants for that board)
+- `<board>_context.cpp` - the concrete `BoardContext` impl: reports the
+  `Board`, `SocFamily`, `CpuArch`, and `RomPlacingMode` constants for that
+  board, and registers when the configured `board_id` names it
 - `<board>_page_table_builder.cpp` - the board's `PageTableBuilder` impl:
   the BSP OEMAddressTable VA→PA map, DRAM/flash backed regions, and the
   bootloader-handoff SP, used for ROM placement and pre-MMU boot
@@ -72,7 +72,7 @@ One directory per supported board. Contains:
   DRAM struct the BSP reads on boot)
 
 Concretes' `ShouldRegister` checks
-`emu_.Get<BoardDetector>().GetBoard() == Board::X`. A board's BoardDetector
+`emu_.Get<BoardContext>().GetBoard() == Board::X`. A board's BoardContext
 is the only thing that has to know its board name; everything else just
 asks "am I on board X".
 
@@ -84,7 +84,7 @@ new sibling directories (e.g. `davicom_dm9000/` for the DM9000 NIC IC).
 
 Concretes' `ShouldRegister` checks a board-list:
 
-    auto b = emu_.Get<BoardDetector>().GetBoard();
+    auto b = emu_.Get<BoardContext>().GetBoard();
     return b == Board::X || b == Board::Y;
 
 The list grows when a new board adopts the same part - the part file is
@@ -98,7 +98,7 @@ code - framework and concretes - lives in this one tree.
 
 ### Trees vs bases
 
-Abstract bases (`BoardDetector`, `PageTableBuilder`,
+Abstract bases (`BoardContext`, `PageTableBuilder`,
 `Peripheral`) live next to their consumers (`cerf/boards/`, `cerf/core/`,
 `cerf/cpu/`, `cerf/peripherals/`), not under any per-impl tree.
 
@@ -175,7 +175,7 @@ bytes are silently absent after every hard reset on that board.
 The Win32 window, its drawable area, and the render/input plumbing that
 connects the host UI to the guest. All are `Service`s; the renderer,
 touch, and keyboard pieces are abstract bases with per-SoC/per-board
-concretes (strategy pattern, selected by `BoardDetector`).
+concretes (strategy pattern, selected by `BoardContext`).
 
 - **`HostWindow`** - the top-level window. Owns the dedicated UI thread
   (window + message pump live there, not the main thread), the menu, and
@@ -210,7 +210,7 @@ concretes (strategy pattern, selected by `BoardDetector`).
 
 - **`BootScreen`** - the boot screen behind the `Tab::Boot` tab: the CERF-logo
   fade-in/hold/fade-out intro, the optional OEM-logo fade-in ("Starting
-  <board>…", logo + short name from `BoardDetector::GetBootLogoResource` /
+  <board>…", logo + short name from `BoardContext::GetBootLogoResource` /
   `GetShortBoardName`), the held final state, and the `BootBar`. Time-driven
   off the 60 Hz present loop (no thread); `Restart` (guest reboot →
   "Restarting…", deep-sleep wake → "Resuming…") and `OnFramebufferLatched`
@@ -328,7 +328,7 @@ also matches ONE exact ROM image, never a class - a board has many ROMs
 (revisions, regions, generations, future user dumps), so CRC-gated behavior
 needs an unbounded checksum list and any unseen ROM gets nothing. Behavior
 that must hold for a class of ROMs uses a generalizing ROM-content fingerprint
-(the way `BoardDetector` does); CRC/bundle gating stays in diagnostics, where
+(the way `BoardContext` does); CRC/bundle gating stays in diagnostics, where
 its single-image, dev-only nature is exactly correct.
 
 The one production-built CRC-gated exception is the kernel-debug (`nkdbg/`)

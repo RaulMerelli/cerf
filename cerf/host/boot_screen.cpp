@@ -2,7 +2,7 @@
 
 #include "boot_screen.h"
 
-#include "../boards/board_detector.h"
+#include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/string_utils.h"
 #include "boot_bar.h"
@@ -56,7 +56,7 @@ void BootScreen::OnShutdown() {
 }
 
 void BootScreen::OnReady() {
-    auto& bd      = emu_.Get<BoardDetector>();
+    auto& bd      = emu_.Get<BoardContext>();
     oem_resource_ = bd.GetBootLogoResource();
     short_name_   = Utf8ToWide(bd.GetShortBoardName());
 }

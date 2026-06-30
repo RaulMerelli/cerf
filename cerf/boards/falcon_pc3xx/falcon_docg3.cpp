@@ -1,7 +1,7 @@
 #include "../../peripherals/msystems_docg3/msystems_docg3_base.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -16,7 +16,7 @@ public:
     using MsystemsDocG3Base::MsystemsDocG3Base;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
     }
 

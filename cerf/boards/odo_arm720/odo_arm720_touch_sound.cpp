@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
@@ -78,7 +78,7 @@ void OdoArm720TouchSound::OnShutdown() { StopPenTimerThread(); }
 OdoArm720TouchSound::~OdoArm720TouchSound() { StopPenTimerThread(); }
 
 bool OdoArm720TouchSound::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::OdoArm720;
 }
 

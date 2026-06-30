@@ -3,7 +3,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -85,7 +85,7 @@ constexpr uint8_t kUsb3317Id[4] = {0x24u, 0x04u, 0x06u, 0x00u};
 REGISTER_SERVICE(Imx51Usboh3);
 
 bool Imx51Usboh3::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::iMX51;
 }
 

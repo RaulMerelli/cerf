@@ -1,7 +1,7 @@
 #include "../../socs/sa11xx/sa11xx_mcp_codec.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>
@@ -17,7 +17,7 @@ public:
     using Sa11xxMcpCodec::Sa11xxMcpCodec;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
 

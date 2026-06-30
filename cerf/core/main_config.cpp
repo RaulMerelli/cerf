@@ -17,7 +17,9 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
             cfg.device_override = argv[i] + 9;
         } else if (strcmp(argv[i], "--allow-flood") == 0) {
             Log::SetAllowFlood(true);
-        } else if (strncmp(argv[i], kArgScreenWidth, sizeof(kArgScreenWidth) - 1) == 0 ||
+        } else if (strncmp(argv[i], kArgBoardId, sizeof(kArgBoardId) - 1) == 0 ||
+                   strncmp(argv[i], kArgRomPrimary, sizeof(kArgRomPrimary) - 1) == 0 ||
+                   strncmp(argv[i], kArgScreenWidth, sizeof(kArgScreenWidth) - 1) == 0 ||
                    strncmp(argv[i], kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0 ||
                    strncmp(argv[i], kArgScreenDpi, sizeof(kArgScreenDpi) - 1) == 0 ||
                    strncmp(argv[i], kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0 ||

@@ -4,7 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/service.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../host/host_icon_cache.h"
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
@@ -33,7 +33,7 @@ public:
     using Service::Service;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
 

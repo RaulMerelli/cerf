@@ -3,13 +3,13 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../jit/arm/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
 bool Pxa255Intc::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetSoc() == SocFamily::PXA25x;
 }
 

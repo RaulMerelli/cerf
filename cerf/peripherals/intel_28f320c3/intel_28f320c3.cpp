@@ -2,7 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../cpu/emulated_memory.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -19,7 +19,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const auto b = bd->GetBoard();
         return b == Board::IpaqGen1;

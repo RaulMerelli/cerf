@@ -1,6 +1,6 @@
 #include "wm9705_codec.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../state/state_stream.h"
@@ -34,7 +34,7 @@ constexpr uint16_t kBmonAdc        = 0x0FFFu;
 }  // namespace
 
 bool Wm9705Codec::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::FalconPC3xx;
 }
 

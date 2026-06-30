@@ -1,6 +1,6 @@
 #include "imx51_nand_layout.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../boot/sec_flash.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -64,7 +64,7 @@ void Wr32(uint8_t* p, size_t off, size_t len, uint32_t v) {
 }  /* namespace */
 
 bool Imx51NandLayout::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     if (!bd || bd->GetSoc() != SocFamily::iMX51) return false;
     auto* sf = emu_.TryGet<SecFlash>();
     return sf && sf->IsPresent();

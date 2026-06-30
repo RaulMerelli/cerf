@@ -3,10 +3,10 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 
 bool Jornada720Battery::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     return bd && bd->GetBoard() == Board::Jornada720;
 }
 

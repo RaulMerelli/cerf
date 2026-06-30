@@ -1,6 +1,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 
 #include <vector>
 
@@ -27,7 +27,7 @@ public:
     using KeyboardMap::KeyboardMap;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::ZuneKeel;
     }
 

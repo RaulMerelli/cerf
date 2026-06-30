@@ -1,6 +1,6 @@
 #include "nec_mobilepro_900_bootloader_seeder.h"
 
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "../../boot/guest_cold_boot.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
@@ -23,7 +23,7 @@ void NecMobilePro900BootloaderSeeder::Write() {
 
 bool NecMobilePro900BootloaderSeeder::BoardMatchesKernelMajor(
         uint16_t major) const {
-    auto* bd = emu_.TryGet<BoardDetector>();
+    auto* bd = emu_.TryGet<BoardContext>();
     if (!bd || bd->GetBoard() != Board::NecMobilePro900) return false;
     if (emu_.Get<DeviceConfig>().guest_additions) return false;
     uint16_t maj = 0, min = 0;

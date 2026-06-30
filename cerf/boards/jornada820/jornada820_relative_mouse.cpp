@@ -1,7 +1,7 @@
 #include "../../host/relative_mouse_input.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "jornada820_companion_asic.h"
 
 namespace {
@@ -11,7 +11,7 @@ public:
     using RelativeMouseInput::RelativeMouseInput;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
 

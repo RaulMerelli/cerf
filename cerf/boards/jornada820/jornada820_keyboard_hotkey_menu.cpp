@@ -1,6 +1,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_hotkey_menu.h"
-#include "../board_detector.h"
+#include "../board_context.h"
 #include "jornada820_keyboard.h"
 
 #include <cstdint>
@@ -27,7 +27,7 @@ public:
     using KeyboardHotkeyMenu::KeyboardHotkeyMenu;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
     }
 

@@ -1,7 +1,7 @@
 #include "../os_timer.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "sa11xx_intc.h"
 
 namespace {
@@ -14,7 +14,7 @@ public:
     using OsTimer::OsTimer;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
     }
 

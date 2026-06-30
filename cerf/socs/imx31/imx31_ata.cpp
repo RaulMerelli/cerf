@@ -4,7 +4,7 @@
 #include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../core/string_utils.h"
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../boards/board_ata_service.h"
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
@@ -64,7 +64,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::iMX31;
     }
     void OnReady() override {
