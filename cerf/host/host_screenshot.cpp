@@ -79,6 +79,36 @@ void HostScreenshot::Copy() {
     CopyPixels(px, w, h, emu_.Get<HostWindow>().Hwnd());
 }
 
+bool HostScreenshot::EncodePixels(const std::vector<uint32_t>& px, uint32_t w,
+                                  uint32_t h, const std::wstring& path) {
+    if (px.empty() || w == 0 || h == 0) return false;
+    CLSID png;
+    if (GetPngEncoderClsid(png) < 0) {
+        LOG(Caution, "HostScreenshot: no PNG encoder available\n");
+        return false;
+    }
+    Gdiplus::Bitmap bmp((INT)w, (INT)h, (INT)(w * 4),
+                        PixelFormat32bppRGB,
+                        reinterpret_cast<BYTE*>(const_cast<uint32_t*>(px.data())));
+    const Gdiplus::Status st = bmp.Save(path.c_str(), &png, nullptr);
+    if (st != Gdiplus::Ok) {
+        LOG(Caution, "HostScreenshot: GDI+ Save failed (status=%d)\n", (int)st);
+        return false;
+    }
+    return true;
+}
+
+void HostScreenshot::SaveGuestSurfaceTo(const std::wstring& path) {
+    std::vector<uint32_t> px;
+    uint32_t w = 0, h = 0;
+    if (!emu_.Get<HostCanvas>().CaptureGuestSurface(px, w, h)) {
+        LOG(Lcd, "HostScreenshot::SaveGuestSurfaceTo: no guest frame to capture\n");
+        return;
+    }
+    if (EncodePixels(px, w, h, path))
+        LOG(Lcd, "HostScreenshot::SaveGuestSurfaceTo: wrote %ux%u\n", w, h);
+}
+
 void HostScreenshot::SavePixels(const std::vector<uint32_t>& px, uint32_t w,
                                 uint32_t h, const std::wstring& name_hint) {
     if (px.empty() || w == 0 || h == 0) return;
@@ -89,22 +119,8 @@ void HostScreenshot::SavePixels(const std::vector<uint32_t>& px, uint32_t w,
     const std::wstring path =
         dir + SanitizeForFilename(name_hint) + L"_" + TimestampNow() + L".png";
 
-    CLSID png;
-    if (GetPngEncoderClsid(png) < 0) {
-        LOG(Caution, "HostScreenshot::SavePixels: no PNG encoder available\n");
-        return;
-    }
-
-    Gdiplus::Bitmap bmp((INT)w, (INT)h, (INT)(w * 4),
-                        PixelFormat32bppRGB,
-                        reinterpret_cast<BYTE*>(const_cast<uint32_t*>(px.data())));
-    const Gdiplus::Status st = bmp.Save(path.c_str(), &png, nullptr);
-    if (st != Gdiplus::Ok) {
-        LOG(Caution, "HostScreenshot::SavePixels: GDI+ Save failed (status=%d)\n",
-            (int)st);
-        return;
-    }
-    LOG(Lcd, "HostScreenshot::SavePixels: wrote %ux%u screenshot\n", w, h);
+    if (EncodePixels(px, w, h, path))
+        LOG(Lcd, "HostScreenshot::SavePixels: wrote %ux%u screenshot\n", w, h);
 }
 
 void HostScreenshot::CopyPixels(const std::vector<uint32_t>& px, uint32_t w,

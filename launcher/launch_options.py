@@ -14,7 +14,7 @@ from device_state import (
     write_persist_overrides,
 )
 from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
-from ui_theme import BG_FIELD, FG_DIM
+import ui_theme as theme
 
 
 # Common display resolutions the override slider snaps through, ordered by
@@ -63,26 +63,21 @@ class LaunchOptionsPanel:
         self._baseline: dict = {}
         self._restoring = False
 
-        opts = ttk.LabelFrame(inner, text="Launch options", padding=8)
-        opts.grid(row=row, column=0, sticky="ew", pady=(0, 8))
-        opts.columnconfigure(1, weight=1)
-        self.frame = opts
+        container = ttk.Frame(inner)
+        container.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+        container.columnconfigure(0, weight=1)
+        self.frame = container
         self.var_log_all   = tk.BooleanVar(value=False)
         self.var_no_net    = tk.BooleanVar(value=False)
         self.var_full_screen = tk.BooleanVar(value=False)
         self.var_guest_additions = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text="Enable all log channels", variable=self.var_log_all).grid(row=0, column=0, columnspan=2, sticky="w")
-        ttk.Checkbutton(opts, text="Disable network backend",
-                        variable=self.var_no_net,
-                        command=self._persist).grid(row=1, column=0, columnspan=2, sticky="w")
-        ttk.Checkbutton(opts, text="Borderless full screen",
-                        variable=self.var_full_screen,
-                        command=self._persist).grid(row=2, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=3, column=0, columnspan=3, sticky="ew", pady=6)
+        cfg = ttk.LabelFrame(container, text="Configuration", padding=8)
+        cfg.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        cfg.columnconfigure(0, weight=1)
 
-        guest = ttk.Frame(opts)
-        guest.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        guest = ttk.Frame(cfg)
+        guest.grid(row=0, column=0, sticky="ew")
         guest.columnconfigure(0, weight=1)
         ttk.Checkbutton(guest, text="Enable guest additions",
                         variable=self.var_guest_additions,
@@ -93,15 +88,16 @@ class LaunchOptionsPanel:
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(opts).grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        ttk.Separator(cfg, orient="horizontal").grid(row=1, column=0,
+                                                     sticky="ew", pady=8)
 
-        self.res_note = ttk.Label(opts, text="Resolution override:")
-        self.res_note.grid(row=6, column=0, columnspan=3, sticky="w")
+        self.res_note = ttk.Label(cfg, text="Resolution override:")
+        self.res_note.grid(row=2, column=0, sticky="w")
         self.var_width  = tk.StringVar(value="240")
         self.var_height = tk.StringVar(value="320")
         numeric_vcmd = (parent_window.register(self._is_optional_uint), "%P")
-        res_fields = ttk.Frame(opts)
-        res_fields.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        res_fields = ttk.Frame(cfg)
+        res_fields.grid(row=3, column=0, sticky="ew", pady=(2, 0))
         res_fields.columnconfigure(5, weight=1)
         self.width_entry = ttk.Entry(res_fields, textvariable=self.var_width, width=8,
                                      validate="key", validatecommand=numeric_vcmd)
@@ -127,11 +123,13 @@ class LaunchOptionsPanel:
         self.var_height.trace_add("write", self._on_res_text_changed)
         self._sync_slider_to_text()
 
-        ttk.Separator(opts).grid(row=8, column=0, columnspan=3, sticky="ew", pady=6)
+        ttk.Separator(cfg, orient="horizontal").grid(row=4, column=0,
+                                                     sticky="ew", pady=8)
+
         self.var_override_dpi = tk.BooleanVar(value=False)
         self.var_dpi = tk.StringVar(value="96")
-        dpi_head = ttk.Frame(opts)
-        dpi_head.grid(row=9, column=0, columnspan=3, sticky="ew")
+        dpi_head = ttk.Frame(cfg)
+        dpi_head.grid(row=5, column=0, sticky="ew")
         dpi_head.columnconfigure(0, weight=1)
         self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
                                          variable=self.var_override_dpi,
@@ -141,8 +139,8 @@ class LaunchOptionsPanel:
                                        command=lambda: show_dpi_help(self._window))
         self.dpi_help_btn.grid(row=0, column=1, sticky="e")
 
-        dpi_fields = ttk.Frame(opts)
-        dpi_fields.grid(row=10, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        dpi_fields = ttk.Frame(cfg)
+        dpi_fields.grid(row=6, column=0, sticky="ew", pady=(2, 0))
         dpi_fields.columnconfigure(3, weight=1)
         ttk.Label(dpi_fields, text="DPI").grid(row=0, column=0, sticky="w")
         self.dpi_entry = ttk.Entry(dpi_fields, textvariable=self.var_dpi, width=8,
@@ -155,6 +153,22 @@ class LaunchOptionsPanel:
         self.dpi_slider.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         self.var_dpi.trace_add("write", self._on_dpi_text_changed)
         self._sync_dpi_slider_to_text()
+
+        ttk.Separator(cfg, orient="horizontal").grid(row=7, column=0,
+                                                     sticky="ew", pady=8)
+
+        ttk.Checkbutton(cfg, text="Borderless full screen",
+                        variable=self.var_full_screen,
+                        command=self._persist).grid(row=8, column=0, sticky="w")
+
+        ttk.Separator(cfg, orient="horizontal").grid(row=9, column=0,
+                                                     sticky="ew", pady=8)
+
+        ttk.Checkbutton(cfg, text="Enable all log channels",
+                        variable=self.var_log_all).grid(row=10, column=0, sticky="w")
+        ttk.Checkbutton(cfg, text="Disable network backend",
+                        variable=self.var_no_net,
+                        command=self._persist).grid(row=11, column=0, sticky="w")
         self._refresh_dpi_state()
 
     def set_device(self, device: Optional[DeviceBundle]) -> None:
@@ -307,7 +321,8 @@ class LaunchOptionsPanel:
         self.width_entry.config(state=state)
         self.height_entry.config(state=state)
         self.res_slider.config(state=state)
-        self.res_preset_label.config(foreground=FG_DIM if enabled else BG_FIELD)
+        self.res_preset_label.config(
+            foreground=theme.FG_DIM if enabled else theme.BG_FIELD)
 
     def refresh_resolution_state(self) -> None:
         self._refresh_dpi_state()

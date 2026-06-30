@@ -17,7 +17,7 @@ from bundles import BundleError, is_large_download
 from device_state import DeviceBundle, PackageStatus, format_size
 from ui_dialogs import (confirm_rom_license, show_dialog, show_error, show_info,
                         show_source_thanks)
-from ui_theme import BG, LINK_FG, enable_dark_titlebar
+import ui_theme as theme
 
 _LAUNCHER = "launcher"
 _MANUAL = "manual"
@@ -30,7 +30,7 @@ def _ask_large(parent: tk.Misc, *, headline: str, link_url: str,
     link and unpack instructions. Returns _LAUNCHER / _MANUAL / _CANCEL."""
     dlg = tk.Toplevel(parent)
     dlg.title("Large download")
-    dlg.configure(bg=BG)
+    dlg.configure(bg=theme.BG)
     dlg.transient(parent)
     dlg.resizable(False, False)
     result = {"value": _CANCEL}
@@ -40,7 +40,7 @@ def _ask_large(parent: tk.Misc, *, headline: str, link_url: str,
     ttk.Label(body, text=headline, wraplength=460, justify="left").pack(
         anchor="w", pady=(0, 10))
 
-    link = ttk.Label(body, text=link_url, foreground=LINK_FG, cursor="hand2",
+    link = ttk.Label(body, text=link_url, foreground=theme.LINK_FG, cursor="hand2",
                      wraplength=460, justify="left")
     link.bind("<Button-1>", lambda _e: webbrowser.open(link_url))
     link.pack(anchor="w", pady=(0, 10))
@@ -64,7 +64,7 @@ def _ask_large(parent: tk.Misc, *, headline: str, link_url: str,
     dlg.bind("<Escape>", lambda _e: choose(_CANCEL))
 
     dlg.update_idletasks()
-    enable_dark_titlebar(dlg)
+    theme.apply_titlebar(dlg)
     w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
     x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
     y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
@@ -74,13 +74,7 @@ def _ask_large(parent: tk.Misc, *, headline: str, link_url: str,
     return result["value"]
 
 
-def gate_bundle_download(app, device: DeviceBundle) -> bool:
-    """License + source credit + (for large bundles) the launcher-vs-manual
-    gate. Returns True to proceed with the in-launcher download; False when the
-    user cancelled or chose the manual path (fully handled here)."""
-    if not confirm_rom_license(app, device.meta.device_name or device.name):
-        return False
-    show_source_thanks(app, device.meta.source)
+def gate_large_bundle(app, device: DeviceBundle) -> bool:
     remote = device.remote
     if not is_large_download(remote.archive_size):
         return True
@@ -99,11 +93,16 @@ def gate_bundle_download(app, device: DeviceBundle) -> bool:
         f"the launcher.")
     choice = _ask_large(app, headline=headline,
                         link_url=remote.archive_url, instructions=instructions)
-    if choice == _LAUNCHER:
-        return True
     if choice == _MANUAL:
         _manual_bundle(app, device)
-    return False
+    return choice == _LAUNCHER
+
+
+def gate_bundle_download(app, device: DeviceBundle) -> bool:
+    if not confirm_rom_license(app, device.meta.device_name or device.name):
+        return False
+    show_source_thanks(app, device.meta.source)
+    return gate_large_bundle(app, device)
 
 
 def _manual_bundle(app, device: DeviceBundle) -> None:

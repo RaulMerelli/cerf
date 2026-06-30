@@ -13,6 +13,7 @@
 #include "../cpu/emulated_memory.h"
 #include "../host/host_canvas.h"
 #include "../host/host_key_prompt.h"
+#include "../host/host_screenshot.h"
 #include "../host/guest_deep_sleep.h"
 #include "../host/host_widget_registry.h"
 #include "../host/host_window.h"
@@ -222,6 +223,17 @@ bool Hibernation::Save(const std::wstring& path_in) {
     /* Re-arm the framebuffer auto-switch so guest video returns on its
        next presented frame. */
     emu_.Get<HostWindow>().ShowHwScreenTab(true);
+
+    if (ok) {
+        const std::string dir =
+            GetDeviceDir(emu_.Get<DeviceConfig>().device_name);
+        const std::wstring png =
+            (std::filesystem::path(Utf8ToWide(dir.c_str())) / L"saved_state.png")
+                .wstring();
+        emu_.Get<HostWindow>().RunOnUiThread([this, png] {
+            emu_.Get<HostScreenshot>().SaveGuestSurfaceTo(png);
+        });
+    }
     return ok;
 }
 

@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Optional
 
-from ui_theme import BG
+import ui_theme as theme
 
 
 class ScrollColumn:
@@ -16,7 +16,8 @@ class ScrollColumn:
 
     def __init__(self, parent: tk.Misc, width: int,
                  on_width_changed: Optional[Callable[[int], None]] = None):
-        self._canvas = tk.Canvas(parent, bg=BG, highlightthickness=0, width=width)
+        self._canvas = tk.Canvas(parent, bg=theme.BG, highlightthickness=0,
+                                 width=width)
         self.scrollbar = ttk.Scrollbar(parent, orient="vertical",
                                        command=self._canvas.yview)
         self._canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -38,6 +39,9 @@ class ScrollColumn:
 
         self.bind_wheel(self._canvas)
         self.bind_wheel(self.inner)
+
+    def retheme(self) -> None:
+        self._canvas.config(bg=theme.BG)
 
     def grid(self, row: int, column: int, **kwargs) -> None:
         self._canvas.grid(row=row, column=column, **kwargs)

@@ -21,6 +21,11 @@ public:
     void Save();   /* main window -> <exe_dir>\screenshots\<device>_<ts>.png */
     void Copy();   /* main window -> clipboard as CF_DIB */
 
+    void SaveGuestSurfaceTo(const std::wstring& path);
+
+    static bool EncodePixels(const std::vector<uint32_t>& px, uint32_t w,
+                             uint32_t h, const std::wstring& path);
+
     /* Shared primitives over an already-captured top-down BGRA32 buffer. */
     void SavePixels(const std::vector<uint32_t>& px, uint32_t w, uint32_t h,
                     const std::wstring& name_hint);

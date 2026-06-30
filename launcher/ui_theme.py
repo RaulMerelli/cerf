@@ -1,5 +1,5 @@
-"""Dark theme: palette constants, ttk style setup, DPI awareness, and the
-Win32 dark titlebar attribute."""
+"""Theme: a light/dark palette chosen from the Windows app theme, ttk style
+setup, DPI awareness, and the Win32 immersive titlebar attribute."""
 from __future__ import annotations
 
 import ctypes
@@ -17,23 +17,96 @@ from device_state import (
 )
 
 
-BG          = "#1e1e1e"
-BG_LIGHTER  = "#252526"
-BG_FIELD    = "#2d2d30"
-BG_HOVER    = "#3c3c3c"
-BG_SELECTED = "#094771"
-FG          = "#e0e0e0"
-FG_DIM      = "#808080"
-BORDER      = "#3f3f46"
-UPDATE_LINK = "#e8c44a"  # yellow "update available" status-bar link
-LINK_FG     = "#569cd6"  # community links in the status bar
+def system_uses_dark() -> bool:
+    """Windows app theme via the documented HKCU Personalize key:
+    AppsUseLightTheme 1 = light, 0 = dark. Unreadable / non-Windows -> dark."""
+    if sys.platform != "win32":
+        return True
+    try:
+        import winreg
+        with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        return int(value) == 0
+    except (OSError, ValueError):
+        return True
 
-STATE_TINT = {
-    STATE_INSTALLED: "#1e3a1e",
-    STATE_UPDATE:    "#3a2f12",
-    STATE_AVAILABLE: BG_FIELD,
-    STATE_USER:      "#3a1e3a",
+
+_DARK_PALETTE: Dict[str, str] = {
+    "BG": "#1e1e1e", "BG_LIGHTER": "#252526", "BG_FIELD": "#2d2d30",
+    "BG_HOVER": "#3c3c3c", "BG_SELECTED": "#094771", "FG": "#e0e0e0",
+    "FG_DIM": "#808080", "BORDER": "#3f3f46", "UPDATE_LINK": "#e8c44a",
+    "LINK_FG": "#569cd6", "GROUP_BG": "#252526", "PREVIEW_STOPPED": "#cfcfcf",
+    "DANGER_FG": "#f48771", "WARN_FG": "#ffb900",
 }
+_LIGHT_PALETTE: Dict[str, str] = {
+    "BG": "#f3f3f3", "BG_LIGHTER": "#ffffff", "BG_FIELD": "#ffffff",
+    "BG_HOVER": "#e6e6e6", "BG_SELECTED": "#cce4f7", "FG": "#1b1b1b",
+    "FG_DIM": "#6b6b6b", "BORDER": "#c4c4c4", "UPDATE_LINK": "#8a5a00",
+    "LINK_FG": "#0a66c2", "GROUP_BG": "#ececec", "PREVIEW_STOPPED": "#8a8a8a",
+    "DANGER_FG": "#c42b1c", "WARN_FG": "#8a5a00",
+}
+
+IS_DARK = system_uses_dark()
+_PALETTE = _DARK_PALETTE if IS_DARK else _LIGHT_PALETTE
+
+BG          = _PALETTE["BG"]
+BG_LIGHTER  = _PALETTE["BG_LIGHTER"]
+BG_FIELD    = _PALETTE["BG_FIELD"]
+BG_HOVER    = _PALETTE["BG_HOVER"]
+BG_SELECTED = _PALETTE["BG_SELECTED"]
+FG          = _PALETTE["FG"]
+FG_DIM      = _PALETTE["FG_DIM"]
+BORDER      = _PALETTE["BORDER"]
+UPDATE_LINK = _PALETTE["UPDATE_LINK"]
+LINK_FG     = _PALETTE["LINK_FG"]
+GROUP_BG    = _PALETTE["GROUP_BG"]
+PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
+DANGER_FG   = _PALETTE["DANGER_FG"]
+WARN_FG     = _PALETTE["WARN_FG"]
+
+def _build_state_tint() -> dict:
+    return {
+        STATE_INSTALLED: "#1e3a1e" if IS_DARK else "#e3f3e3",
+        STATE_UPDATE:    "#3a2f12" if IS_DARK else "#fbf0d8",
+        STATE_AVAILABLE: BG_FIELD,
+        STATE_USER:      "#3a1e3a" if IS_DARK else "#f3e3f3",
+    }
+
+
+STATE_TINT = _build_state_tint()
+
+
+def refresh_palette() -> bool:
+    """Re-read the OS theme; if it changed since last time, swap the live
+    palette (every module reads colours as ui_theme.<NAME>) and return True so
+    the caller re-runs apply_theme + per-widget retheme(). No change -> False."""
+    global IS_DARK, _PALETTE, STATE_TINT
+    global BG, BG_LIGHTER, BG_FIELD, BG_HOVER, BG_SELECTED, FG, FG_DIM, BORDER
+    global UPDATE_LINK, LINK_FG, GROUP_BG, PREVIEW_STOPPED, DANGER_FG, WARN_FG
+    dark = system_uses_dark()
+    if dark == IS_DARK:
+        return False
+    IS_DARK = dark
+    _PALETTE = _DARK_PALETTE if dark else _LIGHT_PALETTE
+    BG          = _PALETTE["BG"]
+    BG_LIGHTER  = _PALETTE["BG_LIGHTER"]
+    BG_FIELD    = _PALETTE["BG_FIELD"]
+    BG_HOVER    = _PALETTE["BG_HOVER"]
+    BG_SELECTED = _PALETTE["BG_SELECTED"]
+    FG          = _PALETTE["FG"]
+    FG_DIM      = _PALETTE["FG_DIM"]
+    BORDER      = _PALETTE["BORDER"]
+    UPDATE_LINK = _PALETTE["UPDATE_LINK"]
+    LINK_FG     = _PALETTE["LINK_FG"]
+    GROUP_BG    = _PALETTE["GROUP_BG"]
+    PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
+    DANGER_FG   = _PALETTE["DANGER_FG"]
+    WARN_FG     = _PALETTE["WARN_FG"]
+    STATE_TINT = _build_state_tint()
+    return True
 
 
 def load_badge(icons_dir: Optional[Path], cpu: Optional[str],
@@ -66,7 +139,7 @@ def enable_dpi_awareness() -> None:
         pass
 
 
-def enable_dark_titlebar(window: tk.Misc) -> None:
+def apply_titlebar(window: tk.Misc) -> None:
     if sys.platform != "win32":
         return
     try:
@@ -74,14 +147,16 @@ def enable_dark_titlebar(window: tk.Misc) -> None:
         hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
         if hwnd == 0:
             hwnd = window.winfo_id()
-        value = ctypes.c_int(1)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+        value = ctypes.c_int(1 if IS_DARK else 0)
+        if ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 20, ctypes.byref(value), ctypes.sizeof(value)) != 0:
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
     except (OSError, AttributeError):
         pass
 
 
-def apply_dark_theme(root: tk.Tk) -> None:
+def apply_theme(root: tk.Tk) -> None:
     root.configure(bg=BG)
     style = ttk.Style(root)
     style.theme_use("clam")
@@ -145,8 +220,18 @@ def apply_dark_theme(root: tk.Tk) -> None:
               foreground=[("disabled", FG_DIM)],
               bordercolor=[("focus", "#1177bb")])
 
+    style.configure("Download.TButton",
+                    background="#107c10", foreground="#ffffff",
+                    bordercolor="#0b5a0b", padding=4, borderwidth=1)
+    style.map("Download.TButton",
+              background=[("pressed",  "#0b5a0b"),
+                          ("active",   "#168a16"),
+                          ("disabled", BG_FIELD)],
+              foreground=[("disabled", FG_DIM)],
+              bordercolor=[("focus", "#168a16")])
+
     style.configure("Danger.TButton",
-                    background=BG_FIELD, foreground="#f48771",
+                    background=BG_FIELD, foreground=DANGER_FG,
                     bordercolor="#a1260d", padding=4, borderwidth=1)
     style.map("Danger.TButton",
               background=[("pressed", "#5a1d1d"),
@@ -175,12 +260,12 @@ def apply_dark_theme(root: tk.Tk) -> None:
                               ("active",   BG_HOVER)])
 
     style.configure("Guest.TCheckbutton",
-                    background=BG, foreground="#9cdcfe",
+                    background=BG, foreground=LINK_FG,
                     focuscolor=BG, indicatorcolor=BG_FIELD,
                     font=("Segoe UI", 10, "bold"))
     style.map("Guest.TCheckbutton",
               background=[("active", BG)],
-              foreground=[("active", "#b5e4ff"),
+              foreground=[("active", LINK_FG),
                           ("disabled", FG_DIM)],
               indicatorcolor=[("selected", "#107c10"),
                               ("active",   BG_HOVER)])
@@ -190,7 +275,7 @@ def apply_dark_theme(root: tk.Tk) -> None:
     style.configure("Warn.TLabelframe", background=BG,
                     bordercolor="#9a6a00", lightcolor=BG, darkcolor=BG)
     style.configure("Warn.TLabelframe.Label", background=BG,
-                    foreground="#ffb900", font=("Segoe UI", 9, "bold"))
+                    foreground=WARN_FG, font=("Segoe UI", 9, "bold"))
 
     style.configure("Help.TButton", padding=(4, 1))
 

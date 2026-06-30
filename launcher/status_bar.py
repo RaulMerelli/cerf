@@ -8,7 +8,7 @@ from tkinter import ttk
 from typing import Optional
 
 from ui_dialogs import DISCORD_URL, GITHUB_URL, show_rom_submit_dialog
-from ui_theme import LINK_FG
+import ui_theme as theme
 
 
 class StatusBar:
@@ -22,13 +22,17 @@ class StatusBar:
             ("Please submit ROMs!", lambda: show_rom_submit_dialog(root)),
             ("GitHub",              lambda: webbrowser.open(GITHUB_URL)),
         )
+        self._link_labels: list[ttk.Label] = []
         for col, (text, action) in enumerate(links):
-            label = ttk.Label(bar, text=text, foreground=LINK_FG, cursor="hand2")
+            label = ttk.Label(bar, text=text, foreground=theme.LINK_FG,
+                              cursor="hand2")
             label.grid(row=0, column=col, sticky="w", padx=(0, 12))
             label.bind("<Button-1>", lambda _e, a=action: a())
+            self._link_labels.append(label)
 
         self.update_var = tk.StringVar(value="")
         self._update_url: Optional[str] = None
+        self._update_is_link = False
         self.update_link = ttk.Label(bar, textvariable=self.update_var, anchor="w")
         self.update_link.grid(row=0, column=3, sticky="w")
         self.update_link.bind("<Button-1>", self._on_update_link_click)
@@ -46,8 +50,16 @@ class StatusBar:
     def set_update_status(self, text: str, color: str, link: bool,
                           url: Optional[str] = None) -> None:
         self._update_url = url
+        self._update_is_link = link
         self.update_var.set(text)
         self.update_link.config(foreground=color, cursor=("hand2" if link else ""))
+
+    def retheme(self) -> None:
+        for label in self._link_labels:
+            label.config(foreground=theme.LINK_FG)
+        self.update_link.config(
+            foreground=theme.UPDATE_LINK if self._update_is_link
+            else theme.FG_DIM)
 
     def _on_update_link_click(self, _event: object) -> None:
         if self._update_url:

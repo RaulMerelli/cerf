@@ -8,7 +8,7 @@ from tkinter import ttk
 from typing import Callable, Optional
 
 from device_state import DeviceBundle, saved_state_info
-from ui_theme import BG_FIELD, BG_HOVER, FG
+import ui_theme as theme
 
 
 class LaunchSplitButton:
@@ -16,6 +16,7 @@ class LaunchSplitButton:
                  on_launch: Callable[[Optional[str]], None]) -> None:
         self._devices_dir = devices_dir
         self._device: Optional[DeviceBundle] = None
+        self._running = False
         self.frame = ttk.Frame(parent)
         self.btn_launch = ttk.Button(self.frame, text="Launch CERF",
                                      command=lambda: on_launch(None),
@@ -23,8 +24,9 @@ class LaunchSplitButton:
         self.btn_launch.grid(row=0, column=0, sticky="ns")
 
         self._menu = tk.Menu(self.frame, tearoff=0, bd=0,
-                             background=BG_FIELD, foreground=FG,
-                             activebackground=BG_HOVER, activeforeground=FG)
+                             background=theme.BG_FIELD, foreground=theme.FG,
+                             activebackground=theme.BG_HOVER,
+                             activeforeground=theme.FG)
         self._menu.add_command(label="Warm boot",
                                command=lambda: on_launch("warm"))
         self._menu.add_command(label="Cold boot",
@@ -53,9 +55,16 @@ class LaunchSplitButton:
         self._device = d
         self.refresh()
 
+    def set_running(self, running: bool) -> None:
+        if running == self._running:
+            return
+        self._running = running
+        self.btn_launch.config(text="Show CERF" if running else "Launch CERF")
+        self.refresh()
+
     def refresh(self) -> None:
         d = self._device
-        has_state = (d is not None and d.is_installed
+        has_state = (not self._running and d is not None and d.is_installed
                      and saved_state_info(self._devices_dir / d.name) is not None)
         if has_state:
             self._btn_boot.grid()
@@ -66,3 +75,8 @@ class LaunchSplitButton:
         state = "normal" if enabled else "disabled"
         self.btn_launch.config(state=state)
         self._btn_boot.config(state=state)
+
+    def retheme(self) -> None:
+        self._menu.config(background=theme.BG_FIELD, foreground=theme.FG,
+                          activebackground=theme.BG_HOVER,
+                          activeforeground=theme.FG)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -24,6 +25,14 @@ STATE_USER      = "User device"
 # Mirrors CERF's kDefaultStateFile (cerf/state/state_image_format.h): the
 # hibernation .img cerf.exe writes/reads in each device directory.
 STATE_IMAGE_FILENAME = "state.img"
+
+# Saved-state preview PNG cerf.exe writes beside state.img on a successful
+# hibernation save (cerf/state/hibernation.cpp Hibernation::Save).
+SAVED_STATE_SCREENSHOT_FILENAME = "saved_state.png"
+
+# Live preview PNG cerf.exe refreshes periodically while running
+# (cerf/host/live_screenshot_reporter.cpp).
+LIVE_STATE_SCREENSHOT_FILENAME = "live_state.png"
 
 
 @dataclass
@@ -169,6 +178,36 @@ def saved_state_info(device_dir: Path) -> Optional[SavedStateInfo]:
     except OSError:
         return None
     return SavedStateInfo(saved_at=st.st_mtime, size=st.st_size)
+
+
+CERF_STATUS_FILENAME = "cerf-status.json"
+RUNNING_STALE_SECONDS = 7.0
+
+
+@dataclass
+class RunningStatus:
+    pid: int
+    hwnd: int
+    heartbeat_unix: int
+    started_unix: int
+
+
+def running_status(device_dir: Path) -> Optional[RunningStatus]:
+    obj = _load_json_object(device_dir / CERF_STATUS_FILENAME)
+    if obj is None:
+        return None
+    hb = obj.get("heartbeat_unix")
+    if not isinstance(hb, (int, float)) or isinstance(hb, bool):
+        return None
+    if time.time() - float(hb) >= RUNNING_STALE_SECONDS:
+        return None
+
+    def _int(v) -> int:
+        return v if isinstance(v, int) and not isinstance(v, bool) else 0
+
+    return RunningStatus(pid=_int(obj.get("pid")), hwnd=_int(obj.get("hwnd")),
+                         heartbeat_unix=int(hb),
+                         started_unix=_int(obj.get("started_unix")))
 
 
 def format_size(n: Optional[int]) -> str:

@@ -9,7 +9,7 @@ from typing import Dict, Optional
 
 from app_paths import resolve_ga_banner
 from device_state import DeviceSource
-from ui_theme import BG, BG_FIELD, BORDER, FG, LINK_FG, enable_dark_titlebar
+import ui_theme as theme
 
 
 DISCORD_URL       = "https://discord.gg/QREE9Y2v2d"
@@ -23,7 +23,7 @@ def show_dialog(parent: tk.Misc, title: str, message: str,
                 default: Optional[str] = None) -> str:
     dlg = tk.Toplevel(parent)
     dlg.title(title)
-    dlg.configure(bg=BG)
+    dlg.configure(bg=theme.BG)
     dlg.transient(parent)
     dlg.resizable(False, False)
     result = {"value": default if default is not None else buttons[-1]}
@@ -47,7 +47,7 @@ def show_dialog(parent: tk.Misc, title: str, message: str,
     dlg.bind("<Escape>", lambda _e: dlg.destroy())
 
     dlg.update_idletasks()
-    enable_dark_titlebar(dlg)
+    theme.apply_titlebar(dlg)
     w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
     x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
     y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
@@ -113,12 +113,12 @@ def show_guest_additions_help(parent: tk.Misc) -> None:
 
     dlg = tk.Toplevel(parent)
     dlg.title("Guest additions")
-    dlg.configure(bg=BG)
+    dlg.configure(bg=theme.BG)
     dlg.transient(parent)
     dlg.resizable(False, False)
 
     banner = tk.PhotoImage(file=str(path))
-    lbl = ttk.Label(dlg, image=banner, background=BG)
+    lbl = ttk.Label(dlg, image=banner, background=theme.BG)
     lbl.image = banner  # keep a reference so Tk doesn't GC the image
     lbl.pack()
 
@@ -126,7 +126,7 @@ def show_guest_additions_help(parent: tk.Misc) -> None:
     lbl.bind("<Button-1>", lambda _e: dlg.destroy())
 
     dlg.update_idletasks()
-    enable_dark_titlebar(dlg)
+    theme.apply_titlebar(dlg)
     w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
     x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
     y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
@@ -156,8 +156,25 @@ def show_rom_submit_dialog(parent: tk.Misc) -> None:
         webbrowser.open(GITHUB_ISSUES_URL)
 
 
+def show_update_available(parent: tk.Misc, remote_version: str,
+                          url: str) -> None:
+    choice = show_dialog(
+        parent,
+        "A new CERF version is available",
+        f"CERF {remote_version} is out - you're running an older build.\n\n"
+        "Updating is strongly recommended. Newer builds add features and "
+        "fixes, and the ROM bundle catalog keeps advancing - ROM downloads "
+        "and updates may not work correctly, or may break, on an outdated "
+        "CERF.\n\n"
+        "Get the latest CERF:",
+        buttons=("Download", "Later"),
+        default="Later")
+    if choice == "Download":
+        webbrowser.open(url)
+
+
 def _link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
-    lbl = ttk.Label(parent, text=text, foreground=LINK_FG, cursor="hand2")
+    lbl = ttk.Label(parent, text=text, foreground=theme.LINK_FG, cursor="hand2")
     lbl.bind("<Button-1>", lambda _e: webbrowser.open(url))
     return lbl
 
@@ -169,37 +186,42 @@ def _maybe_link(parent: tk.Misc, text: str, url: str) -> ttk.Label:
 
 
 def show_source_thanks(parent: tk.Misc, source: DeviceSource) -> None:
-    """Modeless acknowledgement of the ROM's preservation source, shown right
-    after the abandonware license is accepted. Deliberately does NOT grab focus
-    or wait_window: the download the caller kicks off keeps running in the
-    background while this stays on screen. No-op when the source carries no
-    links (nothing to offer the user)."""
-    if source is None or not source.has_links:
+    show_sources_thanks(parent, [source] if source is not None else [])
+
+
+def show_sources_thanks(parent: tk.Misc, sources) -> None:
+    distinct: list = []
+    seen: set = set()
+    for s in sources:
+        if s is not None and s.has_links and s.name not in seen:
+            seen.add(s.name)
+            distinct.append(s)
+    if not distinct:
         return
 
     dlg = tk.Toplevel(parent)
     dlg.title("ROM preservation")
-    dlg.configure(bg=BG)
+    dlg.configure(bg=theme.BG)
     dlg.transient(parent)
     dlg.resizable(False, False)
 
     body = ttk.Frame(dlg, padding=16)
     body.pack(fill="both", expand=True)
-    ttk.Label(body, wraplength=420, justify="left",
-              text=f"This ROM bundle was preserved and provided by "
-                   f"{source.name}.").pack(anchor="w")
-
-    ask = ttk.Frame(body)
-    ask.pack(anchor="w", pady=(10, 0))
-    ttk.Label(ask, text="Would you like to ").pack(side="left")
-    _maybe_link(ask, "pay them a visit", source.website).pack(side="left")
-    ttk.Label(ask, text=" or ").pack(side="left")
-    _maybe_link(ask, "support them", source.donate).pack(side="left")
-    ttk.Label(ask, text="?").pack(side="left")
-
-    if source.origin:
-        ttk.Label(body, text="").pack(anchor="w")  # one blank line
-        _link_label(body, "Source data link", source.origin).pack(anchor="w")
+    for i, source in enumerate(distinct):
+        if i:
+            ttk.Label(body, text="").pack(anchor="w")
+        ttk.Label(body, wraplength=420, justify="left",
+                  text=f"This ROM bundle was preserved and provided by "
+                       f"{source.name}.").pack(anchor="w")
+        ask = ttk.Frame(body)
+        ask.pack(anchor="w", pady=(6, 0))
+        ttk.Label(ask, text="Would you like to ").pack(side="left")
+        _maybe_link(ask, "pay them a visit", source.website).pack(side="left")
+        ttk.Label(ask, text=" or ").pack(side="left")
+        _maybe_link(ask, "support them", source.donate).pack(side="left")
+        ttk.Label(ask, text="?").pack(side="left")
+        if source.origin:
+            _link_label(body, "Source data link", source.origin).pack(anchor="w")
 
     btns = ttk.Frame(body)
     btns.pack(anchor="e", pady=(14, 0))
@@ -210,7 +232,7 @@ def show_source_thanks(parent: tk.Misc, source: DeviceSource) -> None:
     dlg.bind("<Escape>", lambda _e: dlg.destroy())
 
     dlg.update_idletasks()
-    enable_dark_titlebar(dlg)
+    theme.apply_titlebar(dlg)
     w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
     x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
     y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
@@ -225,8 +247,8 @@ def bind_tooltip(widget: tk.Widget, text: str) -> None:
             return
         tip = tk.Toplevel(widget)
         tip.wm_overrideredirect(True)
-        tip.configure(bg=BORDER)
-        ttk.Label(tip, text=text, background=BG_FIELD, foreground=FG,
+        tip.configure(bg=theme.BORDER)
+        ttk.Label(tip, text=text, background=theme.BG_FIELD, foreground=theme.FG,
                   padding=(6, 2)).pack(padx=1, pady=1)
         x = widget.winfo_rootx()
         y = widget.winfo_rooty() + widget.winfo_height() + 2
