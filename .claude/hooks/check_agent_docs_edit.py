@@ -5,12 +5,12 @@ or is the top-level CLAUDE.md, warn that this edit requires explicit user
 authorization.
 
 Per CLAUDE.md: "All `agent_docs/` pages are user-curated. Do NOT edit them
-drive-by because a filename looks like where your note belongs — these
+drive-by because a filename looks like where your note belongs - these
 files land in every future agent's system prompt and a stray edit silently
 reshapes it. Edits happen only when the user directs one or when an
 approved skill (e.g. session-feedback) runs with explicit user sign-off."
 
-CLAUDE.md is the source of truth for the entire project — every edit
+CLAUDE.md is the source of truth for the entire project - every edit
 reshapes every future agent's system prompt.
 
 Advisory: the hook cannot tell whether THIS specific edit was authorized.
@@ -20,6 +20,8 @@ explicitly directed it, ignore the warning and proceed.
 import json
 import os
 import sys
+
+import _hookpath
 
 
 def main() -> int:
@@ -32,7 +34,7 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     tool_response = payload.get("tool_response") or {}
-    file_path = tool_response.get("filePath") or tool_input.get("file_path")
+    file_path = _hookpath.normalize(tool_response.get("filePath") or tool_input.get("file_path"))
     if not file_path:
         return 0
 
@@ -56,7 +58,7 @@ def main() -> int:
         body = (
             "Per CLAUDE.md: 'All agent_docs/ pages are user-curated. Do NOT "
             "edit them drive-by because a filename looks like where your "
-            "note belongs — these files land in every future agent's system "
+            "note belongs - these files land in every future agent's system "
             "prompt and a stray edit silently reshapes it. Edits happen "
             "only when the user directs one or when an approved skill "
             "(e.g. session-feedback) runs with explicit user sign-off.'"

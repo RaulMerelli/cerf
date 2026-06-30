@@ -26,6 +26,8 @@ import json
 import os
 import sys
 
+import _hookpath
+
 SCAN_EXTS = (".py", ".cpp", ".c", ".h", ".hpp", ".ps1", ".cmd", ".bat", ".md")
 
 # em dash, en dash, horizontal bar (chr() keeps this file ASCII-only).
@@ -40,7 +42,7 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     tool_response = payload.get("tool_response") or {}
-    file_path = tool_response.get("filePath") or tool_input.get("file_path")
+    file_path = _hookpath.normalize(tool_response.get("filePath") or tool_input.get("file_path"))
     if not file_path:
         return 0
     if not file_path.lower().endswith(SCAN_EXTS):

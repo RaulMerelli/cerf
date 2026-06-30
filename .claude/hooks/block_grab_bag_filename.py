@@ -18,8 +18,8 @@ contains any of these words anywhere, the file is caught:
 That catches every shape of grab-bag the rule warns against:
   - misc.cpp / misc2.cpp                       (bare)
   - cli_helpers.h / foo_utils.cpp              (suffix)
-  - arm_neon_2regmisc.cpp                      (compound — embedded)
-  - arm_neon_2regmisc_decoder.cpp              (compound — embedded)
+  - arm_neon_2regmisc.cpp                      (compound - embedded)
+  - arm_neon_2regmisc_decoder.cpp              (compound - embedded)
   - emit_neon_data_2regmisc_absneg.cpp         (multi-segment)
 
 If your file's name happens to contain one of these words even
@@ -31,10 +31,12 @@ import os
 import re
 import sys
 
+import _hookpath
+
 SOURCE_EXTS = (".cpp", ".h", ".hpp", ".cc", ".c")
 
-# Substring match — any of these words anywhere in the basename.
-# `extras?(?!ct)` — match `extra` / `extras` only when NOT followed by
+# Substring match - any of these words anywhere in the basename.
+# `extras?(?!ct)` - match `extra` / `extras` only when NOT followed by
 # `ct`, so `extract` / `extracted` / `extractor` / `extraction` pass
 # through. Those are legitimate technical verbs (the codebase has
 # extract-* scripts and extraction-pipeline names).
@@ -53,7 +55,7 @@ def main() -> int:
         return 0
 
     tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path", "")
+    file_path = _hookpath.normalize(tool_input.get("file_path", ""))
     if not file_path:
         return 0
 
@@ -73,24 +75,24 @@ def main() -> int:
     if not file_exists:
         reason = (
             f"BLOCKED: creating '{basename}' violates CLAUDE.md / "
-            f"agent_docs/code_style.md § 'No misc/grab-bag files' — "
+            f"agent_docs/code_style.md § 'No misc/grab-bag files' - "
             f"basename contains grab-bag word '{matched_word}'.\n\n"
             f"Per the rule: 'never create files named misc.cpp, "
             f"helpers.cpp, others.cpp, misc2.cpp, or any similar "
             f"catch-all. Every file must have a clear, specific name "
             f"describing its responsibility. If code has no obvious "
-            f"home, create a properly named file or ask the user — "
+            f"home, create a properly named file or ask the user - "
             f"never dump it in a junk drawer.'\n\n"
             f"The rule is filename-shape, not agent-judgement: if "
             f"the basename contains misc / helpers / util / extras / "
             f"others anywhere, it's caught. Compound names with the "
             f"word embedded (arm_neon_2regmisc.cpp, "
-            f"foo_misc_decoder.cpp, cli_helpers.h) are not exempt — "
+            f"foo_misc_decoder.cpp, cli_helpers.h) are not exempt - "
             f"those are the exact shapes that have repeatedly turned "
             f"into 20+-unrelated-op dumping grounds.\n\n"
             f"Pick a name that describes the file's single "
             f"responsibility in one sentence WITHOUT using any of "
-            f"those words. If you can't, the file shouldn't exist — "
+            f"those words. If you can't, the file shouldn't exist - "
             f"STOP and ask the user where this code belongs."
         )
         out = {
@@ -108,9 +110,9 @@ def main() -> int:
         msg = (
             f"GRAB-BAG-EDIT-WARNING: you are editing '{basename}', a "
             f"forbidden grab-bag filename per CLAUDE.md / "
-            f"agent_docs/code_style.md § 'No misc/grab-bag files' — "
+            f"agent_docs/code_style.md § 'No misc/grab-bag files' - "
             f"basename contains grab-bag word '{matched_word}'.\n\n"
-            f"The file ALREADY exists — likely a legacy / pre-hook "
+            f"The file ALREADY exists - likely a legacy / pre-hook "
             f"landing, or the user is paying for a refactor to "
             f"DELETE it. Edits ARE allowed here because the agent "
             f"must be able to read it, move content out, and "
@@ -118,7 +120,7 @@ def main() -> int:
             f"separately hard-blocked.\n\n"
             f"END GOAL: move every piece of code in this file into "
             f"a properly-named file describing one responsibility, "
-            f"then DELETE this file. Do NOT extend it — every new "
+            f"then DELETE this file. Do NOT extend it - every new "
             f"piece you add here is one more thing the next "
             f"refactor session has to migrate out. If you are "
             f"adding code to a misc/helpers/util file 'just because "

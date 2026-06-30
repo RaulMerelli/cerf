@@ -7,7 +7,7 @@ unfiltered `tm.OnPc(VA, ...)` calls where VA is a user-mode address
 On every Windows CE family CERF supports, every guest process maps its
 EXE image at user-VA 0x10000 and shared user-mode DLLs (coredll,
 ceshell, commctrl, …) at 0x40000000+. Those VAs ALIAS across every
-process running through them — FCSE on CE5/v5, ASID on CE6/CE7/v7, the
+process running through them - FCSE on CE5/v5, ASID on CE6/CE7/v7, the
 collision shape is the same: a bare `tm.OnPc(<user-VA>, ...)` fires
 for ANY process executing that VA, not just the one the hook's name
 claims. Findings drawn from such fires are unreliable across sessions.
@@ -28,6 +28,8 @@ import os
 import re
 import sys
 
+import _hookpath
+
 
 # Match `tm.OnPc(0x...hex...u?, ...` where the hex address starts with
 # a digit 0-7 (i.e. < 0x80000000 = user-mode). The leading whitespace
@@ -47,7 +49,7 @@ def main() -> int:
         return 0
 
     tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path") or ""
+    file_path = _hookpath.normalize(tool_input.get("file_path") or "")
 
     # Only fire on cerf/tracing/**/*.cpp.
     norm = file_path.replace("\\", "/")
@@ -84,7 +86,7 @@ def main() -> int:
         "where VA is in the user-mode range (< 0x80000000) WITHOUT a "
         "process filter. On every Windows CE family CERF supports, "
         "guest processes share user-mode VAs (EXE images at 0x10000, "
-        "shared DLLs at 0x40000000+) — an unfiltered OnPc fires for "
+        "shared DLLs at 0x40000000+) - an unfiltered OnPc fires for "
         "ANY process executing that VA, not just the one this hook's "
         "name claims. Findings drawn from such fires are unreliable.",
         "",
@@ -96,13 +98,13 @@ def main() -> int:
         "",
         "If you genuinely want to observe every process executing this "
         "VA, document WHY in a comment naming the specific multi-process "
-        "use case — but the default expectation under this rule is that "
+        "use case - but the default expectation under this rule is that "
         "every user-VA OnPc is filtered.",
         "",
         f"  Hits: {file_path}",
     ]
     for line_no, va, line_text in hits[:20]:
-        msg_lines.append(f"    line {line_no}: {va}  — `{line_text}`")
+        msg_lines.append(f"    line {line_no}: {va}  - `{line_text}`")
     if len(hits) > 20:
         msg_lines.append(f"    … and {len(hits) - 20} more")
 

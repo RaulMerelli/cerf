@@ -3,19 +3,21 @@
 PreToolUse hook for Write|Edit on C/C++ source. HARD-BLOCKS any attempt
 to introduce a `#pragma comment(lib, ...)` directive.
 
-Library link dependencies belong in the .vcxproj — concretely in
+Library link dependencies belong in the .vcxproj - concretely in
 cerf/cerf.vcxproj for CERF. Scattering lib pragmas across source makes
 the link surface invisible to the build system, routes dependency
 changes through source edits rather than project metadata, and bypasses
 the per-config / per-platform link selection the .vcxproj provides.
 
 Returns permissionDecision: "deny" on match. Only inspects writes to
-C/C++ source files — documentation files that mention the pragma as an
+C/C++ source files - documentation files that mention the pragma as an
 example are not affected.
 """
 import json
 import re
 import sys
+
+import _hookpath
 
 PRAGMA_LIB_RE = re.compile(r"#\s*pragma\s+comment\s*\(\s*lib\b", re.IGNORECASE)
 
@@ -31,7 +33,7 @@ def main() -> int:
         return 0
 
     tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path", "")
+    file_path = _hookpath.normalize(tool_input.get("file_path", ""))
     if not file_path.lower().endswith(SOURCE_EXTS):
         return 0
 

@@ -19,6 +19,8 @@ import json
 import os
 import sys
 
+import _hookpath
+
 
 def main() -> int:
     try:
@@ -30,7 +32,7 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     tool_response = payload.get("tool_response") or {}
-    file_path = tool_response.get("filePath") or tool_input.get("file_path")
+    file_path = _hookpath.normalize(tool_response.get("filePath") or tool_input.get("file_path"))
     if not file_path:
         return 0
 
@@ -47,7 +49,7 @@ def main() -> int:
         f"CHECKLIST-EDIT: you just modified {rel}. Per CLAUDE.md "
         f"§ 'NEVER edit the checklist without user approval': the "
         f"checklist is the user's document. Per-edit authorization is "
-        f"REQUIRED — a prior 'yes, edit X' does NOT carry over to THIS "
+        f"REQUIRED - a prior 'yes, edit X' does NOT carry over to THIS "
         f"edit. If the user did NOT explicitly authorize THIS specific "
         f"edit in this turn, REVERT immediately and surface the "
         f"deviation back to the user. Silent agent rewrites of the "

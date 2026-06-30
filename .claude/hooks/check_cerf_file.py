@@ -1,52 +1,52 @@
 #!/usr/bin/env python3
 """
 PostToolUse hook for Write|Edit on C/C++ source files (.cpp/.h/.hpp/.cc/.c).
-Python files (.py) get check 1 (LINE-COUNT) only — every other check parses
+Python files (.py) get check 1 (LINE-COUNT) only - every other check parses
 C/C++ comment syntax. .claude/hooks/ is exempt from the line cap, mirroring
 the pre-commit hook.
 Warns about:
-  1. LINE-COUNT      — file > 500 lines (the pre-commit hook will reject it).
-  2. BAILOUT-COMMENT — TODO / FIXME / HACK / XXX / "for now" / "temporary" /
+  1. LINE-COUNT      - file > 500 lines (the pre-commit hook will reject it).
+  2. BAILOUT-COMMENT - TODO / FIXME / HACK / XXX / "for now" / "temporary" /
                        "deferred" / "placeholder" / "good enough" /
-                       "clean up later" / "fix later" / etc. — in comments only.
-  3. LEAK-DEV-EMU    — "dev_emu_src" anywhere in the file. This is an internal
+                       "clean up later" / "fix later" / etc. - in comments only.
+  3. LEAK-DEV-EMU    - "dev_emu_src" anywhere in the file. This is an internal
                        reference-tree path and must never appear in source.
-  4. LEAK-CHECKLIST  — "docs/ai_checklists" path or any *.md filename under
+  4. LEAK-CHECKLIST  - "docs/ai_checklists" path or any *.md filename under
                        that dir. Checklists are confidential per
                        agent_docs/code_style.md § Comments and
                        agent_docs/rules.md.
-  5. REFERENCE-COMMENT — a comment references another `cerf/...path...\.cpp`
+  5. REFERENCE-COMMENT - a comment references another `cerf/...path...\.cpp`
                        (or .h) file. Often dead-weight narration ("Body lives
                        in X", "moved to Y", "out-of-line in Z") per
-                       agent_docs/code_style.md § Comments. Advisory — agent
+                       agent_docs/code_style.md § Comments. Advisory - agent
                        must self-check whether the reference adds technical
                        substance or is pointer-only narration.
-  6. BLOATED-COMMENT — /* ... */ block comments that are ≥5 lines OR contain
+  6. BLOATED-COMMENT - /* ... */ block comments that are ≥5 lines OR contain
                        internal blank lines (multi-paragraph essays). Forces
                        the agent to evaluate each block: real technical
                        comment or rotten yapping. Pre-existing comments are
-                       NOT excluded — touching the file means owning its rot.
-  7. REFERENCE-TREE-PATH — a comment cites a path under references/. That
+                       NOT excluded - touching the file means owning its rot.
+  7. REFERENCE-TREE-PATH - a comment cites a path under references/. That
                        tree is a gigabytes-scale external reference dump
                        (chip datasheets, BSP source archives, ARM ARM
                        excerpts). Pointing to a path in it is dead-weight
                        narration; the comment should inline the SUBSTANCE
                        (specific bits, register fields, BSP behaviour) or
                        not exist.
-  8. DECISION-DEFENSE-COMMENT — comment phrasing that defends the current
+  8. DECISION-DEFENSE-COMMENT - comment phrasing that defends the current
                        approach against an alternative ("Do NOT <X>",
                        "rather than", "instead of", "we chose",
                        "originally / previously / used to"). The worst
                        bloat shape: decision-history disguised as a
                        caution. Fires by CONTENT regardless of comment
-                       size — the canonical offender is below the bloat
+                       size - the canonical offender is below the bloat
                        size trigger. Razor test in the message: would a
                        fresh reader with no knowledge of the alternative
                        write this warning from the code alone?
-  9. ALWAYS-BAILOUT — scheduling-verb phrasings ("deferred to/until/for",
+  9. ALWAYS-BAILOUT - scheduling-verb phrasings ("deferred to/until/for",
                        "placeholder until X", "to/will be implemented",
                        "TODO: implement X", "implement X later", etc.).
-                       The BAILOUT-COMMENT FP gate does NOT rescue these —
+                       The BAILOUT-COMMENT FP gate does NOT rescue these -
                        there's no "specific technical mechanism" defence
                        because the phrasing IS the deferral. Exists to
                        close the dodge where agents invoke the FP gate
@@ -67,6 +67,8 @@ import os
 import re
 import sys
 
+import _hookpath
+
 CAP = 500
 
 BAILOUT_WORDS_RE = re.compile(
@@ -77,7 +79,7 @@ BAILOUT_WORDS_RE = re.compile(
 )
 
 # Scheduling-verb phrasings that document FUTURE WORK in a comment.
-# Unconditional bailouts — the BAILOUT-COMMENT FP gate does NOT apply
+# Unconditional bailouts - the BAILOUT-COMMENT FP gate does NOT apply
 # (there is no "specific technical mechanism" defence because the
 # phrasing itself IS the deferral, not a technical term that happens
 # to share a word). This category exists because agents repeatedly
@@ -99,13 +101,13 @@ DEV_EMU_RE = re.compile(r"\bdev_emu_src\b", re.IGNORECASE)
 
 CHECKLIST_PATH_RE = re.compile(r"docs/ai_checklists\b", re.IGNORECASE)
 
-# Decision-defense phrasing in a comment — the worst bloat shape. A
+# Decision-defense phrasing in a comment - the worst bloat shape. A
 # comment whose reason to exist is to warn a reader AWAY from an
 # alternative the author considered / removed, or to justify the
 # current approach by contrast. Fires regardless of comment SIZE (the
 # canonical offender is only 3-4 lines, below the bloat size trigger),
 # so it is detected by content, not structure. "do not" / "don't" are
-# included despite also appearing in legitimate hazard notes — the
+# included despite also appearing in legitimate hazard notes - the
 # emitted message carries the razor test (system-invariant a fresh
 # reader would hit, vs defending the author's journey) so a real
 # hazard clears in one step while decision-defense is deleted.
@@ -119,18 +121,18 @@ DECISION_DEFENSE_RE = re.compile(
 
 # Path under the references/ tree mentioned in a comment. The tree is
 # gitignored and gigabytes-scale (chip datasheets, BSP archives, ARM
-# manual excerpts) — enumerating filenames is impractical, so just
+# manual excerpts) - enumerating filenames is impractical, so just
 # match the literal `references/<something>` shape. The substance the
 # referenced doc contains belongs inline; the path itself does not.
 REFERENCES_TREE_RE = re.compile(r"\breferences/[\w./_-]+", re.IGNORECASE)
 
 # Source-file reference in a comment, matched by basename (path prefix
-# optional). Requires at least one underscore in the basename — that's
+# optional). Requires at least one underscore in the basename - that's
 # the CERF naming convention (`arm_jit.cpp`, `emit_ldr_word.cpp`,
 # `s3c2410_intc.cpp`, …) and it also automatically excludes common
 # system headers that have no underscore (`windows.h`, `stdio.h`,
 # `commctrl.h`, `aygshell.h`, `ceshell.h`, etc.). Trade-off: misses
-# single-word CERF files like `mmu.cpp` — acceptable, those are rare.
+# single-word CERF files like `mmu.cpp` - acceptable, those are rare.
 CERF_FILE_REF_RE = re.compile(r"\b[\w-]*_[\w_-]*\.(?:cpp|h)\b")
 
 
@@ -232,7 +234,7 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     tool_response = payload.get("tool_response") or {}
-    file_path = tool_response.get("filePath") or tool_input.get("file_path")
+    file_path = _hookpath.normalize(tool_response.get("filePath") or tool_input.get("file_path"))
 
     if not file_path:
         return 0
@@ -267,12 +269,12 @@ def main() -> int:
             warnings.append(
                 f"LINE-COUNT: {rel_path} is now {line_count} lines (cap={CAP}). "
                 f"The pre-commit hook will reject the commit. Split by "
-                f"responsibility BEFORE continuing — coupling grows fast, "
+                f"responsibility BEFORE continuing - coupling grows fast, "
                 f"refactor while it's still cheap. See agent_docs/code_style.md "
                 f'"File & Symbol Style".'
             )
 
-    # Python files get only the line-cap check — every other check below
+    # Python files get only the line-cap check - every other check below
     # parses C/C++ comment syntax.
     if is_py:
         return emit_warnings(warnings, rel_path)
@@ -332,13 +334,13 @@ def main() -> int:
             always_bailout_hits,
             "THE BAILOUT-COMMENT FALSE-POSITIVE GATE DOES NOT APPLY TO "
             "THIS CATEGORY. The phrasings caught here document FUTURE "
-            "WORK being scheduled in a comment — there is no 'specific "
+            "WORK being scheduled in a comment - there is no 'specific "
             "technical mechanism' defence because the phrasing IS the "
             "deferral, not a technical term that happens to share a "
-            "word. The canonical dodge — agent naming something "
+            "word. The canonical dodge - agent naming something "
             "technical nearby (a NEON instruction, a register, a Win32 "
             "API) and claiming the matched word referred to that "
-            "instead of to deferral — is explicitly closed for these "
+            "instead of to deferral - is explicitly closed for these "
             "phrasings.\n\n"
             "Caught shapes (all unconditional bailouts):\n"
             "  'deferred to next batch' / 'deferred until X is wired'\n"
@@ -355,7 +357,7 @@ def main() -> int:
             "There is no 'next batch' in CLAUDE.md. There is no 'next "
             "session'. There is no scheduled-for-later. The comment "
             "documenting it is the disclosure that the code is "
-            "incomplete — fix the code or stop, but the phrasing "
+            "incomplete - fix the code or stop, but the phrasing "
             "itself must not survive into the committed file.\n\n"
             "REPHRASING the comment to drop the deferral verb while "
             "leaving the code unchanged is the Euphemism Smuggling / "
@@ -368,7 +370,7 @@ def main() -> int:
         warnings.append(fmt_block(
             "BAILOUT-COMMENT",
             bailout_hits,
-            "FALSE-POSITIVE GATE — READ FIRST: this is a regex, not a "
+            "FALSE-POSITIVE GATE - READ FIRST: this is a regex, not a "
             "semantic analyzer. Words matched here ('deferred', 'placeholder', "
             "'temporary', 'for now', 'later', etc.) have legitimate technical "
             "uses in CE / Win32 / JIT code: CE Deferred Procedure Calls "
@@ -377,16 +379,16 @@ def main() -> int:
             "algorithm; 'later' as sequencing in a narrative (\"the cache is "
             "flushed later\"). If you can name the SPECIFIC technical "
             "mechanism the matched word is describing in this exact spot, "
-            "this is a false positive — ignore the rest of this message and "
+            "this is a false positive - ignore the rest of this message and "
             "proceed. If you CANNOT point to a specific mechanism, the "
             "warning applies and the remainder below is for you.\n\n"
             "SEVERE: this bailout token in a comment is the VISIBLE TIP of "
-            "HIDDEN INCOMPLETE CODE below it. The bug is NOT the comment — "
+            "HIDDEN INCOMPLETE CODE below it. The bug is NOT the comment - "
             "the bug is whatever the comment is admitting is unfinished. "
             "This anti-pattern has shipped broken JIT / SoC code more than "
             "TEN times in CERF history, with downstream debugging costing "
             "WEEKS per function once the half-finished path actually fires.\n\n"
-            "TWO RESPONSES TO THIS HOOK ARE FORBIDDEN — they are how the "
+            "TWO RESPONSES TO THIS HOOK ARE FORBIDDEN - they are how the "
             "ten prior incidents landed:\n"
             "  (1) REPHRASING the comment to drop the bailout token while "
             "      leaving the code unchanged. 'For now: foo' → 'Currently: "
@@ -395,7 +397,7 @@ def main() -> int:
             "      named in agent_docs/rules.md § Bailout Patterns. The "
             "      smell is preserved; only the disclosure is gone.\n"
             "  (2) DELETING the comment entirely while leaving the code "
-            "      unchanged. WORSE than the original bailout — the "
+            "      unchanged. WORSE than the original bailout - the "
             "      disclosure was protecting future readers from "
             "      rediscovering the bug under a fresh debugging budget. "
             "      A silently-stripped comment turns the eventual "
@@ -404,7 +406,7 @@ def main() -> int:
             "  (a) IMPLEMENT the missing logic NOW, in full, so the "
             "      comment is no longer needed AND the code is complete.\n"
             "  (b) STOP the task, REVERT the incomplete code, and surface "
-            "      the blocker to the user as a direction request — "
+            "      the blocker to the user as a direction request - "
             "      'I cannot complete X because Y, here are the options'.\n\n"
             "If you find yourself about to reword OR delete this comment "
             "without ALSO completing the code beneath it: STOP. You are "
@@ -440,7 +442,7 @@ def main() -> int:
             checklist_name_hits,
             "A *.md filename from docs/ai_checklists/ appears in this file. "
             "Checklist filenames are confidential (see pre-commit hook). The "
-            "fix is NOT to reword — re-read agent_docs/code_style.md § "
+            "fix is NOT to reword - re-read agent_docs/code_style.md § "
             "Comments and reconsider whether the comment should exist at all.",
         ))
 
@@ -451,7 +453,7 @@ def main() -> int:
             "A comment cites a path under references/. That tree is a "
             "gigabytes-scale external reference dump (chip datasheets, "
             "BSP source archives, ARM manual excerpts) and is gitignored. "
-            "Pointing to a path in it is dead-weight narration — the "
+            "Pointing to a path in it is dead-weight narration - the "
             "comment should inline the SUBSTANCE the doc says at that "
             "point (specific bits, register fields, BSP function "
             "behaviour) or not exist at all. The PATH itself helps "
@@ -467,7 +469,7 @@ def main() -> int:
             "  3. (Rare) if the comment ALREADY inlines the substance "
             "and the path was just decoration, DELETE only the path.\n\n"
             "Common shape this catches: 'we use X instead of Y; see "
-            "references/foo/bar.txt' — both halves are bloat. The 'we "
+            "references/foo/bar.txt' - both halves are bloat. The 'we "
             "use X instead of Y' is design narration (the FAIL example "
             "in BLOATED-COMMENT), and the references/ pointer is "
             "dead-weight redirection.",
@@ -479,7 +481,7 @@ def main() -> int:
             cerf_ref_hits,
             "A comment references another cerf/ source file by path. Per "
             "agent_docs/code_style.md § Comments: 'A comment that still "
-            "makes sense moved to a random file is dead weight — useful "
+            "makes sense moved to a random file is dead weight - useful "
             "comments are glued to the specific code below them. Generic "
             "narration (\"lives in X\", \"moved to Y\", \"out-of-line in Z\") "
             "reads the same anywhere because it says nothing about what's "
@@ -502,22 +504,22 @@ def main() -> int:
             "('Do NOT <approach>', 'rather than', 'instead of', 'we "
             "chose', 'originally / previously / used to'). The code IS "
             "the approach. Nobody needs to be argued out of the path "
-            "not taken — that path is absent from git history and "
+            "not taken - that path is absent from git history and "
             "irrelevant to a fresh reader. A comment defending your "
             "own design decision is decision-history, not a "
             "description of the code.\n\n"
-            "RAZOR TEST — apply to EACH hit:\n"
+            "RAZOR TEST - apply to EACH hit:\n"
             "  Would a fresh reader, with ZERO knowledge that any "
             "alternative was ever considered, write this exact warning "
             "from the code alone? If NO → it leaks your decision "
             "history → DELETE it.\n\n"
             "THE ONE EXCEPTION (do not abuse it): a genuine "
-            "forward-facing hazard — a NON-OBVIOUS SYSTEM INVARIANT a "
-            "fresh reader would plausibly violate — stated as a "
+            "forward-facing hazard - a NON-OBVIOUS SYSTEM INVARIANT a "
+            "fresh reader would plausibly violate - stated as a "
             "PROPERTY OF THE SYSTEM, not as 'don't undo my choice'. "
             "Rewrite to the positive invariant form:\n"
             "  BAD  (decision-defense): 'Do NOT VirtualCopy the region "
-            "— that's the approach we removed.'\n"
+            "- that's the approach we removed.'\n"
             "  OK   (system invariant): 'Mapping the full framebuffer "
             "overflows the 32 MB process slot above ~Full HD, so the "
             "surface base is the FB physical address, not a mapped "
@@ -552,12 +554,12 @@ def main() -> int:
             f"CERF are AI-generated bloat. The bar for keeping a comment "
             f"is high and the burden of proof is on you. If you cannot "
             f"pass BOTH tests below for a block, the block goes.\n\n"
-            f"TEST 1 — FAILURE: name the SPECIFIC, CONCRETE FAILURE that "
+            f"TEST 1 - FAILURE: name the SPECIFIC, CONCRETE FAILURE that "
             f"a future agent triggers by ignoring this comment and "
             f"editing the code the way the comment is silently warning "
             f"against. Write it as one sentence: 'if Y, then Z breaks "
             f"because W'. No failure namable → DELETE.\n\n"
-            f"TEST 2 — REDUNDANCY: would a competent CERF reader "
+            f"TEST 2 - REDUNDANCY: would a competent CERF reader "
             f"(someone who has read CLAUDE.md + agent_docs/) infer this "
             f"from the surrounding code + STANDARD PROJECT CONVENTIONS "
             f"(cfg comes from cerf.json; BSPs only write the registers "
@@ -572,10 +574,10 @@ def main() -> int:
             f"narration. Both tests above must pass.\n\n"
             f"PASS examples (specific failure named, NOT inferrable "
             f"from standard conventions):\n"
-            f"  /* MUST be after PinHostState — Mmu::Translate uses the\n"
+            f"  /* MUST be after PinHostState - Mmu::Translate uses the\n"
             f"     host TLB directly and a stale entry from the prior\n"
             f"     process returns the wrong PA. */\n"
-            f"  /* Read XSIZE/YSIZE before PDISP_PD=1 — the regs read 0\n"
+            f"  /* Read XSIZE/YSIZE before PDISP_PD=1 - the regs read 0\n"
             f"     once powered down (BSP odo_display.c:142), and the\n"
             f"     renderer would publish a 0-by-0 frame. */\n\n"
             f"FAIL examples (look technical, fail Test 1 or Test 2):\n"
@@ -596,10 +598,10 @@ def main() -> int:
             f"'Why X not Y' / 'rather than' / 'we chose' framings are "
             f"BANNED EVEN WITH A CITATION. The reader doesn't need "
             f"alternatives history. If picking Y would genuinely break, "
-            f"the comment is 'DO NOT switch to Y — Z breaks because W'. "
+            f"the comment is 'DO NOT switch to Y - Z breaks because W'. "
             f"Otherwise, no comment.\n\n"
             f"If a block fails either test → DELETE the entire block. "
-            f"Not 'rephrase', not 'shrink' — DELETE. A 50-line essay "
+            f"Not 'rephrase', not 'shrink' - DELETE. A 50-line essay "
             f"distilled to 4 lines is acceptable, but ONLY if every "
             f"surviving line passes both tests. If nothing survives, "
             f"the whole block goes.\n\n"
@@ -607,7 +609,7 @@ def main() -> int:
             f"comment. Well-named identifiers explain the WHAT. Write a "
             f"comment only when the WHY is non-obvious. Keep it short.'\n\n"
             f"PRE-EXISTING COMMENTS ARE NOT EXCLUDED. You touched this "
-            f"file — you own its rot. 'It was already there' / 'another "
+            f"file - you own its rot. 'It was already there' / 'another "
             f"session wrote it' is not a defence.\n\nYou are very bad "
             f"at writing code comments - consider NOT WRITING them at all. Please."
             f"Hits:\n{sample}"
