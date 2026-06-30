@@ -246,6 +246,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>CERF/Launcher UI/UX improvements</li>
               <li>Added tools\fileserver.py in build directory (simple directory serving web server)</li>
               <li>Microsoft Reference Platform: added full PS/2 key mapping set</li>
+              <li>Launcher/config loader: Save settings into cerf-user.json</li>
             </ul>
           </td>
         </tr>
