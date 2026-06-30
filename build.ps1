@@ -12,6 +12,13 @@ param(
 # D:\a\cerf\cerf on a GitHub Actions runner, anything in between).
 Set-Location $PSScriptRoot
 
+# Refresh the clangd config so editor/agent C++ diagnostics match the real
+# build flags (vcpkg includes, MSVC STL, -std=c++20). Cheap and idempotent.
+$genClangd = Join-Path $PSScriptRoot "tools\gen_clangd.ps1"
+if (Test-Path $genClangd) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $genClangd
+}
+
 # vcpkg MSBuild integration -- required for manifest-mode restore of libslirp + glib.
 # One-time setup: run 'vcpkg integrate install' from the VS-bundled vcpkg at
 # "<VS install>\VC\vcpkg\vcpkg.exe" (ships with the C++ desktop workload).
