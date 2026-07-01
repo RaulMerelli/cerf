@@ -162,13 +162,13 @@ class DeviceCardList:
                 self._rows[key] = self._make_header(payload)
 
         desired_seq = [self._rows[key] for key, _, _, _ in desired]
-        if self._inner.winfo_children() != desired_seq:
+        if self._inner.pack_slaves() != desired_seq:
             for idx, widget in enumerate(desired_seq):
-                children = self._inner.winfo_children()
-                if idx < len(children) and children[idx] is widget:
+                order = self._inner.pack_slaves()
+                if idx < len(order) and order[idx] is widget:
                     continue
-                if idx < len(children):
-                    widget.pack_configure(before=children[idx])
+                if idx < len(order):
+                    widget.pack_configure(before=order[idx])
                 else:
                     widget.pack_configure()
 
