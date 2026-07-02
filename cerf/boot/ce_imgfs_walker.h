@@ -12,6 +12,7 @@ constexpr uint32_t kMagicModule  = 0xFFFFFEFEu;
 constexpr uint32_t kMagicFile    = 0xFFFFF6FEu;
 constexpr uint32_t kMagicName    = 0xFFFFFEFBu;
 constexpr uint32_t kMagicSection = 0xFFFFF6FDu;
+constexpr uint32_t kMagicModuleSection = 0xFFFFFEFDu;
 constexpr uint32_t kDirMagic     = 0x2F5314CEu;
 constexpr uint32_t kDirentSize   = 52;
 

@@ -261,7 +261,7 @@ std::vector<ImgfsModule> CollectModules(std::span<const uint8_t> raw,
         while (j < refs.size()) {
             const uint32_t mj = refs[j].magic;
             if (mj == kMagicName) { ++j; continue; }
-            if (mj != kMagicSection) break;
+            if (mj != kMagicSection && mj != kMagicModuleSection) break;
             const size_t seo = refs[j].abs_file_off;
             const uint8_t* sd = raw.data() + seo;
             ImgfsModule::Section s;

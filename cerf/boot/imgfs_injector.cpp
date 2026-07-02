@@ -3,11 +3,9 @@
 
 #include "imgfs_injector.h"
 
-#include "ce_image_relocator.h"
 #include "ce_imgfs_patcher.h"
 #include "ce_imgfs_walker.h"
-#include "guest_module_placer.h"
-#include "pe_image.h"
+#include "imgfs_victim_recomposer.h"
 #include "rom_parser_service.h"
 
 #include "../boards/board_context.h"
@@ -21,7 +19,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <vector>
 
 REGISTER_SERVICE(ImgfsInjector);
@@ -30,34 +27,8 @@ namespace {
 
 constexpr uint32_t kE32SubsysmajorOff = 0x0C;
 constexpr uint32_t kE32VbaseOff       = 0x08;
-constexpr uint32_t kE32ObjcntOff      = 0x00;
-constexpr uint32_t kE32HeaderO32Base  = 0x70;
-constexpr uint32_t kO32Size           = 24;
-constexpr uint32_t kO32RvaOff         = 4;
-constexpr uint32_t kO32RealaddrOff    = 16;
 constexpr uint32_t kDirentFileSizeOff = 0x18;
-constexpr uint32_t kIndexRecSize      = 8;
 
-constexpr cerf::ce_imgfs_patcher::E32Layout kE32RomCE5plus = {
-    /*size           */ 110,
-    /*off_objcnt     */ 0x00,
-    /*off_imageflags */ 0x02,
-    /*off_entryrva   */ 0x04,
-    /*off_vbase      */ 0x08,
-    /*off_subsysmajor*/ 0x0C,
-    /*off_subsysminor*/ 0x0E,
-    /*off_stackmax   */ 0x10,
-    /*off_vsize      */ 0x14,
-    /*off_sect14rva  */ 0x18,
-    /*off_sect14size */ 0x1C,
-    /*off_timestamp  */ 0x20,
-    /*off_unit       */ 0x24,
-    /*off_subsys     */ 0x6C,
-};
-
-inline uint16_t Rd16(const uint8_t* p) {
-    return uint16_t(p[0]) | (uint16_t(p[1]) << 8);
-}
 inline uint32_t Rd32(const uint8_t* p) {
     return uint32_t(p[0]) | (uint32_t(p[1]) << 8)
          | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
@@ -155,12 +126,6 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
         }
     }
     if (!victim) return false;
-    if (victim->sections.empty()) {
-        LOG(Caution, "[ImgfsInjector] %s has zero SECTION dirents; "
-                "can't inject\n", victim_name);
-        CerfFatalExit();
-    }
-
     auto& mem = emu_.Get<EmulatedMemory>();
 
     auto tr = cerf::ce_imgfs_walker::Translator::Detect(
@@ -170,90 +135,14 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
        omitting it walks to an unmapped sector and read returns empty. */
     const uint32_t base_sector = tr.BaseSector();
 
-    std::vector<uint8_t> orig_hdr = cerf::ce_imgfs_walker::ReadIndexData(
+    const std::vector<uint8_t> orig_hdr = cerf::ce_imgfs_walker::ReadIndexData(
         rom.raw, tr, victim->mod_indexptr, victim->mod_indexsize,
         victim->file_size);
-    if (orig_hdr.size() < kE32HeaderO32Base) {
-        LOG(Caution, "[ImgfsInjector] %s orig header too short (%zu bytes)\n",
-            victim_name, orig_hdr.size());
-        CerfFatalExit();
-    }
-
-    const uint32_t orig_vbase  = Rd32(orig_hdr.data() + kE32VbaseOff);
-    const uint16_t orig_objcnt = Rd16(orig_hdr.data() + kE32ObjcntOff);
-    if (orig_objcnt == 0
-        || size_t(kE32HeaderO32Base) + size_t(orig_objcnt) * kO32Size > orig_hdr.size()) {
-        LOG(Caution, "[ImgfsInjector] %s orig objcnt=%u inconsistent with "
-                "header size %zu\n", victim_name, orig_objcnt, orig_hdr.size());
-        CerfFatalExit();
-    }
-    const uint32_t orig_realaddr0 = Rd32(
-        orig_hdr.data() + kE32HeaderO32Base + 0 * kO32Size + kO32RealaddrOff);
-    const uint32_t orig_rva0 = Rd32(
-        orig_hdr.data() + kE32HeaderO32Base + 0 * kO32Size + kO32RvaOff);
-    const uint32_t slot_base = orig_realaddr0 - orig_rva0 - orig_vbase;
-    LOG(GuestAdditions,
-        "[ImgfsInjector] orig %s vbase=0x%08X objcnt=%u realaddr0=0x%08X "
-        "rva0=0x%08X slot_base=0x%08X imgfs_secs=%zu\n",
-        victim_name, orig_vbase, orig_objcnt, orig_realaddr0, orig_rva0,
-        slot_base, victim->sections.size());
-
-    std::ifstream f(source_path, std::ios::binary | std::ios::ate);
-    if (!f.is_open()) {
-        LOG(Caution, "[ImgfsInjector] cannot open %s\n", source_path.c_str());
-        CerfFatalExit();
-    }
-    const auto sz = f.tellg();
-    std::vector<uint8_t> pe_bytes(static_cast<size_t>(sz));
-    f.seekg(0);
-    f.read(reinterpret_cast<char*>(pe_bytes.data()), sz);
-
-    PeImage pe(std::move(pe_bytes));
-    if (!pe.Parsed()) {
-        LOG(Caution, "[ImgfsInjector] PE parse failed for %s\n",
-            source_path.c_str());
-        CerfFatalExit();
-    }
-
-    /* The injected stub's writable sections are flagged SHARED (EffSectionFlags
-       below), so the CE5 loader keeps one pid-keyed copy and never makes a
-       per-process copy - every section's realaddr is simply its vbase + rva. */
-    const size_t K = victim->sections.size();
-    auto geom = cerf::ce_imgfs_patcher::PackPeSections(
-        pe, std::vector<uint8_t>(pe.Bytes().begin(), pe.Bytes().end()), K);
-    auto& placer = emu_.Get<GuestModulePlacer>();
-    std::vector<uint32_t> slot_realaddr;
-    slot_realaddr.reserve(geom.size());
-    for (const auto& g : geom)
-        slot_realaddr.push_back(orig_vbase + slot_base + g.rva);
-
-    std::vector<uint32_t> section_realaddr(pe.Sections().size());
-    for (size_t i = 0; i < pe.Sections().size(); ++i)
-        section_realaddr[i] = orig_vbase + slot_base + pe.Sections()[i].rva;
-
-    std::vector<uint8_t> pe_bytes_relocated(pe.Bytes().begin(), pe.Bytes().end());
-    const int32_t code_delta = int32_t(orig_vbase) - int32_t(pe.ImageBase());
-    uint32_t reloc_count = 0, unhandled = 0;
-    cerf::ce_image_relocator::ApplyRelocations(
-        pe_bytes_relocated, pe, section_realaddr, code_delta,
-        reloc_count, unhandled);
-    if (unhandled > 0) {
-        LOG(Caution, "[ImgfsInjector] %s has %u unhandled relocation entries\n",
-            victim_name, unhandled);
-        CerfFatalExit();
-    }
-
-    auto slots = cerf::ce_imgfs_patcher::PackPeSections(
-        pe, pe_bytes_relocated, K);
-    if (slots.empty() || slots.size() > K) {
-        LOG(Caution, "[ImgfsInjector] %s packing yielded %zu slots (K=%zu)\n",
-            victim_name, slots.size(), K);
-        CerfFatalExit();
-    }
-    for (auto& s : slots) s.flags = placer.EffSectionFlags(s.flags);
-
-    auto new_hdr = cerf::ce_imgfs_patcher::BuildModuleHeader(
-        kE32RomCE5plus, pe, orig_vbase, slot_realaddr, slots);
+    auto rc = emu_.Get<ImgfsVictimRecomposer>().Recompose(
+        orig_hdr, victim->sections.size(), source_path);
+    if (!rc) CerfFatalExit();
+    const std::vector<uint8_t>& new_hdr = rc->new_hdr;
+    const auto& slots = rc->slots;
 
     auto translate_or_halt = [&](uint32_t la, const char* what) -> uint32_t {
         const size_t off = tr.Translate(la);
@@ -344,14 +233,15 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
     LOG(GuestAdditions, "[ImgfsInjector] %s mod_hdr: la=0x%08X pa=0x%08X size=%zu\n",
         victim_name, hdr_la, hdr_pa, new_hdr.size());
 
-    /* Verify the writes landed. Reads back e32_vbase (off 0x08) from
-       our patched header page and compares to the value we wrote
-       (orig_vbase). Mismatch means DRAM write didn't take. */
-    const uint32_t verify_vbase = mem.ReadWord(hdr_pa + kE32VbaseOff);
-    if (verify_vbase != orig_vbase) {
+    /* Verify the header write landed: read back e32_vbase (off 0x08) from the
+       patched header page and compare to the vbase the recomposed header carries.
+       Mismatch means the DRAM write didn't take. */
+    const uint32_t expected_vbase = Rd32(new_hdr.data() + kE32VbaseOff);
+    const uint32_t verify_vbase   = mem.ReadWord(hdr_pa + kE32VbaseOff);
+    if (verify_vbase != expected_vbase) {
         LOG(Caution, "[ImgfsInjector] %s VERIFY FAIL: hdr e32_vbase "
                 "expected 0x%08X got 0x%08X\n",
-                victim_name, orig_vbase, verify_vbase);
+                victim_name, expected_vbase, verify_vbase);
         CerfFatalExit();
     }
 
@@ -412,10 +302,7 @@ bool ImgfsInjector::ReplaceVictim(const char* victim_name,
                       uint32_t(s.bytes.size()));
     }
 
-    LOG(GuestAdditions,
-        "[ImgfsInjector] %s injected: orig_vbase=0x%08X our_vbase=0x%08X "
-        "slots=%zu hdr=%zu reloc_patched=%u\n",
-        victim_name, orig_vbase, pe.ImageBase(),
-        slots.size(), new_hdr.size(), reloc_count);
+    LOG(GuestAdditions, "[ImgfsInjector] %s injected: slots=%zu hdr=%zu\n",
+        victim_name, slots.size(), new_hdr.size());
     return true;
 }

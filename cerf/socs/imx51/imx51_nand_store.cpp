@@ -65,6 +65,11 @@ void Imx51NandStore::OnReady() {
 void Imx51NandStore::ReadPage(uint64_t main_off, uint8_t* main, uint8_t* spare) {
     MarkRx();
     const uint64_t page = main_off / kMainBytes;
+    if (auto ov = read_overlay_.find(page); ov != read_overlay_.end()) {
+        std::memcpy(main,  ov->second.data(),              kMainBytes);
+        std::memcpy(spare, ov->second.data() + kMainBytes, kSpareBytes);
+        return;
+    }
     std::array<uint8_t, kPageStride> buf{};
     if (page >= device_pages_ ||
         !img_.ReadSectors(page * kSectorsPerPage, kSectorsPerPage, buf.data())) {
@@ -133,6 +138,48 @@ void Imx51NandStore::Seed() {
     LOG(SocNand, "Imx51NandStore: seeded %llu pages (boot region blocks 0..%llu + BBT/DPS)\n",
         static_cast<unsigned long long>(seeded),
         static_cast<unsigned long long>(os_start ? os_start - 1 : 0));
+}
+
+/* FileSysFal (AutoFlashMDD sub_C09A0FE0) validates its per-page checksum over the
+   raw main bytes: the FMD un-swaps the NFC main[0xF4A]<->spare[0x1C1] BBI
+   displacement (imx51_nfc.cpp FillPageBuffer) before checksumming, so index 0xF4A
+   contributes its raw stored byte, not spare[0x1C1]. */
+uint32_t Imx51NandStore::MainPopcount(const uint8_t* main) {
+    auto pop = [](uint8_t b) -> uint32_t {
+        b = uint8_t(b - ((b >> 1) & 0x55));
+        b = uint8_t((b & 0x33) + ((b >> 2) & 0x33));
+        return (b + (b >> 4)) & 0x0F;
+    };
+    uint32_t pc = 0;
+    for (uint32_t i = 0; i < kMainBytes; ++i)
+        pc += pop(main[i]);
+    return pc;
+}
+
+void Imx51NandStore::SetReadOverlayPage(uint64_t page_index, const uint8_t* main,
+                                        const uint8_t* spare) {
+    std::array<uint8_t, kPageStride>& buf = read_overlay_[page_index];
+    std::memcpy(buf.data(),              main,  kMainBytes);
+    std::memcpy(buf.data() + kMainBytes, spare, kSpareBytes);
+
+    /* Restamp the FileSysFal per-page spare checksum for the modified main, else the
+       guest FAL read returns error 13 and the IMGFS mount fails. checksum =
+       (MainPopcount + K) & 0xFFFF at spare 0x183(lo)/0x1C2(hi); K
+       (=popcount logical+field2) is recovered as a delta from the backing page. */
+    std::array<uint8_t, kPageStride> orig{};
+    if (page_index < device_pages_ &&
+        img_.ReadSectors(page_index * kSectorsPerPage, kSectorsPerPage, orig.data())) {
+        for (auto& b : orig) b = static_cast<uint8_t>(~b);
+        const uint8_t* om = orig.data();
+        const uint8_t* os = orig.data() + kMainBytes;
+        const uint32_t old_ck = os[0x183u] | (uint32_t(os[0x1C2u]) << 8);
+        const uint32_t pc_orig = MainPopcount(om);
+        const uint32_t k = (old_ck - pc_orig) & 0xFFFFu;
+        const uint32_t pc_new = MainPopcount(main);
+        const uint32_t new_ck = (pc_new + k) & 0xFFFFu;
+        buf[kMainBytes + 0x183u] = static_cast<uint8_t>(new_ck & 0xFF);
+        buf[kMainBytes + 0x1C2u] = static_cast<uint8_t>((new_ck >> 8) & 0xFF);
+    }
 }
 
 void Imx51NandStore::DrawIcon(HDC dc, const RECT& box) const {

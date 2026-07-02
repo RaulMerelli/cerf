@@ -4,8 +4,10 @@
 #include "../../host/host_widget.h"
 #include "../../storage/disk_image.h"
 
+#include <array>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 
 /* The Ford SYNC2 writable NAND, persisted as `nand.img` (composes `DiskImage`).
    Backing bytes are the bitwise complement of the NAND contents, so a never-written
@@ -34,6 +36,14 @@ public:
     /* Main-bytes-only read for the mask-ROM IPL stage/scan (within one page). */
     void ReadMain(uint64_t main_off, void* dst, uint32_t len);
 
+    /* Total device page count (4 KB main pages), valid after OnReady. */
+    uint64_t DevicePages() const { return device_pages_; }
+
+    /* Register an in-memory page ReadPage returns for `page_index` (raw
+       main+spare), used by guest-additions IMGFS injection. */
+    void SetReadOverlayPage(uint64_t page_index, const uint8_t* main,
+                            const uint8_t* spare);
+
     std::wstring WidgetName() const override { return L"NAND Flash"; }
     WidgetGroup  Group() const override { return WidgetGroup::Storage; }
     std::wstring Tooltip() const override { return L"NAND Flash storage (nand.img)"; }
@@ -49,7 +59,9 @@ private:
 
     void Seed();
     std::string ImagePath() const;
+    static uint32_t MainPopcount(const uint8_t* main);
 
     DiskImage img_;
     uint64_t  device_pages_ = 0;
+    std::unordered_map<uint64_t, std::array<uint8_t, kPageStride>> read_overlay_;
 };
