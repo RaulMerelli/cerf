@@ -2,9 +2,10 @@
 
 #include "imx51_ipu_cpmem.h"
 
-#include "../../boards/board_detector.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
+#include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/frame_renderer.h"
 
@@ -37,7 +38,7 @@ public:
 
     bool ShouldRegister() override {
         if (emu_.Get<DeviceConfig>().guest_additions) return false;
-        auto* bd = emu_.TryGet<BoardDetector>();
+        auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
     }
 
@@ -55,7 +56,12 @@ public:
                     uint32_t  host_h) override {
         std::memset(dib_bgra32, 0, static_cast<size_t>(host_w) * host_h * 4u);
         const auto d = ActiveDisplay();
-        if (!d.valid || d.bpp != kBppRgb565) return;
+        if (!d.valid) return;   /* no display channel programmed yet - not an error */
+        if (d.bpp != kBppRgb565) {
+            LOG(Caution, "Imx51IpuRenderer: unimplemented scanout format eba=0x%08X "
+                "%ux%u sl=%u bpp_code=%u pfs=%u\n", d.eba, d.fw, d.fh, d.sl, d.bpp, d.pfs);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
         const uint8_t* src = emu_.Get<EmulatedMemory>().TryTranslate(d.eba);
         if (!src) return;
         const uint32_t cw = (d.fw < host_w) ? d.fw : host_w;
