@@ -19,6 +19,13 @@ Trigger words:
   - "§" - section symbol. If the agent is dropping a § into code,
     they're writing a citation, and must be able to name where they
     read it.
+  - "Table <n>" - a reference-manual / datasheet table citation
+    ("Table 45-26", "Table 3-1"). Capital "Table" + a number is the
+    RM/datasheet table-reference shape; lowercase "table" in ordinary
+    prose does not fire.
+  - "Fig <n>" / "Figure <n>" - a reference-manual / datasheet figure
+    citation ("Fig 45-41", "Figure 3"). Same shape as Table; capital
+    "Fig"/"Figure" + a number.
 """
 import json
 import os
@@ -29,7 +36,9 @@ import _hookpath
 
 SOURCE_EXTS = (".cpp", ".h", ".hpp", ".cc", ".c")
 
-CITATION_TRIGGER_RE = re.compile(r"\bARM ARM\b|§")
+CITATION_TRIGGER_RE = re.compile(
+    r"\bARM ARM\b|§|\bTable\s+\d|\bFig(?:ure)?\.?\s+\d"
+)
 
 
 def main() -> int:
@@ -77,7 +86,8 @@ def main() -> int:
     msg = (
         f"CITATION-VERIFICATION: this {rel_path} write/edit added "
         f"{len(hits)} line(s) containing a citation trigger "
-        f"('ARM ARM' or '§'). Trigger lines:\n\n{sample}{more}\n\n"
+        f"('ARM ARM', '§', or a 'Table <n>' / 'Fig <n>' reference). "
+        f"Trigger lines:\n\n{sample}{more}\n\n"
         f"FALSE-POSITIVE GATE: if those lines were ALREADY in the "
         f"file and you are just moving / relocating them - not "
         f"authoring a new citation - ignore the rest of this "
