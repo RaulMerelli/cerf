@@ -34,18 +34,30 @@
 #define ID_BASE      106
 #define ID_SIZELBL   112
 #define ID_SIZE      107
+#define ID_SEGCHK    108
+#define ID_SEGSIZELBL 113
+#define ID_SEGSIZE   109
 #define ID_GO        102
 #define ID_EXIT      103
 
-/* base = PA 0 for all (reset vector); size_mb covers the SoC's static banks
-   per its CERF page-table builder under cerf/boards. Over-dump is free -
-   unmapped space SEH-fills 0xFF. */
+/* Preset table is CPU-arch specific (build_ce_app.ps1 defines MIPS for -Arch mips,
+   ARM/_ARM_ for -Arch arm). Custom (base/size entered by hand) is common to both. */
 typedef struct { LPCWSTR name; DWORD base; DWORD size_mb; int custom; } Preset;
 static const Preset kPresets[] = {
+#if defined(MIPS)
+    /* TX39 (R3000) OS ROM = chip-select CS0, physical 0x11000000, 4 MB window
+       ("CS0(ROM)", NetBSD hpcmips tx39biureg.h: TX39_SYSADDR_CS0 / _CS_SIZE). */
+    { L"PR31700 (Nino)", 0x11000000u, 4, 0 },
+    { L"PR31500 (Velo)", 0x11000000u, 4, 0 },
+#else
+    /* base = PA 0 for all (reset vector); size_mb covers the SoC's static banks
+       per its CERF page-table builder under cerf/boards. Over-dump is free -
+       unmapped space SEH-fills 0xFF. */
     { L"SA-11x0",     0x00000000u, 512, 0 },  /* banks 128 MB x4  */
     { L"PXA25x/27x",  0x00000000u, 384, 0 },  /* CS 64 MB x6      */
     { L"S3C2410",     0x00000000u, 768, 0 },  /* nGCS up to SDRAM */
     { L"ARM720",      0x00000000u, 256, 0 },  /* flash + ASIC     */
+#endif
     { L"Custom",      0x00000000u,   0, 1 },
 };
 #define NUM_PRESETS (int)(sizeof(kPresets) / sizeof(kPresets[0]))
@@ -87,6 +99,13 @@ static void ApplyPreset(HWND hwnd, int idx) {
     EnableWindow(GetDlgItem(hwnd, ID_SIZE), custom);
 }
 
+/* Segment-size box is editable only while the Segmented box is checked. */
+static void SyncSegEnable(HWND hwnd) {
+    EnableWindow(GetDlgItem(hwnd, ID_SEGSIZE),
+                 SendDlgItemMessageW(hwnd, ID_SEGCHK, BM_GETCHECK, 0, 0)
+                 == BST_CHECKED);
+}
+
 /* One control per row, label left, control fills the rest - fits a 240-wide
    PocketPC screen and stretches on wider ones. The top two rows (preset,
    file) stop short of the top-right logo; rows below it use full width. */
@@ -111,8 +130,12 @@ static void LayoutControls(HWND hwnd) {
     MoveWindow(GetDlgItem(hwnd, ID_SIZELBL),   m,  94, lbl, 16, TRUE);
     MoveWindow(GetDlgItem(hwnd, ID_SIZE),      cx, 92, fullR - cx, 20, TRUE);
 
-    MoveWindow(GetDlgItem(hwnd, ID_GO),        m,    120, 64, 24, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_EXIT),      m+72, 120, 64, 24, TRUE);
+    MoveWindow(GetDlgItem(hwnd, ID_SEGCHK),     m,     118, 88, 20, TRUE);
+    MoveWindow(GetDlgItem(hwnd, ID_SEGSIZELBL), m+96,  120, 52, 16, TRUE);
+    MoveWindow(GetDlgItem(hwnd, ID_SEGSIZE),    m+152, 118, fullR - (m + 152), 20, TRUE);
+
+    MoveWindow(GetDlgItem(hwnd, ID_GO),        m,    146, 64, 24, TRUE);
+    MoveWindow(GetDlgItem(hwnd, ID_EXIT),      m+72, 146, 64, 24, TRUE);
 }
 
 /* Read target path + base/size from the controls and launch the worker. */
@@ -138,14 +161,34 @@ static void StartDump(HWND hwnd, DumpState* st) {
     }
     st->length = size_mb << 20;
 
+    st->segmented = SendDlgItemMessageW(hwnd, ID_SEGCHK, BM_GETCHECK, 0, 0)
+                    == BST_CHECKED;
+    if (st->segmented) {
+        DWORD seg_mb;
+        GetDlgItemTextW(hwnd, ID_SEGSIZE, num, 32);
+        seg_mb = ParseUDec(num);
+        if (seg_mb == 0) {
+            MessageBoxW(hwnd, L"Segment size must be at least 1 MB.",
+                        L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
+            return;
+        }
+        st->seg_bytes = seg_mb << 20;
+    } else {
+        st->seg_bytes = 0;
+    }
+
     st->cancel = 0; st->finished = 0; st->ok = 0;
     st->bytes_done = 0; st->fault_pages = 0; st->cur_pa = 0; st->err[0] = L'\0';
+    st->seg_index = 0; st->segs_written = 0; st->seg_continue = 0;
+    if (st->seg_event) ResetEvent(st->seg_event);
 
     EnableWindow(GetDlgItem(hwnd, ID_GO),     FALSE);
     EnableWindow(GetDlgItem(hwnd, ID_EDIT),   FALSE);
     EnableWindow(GetDlgItem(hwnd, ID_PRESET), FALSE);
     EnableWindow(GetDlgItem(hwnd, ID_BASE),   FALSE);
     EnableWindow(GetDlgItem(hwnd, ID_SIZE),   FALSE);
+    EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), FALSE);
+    EnableWindow(GetDlgItem(hwnd, ID_SEGSIZE), FALSE);
     st->running = 1;
 
     st->thread = CreateThread(NULL, 0, DumpThread, st, 0, &tid);
@@ -154,6 +197,8 @@ static void StartDump(HWND hwnd, DumpState* st) {
         EnableWindow(GetDlgItem(hwnd, ID_GO),     TRUE);
         EnableWindow(GetDlgItem(hwnd, ID_EDIT),   TRUE);
         EnableWindow(GetDlgItem(hwnd, ID_PRESET), TRUE);
+        EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), TRUE);
+        SyncSegEnable(hwnd);
         ApplyPreset(hwnd, (int)SendDlgItemMessageW(hwnd, ID_PRESET,
                                                    CB_GETCURSEL, 0, 0));
         MessageBoxW(hwnd, L"Failed to start dump thread.",
@@ -211,6 +256,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         ES_NUMBER | ES_AUTOHSCROLL,
                         0, 0, 0, 0, hwnd, (HMENU)ID_SIZE, hi, NULL);
 
+        CreateWindowExW(0, L"BUTTON", L"Segmented",
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGCHK, hi, NULL);
+        CreateWindowExW(0, L"STATIC", L"Seg MB:",
+                        WS_CHILD | WS_VISIBLE | SS_LEFT,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGSIZELBL, hi, NULL);
+        CreateWindowExW(0, L"EDIT", L"1",
+                        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP |
+                        ES_NUMBER | ES_AUTOHSCROLL,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGSIZE, hi, NULL);
+
         CreateWindowExW(0, L"BUTTON", L"GO",
                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
                         0, 0, 0, 0, hwnd, (HMENU)ID_GO, hi, NULL);
@@ -220,6 +276,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         LayoutControls(hwnd);
         ApplyPreset(hwnd, 0);
+        SyncSegEnable(hwnd);
         return 0;
     }
 
@@ -235,12 +292,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                                                        CB_GETCURSEL, 0, 0));
             return 0;
         }
+        if (LOWORD(wp) == ID_SEGCHK && HIWORD(wp) == BN_CLICKED) {
+            SyncSegEnable(hwnd);
+            return 0;
+        }
         if (LOWORD(wp) == ID_GO) {
             if (!st->running) StartDump(hwnd, st);
             return 0;
         }
         if (LOWORD(wp) == ID_EXIT) {
             st->cancel = 1;                       /* let the worker bail */
+            if (st->seg_event) SetEvent(st->seg_event);  /* wake a segment wait */
             if (st->thread) WaitForSingleObject(st->thread, 3000);
             DestroyWindow(hwnd);
             return 0;
@@ -255,6 +317,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (st) PaintProgress(hwnd, st);
         return 0;
 
+    case WM_APP_SEGMENT:
+        if (st) {
+            WCHAR msg[MAX_PATH + 128];
+            DWORD n = st->seg_index;
+            wsprintfW(msg,
+                      L"Segment %03u written (%u MB):\n%s.%03u\n\n"
+                      L"Copy it off the device if you need to, then continue.\n\n"
+                      L"Write the next segment (.%03u)?",
+                      (unsigned)n, (unsigned)(st->seg_bytes >> 20),
+                      st->outpath, (unsigned)n, (unsigned)(n + 1));
+            st->seg_continue =
+                (MessageBoxW(hwnd, msg, L"CERF ROM dumper - segmented",
+                             MB_YESNO | MB_ICONQUESTION) == IDYES) ? 1 : 0;
+            SetEvent(st->seg_event);
+        }
+        return 0;
+
     case WM_APP_DONE:
         KillTimer(hwnd, 1);
         if (st && st->thread) { CloseHandle(st->thread); st->thread = NULL; }
@@ -262,12 +341,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         EnableWindow(GetDlgItem(hwnd, ID_GO),     TRUE);
         EnableWindow(GetDlgItem(hwnd, ID_EDIT),   TRUE);
         EnableWindow(GetDlgItem(hwnd, ID_PRESET), TRUE);
+        EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), TRUE);
+        SyncSegEnable(hwnd);
         ApplyPreset(hwnd, (int)SendDlgItemMessageW(hwnd, ID_PRESET,
                                                    CB_GETCURSEL, 0, 0));
         InvalidateRect(hwnd, NULL, FALSE);
         UpdateWindow(hwnd);
-        if (st && st->ok) {
-            WCHAR done[256];
+        if (st && st->ok && st->segmented) {
+            WCHAR done[MAX_PATH + 128];
+            wsprintfW(done,
+                      L"Dump complete.\n\n%u segment file(s):\n%s.001 ... .%03u\n"
+                      L"%u MB total, %u pages 0xFF-filled.",
+                      (unsigned)st->segs_written, st->outpath,
+                      (unsigned)st->segs_written, (unsigned)(st->bytes_done >> 20),
+                      (unsigned)st->fault_pages);
+            MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
+        } else if (st && st->ok) {
+            WCHAR done[MAX_PATH + 96];
             wsprintfW(done,
                       L"Dump complete.\n\n%s\n%u MB written, %u pages 0xFF-filled.",
                       st->outpath, (unsigned)(st->bytes_done >> 20),
@@ -275,6 +365,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
         } else if (st && st->err[0]) {
             MessageBoxW(hwnd, st->err, L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
+        } else if (st && st->segmented && st->segs_written) {
+            WCHAR done[MAX_PATH + 96];
+            wsprintfW(done,
+                      L"Stopped after %u segment file(s):\n%s.001 ... .%03u",
+                      (unsigned)st->segs_written, st->outpath,
+                      (unsigned)st->segs_written);
+            MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
         }
         return 0;
 
@@ -294,6 +391,9 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
     MSG       m;
 
     (void)hPrev; (void)cmd;
+
+    st.seg_event = CreateEventW(NULL, FALSE, FALSE, NULL);  /* auto-reset, off */
+    if (!st.seg_event) return 1;
 
     memset(&wc, 0, sizeof(wc));
     wc.lpfnWndProc   = WndProc;

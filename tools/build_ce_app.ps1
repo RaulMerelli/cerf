@@ -17,8 +17,9 @@ param(
     [string]$ObjDir = ".",
     [ValidateSet("arm","arm_thumb","mips")][string]$Arch = "arm",
     # MIPS ISA level (only with -Arch mips): mips4 = MIPS-IV soft-float (machine
-    # MIPSFPU), mips2 = MIPS-II (machine MIPS); must match the SDK coredll machine.
-    [ValidateSet("mips4","mips2")][string]$MipsIsa = "mips4",
+    # MIPSFPU), mips2 = MIPS-II, mips1 = MIPS-I / R3000 (mips1 and mips2 both use
+    # machine MIPS); must match the SDK coredll machine.
+    [ValidateSet("mips4","mips2","mips1")][string]$MipsIsa = "mips4",
     # PE subsystem stamp. Default 3.00; lower it (e.g. "2.11") to let the
     # binary load on older H/PC Pro kernels - a lower stamp still loads on
     # CE3+, a higher one locks the binary out of older kernels.
@@ -52,7 +53,14 @@ switch ($Arch) {
     "mips" {
         $CL = Join-Path $SDK "bin/I386/MIPS/cl.exe"
         $BinArch = "MIPS"
-        if ($MipsIsa -eq "mips2") {
+        if ($MipsIsa -eq "mips1") {
+            # MIPS-I / R3000 (Toshiba TX39 core in Philips PR31500/PR31700). -QMmips1
+            # restricts codegen to the MIPS-I ISA the R3000 accepts. Soft-float
+            # (-QMFPE): the TX39 has no FPU.
+            $Machine = "MIPS"
+            $ArchFlags = @("-QMmips1", "-QMFPE", "-D_M_MRX000=3000", "-D_MIPS_", "-DR3000")
+            $DefLibSub = "Mipsii"
+        } elseif ($MipsIsa -eq "mips2") {
             $Machine = "MIPS"
             $ArchFlags = @("-QMmips2", "-QMFPE", "-D_M_MRX000=4000", "-D_MIPS_", "-DR4000")
             $DefLibSub = "Mipsii"

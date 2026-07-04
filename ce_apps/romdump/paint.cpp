@@ -57,7 +57,7 @@ void PaintProgress(HWND hwnd, DumpState* st) {
 
     DrawCerfIcon(dc, rc.right - CERF_ICON_W - 8, 8);
 
-    y = 152;
+    y = 172;
     if (!st->running && !st->finished) {
         DrawLineW(dc, 8, y, L"Ready! Pick a preset or set base/size, then GO.");
         EndPaint(hwnd, &ps);
@@ -67,9 +67,20 @@ void PaintProgress(HWND hwnd, DumpState* st) {
     wsprintfW(line, L"Reading PA 0x%08X   %u%%", st->cur_pa, (unsigned)pct);
     DrawLineW(dc, 8, y, line); y += 20;
 
-    wsprintfW(line, L"Written: %u / %u MB    0xFF-filled pages: %u",
-              (unsigned)(st->bytes_done >> 20), (unsigned)(st->length >> 20),
-              (unsigned)st->fault_pages);
+    if (st->segmented) {
+        DWORD total = st->seg_bytes
+                      ? (st->length + st->seg_bytes - 1) / st->seg_bytes : 1;
+        DWORD cur = st->segs_written + 1;
+        if (cur > total) cur = total;
+        wsprintfW(line, L"Segment %u/%u   %u / %u MB   0xFF pages: %u",
+                  (unsigned)cur, (unsigned)total,
+                  (unsigned)(st->bytes_done >> 20), (unsigned)(st->length >> 20),
+                  (unsigned)st->fault_pages);
+    } else {
+        wsprintfW(line, L"Written: %u / %u MB    0xFF-filled pages: %u",
+                  (unsigned)(st->bytes_done >> 20), (unsigned)(st->length >> 20),
+                  (unsigned)st->fault_pages);
+    }
     DrawLineW(dc, 8, y, line); y += 26;
 
     /* Progress bar: hollow Rectangle for the frame (CE has no FrameRect),
