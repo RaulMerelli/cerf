@@ -8,9 +8,9 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from device_state import (DeviceBundle, format_size, running_status,
                           saved_state_info)
-from device_tree import (TreeSelection, _board_group_key, _device_sort_key,
-                         _device_search_haystack, _os_name_has_version,
-                         _table_device_label)
+from device_model import (TreeSelection, _board_group_key, _device_sort_key,
+                          _device_search_haystack, _os_name_has_version,
+                          _table_device_label)
 from preview_tile import PreviewTile
 from supported_devices import board_soc_cpu
 import ui_theme as theme
@@ -20,7 +20,7 @@ class _Card:
     def __init__(self, device: DeviceBundle, frame: tk.Frame,
                  children: List[tk.Widget], status: tk.Label, name: tk.Label,
                  prefix_lbl: tk.Label, soc_lbl: tk.Label, suffix_lbl: tk.Label,
-                 tile: PreviewTile):
+                 notes_lbl: tk.Label, tile: PreviewTile):
         self.device = device
         self.frame = frame
         self.children = children
@@ -29,6 +29,7 @@ class _Card:
         self.prefix_lbl = prefix_lbl
         self.soc_lbl = soc_lbl
         self.suffix_lbl = suffix_lbl
+        self.notes_lbl = notes_lbl
         self.tile = tile
 
 
@@ -58,6 +59,7 @@ class DeviceCardList:
         self._tile_w = int(58 * scale)
         self._tile_h = int(46 * scale)
         self._glyph = int(10 * scale)
+        self._notes_wrap = int(320 * scale)
 
         frame = ttk.Frame(parent)
         frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
@@ -85,9 +87,7 @@ class DeviceCardList:
         self._inner.bind(
             "<Configure>",
             lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind(
-            "<Configure>",
-            lambda e: canvas.itemconfigure(self._inner_id, width=e.width))
+        canvas.bind("<Configure>", self._on_canvas_config)
         self._bind_wheel(canvas)
         self._bind_wheel(self._inner)
 
@@ -278,18 +278,33 @@ class DeviceCardList:
                           anchor="w", font=("Segoe UI", 9))
         status.pack(fill="x", padx=6, pady=(0, 8))
 
+        notes_lbl = tk.Label(textcol, text="", bg=theme.BG_LIGHTER,
+                             fg=theme.FG_DIM, anchor="w", justify="left",
+                             font=("Segoe UI", 9), wraplength=self._notes_wrap)
+
         bg_children = [card, textcol, detail, name, prefix_lbl, soc_lbl,
-                       suffix_lbl, status]
+                       suffix_lbl, notes_lbl, status]
         for w in bg_children + [tile.canvas]:
             w.bind("<Button-1>", lambda _e, n=d.name: self._set_selected(n))
             w.bind("<Double-1>", lambda _e, n=d.name: self._activate(n))
             w.bind("<Button-3>", lambda e, n=d.name: self._context(n, e))
             self._bind_wheel(w)
         c = _Card(d, card, bg_children, status, name, prefix_lbl, soc_lbl,
-                  suffix_lbl, tile)
+                  suffix_lbl, notes_lbl, tile)
         self._cards[d.name] = c
+        self._apply_notes(c)
         tile.set_device(d)
         return card
+
+    def _apply_notes(self, card: _Card) -> None:
+        notes = "  ·  ".join(n.strip() for n in card.device.meta.os_notes
+                             if n and n.strip())
+        if notes:
+            card.notes_lbl.config(text=notes, wraplength=self._notes_wrap)
+            card.notes_lbl.pack(fill="x", padx=6, pady=(0, 0),
+                                before=card.status)
+        else:
+            card.notes_lbl.pack_forget()
 
     def _update_card(self, d: DeviceBundle, collide: bool) -> None:
         card = self._cards.get(d.name)
@@ -309,6 +324,7 @@ class DeviceCardList:
         label, fg = self._status_text(d)
         if card.status.cget("text") != label:
             card.status.config(text=label, fg=fg)
+        self._apply_notes(card)
         card.tile.set_device(d)
 
     def _status_text(self, d: DeviceBundle) -> Tuple[str, str]:
@@ -346,6 +362,12 @@ class DeviceCardList:
         self._set_selected(name)
         if self._on_context is not None:
             self._on_context(event)
+
+    def _on_canvas_config(self, e: tk.Event) -> None:
+        self._canvas.itemconfigure(self._inner_id, width=e.width)
+        self._notes_wrap = max(160, e.width - self._tile_w - 40)
+        for card in self._cards.values():
+            card.notes_lbl.config(wraplength=self._notes_wrap)
 
     def _bind_wheel(self, widget: tk.Widget) -> None:
         widget.bind(

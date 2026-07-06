@@ -6,12 +6,14 @@ from tkinter import ttk
 from typing import Callable, Dict, List, Optional
 
 from device_state import DeviceBundle, format_size
-from device_tree import (GROUP_IID_PREFIX, UNKNOWN_BOARD_LABEL,
-                         _board_group_key, _device_sort_key,
-                         _device_search_haystack, _table_device_label,
-                         _table_os_label)
+from device_model import (GROUP_IID_PREFIX, UNKNOWN_BOARD_LABEL,
+                          _board_group_key, _device_sort_key,
+                          _device_search_haystack, _table_device_label,
+                          _table_os_label)
 from supported_devices import board_soc_cpu, board_support_state
 import ui_theme as theme
+
+_OSNOTE_PREFIX = "osnote::"
 
 
 class DownloadWindow:
@@ -69,6 +71,7 @@ class DownloadWindow:
         vsb.grid(row=1, column=1, sticky="ns")
         tree.configure(yscrollcommand=vsb.set)
         tree.tag_configure("group", background=theme.GROUP_BG, foreground=theme.FG)
+        tree.tag_configure("osnote", foreground=theme.FG_DIM)
         tree.bind("<Button-1>", self._on_click)
         self.tree = tree
 
@@ -133,7 +136,7 @@ class DownloadWindow:
                 self._group_members[gid] = []
             self._sizes[d.name] = d.remote.archive_size or 0
             soc = d.meta.soc_family or ""
-            tree.insert(gid, "end", iid=d.name,
+            tree.insert(gid, "end", iid=d.name, open=bool(d.meta.os_notes),
                         text=self._check_glyph(d.name) + _table_device_label(d),
                         values=(_table_os_label(d), soc,
                                 format_size(d.remote.archive_size) or ""))
@@ -145,6 +148,11 @@ class DownloadWindow:
             self._payload[d.name] = d
             self._group_members[gid].append(d.name)
             self._device_group[d.name] = gid
+            for i, note in enumerate(d.meta.os_notes):
+                tree.insert(d.name, "end",
+                            iid=f"{_OSNOTE_PREFIX}{d.name}::{i}",
+                            text="", values=(f"↳ {note}", "", ""),
+                            tags=("osnote",))
         for gid in self._group_members:
             self._refresh_group_text(gid)
         self._update_summary()

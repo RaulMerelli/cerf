@@ -18,7 +18,7 @@ from bundles import ManifestVersionError, RELEASE_LATEST_URL, parse_version_tupl
 from device_card_list import DeviceCardList
 from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
-from device_tree import TreeSelection
+from device_model import TreeSelection
 from download_window import DownloadWindow
 from running_state import show_running_window
 from toolbar import Toolbar
