@@ -74,13 +74,16 @@ void MipsJit::OnReady() {
     cpu_state_.nb_tlb     = cpu_cfg.TlbSize();
     cpu_state_.tlb_in_use = cpu_state_.nb_tlb;
 
-    /* The decoder implements MIPS ISA IV only. */
-    if (cpu_cfg.IsaLevel() != MipsIsaLevel::kMips4) {
-        LOG(Caution, "MipsJit: unsupported ISA level %u (engine implements MIPS IV)\n",
+    if (cpu_cfg.IsaLevel() != MipsIsaLevel::kMips3 &&
+        cpu_cfg.IsaLevel() != MipsIsaLevel::kMips4) {
+        LOG(Caution, "MipsJit: unsupported ISA level %u (engine implements MIPS III/IV)\n",
             static_cast<uint32_t>(cpu_cfg.IsaLevel()));
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    decoder_.Configure(cpu_cfg.HasFpu(), cpu_cfg.HasLlsc());
+    /* MIPS IV integer ops (MOVZ/MOVN/PREF) are present only on a kMips4 core; the
+       decoder gates them on this flag and raises Reserved for them otherwise. */
+    decoder_.Configure(cpu_cfg.HasFpu(), cpu_cfg.HasLlsc(),
+                       cpu_cfg.IsaLevel() == MipsIsaLevel::kMips4);
 
     idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!idle_event_) {

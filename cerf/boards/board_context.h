@@ -28,6 +28,9 @@ enum class SocFamily {
     VR5500,    /* NEC VR5500, MIPS IV core (64-bit silicon, soft-float CE build),
                   little-endian. CERF's first non-ARM guest ISA. VR5500 CPU module
                   on the SolutionGear2 (SG2) board with the ALi M1535+ southbridge. */
+    VR4102,    /* NEC VR4102 (uPD30102), VR4100 core, MIPS III, little-endian, no
+                  MIPS16, no FPU, no LL/SC, 32-entry TLB. Integrated SoC for the NEC
+                  MobilePro 700 (Handheld PC, Windows CE 2.0). */
 };
 
 enum class CpuArch { Arm, Mips };
@@ -73,6 +76,9 @@ enum class Board {
     NecRockhopper,    /* NEC Rockhopper (DDB-VR5500A): NEC VR5500 CPU module on the
                          SolutionGear2 (SG2) motherboard, ALi M1535+ southbridge,
                          Windows CE 6, MIPS IV. */
+    NecMobilePro700,  /* NEC MobilePro 700 Series HPC clamshell (NEC VR4102, MIPS,
+                         Windows CE 2.0 / Handheld PC, 1997). ROM identity string
+                         "MobilePro 700 Series". */
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

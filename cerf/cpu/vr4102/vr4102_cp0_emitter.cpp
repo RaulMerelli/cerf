@@ -5,17 +5,17 @@
 
 namespace {
 
-/* NEC VR5500: no SoC-specific CP0 moves; uses the base MipsCp0Emitter. */
-class Vr5500Cp0Emitter : public MipsCp0Emitter {
+/* NEC VR4102 (R4100 core): no SoC-specific CP0 moves; uses the base MipsCp0Emitter. */
+class Vr4102Cp0Emitter : public MipsCp0Emitter {
 public:
     using MipsCp0Emitter::MipsCp0Emitter;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR5500;
+        return bd && bd->GetSoc() == SocFamily::VR4102;
     }
 };
 
 }  // namespace
 
-REGISTER_SERVICE_AS(Vr5500Cp0Emitter, MipsCp0Emitter);
+REGISTER_SERVICE_AS(Vr4102Cp0Emitter, MipsCp0Emitter);

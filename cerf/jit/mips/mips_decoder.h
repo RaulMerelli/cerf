@@ -11,9 +11,10 @@ class MipsDecoder {
 public:
     /* Capability gates from MipsProcessorConfig (set once in MipsJit::OnReady);
        instruction recognition is config-driven, not hardcoded. */
-    void Configure(bool has_fpu, bool has_llsc) {
-        has_fpu_  = has_fpu;
-        has_llsc_ = has_llsc;
+    void Configure(bool has_fpu, bool has_llsc, bool has_mips4) {
+        has_fpu_   = has_fpu;
+        has_llsc_  = has_llsc;
+        has_mips4_ = has_mips4;
     }
 
     /* Returns false for an opcode the running CPU does not implement (COP1 when
@@ -22,6 +23,7 @@ public:
     bool Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d);
 
 private:
-    bool has_fpu_  = false;
-    bool has_llsc_ = false;
+    bool has_fpu_   = false;
+    bool has_llsc_  = false;
+    bool has_mips4_ = false;   /* MIPS IV integer ops (MOVZ/MOVN/PREF) present */
 };

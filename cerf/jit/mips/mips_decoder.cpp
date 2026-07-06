@@ -4,12 +4,11 @@
 
 namespace {
 
-bool RecognizedSpecial(uint32_t funct) {
+bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
     switch (funct) {
         case MipsSpecial::kSLL:  case MipsSpecial::kSRL:  case MipsSpecial::kSRA:
         case MipsSpecial::kSLLV: case MipsSpecial::kSRLV: case MipsSpecial::kSRAV:
         case MipsSpecial::kJR:   case MipsSpecial::kJALR:
-        case MipsSpecial::kMOVZ: case MipsSpecial::kMOVN:
         case MipsSpecial::kSYSCALL: case MipsSpecial::kBREAK: case MipsSpecial::kSYNC:
         case MipsSpecial::kMFHI: case MipsSpecial::kMTHI:
         case MipsSpecial::kMFLO: case MipsSpecial::kMTLO:
@@ -38,6 +37,9 @@ bool RecognizedSpecial(uint32_t funct) {
         case MipsSpecial::kDSRL32:
         case MipsSpecial::kDSRA32:
             return true;
+        case MipsSpecial::kMOVZ:
+        case MipsSpecial::kMOVN:
+            return has_mips4;   /* MIPS IV conditional moves; absent on VR4102 (MIPS III) */
         default:
             return false;
     }
@@ -87,7 +89,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
             if (d->funct == MipsSpecial::kJR || d->funct == MipsSpecial::kJALR) {
                 d->is_branch = 1;
             }
-            return RecognizedSpecial(d->funct);
+            return RecognizedSpecial(d->funct, has_mips4_);
 
         case MipsOp::kREGIMM:
             switch (d->rt) {
@@ -142,8 +144,10 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kSWL:   case MipsOp::kSW:    case MipsOp::kSWR:
         case MipsOp::kSDL:   case MipsOp::kSDR:   case MipsOp::kLDL:   case MipsOp::kLDR:
         case MipsOp::kLD:    case MipsOp::kSD:
-        case MipsOp::kCACHE: case MipsOp::kPREF:
+        case MipsOp::kCACHE:
             return true;
+        case MipsOp::kPREF:
+            return has_mips4_;   /* PREF is MIPS IV; CACHE is MIPS III */
 
         default:
             return false;   /* reserved encoding for this CPU */

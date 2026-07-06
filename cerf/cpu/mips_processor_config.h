@@ -8,6 +8,7 @@
 /* MIPS ISA level a SoC's core implements (Linux arch/mips cpu.h MIPS_CPU_ISA_*).
    One value today (VR5500 = MIPS IV); concretes select theirs as more land. */
 enum class MipsIsaLevel : uint32_t {
+    kMips3,   /* MIPS_CPU_ISA_III */
     kMips4,   /* MIPS_CPU_ISA_IV */
 };
 
