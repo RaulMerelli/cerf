@@ -1,3 +1,8 @@
+#if !CERF_DEV_MODE
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include "ford_sync2_vmcu_peer.h"
 
 #include "ford_sync2_vmcu_diag_channel.h"
@@ -173,6 +178,24 @@ void FordSync2VmcuPeer::HandlePmInbound(const uint8_t* pm, std::size_t n) {
             /* PetActivityTimer keep-alive (IPC_PetActivityTimer sub_C028A69C) -
                fire-and-forget; CERF's always-on VMCU has no inactivity timer. */
             break;
+        case 0x02u:
+            /* IPC_SendRebootRequest (pm.dll sub_C028A22C, AUTOPM sub_C028765C cmd 5). */
+            LOG(Caution,
+                "Sync 2 has requested reboot over VMCU (pm type=0x%02X len=%zu). "
+                "This is a known PANIC reboot, read NKDBG above or debug.\n",
+                static_cast<unsigned>(pm[0]), n);
+#if !CERF_DEV_MODE
+            MessageBoxA(nullptr,
+                        "Sync 2 has requested a reboot over VMCU, but this is a "
+                        "known panic reboot - something went wrong.\n\n"
+                        "One possibility is a dirty/corrupted nand.img: delete it "
+                        "from the device directory and try flashing again.\n\n"
+                        "If that does not help, you have hit something genuinely "
+                        "else that is not fixable on your side.",
+                        "CERF: Sync 2 panic reboot",
+                        MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
+#endif
+            CerfFatalExit(CERF_FATAL_USER_ERROR);
         default:
             LOG(Caution, "[VMCU] unmodelled inbound pm message type=0x%02X len=%zu\n",
                 static_cast<unsigned>(pm[0]), n);
