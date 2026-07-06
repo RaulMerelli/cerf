@@ -45,13 +45,14 @@
 typedef struct { LPCWSTR name; DWORD base; DWORD size_mb; int custom; } Preset;
 static const Preset kPresets[] = {
 #if defined(MIPS)
-    /* TX39 (R3000) OS ROM = chip-select CS0, physical 0x11000000, 4 MB window
-       ("CS0(ROM)", NetBSD hpcmips tx39biureg.h: TX39_SYSADDR_CS0 / _CS_SIZE). */
-    { L"PR31700 (Nino)", 0x11000000u, 4, 0 },
-    { L"PR31500 (Velo)", 0x11000000u, 4, 0 },
-    /* NEC VR4102 ROM space = physical 0x1F000000-0x1FFFFFFF, 16 MB (banks
-       ROMCS0-3, reset vector 0x1FC00000; VR4102 User's Manual Table 5-7/5-8). */
-    { L"MobilePro 700 (VR4102)", 0x1F000000u, 16, 0 },
+    /* NEC VR4102 OS ROM: PA 0x1F000000-0x1FFFFFFF, 16 MB (VR4102 User's Manual
+       Table 5-6/5-8: populated ROMCS0+ROMCS1, contains reset vector 0x1FC00000). */
+    { L"VR4102 (MobilePro 700)",  0x1F000000u, 16, 0 },
+    /* Toshiba TX3912 (Philips PR31500/PR31700; Nino/Velo, Sharp Mobilon HC-4100)
+       CE flash: PA 0x0C000000, 64 MB static window (NetBSD tx39biureg.h
+       TX39_SYSADDR_CARD2 + CARD_SIZE); MIPS CE XIPs the ROM in kseg0, link
+       VA = 0x80000000 + phys base. */
+    { L"TX3912 (Nino/Velo/HC-4100)", 0x0C000000u, 64, 0 },
 #else
     /* base = PA 0 (reset vector) for all. Over-dumping unmapped space SEH-fills
        0xFF on most SoCs (hence the generous sizes), but PXA255 stalls the bus on
@@ -281,6 +282,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         LayoutControls(hwnd);
         ApplyPreset(hwnd, 0);
         SyncSegEnable(hwnd);
+        SetFocus(GetDlgItem(hwnd, ID_PRESET));
         return 0;
     }
 
@@ -386,6 +388,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+static BOOL IsTabbable(HWND h) {
+    LONG s = GetWindowLongW(h, GWL_STYLE);
+    return (s & WS_TABSTOP) && (s & WS_VISIBLE) && !(s & WS_DISABLED);
+}
+
+static HWND NextTabstop(HWND parent, HWND cur, BOOL prev) {
+    UINT dir = prev ? GW_HWNDPREV : GW_HWNDNEXT;
+    HWND h = cur ? GetWindow(cur, dir) : NULL;
+    int guard = 0;
+    while (guard++ < 256) {
+        if (!h) {
+            h = GetWindow(parent, GW_CHILD);
+            if (prev && h) {
+                HWND last;
+                while ((last = GetWindow(h, GW_HWNDNEXT)) != NULL) h = last;
+            }
+            if (!h) return NULL;
+        }
+        if (h == cur) return cur;
+        if (IsTabbable(h)) return h;
+        h = GetWindow(h, dir);
+    }
+    return NULL;
+}
+
 /* extern "C": /entry:WinMain needs an unmangled symbol; this file is C++. */
 extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
                               LPWSTR cmd, int show) {
@@ -423,6 +450,22 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
     UpdateWindow(hwnd);
 
     while (GetMessageW(&m, NULL, 0, 0)) {
+        if (m.message == WM_KEYDOWN &&
+            (m.hwnd == hwnd || IsChild(hwnd, m.hwnd))) {
+            if (m.wParam == VK_TAB) {
+                BOOL back = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                HWND nxt = NextTabstop(hwnd, GetFocus(), back);
+                if (nxt) SetFocus(nxt);
+                continue;
+            }
+            if (m.wParam == VK_RETURN) {
+                int fid = GetDlgCtrlID(GetFocus());
+                int cmd = (fid == ID_GO || fid == ID_EXIT) ? fid : ID_GO;
+                SendMessageW(hwnd, WM_COMMAND, MAKEWPARAM(cmd, BN_CLICKED),
+                             (LPARAM)GetDlgItem(hwnd, cmd));
+                continue;
+            }
+        }
         TranslateMessage(&m);
         DispatchMessageW(&m);
     }
