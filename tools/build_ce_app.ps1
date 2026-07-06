@@ -38,7 +38,10 @@ param(
     # When set, build a by-name coredll import lib from this .def and search it
     # before the SDK's ordinal coredll.lib, so coredll imports bind by name (the
     # stable cross-version contract) rather than by per-version ordinal.
-    [string]$CoreDllDef = ""
+    [string]$CoreDllDef = "",
+    # Override the arch-default CRT import libs (mips defaults to corelibc). Era
+    # CE 1.x/2.0 SDKs ship the CRT as libc; pass -CrtLibs libc for those.
+    [string[]]$CrtLibs = @()
 )
 $ErrorActionPreference = "Stop"
 
@@ -95,6 +98,8 @@ switch ($Arch) {
     }
 }
 
+if ($CrtLibs.Count) { $ImplicitLibs = $CrtLibs }
+
 $IncDirs = @()
 foreach ($i in $ExtraIncludes) { $IncDirs += (Resolve-Path $i).Path }
 if ($SdkIncludes.Count) {
@@ -143,7 +148,7 @@ if ($CoreDllDef) {
 # Bust the .obj cache when CERF_DEV_MODE, the arch, or the MIPS ISA changes - a
 # timestamp check can't see a flag change.
 $modeMarker = Join-Path $ObjDir ".build_mode"
-$buildKey   = "$Mode-$Arch-$MipsIsa"
+$buildKey   = "$Mode-$Arch-$MipsIsa-$WceVersion-$CoreLibDir"
 $cachedMode = if (Test-Path $modeMarker) { (Get-Content $modeMarker -Raw).Trim() } else { "" }
 if ($cachedMode -ne $buildKey) {
     Get-ChildItem -Path $ObjDir -Filter "*.obj" -ErrorAction SilentlyContinue | Remove-Item -Force

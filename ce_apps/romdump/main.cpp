@@ -49,12 +49,16 @@ static const Preset kPresets[] = {
        ("CS0(ROM)", NetBSD hpcmips tx39biureg.h: TX39_SYSADDR_CS0 / _CS_SIZE). */
     { L"PR31700 (Nino)", 0x11000000u, 4, 0 },
     { L"PR31500 (Velo)", 0x11000000u, 4, 0 },
+    /* NEC VR4102 ROM space = physical 0x1F000000-0x1FFFFFFF, 16 MB (banks
+       ROMCS0-3, reset vector 0x1FC00000; VR4102 User's Manual Table 5-7/5-8). */
+    { L"MobilePro 700 (VR4102)", 0x1F000000u, 16, 0 },
 #else
-    /* base = PA 0 for all (reset vector); size_mb covers the SoC's static banks
-       per its CERF page-table builder under cerf/boards. Over-dump is free -
-       unmapped space SEH-fills 0xFF. */
+    /* base = PA 0 (reset vector) for all. Over-dumping unmapped space SEH-fills
+       0xFF on most SoCs (hence the generous sizes), but PXA255 stalls the bus on
+       an unpopulated static chip-select, so it is sized to nCS0 (boot flash, 64 MB
+       window) only; secondary flash on another PXA CS is reachable via Custom. */
     { L"SA-11x0",     0x00000000u, 512, 0 },  /* banks 128 MB x4  */
-    { L"PXA25x/27x",  0x00000000u, 384, 0 },  /* CS 64 MB x6      */
+    { L"PXA25x/27x",  0x00000000u, 64,  0 },  /* nCS0 boot flash, 64 MB window */
     { L"S3C2410",     0x00000000u, 768, 0 },  /* nGCS up to SDRAM */
     { L"ARM720",      0x00000000u, 256, 0 },  /* flash + ASIC     */
 #endif
@@ -399,7 +403,11 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
     wc.lpfnWndProc   = WndProc;
     wc.hInstance     = hInstance;
     wc.hIcon         = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
+#ifdef IDC_ARROW
     wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
+#else
+    wc.hCursor       = NULL;   /* pen-era CE (1.0/2.0) has no stock cursors */
+#endif
     wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
     wc.lpszClassName = L"CerfRomDump";
     if (!RegisterClassW(&wc)) return 1;
