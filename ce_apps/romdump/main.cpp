@@ -1,384 +1,254 @@
-/* CERF physical-memory ROM dumper for Windows CE.
-
-   On a memory-mapped/XIP device the OS ROM is NOR flash on a static
-   chip-select at a fixed physical address (PA 0 on most ARM boards - the
-   reset vector). It executes in place, not copied to DRAM, so "the ROM" is
-   the bytes at that base upward.
-
-   The sweep walks the selected physical range in 1 MB windows, maps each
-   with VirtualCopy(...PAGE_PHYSICAL), and reads it page-by-page under SEH so
-   an unpopulated bank's data-abort fills 0xFF rather than aborting. Output
-   is linear: file offset == physical offset from base, so an offline tool
-   finds the CE ROM signature with no fix-up.
-
-   VirtualCopy/PAGE_PHYSICAL is the standard CE physical-access API
-   (CE 2.11 .. CE 7, any CPU); only base/size differ per device. NAND-boot
-   devices whose image is not memory-mapped need a different approach.
-
-   This file owns the window, controls and message loop; the dump worker is
-   in dump.cpp and the progress rendering in paint.cpp.
-
-   Plain ARMV4, coredll-only, PE stamped windowsce,2.11. */
+/* romdump wizard shell: work-area window, opaque bottom nav panel, step
+   switching, vertical scroll, custom progress bar. Steps live in step_*.cpp. */
 
 #include "romdump.h"
 
-#include "cerf_icon_data.h"
+#define WNDX_STATE 0   /* cbWndExtra slot holding AppState* */
 
-#define DEFAULT_PATH L"\\Storage Card\\dump.bin"
-
-#define ID_PRESETLBL 110
-#define ID_PRESET    105
-#define ID_PATHLBL   104
-#define ID_EDIT      101
-#define ID_BASELBL   111
-#define ID_BASE      106
-#define ID_SIZELBL   112
-#define ID_SIZE      107
-#define ID_SEGCHK    108
-#define ID_SEGSIZELBL 113
-#define ID_SEGSIZE   109
-#define ID_GO        102
-#define ID_EXIT      103
-
-/* Preset table is CPU-arch specific (build_ce_app.ps1 defines MIPS for -Arch mips,
-   ARM/_ARM_ for -Arch arm). Custom (base/size entered by hand) is common to both. */
-typedef struct { LPCWSTR name; DWORD base; DWORD size_mb; int custom; } Preset;
-static const Preset kPresets[] = {
+/* Preset table is CPU-arch specific (build_ce_app.ps1 defines MIPS for -Arch
+   mips, ARM/_ARM_ for -Arch arm). Custom (base/size by hand) is common. */
+const Preset kPresets[] = {
 #if defined(MIPS)
     /* NEC VR4102 OS ROM: PA 0x1F000000-0x1FFFFFFF, 16 MB (VR4102 User's Manual
        Table 5-6/5-8: populated ROMCS0+ROMCS1, contains reset vector 0x1FC00000). */
-    { L"VR4102 (MobilePro 700)",  0x1F000000u, 16, 0 },
+    { L"VR4102 (MobilePro 700)",     0x1F000000u, 16, 0 },
     /* Toshiba TX3912 (Philips PR31500/PR31700; Nino/Velo, Sharp Mobilon HC-4100)
        CE flash: PA 0x0C000000, 64 MB static window (NetBSD tx39biureg.h
-       TX39_SYSADDR_CARD2 + CARD_SIZE); MIPS CE XIPs the ROM in kseg0, link
-       VA = 0x80000000 + phys base. */
+       TX39_SYSADDR_CARD2 + CARD_SIZE); MIPS CE XIPs the ROM in kseg0. */
     { L"TX3912 (Nino/Velo/HC-4100)", 0x0C000000u, 64, 0 },
 #else
-    /* base = PA 0 (reset vector) for all. Over-dumping unmapped space SEH-fills
-       0xFF on most SoCs (hence the generous sizes), but PXA255 stalls the bus on
-       an unpopulated static chip-select, so it is sized to nCS0 (boot flash, 64 MB
-       window) only; secondary flash on another PXA CS is reachable via Custom. */
-    { L"SA-11x0",     0x00000000u, 512, 0 },  /* banks 128 MB x4  */
-    { L"PXA25x/27x",  0x00000000u, 64,  0 },  /* nCS0 boot flash, 64 MB window */
-    { L"S3C2410",     0x00000000u, 768, 0 },  /* nGCS up to SDRAM */
-    { L"ARM720",      0x00000000u, 256, 0 },  /* flash + ASIC     */
+    /* base = PA 0 (reset vector) for all. PXA255 stalls the bus on an
+       unpopulated static chip-select, so it is sized to nCS0 (64 MB) only. */
+    { L"SA-11x0",     0x00000000u, 512, 0 },
+    { L"PXA25x/27x",  0x00000000u, 64,  0 },
+    { L"S3C2410",     0x00000000u, 768, 0 },
+    { L"ARM720",      0x00000000u, 256, 0 },
 #endif
     { L"Custom",      0x00000000u,   0, 1 },
 };
-#define NUM_PRESETS (int)(sizeof(kPresets) / sizeof(kPresets[0]))
+const int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
 
-static DWORD ParseUHex(LPCWSTR s) {
-    DWORD v = 0;
-    if (s[0] == L'0' && (s[1] == L'x' || s[1] == L'X')) s += 2;
-    for (; *s; ++s) {
-        WCHAR c = *s;
-        DWORD d;
-        if      (c >= L'0' && c <= L'9') d = (DWORD)(c - L'0');
-        else if (c >= L'a' && c <= L'f') d = (DWORD)(10 + c - L'a');
-        else if (c >= L'A' && c <= L'F') d = (DWORD)(10 + c - L'A');
-        else break;
-        v = (v << 4) | d;
-    }
-    return v;
-}
-
-static DWORD ParseUDec(LPCWSTR s) {
-    DWORD v = 0;
-    for (; *s >= L'0' && *s <= L'9'; ++s) v = v * 10 + (DWORD)(*s - L'0');
-    return v;
-}
-
-/* Fill Base/Size from preset idx and enable them only for Custom. */
-static void ApplyPreset(HWND hwnd, int idx) {
-    WCHAR buf[32];
-    BOOL  custom;
-    if (idx < 0 || idx >= NUM_PRESETS) return;
-    custom = kPresets[idx].custom;
-    if (!custom) {
-        wsprintfW(buf, L"0x%08X", kPresets[idx].base);
-        SetDlgItemTextW(hwnd, ID_BASE, buf);
-        wsprintfW(buf, L"%u", kPresets[idx].size_mb);
-        SetDlgItemTextW(hwnd, ID_SIZE, buf);
-    }
-    EnableWindow(GetDlgItem(hwnd, ID_BASE), custom);
-    EnableWindow(GetDlgItem(hwnd, ID_SIZE), custom);
-}
-
-/* Segment-size box is editable only while the Segmented box is checked. */
-static void SyncSegEnable(HWND hwnd) {
-    EnableWindow(GetDlgItem(hwnd, ID_SEGSIZE),
-                 SendDlgItemMessageW(hwnd, ID_SEGCHK, BM_GETCHECK, 0, 0)
-                 == BST_CHECKED);
-}
-
-/* One control per row, label left, control fills the rest - fits a 240-wide
-   PocketPC screen and stretches on wider ones. The top two rows (preset,
-   file) stop short of the top-right logo; rows below it use full width. */
-static void LayoutControls(HWND hwnd) {
+RECT ContentRect(HWND hwnd) {
     RECT rc;
-    int  m = 6, lbl = 56, cx = 64, narrowR, fullR;
     GetClientRect(hwnd, &rc);
-    fullR   = rc.right - m;
-    narrowR = rc.right - CERF_ICON_W - 2 * m;
-    if (narrowR < cx + 48) narrowR = cx + 48;
-    if (fullR   < cx + 48) fullR   = cx + 48;
-
-    MoveWindow(GetDlgItem(hwnd, ID_PRESETLBL), m,  10, lbl, 16, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_PRESET),    cx,  8, narrowR - cx, 160, TRUE);
-
-    MoveWindow(GetDlgItem(hwnd, ID_PATHLBL),   m,  38, lbl, 16, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_EDIT),      cx, 36, narrowR - cx, 20, TRUE);
-
-    MoveWindow(GetDlgItem(hwnd, ID_BASELBL),   m,  66, lbl, 16, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_BASE),      cx, 64, fullR - cx, 20, TRUE);
-
-    MoveWindow(GetDlgItem(hwnd, ID_SIZELBL),   m,  94, lbl, 16, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_SIZE),      cx, 92, fullR - cx, 20, TRUE);
-
-    MoveWindow(GetDlgItem(hwnd, ID_SEGCHK),     m,     118, 88, 20, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_SEGSIZELBL), m+96,  120, 52, 16, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_SEGSIZE),    m+152, 118, fullR - (m + 152), 20, TRUE);
-
-    MoveWindow(GetDlgItem(hwnd, ID_GO),        m,    146, 64, 24, TRUE);
-    MoveWindow(GetDlgItem(hwnd, ID_EXIT),      m+72, 146, 64, 24, TRUE);
+    rc.bottom -= PANEL_H;
+    return rc;
 }
 
-/* Read target path + base/size from the controls and launch the worker. */
-static void StartDump(HWND hwnd, DumpState* st) {
-    WCHAR num[32];
-    DWORD size_mb, tid;
+void AppLog(AppState* st, LPCWSTR text) {
+    HWND log = GetDlgItem(st->hwnd, ID_LOG);
+    int  len;
+    if (!log) return;
+    len = GetWindowTextLengthW(log);
+    SendMessageW(log, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+    SendMessageW(log, EM_REPLACESEL, FALSE, (LPARAM)text);
+    SendMessageW(log, EM_REPLACESEL, FALSE, (LPARAM)L"\r\n");
+    SendMessageW(log, EM_SCROLLCARET, 0, 0);
+}
 
-    GetDlgItemTextW(hwnd, ID_EDIT, st->outpath, MAX_PATH);
-    if (st->outpath[0] == L'\0') {
-        MessageBoxW(hwnd, L"Enter a target file path first.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        return;
+static void LayoutCurrent(AppState* st) {
+    RECT area = ContentRect(st->hwnd);
+    int  h = 0;
+    switch (st->step) {
+    case STEP_PRESET: h = StepPresetLayout(st, area); break;
+    case STEP_CONFIG: h = StepConfigLayout(st, area); break;
+    case STEP_DUMP:   h = StepDumpLayout(st, area);   break;
     }
+    st->content_h = h;
+    st->view_h    = area.bottom - area.top;
+}
 
-    GetDlgItemTextW(hwnd, ID_BASE, num, 32);
-    st->base = ParseUHex(num);
-    GetDlgItemTextW(hwnd, ID_SIZE, num, 32);
-    size_mb = ParseUDec(num);
-    if (size_mb == 0) {
-        MessageBoxW(hwnd, L"Size must be at least 1 MB.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        return;
+static void SyncScrollbar(AppState* st) {
+    SCROLLINFO si;
+    int maxy = st->content_h - st->view_h;
+    if (maxy < 0) maxy = 0;
+    if (st->scroll_y > maxy) st->scroll_y = maxy;
+    if (st->scroll_y < 0)    st->scroll_y = 0;
+    memset(&si, 0, sizeof(si));
+    si.cbSize = sizeof(si);
+    si.fMask  = SIF_RANGE | SIF_PAGE | SIF_POS;   /* no DISABLENOSCROLL: auto-hide */
+    si.nMin   = 0;
+    si.nMax   = (st->content_h > 0) ? st->content_h - 1 : 0;
+    si.nPage  = (UINT)(st->view_h > 0 ? st->view_h : 1);
+    si.nPos   = st->scroll_y;
+    SetScrollInfo(st->hwnd, SB_VERT, &si, TRUE);
+}
+
+static void RefreshNav(AppState* st) {
+    LPCWSTR t = (st->step == STEP_PRESET) ? L"Next"
+              : (st->step == STEP_CONFIG) ? L"Start Dump"
+              : (st->running ? L"Stop" : L"Exit");
+    SetWindowTextW(GetDlgItem(st->hwnd, ID_NAV), t);
+    ShowWindow(GetDlgItem(st->hwnd, ID_CANCEL),
+               st->step == STEP_DUMP ? SW_HIDE : SW_SHOW);
+}
+
+static void PositionPanel(AppState* st) {
+    RECT rc;
+    int  py, by;
+    GetClientRect(st->hwnd, &rc);
+    py = rc.bottom - PANEL_H;
+    by = py + (PANEL_H - NAV_H) / 2;
+    MoveWindow(st->panel, 0, py, rc.right, PANEL_H, TRUE);
+    MoveWindow(GetDlgItem(st->hwnd, ID_NAV),
+               rc.right - NAV_W - BTN_MARGIN, by, NAV_W, NAV_H, TRUE);
+    MoveWindow(GetDlgItem(st->hwnd, ID_CANCEL), BTN_MARGIN, by, NAV_W, NAV_H, TRUE);
+}
+
+static void ShowStep(AppState* st, int step, BOOL show) {
+    switch (step) {
+    case STEP_PRESET: StepPresetShow(st, show); break;
+    case STEP_CONFIG: StepConfigShow(st, show); break;
+    case STEP_DUMP:   StepDumpShow(st, show);   break;
     }
-    st->length = size_mb << 20;
+}
 
-    st->segmented = SendDlgItemMessageW(hwnd, ID_SEGCHK, BM_GETCHECK, 0, 0)
-                    == BST_CHECKED;
-    if (st->segmented) {
-        DWORD seg_mb;
-        GetDlgItemTextW(hwnd, ID_SEGSIZE, num, 32);
-        seg_mb = ParseUDec(num);
-        if (seg_mb == 0) {
-            MessageBoxW(hwnd, L"Segment size must be at least 1 MB.",
-                        L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-            return;
-        }
-        st->seg_bytes = seg_mb << 20;
+static void GoToStep(AppState* st, int step) {
+    ShowStep(st, st->step, FALSE);
+    st->step     = step;
+    st->scroll_y = 0;
+    if (step == STEP_CONFIG) StepConfigEnter(st);
+    ShowStep(st, step, TRUE);
+    RefreshNav(st);
+    LayoutCurrent(st);
+    SyncScrollbar(st);
+    InvalidateRect(st->hwnd, NULL, TRUE);
+    if (step == STEP_DUMP) { StepDumpEnter(st); RefreshNav(st); }
+}
+
+static void OnNav(AppState* st) {
+    if (st->step == STEP_PRESET) {
+        if (StepPresetOnNext(st)) GoToStep(st, STEP_CONFIG);
+    } else if (st->step == STEP_CONFIG) {
+        if (StepConfigOnNext(st)) GoToStep(st, STEP_DUMP);
+    } else if (st->running) {
+        if (MessageBoxW(st->hwnd,
+                        L"Stop the dump? You can still read the log afterwards.",
+                        L"CERF ROM dumper", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+            st->cancel = 1;
+            if (st->seg_event) SetEvent(st->seg_event);  /* wake a segment wait */
+        }                                                /* WM_APP_DONE finishes */
     } else {
-        st->seg_bytes = 0;
+        DestroyWindow(st->hwnd);
     }
+}
 
-    st->cancel = 0; st->finished = 0; st->ok = 0;
-    st->bytes_done = 0; st->fault_pages = 0; st->cur_pa = 0; st->err[0] = L'\0';
-    st->seg_index = 0; st->segs_written = 0; st->seg_continue = 0;
-    if (st->seg_event) ResetEvent(st->seg_event);
-
-    EnableWindow(GetDlgItem(hwnd, ID_GO),     FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_EDIT),   FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_PRESET), FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_BASE),   FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_SIZE),   FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), FALSE);
-    EnableWindow(GetDlgItem(hwnd, ID_SEGSIZE), FALSE);
-    st->running = 1;
-
-    st->thread = CreateThread(NULL, 0, DumpThread, st, 0, &tid);
-    if (!st->thread) {
-        st->running = 0;
-        EnableWindow(GetDlgItem(hwnd, ID_GO),     TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_EDIT),   TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_PRESET), TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), TRUE);
-        SyncSegEnable(hwnd);
-        ApplyPreset(hwnd, (int)SendDlgItemMessageW(hwnd, ID_PRESET,
-                                                   CB_GETCURSEL, 0, 0));
-        MessageBoxW(hwnd, L"Failed to start dump thread.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        return;
+/* Opaque bottom strip: covers content scrolled into the panel band and paints
+   the progress bar on the dump step. Reads AppState from its parent. */
+static LRESULT CALLBACK PanelProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_ERASEBKGND) return 1;
+    if (msg == WM_PAINT) {
+        AppState*   st = (AppState*)GetWindowLongW(GetParent(hwnd), WNDX_STATE);
+        PAINTSTRUCT ps;
+        HDC         dc = BeginPaint(hwnd, &ps);
+        RECT        rc;
+        GetClientRect(hwnd, &rc);
+        FillRect(dc, &rc, (HBRUSH)GetStockObject(LTGRAY_BRUSH));
+        if (st && st->step == STEP_DUMP) StepDumpPaintProgress(st, dc, rc);
+        EndPaint(hwnd, &ps);
+        return 0;
     }
-    SetTimer(hwnd, 1, 250, NULL);
-    InvalidateRect(hwnd, NULL, FALSE);
+    return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    DumpState* st = (DumpState*)GetWindowLongW(hwnd, GWL_USERDATA);
+    AppState* st = (AppState*)GetWindowLongW(hwnd, WNDX_STATE);
 
     switch (msg) {
     case WM_CREATE: {
         CREATESTRUCTW* cs = (CREATESTRUCTW*)lp;
-        DumpState* s = (DumpState*)cs->lpCreateParams;
+        AppState* s = (AppState*)cs->lpCreateParams;
         HINSTANCE hi = cs->hInstance;
-        int i;
-        SetWindowLongW(hwnd, GWL_USERDATA, (LONG)s);
+        HWND c;
+        SetWindowLongW(hwnd, WNDX_STATE, (LONG)s);
         s->hwnd = hwnd;
-
-        CreateWindowExW(0, L"STATIC", L"Preset:",
-                        WS_CHILD | WS_VISIBLE | SS_LEFT,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_PRESETLBL, hi, NULL);
-        CreateWindowExW(0, L"COMBOBOX", NULL,
-                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST |
-                        WS_VSCROLL,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_PRESET, hi, NULL);
-        for (i = 0; i < NUM_PRESETS; ++i)
-            SendDlgItemMessageW(hwnd, ID_PRESET, CB_ADDSTRING, 0,
-                                (LPARAM)kPresets[i].name);
-        SendDlgItemMessageW(hwnd, ID_PRESET, CB_SETCURSEL, 0, 0);
-
-        CreateWindowExW(0, L"STATIC", L"File:",
-                        WS_CHILD | WS_VISIBLE | SS_LEFT,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_PATHLBL, hi, NULL);
-        CreateWindowExW(0, L"EDIT", DEFAULT_PATH,
-                        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP |
-                        ES_AUTOHSCROLL,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_EDIT, hi, NULL);
-
-        CreateWindowExW(0, L"STATIC", L"Base hex:",
-                        WS_CHILD | WS_VISIBLE | SS_LEFT,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_BASELBL, hi, NULL);
-        CreateWindowExW(0, L"EDIT", L"",
-                        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP |
-                        ES_AUTOHSCROLL,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_BASE, hi, NULL);
-        CreateWindowExW(0, L"STATIC", L"Size MB:",
-                        WS_CHILD | WS_VISIBLE | SS_LEFT,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_SIZELBL, hi, NULL);
-        CreateWindowExW(0, L"EDIT", L"",
-                        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP |
-                        ES_NUMBER | ES_AUTOHSCROLL,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_SIZE, hi, NULL);
-
-        CreateWindowExW(0, L"BUTTON", L"Segmented",
-                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGCHK, hi, NULL);
-        CreateWindowExW(0, L"STATIC", L"Seg MB:",
-                        WS_CHILD | WS_VISIBLE | SS_LEFT,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGSIZELBL, hi, NULL);
-        CreateWindowExW(0, L"EDIT", L"1",
-                        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP |
-                        ES_NUMBER | ES_AUTOHSCROLL,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_SEGSIZE, hi, NULL);
-
-        CreateWindowExW(0, L"BUTTON", L"GO",
-                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_GO, hi, NULL);
-        CreateWindowExW(0, L"BUTTON", L"Exit",
-                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-                        0, 0, 0, 0, hwnd, (HMENU)ID_EXIT, hi, NULL);
-
-        LayoutControls(hwnd);
-        ApplyPreset(hwnd, 0);
-        SyncSegEnable(hwnd);
-        SetFocus(GetDlgItem(hwnd, ID_PRESET));
+        StepPresetCreate(s, hi);
+        StepConfigCreate(s, hi);
+        StepDumpCreate(s, hi);
+        s->panel = CreateWindowExW(0, L"CerfPanel", NULL,
+                                   WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+                                   0, 0, 0, 0, hwnd, NULL, hi, NULL);
+        CreateWindowExW(0, L"BUTTON", L"Cancel",
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | BS_PUSHBUTTON,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_CANCEL, hi, NULL);
+        CreateWindowExW(0, L"BUTTON", L"Next",
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | BS_DEFPUSHBUTTON,
+                        0, 0, 0, 0, hwnd, (HMENU)ID_NAV, hi, NULL);
+        /* Panel, buttons and step controls overlap in the bottom band;
+           WS_CLIPSIBLINGS makes each child paint only its own rect. */
+        for (c = GetWindow(hwnd, GW_CHILD); c; c = GetWindow(c, GW_HWNDNEXT)) {
+            SetWindowLongW(c, GWL_STYLE, GetWindowLongW(c, GWL_STYLE) | WS_CLIPSIBLINGS);
+            SetWindowPos(c, NULL, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        }
+        /* Explicit z-order: panel above the step controls, buttons above the panel. */
+        SetWindowPos(s->panel, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(GetDlgItem(hwnd, ID_CANCEL), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(GetDlgItem(hwnd, ID_NAV), HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        StepConfigShow(s, FALSE);
+        StepDumpShow(s, FALSE);
+        s->step = STEP_PRESET;
+        PositionPanel(s);
+        RefreshNav(s);
+        LayoutCurrent(s);
+        SyncScrollbar(s);
+        SetFocus(GetDlgItem(hwnd, ID_PRESETLIST));
         return 0;
     }
 
     case WM_SIZE:
-        LayoutControls(hwnd);
-        InvalidateRect(hwnd, NULL, FALSE);
+        PositionPanel(st);
+        LayoutCurrent(st);
+        SyncScrollbar(st);
+        InvalidateRect(hwnd, NULL, TRUE);
         return 0;
+
+    case WM_VSCROLL: {
+        int y = st->scroll_y, page = st->view_h, maxy = st->content_h - st->view_h;
+        if (maxy < 0) maxy = 0;
+        switch (LOWORD(wp)) {
+        case SB_LINEUP:        y -= 16;   break;
+        case SB_LINEDOWN:      y += 16;   break;
+        case SB_PAGEUP:        y -= page; break;
+        case SB_PAGEDOWN:      y += page; break;
+        case SB_THUMBTRACK:
+        case SB_THUMBPOSITION: y = HIWORD(wp); break;
+        }
+        if (y < 0) y = 0;
+        if (y > maxy) y = maxy;
+        if (y != st->scroll_y) {
+            st->scroll_y = y;
+            SetScrollPos(hwnd, SB_VERT, y, TRUE);
+            LayoutCurrent(st);
+        }
+        return 0;
+    }
 
     case WM_COMMAND:
         if (!st) return 0;
-        if (LOWORD(wp) == ID_PRESET && HIWORD(wp) == CBN_SELCHANGE) {
-            ApplyPreset(hwnd, (int)SendDlgItemMessageW(hwnd, ID_PRESET,
-                                                       CB_GETCURSEL, 0, 0));
-            return 0;
-        }
-        if (LOWORD(wp) == ID_SEGCHK && HIWORD(wp) == BN_CLICKED) {
-            SyncSegEnable(hwnd);
-            return 0;
-        }
-        if (LOWORD(wp) == ID_GO) {
-            if (!st->running) StartDump(hwnd, st);
-            return 0;
-        }
-        if (LOWORD(wp) == ID_EXIT) {
-            st->cancel = 1;                       /* let the worker bail */
-            if (st->seg_event) SetEvent(st->seg_event);  /* wake a segment wait */
-            if (st->thread) WaitForSingleObject(st->thread, 3000);
-            DestroyWindow(hwnd);
-            return 0;
-        }
+        if (LOWORD(wp) == ID_NAV    && HIWORD(wp) == BN_CLICKED) { OnNav(st); return 0; }
+        if (LOWORD(wp) == ID_CANCEL && HIWORD(wp) == BN_CLICKED) { DestroyWindow(hwnd); return 0; }
+        if (st->step == STEP_PRESET && StepPresetCommand(st, wp, lp)) return 0;
+        if (st->step == STEP_CONFIG && StepConfigCommand(st, wp, lp)) return 0;
+        if (st->step == STEP_DUMP   && StepDumpCommand(st, wp, lp))   return 0;
         return 0;
+
+    case WM_CTLCOLORSTATIC: {                 /* labels + checkbox: white on white */
+        HDC dc = (HDC)wp;
+        SetBkColor(dc, RGB(255, 255, 255));
+        return (LRESULT)GetStockObject(WHITE_BRUSH);
+    }
 
     case WM_TIMER:
-        InvalidateRect(hwnd, NULL, FALSE);
+        if (st && st->step == STEP_DUMP && st->panel)
+            InvalidateRect(st->panel, NULL, FALSE);
         return 0;
 
-    case WM_PAINT:
-        if (st) PaintProgress(hwnd, st);
-        return 0;
-
+    case WM_APP_LOG:
     case WM_APP_SEGMENT:
-        if (st) {
-            WCHAR msg[MAX_PATH + 128];
-            DWORD n = st->seg_index;
-            wsprintfW(msg,
-                      L"Segment %03u written (%u MB):\n%s.%03u\n\n"
-                      L"Copy it off the device if you need to, then continue.\n\n"
-                      L"Write the next segment (.%03u)?",
-                      (unsigned)n, (unsigned)(st->seg_bytes >> 20),
-                      st->outpath, (unsigned)n, (unsigned)(n + 1));
-            st->seg_continue =
-                (MessageBoxW(hwnd, msg, L"CERF ROM dumper - segmented",
-                             MB_YESNO | MB_ICONQUESTION) == IDYES) ? 1 : 0;
-            SetEvent(st->seg_event);
-        }
-        return 0;
-
+    case WM_APP_STORAGE:
     case WM_APP_DONE:
-        KillTimer(hwnd, 1);
-        if (st && st->thread) { CloseHandle(st->thread); st->thread = NULL; }
-        if (st) st->running = 0;
-        EnableWindow(GetDlgItem(hwnd, ID_GO),     TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_EDIT),   TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_PRESET), TRUE);
-        EnableWindow(GetDlgItem(hwnd, ID_SEGCHK), TRUE);
-        SyncSegEnable(hwnd);
-        ApplyPreset(hwnd, (int)SendDlgItemMessageW(hwnd, ID_PRESET,
-                                                   CB_GETCURSEL, 0, 0));
-        InvalidateRect(hwnd, NULL, FALSE);
-        UpdateWindow(hwnd);
-        if (st && st->ok && st->segmented) {
-            WCHAR done[MAX_PATH + 128];
-            wsprintfW(done,
-                      L"Dump complete.\n\n%u segment file(s):\n%s.001 ... .%03u\n"
-                      L"%u MB total, %u pages 0xFF-filled.",
-                      (unsigned)st->segs_written, st->outpath,
-                      (unsigned)st->segs_written, (unsigned)(st->bytes_done >> 20),
-                      (unsigned)st->fault_pages);
-            MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
-        } else if (st && st->ok) {
-            WCHAR done[MAX_PATH + 96];
-            wsprintfW(done,
-                      L"Dump complete.\n\n%s\n%u MB written, %u pages 0xFF-filled.",
-                      st->outpath, (unsigned)(st->bytes_done >> 20),
-                      (unsigned)st->fault_pages);
-            MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
-        } else if (st && st->err[0]) {
-            MessageBoxW(hwnd, st->err, L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        } else if (st && st->segmented && st->segs_written) {
-            WCHAR done[MAX_PATH + 96];
-            wsprintfW(done,
-                      L"Stopped after %u segment file(s):\n%s.001 ... .%03u",
-                      (unsigned)st->segs_written, st->outpath,
-                      (unsigned)st->segs_written);
-            MessageBoxW(hwnd, done, L"CERF ROM dumper", MB_OK | MB_ICONINFORMATION);
-        }
+        if (st) StepDumpOnMessage(st, msg, wp, lp);
         return 0;
 
     case WM_DESTROY:
@@ -396,7 +266,7 @@ static BOOL IsTabbable(HWND h) {
 static HWND NextTabstop(HWND parent, HWND cur, BOOL prev) {
     UINT dir = prev ? GW_HWNDPREV : GW_HWNDNEXT;
     HWND h = cur ? GetWindow(cur, dir) : NULL;
-    int guard = 0;
+    int  guard = 0;
     while (guard++ < 256) {
         if (!h) {
             h = GetWindow(parent, GW_CHILD);
@@ -416,18 +286,26 @@ static HWND NextTabstop(HWND parent, HWND cur, BOOL prev) {
 /* extern "C": /entry:WinMain needs an unmangled symbol; this file is C++. */
 extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
                               LPWSTR cmd, int show) {
-    static DumpState st;
-    WNDCLASSW wc;
+    static AppState st;
+    WNDCLASSW wc, pc;
     HWND      hwnd;
     MSG       m;
 
     (void)hPrev; (void)cmd;
-
+    memset(&st, 0, sizeof(st));
     st.seg_event = CreateEventW(NULL, FALSE, FALSE, NULL);  /* auto-reset, off */
     if (!st.seg_event) return 1;
 
+    memset(&pc, 0, sizeof(pc));
+    pc.lpfnWndProc   = PanelProc;
+    pc.hInstance     = hInstance;
+    pc.hbrBackground = NULL;                 /* PanelProc paints */
+    pc.lpszClassName = L"CerfPanel";
+    if (!RegisterClassW(&pc)) return 1;
+
     memset(&wc, 0, sizeof(wc));
     wc.lpfnWndProc   = WndProc;
+    wc.cbWndExtra    = sizeof(LONG);         /* WNDX_STATE slot */
     wc.hInstance     = hInstance;
     wc.hIcon         = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
 #ifdef IDC_ARROW
@@ -439,13 +317,13 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
     wc.lpszClassName = L"CerfRomDump";
     if (!RegisterClassW(&wc)) return 1;
 
-    /* Pass &st as the create param so WM_CREATE can wire up the controls. */
+    /* CW_USEDEFAULT lets the CE shell size the window to the work area, so the
+       taskbar stays clear. */
     hwnd = CreateWindowExW(0, L"CerfRomDump", L"CERF ROM dumper",
-                           WS_VISIBLE | WS_BORDER,
+                           WS_VISIBLE | WS_BORDER | WS_VSCROLL | WS_CLIPCHILDREN,
                            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                            NULL, NULL, hInstance, &st);
     if (!hwnd) return 1;
-
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
 
@@ -460,10 +338,12 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrev,
             }
             if (m.wParam == VK_RETURN) {
                 int fid = GetDlgCtrlID(GetFocus());
-                int cmd = (fid == ID_GO || fid == ID_EXIT) ? fid : ID_GO;
-                SendMessageW(hwnd, WM_COMMAND, MAKEWPARAM(cmd, BN_CLICKED),
-                             (LPARAM)GetDlgItem(hwnd, cmd));
-                continue;
+                if (fid != ID_LOG) {
+                    SendMessageW(hwnd, WM_COMMAND,
+                                 MAKEWPARAM(ID_NAV, BN_CLICKED),
+                                 (LPARAM)GetDlgItem(hwnd, ID_NAV));
+                    continue;
+                }
             }
         }
         TranslateMessage(&m);

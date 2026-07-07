@@ -157,6 +157,19 @@ if ($cachedMode -ne $buildKey) {
 
 # Compile: .obj files land in $ObjDir (default: the per-app dir, co-located
 # with sources) so each variant keeps its own incremental cache.
+# An incremental .cpp-mtime check does not see header edits, so a source whose
+# object predates the newest header in its directory is recompiled too - a shared
+# struct change otherwise ships as mismatched object layouts.
+$srcDirs = @($Sources | ForEach-Object { Split-Path (Resolve-Path $_).Path -Parent } | Sort-Object -Unique)
+$newestHdr = $null
+foreach ($d in $srcDirs) {
+    $h = Get-ChildItem -Path $d -Filter *.h -ErrorAction SilentlyContinue |
+         Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($h -and (($null -eq $newestHdr) -or ($h.LastWriteTime -gt $newestHdr))) {
+        $newestHdr = $h.LastWriteTime
+    }
+}
+
 $objs = @()
 foreach ($src in $Sources) {
     $obj = Join-Path $ObjDir ([System.IO.Path]::ChangeExtension((Split-Path $src -Leaf), ".obj"))
@@ -164,6 +177,9 @@ foreach ($src in $Sources) {
     $needCompile = -not (Test-Path $obj)
     if (-not $needCompile) {
         $needCompile = ((Get-Item $src).LastWriteTime -gt (Get-Item $obj).LastWriteTime)
+    }
+    if (-not $needCompile -and $null -ne $newestHdr) {
+        $needCompile = ($newestHdr -gt (Get-Item $obj).LastWriteTime)
     }
     if ($needCompile) {
         Write-Host "[CE] cl  $src"
