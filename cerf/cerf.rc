@@ -40,6 +40,7 @@ OEM_SMARTBOOK    RCDATA "assets/oem/logo_smartbook.png"
 OEM_TI           RCDATA "assets/oem/logo_ti.png"
 OEM_ZUNE         RCDATA "assets/oem/logo_zune.png"
 OEM_IBM_THINKPAD RCDATA "assets/oem/logo_ibm_thinkpad.png"
+OEM_PHILIPS      RCDATA "assets/oem/logo_philips.png"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION    CERF_VERSION_MAJOR,CERF_VERSION_MINOR,CERF_VERSION_PATCH,CERF_VERSION_BUILD
