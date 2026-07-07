@@ -21,9 +21,6 @@ Download WIP build ({version}) from artifacts [![build](https://github.com/gwesl
 
 ## Usage
 
-> [!TIP]
-> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
-
 The easiest way to run CERF is **`launcher.exe`** - a GUI app shipped next to `cerf.exe` that downloads publicly available ROM bundles and boots them. Pick a device from the list, tweak launch options (resolution, logging, network) if you want, click **Launch CERF**.
 
 ![launcher screenshot](docs/launcher.png)

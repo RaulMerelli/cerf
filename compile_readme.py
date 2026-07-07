@@ -8,7 +8,7 @@ SOURCE    = os.path.join(ROOT, 'README_SOURCE.md')
 OUTPUT    = os.path.join(ROOT, 'README.md')
 CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
 CHANGELOG_LINK = 'docs/changelog.html'
-CHANGELOG_RECENT = 3
+CHANGELOG_RECENT = 6
 ICONS_DIR = 'launcher/assets/icons'
 
 sys.path.insert(0, os.path.join(ROOT, 'launcher'))
@@ -106,7 +106,8 @@ def build_changelog():
         '<table>',
         '  <thead>',
         '    <tr>',
-        '      <th>CERF Version</th>',
+        '      <th>Version</th>',
+        '      <th>Release Date</th>',
         '      <th>Changes</th>',
         '    </tr>',
         '  </thead>',

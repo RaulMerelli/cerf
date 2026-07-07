@@ -138,9 +138,6 @@ Download WIP build (6.0) from artifacts [![build](https://github.com/gweslab/cer
 
 ## Usage
 
-> [!TIP]
-> Stock touch input is misbehaving in some devices/requires some additional effort. If your clicks do not register, try holding the left button and wiggling the cursor a bit.
-
 The easiest way to run CERF is **`launcher.exe`** - a GUI app shipped next to `cerf.exe` that downloads publicly available ROM bundles and boots them. Pick a device from the list, tweak launch options (resolution, logging, network) if you want, click **Launch CERF**.
 
 ![launcher screenshot](docs/launcher.png)
@@ -232,13 +229,15 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 <table>
   <thead>
     <tr>
-      <th>CERF Version</th>
+      <th>Version</th>
+      <th>Release Date</th>
       <th>Changes</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-          <td>v5.1 (NOT RELEASED YET)</td>
+          <td>v5.1</td>
+          <td>TBA</td>
           <td>
             <ul>
               <li>MIPS JIT engine</li>
@@ -259,6 +258,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
         </tr>
     <tr>
           <td>v5.0</td>
+          <td>18 Jun 2026</td>
           <td>
             <ul>
               <li>iPaqs now use original .nbf format instead of normalized .nb0. <b>Upgrade bundle in launcher!</b></li>
@@ -286,6 +286,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
         </tr>
     <tr>
           <td>v4.0</td>
+          <td>8 Jun 2026</td>
           <td>
             <ul>
               <li>NE2000 is now hot pluggable in all boards that support PCMCIA</li>
@@ -299,6 +300,42 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>Launcher: optional packages feature</li>
               <li>Guest additions: Complete overhaul of XIP injection (Now you can boot Jornada 720 in 4K. Also suddenly Zune 30 is in the game too)</li>
               <li>Various UI/general fixes, improvements</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
+          <td>v3.21</td>
+          <td>6 Jun 2026</td>
+          <td>
+            <ul>
+              <li>iPaq H3100 support</li>
+              <li>iPaq H3100,H3600 PPC2002 sound fixes</li>
+              <li>Jornada 720 support</li>
+              <li>JIT/MMU improvements</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
+          <td>v3.20</td>
+          <td>5 Jun 2026</td>
+          <td>
+            <ul>
+              <li>Falcon 4220 board MVP support</li>
+              <li>Launcher updates</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
+          <td>v3.11 (For Workgroups)</td>
+          <td>4 Jun 2026</td>
+          <td>
+            <ul>
+              <li>Guest Additions: various video driver improvements/fixes</li>
+              <li>Guest Additions: accelerated mouse pointer (configurable at runtime; scroll wheel on newer OS)</li>
+              <li>Guest Additions: shared folders with host</li>
+              <li>Guest Additions: auto screen resolution change on host window resize</li>
+              <li>Falcon 4220 board partial implementation (OS boots to UI but hangs)</li>
+              <li>Various bug fixes and improvements</li>
             </ul>
           </td>
         </tr>

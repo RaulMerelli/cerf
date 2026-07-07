@@ -17,26 +17,36 @@
 <table>
   <thead>
     <tr>
-      <th>CERF Version</th>
+      <th>Version</th>
+      <th>Release Date</th>
       <th>Changes</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>v5.1 (NOT RELEASED YET)</td>
+      <td>v5.1</td>
+      <td>TBA</td>
       <td>
         <ul>
-          <li>NEC Rockhopper SG2_VR5500 (MIPS) support</li>
-          <li>Ford SYNC 2 support</li>
-          <li>CERF/Launcher UI/UX improvements</li>
+          <li>MIPS JIT engine</li>
+          <li>NEC Rockhopper SG2_VR5500 support</li>
+          <li>(WIP) Ford Sync 2 bare-bones support</li>
+          <li>(WIP) NEC MobilePro 700 bare-bones support</li>
+          <li>(PLANNED) Philips Velo 1, Philips Nino 300 support</li>
+          <li>UX/UI improvements</li>
+          <li>Launcher full redesign: save settings, fully new layout, multidownload, live/suspened screen previews</li>
           <li>Added tools\fileserver.py in build directory (simple directory serving web server)</li>
           <li>Microsoft Reference Platform: added full PS/2 key mapping set</li>
-          <li>Launcher/config loader: Save settings into cerf-user.json</li>
+          <li>Removed heuristics board detector - it was a bad non-scalable conception, now you need to specify board ID directly.
+            This also lets users to run ROMs on other boards. Obviously if it's not the same device the chance it will work is around 0%.</li>
+          <li>romdump.exe for MIPS updated to emit MIPS1 code, support Windows CE 2.0 and now includes several real MIPS CPUs</li>
+          <li>...more updates pending</li>
         </ul>
       </td>
     </tr>
     <tr>
       <td>v5.0</td>
+      <td>18 Jun 2026</td>
       <td>
         <ul>
           <li>iPaqs now use original .nbf format instead of normalized .nb0. <b>Upgrade bundle in launcher!</b></li>
@@ -64,6 +74,7 @@
     </tr>
     <tr>
       <td>v4.0</td>
+      <td>8 Jun 2026</td>
       <td>
         <ul>
           <li>NE2000 is now hot pluggable in all boards that support PCMCIA</li>
@@ -82,6 +93,7 @@
     </tr>
     <tr>
       <td>v3.21</td>
+      <td>6 Jun 2026</td>
       <td>
         <ul>
           <li>iPaq H3100 support</li>
@@ -93,6 +105,7 @@
     </tr>
     <tr>
       <td>v3.20</td>
+      <td>5 Jun 2026</td>
       <td>
         <ul>
           <li>Falcon 4220 board MVP support</li>
@@ -102,6 +115,7 @@
     </tr>
     <tr>
       <td>v3.11 (For Workgroups)</td>
+      <td>4 Jun 2026</td>
       <td>
         <ul>
           <li>Guest Additions: various video driver improvements/fixes</li>
@@ -115,6 +129,7 @@
     </tr>
     <tr>
       <td>v3.0</td>
+      <td>2 Jun 2026</td>
       <td>
         <ul>
           <li>GUEST ADDITIONS - injects own video driver into ROMs</li>
@@ -128,6 +143,7 @@
     </tr>
     <tr>
       <td>v2.0</td>
+      <td>19 May 2026</td>
       <td>
         <ul>
           <li>Initial release</li>
