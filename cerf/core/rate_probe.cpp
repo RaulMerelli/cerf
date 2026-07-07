@@ -4,6 +4,7 @@
 #include "log.h"
 
 #include <chrono>
+#include <cstdio>
 #include <intrin.h>
 
 REGISTER_SERVICE(RateProbe);
@@ -101,6 +102,10 @@ void RateProbe::LogLoop() {
     using namespace std::chrono;
     auto next_tick = steady_clock::now() + seconds(1);
 
+    /* Per-counter total since boot; a lifetime of 0 means the Inc() site is
+       not wired on this board, distinct from an idle 0 this interval. */
+    uint64_t lifetime[kCount] = {};
+
     while (!stop_.load(std::memory_order_acquire)) {
         {
             std::unique_lock<std::mutex> lk(cv_mtx_);
@@ -119,6 +124,7 @@ void RateProbe::LogLoop() {
         for (uint8_t i = 0; i < kTimeCount; ++i) {
             t[i] = time_counters_[i].exchange(0, std::memory_order_relaxed);
         }
+        for (uint8_t i = 0; i < kCount; ++i) lifetime[i] += s[i];
 
         const uint64_t rd = s[static_cast<uint8_t>(Counter::OstReadOscr)];
         const uint64_t jr = s[static_cast<uint8_t>(Counter::JitRuns)];
@@ -136,31 +142,40 @@ void RateProbe::LogLoop() {
             (run_ms > io_ms + mmu_ms) ? run_ms - io_ms - mmu_ms : 0;
         LogTopMmioPcs();
         LogTopCtxSlots();
+        char cbuf[kCount][24];
+        for (uint8_t i = 0; i < kCount; ++i) {
+            if (lifetime[i] == 0) {
+                std::snprintf(cbuf[i], sizeof(cbuf[i]), "(not wired)");
+            } else {
+                std::snprintf(cbuf[i], sizeof(cbuf[i]), "%llu",
+                              (unsigned long long)s[i]);
+            }
+        }
         LOG(Perf,
-            "jit_runs=%llu ost_rd=%llu ost_poll=%llu ost_fire=%llu "
-            "intc_assert=%llu intc_deassert=%llu jit_pend_set=%llu "
-            "jit_pend_clr=%llu dma_w=%llu audio_msg=%llu rd_per_run=%llu "
+            "jit_runs=%s ost_rd=%s ost_poll=%s ost_fire=%s "
+            "intc_assert=%s intc_deassert=%s jit_pend_set=%s "
+            "jit_pend_clr=%s dma_w=%s audio_msg=%s rd_per_run=%llu "
             "run_ms=%llu ost_ms=%llu io_ms=%llu mmu_ms=%llu native_ms=%llu "
-            "mmu_calls=%llu jit_compile=%llu tc_flush=%llu ctx_flush=%llu\n",
-            (unsigned long long)s[static_cast<uint8_t>(Counter::JitRuns)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::OstReadOscr)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::OstPolls)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::OstFires)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::IntcAsserts)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::IntcDeasserts)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::JitPendSet)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::JitPendClr)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::DmaWrites)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::AudioMsgs)],
+            "mmu_calls=%s jit_compile=%s tc_flush=%s ctx_flush=%s\n",
+            cbuf[static_cast<uint8_t>(Counter::JitRuns)],
+            cbuf[static_cast<uint8_t>(Counter::OstReadOscr)],
+            cbuf[static_cast<uint8_t>(Counter::OstPolls)],
+            cbuf[static_cast<uint8_t>(Counter::OstFires)],
+            cbuf[static_cast<uint8_t>(Counter::IntcAsserts)],
+            cbuf[static_cast<uint8_t>(Counter::IntcDeasserts)],
+            cbuf[static_cast<uint8_t>(Counter::JitPendSet)],
+            cbuf[static_cast<uint8_t>(Counter::JitPendClr)],
+            cbuf[static_cast<uint8_t>(Counter::DmaWrites)],
+            cbuf[static_cast<uint8_t>(Counter::AudioMsgs)],
             (unsigned long long)rd_per_run,
             (unsigned long long)run_ms,
             (unsigned long long)ost_ms,
             (unsigned long long)io_ms,
             (unsigned long long)mmu_ms,
             (unsigned long long)native_ms,
-            (unsigned long long)s[static_cast<uint8_t>(Counter::MmuXlateCalls)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::JitCompiles)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::TcFlushes)],
-            (unsigned long long)s[static_cast<uint8_t>(Counter::CtxFlushes)]);
+            cbuf[static_cast<uint8_t>(Counter::MmuXlateCalls)],
+            cbuf[static_cast<uint8_t>(Counter::JitCompiles)],
+            cbuf[static_cast<uint8_t>(Counter::TcFlushes)],
+            cbuf[static_cast<uint8_t>(Counter::CtxFlushes)]);
     }
 }
