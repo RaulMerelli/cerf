@@ -33,6 +33,8 @@ public:
        register, and the GPE-cmd blitter bounds. Computed once in OnReady. */
     uint32_t RegionBytes() const { return region_bytes_; }
 
+    uint32_t MemBasePa() const;
+
     /* Byte span reserved at the region head for the (re-mode-growable) primary.
        The guest video heap starts past this so a re-mode can't overrun it. */
     uint32_t PrimaryReserveBytes() const { return primary_reserve_; }
@@ -40,6 +42,11 @@ public:
     uint8_t*       Bytes()       { return bytes_.data(); }
     const uint8_t* Bytes() const { return bytes_.data(); }
     uint32_t       Capacity() const { return uint32_t(bytes_.size()); }
+
+    /* Device colour LUT for an indexed (<=8bpp) surface; entry = 0x00RRGGBB. */
+    void     SetPaletteEntry(uint32_t idx, uint32_t rgb) { if (idx < 256u) palette_[idx] = rgb; }
+    uint32_t PaletteEntry(uint32_t idx) const { return idx < 256u ? palette_[idx] : 0u; }
+    const uint32_t* Palette() const { return palette_; }
 
     void MarkDirty() { any_write_ = true; }
 
@@ -62,6 +69,7 @@ private:
     uint32_t ComputeRegionBytes();
 
     std::vector<uint8_t> bytes_;
+    uint32_t palette_[256] = { 0 };
     uint32_t width_       = 800;
     uint32_t height_      = 600;
     uint32_t bpp_         = 32;

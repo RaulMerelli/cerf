@@ -141,7 +141,7 @@ The universal CERF display driver, injected into the guest ROM at load time by
 `--guest-additions`. Built from real CE driver sources against the CE6 DDGPE/GPE
 libraries; a compatibility shim under `ce_apps/cerf_guest/shim/` reshapes the
 driver-interface data at the OS boundary so the single CE6-based driver runs
-unmodified across CE3 → CE7 and Windows Mobile 5/6 (each OS sees its own
+unmodified across CE2.0 → CE7 and Windows Mobile 5/6 (each OS sees its own
 generation's shapes; the driver always sees CE6 shapes).
 
 It is the guest-side partner of the host `cerf/peripherals/cerf_virt/` virtual
@@ -162,6 +162,12 @@ reserved only for genuinely un-accelerable inputs (a guest page that cannot be
 translated), never a design choice for a hard blit; a blit shape that renders
 correctly under software but is declined to it is unaccelerated work, not a
 finished feature.
+
+**Display colour model.** The GA framebuffer is direct-colour on CE3+/CE2.11
+(≥16bpp; gwes realizes colours to packed device pixels) but 8bpp-indexed on CE2.0
+(gwes there creates only `PAL_INDEXED` palettes). The indexed path publishes the
+device palette over the `cerf_virt` palette channel and the host renderer expands
+index→RGB on scanout; the model is selected by the framebuffer bpp.
 
 ## Keyboard injection
 

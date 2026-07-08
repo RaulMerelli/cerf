@@ -98,12 +98,16 @@ SCODE CerfDDGPE::SetPalette(const PALETTEENTRY* src, unsigned short firstEntry,
                             unsigned short numEntries) {
     CERF_LOG_X_DEV("cerf_guest: GPE::SetPalette numEntries", (DWORD)numEntries);
     if (src && firstEntry + numEntries <= 256) {
+        ULONG rgb[256];
         for (unsigned short i = 0; i < numEntries; ++i) {
             m_palette[firstEntry + i] = src[i];
+            rgb[i] = ((ULONG)src[i].peRed << 16) | ((ULONG)src[i].peGreen << 8)
+                   | (ULONG)src[i].peBlue;
         }
         if (firstEntry + numEntries > m_paletteEntries) {
             m_paletteEntries = firstEntry + numEntries;
         }
+        CerfPublishPalette(rgb, firstEntry, numEntries);
     }
     return S_OK;
 }
@@ -196,7 +200,7 @@ ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
 
 BOOL CerfDDGPE::IsPaletteSettable() {
     CERF_LOG_DEV("cerf_guest: GPE::IsPaletteSettable");
-    return (g_FbBpp <= 8);
+    return FALSE;
 }
 
 static ULONG CerfReadGpeDpi(const wchar_t* value_name) {

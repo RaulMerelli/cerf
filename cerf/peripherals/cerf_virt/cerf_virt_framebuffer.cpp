@@ -55,8 +55,7 @@ uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
     if (desired < CerfVirt::kFramebufferMemSize)
         desired = CerfVirt::kFramebufferMemSize;
 
-    const uint32_t window = (CerfVirt::kBaseAddr + CerfVirt::kTotalSize)
-                            - CerfVirt::kFramebufferMemBase;
+    const uint32_t window = CerfVirt::kTotalSize - CerfVirt::kFramebufferMemOffset;
     if (desired > window) {
         LOG(Caution, "[CerfVirtFramebuffer] %ux%u needs %u B FB region, only "
                      "%u B fits in the cerf_virt window; raise kTotalSize in "
@@ -65,6 +64,11 @@ uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     return desired;
+}
+
+uint32_t CerfVirtFramebuffer::MemBasePa() const {
+    return emu_.Get<BoardContext>().GuestAdditionsWindowBase()
+         + CerfVirt::kFramebufferMemOffset;
 }
 
 void CerfVirtFramebuffer::OnReady() {
@@ -87,6 +91,7 @@ void CerfVirtFramebuffer::SaveState(StateWriter& w) {
     w.Write(width_);
     w.Write(height_);
     w.Write<uint8_t>(any_write_ ? 1u : 0u);
+    for (uint32_t i = 0; i < 256u; ++i) w.Write(palette_[i]);
     w.Write<uint64_t>(bytes_.size());
     if (!bytes_.empty()) w.WriteBytes(bytes_.data(), bytes_.size());
 }
@@ -97,6 +102,7 @@ void CerfVirtFramebuffer::RestoreState(StateReader& r) {
     uint8_t aw = 0;
     r.Read(aw);
     any_write_ = (aw != 0);
+    for (uint32_t i = 0; i < 256u; ++i) r.Read(palette_[i]);
     uint64_t n = 0;
     r.Read(n);
     if (n == bytes_.size()) {

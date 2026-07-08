@@ -14,9 +14,11 @@ extern "C" ULONG CerfGpeBlt(ULONG desc_va);
 extern "C" ULONG CerfGpeLine(ULONG desc_va);
 extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes);
 extern "C" void  CerfUnmapFbWindow(void* va);
+extern "C" void  CerfPublishPalette(const ULONG* rgb, unsigned first, unsigned count);
 extern "C" void CerfPublishCursor(const void* mask_bits, int stride,
                                   int cx, int cy, int xhot, int yhot, BOOL visible);
 extern ULONG g_FbWidth, g_FbHeight, g_FbBpp, g_FbStride, g_FbMemTotal, g_FbPrimaryReserve;
+extern ULONG g_OsMajor;
 extern ULONG g_FbDpi;   /* emulator DPI override (kFbRegLogicalDpi); 0 = none */
 
 /* RGB formats the host blitter reads/writes directly: 16/24/32bpp. */

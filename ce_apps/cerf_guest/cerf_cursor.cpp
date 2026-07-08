@@ -26,7 +26,7 @@ static CerfCursorDesc   s_cur_desc;
 
 static BOOL CerfMapCursorRegs(void) {
     if (s_cur_regs) return TRUE;
-    s_cur_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kCursorBase,
+    s_cur_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kCursorOffset,
                                                   CerfVirt::kCursorSize);
     return s_cur_regs != NULL;
 }

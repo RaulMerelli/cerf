@@ -43,7 +43,7 @@ static volatile ULONG* s_rsz_regs = NULL;
 
 static BOOL CerfMapRszRegs(void) {
     if (s_rsz_regs) return TRUE;
-    s_rsz_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kResizeBase,
+    s_rsz_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kResizeOffset,
                                                   CerfVirt::kResizeSize);
     return s_rsz_regs != NULL;
 }

@@ -23,7 +23,7 @@ public:
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
 
-    uint32_t MmioBase() const override { return CerfVirt::kFramebufferMemBase; }
+    uint32_t MmioBase() const override { return fb_->MemBasePa(); }
     uint32_t MmioSize() const override { return fb_->RegionBytes(); }
 
     FastReadFn  FastReader() override { return &FastReadThunk;  }

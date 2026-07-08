@@ -242,7 +242,7 @@ static BOOL CerfEnsureBody(void) {
 
     if (slot && slot->body_base) return TRUE;
 
-    hdr = (const ULONG*)CerfMapRegsPage(CerfVirt::kGuestBodyBase, CerfVirt::kGuestBodyHdrSize);
+    hdr = (const ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kGuestBodyOffset, CerfVirt::kGuestBodyHdrSize);
     if (!hdr) { CERF_LOG("stub: body header map FAILED"); return FALSE; }
     size = hdr[0];
     CERF_LOG_X("stub: body size", size);
@@ -252,7 +252,7 @@ static BOOL CerfEnsureBody(void) {
     }
 
     mapped = (size + 0xFFFu) & ~0xFFFu;
-    body = (const UCHAR*)CerfMapRegsPage(CerfVirt::kGuestBodyBase + CerfVirt::kGuestBodyHdrSize,
+    body = (const UCHAR*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kGuestBodyOffset + CerfVirt::kGuestBodyHdrSize,
                                          mapped);
     if (!body) { CERF_LOG("stub: body map FAILED"); return FALSE; }
 

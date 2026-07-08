@@ -229,7 +229,39 @@ SCODE CerfDDGPE::SetMode(int modeId, HPALETTE* pPalette) {
     m_gpeMode.modeId = 0;
 
     if (pPalette) {
-        if (g_FbBpp == 16) {
+        if (g_FbBpp <= 8) {
+            /* Index 0=black, 255=white uniquely: AND/XOR raster-op transparency runs
+               on index values, so mask-keep=white must be 0xFF, clear=black 0x00.
+               palRealize is COLORREF 0x00BBGGRR (RGBError's compare order). */
+            static const ULONG kLv[6] = { 0u, 51u, 102u, 153u, 204u, 255u };
+            ULONG palHost[256], palRealize[256];
+            palHost[0] = 0u;             palRealize[0] = 0u;
+            palHost[255] = 0x00FFFFFFu;  palRealize[255] = 0x00FFFFFFu;
+            int k = 1;
+            for (int r = 0; r < 6; ++r)
+                for (int g = 0; g < 6; ++g)
+                    for (int b = 0; b < 6; ++b) {
+                        ULONG R = kLv[r], G = kLv[g], B = kLv[b];
+                        if ((R == 0u && G == 0u && B == 0u) ||
+                            (R == 255u && G == 255u && B == 255u)) continue;
+                        palHost[k]    = (R << 16) | (G << 8) | B;
+                        palRealize[k] = (B << 16) | (G << 8) | R;
+                        ++k;
+                    }
+            for (int i = 215; i < 255; ++i) {
+                ULONG y = 6u + (ULONG)((i - 215) * 243 / 39);
+                palHost[i] = palRealize[i] = (y << 16) | (y << 8) | y;
+            }
+            for (int i = 0; i < 256; ++i) {
+                m_palette[i].peRed   = (BYTE)((palHost[i] >> 16) & 0xFFu);
+                m_palette[i].peGreen = (BYTE)((palHost[i] >> 8) & 0xFFu);
+                m_palette[i].peBlue  = (BYTE)(palHost[i] & 0xFFu);
+                m_palette[i].peFlags = 0;
+            }
+            m_paletteEntries = 256;
+            *pPalette = EngCreatePalette(PAL_INDEXED, 256, palRealize, 0, 0, 0);
+            CerfPublishPalette(palHost, 0, 256);
+        } else if (g_FbBpp == 16) {
             *pPalette = EngCreatePalette(PAL_BITFIELDS, 0, NULL,
                                           0xF800u, 0x07E0u, 0x001Fu);
         } else if (g_FbBpp == 32 || g_FbBpp == 24) {

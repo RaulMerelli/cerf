@@ -7,7 +7,7 @@
 #include <mutex>
 #include <string>
 
-/* Each guest driver maps its OWN page (id -> kLogChannelBase + id*stride): on
+/* Each guest driver maps its OWN page (id -> kLogChannelOffset + id*stride): on
    an FCSE kernel two processes that VirtualCopy the same MMIO page evict each
    other's single mapping, so distinct ids MUST use distinct physical pages. */
 class CerfLogChannelPeripheral : public Peripheral {

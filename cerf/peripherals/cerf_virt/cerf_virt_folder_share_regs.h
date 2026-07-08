@@ -9,7 +9,7 @@
 
 namespace CerfVirt {
 
-/* Channel registers (offsets within kFolderShareBase). 0x00-0x0C are the
+/* Channel registers (offsets within the folder-share channel). 0x00-0x0C are the
    ServerPB op protocol; 0x10+ is the live-config region the guest polls. */
 constexpr uint32_t kFsServerPbAddr = 0x00;  /* guest writes ServerPB VA */
 constexpr uint32_t kFsCode         = 0x04;  /* guest writes op code -> runs it */

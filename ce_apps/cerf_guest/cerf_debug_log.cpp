@@ -35,7 +35,7 @@ extern "C" void CerfInitLogging(ULONG id) {
     int i;
     for (i = 0; i < CERF_LOG_MAX_PROC; ++i)
         if (s_log_slot[i].pid == pid) return;   /* this process already armed */
-    pa = CerfVirt::kLogChannelBase + id * CerfVirt::kLogChannelStride;
+    pa = g_CerfVirtBase + CerfVirt::kLogChannelOffset + id * CerfVirt::kLogChannelStride;
     va = (volatile UCHAR*)CerfMapRegsPage(pa, CerfVirt::kLogChannelStride);
     if (!va) return;
     idx = InterlockedIncrement(&s_log_slot_next) - 1;

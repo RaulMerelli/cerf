@@ -59,14 +59,16 @@ public:
         }
 
         ce_major_ = DetectCeMajor();
-        layout_ = (ce_major_ <= 2) ? &kE32RomCE2
-                : (ce_major_ <= 4) ? &kE32RomCE3
-                                   : &kE32RomCE5plus;
-        const char* layout_name = (layout_ == &kE32RomCE2)   ? "CE2"
+        layout_ = (ce_major_ <= 2 && ce_minor_ == 0) ? &kE32RomCE20
+                : (ce_major_ <= 2)                   ? &kE32RomCE211
+                : (ce_major_ <= 4)                   ? &kE32RomCE3
+                                                     : &kE32RomCE5plus;
+        const char* layout_name = (layout_ == &kE32RomCE20)  ? "CE2.0"
+                                : (layout_ == &kE32RomCE211) ? "CE2.11"
                                 : (layout_ == &kE32RomCE3)   ? "pre-CE5"
                                                              : "CE5+";
-        LOG(GuestAdditions, "CE major=%u; e32_rom layout=%s\n",
-            ce_major_, layout_name);
+        LOG(GuestAdditions, "CE version=%u.%u; e32_rom layout=%s\n",
+            ce_major_, ce_minor_, layout_name);
 
         const auto& victims = emu_.Get<DeviceConfig>().guest_additions_victims;
         if (victims.empty()) {
@@ -110,28 +112,22 @@ private:
                            const std::vector<uint8_t>& bytes);
 
     uint32_t            ce_major_ = 5;
+    uint32_t            ce_minor_ = 0;
     const E32RomLayout* layout_   = &kE32RomCE5plus;
 };
 
 uint32_t GuestAdditionsInjector::DetectCeMajor() {
-    auto& parser = emu_.Get<RomParserService>();
-    auto* nk = parser.KernelModule();
-    if (!nk) {
-        LOG(Caution, "nk.exe missing from TOC - can't read e32_subsysmajor "
-                "and the kernel won't boot without nk anyway; refusing to "
-                "guess e32_rom layout\n");
+    uint16_t major = 0, minor = 0;
+    if (!emu_.Get<RomParserService>().KernelSubsystemVersion(major, minor)) {
+        LOG(Caution, "nk.exe e32_rom subsystem version not locatable\n");
         CerfFatalExit();
     }
-    auto& pt  = emu_.Get<PageTableBuilder>();
-    auto& mem = emu_.Get<EmulatedMemory>();
-    const uint32_t e32_pa = pt.VaToPa(nk->ulE32Offset);
-    const uint16_t subsysmajor = mem.ReadHalf(e32_pa + kE32SubsysmajorOff);
-    if (subsysmajor < 2 || subsysmajor > 8) {
-        LOG(Caution, "nk.exe e32_subsysmajor=%u outside plausible CE range "
-                "(2..8) - refusing to guess e32_rom layout\n", subsysmajor);
+    if (major < 2 || major > 8) {
+        LOG(Caution, "nk.exe e32_subsysmajor=%u outside CE range 2..8\n", major);
         CerfFatalExit();
     }
-    return subsysmajor;
+    ce_minor_ = minor;
+    return major;
 }
 
 bool GuestAdditionsInjector::FindVictim(const char* name, size_t& out_index,
@@ -163,7 +159,9 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
     mem.WriteHalf(pa + L.off_subsysmajor, pe.SubsysMajor());
     mem.WriteHalf(pa + L.off_subsysminor, pe.SubsysMinor());
     mem.WriteWord(pa + L.off_stackmax,    pe.StackReserve());
-    mem.WriteWord(pa + L.off_vsize,       pe.ImageSize());
+    if (L.off_vsize >= 0) {
+        mem.WriteWord(pa + uint32_t(L.off_vsize), pe.ImageSize());
+    }
     if (L.off_sect14rva >= 0) {
         mem.WriteWord(pa + uint32_t(L.off_sect14rva),  0);
     }
@@ -374,6 +372,8 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
                 "ce_image_relocator\n", victim_name, unhandled_relocs);
         CerfFatalExit();
     }
+
+    emu_.Get<GuestAdditionsBinaries>().StampWindowBase(patched_bytes);
 
     /* Only CE2.11 needs this: it does not bind an injected ROM module's imports
        (CE3+ kernels rebind at load). Restricting to CE2 also avoids reading CE3+

@@ -4,6 +4,7 @@
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -34,7 +35,10 @@ public:
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
 
-    uint32_t MmioBase() const override { return CerfVirt::kFramebufferRegsBase; }
+    uint32_t MmioBase() const override {
+        return emu_.Get<BoardContext>().GuestAdditionsWindowBase()
+             + CerfVirt::kFramebufferRegsOffset;
+    }
     uint32_t MmioSize() const override { return CerfVirt::kFramebufferRegsSize; }
 
     uint32_t ReadWord(uint32_t addr) override {
@@ -45,7 +49,7 @@ public:
             case kFbRegBpp:       return fb_->Bpp();
             case kFbRegStride:    return fb_->Stride();
             case kFbRegSizeBytes: return fb_->SizeBytes();
-            case kFbRegMemBasePa: return CerfVirt::kFramebufferMemBase;
+            case kFbRegMemBasePa: return fb_->MemBasePa();
             case kFbRegPresent:   return 0u;
             case kFbRegMemSizeTotal: return fb_->RegionBytes();
             case kFbRegPrimaryReserve: return fb_->PrimaryReserveBytes();

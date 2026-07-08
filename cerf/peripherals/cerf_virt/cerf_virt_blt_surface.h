@@ -64,7 +64,7 @@ inline bool BltSurfaceAccess::ResolveSurface(const CerfBltSurface& s, uint32_t b
     out->is_va = (s.is_fb_pa == 0u);
     out->host_base = nullptr;
     if (!out->is_va) {
-        const uint32_t fb_base = CerfVirt::kFramebufferMemBase;
+        const uint32_t fb_base = fb_->MemBasePa();
         const uint32_t fb_size = fb_->RegionBytes();
         if (s.buffer < fb_base) return false;
         const uint32_t off = s.buffer - fb_base;

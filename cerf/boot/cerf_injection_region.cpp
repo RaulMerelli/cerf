@@ -1,5 +1,6 @@
 #include "cerf_injection_region.h"
 
+#include "../boards/board_context.h"
 #include "../boards/page_table_builder.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
@@ -15,7 +16,8 @@ bool CerfInjectionRegion::ShouldRegister() {
 }
 
 uint32_t CerfInjectionRegion::BandPaBase() const {
-    return CerfVirt::kInjectionBandBase;
+    return emu_.Get<BoardContext>().GuestAdditionsWindowBase()
+         + CerfVirt::kInjectionBandOffset;
 }
 
 uint32_t CerfInjectionRegion::BandSize() const {
@@ -35,13 +37,13 @@ uint32_t CerfInjectionRegion::BandVaBase() {
         CerfFatalExit();
     }
 
-    emu_.Get<EmulatedMemory>().AddRegion(CerfVirt::kInjectionBandBase,
+    emu_.Get<EmulatedMemory>().AddRegion(BandPaBase(),
                                          CerfVirt::kInjectionBandSize,
                                          PAGE_READWRITE);
-    emu_.Get<GuestEngine>().SetInjectionBand(va, CerfVirt::kInjectionBandBase,
+    emu_.Get<GuestEngine>().SetInjectionBand(va, BandPaBase(),
                                              CerfVirt::kInjectionBandSize);
     va_base_ = va;
     LOG(GuestAdditions, "injection band: VA 0x%08X -> PA 0x%08X size 0x%X\n",
-        va, CerfVirt::kInjectionBandBase, CerfVirt::kInjectionBandSize);
+        va, BandPaBase(), CerfVirt::kInjectionBandSize);
     return va_base_;
 }

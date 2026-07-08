@@ -32,6 +32,7 @@ ULONG g_FbPrimaryReserve = 0;  /* kFbRegPrimaryReserve: byte span the host reser
                                   for the growable primary; video heap starts past it. */
 void* g_FbMemVa   = NULL;
 ULONG g_EngineVersion = 0;
+ULONG g_OsMajor = 0;
 
 /* The filename cerf_guest was injected under (the stock display driver it
    replaced); the driver-in-driver carrier needs it as the Dll value device.exe
@@ -52,7 +53,7 @@ extern "C" void CerfSetCarrierName(const wchar_t* name) {
 
 void CerfReadFbRegs(void) {
     if (s_fb_regs) return;
-    s_fb_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kFramebufferRegsBase,
+    s_fb_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kFramebufferRegsOffset,
                                                  CerfVirt::kFramebufferRegsSize);
     if (!s_fb_regs) return;
     g_FbWidth  = s_fb_regs[0];
@@ -68,7 +69,7 @@ void CerfReadFbRegs(void) {
 BOOL CerfMapGpeCmd(void) {
     CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (s_gpe_cmd) return TRUE;
-    s_gpe_cmd = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kGpeCmdBase,
+    s_gpe_cmd = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kGpeCmdOffset,
                                                  CerfVirt::kGpeCmdSize);
     return s_gpe_cmd != NULL;
 }
@@ -100,7 +101,18 @@ extern "C" ULONG CerfGpeLine(ULONG desc_va) {
     return s_gpe_cmd[CERF_GPE_STATUS / 4];
 }
 
-extern "C" ULONG CerfGpeFbMemBasePa(void) { return CerfVirt::kFramebufferMemBase; }
+extern "C" ULONG CerfGpeFbMemBasePa(void) { return g_CerfVirtBase + CerfVirt::kFramebufferMemOffset; }
+
+static volatile ULONG* s_palette_regs = NULL;
+
+extern "C" void CerfPublishPalette(const ULONG* rgb, unsigned first, unsigned count) {
+    if (!s_palette_regs)
+        s_palette_regs = (volatile ULONG*)CerfMapRegsPage(
+            g_CerfVirtBase + CerfVirt::kPaletteOffset, CerfVirt::kPaletteSize);
+    if (!s_palette_regs || !rgb) return;
+    for (unsigned i = 0; i < count && first + i < CerfVirt::kPaletteEntries; ++i)
+        s_palette_regs[first + i] = rgb[i] & 0x00FFFFFFu;
+}
 
 /* The host accelerator addresses the framebuffer by physical address
    (SurfaceFbPa), so the surface base is the FB PA itself, not a mapped VA. */
@@ -332,7 +344,8 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
                                           PENGCALLBACKS pCallbacks) {
     CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);   /* arm before the first log */
     CERF_LOG_X("cerf_guest: DrvEnableDriver iEngineVersion", iEngineVersion);
-    if (pded == NULL || pCallbacks == NULL || cj < 27 * sizeof(void*)) return FALSE;
+    /* CE2.0's DRVENABLEDATA is 26 slots (cj=104); DrvEscape (slot 27) is CE2.11+. */
+    if (pded == NULL || pCallbacks == NULL || cj < 26 * sizeof(void*)) return FALSE;
 
     if (!s_module_name[0]) {
         wchar_t full[MAX_PATH];
@@ -354,7 +367,8 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     {
         OSVERSIONINFOW ovi;
         ovi.dwOSVersionInfoSize = sizeof(ovi);
-        CerfSetVidBackingByOsMajor(GetVersionExW(&ovi) ? ovi.dwMajorVersion : 5u);
+        g_OsMajor = GetVersionExW(&ovi) ? ovi.dwMajorVersion : 5u;
+        CerfSetVidBackingByOsMajor(g_OsMajor);
     }
 
     g_EngineVersion = iEngineVersion;
@@ -411,7 +425,7 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     pded->DrvEndDoc             = DrvEndDoc;
     pded->DrvStartDoc           = DrvStartDoc;
     pded->DrvStartPage          = DrvStartPage;
-    pded->DrvEscape             = DrvEscape;
+    if (cj >= 27 * sizeof(void*)) pded->DrvEscape = DrvEscape;
     /* Gradient/alpha gated exactly like DeviceEmulator_lcd (sub_17C6048):
        cj==120 -> both, cj==116 -> gradient only. A NULL slot 27 makes gwes
        SetLastError(ERROR_NOT_SUPPORTED) and paint nothing (sub_82378). */

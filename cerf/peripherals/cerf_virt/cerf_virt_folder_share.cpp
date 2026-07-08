@@ -6,6 +6,7 @@
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/folder_share_config.h"
@@ -36,7 +37,9 @@ public:
         std::memset(mount_bytes_, 0, sizeof(mount_bytes_));
     }
 
-    uint32_t MmioBase() const override { return CerfVirt::kFolderShareBase; }
+    uint32_t MmioBase() const override {
+        return emu_.Get<BoardContext>().GuestAdditionsWindowBase() + CerfVirt::kFolderShareOffset;
+    }
     uint32_t MmioSize() const override { return CerfVirt::kFolderShareSize; }
 
     uint32_t ReadWord(uint32_t addr) override {

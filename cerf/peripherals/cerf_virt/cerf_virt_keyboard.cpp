@@ -2,6 +2,7 @@
 #include "cerf_virt_addr_map.h"
 
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/keyboard_input.h"
@@ -21,7 +22,9 @@ void CerfVirtKeyboard::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
 
-uint32_t CerfVirtKeyboard::MmioBase() const { return CerfVirt::kKeyboardBase; }
+uint32_t CerfVirtKeyboard::MmioBase() const {
+    return emu_.Get<BoardContext>().GuestAdditionsWindowBase() + CerfVirt::kKeyboardOffset;
+}
 uint32_t CerfVirtKeyboard::MmioSize() const { return CerfVirt::kKeyboardSize; }
 
 uint32_t CerfVirtKeyboard::ReadWord(uint32_t addr) {

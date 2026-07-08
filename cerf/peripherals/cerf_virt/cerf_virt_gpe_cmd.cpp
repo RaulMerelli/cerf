@@ -10,6 +10,7 @@
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -32,7 +33,9 @@ public:
         regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusIdle;
     }
 
-    uint32_t MmioBase() const override { return CerfVirt::kGpeCmdBase; }
+    uint32_t MmioBase() const override {
+        return emu_.Get<BoardContext>().GuestAdditionsWindowBase() + CerfVirt::kGpeCmdOffset;
+    }
     uint32_t MmioSize() const override { return CerfVirt::kGpeCmdSize; }
 
     uint32_t ReadWord(uint32_t addr) override {

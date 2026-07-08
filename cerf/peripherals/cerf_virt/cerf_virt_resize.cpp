@@ -3,6 +3,7 @@
 #include "cerf_virt_addr_map.h"
 
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../host/host_window.h"
@@ -18,7 +19,9 @@ void CerfVirtResize::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
 
-uint32_t CerfVirtResize::MmioBase() const { return CerfVirt::kResizeBase; }
+uint32_t CerfVirtResize::MmioBase() const {
+    return emu_.Get<BoardContext>().GuestAdditionsWindowBase() + CerfVirt::kResizeOffset;
+}
 uint32_t CerfVirtResize::MmioSize() const { return CerfVirt::kResizeSize; }
 
 uint32_t CerfVirtResize::ReadWord(uint32_t addr) {

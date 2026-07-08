@@ -124,6 +124,8 @@ public:
        XUI/D3-Mobile only accepts 16bpp RGB565; CE3 imgdecmp rejects 32bpp. */
     virtual uint32_t GetGuestAdditionsColorDepth() const { return 32u; }
 
+    virtual uint32_t GuestAdditionsWindowBase() const { return 0xF0000000u; }
+
     static const char* SocFamilyName(SocFamily f);
 
     static std::span<const BoardIdEntry> BoardIds();

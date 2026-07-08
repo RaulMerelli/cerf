@@ -302,7 +302,7 @@ static void CerfTmDoRun(DWORD gen) {
 static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
     ULONG last_gen;
 
-    s_tm_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kTaskManagerBase,
+    s_tm_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kTaskManagerOffset,
                                                  CerfVirt::kTaskManagerSize);
     if (!s_tm_regs) {
         CERF_LOG("cerf_guest: tmpump map FAILED");

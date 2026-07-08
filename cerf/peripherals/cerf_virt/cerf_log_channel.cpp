@@ -2,6 +2,7 @@
 
 #include "cerf_virt_addr_map.h"
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
@@ -30,7 +31,9 @@ void CerfLogChannelPeripheral::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
 
-uint32_t CerfLogChannelPeripheral::MmioBase() const { return CerfVirt::kLogChannelBase; }
+uint32_t CerfLogChannelPeripheral::MmioBase() const {
+    return emu_.Get<BoardContext>().GuestAdditionsWindowBase() + CerfVirt::kLogChannelOffset;
+}
 uint32_t CerfLogChannelPeripheral::MmioSize() const { return CerfVirt::kLogChannelSize; }
 
 uint8_t  CerfLogChannelPeripheral::ReadByte (uint32_t /*addr*/) { return 0u; }

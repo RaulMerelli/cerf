@@ -2,6 +2,7 @@
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
+#include "../../boards/board_context.h"
 #include "../../boot/guest_additions_binaries.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
@@ -30,7 +31,10 @@ public:
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
 
-    uint32_t MmioBase() const override { return CerfVirt::kGuestBodyBase; }
+    uint32_t MmioBase() const override {
+        return emu_.Get<BoardContext>().GuestAdditionsWindowBase()
+             + CerfVirt::kGuestBodyOffset;
+    }
     uint32_t MmioSize() const override {
         const uint32_t body =
             (static_cast<uint32_t>(body_.size()) + kPageMask) & ~kPageMask;
@@ -54,18 +58,20 @@ private:
         f.seekg(0);
         f.read(reinterpret_cast<char*>(body_.data()), sz);
 
+        emu_.Get<GuestAdditionsBinaries>().StampWindowBase(body_);
+
         const uint32_t need = MmioSize();
         if (need > CerfVirt::kGuestBodyMaxSize) {
             LOG(Caution, "guest body: %s needs 0x%X bytes but the body window "
-                    "is only 0x%X (0x%08X..0x%08X) - raise kFramebufferMemBase "
-                    "or relocate kGuestBodyBase in cerf_virt_addr_map.h\n",
+                    "is only 0x%X (0x%08X..0x%08X) - raise kFramebufferMemOffset "
+                    "in cerf_virt_addr_map.h\n",
                 path.c_str(), need, CerfVirt::kGuestBodyMaxSize,
-                CerfVirt::kGuestBodyBase,
-                CerfVirt::kGuestBodyBase + CerfVirt::kGuestBodyMaxSize);
+                MmioBase(),
+                MmioBase() + CerfVirt::kGuestBodyMaxSize);
             CerfFatalExit();
         }
         LOG(GuestAdditions, "guest body: serving %s (%zu bytes) at PA 0x%08X\n",
-            path.c_str(), body_.size(), CerfVirt::kGuestBodyBase);
+            path.c_str(), body_.size(), MmioBase());
     }
 
     static uint32_t FastReadThunk(void* ctx, uint32_t off, uint32_t width_bytes) {

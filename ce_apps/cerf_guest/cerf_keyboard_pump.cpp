@@ -17,7 +17,7 @@ static volatile ULONG* s_kb_regs = NULL;
 
 static BOOL CerfMapKbRegs(void) {
     if (s_kb_regs) return TRUE;
-    s_kb_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kKeyboardBase,
+    s_kb_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kKeyboardOffset,
                                                  CerfVirt::kKeyboardSize);
     return s_kb_regs != NULL;
 }

@@ -52,6 +52,10 @@ public:
             uint32_t* dst_row = dib_bgra32 + static_cast<size_t>(y) * host_w;
             if (bpp == 32u) {
                 std::memcpy(dst_row, src_row, static_cast<size_t>(copy_w) * 4u);
+            } else if (bpp == 8u) {
+                const uint32_t* pal = fb.Palette();
+                for (uint32_t x = 0; x < copy_w; ++x)
+                    dst_row[x] = 0xFF000000u | pal[src_row[x]];
             } else if (bpp == 16u) {
                 const uint16_t* s = reinterpret_cast<const uint16_t*>(src_row);
                 for (uint32_t x = 0; x < copy_w; ++x) {

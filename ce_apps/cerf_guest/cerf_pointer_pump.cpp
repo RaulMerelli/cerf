@@ -16,7 +16,7 @@ static volatile ULONG* s_ptr_regs = NULL;
 
 static BOOL CerfMapPtrRegs(void) {
     if (s_ptr_regs) return TRUE;
-    s_ptr_regs = (volatile ULONG*)CerfMapRegsPage(CerfVirt::kPointerBase,
+    s_ptr_regs = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kPointerOffset,
                                                   CerfVirt::kPointerSize);
     return s_ptr_regs != NULL;
 }
