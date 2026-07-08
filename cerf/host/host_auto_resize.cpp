@@ -8,6 +8,7 @@
 #include "../core/log.h"
 #include "../peripherals/cerf_virt/cerf_virt_resize.h"
 #include "change_resolution_dialog.h"
+#include "guest_additions_ui_policy.h"
 #include "host_icon_cache.h"
 #include "host_widget_registry.h"
 #include "task_manager_window.h"
@@ -22,12 +23,15 @@ bool HostAutoResize::ShouldRegister() {
 }
 
 void HostAutoResize::OnReady() {
+    if (!emu_.Get<GuestAdditionsUiPolicy>().LiveResizeAvailable())
+        enabled_.store(false, std::memory_order_release);
     emu_.Get<HostWidgetRegistry>().Register(this);
 }
 
 HostAutoResize::~HostAutoResize() = default;
 
 void HostAutoResize::Toggle() {
+    if (!emu_.Get<GuestAdditionsUiPolicy>().LiveResizeAvailable()) return;
     enabled_.store(!enabled_.load(std::memory_order_acquire),
                    std::memory_order_release);
 }
@@ -41,6 +45,8 @@ void HostAutoResize::OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h) {
 }
 
 std::wstring HostAutoResize::Tooltip() const {
+    if (!emu_.Get<GuestAdditionsUiPolicy>().LiveResizeAvailable())
+        return L"Guest Additions - right-click for tools";
     return Enabled()
         ? L"Guest Additions - auto-resize ON (click to disable, right-click for tools)"
         : L"Guest Additions - auto-resize OFF (click to enable, right-click for tools)";
@@ -68,11 +74,13 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
     chres.on_click = [this] { emu_.Get<ChangeResolutionDialog>().Show(); };
     items.push_back(std::move(chres));
 
-    WidgetMenuItem resize;
-    resize.label    = L"Resize guest to window";
-    resize.checked  = Enabled();
-    resize.on_click = [this] { Toggle(); };
-    items.push_back(std::move(resize));
+    if (emu_.Get<GuestAdditionsUiPolicy>().LiveResizeAvailable()) {
+        WidgetMenuItem resize;
+        resize.label    = L"Resize guest to window";
+        resize.checked  = Enabled();
+        resize.on_click = [this] { Toggle(); };
+        items.push_back(std::move(resize));
+    }
 
     return items;
 }

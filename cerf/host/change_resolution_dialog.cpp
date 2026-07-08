@@ -10,6 +10,7 @@
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
 #include "../peripherals/cerf_virt/cerf_virt_resize.h"
 #include "../socs/guest_cpu_reset.h"
+#include "guest_additions_ui_policy.h"
 #include "host_dark_mode.h"
 #include "host_window.h"
 
@@ -111,7 +112,7 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
                  devcfg.screen_dpi ? devcfg.screen_dpi : 96u);
     SetWindowTextW(de, buf);
 
-    reset_choice_ = 0;
+    reset_choice_ = emu_.Get<GuestAdditionsUiPolicy>().DefaultResetIsSoft() ? 1 : 0;
 }
 
 void ChangeResolutionDialog::PaintGroups(HDC dc) {
