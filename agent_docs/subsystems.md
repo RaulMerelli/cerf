@@ -12,6 +12,33 @@ host process share nothing and can boot different device profiles side by
 side. Services are resolved via `emu.Get<T>()`; statics and globals for
 service state are forbidden.
 
+### Service locator mechanics
+
+- **Registration is one macro line per `.cpp`**: `REGISTER_SERVICE(Foo)`
+  (resolvable only as `Foo`), `REGISTER_SERVICE_AS(Foo, Base)` (candidate
+  for `Base`'s slot, also resolvable as `Foo` - the strategy pattern),
+  `REGISTER_SERVICE_AS_FALLBACK(Foo, Base)` (wins only if no non-fallback
+  candidate's `ShouldRegister` returned true). Boot then constructs every
+  candidate, runs each slot's `ShouldRegister` to pick the single winner,
+  then `EnsureReady`s **every** winner.
+- **Every winning service's `OnReady` runs exactly once**, at boot,
+  whether or not anything ever `Get<>`s it - the boot sweep `EnsureReady`s
+  all winners, so a service that only wires itself up (registers MMIO,
+  spawns a worker) still initializes with no external caller. `OnReady`
+  is also lazy: a first `Get<Dep>()` from inside your `OnReady` runs
+  `Dep::OnReady` before returning, so the graph self-orders on demand.
+  Both paths guard with a mutex, so `OnReady` never runs twice. No init
+  phase, no declared ordering, and no pre-warming - a bare
+  `(void)emu_.Get<X>()` to force materialization is forbidden (`rules.md`).
+- **`Get<T>()` fatals** if no candidate won the slot; **`TryGet<T>()`**
+  returns `nullptr` for an optional dependency. Both lazily resolve +
+  `EnsureReady`.
+- **Misuse `CerfFatalExit`s with the types named** - two `ShouldRegister`
+  true for one Base, a required slot with no winner, or a
+  `ShouldRegister`↔`Get` cycle. No defensive checks around `Get<>` needed.
+- **`ShouldRegister()`** may call `Get<>`/`TryGet<>` (same lazy path);
+  idiom is `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`.
+
 - `cerf/core/cerf_emulator.h`, `cerf/core/service.h`
 
 ## Guest CPU JIT
