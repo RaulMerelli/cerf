@@ -1,6 +1,4 @@
-/* Wizard step 2: dump configuration. Base/End are 1 MB-aligned (the worker
-   reads 1 MB windows); editing Base keeps End fixed and re-derives Size (the
-   resume workflow). Fields commit on kill-focus and revert on an invalid value. */
+/* Wizard step 2: dump configuration. */
 
 #include "romdump.h"
 #include <commdlg.h>
@@ -134,52 +132,31 @@ int StepConfigLayout(AppState* st, RECT area) {
     return y + m;
 }
 
-static void CommitBase(AppState* st) {
+static void SyncFromBase(AppState* st) {
     WCHAR b[32];
-    DWORD nb, oldend = st->base + st->length;
     GetDlgItemText(st->hwnd, ID_BASE, b, 32);
-    nb = ParseHex(b) & MB_MASK;
-    if (nb >= oldend) {
-        MessageBoxW(st->hwnd, L"Base must be below the End address.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        SetHexField(st, ID_BASE, st->base);
-        return;
-    }
-    st->base   = nb;
-    st->length = oldend - nb;              /* keep End, re-derive Size */
+    st->base = ParseHex(b) & MB_MASK;
     SetHexField(st, ID_BASE, st->base);
-    SetDecField(st, ID_SIZE, st->length >> 20);
+    SetHexField(st, ID_END,  st->base + st->length);
 }
 
-static void CommitEnd(AppState* st) {
+static void SyncFromSize(AppState* st) {
+    WCHAR b[32];
+    GetDlgItemText(st->hwnd, ID_SIZE, b, 32);
+    st->length = (DWORD)ParseDec(b) << 20;
+    SetHexField(st, ID_END, st->base + st->length);
+}
+
+static void SyncFromEnd(AppState* st) {
     WCHAR b[32];
     DWORD ne;
     GetDlgItemText(st->hwnd, ID_END, b, 32);
     ne = ParseHex(b) & MB_MASK;            /* round down: never read past End */
-    if (ne <= st->base) {
-        MessageBoxW(st->hwnd, L"End must be above the Base address.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
-        SetHexField(st, ID_END, st->base + st->length);
-        return;
-    }
-    st->length = ne - st->base;
-    SetHexField(st, ID_END,  ne);
-    SetDecField(st, ID_SIZE, st->length >> 20);
-}
-
-static void CommitSize(AppState* st) {
-    WCHAR b[32];
-    DWORD mb;
-    GetDlgItemText(st->hwnd, ID_SIZE, b, 32);
-    mb = ParseDec(b);
-    if (mb == 0) {
-        MessageBoxW(st->hwnd, L"Size must be at least 1 MB.",
-                    L"CERF ROM dumper", MB_OK | MB_ICONEXCLAMATION);
+    SetHexField(st, ID_END, ne);
+    if (ne > st->base) {
+        st->length = ne - st->base;
         SetDecField(st, ID_SIZE, st->length >> 20);
-        return;
     }
-    st->length = mb << 20;
-    SetHexField(st, ID_END, st->base + st->length);
 }
 
 static void DoBrowse(AppState* st) {
@@ -221,9 +198,9 @@ static void ShowSegHelp(HWND h) {
 BOOL StepConfigCommand(AppState* st, WPARAM wp, LPARAM lp) {
     (void)lp;
     switch (LOWORD(wp)) {
-    case ID_BASE: if (HIWORD(wp) == EN_KILLFOCUS) { CommitBase(st); return TRUE; } break;
-    case ID_END:  if (HIWORD(wp) == EN_KILLFOCUS) { CommitEnd(st);  return TRUE; } break;
-    case ID_SIZE: if (HIWORD(wp) == EN_KILLFOCUS) { CommitSize(st); return TRUE; } break;
+    case ID_BASE: if (HIWORD(wp) == EN_KILLFOCUS) { SyncFromBase(st); return TRUE; } break;
+    case ID_END:  if (HIWORD(wp) == EN_KILLFOCUS) { SyncFromEnd(st);  return TRUE; } break;
+    case ID_SIZE: if (HIWORD(wp) == EN_KILLFOCUS) { SyncFromSize(st); return TRUE; } break;
     case ID_SEG:    if (HIWORD(wp) == BN_CLICKED) { SyncSegEnable(st); return TRUE; } break;
     case ID_BROWSE: if (HIWORD(wp) == BN_CLICKED) { DoBrowse(st);   return TRUE; } break;
     case ID_SEGHELP:if (HIWORD(wp) == BN_CLICKED) { ShowSegHelp(st->hwnd); return TRUE; } break;

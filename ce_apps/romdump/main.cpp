@@ -12,12 +12,11 @@ const Preset kPresets[] = {
     /* NEC VR4102 OS ROM: PA 0x1F000000-0x1FFFFFFF, 16 MB (VR4102 User's Manual
        Table 5-6/5-8: populated ROMCS0+ROMCS1, contains reset vector 0x1FC00000). */
     { L"VR4102 (MobilePro 700)",     0x1F000000u, 16, 0 },
-    /* TX3912 (Philips PR31500/PR31700): boot ROM = CS0 = PA 0x11000000, 64 MB max
-       (26-bit external addr HA[25:0]; TMPR3911 datasheet - shared TX39 BIU -
-       ch.4 Table 4.2.1, p103-104). Velo ROM = 6.77 MB from its ROMHDR
-       (physfirst 0x9F400000..physlast 0x9FAC4800). */
-    { L"TX3912 Philips Velo",        0x11000000u,  8, 0 },
-    { L"TX3912 (Nino/HC-4100)",      0x11000000u, 64, 0 },
+    /* TX3912 (Philips PR31500/PR31700): ROM is in kseg0 (PA = VA & 0x1FFFFFFF).
+       Velo physfirst = PA 0x1F400000 (its ROMHDR). The catch-all dumps the whole
+       kseg0 ROM region 0x1F000000-0x1FFFFFFF (16 MB) for any TX3912 board. */
+    { L"TX3912 Philips Velo",        0x1F400000u,  8, 0 },
+    { L"TX3912 (Nino/HC-4100)",      0x1F000000u, 16, 0 },
 #else
     /* base = PA 0 (reset vector) for all. PXA255 stalls the bus on an
        unpopulated static chip-select, so it is sized to nCS0 (64 MB) only. */
