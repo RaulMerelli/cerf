@@ -252,7 +252,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
   </thead>
   <tbody>
     <tr>
-          <td>v5.1</td>
+          <td>v6.0</td>
           <td>TBA</td>
           <td>
             <ul>
