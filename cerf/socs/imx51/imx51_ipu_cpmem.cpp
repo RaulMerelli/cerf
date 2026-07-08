@@ -17,12 +17,14 @@ uint32_t Imx51IpuCpmem::Field(uint32_t ch, uint32_t word, uint32_t off, uint32_t
 
 Imx51IpuChannelDesc Imx51IpuCpmem::DecodeChannel(uint32_t ch) const {
     Imx51IpuChannelDesc d;
-    d.eba = Field(ch, 1, 0, 29) << 3;     /* EBA0 -> byte address */
+    d.eba = Field(ch, 1, 0, 29) << 3;     /* EBA0 -> byte address (RM W1[28:0]) */
+    d.eba1 = Field(ch, 1, 29, 29) << 3;   /* EBA1 2nd double-buffer (RM p42-518, W1[57:29], addr/8) */
     d.fw  = Field(ch, 0, 125, 13) + 1u;   /* frame width  */
     d.fh  = Field(ch, 0, 138, 12) + 1u;   /* frame height */
     d.sl  = Field(ch, 1, 102, 14) + 1u;   /* stride bytes */
     d.bpp = Field(ch, 0, 107, 3);
     d.pfs = Field(ch, 1, 85, 4);
+    d.alu = Field(ch, 1, 89, 1);          /* Alpha Used (RM p42-518, W1[89]) */
     d.valid = d.eba != 0u && d.fw > 1u && d.fh > 1u && d.fw <= 4096u && d.fh <= 4096u;
     return d;
 }

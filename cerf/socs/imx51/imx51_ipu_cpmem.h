@@ -7,11 +7,13 @@
 /* Decoded IDMAC channel parameters (one CPMEM channel descriptor). */
 struct Imx51IpuChannelDesc {
     uint32_t eba = 0;   /* framebuffer byte address (guest physical) = EBA0 << 3 */
+    uint32_t eba1 = 0;  /* 2nd double-buffer address = EBA1 << 3 (RM p42-518 W1[57:29]) */
     uint32_t fw = 0;    /* frame width  (pixels) */
     uint32_t fh = 0;    /* frame height (pixels) */
     uint32_t sl = 0;    /* stride (bytes per line) */
     uint32_t bpp = 0;   /* BPP code: 0=32bpp 1=24bpp 3=16bpp 5=8bpp */
     uint32_t pfs = 0;   /* pixel format select */
+    uint32_t alu = 0;   /* Alpha Used: 0=alpha in same buffer, 1=separate channel (RM p42-518 W1[89]) */
     bool valid = false;
 };
 

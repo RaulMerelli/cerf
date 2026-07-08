@@ -7,16 +7,16 @@
 #include "../../jit/arm/arm_cpu.h"
 #include "../../jit/arm/arm_mmu.h"
 #include "../../peripherals/cirrus_cs42448/cs42448_codec.h"
+#include "../../peripherals/ti_tsc2003/ti_tsc2003_touch.h"
 
 #include <cstdint>
 #include <cstdio>
 
 namespace {
 
-/* Ford SYNC2 "HIC1:" bus = software-I2C bit-banged over GPIO4 (SCL=16, SDA=17;
-   hsi2c.dll), NOT the HS-I2C controller at 0x70038000. Multi-slave: camera
-   0x20, display-module panel-detect 0x38, CS42448 audio codec 0x48. Decodes the
-   waveform via GPIO4's write-observer; an unmodelled addressed slave loud-fails. */
+/* Ford SYNC2 "HIC1:" = software-I2C bit-banged over GPIO4 (SCL=16/SDA=17,
+   hsi2c.dll), NOT the HS-I2C at 0x70038000; slaves camera 0x20 / DM 0x38 /
+   CS42448 0x48 / TSC2003 0x49, decoded off GPIO4's write-observer. */
 constexpr uint32_t kScl = 16u;
 constexpr uint32_t kSda = 17u;
 
@@ -26,6 +26,9 @@ constexpr uint8_t kCs42448Addr = 0x48u;
 /* Display-module panel-detect slave (DisplayModule.dll DMX_Init sub_C0E326CC ->
    DMI2CXfer sub_C0E31D08: a single 6-byte read from 0x38). */
 constexpr uint8_t kDmAddr = 0x38u;
+
+/* TSC2003 touch-screen controller (touch_tsc2003.dll TSCI2CInit). */
+constexpr uint8_t kTsc2003Addr = 0x49u;
 
 class FordSync2Hic1I2c : public Service {
 public:
@@ -37,6 +40,7 @@ public:
     }
     void OnReady() override {
         gpio_ = &emu_.Get<Imx51Gpio4>();
+        tsc2003_ = &emu_.Get<Tsc2003Touch>();
         /* Both lines idle high (open-drain pull-up). SCL especially: the slave
            never clock-stretches, so the master's WaitForSCK readback (hsi2c
            releases GPIO4.16 then waits for it to read high) must read high -
@@ -81,9 +85,12 @@ private:
     void OnByteReceived(uint8_t b) {
         if (byte_idx_ == 0u) {                /* address byte */
             addr_ = b >> 1; rw_ = b & 1u;
-            addressed_ = (addr_ == kCs42448Addr || addr_ == kDmAddr);
+            addressed_ = (addr_ == kCs42448Addr || addr_ == kDmAddr ||
+                          addr_ == kTsc2003Addr);
             map_set_ = false;
             if (!addressed_) FatalUnmodelledSlave();
+        } else if (addr_ == kTsc2003Addr) {
+            tsc2003_->WriteCommand(b);
         } else if (addr_ == kDmAddr) {
             /* DM 0x38 config write [reg][val] (reg 1 brightness / 2 mode / 3 touch;
                displaymodule sub_C0E31F70 / sub_C0E31FD4 via DMI2CXfer sub_C0E31D08): the
@@ -99,12 +106,24 @@ private:
         }
     }
 
-    /* DM panel-detect read (DisplayModule.dll DMX_Init sub_C0E326CC): only byte[5] is
-       used - (v11 & 7) must be a valid DM type {DM4=1, DM8=2, DM6=3} or DMX_Init raises
-       DisplaySystemError and Mishell reboots; (v11 & 8) = touch. 0x0A = DM8 + touch;
-       byte_idx_ == 6 is byte[5] (1-based read counter). */
-    uint8_t DmDetectByte() const {
-        return (byte_idx_ == 6u) ? 0x0Au : 0x00u;
+    /* DisplayModule.dll DMIntHandlerThread sub_C09B2178: byte1/byte3-hi ->
+       Buffer[1]=UncalX, byte2/byte3-lo -> Buffer[2]=UncalY (WriteMsgQueue), fed as
+       TouchPanelCalibrateAPoint(UncalX,UncalY) so byte1/byte3-hi carries AdcX. byte5
+       (v&7)=DM8(2) else DMX_Init raises DisplaySystemError, (v&8)=touch. */
+    uint8_t DmReadByte() const {
+        const bool pen = tsc2003_->PenDown();
+        const uint16_t x = tsc2003_->AdcX();
+        const uint16_t y = tsc2003_->AdcY();
+        switch (byte_idx_) {
+            case 1u: return pen ? 0x83u : 0x00u;            /* pending|touch|pen */
+            case 2u: return pen ? static_cast<uint8_t>(x >> 4) : 0x00u;
+            case 3u: return pen ? static_cast<uint8_t>(y >> 4) : 0x00u;
+            case 4u: return pen ? static_cast<uint8_t>(((x & 0xFu) << 4) | (y & 0xFu))
+                                : 0x00u;
+            case 5u: return 0x00u;                          /* error flags */
+            case 6u: return 0x0Au;                          /* DM8 + touch */
+            default: return 0x00u;
+        }
     }
 
     void OnEdge() {
@@ -145,7 +164,9 @@ private:
                     tx_this_ = addressed_ && rw_ && !master_nack_;  /* read -> TX next byte */
                     if (tx_this_) {
                         if (addr_ == kDmAddr) {
-                            tx_byte_ = DmDetectByte();
+                            tx_byte_ = DmReadByte();
+                        } else if (addr_ == kTsc2003Addr) {
+                            tx_byte_ = tsc2003_->ReadResultByte();
                         } else {
                             tx_byte_ = cs42448_.ReadReg(reg_);
                             if (auto_incr_) reg_ = static_cast<uint8_t>((reg_ + 1u) & 0x7Fu);
@@ -158,6 +179,7 @@ private:
     }
 
     Imx51Gpio4* gpio_ = nullptr;
+    Tsc2003Touch* tsc2003_ = nullptr;
     Cs42448Codec cs42448_;
     bool prev_scl_ = true;
     bool prev_sda_ = true;
