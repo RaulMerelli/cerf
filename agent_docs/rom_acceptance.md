@@ -14,6 +14,29 @@ serves that flash; it does not ask the user (or a build step, or a remote
 manifest) to hand it a stripped payload. A device that only boots from a
 hand-extracted XIP is a CERF gap to close, not the intended shape.
 
+**A raw hardware *capture* is normalized to the flat container before bundling.**
+The "no external pre-extraction" rule above concerns a *recognized container or
+filesystem CERF parses itself* (B000FF / NOSAJ / ARNOLD / IMGFS / a whole-flash
+FS); it does not extend to raw memory-bus capture artifacts. A dump read off the
+bus carries properties of *how it was read* rather than of the ROM: chip-select
+**aliasing / mirroring** (a small flash repeated across a larger decode window -
+e.g. an 8 MB part appearing twice across a 16 MB window), **floating /
+undriven-bus** regions, **blank / erased pad** (`0x00` / `0xFF`), and **address
+wrap** (the image straddles the physical device, so it is contiguous only modulo
+the device size). These are not ROM. `RomParserService` consumes the flat
+container only; de-aliasing, de-wrapping, and pad-trimming are capture
+normalization performed before bundling, not parser behavior.
+
+The ROM is the **flat ROMHDR/TOC container** (`physfirst..physlast`). The test for
+a raw capture is whether it holds that container fully and intact. If it does,
+normalization yields the bundled artifact: a contiguous `physfirst..physlast`
+image with file-0 == physfirst (a flat NB0, Axis 1 below) - the flat span
+`RomParserService` reads. The pre-extraction the governing rule forbids is a
+distinct case: there the bootable image sits inside a container / filesystem CERF
+should crack, and a pre-cracked payload is supplied instead. A capture that does
+not hold the full container - truncated at the wrap, missing modules - is
+incomplete and is re-dumped, not patched.
+
 This sits next to two related pages: `agent_docs/boot_loaders.md` (whether CERF
 skips, models, or fully emulates the OEM bootloader) and the Guest-Additions
 injection mechanism (`agent_docs/guest_additions.md`), which recomposes a ROM by
