@@ -59,6 +59,7 @@ class Soc(NamedTuple):
 HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000", "os_old_ce.png")
 POCKET_PC_2000 = OperatingSystem("Pocket PC 2000", "os_ppc2000.png")
 POCKET_PC_2002 = OperatingSystem("Pocket PC 2002", "os_ppc2002.png")
+WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0", "os_old_ce.png")
 WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11", "os_old_ce.png")
 HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional", "os_old_ce.png")
 WINDOWS_CE_3 = OperatingSystem("Windows CE 3", "os_old_ce.png")
@@ -80,6 +81,7 @@ SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136", "ARM")
 SOC_IMX51 = Soc("Freescale i.MX51", "Cortex-A8", "ARM")
 SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
 SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
+SOC_VR4102 = Soc("NEC VR4102", "MIPS III", "MIPS")
 
 # Feature icons in display order, shared by the launcher side panel and
 # compile_readme.py. (features key, icon file under assets/icons, label).
@@ -323,6 +325,24 @@ BOARDS_INFORMATION = [
         ],
     },
     {
+        "name": "NEC MobilePro 700",
+        "board_id": "nec_mobilepro_700",
+        "supported": True,
+        "soc": SOC_VR4102,
+        "operating_systems": [WINDOWS_CE_2],
+        "features": {
+            "display": True,
+            "touch": True,
+            "keyboard": True,
+            "sound": False,
+            "network": False,
+            "pcmcia": True,
+            "battery": False,
+            "guest_additions": False,
+            "suspend": False,
+        },
+    },
+    {
         "name": "NEC Rockhopper SG2_VR5500",
         "board_id": "nec_rockhopper",
         "supported": True,
@@ -377,17 +397,18 @@ BOARDS_INFORMATION = [
     {
         "name": "Ford SYNC 2",
         "board_id": "ford_sync_2",
-        "supported": False,
+        "supported": True,
         "soc": SOC_IMX51,
         "operating_systems": [WINDOWS_CE_6],
         "features": {
             "display": True,
-            "touch": True,
-            "guest_additions": True,
+            "touch": False,
+            "guest_additions": False,
             "sound": False,
         },
         "notes": [
-            "On the first boot, guest flashes ~2GB NAND inside device dir from .sec file. It will take some time and x2 disk space. After first boot, you can remove .sec file if you are not going to re-flash."
+            "On the first boot, guest flashes ~2GB NAND inside device dir from .sec file. It will take some time and x2 disk space. After first boot, you can remove .sec file if you are not going to re-flash.",
+            "GPU has severe visual artifacts.",
         ]
     },
 ]
