@@ -402,14 +402,17 @@ BOARDS_INFORMATION = [
         "operating_systems": [WINDOWS_CE_6],
         "features": {
             "display": True,
-            "touch": False,
+            "touch": True,
             "guest_additions": False,
             "sound": False,
         },
         "notes": [
+            "THIS BOARD IS NOT EMULATED WELL AT ALL! All it can do is a boot to a glitching home screen and that's it",
             "On the first boot, guest flashes ~2GB NAND inside device dir from .sec file. It will take some time and x2 disk space. After first boot, you can remove .sec file if you are not going to re-flash.",
             "GPU has severe visual artifacts.",
-        ]
+            "A click on screen will likely crash CERF due to missing GPU implementation",
+            "Guest additions are launching if re-run with complete nand.img, but somehow causing stock GPU crash",
+        ],
     },
 ]
 
