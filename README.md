@@ -104,7 +104,7 @@ Download WIP build (6.0) from artifacts [![build](https://github.com/gweslab/cer
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>NEC MobilePro 700</b> <code>nec_mobilepro_700</code><br/>
         <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 2.0" alt="Windows CE 2.0"/> Windows CE 2.0
       </td>
-      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/></td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/pcmcia.png" width="16" height="16" title="PCMCIA" alt="PCMCIA"/> <img src="launcher/assets/icons/internet.png" width="16" height="16" title="Network" alt="Network"/></td>
     </tr>
     <tr>
       <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>NEC VR5500</b><br/><sub>MIPS IV</sub></td>
@@ -260,7 +260,6 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>NEC Rockhopper SG2_VR5500 support</li>
               <li>NEC MobilePro 700 support</li>
               <li>Ford Sync 2 bare-bones support</li>
-              <li>(PLANNED) Philips Velo 1, Philips Nino 300 support</li>
               <li>UX/UI improvements</li>
               <li>Launcher full redesign: save settings, fully new layout, multidownload, live/suspened screen previews</li>
               <li>Added tools\fileserver.py in build directory (simple directory serving web server)</li>
@@ -268,7 +267,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
               <li>Removed heuristics board detector - it was a bad non-scalable conception, now you need to specify board ID directly.
                 This also lets users to run ROMs on other boards. Obviously if it's not the same device the chance it will work is around 0%.</li>
               <li>romdump.exe for MIPS updated to emit MIPS1 code, support CE 2.0 and maybe 1.0 too, and now includes several real MIPS CPUs, + full UI redesign</li>
-              <li>...more updates pending</li>
+              <li>Guest Additions: CE 2.0 support (display only so far)</li>
             </ul>
           </td>
         </tr>
