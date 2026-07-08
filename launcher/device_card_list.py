@@ -16,11 +16,18 @@ from supported_devices import board_soc_cpu
 import ui_theme as theme
 
 
+def _lighten(color: str, delta: int) -> str:
+    r = min(255, int(color[1:3], 16) + delta)
+    g = min(255, int(color[3:5], 16) + delta)
+    b = min(255, int(color[5:7], 16) + delta)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 class _Card:
     def __init__(self, device: DeviceBundle, frame: tk.Frame,
                  children: List[tk.Widget], status: tk.Label, name: tk.Label,
                  prefix_lbl: tk.Label, soc_lbl: tk.Label, suffix_lbl: tk.Label,
-                 notes_lbl: tk.Label, tile: PreviewTile):
+                 tile: PreviewTile):
         self.device = device
         self.frame = frame
         self.children = children
@@ -29,7 +36,6 @@ class _Card:
         self.prefix_lbl = prefix_lbl
         self.soc_lbl = soc_lbl
         self.suffix_lbl = suffix_lbl
-        self.notes_lbl = notes_lbl
         self.tile = tile
 
 
@@ -59,7 +65,7 @@ class DeviceCardList:
         self._tile_w = int(58 * scale)
         self._tile_h = int(46 * scale)
         self._glyph = int(10 * scale)
-        self._notes_wrap = int(320 * scale)
+        self._heading_wrap = int(320 * scale)
 
         frame = ttk.Frame(parent)
         frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
@@ -111,6 +117,7 @@ class DeviceCardList:
             if card.status.cget("text") != label:
                 card.status.config(text=label, fg=fg)
             card.tile.refresh()
+        self._repaint_all()
 
     def retheme(self) -> None:
         self._canvas.config(bg=theme.BG)
@@ -177,6 +184,7 @@ class DeviceCardList:
             self._selected = names[0] if names else None
             if self._selected is not None:
                 self._set_selected(self._selected, notify=False)
+        self._repaint_all()
         self._on_select(self.selection())
 
     def _make_header(self, group: str) -> tk.Widget:
@@ -194,6 +202,12 @@ class DeviceCardList:
             if ce:
                 title = f"{title}  ·  {ce}"
         return title
+
+    def _card_heading(self, d: DeviceBundle, collide: bool) -> str:
+        title = self._card_title(d, collide)
+        notes = "  ·  ".join(n.strip() for n in d.meta.os_notes
+                             if n and n.strip())
+        return f"{title}  ·  {notes}" if notes else title
 
     def _os_title(self, d: DeviceBundle) -> str:
         meta = d.meta
@@ -252,8 +266,9 @@ class DeviceCardList:
         textcol = tk.Frame(card, bg=theme.BG_LIGHTER)
         textcol.pack(side="left", fill="both", expand=True)
 
-        name = tk.Label(textcol, text=self._card_title(d, collide),
+        name = tk.Label(textcol, text=self._card_heading(d, collide),
                         bg=theme.BG_LIGHTER, fg=theme.FG, anchor="w",
+                        justify="left", wraplength=self._heading_wrap,
                         font=("Segoe UI", 11, "bold"))
         name.pack(fill="x", padx=6, pady=(8, 0))
 
@@ -278,42 +293,27 @@ class DeviceCardList:
                           anchor="w", font=("Segoe UI", 9))
         status.pack(fill="x", padx=6, pady=(0, 8))
 
-        notes_lbl = tk.Label(textcol, text="", bg=theme.BG_LIGHTER,
-                             fg=theme.FG_DIM, anchor="w", justify="left",
-                             font=("Segoe UI", 9), wraplength=self._notes_wrap)
-
         bg_children = [card, textcol, detail, name, prefix_lbl, soc_lbl,
-                       suffix_lbl, notes_lbl, status]
+                       suffix_lbl, status]
         for w in bg_children + [tile.canvas]:
             w.bind("<Button-1>", lambda _e, n=d.name: self._set_selected(n))
             w.bind("<Double-1>", lambda _e, n=d.name: self._activate(n))
             w.bind("<Button-3>", lambda e, n=d.name: self._context(n, e))
             self._bind_wheel(w)
         c = _Card(d, card, bg_children, status, name, prefix_lbl, soc_lbl,
-                  suffix_lbl, notes_lbl, tile)
+                  suffix_lbl, tile)
         self._cards[d.name] = c
-        self._apply_notes(c)
         tile.set_device(d)
         return card
-
-    def _apply_notes(self, card: _Card) -> None:
-        notes = "  ·  ".join(n.strip() for n in card.device.meta.os_notes
-                             if n and n.strip())
-        if notes:
-            card.notes_lbl.config(text=notes, wraplength=self._notes_wrap)
-            card.notes_lbl.pack(fill="x", padx=6, pady=(0, 0),
-                                before=card.status)
-        else:
-            card.notes_lbl.pack_forget()
 
     def _update_card(self, d: DeviceBundle, collide: bool) -> None:
         card = self._cards.get(d.name)
         if card is None:
             return
         card.device = d
-        title = self._card_title(d, collide)
-        if card.name.cget("text") != title:
-            card.name.config(text=title)
+        heading = self._card_heading(d, collide)
+        if card.name.cget("text") != heading:
+            card.name.config(text=heading)
         prefix, soc, suffix = self._card_detail_parts(d, not collide)
         if card.prefix_lbl.cget("text") != prefix:
             card.prefix_lbl.config(text=prefix)
@@ -324,7 +324,6 @@ class DeviceCardList:
         label, fg = self._status_text(d)
         if card.status.cget("text") != label:
             card.status.config(text=label, fg=fg)
-        self._apply_notes(card)
         card.tile.set_device(d)
 
     def _status_text(self, d: DeviceBundle) -> Tuple[str, str]:
@@ -341,16 +340,36 @@ class DeviceCardList:
             return label, theme.FG_DIM
         return "Powered off", theme.FG_DIM
 
+    def _card_colors(self, d: DeviceBundle) -> Tuple[str, str]:
+        if running_status(self._devices_dir / d.name) is not None:
+            return theme.CARD_RUNNING_BG, theme.CARD_RUNNING_SEL
+        if d.has_update:
+            return theme.CARD_UPDATE_BG, theme.CARD_UPDATE_SEL
+        return theme.BG_LIGHTER, theme.BG_HOVER
+
+    def _card_bg(self, d: DeviceBundle) -> str:
+        return self._card_colors(d)[0]
+
+    def _paint_card(self, card: _Card, selected: bool) -> None:
+        base, bright = self._card_colors(card.device)
+        fill = bright if selected else base
+        border = _lighten(bright, 30) if selected else bright
+        card.frame.config(bg=fill, highlightbackground=border,
+                          highlightcolor=border)
+        for w in card.children:
+            if w is not card.frame:
+                w.config(bg=fill)
+        card.tile.canvas.config(bg=fill)
+
+    def _repaint_all(self) -> None:
+        for n, card in self._cards.items():
+            self._paint_card(card, n == self._selected)
+
     def _set_selected(self, name: str, notify: bool = True) -> None:
         if name not in self._cards:
             return
         self._selected = name
-        for n, card in self._cards.items():
-            bg = theme.BG_HOVER if n == name else theme.BG_LIGHTER
-            card.frame.config(bg=bg)
-            for w in card.children:
-                if w is not card.frame:
-                    w.config(bg=bg)
+        self._repaint_all()
         if notify:
             self._on_select(self.selection())
 
@@ -365,9 +384,9 @@ class DeviceCardList:
 
     def _on_canvas_config(self, e: tk.Event) -> None:
         self._canvas.itemconfigure(self._inner_id, width=e.width)
-        self._notes_wrap = max(160, e.width - self._tile_w - 40)
+        self._heading_wrap = max(160, e.width - self._tile_w - 40)
         for card in self._cards.values():
-            card.notes_lbl.config(wraplength=self._notes_wrap)
+            card.name.config(wraplength=self._heading_wrap)
 
     def _bind_wheel(self, widget: tk.Widget) -> None:
         widget.bind(

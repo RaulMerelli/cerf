@@ -40,6 +40,8 @@ _DARK_PALETTE: Dict[str, str] = {
     "FG_DIM": "#808080", "BORDER": "#3f3f46", "UPDATE_LINK": "#e8c44a",
     "LINK_FG": "#569cd6", "GROUP_BG": "#252526", "PREVIEW_STOPPED": "#cfcfcf",
     "DANGER_FG": "#f48771", "WARN_FG": "#ffb900",
+    "CARD_RUNNING_BG": "#1e3a1e", "CARD_UPDATE_BG": "#3a2f12",
+    "CARD_RUNNING_SEL": "#2e5a2e", "CARD_UPDATE_SEL": "#5c4a1e",
 }
 _LIGHT_PALETTE: Dict[str, str] = {
     "BG": "#f3f3f3", "BG_LIGHTER": "#ffffff", "BG_FIELD": "#ffffff",
@@ -47,6 +49,8 @@ _LIGHT_PALETTE: Dict[str, str] = {
     "FG_DIM": "#6b6b6b", "BORDER": "#c4c4c4", "UPDATE_LINK": "#8a5a00",
     "LINK_FG": "#0a66c2", "GROUP_BG": "#ececec", "PREVIEW_STOPPED": "#8a8a8a",
     "DANGER_FG": "#c42b1c", "WARN_FG": "#8a5a00",
+    "CARD_RUNNING_BG": "#dff3df", "CARD_UPDATE_BG": "#fbeecb",
+    "CARD_RUNNING_SEL": "#bfe6bf", "CARD_UPDATE_SEL": "#f2dca0",
 }
 
 IS_DARK = system_uses_dark()
@@ -66,6 +70,11 @@ GROUP_BG    = _PALETTE["GROUP_BG"]
 PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
 DANGER_FG   = _PALETTE["DANGER_FG"]
 WARN_FG     = _PALETTE["WARN_FG"]
+CARD_RUNNING_BG = _PALETTE["CARD_RUNNING_BG"]
+CARD_UPDATE_BG  = _PALETTE["CARD_UPDATE_BG"]
+CARD_RUNNING_SEL = _PALETTE["CARD_RUNNING_SEL"]
+CARD_UPDATE_SEL  = _PALETTE["CARD_UPDATE_SEL"]
+
 
 def _build_state_tint() -> dict:
     return {
@@ -86,6 +95,7 @@ def refresh_palette() -> bool:
     global IS_DARK, _PALETTE, STATE_TINT
     global BG, BG_LIGHTER, BG_FIELD, BG_HOVER, BG_SELECTED, FG, FG_DIM, BORDER
     global UPDATE_LINK, LINK_FG, GROUP_BG, PREVIEW_STOPPED, DANGER_FG, WARN_FG
+    global CARD_RUNNING_BG, CARD_UPDATE_BG, CARD_RUNNING_SEL, CARD_UPDATE_SEL
     dark = system_uses_dark()
     if dark == IS_DARK:
         return False
@@ -105,6 +115,10 @@ def refresh_palette() -> bool:
     PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
     DANGER_FG   = _PALETTE["DANGER_FG"]
     WARN_FG     = _PALETTE["WARN_FG"]
+    CARD_RUNNING_BG = _PALETTE["CARD_RUNNING_BG"]
+    CARD_UPDATE_BG  = _PALETTE["CARD_UPDATE_BG"]
+    CARD_RUNNING_SEL = _PALETTE["CARD_RUNNING_SEL"]
+    CARD_UPDATE_SEL  = _PALETTE["CARD_UPDATE_SEL"]
     STATE_TINT = _build_state_tint()
     return True
 
