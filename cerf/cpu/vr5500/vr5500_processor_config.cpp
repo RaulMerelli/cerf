@@ -19,6 +19,8 @@ public:
     /* company<<16(=0, legacy NEC) | PRID_IMP_R5500(0x5500) | revision(0). */
     uint32_t     Prid()     const override { return 0x00005500u; }
     uint32_t     TlbSize()  const override { return 48u; }   /* R5500 c->tlbsize */
+    uint32_t     MinPageShift() const override { return 12u; }  /* R4000/R5000 4-KB min page */
+    uint32_t     PhysAddrMask() const override { return 0xFFFFFFFFu; }  /* no low-space mirror */
     MipsIsaLevel IsaLevel() const override { return MipsIsaLevel::kMips4; }
 
     bool HasFpu()     const override { return true;  }   /* MIPS_CPU_FPU */

@@ -3,25 +3,23 @@
 #include "../isa_block_space.h"
 #include "../../state/state_stream.h"
 
-/* Faithful transcription of QEMU target/mips tlb_helper.c r4k_* for the VR5500
-   (R4000-class, 32-bit kernel, MI/MMID and XI/RI/EHINV absent). TARGET_PAGE_BITS
-   = 12, (TARGET_PAGE_MASK << 1) = 0xFFFFE000, so mask = PageMask | 0x1FFF. */
+/* QEMU target/mips tlb_helper.c r4k_*, parameterized on the SoC min-page shift
+   S = MipsCpuState::min_page_shift (QEMU TARGET_PAGE_BITS): a PFN gives PA[31:S]
+   and the VPN2 pair spans 2^(S+1). VR5500 S=12 (4 KB), VR4102 S=10 (1 KB, UM
+   5.2.2). MI/MMID and XI/RI/EHINV absent (32-bit kernel). */
 
 namespace {
 
-constexpr uint32_t kVpn2Mask = 0xFFFFE000;  /* TARGET_PAGE_MASK << 1 */
-constexpr uint32_t kAsidMask = 0x000000FF;  /* VR5500 EntryHi ASID */
+constexpr uint32_t kAsidMask = 0x000000FF;  /* VR5500/VR4102 EntryHi ASID */
 
-/* get_tlb_pfn_from_entrylo (tlb_helper.c:42), 32-bit: extract64(entrylo,6,24).
-   The PFNX half (bits >=32) does not exist in a 32-bit EntryLo. */
+/* get_tlb_pfn_from_entrylo (tlb_helper.c:42), 32-bit: extract64(entrylo,6,24). */
 inline uint32_t TlbPfnFromEntryLo(uint32_t entrylo) {
     return (entrylo >> 6) & 0x00FFFFFFu;
 }
 
-/* get_entrylo_pfn_from_tlb (tlb_helper.c:225), 32-bit: extract64(tlb_pfn,0,24)<<6
-   (the <<32 PFNX half is not representable in a 32-bit EntryLo). */
-inline uint32_t EntryLoPfnFromTlb(uint64_t pfn) {
-    const uint64_t tlb_pfn = pfn >> 12;
+/* get_entrylo_pfn_from_tlb (tlb_helper.c:225), 32-bit: extract64(tlb_pfn,0,24)<<6. */
+inline uint32_t EntryLoPfnFromTlb(uint64_t pfn, uint32_t s) {
+    const uint64_t tlb_pfn = pfn >> s;
     return static_cast<uint32_t>((tlb_pfn & 0x00FFFFFFu) << 6);
 }
 
@@ -32,7 +30,7 @@ MipsTlbResult MipsMmu::MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc,
     const uint16_t asid = st->cp0_entryhi & kAsidMask;
     for (uint32_t i = 0; i < st->tlb_in_use; i++) {
         const MipsTlbEntry& e = st->tlb[i];
-        const uint32_t mask = e.page_mask | 0x1FFFu;
+        const uint32_t mask = e.page_mask | MipsPairMinMask(st->min_page_shift);
         const uint32_t tag  = va & ~mask;
         const uint32_t vpn  = e.vpn & ~mask;
         if (!((e.g || e.asid == asid) && vpn == tag)) {
@@ -43,7 +41,9 @@ MipsTlbResult MipsMmu::MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc,
             return MipsTlbResult::kInvalid;
         }
         if (acc != MipsAccess::kWrite || (n ? e.d1 : e.d0)) {
-            *pa = static_cast<uint32_t>(e.pfn[n] | (va & (mask >> 1)));
+            /* SoC physical-space mirror (VR4102 UM Table 5-6): a PFN above
+               0x20000000 aliases into 0x0-0x1FFFFFFF. */
+            *pa = static_cast<uint32_t>(e.pfn[n] | (va & (mask >> 1))) & st->phys_addr_mask;
             return MipsTlbResult::kMatch;
         }
         return MipsTlbResult::kModified;
@@ -82,7 +82,7 @@ bool MipsMmu::ExecPageGlobal(MipsCpuState* st, uint32_t va) {
     const uint16_t asid = st->cp0_entryhi & kAsidMask;
     for (uint32_t i = 0; i < st->tlb_in_use; i++) {
         const MipsTlbEntry& e = st->tlb[i];
-        const uint32_t mask = e.page_mask | 0x1FFFu;
+        const uint32_t mask = e.page_mask | MipsPairMinMask(st->min_page_shift);
         if ((e.g || e.asid == asid) && (e.vpn & ~mask) == (va & ~mask)) {
             return e.g != 0;
         }
@@ -91,21 +91,21 @@ bool MipsMmu::ExecPageGlobal(MipsCpuState* st, uint32_t va) {
 }
 
 void MipsMmu::FillTlb(MipsCpuState* st, uint32_t idx) {
-    /* r4k_fill_tlb (tlb_helper.c:52). mask = CP0_PageMask >> (TARGET_PAGE_BITS+1). */
-    const uint32_t mask = st->cp0_pagemask >> 13;
+    /* r4k_fill_tlb (tlb_helper.c:52). mask = CP0_PageMask >> (min_page_shift+1). */
+    const uint32_t mask = st->cp0_pagemask >> (st->min_page_shift + 1u);
     MipsTlbEntry& e = st->tlb[idx];
-    e.vpn       = st->cp0_entryhi & kVpn2Mask;
+    e.vpn       = st->cp0_entryhi & MipsVpn2Mask(st->min_page_shift);
     e.asid      = st->cp0_entryhi & kAsidMask;
     e.page_mask = st->cp0_pagemask;
     e.g  = static_cast<uint8_t>(st->cp0_entrylo0 & st->cp0_entrylo1 & 1u);
     e.v0 = static_cast<uint8_t>((st->cp0_entrylo0 & 2u) != 0);
     e.d0 = static_cast<uint8_t>((st->cp0_entrylo0 & 4u) != 0);
     e.c0 = static_cast<uint8_t>((st->cp0_entrylo0 >> 3) & 7u);
-    e.pfn[0] = (static_cast<uint64_t>(TlbPfnFromEntryLo(st->cp0_entrylo0) & ~mask)) << 12;
+    e.pfn[0] = (static_cast<uint64_t>(TlbPfnFromEntryLo(st->cp0_entrylo0) & ~mask)) << st->min_page_shift;
     e.v1 = static_cast<uint8_t>((st->cp0_entrylo1 & 2u) != 0);
     e.d1 = static_cast<uint8_t>((st->cp0_entrylo1 & 4u) != 0);
     e.c1 = static_cast<uint8_t>((st->cp0_entrylo1 >> 3) & 7u);
-    e.pfn[1] = (static_cast<uint64_t>(TlbPfnFromEntryLo(st->cp0_entrylo1) & ~mask)) << 12;
+    e.pfn[1] = (static_cast<uint64_t>(TlbPfnFromEntryLo(st->cp0_entrylo1) & ~mask)) << st->min_page_shift;
 }
 
 void MipsMmu::InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra) {
@@ -123,7 +123,7 @@ void MipsMmu::InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra) {
         st->tlb_in_use++;
         return;
     }
-    const uint32_t mask = e.page_mask | 0x1FFFu;
+    const uint32_t mask = e.page_mask | MipsPairMinMask(st->min_page_shift);
     if (e.v0) {                                      /* even sub-page (tlb_helper.c:1415) */
         uint32_t addr = e.vpn & ~mask;
         const uint32_t end = addr | (mask >> 1);
@@ -154,7 +154,7 @@ void MipsMmu::WriteIndexed(MipsCpuState* st) {
     const uint16_t asid = st->cp0_entryhi & kAsidMask;
     const uint32_t idx  = (st->cp0_index & ~0x80000000u) % st->nb_tlb;
     const MipsTlbEntry& e = st->tlb[idx];
-    const uint32_t vpn = st->cp0_entryhi & kVpn2Mask;
+    const uint32_t vpn = st->cp0_entryhi & MipsVpn2Mask(st->min_page_shift);
     const uint8_t  g   = static_cast<uint8_t>(st->cp0_entrylo0 & st->cp0_entrylo1 & 1u);
     const bool v0 = (st->cp0_entrylo0 & 2u) != 0;
     const bool d0 = (st->cp0_entrylo0 & 4u) != 0;
@@ -200,7 +200,7 @@ void MipsMmu::Probe(MipsCpuState* st) {
     const uint16_t asid = st->cp0_entryhi & kAsidMask;
     for (uint32_t i = 0; i < st->nb_tlb; i++) {
         const MipsTlbEntry& e = st->tlb[i];
-        const uint32_t mask = e.page_mask | 0x1FFFu;
+        const uint32_t mask = e.page_mask | MipsPairMinMask(st->min_page_shift);
         const uint32_t tag  = st->cp0_entryhi & ~mask;
         const uint32_t vpn  = e.vpn & ~mask;
         if ((e.g || e.asid == asid) && vpn == tag) {
@@ -211,7 +211,7 @@ void MipsMmu::Probe(MipsCpuState* st) {
     /* No live match: discard the first matching shadow entry (tlb_helper.c:202). */
     for (uint32_t i = st->nb_tlb; i < st->tlb_in_use; i++) {
         const MipsTlbEntry& e = st->tlb[i];
-        const uint32_t mask = e.page_mask | 0x1FFFu;
+        const uint32_t mask = e.page_mask | MipsPairMinMask(st->min_page_shift);
         const uint32_t tag  = st->cp0_entryhi & ~mask;
         const uint32_t vpn  = e.vpn & ~mask;
         if ((e.g || e.asid == asid) && vpn == tag) {
@@ -235,10 +235,10 @@ void MipsMmu::Read(MipsCpuState* st) {
     st->cp0_pagemask = e.page_mask;
     st->cp0_entrylo0 = e.g | (static_cast<uint32_t>(e.v0) << 1) |
                        (static_cast<uint32_t>(e.d0) << 2) |
-                       (static_cast<uint32_t>(e.c0) << 3) | EntryLoPfnFromTlb(e.pfn[0]);
+                       (static_cast<uint32_t>(e.c0) << 3) | EntryLoPfnFromTlb(e.pfn[0], st->min_page_shift);
     st->cp0_entrylo1 = e.g | (static_cast<uint32_t>(e.v1) << 1) |
                        (static_cast<uint32_t>(e.d1) << 2) |
-                       (static_cast<uint32_t>(e.c1) << 3) | EntryLoPfnFromTlb(e.pfn[1]);
+                       (static_cast<uint32_t>(e.c1) << 3) | EntryLoPfnFromTlb(e.pfn[1], st->min_page_shift);
 }
 
 void MipsMmu::FlushAll(MipsCpuState* st) {

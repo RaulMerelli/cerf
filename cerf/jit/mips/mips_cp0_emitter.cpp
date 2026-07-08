@@ -61,6 +61,14 @@ uint8_t* MipsCp0Emitter::EmitFromCop0(uint8_t* cursor, MipsDecodedInsn* d,
     if (d->rt == 0) {
         return cursor;
     }
+    /* Random has no stored value; compute it on read (QEMU helper_mfc0_random). */
+    if (d->rd == MipsCp0::kRandom) {
+        EmitMovRegImm32(cursor, kEcx,
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+        EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::Mfc0RandomHelper));
+        mips_emit::EmitStoreGprSextEax(cursor, d->rt);
+        return cursor;
+    }
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, off);
     mips_emit::EmitStoreGprSextEax(cursor, d->rt);
     return cursor;

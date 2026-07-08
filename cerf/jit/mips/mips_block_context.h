@@ -18,7 +18,8 @@ struct MipsBlockContext {
     MipsDecodedInsn insns[kMaxMipsInsnPerBlock];
     uint32_t        num_insns;
 
-    /* Physical page base (PA & ~0xFFF) of insns[0], captured from its fetch -
-       the block's phys identity (blocks are 4 KiB-page-bounded). */
+    /* Physical page base (PA & ~page_off_mask) of insns[0], captured from its
+       fetch - the block's phys identity. Blocks are bounded to the SoC minimum
+       page (min_page_shift): 4 KiB on VR5500, 1 KiB on VR4102. */
     uint32_t        block_phys_page_base;
 };

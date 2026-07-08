@@ -10,7 +10,7 @@
    effective address (kseg fold / software TLB) then load or store, including the
    unaligned LWL / SWL / SWR / SDL / SDR byte merges. */
 
-uint32_t MipsJit::MmioRead(uint32_t pa, uint32_t width, const char* who) {
+uint32_t MipsJit::MmioRead(uint32_t va, uint32_t pa, uint32_t width, const char* who) {
     if (peripheral_->IsPeripheralAddress(pa)) {
         switch (width) {
             case 1:  return peripheral_->ReadByte(pa);
@@ -18,12 +18,12 @@ uint32_t MipsJit::MmioRead(uint32_t pa, uint32_t width, const char* who) {
             default: return peripheral_->ReadWord(pa);
         }
     }
-    LOG(Caution, "%s: unmapped MMIO read pa=0x%08X (no peripheral registered)\n",
-        who, pa);
+    LOG(Caution, "%s: unmapped MMIO read va=0x%08X pa=0x%08X (no peripheral registered)\n",
+        who, va, pa);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
-void MipsJit::MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char* who) {
+void MipsJit::MmioWrite(uint32_t va, uint32_t pa, uint32_t value, uint32_t width, const char* who) {
     if (peripheral_->IsPeripheralAddress(pa)) {
         switch (width) {
             case 1:  peripheral_->WriteByte(pa, static_cast<uint8_t>(value));  return;
@@ -31,8 +31,8 @@ void MipsJit::MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char*
             default: peripheral_->WriteWord(pa, value);                        return;
         }
     }
-    LOG(Caution, "%s: unmapped MMIO write pa=0x%08X val=0x%08X (no peripheral "
-        "registered)\n", who, pa, value);
+    LOG(Caution, "%s: unmapped MMIO write va=0x%08X pa=0x%08X val=0x%08X (no peripheral "
+        "registered)\n", who, va, pa, value);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
@@ -50,7 +50,7 @@ void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* j
         std::memcpy(host, &value, sizeof(value));
         return;
     }
-    jit->MmioWrite(pa, value, 4, "MipsJit::StoreWordHelper");
+    jit->MmioWrite(va, pa, value, 4, "MipsJit::StoreWordHelper");
 }
 
 void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* jit) {
@@ -68,7 +68,7 @@ void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* j
         std::memcpy(host, &h, sizeof(h));
         return;
     }
-    jit->MmioWrite(pa, value, 2, "MipsJit::StoreHalfHelper");
+    jit->MmioWrite(va, pa, value, 2, "MipsJit::StoreHalfHelper");
 }
 
 void __fastcall MipsJit::StoreByteHelper(uint32_t va, uint32_t value, MipsJit* jit) {
@@ -90,7 +90,7 @@ uint32_t __fastcall MipsJit::LoadWordHelper(uint32_t va, MipsJit* jit) {
         std::memcpy(&value, host, sizeof(value));
         return value;
     }
-    return jit->MmioRead(pa, 4, "MipsJit::LoadWordHelper");
+    return jit->MmioRead(va, pa, 4, "MipsJit::LoadWordHelper");
 }
 
 uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
@@ -103,7 +103,7 @@ uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
     if (const uint8_t* host = jit->memory_->TryTranslate(pa)) {
         return *host;
     }
-    return jit->MmioRead(pa, 1, "MipsJit::LoadByteHelper");
+    return jit->MmioRead(va, pa, 1, "MipsJit::LoadByteHelper");
 }
 
 uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
@@ -121,7 +121,7 @@ uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
         std::memcpy(&value, host, sizeof(value));
         return value;                     /* zero-extended into the uint32 return */
     }
-    return jit->MmioRead(pa, 2, "MipsJit::LoadHalfHelper");
+    return jit->MmioRead(va, pa, 2, "MipsJit::LoadHalfHelper");
 }
 
 uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
@@ -157,7 +157,7 @@ void MipsJit::StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
     }
     uint8_t* host = jit->memory_->TryTranslateWrite(pa);
     if (!host) {
-        jit->MmioWrite(pa, value, 1, who);
+        jit->MmioWrite(va, pa, value, 1, who);
         return;
     }
     *host = value;

@@ -406,7 +406,7 @@ void CompactFlashCard::WriteRegLocked(int reg, uint8_t value) {
         case kRegCylHigh:  cyl_high_ = value; return;
         case kRegDrvHead:  drv_head_ = value; return;
         case kRegDevCtl:   dev_ctrl_ = value; return;
-        case kRegData:     return;                      /* 8-bit data unused */
+        case kRegData:     WriteData8Locked(value); return;   /* 8-bit PIO data */
         case kRegCommand: {
             IrqClearLocked();
             error_ = 0;
@@ -441,6 +441,12 @@ void CompactFlashCard::WriteData16Locked(uint16_t value) {
     buf_[buf_pos_ + 1u] = static_cast<uint8_t>(value >> 8);
     buf_pos_ += 2u;
     if (buf_pos_ >= 512u) CompleteWriteSectorLocked();
+}
+
+void CompactFlashCard::WriteData8Locked(uint8_t value) {
+    if (!writing_ || !(status_ & kStDrq)) return;
+    buf_[buf_pos_] = value;
+    if (++buf_pos_ >= 512u) CompleteWriteSectorLocked();
 }
 
 void CompactFlashCard::WriteIo8(uint32_t offset, uint8_t value) {

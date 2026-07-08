@@ -2,6 +2,7 @@
 #include "compactflash_menu.h"
 
 #include "compactflash_card.h"
+#include "compactflash_fat16.h"
 #include "compactflash_fat32.h"
 
 #include "../../core/cerf_emulator.h"
@@ -125,7 +126,7 @@ std::vector<std::wstring> CompactFlashMenu::ChooseFilesToGenerate() const {
     ofn.lpstrFilter = L"All files\0*.*\0";
     ofn.lpstrFile   = buf.data();
     ofn.nMaxFile    = static_cast<DWORD>(buf.size());
-    ofn.lpstrTitle  = L"Choose files to write into CF.IMG (FAT32)";
+    ofn.lpstrTitle  = L"Choose files to write into the CompactFlash image";
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY |
                 OFN_ALLOWMULTISELECT | OFN_EXPLORER;
     if (!GetOpenFileNameW(&ofn)) return out;
@@ -262,6 +263,21 @@ std::vector<WidgetMenuItem> CompactFlashMenu::BuildInsertMenu(
         it.enabled = GetFileAttributesW(cf.c_str()) != INVALID_FILE_ATTRIBUTES;
         it.on_click = [this, inserter, cf] {
             inserter(std::make_unique<CompactFlashCard>(emu_, cf));
+        };
+        items.push_back(std::move(it));
+    }
+    {
+        WidgetMenuItem it;
+        it.label = L"Generate FAT16 into CF.IMG and choose it...";
+        it.on_click = [this, inserter] {
+            const std::vector<std::wstring> files = ChooseFilesToGenerate();
+            if (files.empty()) return;
+            const uint32_t min_mb = std::max<uint32_t>(PayloadMb(files), 4u);
+            const uint32_t size_mb = PromptSizeMb(min_mb);
+            if (size_mb == 0) return;   /* cancelled */
+            const std::wstring cf = CfImgPath();
+            if (emu_.Get<CompactFlashFat16Builder>().Build(cf, files, size_mb))
+                inserter(std::make_unique<CompactFlashCard>(emu_, cf));
         };
         items.push_back(std::move(it));
     }

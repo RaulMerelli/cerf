@@ -135,4 +135,6 @@ namespace MipsCop0Funct {     /* funct, bits 5..0 (COP0 CO operations) */
     constexpr uint32_t kERET  = 0x18;
     constexpr uint32_t kDERET = 0x1F;
     constexpr uint32_t kWAIT  = 0x20;
+    constexpr uint32_t kSTANDBY = 0x21;  /* VR4100 power-down ops (UM ch.27 p643) */
+    constexpr uint32_t kSUSPEND = 0x22;
 }

@@ -56,6 +56,7 @@ bool RecognizedCop0(const MipsDecodedInsn* d) {
             case MipsCop0Funct::kTLBWR: case MipsCop0Funct::kTLBP:
             case MipsCop0Funct::kERET:  case MipsCop0Funct::kDERET:
             case MipsCop0Funct::kWAIT:
+            case MipsCop0Funct::kSTANDBY: case MipsCop0Funct::kSUSPEND:
                 return true;
             default:
                 return false;

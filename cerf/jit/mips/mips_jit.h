@@ -74,6 +74,10 @@ public:
        __fastcall: value in ECX, jit in EDX. */
     static void __fastcall Mtc0EntryHiHelper(uint32_t value, MipsJit* jit);
 
+    /* MFC0 Random: value computed on read (QEMU helper_mfc0_random ->
+       cpu_mips_get_random). __fastcall: jit in ECX; returns the index in EAX. */
+    static uint32_t __fastcall Mfc0RandomHelper(MipsJit* jit);
+
     /* ERET: return from exception - PC=ErrorEPC (if Status.ERL) else EPC, clear
        the corresponding level bit, clear LLbit (MIPS64 Vol2 ERET). __fastcall:
        jit in ECX. */
@@ -106,6 +110,7 @@ public:
     bool     DeepSleep()    const override { return cpu_state_.deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_.reset_pending != 0; }
     uint32_t Pc()           const override { return cpu_state_.pc; }
+    uint32_t PhysAddrMask() const override { return cpu_state_.phys_addr_mask; }
     void     DispatchTraceIter() override {
 #if CERF_DEV_MODE
         emu_.Get<TraceManager>().DispatchRunLoopIterMips(&cpu_state_);
@@ -295,6 +300,11 @@ private:
        and Run re-dispatches the vector (JitCompile is outside Run's __try). */
     void DeliverFetchTlbException(uint32_t va, MipsTlbResult res);
 
+    /* Unaligned instruction fetch (PC1:0 != 0): set BadVAddr only, AdEL, general
+       vector, EPC=va, WITHOUT SEH (caller returns null, Run re-dispatches; the
+       fetch path is outside Run's __try). */
+    void DeliverFetchAddressError(uint32_t va);
+
     /* Misaligned data access: set BadVAddr only, AdEL (load) / AdES (store),
        deliver, SEH-unwind. */
     void RaiseAddressError(uint32_t va, MipsAccess acc);
@@ -328,8 +338,8 @@ private:
     /* Route a guest access whose PA is not RAM-backed to the peripheral MMIO
        dispatcher (width = 1/2/4 bytes); loud-fatal when no peripheral claims
        the PA (truly unmapped). `who` tags the diagnostic. */
-    uint32_t MmioRead (uint32_t pa, uint32_t width, const char* who);
-    void     MmioWrite(uint32_t pa, uint32_t value, uint32_t width, const char* who);
+    uint32_t MmioRead (uint32_t va, uint32_t pa, uint32_t width, const char* who);
+    void     MmioWrite(uint32_t va, uint32_t pa, uint32_t value, uint32_t width, const char* who);
 
     /* Emitted before a traced insn (when TraceManager::HasPcTrace(pc)): hands the
        live MipsCpuState to the trace layer. __cdecl(jit, pc); ESI (state) is

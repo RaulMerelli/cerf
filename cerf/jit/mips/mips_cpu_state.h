@@ -25,6 +25,8 @@ namespace MipsCp0 {
     constexpr uint32_t kConfig   = 16;
     constexpr uint32_t kWatchLo  = 18;
     constexpr uint32_t kWatchHi  = 19;
+    constexpr uint32_t kTagLo    = 28;
+    constexpr uint32_t kTagHi    = 29;
     constexpr uint32_t kErrorEPC = 30;
 }
 
@@ -141,6 +143,8 @@ struct MipsCpuState {
     uint32_t cp0_config;
     uint32_t cp0_watchlo;        /* CP0 WatchLo (present iff MipsProcessorConfig::HasWatch) */
     uint32_t cp0_watchhi;        /* CP0 WatchHi */
+    uint32_t cp0_taglo;          /* CP0 TagLo (r28) cache-tag; no cache modeled (CACHE=NOP) -> plain R/W */
+    uint32_t cp0_taghi;          /* CP0 TagHi (r29) cache-tag */
     uint32_t cp0_errorepc;
 
     /* Software-managed TLB (guest kernel owns page tables; CERF never walks
@@ -169,6 +173,15 @@ struct MipsCpuState {
        single IP7 raise per Compare write (QEMU cp0_timer.c). */
     uint32_t count_anchor;
     uint32_t timer_armed;
+
+    /* log2(min TLB page size) from MipsProcessorConfig::MinPageShift(), seeded
+       at reset like nb_tlb. MipsMmu derives the PFN shift / PageMask alignment /
+       VPN2 width from it (VR5500 12, VR4102 10). */
+    uint32_t min_page_shift;
+
+    /* AND-mask for a TLB-translated PA, from MipsProcessorConfig::PhysAddrMask()
+       (VR4102 0x1FFFFFFF physical mirror; VR5500 0xFFFFFFFF). */
+    uint32_t phys_addr_mask;
 };
 
 /* CP0 register number -> byte offset of its field in MipsCpuState, or -1 for a
@@ -194,6 +207,8 @@ inline int32_t Cp0RegOffset(uint32_t rd) {
         case MipsCp0::kConfig:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_config));
         case MipsCp0::kWatchLo:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_watchlo));
         case MipsCp0::kWatchHi:  return static_cast<int32_t>(offsetof(MipsCpuState, cp0_watchhi));
+        case MipsCp0::kTagLo:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_taglo));
+        case MipsCp0::kTagHi:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_taghi));
         case MipsCp0::kErrorEPC: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_errorepc));
         default:                 return -1;
     }
@@ -205,3 +220,10 @@ inline int32_t Cp0RegOffset(uint32_t rd) {
 inline bool Cp0RegWritable(uint32_t rd) {
     return rd != MipsCp0::kPRId && rd != MipsCp0::kRandom && rd != MipsCp0::kBadVAddr;
 }
+
+/* MIPS TLB VPN2 geometry from the min-page shift S (MipsCpuState::min_page_shift):
+   the VPN2 pair spans 2^(S+1); EntryHi/Context VPN2 = VA[31:S+1] (VR4102 UM 5.2.2
+   1 KB S=10; R4000 4 KB S=12). One definition shared by the MMU, the TLB-refill
+   CP0 setup, and the MTC0-EntryHi mask so the VPN2 field has a single meaning. */
+inline uint32_t MipsPairMinMask(uint32_t s) { return (1u << (s + 1u)) - 1u; }
+inline uint32_t MipsVpn2Mask(uint32_t s)    { return ~MipsPairMinMask(s); }

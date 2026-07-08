@@ -54,13 +54,16 @@ void MipsJit::EnterException(uint32_t cause, bool refill_eligible) {
 }
 
 void MipsJit::SetMmuFaultRegs(uint32_t va) {
-    /* raise_mmu_exception register setup (tlb_helper.c:558-566), shared by the
-       data-fault and instruction-fetch-fault paths. VR5500 EntryHi ASID mask =
-       0xFF; TARGET_PAGE_MASK<<1 = 0xFFFFE000. */
+    /* raise_mmu_exception CP0 setup (tlb_helper.c:558-566), on min-page shift S:
+       EntryHi/Context VPN2 = VA[31:S+1]. Context BadVPN2 field = [4+(31-S)-1 : 4]
+       (VR4102 UM Fig 6-1: S=10 -> [24:4], VA>>7; R4000 S=12 -> [22:4], VA>>9). */
     MipsCpuState& s = cpu_state_;
+    const uint32_t shift = s.min_page_shift;
+    const uint32_t ctx_field = ((1u << (31u - shift)) - 1u) << 4;
     s.cp0_badvaddr = va;
-    s.cp0_context  = (s.cp0_context & ~0x007FFFFFu) | ((va >> 9) & 0x007FFFF0u);
-    s.cp0_entryhi  = (s.cp0_entryhi & 0xFFu) | (va & 0xFFFFE000u);
+    s.cp0_context  = (s.cp0_context & ~(ctx_field | 0xFu)) |
+                     ((va >> (shift - 3u)) & ctx_field);
+    s.cp0_entryhi  = (s.cp0_entryhi & 0xFFu) | (va & MipsVpn2Mask(shift));
 }
 
 void MipsJit::RaiseTlbException(uint32_t va, MipsAccess acc, MipsTlbResult res) {
@@ -95,6 +98,14 @@ void MipsJit::DeliverFetchTlbException(uint32_t va, MipsTlbResult res) {
        Run()'s __try; it sets CP0+vector and returns null so Run re-dispatches. */
     SetMmuFaultRegs(va);
     EnterException(MipsExcCode::kTLBL, /*refill_eligible=*/res == MipsTlbResult::kNoMatch);
+}
+
+void MipsJit::DeliverFetchAddressError(uint32_t va) {
+    /* Unaligned instruction-fetch AdEL (QEMU mips_cpu_do_unaligned_access
+       MMU_INST_FETCH -> EXCP_AdEL, op_helper.c:311-323; cause 4, general vector).
+       No SEH: JitCompile runs outside Run()'s __try. */
+    cpu_state_.cp0_badvaddr = va;
+    EnterException(MipsExcCode::kAdEL, /*refill_eligible=*/false);
 }
 
 void MipsJit::RaiseAddressError(uint32_t va, MipsAccess acc) {

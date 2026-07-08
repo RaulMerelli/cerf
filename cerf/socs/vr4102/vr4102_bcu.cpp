@@ -14,8 +14,9 @@ namespace {
 constexpr uint32_t kBase = 0x0B000000u;
 constexpr uint32_t kSize = 0x20u;
 
-constexpr uint32_t kOffCntReg1 = 0x00u;   /* BCUCNTREG1 (UM 10.2.1) */
-constexpr uint32_t kOffCntReg2 = 0x02u;   /* BCUCNTREG2 (UM 10.2.2) */
+constexpr uint32_t kOffCntReg1  = 0x00u;   /* BCUCNTREG1 (UM 10.2.1) */
+constexpr uint32_t kOffCntReg2  = 0x02u;   /* BCUCNTREG2 (UM 10.2.2) */
+constexpr uint32_t kOffRfCount  = 0x12u;   /* BCURFCOUNTREG (UM 10.2.7) */
 
 class Vr4102Bcu : public Peripheral {
 public:
@@ -36,6 +37,11 @@ public:
         switch (addr - kBase) {
             case kOffCntReg1: return cntreg1_;
             case kOffCntReg2: return cntreg2_;
+            /* BCURFCOUNTREG (UM 10.2.7) is a live refresh down-counter. serial.dll
+               (sub_1580EE8) writes it then reads it into $zero (`lhu $zero,0($t7)`)
+               to flush the write - the value is discarded. CERF models no DRAM
+               refresh, so the idle count reads 0; the guest never acts on it. */
+            case kOffRfCount: return 0u;
             default: HaltUnsupportedAccess("BCU ReadHalf", addr, 0);
         }
     }
@@ -43,6 +49,10 @@ public:
         switch (addr - kBase) {
             case kOffCntReg1: cntreg1_ = value & 0xF553u; return;  /* reserved D11/9/7/5/3/2 read 0 */
             case kOffCntReg2: cntreg2_ = value & 0x1u; return;  /* only GMODE (D0) is R/W */
+            /* BCURFCOUNTREG presets the DRAM refresh down-counter (UM 10.2.7); CERF
+               models no DRAM refresh timing, so the write has no effect. Accept it
+               (observed on the boot path) without storing - the read stays FATAL. */
+            case kOffRfCount: return;
             default: HaltUnsupportedAccess("BCU WriteHalf", addr, value);
         }
     }

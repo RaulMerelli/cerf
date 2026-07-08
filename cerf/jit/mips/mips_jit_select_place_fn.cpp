@@ -119,6 +119,12 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
                 if (d->funct == MipsCop0Funct::kTLBWR) return &PlaceMipsTlbwr;
                 if (d->funct == MipsCop0Funct::kTLBP)  return &PlaceMipsTlbp;
                 if (d->funct == MipsCop0Funct::kERET)  return &PlaceMipsEret;
+                /* STANDBY/SUSPEND wait-for-interrupt (UM ch.27 p643: "any
+                   interrupt ... exits to Fullspeed"): advance-past, NOT a park.
+                   The CE idle spin keeps guest_cycle_counter advancing so the
+                   CP0 IP7 tick fires to wake it; a park would freeze that tick. */
+                if (d->funct == MipsCop0Funct::kSTANDBY ||
+                    d->funct == MipsCop0Funct::kSUSPEND) return &PlaceMipsNop;
             }
             return &PlaceMipsUndefined;
         default:

@@ -1,9 +1,12 @@
 #include "compactflash_fat32.h"
 
+#include "compactflash_fat_common.h"
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -21,61 +24,8 @@ constexpr uint32_t kRootClus    = 2;
 constexpr uint32_t kMinClusters = 66000;   /* > 65525 -> valid FAT32 */
 constexpr uint32_t kEoc         = 0x0FFFFFFFu;
 
-void Wr16(uint8_t* p, uint16_t v) { p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF; }
-void Wr32(uint8_t* p, uint32_t v) {
-    p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF;
-    p[2] = (v >> 16) & 0xFF; p[3] = (v >> 24) & 0xFF;
-}
-
-std::wstring BaseName(const std::wstring& path) {
-    const std::size_t s = path.find_last_of(L"\\/");
-    return s == std::wstring::npos ? path : path.substr(s + 1);
-}
-
-std::vector<uint8_t> ReadHostFile(const std::wstring& path) {
-    std::vector<uint8_t> data;
-    std::FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) return data;
-    std::fseek(f, 0, SEEK_END);
-    const long n = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    if (n > 0) {
-        data.resize(static_cast<std::size_t>(n));
-        if (std::fread(data.data(), 1, data.size(), f) != data.size()) data.clear();
-    }
-    std::fclose(f);
-    return data;
-}
-
-uint8_t LfnChecksum(const uint8_t sfn[11]) {
-    uint8_t sum = 0;
-    for (int i = 0; i < 11; ++i)
-        sum = static_cast<uint8_t>(((sum & 1) << 7) + (sum >> 1) + sfn[i]);
-    return sum;
-}
-
-/* 8.3 alias from a long name: uppercased base[0..5] + "~N", uppercased
-   extension; N disambiguates within the directory. Non-alnum -> '_'. */
-void MakeSfn(const std::wstring& name, int index, uint8_t out[11]) {
-    for (int i = 0; i < 11; ++i) out[i] = ' ';
-    const std::size_t dot = name.find_last_of(L'.');
-    std::wstring base = dot == std::wstring::npos ? name : name.substr(0, dot);
-    std::wstring ext  = dot == std::wstring::npos ? L"" : name.substr(dot + 1);
-
-    auto sanitize = [](wchar_t c) -> uint8_t {
-        if (c >= L'a' && c <= L'z') return static_cast<uint8_t>(c - 32);
-        if ((c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9')) return (uint8_t)c;
-        return '_';
-    };
-    char tail[8];
-    const int tn = std::snprintf(tail, sizeof(tail), "~%d", index);
-    int bcap = 8 - tn;
-    int bi = 0;
-    for (std::size_t i = 0; i < base.size() && bi < bcap; ++i) out[bi++] = sanitize(base[i]);
-    for (int i = 0; i < tn; ++i) out[bi++] = static_cast<uint8_t>(tail[i]);
-    int ei = 0;
-    for (std::size_t i = 0; i < ext.size() && ei < 3; ++i) out[8 + ei++] = sanitize(ext[i]);
-}
+using cf_fat::Wr16;
+using cf_fat::Wr32;
 
 }  /* namespace */
 
@@ -86,21 +36,39 @@ bool CompactFlashFat32Builder::Build(const std::wstring& out_path,
         std::wstring        name;
         std::vector<uint8_t> data;
         uint8_t             sfn[11];
+        uint8_t             ntres = 0;
         uint32_t            lfn_count = 0;
         uint32_t            first_clus = 0;
         uint32_t            clusters = 0;
     };
 
     std::vector<Entry> entries;
+    std::vector<std::array<uint8_t, 11>> used_sfns;
+    auto sfn_taken = [&](const uint8_t* s) {
+        for (const auto& u : used_sfns)
+            if (std::memcmp(u.data(), s, 11) == 0) return true;
+        return false;
+    };
     uint32_t root_dir_entries = 1;          /* volume-label entry */
     uint32_t payload_clusters = 0;
     int sfn_index = 1;
     for (const auto& path : files) {
         Entry e;
-        e.name = BaseName(path);
-        e.data = ReadHostFile(path);
-        MakeSfn(e.name, sfn_index++, e.sfn);
-        e.lfn_count = static_cast<uint32_t>((e.name.size() + 12) / 13);
+        e.name = cf_fat::BaseName(path);
+        e.data = cf_fat::ReadHostFile(path);
+        cf_fat::ShortName sn = cf_fat::MakeShortName(e.name, sfn_index);
+        if (sfn_taken(sn.sfn)) {
+            cf_fat::MakeMangledSfn(e.name, sfn_index, sn.sfn);
+            sn.ntres = 0;
+            sn.needs_lfn = true;
+        }
+        ++sfn_index;
+        std::memcpy(e.sfn, sn.sfn, 11);
+        e.ntres = sn.ntres;
+        e.lfn_count = sn.needs_lfn ? cf_fat::LfnSlotCount(e.name) : 0;
+        std::array<uint8_t, 11> a{};
+        std::memcpy(a.data(), sn.sfn, 11);
+        used_sfns.push_back(a);
         e.clusters = static_cast<uint32_t>(
             (e.data.size() + kBytesPerSec - 1) / kBytesPerSec);
         root_dir_entries += e.lfn_count + 1;
@@ -197,34 +165,9 @@ bool CompactFlashFat32Builder::Build(const std::wstring& out_path,
     std::memcpy(dir, "CERF CF    ", 11);
     dir[11] = 0x08;            /* ATTR_VOLUME_ID */
     dir += 32;
-    for (const auto& e : entries) {
-        const uint8_t sum = LfnChecksum(e.sfn);
-        /* LFN entries are stored last-to-first; emit highest ordinal first. */
-        for (int seq = static_cast<int>(e.lfn_count); seq >= 1; --seq) {
-            uint8_t* le = dir;
-            le[0] = static_cast<uint8_t>(seq |
-                    (seq == static_cast<int>(e.lfn_count) ? 0x40 : 0));
-            le[11] = 0x0F;     /* ATTR_LONG_NAME */
-            le[13] = sum;
-            const int base = (seq - 1) * 13;
-            const int slots[13] = {1,3,5,7,9, 14,16,18,20,22,24, 28,30};
-            for (int i = 0; i < 13; ++i) {
-                const int ci = base + i;
-                uint16_t ch;
-                if (ci < static_cast<int>(e.name.size())) ch = (uint16_t)e.name[ci];
-                else if (ci == static_cast<int>(e.name.size())) ch = 0x0000;
-                else ch = 0xFFFF;
-                Wr16(le + slots[i], ch);
-            }
-            dir += 32;
-        }
-        std::memcpy(dir, e.sfn, 11);
-        dir[11] = 0x20;        /* ATTR_ARCHIVE */
-        Wr16(dir + 20, static_cast<uint16_t>(e.first_clus >> 16));
-        Wr16(dir + 26, static_cast<uint16_t>(e.first_clus & 0xFFFF));
-        Wr32(dir + 28, static_cast<uint32_t>(e.data.size()));
-        dir += 32;
-    }
+    for (const auto& e : entries)
+        dir = cf_fat::EmitFileDir(dir, e.name, e.sfn, e.lfn_count, e.ntres, e.first_clus,
+                                  static_cast<uint32_t>(e.data.size()));
 
     /* File payloads. */
     for (const auto& e : entries) {

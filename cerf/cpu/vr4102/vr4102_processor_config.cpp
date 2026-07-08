@@ -25,6 +25,14 @@ public:
        (UM ch.5.1). */
     uint32_t     TlbSize()  const override { return 32u; }
 
+    /* 1-KB minimum TLB page (offset 10 bits); PFN gives PA[31:10] (UM Sec 5.2.2,
+       Fig 5-11). The R4000-class default is 4 KB, so this must be stated. */
+    uint32_t     MinPageShift() const override { return 10u; }
+
+    /* Physical space above 0x20000000 mirrors 0x0-0x1FFFFFFF (UM Table 5-6): a
+       TLB PFN into the mirror aliases down to the real region. */
+    uint32_t     PhysAddrMask() const override { return 0x1FFFFFFFu; }
+
     /* 32-bit fixed instruction encoding, MIPS III ISA, no MIPS16 (UM ch.3). */
     MipsIsaLevel IsaLevel() const override { return MipsIsaLevel::kMips3; }
 

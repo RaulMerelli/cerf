@@ -25,6 +25,17 @@ public:
     /* Joint-TLB live entry count (QEMU nb_tlb). Seeds MipsCpuState::nb_tlb. */
     virtual uint32_t TlbSize() const = 0;
 
+    /* log2(min TLB page size): VA offset bits a PFN leaves untranslated
+       (R4000/R5000 4 KB->12; VR4100 1 KB->10, VR4102 UM 5.2.2). Seeds
+       MipsCpuState::min_page_shift. */
+    virtual uint32_t MinPageShift() const = 0;
+
+    /* AND-mask applied to a TLB-translated physical address for the SoC's
+       physical-space aliasing: the VR4102 mirrors PA 0-0x1FFFFFFF across the
+       whole space above 0x20000000 (UM Table 5-6) -> mask 0x1FFFFFFF; a SoC with
+       no such mirror returns 0xFFFFFFFF. Seeds MipsCpuState::phys_addr_mask. */
+    virtual uint32_t PhysAddrMask() const = 0;
+
     /* ISA level the decoder must implement for this SoC (asserted at reset). */
     virtual MipsIsaLevel IsaLevel() const = 0;
 

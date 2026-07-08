@@ -28,6 +28,8 @@ void MipsJit::DeliverReset() {
     cpu_state_.cp0_prid   = cpu_config_->Prid();
     cpu_state_.nb_tlb     = cpu_config_->TlbSize();
     cpu_state_.tlb_in_use = cpu_state_.nb_tlb;
+    cpu_state_.min_page_shift = cpu_config_->MinPageShift();
+    cpu_state_.phys_addr_mask = cpu_config_->PhysAddrMask();
     cpu_state_.pc         = emu_.Get<RomParserService>().EntryVa();
 
     /* The reset zeroes the MMU (ASID 0), so the VA->native jump-cache shortcuts

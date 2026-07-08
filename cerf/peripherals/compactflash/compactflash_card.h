@@ -70,6 +70,7 @@ private:
     void     WriteRegLocked(int reg, uint8_t value);
     uint16_t ReadData16Locked();
     void     WriteData16Locked(uint16_t value);
+    void     WriteData8Locked(uint8_t value);
 
     void IrqAssertLocked();
     void IrqClearLocked();

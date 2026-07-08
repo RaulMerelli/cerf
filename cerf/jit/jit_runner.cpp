@@ -3,6 +3,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
+#include "../peripherals/peripheral_dispatcher.h"
 #include "guest_engine.h"
 
 #include <chrono>
@@ -70,6 +71,11 @@ void JitRunner::RunLoop() {
        pre-warming, forbidden by agent_docs/rules.md. */
     auto& engine = emu_.Get<GuestEngine>();
     LOG(Jit, "JitRunner::RunLoop: engine resolved, entering loop\n");
+
+    /* All boot-time peripherals have registered by now; the engine's physical
+       mask is seeded. Catch any peripheral placed above the addressable space
+       before a single guest access silently aliases into it. */
+    emu_.Get<PeripheralDispatcher>().ValidatePhysReachable(engine.PhysAddrMask());
 
 #if CERF_DEV_MODE
     auto& probe = emu_.Get<RateProbe>();

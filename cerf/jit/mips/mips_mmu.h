@@ -63,6 +63,12 @@ public:
        entries (tlb_helper.c:492). Called on a CP0 ASID change. */
     void FlushAll(MipsCpuState* st);
 
+    /* CP0 Random value (QEMU cpu_mips_get_random cp0_helper.c:204): index in
+       [Wired, nb_tlb) for both tlbwr and mfc0 Random. Never below Wired - a
+       software refill uses mfc0 Random as its tlbwi index, so a value < Wired
+       lands a mapping in a wired slot tlbwr can never evict. */
+    uint32_t RandomIndex(MipsCpuState* st);
+
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
         injection_band_va_   = va;
         injection_band_pa_   = pa;
@@ -82,10 +88,6 @@ private:
     void FillTlb     (MipsCpuState* st, uint32_t idx);                /* r4k_fill_tlb */
     void InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra); /* r4k_invalidate_tlb */
     void FlushExtra  (MipsCpuState* st, uint32_t first);             /* r4k_mips_tlb_flush_extra */
-
-    /* cpu_mips_get_random (cp0_helper.c:204): the tlbwr index. QEMU keeps the LCG
-       seed + last index in process statics; here they are per-instance state. */
-    uint32_t RandomIndex(MipsCpuState* st);
 
     IsaBlockSpace* blocks_ = nullptr;
     uint32_t lcg_seed_        = 1;
