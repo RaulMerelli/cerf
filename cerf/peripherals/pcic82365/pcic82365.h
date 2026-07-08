@@ -11,6 +11,10 @@ public:
        from slot occupancy. */
     void SetCardPresent(bool present) { card_present_ = present; }
 
+    /* i82365reg.h: PCIC_IF_STATUS_READY (0x01 bit5) "really READY/!BUSY";
+       for PCIC_INTR_CARDTYPE_IO it reads BUSY while the card IREQ# is asserted. */
+    void SetCardIrq(bool asserted) { card_irq_ = asserted; }
+
     /* True iff REG_POWER_CONTROL holds the powered-on pattern (VCC | output enable). */
     bool CardPoweredByReg() const;
 
@@ -49,6 +53,7 @@ public:
 
 private:
     bool    card_present_               = false;
+    bool    card_irq_                   = false;
     uint8_t reg_power_control_          = 0u;
     uint8_t reg_interrupt_and_gen_ctrl_ = 0u;
     uint8_t reg_card_status_change_     = 0u;

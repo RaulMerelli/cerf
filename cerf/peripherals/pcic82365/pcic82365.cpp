@@ -24,10 +24,13 @@ enum : uint8_t {
     kRegMemPageLast           = 0x44,
 };
 
-/* REG_INTERFACE_STATUS bits. */
+/* REG_INTERFACE_STATUS bits (i82365reg.h PCIC_IF_STATUS_*). */
 constexpr uint8_t kIfsCd1       = 0x04u;
 constexpr uint8_t kIfsCd2       = 0x08u;
 constexpr uint8_t kIfsCardReady = 0x20u;
+
+/* REG_INTERRUPT_AND_GENERAL_CONTROL CARDTYPE (i82365reg.h PCIC_INTR_CARDTYPE_IO). */
+constexpr uint8_t kIntrCardTypeIo = 0x20u;
 
 /* PWR_VCC_BIT1 | PWR_OUTPUT_ENABLE - the powered-on pattern the BSP driver writes. */
 constexpr uint8_t kPowerOnPattern = 0x90u;
@@ -88,7 +91,8 @@ uint8_t Pcic82365::ReadReg(uint8_t index) {
             uint8_t v = 0u;
             if (card_present_) {
                 v |= kIfsCd1 | kIfsCd2;
-                if (CardPoweredByReg()) v |= kIfsCardReady;
+                const bool io_card = (reg_interrupt_and_gen_ctrl_ & kIntrCardTypeIo) != 0u;
+                if (CardPoweredByReg() && !(io_card && card_irq_)) v |= kIfsCardReady;
             }
             return v;
         }
@@ -189,6 +193,7 @@ bool Pcic82365::MapMem(uint32_t bus_off, uint32_t* card_addr,
 }
 
 void Pcic82365::SaveState(StateWriter& w) const {
+    w.Write<uint8_t>(card_irq_ ? 1u : 0u);
     w.Write(reg_power_control_); w.Write(reg_interrupt_and_gen_ctrl_);
     w.Write(reg_card_status_change_); w.Write(reg_status_change_int_cfg_);
     w.Write(reg_window_enable_); w.Write(reg_io_window_control_);
@@ -204,6 +209,7 @@ void Pcic82365::SaveState(StateWriter& w) const {
 }
 
 void Pcic82365::RestoreState(StateReader& r) {
+    uint8_t irq = 0u; r.Read(irq); card_irq_ = (irq != 0u);
     r.Read(reg_power_control_); r.Read(reg_interrupt_and_gen_ctrl_);
     r.Read(reg_card_status_change_); r.Read(reg_status_change_int_cfg_);
     r.Read(reg_window_enable_); r.Read(reg_io_window_control_);
