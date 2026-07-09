@@ -73,11 +73,14 @@ To bring deep sleep up on a new SoC or board:
    for each register/device the board's reset line clears.
 4. **If the guest resumes at a saved vector** rather than the cold entry,
    implement `SleepResumeVectorProvider` (board-scoped) and register it with
-   `GuestDeepSleep::RegisterResumeVectorProvider`. Its `Resume()` returns a
-   `SleepResumeState`: `pc == 0` ⇒ fall through to the cold entry; otherwise the
-   wake delivers the reset with PC = the resume vector, and `restore_mmu` ⇒ also
-   reinstate cp15 control / TTBR0 / DACR so the MMU stays live across the resume
-   (`ArmCpu::SetPendingResumeMmu`, which flushes the TLBs).
+   `GuestDeepSleep::RegisterResumeVectorProvider`. Its `ApplyPendingResume()`
+   arms the next reset delivery through its own CPU service: an ARM board calls
+   `ArmCpu::SetPendingResumeVector(pc)`, plus
+   `ArmCpu::SetPendingResumeMmu(control, ttbr0, dacr)` (which flushes the TLBs)
+   when the resume entry expects the MMU still live. Arming nothing leaves the
+   reset at the cold entry. The `GuestEngine` seam is ISA-neutral
+   (`jit.md` § The `GuestEngine` seam), so no cp15 crosses it - the board owns
+   its own architecture's registers.
 
 Suspend/resume serializes nothing - RAM stays live the whole time; the CPU is
 merely parked.
@@ -110,7 +113,8 @@ reading what the guest's own resume code does (decompile the boot / StartUp path
 - **CERF stands in for the bootloader.** When the bootloader CERF skips is the
   thing that reads the wake cause, restores cp15, and jumps to a saved resume
   address, the board's provider replays that: read the resume address + cp15 block
-  the kernel left in RAM and return them as the resume PC with `restore_mmu` set.
+  the kernel left in RAM, then arm both via `ArmCpu::SetPendingResumeVector` and
+  `ArmCpu::SetPendingResumeMmu`.
   CERF skipping a bootloader silently drops any sleep handling it does that the
   kernel relies on - model that role rather than assuming the kernel is
   self-contained (see `agent_docs/boot_loaders.md`).

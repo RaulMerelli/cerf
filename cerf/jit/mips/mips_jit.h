@@ -239,8 +239,6 @@ public:
 
     void SetResetPending(bool is_resume = false) override;
     void EnterDeepSleep() override;
-    void SetPendingResume(uint32_t pc, bool restore_mmu, uint32_t mmu_control,
-                          uint32_t ttbr0, uint32_t dacr) override;
     void NotifyResetDelivered();
 
     void SaveCpuState(StateWriter& w)    override;

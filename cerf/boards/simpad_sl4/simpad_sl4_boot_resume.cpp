@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
 #include "../../host/guest_deep_sleep.h"
+#include "../../jit/arm/arm_cpu.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 namespace {
@@ -22,11 +23,12 @@ public:
         emu_.Get<GuestDeepSleep>().RegisterResumeVectorProvider(this);
     }
 
-    SleepResumeState Resume() override {
-        /* PSPR holds the kernel `start` post-head-copy entry, which runs MMU-off
-           and re-enables the MMU itself, so no cp15 restore here. */
-        return { emu_.Get<PeripheralDispatcher>().ReadWord(0x90020008u),
-                 /*restore_mmu=*/false };
+    void ApplyPendingResume() override {
+        /* PSPR reads 0 until the kernel stores its vector, and
+           SetPendingResumeVector arms the reset PC unconditionally. The kernel's
+           resume entry runs MMU-off and re-enables the MMU itself. */
+        const uint32_t pc = emu_.Get<PeripheralDispatcher>().ReadWord(0x90020008u);
+        if (pc) emu_.Get<ArmCpu>().SetPendingResumeVector(pc);
     }
 };
 

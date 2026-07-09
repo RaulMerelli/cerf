@@ -13,12 +13,6 @@ void ArmJit::EnterDeepSleep() {
     UpdateInterruptOnPoll();
 }
 
-void ArmJit::SetPendingResume(uint32_t pc, bool restore_mmu, uint32_t mmu_control,
-                              uint32_t ttbr0, uint32_t dacr) {
-    cpu_->SetPendingResumeVector(pc);
-    if (restore_mmu) cpu_->SetPendingResumeMmu(mmu_control, ttbr0, dacr);
-}
-
 void __fastcall ArmJit::EnterDeepSleepHelper(ArmJit* jit) {
     jit->emu_.Get<GuestDeepSleep>().Enter();
 }

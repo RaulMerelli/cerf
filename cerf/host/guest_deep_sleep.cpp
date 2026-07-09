@@ -42,15 +42,8 @@ void GuestDeepSleep::Enter() {
 
 void GuestDeepSleep::DeliverWake() {
     waker_->LatchSleepWakeCause();
-    auto& engine = emu_.Get<GuestEngine>();
-    if (resume_vector_provider_) {
-        const SleepResumeState r = resume_vector_provider_->Resume();
-        if (r.pc) {
-            engine.SetPendingResume(r.pc, r.restore_mmu, r.mmu_control, r.ttbr0,
-                                    r.dacr);
-        }
-    }
-    engine.SetResetPending(/*is_resume=*/true);
+    if (resume_vector_provider_) resume_vector_provider_->ApplyPendingResume();
+    emu_.Get<GuestEngine>().SetResetPending(/*is_resume=*/true);
 }
 
 void GuestDeepSleep::OnFullRestore() {

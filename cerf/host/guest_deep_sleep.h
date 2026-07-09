@@ -24,18 +24,6 @@ public:
     virtual void ClearSleepWakeCause() = 0;
 };
 
-/* pc == 0 ⇒ no resume; the wake falls through to the cold entry. restore_mmu
-   true ⇒ the wake reinstates cp15 c1/c2/c3 so the guest resumes with the MMU on
-   (DevEmu EBOOT); false ⇒ the resume entry runs MMU-off and re-enables it itself
-   (simpad kernel `start`). */
-struct SleepResumeState {
-    uint32_t pc          = 0;
-    bool     restore_mmu = false;
-    uint32_t mmu_control = 0;
-    uint32_t ttbr0       = 0;
-    uint32_t dacr        = 0;
-};
-
 /* A board whose boot ROM resumes the guest at a saved vector on a sleep wake
    (simpad: the PSPR vector its kernel `start` stores; DevEmu: the SLEEPDATA
    WakeAddr EBOOT jumps to). Self-registers with GuestDeepSleep from OnReady;
@@ -43,7 +31,8 @@ struct SleepResumeState {
 class SleepResumeVectorProvider {
 public:
     virtual ~SleepResumeVectorProvider() = default;
-    virtual SleepResumeState Resume() = 0;
+    /* Arm the next reset delivery with the board's resume state, on its own CPU. */
+    virtual void ApplyPendingResume() = 0;
 };
 
 class GuestDeepSleep : public Service {
