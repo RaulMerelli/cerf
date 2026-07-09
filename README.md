@@ -252,8 +252,18 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
   </thead>
   <tbody>
     <tr>
-          <td>v6.0</td>
+          <td>v6.1</td>
           <td>TBA</td>
+          <td>
+            <ul>
+              <li>(planned) Nino 300 support</li>
+              <li>...more updates pending</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
+          <td>v6.0</td>
+          <td>9 Jul 2026</td>
           <td>
             <ul>
               <li>MIPS JIT engine</li>
@@ -341,21 +351,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
           </td>
         </tr>
     <tr>
-          <td>v3.11 (For Workgroups)</td>
-          <td>4 Jun 2026</td>
-          <td>
-            <ul>
-              <li>Guest Additions: various video driver improvements/fixes</li>
-              <li>Guest Additions: accelerated mouse pointer (configurable at runtime; scroll wheel on newer OS)</li>
-              <li>Guest Additions: shared folders with host</li>
-              <li>Guest Additions: auto screen resolution change on host window resize</li>
-              <li>Falcon 4220 board partial implementation (OS boots to UI but hangs)</li>
-              <li>Various bug fixes and improvements</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-      <td colspan="2"><b>Previous versions</b> - see the <a href="docs/changelog.html">full changelog</a>.</td>
+      <td colspan="3"><b>Previous versions</b> - see the <a href="docs/changelog.html">full changelog</a>.</td>
     </tr>
   </tbody>
 </table>

@@ -117,7 +117,7 @@ def build_changelog():
         lines.append('    ' + row.strip().replace('\n', '\n    '))
     if len(rows) > CHANGELOG_RECENT:
         lines.append('    <tr>')
-        lines.append('      <td colspan="2"><b>Previous versions</b> - '
+        lines.append('      <td colspan="3"><b>Previous versions</b> - '
                      f'see the <a href="{CHANGELOG_LINK}">full changelog</a>.</td>')
         lines.append('    </tr>')
     lines.append('  </tbody>')
