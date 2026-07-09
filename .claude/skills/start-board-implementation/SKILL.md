@@ -109,16 +109,15 @@ fact gets a source.
   background it if you have parallel research). Note kernel/coredll/gwes/filesys/
   device/driver module names - driver names are SoC tells (e.g. `*_mx31.dll` →
   i.MX31).
-- **B2 - Confirm the declared board is the right one.** The board is DECLARED, not
-  discovered: `cerf.json board.id` / `--board-id` selects the `BoardContext`. Your
-  job is to confirm that declaration names the silicon actually in the ROM before
-  you write a `BoardContext` asserting it - `meta.soc_family` and the user's word
-  are hints, never facts. Evidence, in order of weight: the B1 driver/module names
-  (an OEM BSP names its drivers after its own silicon), then the OEM's model
-  string if one happens to appear in the blob. Do NOT hunt for a "unique"
-  device-name string, and do NOT build a match rule out of one - nothing scans the
-  ROM for board identity at runtime, so a string's uniqueness proves nothing and
-  a coincidental byte run reads exactly like a hit.
+- **B2 - Confirm the declared board is the right one.** The declared `board_id`
+  selects the `BoardContext` (`agent_docs/rules.md` § "Per-device facts come from
+  the ROM"); confirm that declaration names the silicon actually in the ROM before
+  writing a `BoardContext` asserting it. `meta.soc_family` and the user's word are
+  hints, never facts. Evidence, in order of weight: the B1 driver/module names (an
+  OEM BSP names its drivers after its own silicon); the register bases the OAL
+  actually addresses; then the OEM's model string if one appears in the blob. A
+  byte match is evidence only once you have shown the bytes are the string and
+  not arbitrary data.
 - **B3 - Board already in CERF?** Read the `Board` enum in
   `cerf/boards/board_context.h`; list `cerf/boards/` + `bundled/devices/`. Match
   the B2 identity → fully present / different-ROM-revision / absent.
