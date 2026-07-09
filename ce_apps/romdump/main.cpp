@@ -3,29 +3,27 @@
 
 #include "romdump.h"
 
-#define WNDX_STATE 0   /* cbWndExtra slot holding AppState* */
-
 /* Preset table is CPU-arch specific (build_ce_app.ps1 defines MIPS for -Arch
    mips, ARM/_ARM_ for -Arch arm). Custom (base/size by hand) is common. */
 const Preset kPresets[] = {
 #if defined(MIPS)
-    /* NEC VR4102 OS ROM: PA 0x1F000000-0x1FFFFFFF, 16 MB (VR4102 User's Manual
-       Table 5-6/5-8: populated ROMCS0+ROMCS1, contains reset vector 0x1FC00000). */
-    { L"VR4102 (MobilePro 700)",     0x1F000000u, 16, 0 },
-    /* TX3912 (Philips PR31500/PR31700): ROM is in kseg0 (PA = VA & 0x1FFFFFFF).
-       Velo physfirst = PA 0x1F400000 (its ROMHDR). The catch-all dumps the whole
-       kseg0 ROM region 0x1F000000-0x1FFFFFFF (16 MB) for any TX3912 board. */
-    { L"TX3912 Philips Velo",        0x1F400000u,  8, 0 },
-    { L"TX3912 (Nino/HC-4100)",      0x1F000000u, 16, 0 },
+    /* Universal MIPS boot-ROM band PA 0x1F000000-0x1FFFFFFF, 16 MB, contains
+       reset vector 0x1FC00000. Covers VR41xx (Vr4102-um.pdf Table 5-6/5-8:
+       ROMCS0+ROMCS1) and TX3912/PR31xxx kseg0 (PA = VA & 0x1FFFFFFF). */
+    { L"VR41xx/TX3912",
+      L"NEC MP 700, Casio Toricomail, Philips Velo 1/Nino 300/Sharp HC-4100",
+      0x1F000000u, 16, 0 },
+    /* Velo 1 physfirst = PA 0x1F400000 (its ROMHDR); tighter 8 MB read. */
+    { L"TX3912 Philips Velo 1", L"", 0x1F400000u, 8, 0 },
 #else
     /* base = PA 0 (reset vector) for all. PXA255 stalls the bus on an
        unpopulated static chip-select, so it is sized to nCS0 (64 MB) only. */
-    { L"SA-11x0",     0x00000000u, 512, 0 },
-    { L"PXA25x/27x",  0x00000000u, 64,  0 },
-    { L"S3C2410",     0x00000000u, 768, 0 },
-    { L"ARM720",      0x00000000u, 256, 0 },
+    { L"SA-11x0",     L"", 0x00000000u, 512, 0 },
+    { L"PXA25x/27x",  L"", 0x00000000u, 64,  0 },
+    { L"S3C2410",     L"", 0x00000000u, 768, 0 },
+    { L"ARM720",      L"", 0x00000000u, 256, 0 },
 #endif
-    { L"Custom",      0x00000000u,   0, 1 },
+    { L"Custom",      L"", 0x00000000u, 0, 1 },
 };
 const int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
 
@@ -229,7 +227,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (!st) return 0;
         if (LOWORD(wp) == ID_NAV    && HIWORD(wp) == BN_CLICKED) { OnNav(st); return 0; }
         if (LOWORD(wp) == ID_CANCEL && HIWORD(wp) == BN_CLICKED) { DestroyWindow(hwnd); return 0; }
-        if (st->step == STEP_PRESET && StepPresetCommand(st, wp, lp)) return 0;
         if (st->step == STEP_CONFIG && StepConfigCommand(st, wp, lp)) return 0;
         if (st->step == STEP_DUMP   && StepDumpCommand(st, wp, lp))   return 0;
         return 0;

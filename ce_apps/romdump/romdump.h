@@ -20,6 +20,10 @@ typedef BOOL (*VirtualCopyFn)(LPVOID lpvDest, LPVOID lpvSrc,
 /* Wizard steps. */
 enum { STEP_PRESET = 0, STEP_CONFIG = 1, STEP_DUMP = 2, STEP_COUNT = 3 };
 
+/* cbWndExtra slot on the main window class holding AppState*. Shared with the
+   step_preset custom control, which reads it via GetParent. */
+#define WNDX_STATE 0
+
 /* Bottom nav-panel geometry, shared by the shell and the progress painter. */
 #define PANEL_H     32
 #define NAV_W       92
@@ -100,7 +104,6 @@ RECT  ContentRect(HWND hwnd);                        /* client area above the pa
 void StepPresetCreate(AppState* st, HINSTANCE hi);
 void StepPresetShow(AppState* st, BOOL show);
 int  StepPresetLayout(AppState* st, RECT area);
-BOOL StepPresetCommand(AppState* st, WPARAM wp, LPARAM lp);
 BOOL StepPresetOnNext(AppState* st);
 
 void StepConfigCreate(AppState* st, HINSTANCE hi);
@@ -118,7 +121,9 @@ BOOL StepDumpCommand(AppState* st, WPARAM wp, LPARAM lp);
 void StepDumpOnMessage(AppState* st, UINT msg, WPARAM wp, LPARAM lp);
 void StepDumpPaintProgress(AppState* st, HDC dc, RECT panel);
 
-/* Shared preset table (main.cpp) queried by step 1/2. */
-typedef struct { LPCWSTR name; DWORD base; DWORD size_mb; int custom; } Preset;
+/* Shared preset table (main.cpp) queried by step 1/2. `detail` is the second
+   line shown in the step-1 picker (known devices / description); it may be
+   empty. */
+typedef struct { LPCWSTR name; LPCWSTR detail; DWORD base; DWORD size_mb; int custom; } Preset;
 extern const Preset kPresets[];
 extern const int    kNumPresets;
