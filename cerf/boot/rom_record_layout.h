@@ -11,8 +11,8 @@ struct E32RomLayout {
     uint32_t off_vbase;
     uint32_t off_subsysmajor;
     uint32_t off_subsysminor;
-    uint32_t off_stackmax;
-    int32_t  off_vsize;         /* absent on CE2.0 → negative (added in CE2.11) */
+    int32_t  off_stackmax;      /* absent on CE2.0 → negative (added in CE2.11) */
+    int32_t  off_vsize;
     int32_t  off_sect14rva;     /* absent on CE2 → negative (added in CE3) */
     int32_t  off_sect14size;    /* absent on CE2 → negative (added in CE3) */
     int32_t  off_timestamp;     /* absent on CE3 → negative */
@@ -29,11 +29,11 @@ constexpr E32RomLayout kE32RomCE211 = {
     0x1C, 0x18,
 };
 
-/* CE 2.0 e32_rom: no e32_vsize; e32_subsys@0x14, DD array@0x18. */
+/* CE 2.0 e32_rom (no e32_stackmax): e32_vsize@0x10, e32_subsys@0x14, DD array@0x18. */
 constexpr E32RomLayout kE32RomCE20 = {
     96,
     0x00, 0x02, 0x04, 0x08,
-    0x0C, 0x0E, 0x10, -1,
+    0x0C, 0x0E, -1, 0x10,
     -1, -1,
     -1,
     0x18, 0x14,

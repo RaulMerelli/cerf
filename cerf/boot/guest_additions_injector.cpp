@@ -158,7 +158,9 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
     mem.WriteWord(pa + L.off_vbase,       target_vbase);
     mem.WriteHalf(pa + L.off_subsysmajor, pe.SubsysMajor());
     mem.WriteHalf(pa + L.off_subsysminor, pe.SubsysMinor());
-    mem.WriteWord(pa + L.off_stackmax,    pe.StackReserve());
+    if (L.off_stackmax >= 0) {
+        mem.WriteWord(pa + uint32_t(L.off_stackmax), pe.StackReserve());
+    }
     if (L.off_vsize >= 0) {
         mem.WriteWord(pa + uint32_t(L.off_vsize), pe.ImageSize());
     }
