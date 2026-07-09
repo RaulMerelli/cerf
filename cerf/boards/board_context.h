@@ -31,6 +31,7 @@ enum class SocFamily {
     VR4102,    /* NEC VR4102 (uPD30102), VR4100 core, MIPS III, little-endian, no
                   MIPS16, no FPU, no LL/SC, 32-entry TLB. Integrated SoC for the NEC
                   MobilePro 700 (Handheld PC, Windows CE 2.0). */
+    PR31700,
 };
 
 enum class CpuArch { Arm, Mips };
@@ -79,6 +80,7 @@ enum class Board {
     NecMobilePro700,  /* NEC MobilePro 700 Series HPC clamshell (NEC VR4102, MIPS,
                          Windows CE 2.0 / Handheld PC, 1997). ROM identity string
                          "MobilePro 700 Series". */
+    PhilipsNino300,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
