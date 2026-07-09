@@ -1,6 +1,6 @@
 ---
 name: start-board-implementation
-description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough - no path required), checks IDA MCP, then independently confirms - from the ROM bytes and the internet - the board identity (device-name string in the ROM blob), the SoC/CPU family, what CERF already supports, any reusable SoC, and whether the ROM is on the public manifest. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
+description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough - no path required), checks IDA MCP, then independently confirms - from the ROM bytes and the internet - the board identity, the SoC/CPU family, what CERF already supports, any reusable SoC, and whether the ROM is on the public manifest. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
 ---
 
 # Start Board Implementation - new-board bring-up
@@ -95,31 +95,45 @@ Reverse engineering confirms every fact below and drives the whole loop.
 Minimum traversal to fill the table. You are IDENTIFYING, not implementing. Each
 fact gets a source.
 
-- **B1 - Extract & fingerprint.** The ROM is usually NOT extracted yet - you do
-  it: `tools/extract_bundles.py` produces per-module PEs under
+- **B0 - Which acceptance pipeline?** Before extraction, settle what the file IS
+  (`agent_docs/rom_acceptance.md`): flat XIP, a recognised container (B000FF /
+  NOSAJ / ARNOLD), or a whole-storage dump the guest's own boot path reads. Check
+  the leading magic, the presence of `ECEC` markers (a CE2-era image legitimately
+  has none → `ResolveRomhdrStructural`), and whether the image is a raw bus
+  capture needing normalization (aliasing, wrap, pad). This decides whether B1's
+  extractor can even run.
+- **B1 - Extract & inventory the modules.** The ROM is usually NOT extracted yet -
+  you do it: `tools/extract_bundles.py` produces per-module PEs under
   `references/extracted-roms/<device>/<rom>/fs/Windows/`. Open a module with
   `python tools/open_ida.py --wait <pe>` (`--wait` blocks until it's usable;
   background it if you have parallel research). Note kernel/coredll/gwes/filesys/
   device/driver module names - driver names are SoC tells (e.g. `*_mx31.dll` →
   i.MX31).
-- **B2 - Board identity (device-name string in the ROM).** The best way to
-  recognise the board is the human device/OEM model string embedded in the ROM
-  blob - e.g. "iPAQ H3600" appears in that device's ROM and no other. Search the
-  raw bytes + extracted modules; cross-check the B1 driver names. This identifies
-  *which* board you are bringing up; the running emulator selects it from the
-  declared `board_id` (`cerf.json board.id` / `--board-id`), not by scanning.
+- **B2 - Confirm the declared board is the right one.** The board is DECLARED, not
+  discovered: `cerf.json board.id` / `--board-id` selects the `BoardContext`. Your
+  job is to confirm that declaration names the silicon actually in the ROM before
+  you write a `BoardContext` asserting it - `meta.soc_family` and the user's word
+  are hints, never facts. Evidence, in order of weight: the B1 driver/module names
+  (an OEM BSP names its drivers after its own silicon), then the OEM's model
+  string if one happens to appear in the blob. Do NOT hunt for a "unique"
+  device-name string, and do NOT build a match rule out of one - nothing scans the
+  ROM for board identity at runtime, so a string's uniqueness proves nothing and
+  a coincidental byte run reads exactly like a hit.
 - **B3 - Board already in CERF?** Read the `Board` enum in
   `cerf/boards/board_context.h`; list `cerf/boards/` + `bundled/devices/`. Match
   the B2 identity → fully present / different-ROM-revision / absent.
 - **B4 - SoC / CPU family.** From the identity + driver/OEM names, determine the
-  SoC, its ARM core, the ISA version (v4/v4T/v5/v6/v7) and the specific core
-  (ARM720T, ARM920T, SA-11xx, ARM1136, Cortex-A8, …). Confirm via the internet
-  (datasheet / Linux `arch/arm/mach-*` / device specs) - not the user's word.
+  SoC, its CPU architecture (`CpuArch::Arm` / `CpuArch::Mips` - which JIT engine
+  the board runs), and the specific core with its ISA level (ARM720T, ARM920T,
+  SA-11xx, ARM1136, Cortex-A8; R3000A/R3900/R4100/R5000-class MIPS, …). Confirm
+  via the internet (datasheet / Linux `arch/arm/mach-*` or `arch/mips/`, QEMU,
+  device specs) - not the user's word.
 - **B5 - SoC implemented in CERF? Reusable SoC?** Read the `SocFamily` enum; list
   `cerf/socs/` + `cerf/cpu/`. Is this SoC present? Is the core's strategy set
-  (`ArmProcessorConfig`/`CoprocEmitter`) under `cerf/cpu/<core>/`? If
-  absent, is there a close relative sharing silicon/core? Reuse is the
-  difference between a short and a long bring-up - name it.
+  under `cerf/cpu/<core>/` - `ArmProcessorConfig`/`CoprocEmitter` on ARM,
+  `MipsProcessorConfig`/`MipsCp0Emitter` on MIPS? If absent, is there a close
+  relative sharing silicon/core? Reuse is the difference between a short and a
+  long bring-up - name it.
 - **B6 - Public manifest.** `WebFetch`
   `https://cerf.dz3n.net/cerf-bundles/manifest.json`. Listed → officially
   distributed (tell the user). Not listed → user's own ROM; if it's a genuinely
@@ -141,9 +155,9 @@ work/unconfirmed · ❌ missing/blocker).
 |---|--------------------------------|-------------------------------------------|--------|
 | 1 | ROM acquired                   | <bundle / path>                           | ✅/❌  |
 | 2 | IDA MCP connectivity           | <running, N instances | not running>      | ✅/⚠️  |
-| 3 | Board identity                 | "<device string>" + <driver tells>        | ✅/⚠️  |
+| 3 | Board identity                 | <declared board.id> confirmed by <tells>  | ✅/⚠️  |
 | 4 | Board already in CERF          | <Board::X exists | absent>                | ✅/❌  |
-| 5 | SoC / CPU family               | <SoC>, <core>, ARM<isa>                   | ✅/⚠️  |
+| 5 | SoC / CPU family               | <SoC>, <core>, <CpuArch + isa level>      | ✅/⚠️  |
 | 6 | SoC implemented in CERF        | <cerf/socs/<x> present | absent>           | ✅/❌  |
 | 7 | Reusable / similar SoC or core | <what reuses what | none - from scratch>  | ✅/⚠️  |
 | 8 | On public remote manifest      | <listed | not listed - user ROM>          | ✅/⚠️  |
@@ -206,10 +220,11 @@ later write needs its own `/tracking update` from the user.
 
 Pick the entry point from the table, then run § The bring-up loop:
 
-- **New SoC/core (rows 6-7 ❌)** → start at the CPU/JIT strategy set: author
-  `ArmProcessorConfig`, `CoprocEmitter` from the ARM architecture
-  reference manual + the core TRM (downloaded to `references/<soc>/` first), then
-  the `PageTableBuilder` / memory map, then the peripheral loop.
+- **New SoC/core (rows 6-7 ❌)** → start at the CPU/JIT strategy set for the
+  board's `CpuArch`: author `ArmProcessorConfig` + `CoprocEmitter`, or
+  `MipsProcessorConfig` + `MipsCp0Emitter`, from the CPU architecture reference
+  manual + the core TRM (downloaded to `references/<soc>/` first), then the
+  `PageTableBuilder` / memory map, then the peripheral loop.
 - **SoC supported (rows 6-7 ✅)** → start at the `BoardContext` (a new concrete
   reporting the board's constants; give the board an id, add it to the
   `BoardContext` id table, and set `board.id` + `rom.primary` in the bundle's
