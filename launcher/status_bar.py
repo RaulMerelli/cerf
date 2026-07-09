@@ -7,7 +7,7 @@ import webbrowser
 from tkinter import ttk
 from typing import Optional
 
-from ui_dialogs import DISCORD_URL, GITHUB_URL, show_rom_submit_dialog
+from ui_dialogs import DISCORD_URL, GITHUB_URL
 import ui_theme as theme
 
 
@@ -18,9 +18,8 @@ class StatusBar:
         bar.columnconfigure(3, weight=1)
 
         links = (
-            ("Discord",             lambda: webbrowser.open(DISCORD_URL)),
-            ("Please submit ROMs!", lambda: show_rom_submit_dialog(root)),
-            ("GitHub",              lambda: webbrowser.open(GITHUB_URL)),
+            ("Discord", lambda: webbrowser.open(DISCORD_URL)),
+            ("GitHub",  lambda: webbrowser.open(GITHUB_URL)),
         )
         self._link_labels: list[ttk.Label] = []
         for col, (text, action) in enumerate(links):

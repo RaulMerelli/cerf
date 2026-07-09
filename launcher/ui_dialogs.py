@@ -1,5 +1,5 @@
 """Modal dialogs and tooltips: the generic dark-themed dialog plus every
-canned launcher dialog (ROM license, guest-additions help, ROM submission)."""
+canned launcher dialog (ROM license, guest-additions help)."""
 from __future__ import annotations
 
 import tkinter as tk
@@ -12,10 +12,8 @@ from device_state import DeviceSource
 import ui_theme as theme
 
 
-DISCORD_URL       = "https://discord.gg/QREE9Y2v2d"
-GITHUB_URL        = "https://github.com/gweslab/cerf"
-GITHUB_ISSUES_URL = "https://github.com/gweslab/cerf/issues"
-ROM_SUBMIT_EMAIL  = "cerf@dz3n.net"
+DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
+GITHUB_URL  = "https://github.com/gweslab/cerf"
 
 
 def show_dialog(parent: tk.Misc, title: str, message: str,
@@ -134,26 +132,6 @@ def show_guest_additions_help(parent: tk.Misc) -> None:
 
     dlg.grab_set()
     parent.wait_window(dlg)
-
-
-def show_rom_submit_dialog(parent: tk.Misc) -> None:
-    choice = show_dialog(
-        parent,
-        "Please submit ROMs!",
-        "CERF really needs Windows CE ROMs - dumps, backups, recovery "
-        "images, anything. Every submitted image helps preserve these "
-        "devices in history (at the very least), and more importantly "
-        "lets us bring them to CERF later.\n\n"
-        "Ways to submit a ROM:\n"
-        f"  •  Join our Discord:  {DISCORD_URL}\n"
-        f"  •  Email us:  {ROM_SUBMIT_EMAIL}\n"
-        f"  •  Open a GitHub issue:  {GITHUB_ISSUES_URL}",
-        buttons=("Join Discord", "GitHub issues", "Close"),
-        default="Close")
-    if choice == "Join Discord":
-        webbrowser.open(DISCORD_URL)
-    elif choice == "GitHub issues":
-        webbrowser.open(GITHUB_ISSUES_URL)
 
 
 def show_update_available(parent: tk.Misc, remote_version: str,
