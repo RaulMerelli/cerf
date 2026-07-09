@@ -125,6 +125,8 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
                    CP0 IP7 tick fires to wake it; a park would freeze that tick. */
                 if (d->funct == MipsCop0Funct::kSTANDBY ||
                     d->funct == MipsCop0Funct::kSUSPEND) return &PlaceMipsNop;
+                /* HIBERNATE freezes the pipeline until a Cold Reset (UM ch.27 p587). */
+                if (d->funct == MipsCop0Funct::kHIBERNATE) return &PlaceMipsHibernate;
             }
             return &PlaceMipsUndefined;
         default:

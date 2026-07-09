@@ -67,6 +67,7 @@ private:
     uint32_t IntervalMsLocked() const; /* SCANINTVAL x 30us -> worker cadence, clamped */
     void     StopWorker();
     void     WorkerLoop();
+    void     ResetOnGuestReset();      /* RSTOUT: return the sequencer to power-on */
 
     mutable std::mutex mtx_;
 

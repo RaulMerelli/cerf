@@ -2,7 +2,6 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm/arm_jit.h"
 #include "../jit/guest_engine.h"
 #include "../state/shutdown_dialog.h"
 #include "guest_power_notifier.h"
@@ -27,7 +26,7 @@ void GuestDeepSleep::Enter() {
        entering sleep here lets the woken guest re-execute its sleep write before
        the poll delivers the reset, posting a spurious second recovery prompt and
        hanging. Sleep entry yields to a pending reset. */
-    if (emu_.Get<ArmJit>().CpuState()->reset_pending) {
+    if (emu_.Get<GuestEngine>().ResetPending()) {
         LOG(SocReset, "[DEEPSLEEP] Enter: reset pending, skip (wake/reboot wins)\n");
         return;
     }
@@ -37,22 +36,21 @@ void GuestDeepSleep::Enter() {
     }
     LOG(SocReset, "[DEEPSLEEP] Enter: sleep begin\n");
     emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
-    emu_.Get<ArmJit>().EnterDeepSleep();
+    emu_.Get<GuestEngine>().EnterDeepSleep();
     emu_.Get<HostWindow>().RunOnUiThread([this] { Recover(); });
 }
 
 void GuestDeepSleep::DeliverWake() {
     waker_->LatchSleepWakeCause();
-    auto& jit = emu_.Get<ArmJit>();
+    auto& engine = emu_.Get<GuestEngine>();
     if (resume_vector_provider_) {
         const SleepResumeState r = resume_vector_provider_->Resume();
         if (r.pc) {
-            jit.Cpu()->SetPendingResumeVector(r.pc);
-            if (r.restore_mmu)
-                jit.Cpu()->SetPendingResumeMmu(r.mmu_control, r.ttbr0, r.dacr);
+            engine.SetPendingResume(r.pc, r.restore_mmu, r.mmu_control, r.ttbr0,
+                                    r.dacr);
         }
     }
-    jit.SetResetPending(/*is_resume=*/true);
+    engine.SetResetPending(/*is_resume=*/true);
 }
 
 void GuestDeepSleep::OnFullRestore() {

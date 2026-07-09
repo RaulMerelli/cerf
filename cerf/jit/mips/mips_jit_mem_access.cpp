@@ -18,8 +18,8 @@ uint32_t MipsJit::MmioRead(uint32_t va, uint32_t pa, uint32_t width, const char*
             default: return peripheral_->ReadWord(pa);
         }
     }
-    LOG(Caution, "%s: unmapped MMIO read va=0x%08X pa=0x%08X (no peripheral registered)\n",
-        who, va, pa);
+    LOG(Caution, "%s: unmapped MMIO read va=0x%08X pa=0x%08X pc=0x%08X (no peripheral registered)\n",
+        who, va, pa, cpu_state_.pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
@@ -31,8 +31,8 @@ void MipsJit::MmioWrite(uint32_t va, uint32_t pa, uint32_t value, uint32_t width
             default: peripheral_->WriteWord(pa, value);                        return;
         }
     }
-    LOG(Caution, "%s: unmapped MMIO write va=0x%08X pa=0x%08X val=0x%08X (no peripheral "
-        "registered)\n", who, va, pa, value);
+    LOG(Caution, "%s: unmapped MMIO write va=0x%08X pa=0x%08X val=0x%08X pc=0x%08X (no peripheral "
+        "registered)\n", who, va, pa, value, cpu_state_.pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
@@ -142,8 +142,8 @@ uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
     if (jit->peripheral_->IsPeripheralAddress(pa)) {
         return jit->peripheral_->ReadDword(pa);
     }
-    LOG(Caution, "MipsJit::LoadDwordHelper: unmapped MMIO read va=0x%08X pa=0x%08X "
-            "(no peripheral registered)\n", va, pa);
+    LOG(Caution, "MipsJit::LoadDwordHelper: unmapped MMIO read va=0x%08X pa=0x%08X pc=0x%08X "
+            "(no peripheral registered)\n", va, pa, jit->cpu_state_.pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
@@ -286,7 +286,7 @@ void __fastcall MipsJit::StoreDwordHelper(uint32_t va, uint32_t rt, MipsJit* jit
         jit->peripheral_->WriteDword(pa, jit->cpu_state_.gpr[rt]);
         return;
     }
-    LOG(Caution, "MipsJit::StoreDwordHelper: unmapped MMIO write va=0x%08X pa=0x%08X "
-            "(no peripheral registered)\n", va, pa);
+    LOG(Caution, "MipsJit::StoreDwordHelper: unmapped MMIO write va=0x%08X pa=0x%08X pc=0x%08X "
+            "(no peripheral registered)\n", va, pa, jit->cpu_state_.pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }

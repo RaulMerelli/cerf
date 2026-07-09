@@ -339,7 +339,7 @@ BOARDS_INFORMATION = [
             "pcmcia": True,
             "battery": False,
             "guest_additions": True,
-            "suspend": False,
+            "suspend": True,
         },
     },
     {

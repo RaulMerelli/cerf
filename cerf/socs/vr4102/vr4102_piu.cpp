@@ -1,5 +1,7 @@
 #include "vr4102_piu.h"
 
+#include "../guest_cpu_reset.h"
+
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -79,6 +81,10 @@ bool Vr4102Piu::ShouldRegister() {
 void Vr4102Piu::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
     worker_ = std::thread([this] { WorkerLoop(); });
+    /* The PIU is on the RSTOUT reset line; without a power-on reset on guest
+       reboot the sequencer keeps its pre-reset PADSTATE and touch.dll's re-init
+       handshake (sub_15A0568: spin until PIUCNTREG PADSTATE==0) never completes. */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this] { ResetOnGuestReset(); });
 }
 
 /* ---- PIU1 control block (0x0B000120) ---- */
@@ -302,6 +308,27 @@ void Vr4102Piu::WorkerLoop() {
             });
         }
     }
+}
+
+/* ---- guest reset (RSTOUT) ---- */
+
+void Vr4102Piu::ResetOnGuestReset() {
+    /* JIT thread at reset delivery: return every register + pen/buffer state to
+       power-on (the member initializers), so touch.dll's re-init handshake sees
+       PADSTATE=kStDisable. intreg_=0 also clears the PIU source in the ICU. */
+    std::lock_guard<std::mutex> lk(mtx_);
+    state_    = kStDisable;
+    cnt_cfg_  = 0;
+    intreg_   = 0;
+    sivl_     = 0x0007u;
+    stbl_     = 0x0007u;
+    cmd_      = 0x000Fu;
+    pen_cur_  = pen_prev_ = false;
+    pos_x_    = pos_y_ = 0;
+    for (auto& pg : page_buf_) for (uint16_t& b : pg) b = 0;
+    next_page_ = 0;
+    adbuf_     = 0;
+    DriveIcuLocked();
 }
 
 /* ---- hibernation ---- */

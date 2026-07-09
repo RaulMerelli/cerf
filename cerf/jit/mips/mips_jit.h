@@ -83,6 +83,10 @@ public:
        jit in ECX. */
     static void __fastcall EretHelper(MipsJit* jit);
 
+    /* HIBERNATE: set pc past the instruction, then halt the CPU for deep sleep
+       (UM ch.27 p587). __fastcall: next pc in ECX, jit in EDX. */
+    static void __fastcall HibernateHelper(uint32_t next_pc, MipsJit* jit);
+
     /* SYSCALL / BREAK: deliver the Sys (cause 8) / Bp (cause 9) CP0 exception to
        the general vector; the guest handler processes it and ERETs past the
        instruction. __fastcall: jit in ECX. */
@@ -234,6 +238,9 @@ public:
     void* IdleEvent() const { return idle_event_; }
 
     void SetResetPending(bool is_resume = false) override;
+    void EnterDeepSleep() override;
+    void SetPendingResume(uint32_t pc, bool restore_mmu, uint32_t mmu_control,
+                          uint32_t ttbr0, uint32_t dacr) override;
     void NotifyResetDelivered();
 
     void SaveCpuState(StateWriter& w)    override;

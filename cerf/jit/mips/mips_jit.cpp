@@ -224,7 +224,7 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
             ++i;
             break;                      /* block ends after the delay slot */
         }
-        if (insn.is_eret) {             /* ERET ends the block; it has no delay slot */
+        if (insn.ends_block) {          /* ERET / HIBERNATE: no delay slot */
             ++i;
             break;
         }

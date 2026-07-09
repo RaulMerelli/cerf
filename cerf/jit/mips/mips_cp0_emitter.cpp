@@ -84,9 +84,14 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     const int32_t off = Cp0RegOffset(d->rd);
-    if (off < 0 || !Cp0RegWritable(d->rd) ||
-        !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
+    if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
+    }
+    /* MTC0 to a read-only register is ignored on R4000-class silicon (VR4102 UM
+       5.5.2 Random, 6.3.2 BadVAddr, 5.5.5 PRId read-only; QEMU gen_mtc0 marks
+       REG01__RANDOM / REG08__BADVADDR / REG15__PRID ignored). start() writes Random. */
+    if (!Cp0RegWritable(d->rd)) {
+        return cursor;
     }
     /* DMTC0 moves 64 bits; gpr[rt] must be sext32(low) or it carries genuine
        64-bit CP0 state the 32-bit model does not hold. EDX=sext(low), compare

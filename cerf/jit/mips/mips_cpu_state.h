@@ -23,8 +23,11 @@ namespace MipsCp0 {
     constexpr uint32_t kEPC      = 14;
     constexpr uint32_t kPRId     = 15;
     constexpr uint32_t kConfig   = 16;
+    constexpr uint32_t kLLAddr   = 17;
     constexpr uint32_t kWatchLo  = 18;
     constexpr uint32_t kWatchHi  = 19;
+    constexpr uint32_t kXContext = 20;
+    constexpr uint32_t kECC      = 26;
     constexpr uint32_t kTagLo    = 28;
     constexpr uint32_t kTagHi    = 29;
     constexpr uint32_t kErrorEPC = 30;
@@ -146,6 +149,9 @@ struct MipsCpuState {
     uint32_t cp0_taglo;          /* CP0 TagLo (r28) cache-tag; no cache modeled (CACHE=NOP) -> plain R/W */
     uint32_t cp0_taghi;          /* CP0 TagHi (r29) cache-tag */
     uint32_t cp0_errorepc;
+    uint32_t cp0_lladdr;         /* CP0 LLAddr (r17); VR4102 UM 5.5.7 R/W, "serves no function" (no LL/SC) -> plain R/W */
+    uint32_t cp0_xcontext;       /* CP0 XContext (r20); UM 6.3.9 R/W, only the 64-bit XTLB refill reads it (CE 2.0 is 32-bit) -> plain R/W */
+    uint32_t cp0_ecc;            /* CP0 ECC/PErr (r26); UM 6.3.10 R/W cache-parity diag; no cache modeled -> plain R/W */
 
     /* Software-managed TLB (guest kernel owns page tables; CERF never walks
        them). Faithful QEMU r4k: [0,nb_tlb) live + [nb_tlb,tlb_in_use) shadow. */
@@ -210,6 +216,9 @@ inline int32_t Cp0RegOffset(uint32_t rd) {
         case MipsCp0::kTagLo:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_taglo));
         case MipsCp0::kTagHi:    return static_cast<int32_t>(offsetof(MipsCpuState, cp0_taghi));
         case MipsCp0::kErrorEPC: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_errorepc));
+        case MipsCp0::kLLAddr:   return static_cast<int32_t>(offsetof(MipsCpuState, cp0_lladdr));
+        case MipsCp0::kXContext: return static_cast<int32_t>(offsetof(MipsCpuState, cp0_xcontext));
+        case MipsCp0::kECC:      return static_cast<int32_t>(offsetof(MipsCpuState, cp0_ecc));
         default:                 return -1;
     }
 }

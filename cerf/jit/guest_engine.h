@@ -36,6 +36,17 @@ public:
        selects the deep-sleep-wake notification over the reboot one. */
     virtual void SetResetPending(bool is_resume) = 0;
 
+    /* Halt the guest CPU for deep sleep; JitRunner::RunLoop observes DeepSleep()
+       and parks until a reset is pended. GuestDeepSleep::Enter routes here. */
+    virtual void EnterDeepSleep() = 0;
+
+    /* Apply a board's sleep-wake resume vector before the pending reset is
+       delivered. The MMU triple is the ARM cp15 c1/c2/c3 block; an engine whose
+       boards register no SleepResumeVectorProvider never receives this. */
+    virtual void SetPendingResume(uint32_t pc, bool restore_mmu,
+                                  uint32_t mmu_control, uint32_t ttbr0,
+                                  uint32_t dacr) = 0;
+
     virtual void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) = 0;
 
     virtual uint8_t* ResolveGuestVaToHost(uint32_t va) = 0;

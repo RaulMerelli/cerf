@@ -21,6 +21,7 @@ uint8_t* PlaceMipsTlbwi    (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContex
 uint8_t* PlaceMipsTlbwr    (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
 uint8_t* PlaceMipsTlbp     (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
 uint8_t* PlaceMipsEret     (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
+uint8_t* PlaceMipsHibernate(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
 uint8_t* PlaceMipsJ        (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
 uint8_t* PlaceMipsJal      (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);
 uint8_t* PlaceMipsJr       (uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx);

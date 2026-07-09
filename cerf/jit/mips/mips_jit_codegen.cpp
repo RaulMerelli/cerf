@@ -74,9 +74,10 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
 
         code_location = insn.place_fn(code_location, &insn, &block_ctx_);
 
-        if (insn.is_eret) {
-            /* EretHelper already set pc from EPC/ErrorEPC; suppress the
-               straight-line pc override and exit. */
+        if (insn.ends_block) {
+            /* The helper already set pc (EretHelper from EPC/ErrorEPC,
+               HibernateHelper to the next insn); suppress the straight-line
+               pc override and exit. */
             EmitRetn(code_location, 0);
             terminated = true;
             break;

@@ -3,6 +3,7 @@
 #include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
 #include "../../cpu/mips_processor_config.h"
+#include "../../host/guest_deep_sleep.h"
 #include "../../host/guest_power_notifier.h"
 #include "../../socs/guest_cpu_reset.h"
 
@@ -10,6 +11,7 @@ void MipsJit::SetResetPending(bool is_resume) {
     cpu_state_.reset_pending = 1;
     SignalIdleWake();   /* wake the JIT thread if parked so Run() delivers it */
     if (is_resume) { emu_.Get<GuestPowerNotifier>().NotifyResume(); return; }
+    emu_.Get<GuestDeepSleep>().ClearWakeCause();
     emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
 

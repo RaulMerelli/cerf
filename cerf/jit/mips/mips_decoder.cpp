@@ -57,6 +57,7 @@ bool RecognizedCop0(const MipsDecodedInsn* d) {
             case MipsCop0Funct::kERET:  case MipsCop0Funct::kDERET:
             case MipsCop0Funct::kWAIT:
             case MipsCop0Funct::kSTANDBY: case MipsCop0Funct::kSUSPEND:
+            case MipsCop0Funct::kHIBERNATE:
                 return true;
             default:
                 return false;
@@ -81,7 +82,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
     d->target             = word & 0x03ffffff;
     d->is_branch          = 0;
     d->is_likely          = 0;
-    d->is_eret            = 0;
+    d->ends_block         = 0;
     d->entry_point        = nullptr;
     d->jmp_fixup_location = nullptr;
 
@@ -107,8 +108,10 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
             }
 
         case MipsOp::kCOP0:
-            if (d->rs >= MipsCop0Rs::kCO && d->funct == MipsCop0Funct::kERET) {
-                d->is_eret = 1;   /* ERET ends the block and has no delay slot */
+            if (d->rs >= MipsCop0Rs::kCO &&
+                (d->funct == MipsCop0Funct::kERET ||
+                 d->funct == MipsCop0Funct::kHIBERNATE)) {
+                d->ends_block = 1;   /* neither has a delay slot */
             }
             return RecognizedCop0(d);
 
