@@ -27,6 +27,7 @@ public:
     bool HasCounter() const override { return true;  }   /* MIPS_CPU_COUNTER */
     bool HasWatch()   const override { return true;  }   /* MIPS_CPU_WATCH */
     bool HasLlsc()    const override { return true;  }   /* MIPS_CPU_LLSC */
+    bool HasVr41xxPowerModes() const override { return false; }
 };
 
 }  /* namespace */

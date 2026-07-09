@@ -46,6 +46,11 @@ public:
     virtual bool HasCounter() const = 0;   /* MIPS_CPU_COUNTER - CP0 Count/Compare present */
     virtual bool HasWatch()   const = 0;   /* MIPS_CPU_WATCH - CP0 WatchLo/WatchHi present */
 
+    /* STANDBY/SUSPEND/HIBERNATE (COP0 CO=1, funct 0x21/0x22/0x23). VR4102 UM
+       ch.27: "added in the VR4100 CPU core"; absent from MIPS I-IV, so a core
+       outside that family decodes them as reserved. */
+    virtual bool HasVr41xxPowerModes() const = 0;
+
     /* Whether this SoC implements CP0 register `rd` - gates the config-dependent
        registers (Count/Compare, WatchLo/WatchHi); always-present registers
        return true and are further validated by Cp0RegOffset. Consumed by the

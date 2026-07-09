@@ -11,10 +11,12 @@ class MipsDecoder {
 public:
     /* Capability gates from MipsProcessorConfig (set once in MipsJit::OnReady);
        instruction recognition is config-driven, not hardcoded. */
-    void Configure(bool has_fpu, bool has_llsc, bool has_mips4) {
+    void Configure(bool has_fpu, bool has_llsc, bool has_mips4,
+                   bool has_vr41xx_power_modes) {
         has_fpu_   = has_fpu;
         has_llsc_  = has_llsc;
         has_mips4_ = has_mips4;
+        has_vr41xx_power_modes_ = has_vr41xx_power_modes;
     }
 
     /* Returns false for an opcode the running CPU does not implement (COP1 when
@@ -26,4 +28,5 @@ private:
     bool has_fpu_   = false;
     bool has_llsc_  = false;
     bool has_mips4_ = false;   /* MIPS IV integer ops (MOVZ/MOVN/PREF) present */
+    bool has_vr41xx_power_modes_ = false;   /* STANDBY/SUSPEND/HIBERNATE present */
 };

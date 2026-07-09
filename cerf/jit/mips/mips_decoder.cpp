@@ -45,7 +45,7 @@ bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
     }
 }
 
-bool RecognizedCop0(const MipsDecodedInsn* d) {
+bool RecognizedCop0(const MipsDecodedInsn* d, bool has_vr41xx_power_modes) {
     if (d->rs == MipsCop0Rs::kMFC0  || d->rs == MipsCop0Rs::kMTC0 ||
         d->rs == MipsCop0Rs::kDMFC0 || d->rs == MipsCop0Rs::kDMTC0) {
         return true;
@@ -56,9 +56,10 @@ bool RecognizedCop0(const MipsDecodedInsn* d) {
             case MipsCop0Funct::kTLBWR: case MipsCop0Funct::kTLBP:
             case MipsCop0Funct::kERET:  case MipsCop0Funct::kDERET:
             case MipsCop0Funct::kWAIT:
+                return true;
             case MipsCop0Funct::kSTANDBY: case MipsCop0Funct::kSUSPEND:
             case MipsCop0Funct::kHIBERNATE:
-                return true;
+                return has_vr41xx_power_modes;
             default:
                 return false;
         }
@@ -110,10 +111,10 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kCOP0:
             if (d->rs >= MipsCop0Rs::kCO &&
                 (d->funct == MipsCop0Funct::kERET ||
-                 d->funct == MipsCop0Funct::kHIBERNATE)) {
+                 (d->funct == MipsCop0Funct::kHIBERNATE && has_vr41xx_power_modes_))) {
                 d->ends_block = 1;   /* neither has a delay slot */
             }
-            return RecognizedCop0(d);
+            return RecognizedCop0(d, has_vr41xx_power_modes_);
 
         /* Branches with a delay slot. */
         case MipsOp::kBEQ:  case MipsOp::kBNE:
