@@ -263,7 +263,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
         </tr>
     <tr>
           <td>v6.0</td>
-          <td>9 Jul 2026</td>
+          <td>10 Jul 2026</td>
           <td>
             <ul>
               <li>MIPS JIT engine</li>
