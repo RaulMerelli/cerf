@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
@@ -13,7 +13,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download WIP build (6.0) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download WIP build (6.1) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
 
 ## Supported boards
 
@@ -278,6 +278,7 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
                 This also lets users to run ROMs on other boards. Obviously if it's not the same device the chance it will work is around 0%.</li>
               <li>romdump.exe for MIPS updated to emit MIPS1 code, support CE 2.0 and maybe 1.0 too, and now includes several real MIPS CPUs, + full UI redesign</li>
               <li>Guest Additions: CE 2.0 support (display only so far)</li>
+              <li>Zune 30: added audio</li>
             </ul>
           </td>
         </tr>
