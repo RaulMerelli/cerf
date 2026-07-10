@@ -82,7 +82,7 @@ public:
 
     void WriteWord(uint32_t addr, uint32_t value) override {
         switch (addr - kBase) {
-            /* Audio careful stub (§0.3): TX samples are discarded, no output. */
+            /* TX samples are discarded - there is no audio sink. */
             case kOffStx0: case kOffStx1: return;
             case kOffSisr:  sisr_err_ &= ~(value & kSisrW1c); return;
             case kOffScr:   scr_   = value; return;
@@ -101,6 +101,30 @@ public:
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
+
+    /* Words per transmit frame: DC+1 (MCIMX31RM Table 45-14 DC4-DC0). */
+    uint32_t TxWordsPerFrame() const { return ((stccr_ >> 8) & 0x1Fu) + 1u; }
+
+    /* Bits per transmit word: WL[3:0] indexes 2,4,..,32 (Table 45-15). */
+    uint32_t TxWordLengthBits() const { return (((stccr_ >> 13) & 0xFu) + 1u) * 2u; }
+
+    /* Figure 45-42: f_bit = ssi_clk / [(DIV2+1) x (7 x PSR + 1) x (PM+1) x 2],
+       f_frame = f_bit / [(DC+1) x WL], WL being the Table 45-15 word length. */
+    uint32_t TxFrameRateHz(uint32_t ssi_clk_hz) const {
+        const uint32_t div2 = (stccr_ >> 18) & 0x1u;
+        const uint32_t psr  = (stccr_ >> 17) & 0x1u;
+        const uint32_t pm   = stccr_ & 0xFFu;
+        const uint32_t bit_div = (div2 + 1u) * (7u * psr + 1u) * (pm + 1u) * 2u;
+        const uint32_t frame_bits = TxWordsPerFrame() * TxWordLengthBits();
+        if (bit_div == 0 || frame_bits == 0) return 0;
+        return ssi_clk_hz / bit_div / frame_bits;
+    }
+
+    /* SCR bit0 SSIEN, bit1 TE (Figure 45-24). */
+    bool TxEnabled() const { return (scr_ & 0x1u) != 0 && (scr_ & 0x2u) != 0; }
+
+    /* SISR TUE0 (bit 8): the transmitter ran out of data for a frame. */
+    void NoteTxUnderrun() { sisr_err_ |= (1u << 8); }
 
     /* The TX/RX FIFOs are stubbed (always empty, no real audio samples), so
        there is no heap data to serialize - only the plain control registers

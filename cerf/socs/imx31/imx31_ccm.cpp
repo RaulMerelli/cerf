@@ -1,19 +1,13 @@
-#include "../../peripherals/peripheral_base.h"
+#include "imx31_ccm.h"
 
-#include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../state/state_stream.h"
 
 #include <cstdint>
 
 namespace {
 
-constexpr uint32_t kCcmBase = 0x53F80000u;
-constexpr uint32_t kCcmSize = 0x00004000u;
-
-constexpr uint32_t kSlotCount = 26u;
+constexpr uint32_t kSlotCount = Imx31Ccm::kSlotCount;
 
 /* Reset values verbatim from MCIMX31RM Table 3-1 (PDF p197..199).
    CCMR default depends on the external CLKSS pin signal; CERF picks
@@ -54,42 +48,84 @@ constexpr uint32_t kPmcr0Slot = 23u;
 constexpr uint32_t kPmcr0DptenBit = 1u << 0;
 constexpr uint32_t kPmcr0DvfenBit = 1u << 4;
 
-class Imx31Ccm : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+constexpr uint32_t kCcmrSlot  = 0u;
+constexpr uint32_t kPdr1Slot  = 2u;
+constexpr uint32_t kUpctlSlot = 5u;
+constexpr uint32_t kSpctlSlot = 6u;
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+/* The board crystal feeding pll_ref_clk (MCIMX31RM Figure 3-24). The manual states
+   no frequency; 27 MHz is derived from the OAL's own PLL constants (nk.exe start():
+   MPCTL=0x00082407, SPCTL=0x00021C01, UPCTL=0x007C1822), the only reference at which
+   Eqn 3-1 yields integral 528.000 / 396.000 / 338.688 MHz. */
+constexpr uint32_t kCkihHz = 27000000u;
+
+}  /* namespace */
+
+bool Imx31Ccm::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardContext>();
+    return bd && bd->GetSoc() == SocFamily::iMX31;
+}
+
+void Imx31Ccm::OnReady() {
+    for (uint32_t i = 0; i < kSlotCount; ++i) regs_[i] = kResetValues[i];
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
+
+/* Eqn 3-1: Fvco = Fref x 2 x (MFI + MFN/MFD) / PD. Field encodings per Table 3-8
+   (MPCTL) / Table 3-9 (UPCTL): PD and MFD are stored biased by one, MFI saturates
+   up to 5, MFN is a signed 10-bit two's-complement numerator. */
+uint32_t Imx31Ccm::PllHz(uint32_t ctl) const {
+    const uint32_t pd  = ((ctl >> 26) & 0xFu) + 1u;
+    const uint32_t mfd = ((ctl >> 16) & 0x3FFu) + 1u;
+    uint32_t mfi = (ctl >> 10) & 0xFu;
+    if (mfi < 5u) mfi = 5u;
+    int32_t mfn = static_cast<int32_t>(ctl & 0x3FFu);
+    if (mfn & 0x200) mfn -= 0x400;
+
+    const int64_t num = static_cast<int64_t>(2) * kCkihHz *
+                        (static_cast<int64_t>(mfi) * mfd + mfn);
+    return static_cast<uint32_t>(num / (static_cast<int64_t>(mfd) * pd));
+}
+
+uint32_t Imx31Ccm::SsiClockHz(uint32_t ssi) const {
+    const uint32_t ccmr = regs_[kCcmrSlot];
+    const uint32_t pdr1 = regs_[kPdr1Slot];
+
+    /* Table 3-4: SSI1S = CCMR[19:18], SSI2S = CCMR[22:21].
+       Table 3-6: SSI1_PRE_PODF = PDR1[8:6], SSI1_PODF = PDR1[5:0],
+                  SSI2_PRE_PODF = PDR1[17:15], SSI2_PODF = PDR1[14:9].
+       Both dividers are stored biased by one. */
+    uint32_t sel, pre, post;
+    if (ssi == 1u) {
+        sel  = (ccmr >> 18) & 0x3u;
+        pre  = ((pdr1 >> 6) & 0x7u) + 1u;
+        post = ((pdr1 >> 0) & 0x3Fu) + 1u;
+    } else {
+        sel  = (ccmr >> 21) & 0x3u;
+        pre  = ((pdr1 >> 15) & 0x7u) + 1u;
+        post = ((pdr1 >> 9) & 0x3Fu) + 1u;
     }
-    void OnReady() override {
-        for (uint32_t i = 0; i < kSlotCount; ++i) regs_[i] = kResetValues[i];
-        emu_.Get<PeripheralDispatcher>().Register(this);
+
+    uint32_t src;
+    switch (sel) {
+        case 1: {
+            /* usb_clk is the USB PLL through USB_PRDF = PDR1[31:30] and
+               USB_PODF = PDR1[29:27], both stored biased by one (Table 3-6). */
+            const uint32_t usb_pre  = ((pdr1 >> 30) & 0x3u) + 1u;
+            const uint32_t usb_post = ((pdr1 >> 27) & 0x7u) + 1u;
+            src = PllHz(regs_[kUpctlSlot]) / (usb_pre * usb_post);
+            break;
+        }
+        case 2: src = PllHz(regs_[kSpctlSlot]); break;   /* serial_clk */
+        default:
+            /* mcu_clk taps mcu_main_clk after the MCU switch unit and its
+               dividers, which this register file does not model. */
+            LOG(SocClkpwr, "[CCM] SSI%u clock source select %u (mcu_clk/reserved) "
+                "is not modelled\n", ssi, sel);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-
-    uint32_t MmioBase() const override { return kCcmBase; }
-    uint32_t MmioSize() const override { return kCcmSize; }
-
-    uint8_t  ReadByte (uint32_t addr) override;
-    uint16_t ReadHalf (uint32_t addr) override;
-    uint32_t ReadWord (uint32_t addr) override;
-    void     WriteByte(uint32_t addr, uint8_t  value) override;
-    void     WriteHalf(uint32_t addr, uint16_t value) override;
-    void     WriteWord(uint32_t addr, uint32_t value) override;
-
-    /* JIT-thread-only register file (no worker thread). */
-    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_, sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
-
-private:
-    uint32_t regs_[kSlotCount] = {};
-
-    static bool OffsetToSlot(uint32_t off, uint32_t* slot_out) {
-        if (off > 0x64u || (off & 0x3u) != 0u) return false;
-        *slot_out = off / 4u;
-        return true;
-    }
-};
+    return src / (pre * post);
+}
 
 uint32_t Imx31Ccm::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
@@ -155,7 +191,5 @@ void Imx31Ccm::WriteHalf(uint32_t addr, uint16_t value) {
                             (static_cast<uint32_t>(value) << shift);
     WriteWord(base, merged);
 }
-
-}  /* namespace */
 
 REGISTER_SERVICE(Imx31Ccm);

@@ -268,7 +268,7 @@ BOARDS_INFORMATION = [
         "operating_systems": [ZUNE_OS_5],
         "features": {
             "display": True,
-            "sound": False,
+            "sound": True,
             "keyboard": True,
             "guest_additions": True,
             "battery": False,
