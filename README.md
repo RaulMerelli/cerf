@@ -1,9 +1,9 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
 > [!WARNING]
-> **Early stage.** There are some bugs and boards are just MVP implementations. Some boards lack proper clocks, timings, caches, etc. - take into account. Today this is rather proof-of-concept. Contributions are welcome!
+> **Early stage.** There are some bugs and boards are just MVP implementations. The project is rather a proof of concept. Contributions are welcome.
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=LmfaXUNGFlU">
@@ -13,7 +13,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download WIP build (6.0) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download WIP build (6.1) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
 
 ## Supported boards
 
@@ -208,10 +208,13 @@ The board id and the primary ROM are both required - give them in `cerf.json` as
 
 ### Bringing up a board CERF does _not_ support yet
 
-This is **real emulator development**, not a config tweak and not something you can hand to an AI and expect magic. The board's exact memory map (OAT), every peripheral its drivers touch, the SoC quirks - all of it has to be implemented in C++, correctly, by someone who understands the hardware. It takes real skill. There are two honest paths:
+This is **real emulator development**, not a config tweak and not something you can hand to an AI and expect magic. The board's exact memory map (OAT), every peripheral its drivers touch, the SoC quirks - all of it has to be implemented in C++, correctly, by someone who understands the hardware. It takes real skill.
 
-- **Contribute a proper implementation.** Do it right - the code quality bar is whatever CERF already ships, no lower. That means a correct OAT (not a reused one from another board with `if` cases bolted on), real per-board peripherals (not board-specific behavior stuffed into shared SoC code), and accuracy grounded in datasheets/BSP/RE - not values that happen to "work." Contributions below that bar create more debugging cost than they save and won't be accepted.
-- **Just submit the ROM.** If you can't implement it yourself, share the dump and the board details. Maybe someone picks it up someday - **no promises, no timeline.**
+- **Contribute a proper implementation.** Do it right - the code quality bar is whatever CERF already ships, no lower. That means a correct OAT, real per-board peripherals (not board-specific behavior stuffed into shared SoC code), and accuracy grounded in datasheets/BSP/RE - not values that happen to "work." Contributions below that bar create more debugging cost than they save and won't be accepted.
+
+> [!IMPORTANT]
+> **CERF does not accept ROM submissions/board implementation requests.** 
+> The devices worth doing are done and so are several that cost months of work and that essentially nobody needs. Bringing up one more board to arrive at one more Windows CE desktop is a very large amount of work for an outcome that already exists. **Further submissions will be declined**. Unless those are very interesting/in demand and I would have a wish to do the work.
 
 CERF does ship a Claude Code dev environment and a `/start-board-implementation` skill that can _assist_ a capable contributor (see [Claude Development Environment](#-claude-development-environment) below), but it is a tool for someone who already knows what a correct bring-up looks like - not a substitute for that knowledge.
 
