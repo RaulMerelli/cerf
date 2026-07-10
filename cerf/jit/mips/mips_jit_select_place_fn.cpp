@@ -46,7 +46,11 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
         case MipsOp::kBLEZL: return &PlaceMipsBlezl;
         case MipsOp::kBGTZL: return &PlaceMipsBgtzl;
         case MipsOp::kPREF:  return &PlaceMipsNop;   /* prefetch hint: NOP (QEMU OPC_PREF translate.c:14676) */
-        case MipsOp::kCACHE: return &PlaceMipsNop;   /* no modeled cache: NOP (QEMU OPC_CACHE translate.c:14674, non-ITC) */
+        /* NOP: QEMU emits nothing for CACHE (translate.c:14674) and its helper_cache
+           no-ops Index/Hit Invalidate (special_helper.c:142-172). Block coherence is
+           driven from the guest store instead - MipsJit::InvalidateOnRamWrite, the
+           port of accel/tcg notdirty_write - so it needs no announcement. */
+        case MipsOp::kCACHE: return &PlaceMipsNop;
         case MipsOp::kREGIMM:
             if (d->rt == MipsRegimm::kBLTZ)        return &PlaceMipsBltz;
             if (d->rt == MipsRegimm::kBGEZ)        return &PlaceMipsBgez;
@@ -118,6 +122,7 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
                 if (d->funct == MipsCop0Funct::kTLBWI) return &PlaceMipsTlbwi;
                 if (d->funct == MipsCop0Funct::kTLBWR) return &PlaceMipsTlbwr;
                 if (d->funct == MipsCop0Funct::kTLBP)  return &PlaceMipsTlbp;
+                if (d->funct == MipsCop0Funct::kRFE)   return &PlaceMipsRfe;
                 if (d->funct == MipsCop0Funct::kERET)  return &PlaceMipsEret;
                 /* STANDBY/SUSPEND wait-for-interrupt (UM ch.27 p643: "any
                    interrupt ... exits to Fullspeed"): advance-past, NOT a park.

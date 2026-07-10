@@ -9,8 +9,8 @@
 void MipsJit::SaveCpuState(StateWriter& w)    { w.Write(cpu_state_); }
 void MipsJit::RestoreCpuState(StateReader& r) { r.Read(cpu_state_); }
 
-void MipsJit::SaveMmuState(StateWriter& w)    { mmu_.SaveState(w); }
-void MipsJit::RestoreMmuState(StateReader& r) { mmu_.RestoreState(r); }
+void MipsJit::SaveMmuState(StateWriter& w)    { mmu_->SaveState(w); }
+void MipsJit::RestoreMmuState(StateReader& r) { mmu_->RestoreState(r); }
 
 /* No-op: Run() re-folds the INTC-driven external_ip_ into cp0_cause and
    re-checks InterruptReady() every iteration, and the INTC PostRestore
@@ -23,5 +23,5 @@ void MipsJit::FlushTranslationCache(uint32_t /*va*/, uint32_t /*length*/) {
 }
 
 void MipsJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
-    mmu_.SetInjectionBand(va, pa, size);
+    mmu_->SetInjectionBand(va, pa, size);
 }

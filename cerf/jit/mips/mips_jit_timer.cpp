@@ -1,6 +1,7 @@
 #include "mips_jit.h"
 
 #include "mips_cpu_state.h"
+#include "mips_exception_model.h"
 
 /* In-core R4000 Count/Compare timer + CP0 interrupt delivery (the CE scheduler
    tick). Reimplemented from QEMU target/mips cp0_timer.c, driven off
@@ -52,11 +53,9 @@ void __fastcall MipsJit::Mtc0CompareHelper(uint32_t value, MipsJit* jit) {
 
 bool MipsJit::InterruptReady() const {
     const MipsCpuState& s = cpu_state_;
-    /* enabled = IE && !EXL && !ERL (internal.h mips_cpu_hw_interrupts_enabled). */
-    if ((s.cp0_status & (1u << MipsStatusBit::kIE)) == 0u) return false;
-    if (s.cp0_status & (1u << MipsStatusBit::kEXL))        return false;
-    if (s.cp0_status & (1u << MipsStatusBit::kERL))        return false;
-    /* pending = (Cause.IP & Status.IM) over bits 8..15 (internal.h). */
+    if (!exception_->InterruptsEnabled(s)) return false;
+    /* pending = (Cause.IP & Status.IM) over bits 8..15 (internal.h). Both cores
+       place IntMask and the Int/Sw pending bits at 15:8 (TMPR39xx-um §6.2.3). */
     return (s.cp0_cause & s.cp0_status & 0x0000FF00u) != 0u;
 }
 

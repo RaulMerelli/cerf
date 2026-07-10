@@ -73,4 +73,8 @@ void Sa11xxMcp::RestoreState(StateReader& r) {
     if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->RestoreState(r);
 }
 
+void Sa11xxMcp::PostRestore() {
+    if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->PostRestore();
+}
+
 REGISTER_SERVICE(Sa11xxMcp);

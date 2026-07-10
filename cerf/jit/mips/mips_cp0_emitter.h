@@ -33,6 +33,17 @@ public:
                                MipsBlockContext* ctx);
 
 protected:
+    /* CP0 register number -> MipsCpuState field offset, or -1 for a register the
+       core does not implement. */
+    virtual int32_t RegOffset(uint32_t rd) const;
+
+    /* True iff MTC0 may write cp0[rd] on this core. */
+    virtual bool RegWritable(uint32_t rd) const;
+
+    /* The `void __fastcall(uint32_t value, MipsJit*)` run for an MTC0 whose
+       write carries a side effect, or nullptr for a plain store to RegOffset. */
+    virtual void* Mtc0Helper(uint32_t rd) const;
+
     /* gpr[rt] = sext32(cp0[rd]), sel 0 only; shared by MFC0 and DMFC0. */
     uint8_t* EmitFromCop0(uint8_t* cursor, MipsDecodedInsn* d,
                           MipsBlockContext* ctx);

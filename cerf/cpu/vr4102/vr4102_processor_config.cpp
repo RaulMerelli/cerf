@@ -36,6 +36,10 @@ public:
     /* 32-bit fixed instruction encoding, MIPS III ISA, no MIPS16 (UM ch.3). */
     MipsIsaLevel IsaLevel() const override { return MipsIsaLevel::kMips3; }
 
+    /* Int0..Int3 -> Cause IP2..IP5, bits 10..13 (UM Fig 9-2). Int4/IP6 never
+       occurs on this part; IP7 is the timer. */
+    uint32_t     DeviceIpMask() const override { return 0x00003C00u; }
+
     /* No FPU: COP1 raises Coprocessor Unusable (UM ch.1.5.6). */
     bool HasFpu()     const override { return false; }
     /* LL/SC raise reserved-instruction exception; LL bit eliminated (UM ch.3.1). */

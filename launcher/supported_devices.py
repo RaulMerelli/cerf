@@ -59,7 +59,9 @@ class Soc(NamedTuple):
 HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000", "os_old_ce.png")
 POCKET_PC_2000 = OperatingSystem("Pocket PC 2000", "os_ppc2000.png")
 POCKET_PC_2002 = OperatingSystem("Pocket PC 2002", "os_ppc2002.png")
+WINDOWS_CE_1 = OperatingSystem("Windows CE 1.0", "os_old_ce.png")
 WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0", "os_old_ce.png")
+PALM_SIZE_PC = OperatingSystem("Palm-size PC", "os_old_ce.png")
 WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11", "os_old_ce.png")
 HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional", "os_old_ce.png")
 WINDOWS_CE_3 = OperatingSystem("Windows CE 3", "os_old_ce.png")
@@ -82,6 +84,8 @@ SOC_IMX51 = Soc("Freescale i.MX51", "Cortex-A8", "ARM")
 SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
 SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
 SOC_VR4102 = Soc("NEC VR4102", "MIPS III", "MIPS")
+SOC_PR31700 = Soc("Philips PR31700", "MIPS I", "MIPS")
+SOC_PR31500 = Soc("Philips PR31500", "MIPS I", "MIPS")
 
 # Feature icons in display order, shared by the launcher side panel and
 # compile_readme.py. (features key, icon file under assets/icons, label).
@@ -361,6 +365,40 @@ BOARDS_INFORMATION = [
         "notes": [
             "MIPS IV ROM is incompatible with MIPS II apps. Prefer using MIPS II ROM."
         ],
+    },
+    {
+        "name": "Philips Nino 300",
+        "board_id": "philips_nino_300",
+        "supported": True,
+        "soc": SOC_PR31700,
+        "operating_systems": [PALM_SIZE_PC],
+        "features": {
+            "display": True,
+            "touch": True,
+            "keyboard": True,
+            "battery": True,
+            "suspend": False,
+            "guest_additions": True,
+            "pcmcia": False,
+            "network": False,
+        },
+    },
+    {
+        "name": "Philips Velo 1",
+        "board_id": "philips_velo_1",
+        "supported": True,
+        "soc": SOC_PR31500,
+        "operating_systems": [WINDOWS_CE_1],
+        "features": {
+            "display": True,
+            "touch": True,
+            "keyboard": True,
+            "battery": True,
+            "suspend": False,
+            "guest_additions": False,
+            "pcmcia": False,
+            "network": False,
+        },
     },
     {
         "name": "Siemens P177",

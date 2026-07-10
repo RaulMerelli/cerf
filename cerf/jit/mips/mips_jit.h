@@ -20,6 +20,7 @@ class EmulatedMemory;
 class PeripheralDispatcher;
 class MipsProcessorConfig;
 class MipsCp0Emitter;
+class MipsExceptionModel;
 
 class MipsJit : public GuestEngine {
 public:
@@ -32,6 +33,10 @@ public:
     }
 
     MipsCpuState* CpuState() { return &cpu_state_; }
+
+    /* Drop the VA jump cache on an address-space switch (QEMU tlb_flush ->
+       tcg_flush_jmp_cache); the per-ASID block indices persist. */
+    void ContextSwitchFlush();
 
     /* Establish ESI = MipsCpuState* before CALLing native_pc; every emitted
        block addresses GPR/CP0/TLB fields off ESI. */
@@ -83,6 +88,10 @@ public:
        jit in ECX. */
     static void __fastcall EretHelper(MipsJit* jit);
 
+    /* RFE: pop the Status KU/IE stack, leaving PC alone (TMPR39xx-um Fig 6-7).
+       __fastcall: jit in ECX. */
+    static void __fastcall RfeHelper(MipsJit* jit);
+
     /* HIBERNATE: set pc past the instruction, then halt the CPU for deep sleep
        (UM ch.27 p587). __fastcall: next pc in ECX, jit in EDX. */
     static void __fastcall HibernateHelper(uint32_t next_pc, MipsJit* jit);
@@ -120,6 +129,11 @@ public:
         emu_.Get<TraceManager>().DispatchRunLoopIterMips(&cpu_state_);
 #endif
     }
+
+    /* QEMU notdirty_write (accel/tcg/cputlb.c): a guest store onto a page that
+       holds translated blocks drops the blocks its bytes overlap. `host` is the
+       store's destination inside the DRAM region; `size` is 1, 2, 4 or 8. */
+    void InvalidateOnRamWrite(uint8_t* host, uint32_t size);
 
     std::optional<uint8_t*> PeekGuestVa(uint32_t va) override;
     uint8_t* ResolveGuestVaToHost(uint32_t va) override;
@@ -223,7 +237,7 @@ public:
     static void __fastcall DsrlvHelper(uint32_t rd, uint32_t rt, uint32_t rs, MipsJit* jit);
     static void __fastcall DsravHelper(uint32_t rd, uint32_t rt, uint32_t rs, MipsJit* jit);
 
-    MipsMmu*     Mmu()        { return &mmu_; }
+    MipsMmu*     Mmu()        { return mmu_; }
     MipsDecoder* Decoder()    { return &decoder_; }
     PeripheralDispatcher* Peripheral() { return peripheral_; }
     MipsProcessorConfig*  CpuConfig()  { return cpu_config_; }
@@ -252,15 +266,23 @@ public:
 private:
     JitCodeArena    arena_;
     IsaBlockSpace   blocks_;          /* single ISA - no ARM/Thumb split */
+
+    /* DRAM region identity for the SMC block index: a block's / a store's
+       offset from `dram_host_base_` is QEMU's ram_addr. */
+    uint8_t* dram_host_base_ = nullptr;
+    uint32_t dram_size_      = 0;
+
     MipsBlockContext block_ctx_{};
     MipsCpuState    cpu_state_{};
-    MipsMmu         mmu_;
     MipsDecoder     decoder_;
 
+    MipsMmu*              mmu_         = nullptr;
     EmulatedMemory*       memory_      = nullptr;
     PeripheralDispatcher* peripheral_  = nullptr;
     MipsProcessorConfig*  cpu_config_  = nullptr;
     MipsCp0Emitter*       cp0_emitter_ = nullptr;
+    MipsExceptionModel*   exception_   = nullptr;
+    uint32_t              device_ip_mask_ = 0;
 
     void*       idle_event_ = nullptr;
     std::mutex  interrupt_lock_;
@@ -318,10 +340,6 @@ private:
        SEH-unwind. */
     void RaiseOverflowException();
 
-    /* Drop the VA jump cache on an address-space switch (QEMU tlb_flush ->
-       tcg_flush_jmp_cache); the per-ASID block indices persist. */
-    void ContextSwitchFlush();
-
     /* Reset delivery (top of Run when reset_pending): run the reset-line
        listeners + armed cold-boot RAM wipe/replay, then re-establish the
        cold-power-on CPU state and re-enter at the kernel entry VA. */
@@ -329,6 +347,7 @@ private:
 
     void* JitCompile(uint32_t guest_pc);
     void  JitDecode(uint32_t guest_pc);
+    uint32_t BlockIndexKey(uint32_t phys_start);
 
     /* Decode -> emit dispatch: implemented opcode -> its place fn, else the
        loud-fatal stub. Pure (no instance state) -> static. */

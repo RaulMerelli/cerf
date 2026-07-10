@@ -33,8 +33,6 @@ public:
         return bd && bd->GetBoard() == Board::NecMobilePro700;
     }
 
-    uint32_t InitStackTopPa() const override { return kDramPaBase + kDramSize; }
-
     uint32_t VaToPa(uint32_t va) const override {
         if (va >= kKseg0Base && va < kKseg2Base) {
             return va & kUnmaskKseg;

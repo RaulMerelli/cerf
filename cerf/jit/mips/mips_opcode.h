@@ -132,6 +132,7 @@ namespace MipsCop0Funct {     /* funct, bits 5..0 (COP0 CO operations) */
     constexpr uint32_t kTLBWI = 0x02;
     constexpr uint32_t kTLBWR = 0x06;
     constexpr uint32_t kTLBP  = 0x08;
+    constexpr uint32_t kRFE   = 0x10;  /* qemu target/mips translate.c OPC_RFE */
     constexpr uint32_t kERET  = 0x18;
     constexpr uint32_t kDERET = 0x1F;
     constexpr uint32_t kWAIT  = 0x20;

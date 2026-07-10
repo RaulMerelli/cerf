@@ -4,7 +4,7 @@
 
 namespace {
 
-bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
+bool RecognizedSpecial(uint32_t funct, bool has_mips4, bool has_64bit) {
     switch (funct) {
         case MipsSpecial::kSLL:  case MipsSpecial::kSRL:  case MipsSpecial::kSRA:
         case MipsSpecial::kSLLV: case MipsSpecial::kSRLV: case MipsSpecial::kSRAV:
@@ -19,6 +19,7 @@ bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
         case MipsSpecial::kAND:  case MipsSpecial::kOR:
         case MipsSpecial::kXOR:  case MipsSpecial::kNOR:
         case MipsSpecial::kSLT:  case MipsSpecial::kSLTU:
+            return true;
         case MipsSpecial::kDADD:
         case MipsSpecial::kDADDU:
         case MipsSpecial::kDSUB:
@@ -36,7 +37,7 @@ bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
         case MipsSpecial::kDSLL32:
         case MipsSpecial::kDSRL32:
         case MipsSpecial::kDSRA32:
-            return true;
+            return has_64bit;
         case MipsSpecial::kMOVZ:
         case MipsSpecial::kMOVN:
             return has_mips4;   /* MIPS IV conditional moves; absent on VR4102 (MIPS III) */
@@ -45,18 +46,24 @@ bool RecognizedSpecial(uint32_t funct, bool has_mips4) {
     }
 }
 
-bool RecognizedCop0(const MipsDecodedInsn* d, bool has_vr41xx_power_modes) {
-    if (d->rs == MipsCop0Rs::kMFC0  || d->rs == MipsCop0Rs::kMTC0 ||
-        d->rs == MipsCop0Rs::kDMFC0 || d->rs == MipsCop0Rs::kDMTC0) {
+bool RecognizedCop0(const MipsDecodedInsn* d, bool has_vr41xx_power_modes,
+                    bool has_64bit, bool has_eret, bool has_rfe) {
+    if (d->rs == MipsCop0Rs::kMFC0 || d->rs == MipsCop0Rs::kMTC0) {
         return true;
+    }
+    if (d->rs == MipsCop0Rs::kDMFC0 || d->rs == MipsCop0Rs::kDMTC0) {
+        return has_64bit;
     }
     if (d->rs >= MipsCop0Rs::kCO) {     /* CO bit set: dispatch on funct */
         switch (d->funct) {
             case MipsCop0Funct::kTLBR:  case MipsCop0Funct::kTLBWI:
             case MipsCop0Funct::kTLBWR: case MipsCop0Funct::kTLBP:
-            case MipsCop0Funct::kERET:  case MipsCop0Funct::kDERET:
-            case MipsCop0Funct::kWAIT:
+            case MipsCop0Funct::kDERET:
                 return true;
+            case MipsCop0Funct::kRFE:
+                return has_rfe;
+            case MipsCop0Funct::kERET:  case MipsCop0Funct::kWAIT:
+                return has_eret;
             case MipsCop0Funct::kSTANDBY: case MipsCop0Funct::kSUSPEND:
             case MipsCop0Funct::kHIBERNATE:
                 return has_vr41xx_power_modes;
@@ -92,7 +99,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
             if (d->funct == MipsSpecial::kJR || d->funct == MipsSpecial::kJALR) {
                 d->is_branch = 1;
             }
-            return RecognizedSpecial(d->funct, has_mips4_);
+            return RecognizedSpecial(d->funct, has_mips4_, has_64bit_);
 
         case MipsOp::kREGIMM:
             switch (d->rt) {
@@ -110,11 +117,11 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
 
         case MipsOp::kCOP0:
             if (d->rs >= MipsCop0Rs::kCO &&
-                (d->funct == MipsCop0Funct::kERET ||
+                ((d->funct == MipsCop0Funct::kERET && has_eret_) ||
                  (d->funct == MipsCop0Funct::kHIBERNATE && has_vr41xx_power_modes_))) {
                 d->ends_block = 1;   /* neither has a delay slot */
             }
-            return RecognizedCop0(d, has_vr41xx_power_modes_);
+            return RecognizedCop0(d, has_vr41xx_power_modes_, has_64bit_, has_eret_, has_rfe_);
 
         /* Branches with a delay slot. */
         case MipsOp::kBEQ:  case MipsOp::kBNE:
@@ -139,18 +146,22 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
 
         /* I-type ALU + load/store + cache hint. */
         case MipsOp::kADDI:  case MipsOp::kADDIU:
-        case MipsOp::kDADDI: case MipsOp::kDADDIU:
         case MipsOp::kSLTI:  case MipsOp::kSLTIU:
         case MipsOp::kANDI:  case MipsOp::kORI:
         case MipsOp::kXORI:  case MipsOp::kLUI:
         case MipsOp::kLB:    case MipsOp::kLH:    case MipsOp::kLWL:
         case MipsOp::kLW:    case MipsOp::kLBU:   case MipsOp::kLHU:
-        case MipsOp::kLWR:   case MipsOp::kLWU:   case MipsOp::kSB:    case MipsOp::kSH:
+        case MipsOp::kLWR:   case MipsOp::kSB:    case MipsOp::kSH:
         case MipsOp::kSWL:   case MipsOp::kSW:    case MipsOp::kSWR:
-        case MipsOp::kSDL:   case MipsOp::kSDR:   case MipsOp::kLDL:   case MipsOp::kLDR:
-        case MipsOp::kLD:    case MipsOp::kSD:
         case MipsOp::kCACHE:
             return true;
+
+        /* Doubleword loads/stores and 64-bit immediate ALU: MIPS III and up. */
+        case MipsOp::kDADDI: case MipsOp::kDADDIU:
+        case MipsOp::kLWU:
+        case MipsOp::kSDL:   case MipsOp::kSDR:   case MipsOp::kLDL:   case MipsOp::kLDR:
+        case MipsOp::kLD:    case MipsOp::kSD:
+            return has_64bit_;
         case MipsOp::kPREF:
             return has_mips4_;   /* PREF is MIPS IV; CACHE is MIPS III */
 

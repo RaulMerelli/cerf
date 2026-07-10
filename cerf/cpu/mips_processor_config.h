@@ -8,6 +8,7 @@
 /* MIPS ISA level a SoC's core implements (Linux arch/mips cpu.h MIPS_CPU_ISA_*).
    One value today (VR5500 = MIPS IV); concretes select theirs as more land. */
 enum class MipsIsaLevel : uint32_t {
+    kMips1,
     kMips3,   /* MIPS_CPU_ISA_III */
     kMips4,   /* MIPS_CPU_ISA_IV */
 };
@@ -38,6 +39,9 @@ public:
 
     /* ISA level the decoder must implement for this SoC (asserted at reset). */
     virtual MipsIsaLevel IsaLevel() const = 0;
+
+    /* Cause.IP bits the SoC's interrupt controller drives. */
+    virtual uint32_t DeviceIpMask() const = 0;
 
     /* Silicon capability flags - the cpuinfo_mips option set (Linux arch/mips
        cpu.h MIPS_CPU_*), MIPS mirror of ArmProcessorConfig's HasX(). */

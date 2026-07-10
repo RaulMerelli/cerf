@@ -11,6 +11,7 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../cpu/mips_processor_config.h"
 #include "mips_cp0_emitter.h"
+#include "mips_exception_model.h"
 #include "../../boards/page_table_builder.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -55,38 +56,47 @@ void MipsJit::OnReady() {
 
     arena_.Initialize();
 
-    /* Size the per-physical-page block index over the board's DRAM extent. */
     const auto dram = emu_.Get<PageTableBuilder>().CachedDramRegions();
-    uint32_t pg_base = 0, pg_count = 0;
-    if (!dram.empty()) {
-        pg_base  = dram.front().pa_base >> 12;
-        pg_count = dram.front().size   >> 12;
+    if (dram.size() != 1u) {
+        LOG(Caution, "MipsJit: board declares %zu cached-DRAM regions; the SMC "
+                "block index covers exactly one\n", dram.size());
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    blocks_.Initialize(pg_base, pg_count);
-    mmu_.Bind(&blocks_);
+    dram_size_      = dram.front().size;
+    dram_host_base_ = memory_->TryTranslate(dram.front().pa_base);
+    if (!dram_host_base_ || (dram_size_ & 0xFFFu) != 0u) {
+        LOG(Caution, "MipsJit: DRAM pa=0x%08X size=0x%X is not a page-multiple "
+                "backed region\n", dram.front().pa_base, dram_size_);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    blocks_.Initialize(0, dram_size_ >> 12);
+    mmu_ = &emu_.Get<MipsMmu>();
+    mmu_->Bind(&blocks_);
 
     /* Per-SoC CPU silicon facts come from MipsProcessorConfig, not the engine -
        the MIPS analog of seeding ArmProcessorConfig MIDR / HasX(). */
     auto& cpu_cfg = emu_.Get<MipsProcessorConfig>();
     cpu_config_           = &cpu_cfg;
     cp0_emitter_          = &emu_.Get<MipsCp0Emitter>();
+    exception_            = &emu_.Get<MipsExceptionModel>();
     cpu_state_.cp0_prid   = cpu_cfg.Prid();
     cpu_state_.nb_tlb     = cpu_cfg.TlbSize();
     cpu_state_.tlb_in_use = cpu_state_.nb_tlb;
     cpu_state_.min_page_shift = cpu_cfg.MinPageShift();
     cpu_state_.phys_addr_mask = cpu_cfg.PhysAddrMask();
+    device_ip_mask_           = cpu_cfg.DeviceIpMask();
 
-    if (cpu_cfg.IsaLevel() != MipsIsaLevel::kMips3 &&
-        cpu_cfg.IsaLevel() != MipsIsaLevel::kMips4) {
-        LOG(Caution, "MipsJit: unsupported ISA level %u (engine implements MIPS III/IV)\n",
-            static_cast<uint32_t>(cpu_cfg.IsaLevel()));
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
     /* MIPS IV integer ops (MOVZ/MOVN/PREF) are present only on a kMips4 core; the
        decoder gates them on this flag and raises Reserved for them otherwise. */
+    const bool has_64bit = cpu_cfg.IsaLevel() != MipsIsaLevel::kMips1;
+    const bool has_eret  = cpu_cfg.IsaLevel() != MipsIsaLevel::kMips1;
+
+    /* The MIPS I exception return, complementary to has_eret above. */
+    const bool has_rfe   = cpu_cfg.IsaLevel() == MipsIsaLevel::kMips1;
     decoder_.Configure(cpu_cfg.HasFpu(), cpu_cfg.HasLlsc(),
                        cpu_cfg.IsaLevel() == MipsIsaLevel::kMips4,
-                       cpu_cfg.HasVr41xxPowerModes());
+                       cpu_cfg.HasVr41xxPowerModes(),
+                       has_64bit, has_eret, has_rfe);
 
     idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!idle_event_) {
@@ -103,9 +113,9 @@ void MipsJit::OnReady() {
        kuseg VA and TLB-miss. */
     cpu_state_.pc = emu_.Get<RomParserService>().EntryVa();
 
-    LOG(Jit, "MipsJit::OnReady: bringup done; entry VA=0x%08X dram_pa_base=0x%08X "
-             "pg_count=%u\n",
-        cpu_state_.pc, pg_base << 12, pg_count);
+    LOG(Jit, "MipsJit::OnReady: bringup done; entry VA=0x%08X dram host=%p "
+             "size=0x%X (%u SMC-indexed pages)\n",
+        cpu_state_.pc, dram_host_base_, dram_size_, dram_size_ >> 12);
 }
 
 void* MipsJit::JitCompile(uint32_t guest_pc) {
@@ -119,7 +129,7 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
 
     uint32_t pa0 = 0;
     const MipsTlbResult fr =
-        mmu_.Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa0);
+        mmu_->Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa0);
     if (fr != MipsTlbResult::kMatch) {
         /* Instruction-fetch TLB miss/invalid: deliver TLBL so the guest's refill
            handler maps the page, then bail - Run re-dispatches at the vector. */
@@ -137,7 +147,7 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
     /* Global (kseg / G=1) blocks live in the shared `global` index; per-process
        (G=0) blocks in per_asid[ASID]. */
     const uint8_t asid = static_cast<uint8_t>(cpu_state_.cp0_entryhi & 0xFFu);
-    const bool outer_global = mmu_.ExecPageGlobal(&cpu_state_, guest_pc);
+    const bool outer_global = mmu_->ExecPageGlobal(&cpu_state_, guest_pc);
     JitBlockIndex& idx = outer_global ? blocks_.global : blocks_.per_asid[asid];
 
     JitBlock* ex = blocks_.per_asid[asid].FindExact(guest_pc);
@@ -178,7 +188,7 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
     nb.phys_start   = phys_start;
     nb.native_start = code;
     JitBlock* stored = idx.PlaceOuterAt(slab, nb);
-    blocks_.IndexInsert(stored, &idx);
+    blocks_.IndexInsert(stored, &idx, BlockIndexKey(phys_start));
     if (!outer_global) blocks_.MarkPopulated(asid);
 
     const size_t code_size = JitGenerateCode(code, 1);
@@ -201,7 +211,7 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
         MipsDecodedInsn& insn = block_ctx_.insns[i];
 
         uint32_t pa = 0;
-        if (mmu_.Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa) !=
+        if (mmu_->Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa) !=
             MipsTlbResult::kMatch) {
             break;  /* TLB/address fault */
         }
@@ -277,12 +287,11 @@ void MipsJit::Run() {
     /* branch_state==kNone gate: never take an interrupt between a branch and its
        not-yet-run delay slot, or the delay slot is skipped on ERET resume. */
     TimerPoll();
-    /* Fold the INTC-driven device IRQ level (IP5:2) into cp0_cause on this thread
+    /* Fold the INTC-driven device IRQ level into cp0_cause on this thread
        (cp0_cause is JIT-owned; only external_ip_ crosses threads). */
-    constexpr uint32_t kDeviceIpMask = 0x00003C00u;   /* Cause.IP2..IP5 (bits 10..13) */
     cpu_state_.cp0_cause =
-        (cpu_state_.cp0_cause & ~kDeviceIpMask) |
-        (external_ip_.load(std::memory_order_acquire) & kDeviceIpMask);
+        (cpu_state_.cp0_cause & ~device_ip_mask_) |
+        (external_ip_.load(std::memory_order_acquire) & device_ip_mask_);
     if (cpu_state_.branch_state == MipsBranch::kNone && InterruptReady()) {
         DeliverInterrupt();
     }
@@ -320,7 +329,7 @@ void __cdecl MipsJit::TraceDispatchPcHelper(MipsJit* jit, uint32_t pc) {
 
 std::optional<uint8_t*> MipsJit::PeekGuestVa(uint32_t va) {
     uint32_t pa = 0;
-    if (mmu_.Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
+    if (mmu_->Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
         MipsTlbResult::kMatch) {
         return std::nullopt;
     }
@@ -331,7 +340,7 @@ std::optional<uint8_t*> MipsJit::PeekGuestVa(uint32_t va) {
 
 uint8_t* MipsJit::ResolveGuestVaToHost(uint32_t va) {
     uint32_t pa = 0;
-    if (mmu_.Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
+    if (mmu_->Translate(&cpu_state_, va, MipsAccess::kRead, &pa) !=
         MipsTlbResult::kMatch) {
         return nullptr;
     }
@@ -339,24 +348,51 @@ uint8_t* MipsJit::ResolveGuestVaToHost(uint32_t va) {
     return w ? w : memory_->TryTranslate(pa);
 }
 
+uint32_t MipsJit::BlockIndexKey(uint32_t phys_start) {
+    uint8_t* host = memory_->TryTranslateWrite(phys_start);
+    if (!host) return kBlockUnindexed;
+
+    const size_t off = static_cast<size_t>(host - dram_host_base_);
+    if (off >= dram_size_) {
+        LOG(Caution, "MipsJit::BlockIndexKey: block at pa=0x%08X pc=0x%08X is in a "
+                "writable region outside the SMC block index; a store into it "
+                "would not invalidate the block\n", phys_start, cpu_state_.pc);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    return static_cast<uint32_t>(off);
+}
+
+void MipsJit::InvalidateOnRamWrite(uint8_t* host, uint32_t size) {
+    const size_t off = static_cast<size_t>(host - dram_host_base_);
+    if (off >= dram_size_) {
+        LOG(Caution, "MipsJit::InvalidateOnRamWrite: store of %u byte(s) at host %p "
+                "pc=0x%08X lands in a writable region outside the SMC block index; "
+                "self-modifying code there is unmodeled\n", size, host, cpu_state_.pc);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    const uint32_t lo = static_cast<uint32_t>(off);
+    if (!blocks_.PageHasBlocks(lo)) return;
+    blocks_.RemoveRange(lo, lo + size - 1u);
+}
+
 void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {
-    jit->mmu_.WriteIndexed(&jit->cpu_state_);
+    jit->mmu_->WriteIndexed(&jit->cpu_state_);
 }
 
 void __fastcall MipsJit::TlbwrHelper(MipsJit* jit) {
-    jit->mmu_.WriteRandom(&jit->cpu_state_);
+    jit->mmu_->WriteRandom(&jit->cpu_state_);
 }
 
 void __fastcall MipsJit::TlbpHelper(MipsJit* jit) {
-    jit->mmu_.Probe(&jit->cpu_state_);
+    jit->mmu_->Probe(&jit->cpu_state_);
 }
 
 void __fastcall MipsJit::TlbrHelper(MipsJit* jit) {
-    jit->mmu_.Read(&jit->cpu_state_);
+    jit->mmu_->Read(&jit->cpu_state_);
 }
 
 uint32_t __fastcall MipsJit::Mfc0RandomHelper(MipsJit* jit) {
-    return jit->mmu_.RandomIndex(&jit->cpu_state_);
+    return jit->mmu_->RandomIndex(&jit->cpu_state_);
 }
 
 int __fastcall MipsJit::ResolveBranchHelper(uint32_t fallthrough, MipsJit* jit) {

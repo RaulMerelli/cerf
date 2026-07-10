@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/log.h"
 #include "../core/service.h"
 
 #include <windows.h>
@@ -24,6 +25,8 @@ struct BackedRegion {
     uint32_t pa_base;
     uint32_t size;
     DWORD    page_protect;
+
+    uint32_t decode_span = 0;
 };
 
 class PageTableBuilder : public Service {
@@ -32,7 +35,11 @@ public:
 
     /* SP (PA) the kernel inherits from the bootloader. The kernel
        sets up its own per-mode stacks shortly after taking control. */
-    virtual uint32_t InitStackTopPa() const = 0;
+    virtual uint32_t InitStackTopPa() const {
+        LOG(Caution, "PageTableBuilder::InitStackTopPa: this board declares no "
+                "bootloader-handoff SP\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
 
     /* VA→PA in the SoC's full BSP OAT view (every band - DRAM and
        peripheral). Halts on a VA outside every band. */

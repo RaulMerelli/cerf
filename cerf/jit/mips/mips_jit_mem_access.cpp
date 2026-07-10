@@ -42,11 +42,12 @@ void __fastcall MipsJit::StoreWordHelper(uint32_t va, uint32_t value, MipsJit* j
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
+        jit->InvalidateOnRamWrite(host, 4u);
         std::memcpy(host, &value, sizeof(value));
         return;
     }
@@ -59,11 +60,12 @@ void __fastcall MipsJit::StoreHalfHelper(uint32_t va, uint32_t value, MipsJit* j
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
+        jit->InvalidateOnRamWrite(host, 2u);
         const uint16_t h = static_cast<uint16_t>(value);
         std::memcpy(host, &h, sizeof(h));
         return;
@@ -81,7 +83,7 @@ uint32_t __fastcall MipsJit::LoadWordHelper(uint32_t va, MipsJit* jit) {
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
@@ -96,7 +98,7 @@ uint32_t __fastcall MipsJit::LoadWordHelper(uint32_t va, MipsJit* jit) {
 uint32_t __fastcall MipsJit::LoadByteHelper(uint32_t va, MipsJit* jit) {
     uint32_t pa = 0;                      /* a byte EA is always aligned */
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
@@ -112,7 +114,7 @@ uint32_t __fastcall MipsJit::LoadHalfHelper(uint32_t va, MipsJit* jit) {
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
@@ -130,7 +132,7 @@ uint64_t __fastcall MipsJit::LoadDwordHelper(uint32_t va, MipsJit* jit) {
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kRead, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kRead, r);  /* TLBL; SEH unwind */
     }
@@ -151,7 +153,7 @@ void MipsJit::StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
                             const char* who) {
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
@@ -160,6 +162,7 @@ void MipsJit::StoreByteXlate(MipsJit* jit, uint32_t va, uint8_t value,
         jit->MmioWrite(va, pa, value, 1, who);
         return;
     }
+    jit->InvalidateOnRamWrite(host, 1u);
     *host = value;
 }
 
@@ -274,11 +277,12 @@ void __fastcall MipsJit::StoreDwordHelper(uint32_t va, uint32_t rt, MipsJit* jit
     }
     uint32_t pa = 0;
     const MipsTlbResult r =
-        jit->mmu_.Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
+        jit->mmu_->Translate(&jit->cpu_state_, va, MipsAccess::kWrite, &pa);
     if (r != MipsTlbResult::kMatch) {
         jit->RaiseTlbException(va, MipsAccess::kWrite, r);  /* TLBS/Mod; SEH unwind */
     }
     if (uint8_t* host = jit->memory_->TryTranslateWrite(pa)) {
+        jit->InvalidateOnRamWrite(host, 8u);
         std::memcpy(host, &jit->cpu_state_.gpr[rt], sizeof(uint64_t));
         return;
     }

@@ -10,6 +10,8 @@
    block index itself is phys-keyed. Flushed on context switch / SMC / full
    flush so a stale VA→native mapping never survives an address-space change. */
 constexpr uint32_t kJumpCacheSize = 4096;   /* power of two */
+
+constexpr uint32_t kBlockUnindexed = 0xFFFFFFFFu;
 struct JumpCacheEntry {
     uint32_t folded_va;
     void*    native;
@@ -25,8 +27,7 @@ struct IsaBlockSpace {
     JumpCacheEntry jump_cache[kJumpCacheSize];
 
     /* Per-physical-page intrusive list of outer blocks (QEMU
-       PageDesc.first_tb), sized over the DRAM page extent. SMC RemoveRange
-       walks one page's list instead of scanning the whole VA-ordered tree. */
+       PageDesc.first_tb), sized over the DRAM page extent. */
     std::vector<JitBlock*> page_heads;
     uint32_t               page_base  = 0;   /* first DRAM page number */
     uint32_t               page_count = 0;
@@ -92,12 +93,12 @@ struct IsaBlockSpace {
         }
     }
 
-    /* Link an outer block into its physical page's list (DRAM-resident only;
-       flash/ROM code is never SMC-dirtied so needs no entry). */
-    void IndexInsert(JitBlock* outer, JitBlockIndex* owner) {
-        outer->owner     = owner;
-        outer->page_next = nullptr;
-        const uint32_t pg = outer->phys_start >> 12;
+    /* QEMU tb_page_add. */
+    void IndexInsert(JitBlock* outer, JitBlockIndex* owner, uint32_t index_start) {
+        outer->owner       = owner;
+        outer->page_next   = nullptr;
+        outer->index_start = index_start;
+        const uint32_t pg = index_start >> 12;
         if (pg >= page_base && pg < page_base + page_count) {
             JitBlock*& head = page_heads[pg - page_base];
             outer->page_next = head;
@@ -105,8 +106,17 @@ struct IsaBlockSpace {
         }
     }
 
+    /* QEMU's !cpu_physical_memory_get_dirty_flag(DIRTY_MEMORY_CODE): the CODE bit
+       is cleared exactly while a page's first_tb list is non-empty (tb_page_add /
+       tb_invalidate_phys_page_range__locked), so the list itself is the predicate. */
+    bool PageHasBlocks(uint32_t index_addr) const {
+        const uint32_t pg = index_addr >> 12;
+        if (pg < page_base || pg >= page_base + page_count) return false;
+        return page_heads[pg - page_base] != nullptr;
+    }
+
     void UnlinkPage(JitBlock* outer) {
-        const uint32_t pg = outer->phys_start >> 12;
+        const uint32_t pg = outer->index_start >> 12;
         if (pg < page_base || pg >= page_base + page_count) return;
         JitBlock** pp = &page_heads[pg - page_base];
         while (*pp) {
@@ -114,22 +124,24 @@ struct IsaBlockSpace {
             pp = &(*pp)->page_next;
         }
     }
-    /* SMC: remove every block on physical pages [phys_lo, phys_hi] via the
-       page list - RemoveNode RbDeletes each from its owning tree + clears its
-       jump-cache slot. O(blocks-on-page), not a whole-tree scan. */
-    uint32_t RemoveRange(uint32_t phys_lo, uint32_t phys_hi) {
+    /* QEMU tb_invalidate_phys_page_range__locked. */
+    uint32_t RemoveRange(uint32_t lo, uint32_t hi) {
         uint32_t removed = 0;
-        const uint32_t pg_lo = phys_lo >> 12;
-        const uint32_t pg_hi = phys_hi >> 12;
+        const uint32_t pg_lo = lo >> 12;
+        const uint32_t pg_hi = hi >> 12;
         for (uint32_t pg = pg_lo; pg <= pg_hi; ++pg) {
             if (pg < page_base || pg >= page_base + page_count) continue;
-            JitBlock* blk = page_heads[pg - page_base];
-            page_heads[pg - page_base] = nullptr;
-            while (blk) {
-                JitBlock* next = blk->page_next;
-                blk->owner->RemoveNode(blk, &ClearJcSlot, this);
-                ++removed;
-                blk = next;
+            JitBlock** pp = &page_heads[pg - page_base];
+            while (JitBlock* blk = *pp) {
+                const uint32_t blk_lo = blk->index_start;
+                const uint32_t blk_hi = blk_lo + (blk->guest_end - blk->guest_start);
+                if (blk_hi < lo || blk_lo > hi) {
+                    pp = &blk->page_next;
+                } else {
+                    *pp = blk->page_next;
+                    blk->owner->RemoveNode(blk, &ClearJcSlot, this);
+                    ++removed;
+                }
             }
         }
         return removed;

@@ -59,7 +59,7 @@ public:
         }
 
         ce_major_ = DetectCeMajor();
-        layout_ = (ce_major_ <= 2 && ce_minor_ == 0) ? &kE32RomCE20
+        layout_ = (ce_major_ <= 2 && ce_minor_ < 11) ? &kE32RomCE20
                 : (ce_major_ <= 2)                   ? &kE32RomCE211
                 : (ce_major_ <= 4)                   ? &kE32RomCE3
                                                      : &kE32RomCE5plus;

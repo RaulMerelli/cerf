@@ -22,4 +22,5 @@ public:
        registers survive a hibernate. */
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
+    virtual void PostRestore() {}
 };

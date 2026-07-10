@@ -28,6 +28,7 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
 private:
     void RouteCodecCommand(uint32_t cmd);

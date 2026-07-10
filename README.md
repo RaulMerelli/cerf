@@ -123,6 +123,22 @@ Download WIP build (6.1) from artifacts [![build](https://github.com/gweslab/cer
       <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/speaker.png" width="16" height="16" title="Sound" alt="Sound"/></td>
     </tr>
     <tr>
+      <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>Philips PR31700</b><br/><sub>MIPS I</sub></td>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Philips Nino 300</b> <code>philips_nino_300</code><br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Palm-size PC" alt="Palm-size PC"/> Palm-size PC
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/ga.png" width="16" height="16" title="Guest Additions" alt="Guest Additions"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
+    </tr>
+    <tr>
+      <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>Philips PR31500</b><br/><sub>MIPS I</sub></td>
+      <td>
+        <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Philips Velo 1</b> <code>philips_velo_1</code><br/>
+        <img src="launcher/assets/icons/os_old_ce.png" width="16" height="16" title="Windows CE 1.0" alt="Windows CE 1.0"/> Windows CE 1.0
+      </td>
+      <td><img src="launcher/assets/icons/display.png" width="16" height="16" title="Display" alt="Display"/> <img src="launcher/assets/icons/stylus.png" width="16" height="16" title="Touch" alt="Touch"/> <img src="launcher/assets/icons/keyboard.png" width="16" height="16" title="Keyboard" alt="Keyboard"/> <img src="launcher/assets/icons/battery.png" width="16" height="16" title="Battery" alt="Battery"/></td>
+    </tr>
+    <tr>
       <td rowspan="2" align="center"><img src="launcher/assets/icons/badge_arm.png" align="middle" title="ARM" alt="ARM"/><br/><b>Samsung S3C2410</b><br/><sub>ARM920T</sub></td>
       <td>
         <img src="launcher/assets/icons/pda.png" width="16" height="16" title="PDA" alt="PDA"/> <b>Siemens P177</b> <code>siemens_p177</code><br/>
@@ -259,7 +275,8 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
           <td>TBA</td>
           <td>
             <ul>
-              <li>(planned) Nino 300 support</li>
+              <li>Nino 300 support (Palm-size PC)</li>
+              <li>Philips Velo 1 support (Windows CE 1.0)</li>
               <li>...more updates pending</li>
             </ul>
           </td>

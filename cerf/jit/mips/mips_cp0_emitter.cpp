@@ -26,6 +26,23 @@ void __fastcall Dmtc0Width64Fatal(uint32_t rd) {
 
 }  // namespace
 
+int32_t MipsCp0Emitter::RegOffset(uint32_t rd) const { return Cp0RegOffset(rd); }
+
+bool MipsCp0Emitter::RegWritable(uint32_t rd) const { return Cp0RegWritable(rd); }
+
+void* MipsCp0Emitter::Mtc0Helper(uint32_t rd) const {
+    if (rd == MipsCp0::kCount) {
+        return reinterpret_cast<void*>(&MipsJit::Mtc0CountHelper);
+    }
+    if (rd == MipsCp0::kCompare) {
+        return reinterpret_cast<void*>(&MipsJit::Mtc0CompareHelper);
+    }
+    if (rd == MipsCp0::kEntryHi) {
+        return reinterpret_cast<void*>(&MipsJit::Mtc0EntryHiHelper);
+    }
+    return nullptr;
+}
+
 uint8_t* MipsCp0Emitter::EmitMfc0(uint8_t* cursor, MipsDecodedInsn* d,
                                   MipsBlockContext* ctx) {
     return EmitFromCop0(cursor, d, ctx);
@@ -54,7 +71,7 @@ uint8_t* MipsCp0Emitter::EmitFromCop0(uint8_t* cursor, MipsDecodedInsn* d,
     if ((d->raw & 0x7u) != 0u) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
-    const int32_t off = Cp0RegOffset(d->rd);
+    const int32_t off = RegOffset(d->rd);
     if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
@@ -83,14 +100,14 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
     if ((d->raw & 0x7u) != 0u) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
-    const int32_t off = Cp0RegOffset(d->rd);
+    const int32_t off = RegOffset(d->rd);
     if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     /* MTC0 to a read-only register is ignored on R4000-class silicon (VR4102 UM
        5.5.2 Random, 6.3.2 BadVAddr, 5.5.5 PRId read-only; QEMU gen_mtc0 marks
        REG01__RANDOM / REG08__BADVADDR / REG15__PRID ignored). start() writes Random. */
-    if (!Cp0RegWritable(d->rd)) {
+    if (!RegWritable(d->rd)) {
         return cursor;
     }
     /* DMTC0 moves 64 bits; gpr[rt] must be sext32(low) or it carries genuine
@@ -105,15 +122,11 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
         EmitCall(cursor, reinterpret_cast<void*>(&Dmtc0Width64Fatal));
         FixupLabel(ok, cursor);
     }
-    if (d->rd == MipsCp0::kCount || d->rd == MipsCp0::kCompare ||
-        d->rd == MipsCp0::kEntryHi) {
-        auto helper = d->rd == MipsCp0::kCount   ? &MipsJit::Mtc0CountHelper
-                    : d->rd == MipsCp0::kCompare ? &MipsJit::Mtc0CompareHelper
-                    :                              &MipsJit::Mtc0EntryHiHelper;
+    if (void* helper = Mtc0Helper(d->rd)) {
         EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));
         EmitMovRegImm32(cursor, kEdx,
                         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-        EmitCall(cursor, reinterpret_cast<void*>(helper));
+        EmitCall(cursor, helper);
         return cursor;
     }
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rt));

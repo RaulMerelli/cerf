@@ -23,6 +23,9 @@ public:
     uint32_t     PhysAddrMask() const override { return 0xFFFFFFFFu; }  /* no low-space mirror */
     MipsIsaLevel IsaLevel() const override { return MipsIsaLevel::kMips4; }
 
+    /* The VRC5477 companion drives four interrupt outputs onto Cause IP2..IP5. */
+    uint32_t     DeviceIpMask() const override { return 0x00003C00u; }
+
     bool HasFpu()     const override { return true;  }   /* MIPS_CPU_FPU */
     bool HasCounter() const override { return true;  }   /* MIPS_CPU_COUNTER */
     bool HasWatch()   const override { return true;  }   /* MIPS_CPU_WATCH */

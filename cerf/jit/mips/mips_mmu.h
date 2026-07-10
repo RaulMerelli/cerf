@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "../../core/service.h"
 #include "mips_cpu_state.h"
 
 struct IsaBlockSpace;
@@ -33,12 +34,10 @@ enum class MipsTlbResult {
 
 enum class MipsAccess { kFetch, kRead, kWrite };
 
-/* R4000 software TLB + CP0 tlbwi/tlbwr/tlbp/tlbr, modelled on QEMU target/mips
-   tlb_helper.c (r4k_*). VR5500 omits MMID/XI/RI/EHINV. The JIT block cache is
-   CERF's host-softmmu-TLB analog: QEMU tlb_flush_page/tlb_flush map to
-   IsaBlockSpace::JumpCacheClearPage/JumpCacheFlush. */
-class MipsMmu {
+class MipsMmu : public Service {
 public:
+    using Service::Service;
+
     /* The JIT block cache MipsMmu invalidates as QEMU's tlb_flush_page would;
        bound in MipsJit::OnReady. */
     void Bind(IsaBlockSpace* blocks) { blocks_ = blocks; }
@@ -46,28 +45,48 @@ public:
     /* Translate a guest VA. kseg0/kseg1 resolve directly; kuseg/kseg2 walk the
        software TLB (ASID from CP0_EntryHi). On kMatch, *pa holds the physical
        address; otherwise the caller raises the indicated CP0 exception. */
-    MipsTlbResult Translate(MipsCpuState* st, uint32_t va, MipsAccess acc, uint32_t* pa);
+    MipsTlbResult Translate(MipsCpuState* st, uint32_t va, MipsAccess acc,
+                            uint32_t* pa) {
+        if (injection_band_size_ != 0u &&
+            va - injection_band_va_ < injection_band_size_) {
+            *pa = injection_band_pa_ + (va - injection_band_va_);
+            return MipsTlbResult::kMatch;
+        }
+        if (va < MipsSeg::kKusegEnd) {
+            return MapAddress(st, va, acc, pa);         /* kuseg */
+        }
+        if (va < MipsSeg::kKseg1Base) {                 /* kseg0: unmapped cached */
+            *pa = va & MipsSeg::kUnmappedMask;
+            return MipsTlbResult::kMatch;
+        }
+        if (va < MipsSeg::kKseg2Base) {                 /* kseg1: unmapped uncached */
+            *pa = va & MipsSeg::kUnmappedMask;
+            return MipsTlbResult::kMatch;
+        }
+        return MapAddress(st, va, acc, pa);             /* kseg2/kseg3 */
+    }
 
     /* True iff va's page is global (kseg0/kseg1, or a TLB entry with G=1). The
        JIT routes a global page's block to the shared `global` index, else to
        per_asid[EntryHi.ASID]. */
-    bool ExecPageGlobal(MipsCpuState* st, uint32_t va);
+    bool ExecPageGlobal(MipsCpuState* st, uint32_t va) {
+        if (va >= MipsSeg::kKusegEnd && va < MipsSeg::kKseg2Base) {
+            return true;
+        }
+        return MappedPageGlobal(st, va);
+    }
 
-    /* CP0 TLB instructions, faithful to QEMU r4k_helper_tlb{wi,wr,p,r}. */
-    void WriteIndexed(MipsCpuState* st);   /* tlbwi */
-    void WriteRandom (MipsCpuState* st);   /* tlbwr */
-    void Probe       (MipsCpuState* st);   /* tlbp  */
-    void Read        (MipsCpuState* st);   /* tlbr  */
+    /* CP0 TLB instructions. */
+    virtual void WriteIndexed(MipsCpuState* st) = 0;   /* tlbwi */
+    virtual void WriteRandom (MipsCpuState* st) = 0;   /* tlbwr */
+    virtual void Probe       (MipsCpuState* st) = 0;   /* tlbp  */
+    virtual void Read        (MipsCpuState* st) = 0;   /* tlbr  */
+
+    virtual uint32_t RandomIndex(MipsCpuState* st) = 0;
 
     /* cpu_mips_tlb_flush: drop the whole jump cache + discard all shadow
        entries (tlb_helper.c:492). Called on a CP0 ASID change. */
     void FlushAll(MipsCpuState* st);
-
-    /* CP0 Random value (QEMU cpu_mips_get_random cp0_helper.c:204): index in
-       [Wired, nb_tlb) for both tlbwr and mfc0 Random. Never below Wired - a
-       software refill uses mfc0 Random as its tlbwi index, so a value < Wired
-       lands a mapping in a wired slot tlbwr can never evict. */
-    uint32_t RandomIndex(MipsCpuState* st);
 
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
         injection_band_va_   = va;
@@ -80,16 +99,22 @@ public:
     void SaveState(StateWriter& w) const;
     void RestoreState(StateReader& r);
 
-private:
-    /* r4k_map_address (tlb_helper.c:393) - the mapped-segment TLB walk over
-       tlb_in_use (live + shadow) entries. */
-    MipsTlbResult MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc, uint32_t* pa);
+protected:
+    /* The mapped-segment TLB walk (QEMU CPUMIPSTLBContext::map_address). */
+    virtual MipsTlbResult MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc,
+                                     uint32_t* pa) = 0;
 
-    void FillTlb     (MipsCpuState* st, uint32_t idx);                /* r4k_fill_tlb */
-    void InvalidateTlb(MipsCpuState* st, uint32_t idx, bool use_extra); /* r4k_invalidate_tlb */
-    void FlushExtra  (MipsCpuState* st, uint32_t first);             /* r4k_mips_tlb_flush_extra */
+    virtual bool MappedPageGlobal(MipsCpuState* st, uint32_t va) = 0;
+
+    /* cpu_mips_get_random (cp0_helper.c:204): an LCG over [first, first+nb),
+       never returning the previous index. Never below `first` - a software
+       refill uses mfc0 Random as its tlbwi index, so a lower value lands a
+       mapping in a reserved slot tlbwr can never evict. */
+    uint32_t NextRandom(uint32_t first, uint32_t nb);
 
     IsaBlockSpace* blocks_ = nullptr;
+
+private:
     uint32_t lcg_seed_        = 1;
     uint32_t prev_random_idx_ = 0;
     uint32_t injection_band_va_   = 0;

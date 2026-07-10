@@ -1,0 +1,137 @@
+#include "../../jit/mips/mips_mmu.h"
+
+#include <cstdint>
+
+#include "../../boards/board_context.h"
+#include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
+#include "../../jit/isa_block_space.h"
+
+/* TX39/H TLB: 32 entries, one 4-KB page each. TMPR3911.pdf Figure 3.3.6 (PDF
+   p.96) and Figures 3.3.8 / 3.3.9 (PDF p.99). */
+namespace {
+
+/* EntryHi: VPN is "Bits 31..12 of virtual address"; PID is a 6-bit field. */
+constexpr uint32_t kVpnMask  = 0xFFFFF000u;
+constexpr uint32_t kPidShift = 6u;
+constexpr uint32_t kPidMask  = 0x3Fu;
+
+/* EntryLo: PFN[31:12] N[11] D[10] V[9] G[8], reserved[7:0]. */
+constexpr uint32_t kPfnMask  = 0xFFFFF000u;
+constexpr uint32_t kEntryLoN = 1u << 11;
+constexpr uint32_t kEntryLoD = 1u << 10;
+constexpr uint32_t kEntryLoV = 1u << 9;
+constexpr uint32_t kEntryLoG = 1u << 8;
+
+/* Index: P[31] "set to 1 when the last TLBProbe instruction was unsuccessful",
+   Index[12:8]. Random holds its index in the same 12:8 field. */
+constexpr uint32_t kIndexProbeFail = 1u << 31;
+constexpr uint32_t kIndexShift     = 8u;
+constexpr uint32_t kIndexMask      = 0x1Fu;
+
+/* "The first eight entries (0 to 7) are the 'safe' entries because a tlbwr
+   instruction can never replace the contents of these entries." */
+constexpr uint32_t kRandomFirst = 8u;
+
+constexpr uint32_t kNoEntry = 0xFFFFFFFFu;
+
+class MipsMmuR3000 : public MipsMmu {
+public:
+    using MipsMmu::MipsMmu;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        if (!bd) return false;
+        const SocFamily soc = bd->GetSoc();
+        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    }
+
+    void WriteIndexed(MipsCpuState* st) override {
+        Replace(st, (st->cp0_index >> kIndexShift) & kIndexMask);
+    }
+
+    void WriteRandom(MipsCpuState* st) override {
+        Replace(st, RandomIndex(st));
+    }
+
+    void Probe(MipsCpuState* st) override {
+        const uint32_t idx = Find(st, st->cp0_entryhi & kVpnMask, Pid(st));
+        if (idx == kNoEntry) {
+            st->cp0_index |= kIndexProbeFail;
+            return;
+        }
+        st->cp0_index = idx << kIndexShift;
+    }
+
+    void Read(MipsCpuState* st) override {
+        const MipsTlbEntry& e = st->tlb[(st->cp0_index >> kIndexShift) & kIndexMask];
+        st->cp0_entryhi  = e.vpn | ((e.asid & kPidMask) << kPidShift);
+        st->cp0_entrylo0 = static_cast<uint32_t>(e.pfn[0]) & kPfnMask;
+        if (e.c0) st->cp0_entrylo0 |= kEntryLoN;
+        if (e.d0) st->cp0_entrylo0 |= kEntryLoD;
+        if (e.v0) st->cp0_entrylo0 |= kEntryLoV;
+        if (e.g)  st->cp0_entrylo0 |= kEntryLoG;
+    }
+
+    /* "constrains the value of this field to the TLB indexes from 31 to 8". */
+    uint32_t RandomIndex(MipsCpuState* st) override {
+        return NextRandom(kRandomFirst, st->nb_tlb - kRandomFirst);
+    }
+
+protected:
+    MipsTlbResult MapAddress(MipsCpuState* st, uint32_t va, MipsAccess acc,
+                             uint32_t* pa) override {
+        const uint32_t idx = Find(st, va & kVpnMask, Pid(st));
+        if (idx == kNoEntry) return MipsTlbResult::kNoMatch;
+
+        const MipsTlbEntry& e = st->tlb[idx];
+        if (!e.v0) return MipsTlbResult::kInvalid;
+        /* "If an entry is accessed for a write operation when the D bit is
+           cleared, the TX39/H causes a TLB Mod trap." */
+        if (acc == MipsAccess::kWrite && !e.d0) return MipsTlbResult::kModified;
+
+        *pa = (static_cast<uint32_t>(e.pfn[0]) | (va & ~kVpnMask)) & st->phys_addr_mask;
+        return MipsTlbResult::kMatch;
+    }
+
+    bool MappedPageGlobal(MipsCpuState* st, uint32_t va) override {
+        const uint32_t idx = Find(st, va & kVpnMask, Pid(st));
+        return idx != kNoEntry && st->tlb[idx].g != 0u;
+    }
+
+private:
+    static uint32_t Pid(const MipsCpuState* st) {
+        return (st->cp0_entryhi >> kPidShift) & kPidMask;
+    }
+
+    /* "the Valid (V) bit ... is not involved in the determination of a matching
+       TLB entry" (TMPR3911.pdf PDF p.97, §3.3.6.9). */
+    static uint32_t Find(const MipsCpuState* st, uint32_t vpn, uint32_t pid) {
+        for (uint32_t i = 0; i < st->nb_tlb; ++i) {
+            const MipsTlbEntry& e = st->tlb[i];
+            if (e.vpn == vpn && (e.g || e.asid == pid)) return i;
+        }
+        return kNoEntry;
+    }
+
+    void Replace(MipsCpuState* st, uint32_t idx) {
+        MipsTlbEntry& e = st->tlb[idx];
+        if (e.v0 && blocks_) blocks_->JumpCacheClearPage(e.vpn);
+        e.vpn       = st->cp0_entryhi & kVpnMask;
+        e.asid      = static_cast<uint16_t>(Pid(st));
+        e.page_mask = 0;
+        e.g  = static_cast<uint8_t>((st->cp0_entrylo0 & kEntryLoG) != 0);
+        e.v0 = static_cast<uint8_t>((st->cp0_entrylo0 & kEntryLoV) != 0);
+        e.d0 = static_cast<uint8_t>((st->cp0_entrylo0 & kEntryLoD) != 0);
+        e.c0 = static_cast<uint8_t>((st->cp0_entrylo0 & kEntryLoN) != 0);
+        e.pfn[0] = st->cp0_entrylo0 & kPfnMask;
+        e.v1 = e.d1 = e.c1 = 0;
+        e.pfn[1] = 0;
+
+        if (blocks_) blocks_->JumpCacheClearPage(e.vpn);
+    }
+};
+
+}  /* namespace */
+
+REGISTER_SERVICE_AS(MipsMmuR3000, MipsMmu);
