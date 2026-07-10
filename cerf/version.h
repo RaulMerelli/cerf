@@ -1,7 +1,7 @@
 #pragma once
 
 #define CERF_VERSION_MAJOR 6
-#define CERF_VERSION_MINOR 1
+#define CERF_VERSION_MINOR 0
 #define CERF_VERSION_PATCH 0
 
 // 4th VERSIONINFO field (WORD, 0-65535). build.yml stamps this with the CI

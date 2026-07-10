@@ -1,4 +1,4 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.0 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
@@ -13,7 +13,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download WIP build (6.1) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download WIP build (6.0) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
 
 ## Supported boards
 
