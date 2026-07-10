@@ -23,6 +23,7 @@ constexpr BoardIdEntry kBoardIds[] = {
     {"nec_rockhopper",    Board::NecRockhopper},
     {"nec_mobilepro_700", Board::NecMobilePro700},
     {"philips_nino_300",  Board::PhilipsNino300},
+    {"philips_velo_1",    Board::PhilipsVelo1},
 };
 
 }  /* namespace */
@@ -64,6 +65,7 @@ const char* BoardContext::SocFamilyName(SocFamily f) {
         case SocFamily::VR5500:    return "VR5500";
         case SocFamily::VR4102:    return "VR4102";
         case SocFamily::PR31700:   return "PR31700";
+        case SocFamily::PR31500:   return "PR31500";
     }
     return "Unknown";
 }

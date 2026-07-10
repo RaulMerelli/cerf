@@ -32,6 +32,7 @@ enum class SocFamily {
                   MIPS16, no FPU, no LL/SC, 32-entry TLB. Integrated SoC for the NEC
                   MobilePro 700 (Handheld PC, Windows CE 2.0). */
     PR31700,
+    PR31500,
 };
 
 enum class CpuArch { Arm, Mips };
@@ -81,6 +82,7 @@ enum class Board {
                          Windows CE 2.0 / Handheld PC, 1997). ROM identity string
                          "MobilePro 700 Series". */
     PhilipsNino300,
+    PhilipsVelo1,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
