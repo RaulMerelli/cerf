@@ -95,6 +95,36 @@ $global:LASTEXITCODE = 0
 # VS provides (v143 on VS 2022, v145 on VS 2026). Forcing a specific value
 # from the build script is what made this script unportable in the first
 # place.
+
+# MSVC v14.51 miscompiles `for (n) { if ((mask & (1u << n)) == 0) continue; ... }` on
+# x86 /O2 /Oy- (MSBuild's default flags for Win32 Release): the emitted guard tests the
+# mask from the previous iteration and seeds the first iteration from an uninitialized
+# frame slot, so the loop body runs for the wrong bit. It is silent -- no warning, and
+# AddressSanitizer does not flag it. Any 14.51.* toolset therefore yields a wrong
+# cerf.exe. It is the default toolset of VS 2026 and of the GitHub Actions
+# windows-latest image, so it must be excluded explicitly on both.
+$vsRoot = & $vswhere -latest -prerelease -property installationPath | Select-Object -First 1
+$toolsRoot = Join-Path $vsRoot 'VC\Tools\MSVC'
+if (-not (Test-Path $toolsRoot)) {
+    Write-Host "[BUILD] FAILED! No MSVC toolsets found under $toolsRoot."
+    [Environment]::Exit(1)
+}
+
+$minToolsVersion = [version]'14.30'
+$installed = Get-ChildItem $toolsRoot -Directory | Select-Object -ExpandProperty Name
+$usable = $installed |
+    Where-Object { $_ -notlike '14.51.*' -and [version]$_ -ge $minToolsVersion } |
+    Sort-Object { [version]$_ }
+$toolsVersion = $usable | Select-Object -First 1
+if (-not $toolsVersion) {
+    Write-Host "[BUILD] FAILED! No usable MSVC toolset. Installed: $($installed -join ', ')."
+    Write-Host "[BUILD] Requires >= $minToolsVersion (for /std:c++20) and not 14.51.*, which"
+    Write-Host "[BUILD] miscompiles bit-mask dispatch loops on x86 /O2 /Oy- and would silently"
+    Write-Host "[BUILD] produce a broken cerf.exe."
+    [Environment]::Exit(1)
+}
+Write-Host "[BUILD] MSVC toolset: $toolsVersion (installed: $($installed -join ', '))"
+
 $devModeFlag = if ($Mode -eq "production") { "0" } else { "1" }
 $cerfDefines = "CERF_DEV_MODE=$devModeFlag"
 Write-Host "[BUILD] Mode: $Mode (CERF_DEV_MODE=$devModeFlag)"
@@ -154,7 +184,7 @@ if (Test-Path $launcherBuild) {
 
 $cerfTarget = if ($Rebuild) { "/t:Rebuild" } else { "/t:Build" }
 if ($Rebuild) { Write-Host "[BUILD] Clean rebuild requested (/t:Rebuild)" }
-& $msbuild cerf.sln /p:Configuration=$Config /p:Platform=Win32 $cerfTarget /m /v:minimal /p:CerfExtraDefines=$cerfDefines /p:CerfMode=$Mode
+& $msbuild cerf.sln /p:Configuration=$Config /p:Platform=Win32 $cerfTarget /m /v:minimal /p:CerfExtraDefines=$cerfDefines /p:CerfMode=$Mode /p:VCToolsVersion=$toolsVersion
 $msbuildExit = $LASTEXITCODE
 $exePath = "build\$Config\Win32\cerf.exe"
 

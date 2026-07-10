@@ -68,12 +68,18 @@ private:
     template <typename T> T Read(uint32_t addr) {
         const uint32_t off = addr - kBlockBase;
         if (off >= kIntcLo && off < kIntcHi) {
-            if (sizeof(T) != 4) HaltUnsupportedAccess("INTC sub-word read", addr, 0);
-            return static_cast<T>(emu_.Get<Vrc5477Intc>().ReadReg(off - kIntcLo));
+            if constexpr (sizeof(T) == 4) {
+                return static_cast<T>(emu_.Get<Vrc5477Intc>().ReadReg(off - kIntcLo));
+            } else {
+                HaltUnsupportedAccess("INTC sub-word read", addr, 0);
+            }
         }
         if (off == kPciW0 || off == kPciInit00) {
-            if (sizeof(T) != 4) HaltUnsupportedAccess("PCI ctrl sub-word read", addr, 0);
-            return static_cast<T>(emu_.Get<PciHostBridge>().CtrlReadReg(off));
+            if constexpr (sizeof(T) == 4) {
+                return static_cast<T>(emu_.Get<PciHostBridge>().CtrlReadReg(off));
+            } else {
+                HaltUnsupportedAccess("PCI ctrl sub-word read", addr, 0);
+            }
         }
         const char* which = nullptr;
         if (IsActiveBlock(off, &which)) {
@@ -88,14 +94,20 @@ private:
     template <typename T> void Write(uint32_t addr, T v) {
         const uint32_t off = addr - kBlockBase;
         if (off >= kIntcLo && off < kIntcHi) {
-            if (sizeof(T) != 4) HaltUnsupportedAccess("INTC sub-word write", addr, v);
-            emu_.Get<Vrc5477Intc>().WriteReg(off - kIntcLo, static_cast<uint32_t>(v));
-            return;
+            if constexpr (sizeof(T) == 4) {
+                emu_.Get<Vrc5477Intc>().WriteReg(off - kIntcLo, static_cast<uint32_t>(v));
+                return;
+            } else {
+                HaltUnsupportedAccess("INTC sub-word write", addr, v);
+            }
         }
         if (off == kPciW0 || off == kPciInit00) {
-            if (sizeof(T) != 4) HaltUnsupportedAccess("PCI ctrl sub-word write", addr, v);
-            emu_.Get<PciHostBridge>().CtrlWriteReg(off, static_cast<uint32_t>(v));
-            return;
+            if constexpr (sizeof(T) == 4) {
+                emu_.Get<PciHostBridge>().CtrlWriteReg(off, static_cast<uint32_t>(v));
+                return;
+            } else {
+                HaltUnsupportedAccess("PCI ctrl sub-word write", addr, v);
+            }
         }
         const char* which = nullptr;
         if (IsActiveBlock(off, &which)) {
