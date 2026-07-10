@@ -2,8 +2,8 @@
 
 #include "../irq_controller.h"
 #include "imx51_uart1.h"
+#include "imx51_uart3.h"
 #include "../../core/cerf_emulator.h"
-#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -29,7 +29,7 @@ public:
 
     void OnReady() override {
         FreescaleSdmaBase::OnReady();
-        BindUart1();
+        BindUarts();
     }
 
     /* The UART<->SDMA event binding is host-side wiring, not serialized machine
@@ -37,16 +37,15 @@ public:
        carry it), same as PostRestore re-drives the INTC level. */
     void PostRestore() override {
         FreescaleSdmaBase::PostRestore();
-        BindUart1();
+        BindUarts();
     }
 
 protected:
     void AssertIrqLine()   override { emu_.Get<IrqController>().AssertIrq(kTzicSourceSdma); }
     void DeassertIrqLine() override { emu_.Get<IrqController>().DeAssertIrq(kTzicSourceSdma); }
 
-    uint32_t Chnenbl(uint32_t event) const override {
-        return event < kChnenblCount ? chnenbl_[event] : 0u;
-    }
+    uint32_t ChnenblBase()  const override { return kOffChnenblBase; }
+    uint32_t ChnenblCount() const override { return kChnenblCount; }
 
     /* cspddk runs every i.MX51 SDMA channel with extended 12-byte BDs: its
        per-event channel setup (sub_C09C3FAC) sets the EXTD flag for all events,
@@ -55,30 +54,16 @@ protected:
 
     bool ReadExtra(uint32_t off, uint32_t& out) override {
         if (off == kOffEvtMirror) { out = 0; return true; }   /* no DMA-request events */
-        if (off >= kOffChnenblBase && off < kOffChnenblBase + kChnenblCount * 4
-            && (off & 0x3u) == 0) {
-            out = chnenbl_[(off - kOffChnenblBase) / 4]; return true;
-        }
         return false;
     }
-    bool WriteExtra(uint32_t off, uint32_t value) override {
-        if (off >= kOffChnenblBase && off < kOffChnenblBase + kChnenblCount * 4
-            && (off & 0x3u) == 0) {
-            chnenbl_[(off - kOffChnenblBase) / 4] = value; return true;
-        }
-        return false;   /* EVT_MIRROR is read-only -> write halts */
-    }
-    void SaveExtra(StateWriter& w) override    { w.WriteBytes(chnenbl_, sizeof(chnenbl_)); }
-    void RestoreExtra(StateReader& r) override { r.ReadBytes(chnenbl_, sizeof(chnenbl_)); }
-    void ResetExtra() override { for (auto& c : chnenbl_) c = 0; }
 
 private:
-    /* UART1 (COM1) moves serial data over SDMA. DMA-request / CHNENBL index for
-       UART1 is RX=18, TX=19 (Linux imx51.dtsi `&sdma 18`/`19`; MCIMX51RM Table 3-3
-       "Event 17/18" is +1-offset from the CHNENBL index the guest BSP programs). */
-    void BindUart1() { emu_.Get<Imx51Uart1>().BindSdma(this, 19u, 18u); }
-
-    uint32_t chnenbl_[kChnenblCount] = {};
+    /* UART1 (COM1) and UART3 move serial data over SDMA. The CHNENBL index is the
+       MCIMX51RM Table 3-3 event number: UART1 RX=18/TX=19, UART3 RX=43/TX=44. */
+    void BindUarts() {
+        emu_.Get<Imx51Uart1>().BindSdma(this, 19u, 18u);
+        emu_.Get<Imx51Uart3>().BindSdma(this, 44u, 43u);
+    }
 };
 
 }  /* namespace */

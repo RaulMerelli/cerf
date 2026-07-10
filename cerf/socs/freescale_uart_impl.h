@@ -69,7 +69,7 @@ public:
 
     /* Wire this UART to the i.MX SDMA: its driver moves TX/RX through DMA rather
        than UTXD/URXD when bound. tx_event / rx_event are the SDMA DMA-request
-       events (MCIMX51RM Table 3-2). */
+       events (MCIMX51RM Table 3-3). */
     void BindSdma(FreescaleSdmaBus* bus, uint32_t tx_event, uint32_t rx_event) {
         sdma_bus_ = bus;
         rx_dma_event_ = rx_event;

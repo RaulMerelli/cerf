@@ -2,7 +2,6 @@
 
 #include "imx31_avic.h"
 #include "../../core/cerf_emulator.h"
-#include "../../state/state_stream.h"
 
 #include <cstdint>
 
@@ -26,27 +25,13 @@ protected:
     void AssertIrqLine()   override { emu_.Get<Imx31Avic>().AssertSource(kAvicSourceSdma); }
     void DeassertIrqLine() override { emu_.Get<Imx31Avic>().DeassertSource(kAvicSourceSdma); }
 
+    uint32_t ChnenblBase()  const override { return kOffChnenblBase; }
+    uint32_t ChnenblCount() const override { return kChnenblCount; }
+
     bool ReadExtra(uint32_t off, uint32_t& out) override {
         if (off == kOffEvtMirror) { out = 0; return true; }   /* no DMA-request events */
-        if (off >= kOffChnenblBase && off < kOffChnenblBase + kChnenblCount * 4
-            && (off & 0x3u) == 0) {
-            out = chnenbl_[(off - kOffChnenblBase) / 4]; return true;
-        }
         return false;
     }
-    bool WriteExtra(uint32_t off, uint32_t value) override {
-        if (off >= kOffChnenblBase && off < kOffChnenblBase + kChnenblCount * 4
-            && (off & 0x3u) == 0) {
-            chnenbl_[(off - kOffChnenblBase) / 4] = value; return true;
-        }
-        return false;   /* EVT_MIRROR is read-only -> write halts */
-    }
-    void SaveExtra(StateWriter& w) override    { w.WriteBytes(chnenbl_, sizeof(chnenbl_)); }
-    void RestoreExtra(StateReader& r) override { r.ReadBytes(chnenbl_, sizeof(chnenbl_)); }
-    void ResetExtra() override { for (auto& c : chnenbl_) c = 0; }
-
-private:
-    uint32_t chnenbl_[kChnenblCount] = {};
 };
 
 }  /* namespace */

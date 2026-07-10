@@ -48,6 +48,7 @@ constexpr uint32_t kOffXtrigConf1  = 0x070u;
 constexpr uint32_t kOffXtrigConf2  = 0x074u;
 constexpr uint32_t kOffChnpriBase  = 0x100u;   /* CHNPRIn, n=0..31, both SoCs */
 constexpr uint32_t kChannelCount   = 32u;
+constexpr uint32_t kMaxDmaEvents   = 48u;      /* MCIMX51RM Table 52-9; MCIMX31RM Table 40-10 has 32 */
 
 /* Reset values, identical on both SoCs (MCIMX31RM Table 40-10 / MCIMX51RM Table 52-9). */
 constexpr uint32_t kResetDspovr      = 0xFFFFFFFFu;
@@ -59,12 +60,13 @@ constexpr uint32_t kResetChn0addr    = 0x00000050u;
 /* RESET register bit 0 = SDMA software reset (self-clearing). */
 constexpr uint32_t kResetBitReset = 1u << 0;
 
-/* BD first-word bits + CCB layout, decompiled from CSPDDK: bit23 EXTD selects
-   12-byte vs 8-byte BD stride, so a wrong stride walks garbage. */
-constexpr uint32_t kBdDone       = 1u << 16;   /* word0 'D': SDMA owns (armed) (MCIMX51RM Table 52-96) */
-constexpr uint32_t kBdWrap       = 1u << 17;   /* word0 'W': last BD, ring wraps to base (Table 52-96) */
-constexpr uint32_t kBdIntr       = 1u << 19;   /* word0 'I': interrupt the AP on BD complete (Table 52-96) */
-constexpr uint32_t kBdError      = 1u << 20;
+/* BD word0 = count[15:0] | status[23:16] | command[31:24]: MCIMX51RM Table 52-96;
+   Linux drivers/dma/imx-sdma.c (sdma_mode_count, BD_* on fsl,imx31-sdma and
+   fsl,imx51-sdma); kBdExtd per cspddk DDKSdmaSetBufDesc OR-mask 0x810000. */
+constexpr uint32_t kBdDone       = 1u << 16;   /* D */
+constexpr uint32_t kBdWrap       = 1u << 17;   /* W */
+constexpr uint32_t kBdIntr       = 1u << 19;   /* I */
+constexpr uint32_t kBdError      = 1u << 20;   /* R */
 constexpr uint32_t kBdExtd       = 1u << 23;
 constexpr uint32_t kCcbStride    = 16u;
 constexpr uint32_t kCcbBaseBdOff = 4u;
@@ -119,6 +121,8 @@ public:
             && (off & 0x3u) == 0) {
             return chnpri_[(off - kOffChnpriBase) / 4];
         }
+        uint32_t idx = 0;
+        if (ChnenblIndex(off, idx)) return chnenbl_[idx];
         uint32_t out = 0;
         if (ReadExtra(off, out)) return out;
         HaltUnsupportedAccess("ReadWord", addr, 0);
@@ -165,7 +169,8 @@ public:
             chnpri_[(off - kOffChnpriBase) / 4] = value;
             return;
         }
-        if (WriteExtra(off, value)) return;
+        uint32_t idx = 0;
+        if (ChnenblIndex(off, idx)) { chnenbl_[idx] = value; return; }
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
 
@@ -177,8 +182,8 @@ public:
         w.Write(once_instr_);w.Write(once_stat_); w.Write(once_cmd_);   w.Write(illinstaddr_);
         w.Write(chn0addr_);  w.Write(xtrig_conf1_);w.Write(xtrig_conf2_);
         w.WriteBytes(chnpri_, sizeof(chnpri_));
+        w.WriteBytes(chnenbl_, sizeof(chnenbl_));
         w.WriteBytes(rx_cursor_, sizeof(rx_cursor_));
-        SaveExtra(w);
     }
     void RestoreState(StateReader& r) override {
         r.Read(mc0ptr_);    r.Read(intr_);      r.Read(stop_stat_);  r.Read(hstart_);
@@ -188,8 +193,8 @@ public:
         r.Read(once_instr_);r.Read(once_stat_); r.Read(once_cmd_);   r.Read(illinstaddr_);
         r.Read(chn0addr_);  r.Read(xtrig_conf1_);r.Read(xtrig_conf2_);
         r.ReadBytes(chnpri_, sizeof(chnpri_));
+        r.ReadBytes(chnenbl_, sizeof(chnenbl_));
         r.ReadBytes(rx_cursor_, sizeof(rx_cursor_));
-        RestoreExtra(r);
     }
 
     /* Re-assert the INTC line from restored intr_ & intrmask_ - the SDMA AP
@@ -264,19 +269,14 @@ protected:
     virtual void AssertIrqLine()   = 0;
     virtual void DeassertIrqLine() = 0;
 
-    /* Per-SoC divergent registers (EVT_MIRROR, CHNENBL, and the i.MX51-only
-       SDMA_LOCK / EVT_MIRROR2 / OTB / profile registers). Return true if handled. */
-    virtual bool ReadExtra(uint32_t /*off*/, uint32_t& /*out*/)  { return false; }
-    virtual bool WriteExtra(uint32_t /*off*/, uint32_t /*value*/) { return false; }
-    virtual void SaveExtra(StateWriter&)    {}
-    virtual void RestoreExtra(StateReader&) {}
-    /* Concrete clears its own divergent registers on a software reset. */
-    virtual void ResetExtra() {}
+    /* Per-SoC read-only divergent registers (EVT_MIRROR, and the i.MX51-only
+       SDMA_LOCK / EVT_MIRROR2 / OTB / profile registers). True if handled. */
+    virtual bool ReadExtra(uint32_t /*off*/, uint32_t& /*out*/) { return false; }
 
-    /* Per-SoC CHNENBL[event] = channel bitmask (the DMA-request -> channel map,
-       MCIMX51RM Section 52.4.3.3). Default 0 = nothing bound; a concrete that
-       models CHNENBL overrides it so serial-DMA transfers find their channel. */
-    virtual uint32_t Chnenbl(uint32_t /*event*/) const { return 0; }
+    /* CHNENBL RAM window: MCIMX31RM Table 40-10 (0x080, n=0..31),
+       MCIMX51RM Table 52-9 (0x200, n=0..47). */
+    virtual uint32_t ChnenblBase()  const = 0;
+    virtual uint32_t ChnenblCount() const = 0;
 
     /* BD slot stride: 8 bytes (mode+buffer) or 12 (plus the extended-buffer word),
        set by the BD format the channel's SDMA script uses (MCIMX51RM Sec 52.23.1.1). */
@@ -285,11 +285,22 @@ protected:
     }
 
 private:
+    /* CHNENBL[event] = channel bitmask (MCIMX51RM Section 52.4.3.3). */
+    uint32_t Chnenbl(uint32_t event) const {
+        return event < ChnenblCount() ? chnenbl_[event] : 0u;
+    }
+
+    bool ChnenblIndex(uint32_t off, uint32_t& idx) const {
+        const uint32_t base = ChnenblBase();
+        if (off < base || off >= base + ChnenblCount() * 4 || (off & 0x3u) != 0)
+            return false;
+        idx = (off - base) / 4;
+        return true;
+    }
+
     void CompleteChannels(uint32_t channels) {
-        if (mc0ptr_ == 0) {
+        if (mc0ptr_ == 0)
             HaltUnsupportedAccess("HSTART before MC0PTR set", kBase + kOffHstart, channels);
-            return;
-        }
         auto& mem = emu_.Get<EmulatedMemory>();
         for (uint32_t n = 0; n < kChannelCount; ++n) {
             if ((channels & (1u << n)) == 0) continue;
@@ -300,11 +311,15 @@ private:
                 if (!dma_events_[ev].is_tx) continue;   /* bound RX: completes only via SdmaRxDeliver */
                 tx = dma_events_[ev].p;                 /* bound TX: drain mem->peripheral below */
             } else if (n != 0) {
-                /* Unbound non-config channel: clearing its armed BD's Done falsely
-                   reports "data available" to the guest's RX reader, spinning its IST.
-                   Channel 0 is the config channel whose BD Done the guest polls for
-                   setup success (cspddk DDKSdmaInitChain), so ch0 still completes. */
-                continue;
+                /* Channel n runs an SDMA script this core does not model: it is
+                   neither channel 0 (the bootload script, MCIMX51RM Sec 52.23.1.2)
+                   nor a channel CHNENBL-bound to an emulated peripheral. */
+                char what[128];
+                std::snprintf(what, sizeof(what),
+                              "HSTART on unmodeled SDMA channel %u (event=%d, "
+                              "evtovr=0x%08X, hostovr=0x%08X)",
+                              n, ev, evtovr_, hostovr_);
+                HaltUnsupportedAccess(what, kBase + kOffHstart, uint32_t(1u << n));
             }
             uint8_t* ccb = mem.TryTranslateWrite(mc0ptr_ + n * kCcbStride + kCcbBaseBdOff);
             if (ccb == nullptr) continue;
@@ -357,7 +372,7 @@ private:
         once_cmd_ = 0; illinstaddr_ = kResetIllinstaddr; chn0addr_ = kResetChn0addr;
         xtrig_conf1_ = 0; xtrig_conf2_ = 0;
         for (uint32_t i = 0; i < kChannelCount; ++i) { chnpri_[i] = 0; rx_cursor_[i] = 0; }
-        ResetExtra();
+        for (uint32_t i = 0; i < kMaxDmaEvents; ++i) chnenbl_[i] = 0;
     }
 
     uint32_t mc0ptr_      = 0;
@@ -384,9 +399,9 @@ private:
     uint32_t xtrig_conf1_ = 0;
     uint32_t xtrig_conf2_ = 0;
     uint32_t chnpri_[kChannelCount] = {};
+    uint32_t chnenbl_[kMaxDmaEvents] = {};
     uint32_t rx_cursor_[kChannelCount] = {};   /* per-channel RX BD ring fill position (0 = uninit -> base) */
 
-    static constexpr uint32_t kMaxDmaEvents = 48u;   /* i.MX51 CHNENBL count */
     struct DmaEventBinding {
         FreescaleSdmaPeripheral* p     = nullptr;
         bool                     is_tx = false;
