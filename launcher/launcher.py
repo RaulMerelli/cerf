@@ -14,9 +14,21 @@ from app_paths import resolve_cerf_exe, resolve_devices_dir
 from launcher_cli import run_cli
 from operations import BundleManager
 from ui_theme import enable_dpi_awareness
+from upgrade_cli import (INSTALL_STAGE, POST_UPGRADE_STAGE, parse_stage,
+                         run_install_stage, run_post_upgrade)
 
 
 def main(argv: List[str]) -> int:
+    stage, wait_pid = parse_stage(argv)
+    if stage == INSTALL_STAGE:
+        enable_dpi_awareness()
+        return run_install_stage(wait_pid)
+
+    upgraded = stage == POST_UPGRADE_STAGE
+    if upgraded:
+        enable_dpi_awareness()
+        run_post_upgrade(wait_pid)
+
     devices_dir = resolve_devices_dir()
     if not devices_dir.exists():
         try:
@@ -35,7 +47,7 @@ def main(argv: List[str]) -> int:
 
     manager = BundleManager(devices_dir)
     cerf_exe = resolve_cerf_exe()
-    app = LauncherApp(manager, cerf_exe)
+    app = LauncherApp(manager, cerf_exe, upgraded=upgraded)
     try:
         app.mainloop()
     except Exception:

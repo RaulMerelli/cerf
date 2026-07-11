@@ -21,6 +21,7 @@ from bundles import (
     load_remote_manifest,
     _sha256_file,
 )
+from github_release import fetch_latest_release
 from device_state import (
     DeviceBundle,
     DeviceMeta,
@@ -149,6 +150,9 @@ class BundleManager:
 
     def submit_version_check(self) -> Future:
         return self._pool.submit(fetch_last_release_version)
+
+    def submit_release_check(self) -> Future:
+        return self._pool.submit(fetch_latest_release)
 
     def _do_refresh(self) -> None:
         try:

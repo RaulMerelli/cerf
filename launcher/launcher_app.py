@@ -14,7 +14,7 @@ from tkinter import ttk
 from typing import Callable, List, Optional, Tuple
 
 from app_paths import resolve_icon, resolve_icons_dir, resolve_version
-from bundles import ManifestVersionError, RELEASE_LATEST_URL, parse_version_tuple
+from bundles import ManifestVersionError
 from device_card_list import DeviceCardList
 from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
@@ -30,9 +30,10 @@ from operations import BundleManager
 from preview_tile import PreviewTile
 from status_bar import StatusBar
 from ui_dialogs import (ask_yesno, confirm_rom_license, show_error, show_info,
-                        show_sources_thanks, show_update_available)
+                        show_sources_thanks)
 from ui_large_download import gate_large_bundle
 from ui_scroll import ScrollColumn
+from update_check import UpdateCheck
 import ui_theme as theme
 
 
@@ -41,10 +42,12 @@ _GWLP_WNDPROC = -4
 
 
 class LauncherApp(OperationsMixin, tk.Tk):
-    def __init__(self, manager: BundleManager, cerf_exe: Optional[Path]):
+    def __init__(self, manager: BundleManager, cerf_exe: Optional[Path],
+                 upgraded: bool = False):
         super().__init__()
         self.manager = manager
         self.cerf_exe = cerf_exe
+        self.update_check = UpdateCheck(self)
         version = resolve_version()
         self.title(f"CERF {version} Launcher" if version else "CERF Launcher")
 
@@ -76,8 +79,13 @@ class LauncherApp(OperationsMixin, tk.Tk):
         self._install_theme_listener()
         self._pump_progress()
         self.after(50, self._refresh_manifest)
-        self.after(50, self._start_update_check)
+        self.after(50, self.update_check.start)
         self.after(50, self._poll_runtime)
+        if upgraded:
+            self.after(200, lambda: show_info(
+                self, "Upgrade complete",
+                f"CERF has been upgraded to {version}." if version
+                else "CERF has been upgraded."))
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -231,35 +239,6 @@ class LauncherApp(OperationsMixin, tk.Tk):
                        f"The server's catalog (manifest version "
                        f"{exc.remote_version}) is older than this build expects "
                        f"({exc.supported_version}). Usually temporary - try later.")
-
-    def _start_update_check(self) -> None:
-        self.status_bar.set_update_status("Checking updates…", theme.FG_DIM,
-                                          link=False)
-        future = self.manager.submit_version_check()
-        def done(exc: Optional[BaseException]) -> None:
-            remote: Optional[str] = None
-            if exc is None:
-                try:
-                    remote = future.result()
-                except Exception:
-                    remote = None
-            self._apply_update_check(remote)
-        self._await_future(future, done)
-
-    def _apply_update_check(self, remote: Optional[str]) -> None:
-        current = parse_version_tuple(resolve_version())
-        remote_tuple = parse_version_tuple(remote) if remote else None
-        if remote_tuple is None or current is None:
-            self.status_bar.set_update_status("", theme.FG_DIM, link=False)
-            return
-        if remote_tuple > current:
-            self.status_bar.set_update_status(f"Download CERF v{remote}",
-                                              theme.UPDATE_LINK,
-                                              link=True, url=RELEASE_LATEST_URL)
-            show_update_available(self, f"v{remote}", RELEASE_LATEST_URL)
-        else:
-            self.status_bar.set_update_status("No new releases of CERF available",
-                                              theme.FG_DIM, link=False)
 
     def _reload_device_list(self) -> None:
         self.tree_panel.reload(self.manager.list_devices())
