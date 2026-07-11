@@ -19,6 +19,12 @@ public:
         return std::shared_lock<std::shared_mutex>(mtx_);
     }
 
+    /* ONLY for a worker the snapshot holder itself joins (Restore tears down endpoints
+       and cards); it would park on the lock the joiner owns. Check owns_lock(). */
+    [[nodiscard]] std::shared_lock<std::shared_mutex> TryWorkerSection() {
+        return std::shared_lock<std::shared_mutex>(mtx_, std::try_to_lock);
+    }
+
     /* Hibernation: hold the returned guard across the whole save or restore. */
     [[nodiscard]] std::unique_lock<std::shared_mutex> SnapshotSection() {
         return std::unique_lock<std::shared_mutex>(mtx_);

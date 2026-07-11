@@ -1,6 +1,6 @@
 #include "ppp_terminator.h"
 
-#include "serial_16550.h"
+#include "serial_line.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -39,7 +39,7 @@ void Put16(std::vector<uint8_t>& v, uint16_t x) {
 
 }  /* namespace */
 
-PppTerminator::PppTerminator(CerfEmulator& emu, Serial16550& uart)
+PppTerminator::PppTerminator(CerfEmulator& emu, SerialLine& uart)
     : emu_(emu), uart_(uart) {
     hdlc_.SetFrameSink([this](uint16_t proto, const uint8_t* p, size_t len) {
         OnPppFrame(proto, p, len);

@@ -9,6 +9,7 @@
 #include "../../state/state_stream.h"
 
 #include <cstdint>
+#include <utility>
 
 namespace {
 
@@ -66,7 +67,7 @@ uint32_t Pr31x00Io::ReadWord(uint32_t addr) {
                     HaltUnsupportedAccess("PR31x00 IO IODIN on an input port with no board wiring",
                                           addr, inputs);
                 }
-                din |= (io_din_ | pins->IoDin()) & inputs;
+                din |= (io_din_.load() | pins->IoDin()) & inputs;
             }
             return io_ctl_ | din;
         }
@@ -86,7 +87,7 @@ uint32_t Pr31x00Io::ReadWord(uint32_t addr) {
                     HaltUnsupportedAccess("PR31x00 IO MFIODIN on an input pin with no board wiring",
                                           addr, inputs);
                 }
-                din |= (mfio_din_ | *board) & inputs;
+                din |= (mfio_din_.load() | *board) & inputs;
             }
             return din;
         }
@@ -107,11 +108,12 @@ void Pr31x00Io::WriteWord(uint32_t addr, uint32_t value) {
                 HaltUnsupportedAccess("PR31x00 IO IO_CTL reserved", addr, value);
             }
             io_ctl_ = value & kIoCtlWritable;
+            NotifyIoOut();
             return;
 
-        case kOffMfioDout:  mfio_dout_  = value; return;
-        case kOffMfioDirec: mfio_direc_ = value; return;
-        case kOffMfioSel:   mfio_sel_   = value; return;
+        case kOffMfioDout:  mfio_dout_  = value; NotifyMfioOut(); return;
+        case kOffMfioDirec: mfio_direc_ = value; NotifyMfioOut(); return;
+        case kOffMfioSel:   mfio_sel_   = value; NotifyMfioOut(); return;
         case kOffMfioPd:    mfio_pd_    = value; return;
 
         case kOffIoPd:
@@ -130,9 +132,8 @@ void Pr31x00Io::WriteWord(uint32_t addr, uint32_t value) {
    (§8.3.3, §8.3.4); they are Interrupt Status 3 and 4, so Clear/Status sets 2 and 3. */
 void Pr31x00Io::DriveMfioInput(uint32_t pin, bool level) {
     const uint32_t bit = 1u << pin;
-    if (((mfio_din_ & bit) != 0u) == level) return;
-
-    mfio_din_ = level ? (mfio_din_ | bit) : (mfio_din_ & ~bit);
+    const uint32_t old = level ? mfio_din_.fetch_or(bit) : mfio_din_.fetch_and(~bit);
+    if (((old & bit) != 0u) == level) return;
     emu_.Get<Pr31x00Intc>().SetPending(level ? 2u : 3u, bit);
 }
 
@@ -141,10 +142,35 @@ void Pr31x00Io::DriveMfioInput(uint32_t pin, bool level) {
    Status set 4 (§8.3.5). */
 void Pr31x00Io::DriveIoInput(uint32_t pin, bool level) {
     const uint32_t bit = 1u << pin;
-    if (((io_din_ & bit) != 0u) == level) return;
-
-    io_din_ = level ? (io_din_ | bit) : (io_din_ & ~bit);
+    const uint32_t old = level ? io_din_.fetch_or(bit) : io_din_.fetch_and(~bit);
+    if (((old & bit) != 0u) == level) return;
     emu_.Get<Pr31x00Intc>().SetPending(4u, level ? (1u << (7u + pin)) : bit);
+}
+
+/* An observer is told which pins the chip actually drives, using the same
+   direc & sel output set ReadWord resolves MFIODIN against: a pin left as an input
+   carries no level, so a line on it is not asserted merely because MFIODOUT reads 0
+   (serial.dll Open sub_1EB3374 clears MFIODIREC<30> to make the CTS pin an input). */
+void Pr31x00Io::NotifyMfioOut() {
+    const uint32_t out_mask = mfio_direc_ & mfio_sel_;
+    for (auto& cb : mfio_out_observers_) cb(mfio_dout_, out_mask);
+}
+
+void Pr31x00Io::NotifyIoOut() {
+    const uint32_t dout     = (io_ctl_ >> kIoDoutShift) & kIoPinMask;
+    const uint32_t out_mask = (io_ctl_ >> kIoDirecShift) & kIoPinMask;
+    for (auto& cb : io_out_observers_) cb(dout, out_mask);
+}
+
+void Pr31x00Io::RegisterMfioOutObserver(MfioOutObserver cb) {
+    cb(mfio_dout_, mfio_direc_ & mfio_sel_);
+    mfio_out_observers_.push_back(std::move(cb));
+}
+
+void Pr31x00Io::RegisterIoOutObserver(IoOutObserver cb) {
+    cb((io_ctl_ >> kIoDoutShift) & kIoPinMask,
+       (io_ctl_ >> kIoDirecShift) & kIoPinMask);
+    io_out_observers_.push_back(std::move(cb));
 }
 
 void Pr31x00Io::SaveState(StateWriter& w) {
@@ -154,8 +180,8 @@ void Pr31x00Io::SaveState(StateWriter& w) {
     w.Write(mfio_sel_);
     w.Write(io_pd_);
     w.Write(mfio_pd_);
-    w.Write(mfio_din_);
-    w.Write(io_din_);
+    w.Write(mfio_din_.load());
+    w.Write(io_din_.load());
 }
 
 void Pr31x00Io::RestoreState(StateReader& r) {
@@ -165,8 +191,9 @@ void Pr31x00Io::RestoreState(StateReader& r) {
     r.Read(mfio_sel_);
     r.Read(io_pd_);
     r.Read(mfio_pd_);
-    r.Read(mfio_din_);
-    r.Read(io_din_);
+    uint32_t din = 0;
+    r.Read(din); mfio_din_.store(din);
+    r.Read(din); io_din_.store(din);
 }
 
 REGISTER_SERVICE(Pr31x00Io);

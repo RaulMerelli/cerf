@@ -1,5 +1,7 @@
 #pragma once
 
+#include "serial_line.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -11,7 +13,7 @@ class SerialEndpoint;
 class StateWriter;
 class StateReader;
 
-class Serial16550 {
+class Serial16550 : public SerialLine {
 public:
     /* Level-triggered card IRQ. true -> raise the slot IRQ, false -> clear. */
     using IrqLineFn = std::function<void(bool asserted)>;
@@ -24,34 +26,28 @@ public:
     void    WriteReg8(uint32_t offset, uint8_t value);
 
     /* Personality -> RX. Any thread. Asserts the RX interrupt per IER/trigger. */
-    void PushRx(const uint8_t* data, size_t n);
+    void PushRx(const uint8_t* data, size_t n) override;
 
     /* True once the guest has read every queued RX byte. */
-    bool RxEmpty() const;
+    bool RxEmpty() const override;
 
     /* Fired off-lock when a guest read empties the RX queue, so a flow-
        controlled feeder can push the next frame. */
-    using RxDrainFn = std::function<void()>;
-    void SetRxDrainCallback(RxDrainFn cb);
+    void SetRxDrainCallback(RxDrainFn cb) override;
 
     /* Personality -> modem inputs (CTS/DSR/RI/DCD line levels). Any thread; a
        changed level sets the matching MSR delta bit and (per IER.MS) an IRQ. */
-    void SetModemInputs(bool cts, bool dsr, bool ri, bool dcd);
+    void SetModemInputs(bool cts, bool dsr, bool ri, bool dcd) override;
 
     uint32_t BaudRate() const;   /* derived from the divisor latch + 115200 base */
 
-    struct LineConfig {
-        uint32_t baud      = 115200;
-        uint8_t  data_bits = 8;   /* 5..8 (LCR bits 1:0 + 5) */
-        enum class Parity { None, Odd, Even, Mark, Space } parity = Parity::None;
-        enum class Stop   { One, OnePointFive, Two }        stop   = Stop::One;
-    };
-    LineConfig GetLineConfig() const;
+    LineConfig GetLineConfig() const override;
 
     /* Fired off-lock when the guest changes baud (DLL/DLM under DLAB) or the LCR
        framing, so a host-port forwarder can re-apply SetCommState live. */
-    using LineConfigFn = std::function<void(const LineConfig&)>;
-    void SetLineConfigCallback(LineConfigFn cb);
+    void SetLineConfigCallback(LineConfigFn cb) override;
+
+    void SetEndpoint(SerialEndpoint* endpoint) override;
 
     void Reset();                /* power-on / socket-reset defaults */
 
@@ -61,7 +57,7 @@ private:
     void       SettleAndFireIrq();        /* recompute level, call irq_line_ off-lock */
     LineConfig GetLineConfigLocked() const;
 
-    SerialEndpoint& endpoint_;
+    SerialEndpoint* endpoint_;
     IrqLineFn       irq_line_;
     RxDrainFn       rx_drain_;
     LineConfigFn    line_cfg_cb_;

@@ -24,20 +24,16 @@ PcmciaSlot::PcmciaSlot(CerfEmulator& emu, PcmciaSlotHost& host,
                        std::wstring label)
     : emu_(emu), host_(host), label_(std::move(label)) {}
 
-bool PcmciaSlot::HasCard() const {
-    std::lock_guard<std::mutex> lk(bus_mutex_);
-    return card_ != nullptr;
-}
-
-bool PcmciaSlot::IsPowered() const {
-    std::lock_guard<std::mutex> lk(bus_mutex_);
-    return powered_ && card_ != nullptr;
+void PcmciaSlot::PublishPinsLocked() {
+    const uint8_t v = (card_ ? kPinPresent : 0u) | (powered_ ? kPinPowered : 0u);
+    pins_.store(v, std::memory_order_release);
 }
 
 void PcmciaSlot::SetPowered(bool on) {
     std::lock_guard<std::mutex> lk(bus_mutex_);
     if (powered_ == on) return;
     powered_ = on;
+    PublishPinsLocked();
     if (!card_) return;
     if (on) card_->PowerOn();
     else    card_->PowerOff();
@@ -114,10 +110,11 @@ void PcmciaSlot::ClearIrq() { host_.OnCardIrqDeasserted(*this); }
 
 void PcmciaSlot::InsertLocked(std::unique_ptr<PcmciaCard> card) {
     card_ = std::move(card);
-    card_->AttachSlot(this);
+    ++generation_;
+    PublishPinsLocked();
+    card_->AttachSlot(this, generation_);
     card_->OnInserted();
     if (powered_) card_->PowerOn();
-    ++generation_;
     LOG(Pcmcia, "[Slot %ls] inserted: %ls\n", label_.c_str(),
         card_->DisplayName().c_str());
 }
@@ -128,6 +125,7 @@ void PcmciaSlot::EjectLocked() {
     if (powered_) card_->PowerOff();
     card_.reset();
     ++generation_;
+    PublishPinsLocked();
 }
 
 void PcmciaSlot::InsertCard(std::unique_ptr<PcmciaCard> card) {
@@ -175,11 +173,12 @@ void PcmciaSlot::RestoreSlotState(StateReader& r) {
     uint8_t powered = 0, has = 0;
     r.Read(powered);
     r.Read(has);
-    powered_ = (powered != 0);
     if (!has) {
         /* Saved socket was empty; eject any live card so the restored
            desktop matches exactly. */
         if (card_) EjectLocked();
+        powered_ = (powered != 0);
+        PublishPinsLocked();
         return;
     }
     uint32_t idlen = 0; r.Read(idlen);
@@ -195,7 +194,14 @@ void PcmciaSlot::RestoreSlotState(StateReader& r) {
        its register state. */
     if (!card_ || id != card_->SaveId()) {
         if (card_) EjectLocked();
+        powered_ = (powered != 0);
+        PublishPinsLocked();
         InsertLocked(emu_.Get<PcmciaCardCatalog>().Create(id, binding));
+    } else if (powered_ != (powered != 0)) {
+        powered_ = (powered != 0);
+        PublishPinsLocked();
+        if (powered_) card_->PowerOn();
+        else          card_->PowerOff();
     }
     card_->RestoreState(r);
     r.SeekTo(body_start + body_len);   /* align to the framed body end */
@@ -205,6 +211,15 @@ void PcmciaSlot::EjectCard() {
     {
         std::lock_guard<std::mutex> lk(bus_mutex_);
         if (!card_) return;
+        EjectLocked();
+    }
+    host_.OnCardDetectChanged(*this);
+}
+
+void PcmciaSlot::EjectCardIfResident(uint64_t card_id) {
+    {
+        std::lock_guard<std::mutex> lk(bus_mutex_);
+        if (!card_ || card_->CardId() != card_id) return;
         EjectLocked();
     }
     host_.OnCardDetectChanged(*this);

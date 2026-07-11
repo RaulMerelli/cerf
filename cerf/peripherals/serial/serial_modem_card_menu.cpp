@@ -1,30 +1,28 @@
 #include "serial_modem_card_menu.h"
 
-#include "serial_pccard.h"
 #include "../../core/cerf_emulator.h"
 
-#include <memory>
+#include <utility>
 
 REGISTER_SERVICE(SerialModemCardMenu);
 
 std::vector<WidgetMenuItem> SerialModemCardMenu::BuildInsertMenu(
-    PcmciaCardCatalog::CardInserter inserter) {
+    std::function<void()> on_insert) {
     std::vector<WidgetMenuItem> items;
 
     auto note = [&items](const wchar_t* text) {
         WidgetMenuItem it;
         it.label   = text;
-        it.enabled = false;   /* shown grayed: inline guidance, not clickable */
+        it.enabled = false;
         items.push_back(std::move(it));
     };
+
     WidgetMenuItem insert;
     insert.label    = L"Insert";
-    insert.on_click = [this, inserter] {
-        inserter(std::make_unique<SerialPcCard>(emu_));
-    };
+    insert.on_click = std::move(on_insert);
     items.push_back(std::move(insert));
 
-    items.push_back({});   /* separator */
+    items.push_back({});
 
     note(L"After inserting, to get online:");
     note(L"   1.  Open the dial-up / network connections app");

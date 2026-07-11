@@ -2,7 +2,10 @@
 
 #include "../../peripherals/peripheral_base.h"
 
+#include <atomic>
 #include <cstdint>
+#include <functional>
+#include <vector>
 
 /* Philips PR31x00 I/O Module, TMPR3911/3912 ch.9. Registers $180-$198. */
 class Pr31x00Io : public Peripheral {
@@ -27,6 +30,18 @@ public:
        Status 5 (§8.3.5). */
     void DriveIoInput(uint32_t pin, bool level);
 
+    /* Observe MFIODOUT ($184), for a peripheral wired to a multi-function output pin
+       (a UART's DTR/RTS). `out_mask` is the pins the chip actually drives, so the
+       observer must also fire on MFIODIREC and MFIOSEL: a direction change alone
+       moves a line without touching MFIODOUT. Fired once at registration. */
+    using MfioOutObserver = std::function<void(uint32_t mfio_dout, uint32_t out_mask)>;
+    void RegisterMfioOutObserver(MfioOutObserver cb);
+
+    /* Observe IODOUT (IO_CTL $180 <14:8>), same contract. IODOUT and IODIREC share
+       IO_CTL, so one write carries both. */
+    using IoOutObserver = std::function<void(uint32_t io_dout, uint32_t out_mask)>;
+    void RegisterIoOutObserver(IoOutObserver cb);
+
     uint8_t  ReadByte(uint32_t addr) override { HaltUnsupportedAccess("PR31x00 IO ReadByte", addr, 0); }
     uint16_t ReadHalf(uint32_t addr) override { HaltUnsupportedAccess("PR31x00 IO ReadHalf", addr, 0); }
     void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("PR31x00 IO WriteByte", addr, v); }
@@ -45,9 +60,12 @@ private:
     uint32_t io_pd_      = 0x0000007Fu;
     uint32_t mfio_pd_    = 0xFAF03FFCu;
 
-    /* Levels board parts drive onto the multi-function I/O pins. */
-    uint32_t mfio_din_ = 0;
+    std::atomic<uint32_t> mfio_din_{0};
+    std::atomic<uint32_t> io_din_{0};
 
-    /* Levels board parts drive onto the 7 general purpose I/O pins. */
-    uint32_t io_din_ = 0;
+    void NotifyMfioOut();
+    void NotifyIoOut();
+
+    std::vector<MfioOutObserver> mfio_out_observers_;
+    std::vector<IoOutObserver>   io_out_observers_;
 };

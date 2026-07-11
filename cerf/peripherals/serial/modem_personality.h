@@ -22,6 +22,7 @@ public:
     void OnControlLines(bool dtr, bool rts) override;
     void OnOpen() override;
     void OnClose() override;
+    void ResendModemInputs() override;
 
 private:
     void HandleCommandByte(uint8_t b);

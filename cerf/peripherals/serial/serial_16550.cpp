@@ -51,18 +51,23 @@ size_t RxTrigger(uint8_t fcr) {
 }  /* namespace */
 
 Serial16550::Serial16550(SerialEndpoint& endpoint, IrqLineFn irq_line)
-    : endpoint_(endpoint), irq_line_(std::move(irq_line)) {
+    : endpoint_(&endpoint), irq_line_(std::move(irq_line)) {
     Reset();
 }
 
+void Serial16550::SetEndpoint(SerialEndpoint* endpoint) { endpoint_ = endpoint; }
+
 void Serial16550::Reset() {
-    std::lock_guard<std::mutex> lk(mu_);
-    ier_ = fcr_ = lcr_ = mcr_ = lsr_ = msr_ = scr_ = 0;
-    dll_ = dlm_ = 0;
-    thre_armed_ = false;
-    rx_.clear();
-    rx_pos_ = 0;
-    if (last_irq_level_) { last_irq_level_ = false; irq_line_(false); }
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        ier_ = fcr_ = lcr_ = mcr_ = lsr_ = msr_ = scr_ = 0;
+        dll_ = dlm_ = 0;
+        thre_armed_ = false;
+        rx_.clear();
+        rx_pos_ = 0;
+        if (last_irq_level_) { last_irq_level_ = false; irq_line_(false); }
+    }
+    if (endpoint_) endpoint_->ResendModemInputs();
 }
 
 uint32_t Serial16550::BaudRate() const {
@@ -233,10 +238,10 @@ void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
         if (line_changed) { line_cfg = GetLineConfigLocked(); line_cfg_cb = line_cfg_cb_; }
     }
     /* Off-lock: the endpoint may call back into PushRx (re-locks mu_). */
-    if (do_tx)        endpoint_.OnGuestTx(&tx_byte, 1);
-    if (loop_tx)      PushRx(&tx_byte, 1);
-    if (notify_lines) endpoint_.OnControlLines(dtr, rts);
-    if (line_cfg_cb)  line_cfg_cb(line_cfg);
+    if (do_tx && endpoint_)        endpoint_->OnGuestTx(&tx_byte, 1);
+    if (loop_tx)                   PushRx(&tx_byte, 1);
+    if (notify_lines && endpoint_) endpoint_->OnControlLines(dtr, rts);
+    if (line_cfg_cb)               line_cfg_cb(line_cfg);
 }
 
 bool Serial16550::RxEmpty() const {
@@ -261,24 +266,26 @@ void Serial16550::PushRx(const uint8_t* data, size_t n) {
 void Serial16550::SaveState(StateWriter& w) const {
     std::lock_guard<std::mutex> lk(mu_);
     w.Write(ier_); w.Write(fcr_); w.Write(lcr_); w.Write(mcr_);
-    w.Write(lsr_); w.Write(msr_); w.Write(dll_); w.Write(dlm_);
+    w.Write(lsr_); w.Write(msr_); w.Write(scr_);
+    w.Write(dll_); w.Write(dlm_);
     w.Write<uint8_t>(thre_armed_ ? 1u : 0u);
     w.Write<uint64_t>(rx_.size());
     if (!rx_.empty()) w.WriteBytes(rx_.data(), rx_.size());
     w.Write<uint64_t>(rx_pos_);
-    w.Write<uint8_t>(last_irq_level_ ? 1u : 0u);
 }
 
 void Serial16550::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mu_);
     r.Read(ier_); r.Read(fcr_); r.Read(lcr_); r.Read(mcr_);
-    r.Read(lsr_); r.Read(msr_); r.Read(dll_); r.Read(dlm_);
+    r.Read(lsr_); r.Read(msr_); r.Read(scr_);
+    r.Read(dll_); r.Read(dlm_);
     uint8_t armed = 0; r.Read(armed); thre_armed_ = (armed != 0);
     uint64_t n = 0; r.Read(n);
     rx_.assign(static_cast<size_t>(n), 0u);
     if (n) r.ReadBytes(rx_.data(), static_cast<size_t>(n));
     uint64_t pos = 0; r.Read(pos); rx_pos_ = static_cast<size_t>(pos);
-    uint8_t lvl = 0; r.Read(lvl); last_irq_level_ = (lvl != 0);
+    last_irq_level_ = ComputeIrqLevelLocked();
+    irq_line_(last_irq_level_);
 }
 
 void Serial16550::SetModemInputs(bool cts, bool dsr, bool ri, bool dcd) {

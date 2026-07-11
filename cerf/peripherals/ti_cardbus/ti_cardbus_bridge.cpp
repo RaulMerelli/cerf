@@ -110,6 +110,7 @@ public:
     }
 
     bool IoClaims(uint32_t pci_io) const override {
+        std::lock_guard<std::mutex> lk(mtx_);
         uint32_t card; return exca_.MapIo(pci_io, &card);
     }
     uint32_t IoRead(uint32_t pci_io, unsigned size) override {
@@ -127,7 +128,6 @@ public:
         else           slot_.WriteIo8(card, static_cast<uint8_t>(value));
     }
 
-    /* PcmciaSlotHost - callbacks arrive without the slot bus lock. */
     void OnCardDetectChanged(PcmciaSlot&) override {
         const bool present = slot_.HasCard();
         bool changed, assert_now;
@@ -181,6 +181,7 @@ private:
         return b && addr >= b && addr < b + kSocketBarSize;
     }
     bool CardMemHit(uint32_t addr) const {
+        std::lock_guard<std::mutex> lk(mtx_);
         uint32_t card; bool attr, wr;
         return exca_.MapMem(addr, &card, &attr, &wr);
     }
@@ -308,7 +309,7 @@ private:
     }
 
     PcmciaSlot slot_;
-    std::mutex mtx_;
+    mutable std::mutex mtx_;
     Pcic82365  exca_;
 
     uint32_t cfg_[64]          = {};

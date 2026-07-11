@@ -27,10 +27,9 @@ public:
     void SendFrame(const uint8_t* frame, std::size_t len) override;
     void SetReceiveCallback(RxFn cb) override;
 
-    /* Phase 10.b - ICMPv4 echo intercept. libslirp's built-in ICMP path
-       relies on SOCK_RAW on Windows (non-admin = WSAEACCES → silent ping
-       failure). We intercept echo requests before slirp_input and
-       service them with the unprivileged `IcmpSendEcho` Win32 API. */
+    /* libslirp's built-in ICMP path relies on SOCK_RAW, which a non-admin process
+       cannot open on Windows (WSAEACCES -> silent ping failure), so echo requests are
+       intercepted before slirp_input and serviced with the unprivileged IcmpSendEcho. */
     bool TryInterceptIcmpEcho(const uint8_t* frame, std::size_t len);
 
     bool TryInterceptAaaaQuery(const uint8_t* frame, std::size_t len);
@@ -50,6 +49,7 @@ public:
 private:
     void PollLoop();
     void StopPollThread();
+    void JoinIcmpThreads();
     int64_t NowMs() const;
 
     std::array<uint8_t, 6> guest_mac_{};
@@ -64,6 +64,15 @@ private:
     std::mutex rx_cb_mutex_;          /* protects rx_cb_ install/swap */
 
     std::thread poll_thread_;
+
+    struct IcmpEcho {
+        std::thread                            thread;
+        std::shared_ptr<std::atomic<bool>>     done;
+    };
+    std::mutex             icmp_mutex_;
+    std::vector<IcmpEcho>  icmp_threads_;
+    bool                   icmp_stopping_ = false;
+
     std::atomic<bool> stop_{false};
     std::mutex notify_mutex_;
     std::condition_variable notify_cv_;

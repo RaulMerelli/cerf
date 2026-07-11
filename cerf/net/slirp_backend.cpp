@@ -263,12 +263,17 @@ void SlirpBackend::StopPollThread() {
     if (poll_thread_.joinable()) poll_thread_.join();
 }
 
-/* Poll thread delivers RX frames into the NIC peer; stop it before any peer is
-   destroyed. libslirp/cbs frees stay in the destructor, after the join. */
-void SlirpBackend::OnShutdown() { StopPollThread(); }
+/* Poll thread and the in-flight ICMP echo threads both deliver RX frames into the
+   NIC peer; stop them before any peer is destroyed. libslirp/cbs frees stay in the
+   destructor, after the joins. */
+void SlirpBackend::OnShutdown() {
+    StopPollThread();
+    JoinIcmpThreads();
+}
 
 SlirpBackend::~SlirpBackend() {
     StopPollThread();
+    JoinIcmpThreads();
     if (slirp_) {
         std::lock_guard<std::mutex> lk(slirp_mutex_);
         slirp_cleanup(slirp_);

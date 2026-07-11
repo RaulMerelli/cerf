@@ -34,9 +34,13 @@ HpPalmtopVgaCard::HpPalmtopVgaCard(CerfEmulator& emu) : PcmciaCard(emu) {}
 HpPalmtopVgaCard::~HpPalmtopVgaCard() { if (window_) window_->Close(); }
 
 void HpPalmtopVgaCard::OnInserted() {
+    /* The window's eject is a posted UI job; this card can be gone and another
+       resident by the time it runs, so it ejects only this residency. */
+    PcmciaSlot*    slot = slot_;
+    const uint64_t id   = card_id_;
     window_ = std::make_unique<ExternalDisplayWindow>(
         emu_, controller_, kDisplayName,
-        /*on_eject=*/[this] { slot_->EjectCard(); });
+        /*on_eject=*/[slot, id] { slot->EjectCardIfResident(id); });
     window_->Open(640u, 480u);   /* blank until the guest sets a mode */
     last_w_ = 640u;
     last_h_ = 480u;

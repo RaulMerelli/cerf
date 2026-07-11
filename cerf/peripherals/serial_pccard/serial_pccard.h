@@ -1,7 +1,8 @@
 #pragma once
 
 #include "../pcmcia/pcmcia_card.h"
-#include "serial_16550.h"
+#include "../serial/serial_16550.h"
+#include "../serial/serial_endpoint_kind.h"
 
 #include <cstdint>
 #include <memory>
@@ -12,11 +13,11 @@ class SerialEndpoint;
 /* Generic 16-bit serial / modem PC Card: a PC16550D (Serial16550) behind a
    SerialEndpoint personality, presented so CE's in-box serial.dll binds it as
    COMx: with no device-specific driver. CIS + attribute config registers (COR/
-   FCSR) + I/O map are verified against the WinCE6 DDK SERIAL/PCCARD source. */
+   FCSR) + I/O map follow the WinCE6 DDK SERIAL / PCCARD sources. */
 class SerialPcCard : public PcmciaCard {
 public:
-    static constexpr const wchar_t* kDisplayName        = L"Serial Modem PC Card";
-    static constexpr const wchar_t* kForwardDisplayName = L"Serial Port Forwarder";
+    static constexpr const wchar_t* kDisplayName        = serial_endpoint_kind::kModemName;
+    static constexpr const wchar_t* kForwardDisplayName = serial_endpoint_kind::kForwardName;
 
     explicit SerialPcCard(CerfEmulator& emu);                    /* modem personality */
     SerialPcCard(CerfEmulator& emu, std::wstring host_com_port); /* host-port forward */
@@ -61,6 +62,7 @@ public:
 
 private:
     void OnUartIrq(bool asserted);
+    void DriveIrqLineLow();
     void BuildCis();   /* mode-dependent CIS (FUNCE present only for the modem) */
 
     static constexpr uint32_t kConfigBase = 0x200u;
@@ -73,12 +75,15 @@ private:
     uint8_t cor_      = 0;
     uint8_t fcsr_     = 0;
     bool    uart_irq_ = false;
+    bool    powered_  = false;   /* no Vcc -> the card drives no pin, IRQ included */
 
     enum class Mode { Modem, HostForward };
     Mode         mode_ = Mode::Modem;
     std::wstring host_port_;     /* host COM name when mode_ == HostForward */
     std::vector<uint8_t> cis_;   /* attribute-memory CIS, built per mode */
 
-    std::unique_ptr<SerialEndpoint> endpoint_;
+    /* The endpoint detaches through a raw SerialLine* at the UART in its dtor, so the
+       UART must outlive it. */
     std::unique_ptr<Serial16550>    uart_;
+    std::unique_ptr<SerialEndpoint> endpoint_;
 };

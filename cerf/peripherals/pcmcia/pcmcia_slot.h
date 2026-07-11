@@ -2,6 +2,7 @@
 
 #include "pcmcia_card.h"
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -10,10 +11,6 @@
 class CerfEmulator;
 class PcmciaSlot;
 
-/* Implemented by the socket controller that owns the slot. Callbacks
-   arrive WITHOUT the slot's bus lock held, on the inserting/ejecting
-   thread (UI or boot) for detect changes and on the card's signaling
-   thread for IRQs. */
 class PcmciaSlotHost {
 public:
     virtual ~PcmciaSlotHost() = default;
@@ -22,18 +19,22 @@ public:
     virtual void OnCardIrqDeasserted(PcmciaSlot& slot) = 0;
 };
 
-/* One physical PCMCIA socket. Lock hierarchy: bus_mutex_ > backend
-   rx-callback mutex > card mutex > controller mutex. RaiseIrq/ClearIrq
-   and PcmciaSlotHost callbacks must stay off bus_mutex_ - eject holds
-   it while the card dtor drains in-flight RX, which runs RaiseIrq. */
+/* One physical PCMCIA socket. Lock hierarchy: bus_mutex_ > backend rx-callback
+   mutex > card mutex > controller mutex. */
 class PcmciaSlot : public HostWidget {
 public:
     PcmciaSlot(CerfEmulator& emu, PcmciaSlotHost& host, std::wstring label);
 
     /* Guest bus surface. Empty or unpowered socket reads float high
        (PCMCIA bus convention: no card drives the data lines). */
-    bool HasCard()   const;
-    bool IsPowered() const;
+
+    /* CD/Vcc pin state. Lock-free by construction: a socket host reads these
+       from inside its own lock, and bus_mutex_ ranks above it. */
+    bool HasCard()   const { return (pins_.load(std::memory_order_acquire) & kPinPresent) != 0u; }
+    bool IsPowered() const {
+        constexpr uint8_t live = kPinPresent | kPinPowered;
+        return (pins_.load(std::memory_order_acquire) & live) == live;
+    }
     void SetPowered(bool on);
     void ResetCard();          /* socket RESET pin pulse */
 
@@ -57,6 +58,11 @@ public:
     void InsertCard(std::unique_ptr<PcmciaCard> card);
     void EjectCard();
 
+    /* Eject on behalf of a card whose host resource died, keyed on the residency id
+       it was given at insert: the request is dispatched from a UI job, by which time
+       the card may already be gone and another may hold the slot. */
+    void EjectCardIfResident(uint64_t card_id);
+
     /* Forward the CerfEmulator quiesce phase to the resident card so it can
        detach from peers before any service is destroyed. Owning controllers
        call this from their Service::OnShutdown. */
@@ -78,6 +84,10 @@ public:
     bool PollDirty() override;
 
 private:
+    static constexpr uint8_t kPinPresent = 0x01u;
+    static constexpr uint8_t kPinPowered = 0x02u;
+    void PublishPinsLocked();
+
     void InsertLocked(std::unique_ptr<PcmciaCard> card);
     void EjectLocked();
 
@@ -100,6 +110,7 @@ private:
     std::unique_ptr<PcmciaCard> card_;
     bool                        powered_ = false;
     uint64_t                    generation_ = 0;
+    std::atomic<uint8_t>        pins_{0};
 
     std::wstring ui_last_res_;   /* last-drawn icon resource; UI thread only (PollDirty) */
 };

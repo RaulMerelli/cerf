@@ -9,11 +9,11 @@
 #include <vector>
 
 class CerfEmulator;
-class Serial16550;
+class SerialLine;
 
 class PppTerminator {
 public:
-    PppTerminator(CerfEmulator& emu, Serial16550& uart);
+    PppTerminator(CerfEmulator& emu, SerialLine& uart);
     ~PppTerminator();
 
     void Start();   /* carrier up: begin a session, install host RX callback */
@@ -53,7 +53,7 @@ private:
     void PumpLocked();
 
     CerfEmulator& emu_;
-    Serial16550&  uart_;
+    SerialLine&   uart_;
     PppHdlc       hdlc_;
     std::mutex    mu_;   /* locked only at the public entry points */
 

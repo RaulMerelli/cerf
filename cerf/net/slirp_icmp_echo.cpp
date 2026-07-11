@@ -8,12 +8,16 @@
 #include <icmpapi.h>
 
 #include <array>
+#include <atomic>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
+#include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "../state/emulation_freeze.h"
 
 namespace {
 
@@ -119,7 +123,13 @@ bool SlirpBackend::TryInterceptIcmpEcho(const uint8_t* frame, std::size_t len) {
     if (!ParseIcmpEchoRequest(frame, len, req)) return false;
 
     uint16_t mtu_cap = (uint16_t)mtu_;
-    std::thread([this, req = std::move(req), mtu_cap]() mutable {
+
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    std::shared_ptr<void> mark_done(nullptr, [done](void*) {
+        done->store(true, std::memory_order_release);
+    });
+
+    auto echo = [this, req = std::move(req), mtu_cap, mark_done]() mutable {
         HANDLE h = IcmpCreateFile();
         if (h == INVALID_HANDLE_VALUE) return;
 
@@ -151,12 +161,34 @@ bool SlirpBackend::TryInterceptIcmpEcho(const uint8_t* frame, std::size_t len) {
         auto reply_frame = BuildIcmpEchoReplyFrame(req, *er, mtu_cap);
         if (reply_frame.empty()) return;
 
-        RxFn cb;
-        {
-            std::lock_guard<std::mutex> lk(rx_cb_mutex_);
-            cb = rx_cb_;
+        /* Delivery runs under rx_cb_mutex_ - the eject quiesce barrier. */
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+        std::lock_guard<std::mutex> lk(rx_cb_mutex_);
+        if (rx_cb_) rx_cb_(reply_frame.data(), reply_frame.size());
+    };
+
+    std::lock_guard<std::mutex> lk(icmp_mutex_);
+    if (icmp_stopping_) return true;   /* shutdown joined the live set; drop the echo */
+
+    for (auto it = icmp_threads_.begin(); it != icmp_threads_.end();) {
+        if (it->done->load(std::memory_order_acquire)) {
+            it->thread.join();
+            it = icmp_threads_.erase(it);
+        } else {
+            ++it;
         }
-        if (cb) cb(reply_frame.data(), reply_frame.size());
-    }).detach();
+    }
+    icmp_threads_.push_back({std::thread(std::move(echo)), std::move(done)});
     return true;
+}
+
+void SlirpBackend::JoinIcmpThreads() {
+    std::vector<IcmpEcho> live;
+    {
+        std::lock_guard<std::mutex> lk(icmp_mutex_);
+        icmp_stopping_ = true;
+        live.swap(icmp_threads_);
+    }
+    for (auto& e : live)
+        if (e.thread.joinable()) e.thread.join();
 }

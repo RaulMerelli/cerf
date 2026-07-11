@@ -7,9 +7,9 @@
 #include "../hp_palmtop_vga/hp_palmtop_vga_card.h"
 #include "../hp_palmtop_vga/hp_palmtop_vga_card_menu.h"
 #include "../realtek_rtl8019/rtl8019.h"
+#include "../serial/serial_forward_card_menu.h"
+#include "../serial/serial_modem_card_menu.h"
 #include "../serial_pccard/serial_pccard.h"
-#include "../serial_pccard/serial_modem_card_menu.h"
-#include "../serial_pccard/serial_forward_card_menu.h"
 
 namespace {
 
@@ -43,14 +43,18 @@ void PcmciaCardCatalog::OnReady() {
     serial.id           = kIdSerial;
     serial.display_name = SerialPcCard::kDisplayName;
     serial.insert_submenu = [this](CardInserter inserter) {
-        return emu_.Get<SerialModemCardMenu>().BuildInsertMenu(std::move(inserter));
+        return emu_.Get<SerialModemCardMenu>().BuildInsertMenu(
+            [this, inserter] { inserter(std::make_unique<SerialPcCard>(emu_)); });
     };
 
     Entry serial_fwd;
     serial_fwd.id           = kIdSerialFwd;
     serial_fwd.display_name = SerialPcCard::kForwardDisplayName;
     serial_fwd.insert_submenu = [this](CardInserter inserter) {
-        return emu_.Get<SerialForwardCardMenu>().BuildInsertMenu(std::move(inserter));
+        return emu_.Get<SerialForwardCardMenu>().BuildInsertMenu(
+            [this, inserter](std::wstring port) {
+                inserter(std::make_unique<SerialPcCard>(emu_, std::move(port)));
+            });
     };
 
     entries_.push_back(std::move(ne2000));

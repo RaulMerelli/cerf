@@ -1,6 +1,6 @@
 #include "modem_personality.h"
 
-#include "serial_16550.h"
+#include "serial_line.h"
 #include "ppp_terminator.h"
 
 #include "../../core/log.h"
@@ -26,6 +26,11 @@ void ModemPersonality::OnOpen() {
     echo_ = true;
     verbose_ = true;
     online_ = false;
+}
+
+void ModemPersonality::ResendModemInputs() {
+    if (uart_) uart_->SetModemInputs(/*cts=*/true, /*dsr=*/true, /*ri=*/false,
+                                     /*dcd=*/online_);
 }
 
 void ModemPersonality::OnClose() {

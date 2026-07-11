@@ -14,6 +14,11 @@ public:
 
 protected:
     const char* TxSource() const override { return "UARTA"; }
+    uint32_t RxIntBit() const override { return 1u << 31; }
+    uint32_t TxEmptyIntBit() const override { return 1u << 24; }
+    uint32_t TxAvailIntBit() const override { return 1u << 26; }
+    uint32_t DmaFullIntBit() const override { return 1u << 23; }
+    uint32_t DmaHalfIntBit() const override { return 1u << 22; }
 };
 
 }  /* namespace */

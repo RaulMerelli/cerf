@@ -81,10 +81,18 @@ public:
        slot's InsertCard/EjectCard (self-deadlock). */
     virtual std::vector<WidgetMenuItem> BuildCardMenu() { return {}; }
 
-    /* Wired by PcmciaSlot::InsertCard before OnInserted. */
-    void AttachSlot(PcmciaSlot* slot) { slot_ = slot; }
+    /* Wired by the slot before OnInserted. The id names THIS residency:
+       a card is destroyed on eject and the slot may hold a different card by the time
+       a deferred UI job runs, so a card keys deferred work by id and the slot acts on
+       it only while that residency still holds. */
+    void AttachSlot(PcmciaSlot* slot, uint64_t card_id) {
+        slot_    = slot;
+        card_id_ = card_id;
+    }
+    uint64_t CardId() const { return card_id_; }
 
 protected:
     CerfEmulator& emu_;
-    PcmciaSlot*   slot_ = nullptr;
+    PcmciaSlot*   slot_    = nullptr;
+    uint64_t      card_id_ = 0;
 };
