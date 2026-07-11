@@ -1,0 +1,21 @@
+.cerf-shot,
+.cerf-banner,
+.cerf-video img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.md-typeset .cerf-boards img {
+  vertical-align: middle;
+}
+
+.md-typeset .cerf-boards td,
+.md-typeset .cerf-boards th {
+  white-space: nowrap;
+}
+
+.md-typeset .cerf-boards td.cerf-notes {
+  white-space: normal;
+  min-width: 20rem;
+}

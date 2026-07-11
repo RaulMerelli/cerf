@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 
-BASE_URL = "https://cerf.dz3n.net/cerf-bundles"
+BASE_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
 REMOTE_MANIFEST_URL = BASE_URL + "/manifest.json"
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
