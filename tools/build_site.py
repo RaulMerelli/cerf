@@ -50,7 +50,8 @@ def stage():
 
 def boards_page():
     table = compile_readme.build_supported_devices()
-    table = table.replace('launcher/assets/icons', 'assets/icons')
+    # boards.md is published as /boards/index.html, so its assets sit one level up.
+    table = table.replace('launcher/assets/icons', '../assets/icons')
     return ('# Supported boards\n\n'
             'A ROM boots only if its board is implemented in CERF. A matching SoC is not\n'
             'enough - the same chip on another board has a different memory map, display\n'
