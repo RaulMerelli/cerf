@@ -2,6 +2,7 @@
 
 #include "rom_parser_service.h"
 
+#include "ce1_rom_parse.h"
 #include "ce_imgfs_walker.h"
 #include "rom_image_parse.h"
 
@@ -22,6 +23,7 @@ REGISTER_SERVICE(RomParserService);
 
 namespace {
 
+using cerf::ce1_rom_parse::ResolveCe1Xips;
 using cerf::rom_image_parse::ArnoldLocateOsXip;
 using cerf::rom_image_parse::ArnoldOsXip;
 using cerf::rom_image_parse::AssembleB000FFFlat;
@@ -68,6 +70,24 @@ std::vector<uint8_t> ReadWholeFile(const std::string& path) {
 bool RomParserService::ShouldRegister() {
     return emu_.Get<BoardContext>().GetRomPlacingMode()
         == RomPlacingMode::FlatContainer;
+}
+
+bool RomParserService::ParseCe1Xips(ParsedRom& rom) {
+    uint32_t base_va = 0;
+    if (!ResolveCe1Xips(rom.flat, rom.xips, base_va)) return false;
+
+    rom.is_ce1       = true;
+    rom.flat_base_va = base_va;
+    for (size_t i = 0; i < rom.xips.size(); ++i) {
+        const auto& h = rom.xips[i].toc.romhdr;
+        LOG(Boot, "RomParser %s: CE1 xip[%zu] romhdr @ file off 0x%zX  "
+                  "base_va=0x%08X  romhdr_va=0x%08X  "
+                  "physfirst=0x%08X..physlast=0x%08X  nummods=%u  numfiles=%u\n",
+            rom.filename.c_str(), i, size_t(rom.xips[i].toc.romhdr_va - base_va),
+            base_va, rom.xips[i].toc.romhdr_va, h.physfirst, h.physlast,
+            h.nummods, h.numfiles);
+    }
+    return true;
 }
 
 bool RomParserService::ParseOne(ParsedRom& rom) {
@@ -152,7 +172,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
     }
 
     const auto ececs = FindAllEcec(rom.flat);
-    if (ececs.empty()) {
+    if (ececs.empty() && !ParseCe1Xips(rom)) {
         ParsedXipRegion xip;
         size_t          romhdr_off = 0;
         if (!ResolveRomhdrStructural(rom.flat, xip, romhdr_off)) {
@@ -169,7 +189,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
             rom.filename.c_str(), romhdr_off, xip.load_offset,
             xip.toc.romhdr_va, h.physfirst, h.physlast, h.nummods, h.numfiles);
         rom.xips.push_back(std::move(xip));
-    } else {
+    } else if (!ececs.empty()) {
         LOG(Boot, "RomParser %s: %zu ECEC marker(s) in flat\n",
             rom.filename.c_str(), ececs.size());
 
@@ -220,6 +240,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
            e32_entryrva=0x1000), so a reset entering at physfirst after a suspend
            executes the save block. e32_entryrva=0 keeps entry_va == physfirst. */
         for (const auto& m : primary.toc.modules) {
+            if (rom.is_ce1) break;
             if (m.ulLoadOffset != rom.entry_va) continue;   /* kernel = module @ physfirst */
             const size_t e32_off = size_t(m.ulE32Offset - rom.flat_base_va);
             if (e32_off + 12 > rom.flat.size()) break;
@@ -231,7 +252,8 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         }
     }
 
-    if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold && !rom.is_nbf) {
+    if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold && !rom.is_nbf
+        && !rom.is_ce1) {
         const size_t off = FindImgfsBase(rom.raw);
         if (off != SIZE_MAX) {
             rom.has_imgfs        = true;
@@ -327,8 +349,6 @@ void RomParserService::OnReady() {
 
     std::vector<std::string> filenames;
     if (cfg.boot_in_recovery) {
-        /* --recovery: boot the standalone recovery ROM instead of the
-           primary (+extensions). Recovery is self-contained. */
         if (cfg.rom_recovery.empty()) {
             LOG(Caution, "RomParser: --recovery requested but device '%s' "
                          "declares no rom.recovery\n", cfg.device_name.c_str());
@@ -403,6 +423,11 @@ RomParserService::ReadVa(uint32_t va, uint32_t len) const {
 std::span<const uint8_t>
 RomParserService::ModuleBytesByName(const char* name) const {
     for (const auto& rom : loaded_) {
+        if (rom.is_ce1) {
+            LOG(Caution, "RomParser: ModuleBytesByName('%s') on a CE 1.0 image "
+                         "is not implemented\n", name);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
         for (const auto& xip : rom.xips) {
             for (const auto& m : xip.toc.modules) {
                 if (!EqualIgnoreCase(m.lpszFileName, name)) continue;
@@ -421,6 +446,7 @@ RomParserService::ModuleBytesByName(const char* name) const {
 bool RomParserService::KernelSubsystemVersion(uint16_t& major,
                                               uint16_t& minor) const {
     for (const auto& rom : loaded_) {
+        if (rom.is_ce1) return false;
         for (const auto& xip : rom.xips) {
             for (const auto& m : xip.toc.modules) {
                 if (!EqualIgnoreCase(m.lpszFileName, "nk.exe")) continue;

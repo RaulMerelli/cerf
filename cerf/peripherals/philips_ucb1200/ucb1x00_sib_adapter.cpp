@@ -26,6 +26,7 @@ public:
     void WriteReg(uint8_t reg, uint16_t value) override {
         emu_.Get<Ucb1x00Codec>().WriteReg(reg, value);
     }
+    bool IrqAsserted() override { return emu_.Get<Ucb1x00Codec>().IrqAsserted(); }
     void SaveState(StateWriter& w) override    { emu_.Get<Ucb1x00Codec>().SaveState(w); }
     void RestoreState(StateReader& r) override { emu_.Get<Ucb1x00Codec>().RestoreState(r); }
     void PostRestore() override                { emu_.Get<Ucb1x00Codec>().PostRestore(); }

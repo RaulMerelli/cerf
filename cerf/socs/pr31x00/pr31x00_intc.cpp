@@ -147,12 +147,25 @@ void Pr31x00Intc::SetPending(uint32_t set, uint32_t bits) {
     RecomputeLocked();
 }
 
+void Pr31x00Intc::RegisterEnableListener(uint32_t set, uint32_t bits,
+                                         std::function<void()> cb) {
+    std::unique_lock<std::mutex> lk(mtx_);
+    if (set >= kSets) {
+        HaltUnsupportedAccess("PR31x00 INTC RegisterEnableListener set index", set, bits);
+    }
+    const bool already = (enable_[set] & bits) != 0u;
+    enable_listeners_.push_back({set, bits, cb});
+    lk.unlock();
+    if (already) cb();
+}
+
 uint32_t Pr31x00Intc::ReadWord(uint32_t addr) {
     std::lock_guard<std::mutex> lk(mtx_);
     const uint32_t off = addr - kBase;
 
     if (off < kOffStatus0 + kSets * 4u) {
-        return status_[off / 4u];
+        const uint32_t set = off / 4u;
+        return status_[set];
     }
 
     if (off == kOffStatus6) {
@@ -171,7 +184,7 @@ uint32_t Pr31x00Intc::ReadWord(uint32_t addr) {
 }
 
 void Pr31x00Intc::WriteWord(uint32_t addr, uint32_t value) {
-    std::lock_guard<std::mutex> lk(mtx_);
+    std::unique_lock<std::mutex> lk(mtx_);
     const uint32_t off = addr - kBase;
 
     /* Clear Interrupt 1..5: writing a 1 resets the matching Status bit (§8.2.2); a
@@ -191,6 +204,12 @@ void Pr31x00Intc::WriteWord(uint32_t addr, uint32_t value) {
         }
         enable_[set] = value;
         RecomputeLocked();
+        std::vector<std::function<void()>> fire;
+        for (const EnableListener& l : enable_listeners_) {
+            if (l.set == set && (value & l.bits) != 0u) fire.push_back(l.cb);
+        }
+        lk.unlock();
+        for (const auto& cb : fire) cb();
         return;
     }
 

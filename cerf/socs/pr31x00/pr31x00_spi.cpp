@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "pr31x00_intc.h"
 #include "pr31x00_spi_slave.h"
 
 #include <cstdint>
@@ -23,6 +24,13 @@ constexpr uint32_t kCtlRsvdOrRo = 0xFFFF00C8u;
 constexpr uint32_t kCtlSpion    = 0x00020000u;
 constexpr uint32_t kCtlEmpty    = 0x00010000u;
 constexpr uint32_t kCtlEnSpi    = 0x00000001u;
+
+/* SPIBUFAVAILINT = Interrupt Status 5 bit 21 (R3912.H:424; Status 5 = INTC set 4):
+   the transmit-buffer-available LEVEL the guest busy-polls before loading TXDATA
+   (§14.3.2). Free-running while ENSPI, NOT a per-byte event - a per-byte SetPending
+   leaves each later byte's poll (sub_1EBD700) unasserted and hangs. */
+constexpr uint32_t kStatus5Set     = 4u;
+constexpr uint32_t kSpiBufAvailInt = 1u << 21;
 
 class Pr31x00Spi : public Peripheral {
 public:
@@ -62,18 +70,29 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         switch (addr - kBase) {
             case kOffCtl:
+                /* SPION and EMPTY are read-only status; serial.dll sub_1EBD514 clears
+                   ENSPI with a read-modify-write of CTL that reads them back, and a
+                   write to a read-only bit is ignored (§14.3.1). */
+                value &= ~(kCtlSpion | kCtlEmpty);
                 if (value & kCtlRsvdOrRo) {
-                    HaltUnsupportedAccess("PR31x00 SPI CTL reserved or read-only bit", addr, value);
+                    HaltUnsupportedAccess("PR31x00 SPI CTL reserved bit", addr, value);
                 }
-                /* DELAYVAL and BAUDRATE divide SPICLK and space characters on it
-                   (§14.3.1). */
                 ctl_ = value & kCtlWritable;
+                emu_.Get<Pr31x00Intc>().SetSourceFreeRunning(
+                    kStatus5Set, kSpiBufAvailInt, (ctl_ & kCtlEnSpi) != 0u);
                 return;
 
             /* A TXDATA write loads the Transmitter Holding Register and clocks the
-               character out to the slave devices (§14.3.2). */
-            case kOffData:
-                HaltUnsupportedAccess("PR31x00 SPI TXDATA write with no slave on the bus", addr, value);
+               character out to the slave (§14.3.2); WORD is clear on this bus, so
+               only TXDATA[7:0] is valid. */
+            case kOffData: {
+                auto* slave = emu_.TryGet<Pr31x00SpiSlave>();
+                if (!slave) {
+                    HaltUnsupportedAccess("PR31x00 SPI TXDATA write with no slave on the bus", addr, value);
+                }
+                slave->SpiTxByte(static_cast<uint8_t>(value & 0xFFu));
+                return;
+            }
 
             default:
                 HaltUnsupportedAccess("PR31x00 SPI WriteWord", addr, value);
@@ -85,8 +104,14 @@ public:
     void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("PR31x00 SPI WriteByte", addr, v); }
     void WriteHalf(uint32_t addr, uint16_t v) override { HaltUnsupportedAccess("PR31x00 SPI WriteHalf", addr, v); }
 
-    void SaveState(StateWriter& w) override { w.Write(ctl_); }
-    void RestoreState(StateReader& r) override { r.Read(ctl_); }
+    void SaveState(StateWriter& w) override {
+        w.Write(ctl_);
+        if (auto* slave = emu_.TryGet<Pr31x00SpiSlave>()) slave->SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(ctl_);
+        if (auto* slave = emu_.TryGet<Pr31x00SpiSlave>()) slave->RestoreState(r);
+    }
 
 private:
     /* Every writable field resets to 0 (§14.3.1); DELAYVAL and BAUDRATE reset

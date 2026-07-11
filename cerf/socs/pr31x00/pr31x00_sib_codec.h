@@ -16,6 +16,10 @@ public:
     virtual uint16_t ReadReg(uint8_t reg) = 0;
     virtual void     WriteReg(uint8_t reg, uint16_t value) = 0;
 
+    /* SIBIRQ input-pin level (SIB CTL $074 bit 31, §13.6.6): driven active-high
+       while the codec has a pending interrupt. */
+    virtual bool IrqAsserted() { return false; }
+
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
     virtual void PostRestore() {}

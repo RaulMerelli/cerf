@@ -3,7 +3,9 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
+#include <vector>
 
 class MipsJit;
 
@@ -33,6 +35,12 @@ public:
 
     void SetSourceFreeRunning(uint32_t set, uint32_t bits, bool active);
 
+    /* Notify `cb` when the guest unmasks any of `bits` in Enable Interrupt
+       `set+1` (and once at registration if already unmasked). Fired OUTSIDE the
+       lock: the callback re-enters via SetPending, which would deadlock the
+       non-recursive INTC mutex if fired under it. */
+    void RegisterEnableListener(uint32_t set, uint32_t bits, std::function<void()> cb);
+
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
     void PostRestore() override;
@@ -44,6 +52,9 @@ private:
     uint32_t enable_[5]       = {};
     uint32_t free_running_[5] = {};
     uint32_t enable6_         = 0;   /* GLOBALEN cleared on power-on reset (§8.3.17) */
+
+    struct EnableListener { uint32_t set; uint32_t bits; std::function<void()> cb; };
+    std::vector<EnableListener> enable_listeners_;
 
     MipsJit* jit_ = nullptr;
 

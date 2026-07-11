@@ -15,6 +15,8 @@ struct ParsedTOCentry {
     uint32_t    ulE32Offset      = 0;
     uint32_t    ulO32Offset      = 0;
     uint32_t    ulLoadOffset     = 0;
+    uint32_t    ulNtHeadersVa    = 0;
+    uint32_t    ulSecHeadersVa   = 0;
 };
 
 struct ParsedFILESentry {
@@ -109,6 +111,7 @@ struct ParsedRom {
     bool                         is_nosaj     = false;
     bool                         is_arnold    = false;
     bool                         is_nbf       = false;
+    bool                         is_ce1       = false;
     bool                         has_imgfs        = false;
     bool                         imgfs_is_ftl     = false;
     uint32_t                     imgfs_file_off   = 0;
@@ -154,6 +157,8 @@ public:
 
 private:
     bool ParseOne(ParsedRom& rom);
+
+    bool ParseCe1Xips(ParsedRom& rom);
 
     bool                   ok_ = false;
     std::vector<ParsedRom> loaded_;

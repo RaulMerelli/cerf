@@ -101,6 +101,7 @@ FEATURE_SPECS = [
     ("pcmcia", "pcmcia.png", "PCMCIA"),
     ("network", "internet.png", "Network"),
     ("battery", "battery.png", "Battery"),
+    ("serial", "serial.png", "Serial Port"),
 ]
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
@@ -199,6 +200,7 @@ BOARDS_INFORMATION = [
             "suspend": True,
             "guest_additions": True,
             "mic": False,
+            "serial": False,
         },
     },
     {
@@ -218,6 +220,7 @@ BOARDS_INFORMATION = [
             "suspend": True,
             "guest_additions": True,
             "mic": False,
+            "serial": False,
         },
         "notes": [
             "Guest additions mouse is behaving weird",
@@ -380,7 +383,8 @@ BOARDS_INFORMATION = [
             "suspend": False,
             "guest_additions": True,
             "pcmcia": False,
-            "network": False,
+            "sound": True,
+            "serial": True,
         },
     },
     {
@@ -398,6 +402,8 @@ BOARDS_INFORMATION = [
             "guest_additions": False,
             "pcmcia": False,
             "network": False,
+            "sound": True,
+            "serial": False,
         },
     },
     {

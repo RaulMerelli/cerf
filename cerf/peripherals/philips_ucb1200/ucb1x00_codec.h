@@ -19,6 +19,8 @@ public:
     uint16_t ReadReg(uint8_t reg);
     void     WriteReg(uint8_t reg, uint16_t value);
 
+    bool IrqAsserted();
+
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
     void PostRestore();

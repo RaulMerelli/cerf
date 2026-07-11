@@ -37,8 +37,9 @@ constexpr uint32_t kCtlEnSib = 1u << 0;
 constexpr uint32_t kCtlEnSf0 = 1u << 1;
 constexpr uint32_t kCtlEnSnd = 1u << 4;
 
-/* Interrupt Status 1 bit 8, SIBSF0INT (§8.3.1). */
+/* Interrupt Status 1 bit 8 SIBSF0INT and bit 7 SIBSF1INT (§8.3.1). */
 constexpr uint32_t kSibSf0Int = 1u << 8;
+constexpr uint32_t kSibSf1Int = 1u << 7;
 
 /* SNDFSDIV[6:0]<14:8> (§13.6.6). */
 constexpr uint32_t kCtlSndFsShift = 8;
@@ -72,6 +73,7 @@ constexpr uint32_t kSndTxStartMask = 0xFFFFFFFCu;
 constexpr uint32_t kCtlReset = 0;
 
 constexpr uint32_t kCtlWritable = 0x7FFFFFFFu;   /* SIBIRQ<31> is read-only */
+constexpr uint32_t kCtlSibIrq   = 1u << 31;      /* SIBIRQ input-pin level (§13.6.6) */
 
 /* ENCNTTEST<30> and ENDMATEST<29> "should not be set" (§13.6.6). ENTEL<5> and
    SIBLOOP<3> start telecom or loopback traffic against the codec and the SIB DMA
@@ -106,10 +108,19 @@ public:
 
     /* OEMIdle polls ENSIB<0> here before stopping the CPU (nino_300 nk.exe
        sub_9F411310 tests MEMORY[0xB0C00074] & 1 ahead of POWER_CTL STOPCPU), so
-       this read must answer. SIBIRQ<31> reports an input pin an external TC35143
-       drives active-high (§13.6.6); no codec is modelled, so it stays low. */
+       this read must answer. SIBIRQ<31> reports the codec IRQ input pin, active-high
+       (§13.6.6): reflect the modelled codec's pending interrupt. */
     uint32_t ReadWord(uint32_t addr) override {
-        if (addr - kBase == kOffCtl) return ctl_;
+        if (addr - kBase == kOffCtl) {
+            uint32_t v = ctl_;
+            auto* codec = emu_.TryGet<Pr31x00SibCodec>();
+            if (codec && codec->IrqAsserted()) v |= kCtlSibIrq;
+            return v;
+        }
+        /* SF0AUX holds the subframe-0 control word and is R/W (§13.6.11); serial.dll's
+           UCB register handler sub_1EBACE8 reads it to save and restore it around a
+           transaction. */
+        if (addr - kBase == kOffSf0Aux) return sf0_aux_;
         if (addr - kBase == kOffSf0Stat) return sf0_stat_;
         /* SNDDMAPTR[13:2]<29:18>(R) is not modelled and reads 0 (§13.6.15); the guest
            reads DMACTL only to read-modify-write ENDMATXSND. */
@@ -162,7 +173,7 @@ public:
         }
         ctl_ = value & kCtlWritable;
         UpdateSound();
-        UpdateSf0();
+        UpdateSibFrameInts();
     }
 
     /* SNDVALID and TELVALID mark the accompanying sound and telecom samples in the
@@ -244,10 +255,12 @@ private:
         }
     }
 
-    /* SIBSF0INT free-runs while ENSIB and ENSF0 are set (§8.3.1). */
-    void UpdateSf0() {
+    /* Every SIB frame carries both subframe 0 and subframe 1 (§13.3.1 Fig 13.3.1), so
+       SIBSF0INT and SIBSF1INT both re-issue each frame while it runs; §8.3.1: SF1INT
+       gates the CPU read of SF0STAT that the codec-register read protocol waits on. */
+    void UpdateSibFrameInts() {
         const bool active = (ctl_ & (kCtlEnSib | kCtlEnSf0)) == (kCtlEnSib | kCtlEnSf0);
-        emu_.Get<Pr31x00Intc>().SetSourceFreeRunning(0, kSibSf0Int, active);
+        emu_.Get<Pr31x00Intc>().SetSourceFreeRunning(0, kSibSf0Int | kSibSf1Int, active);
     }
 
     uint32_t ctl_     = kCtlReset;

@@ -63,6 +63,12 @@ uint16_t Ucb1x00Codec::ReadReg(uint8_t reg) {
     }
 }
 
+/* The UCB nIRQ asserts while IE_STATUS holds a pending interrupt; CERF models the
+   pen-detect source, latched into the board's PenIrqStatus. */
+bool Ucb1x00Codec::IrqAsserted() {
+    return emu_.Get<Ucb1x00Board>().PenIrqStatus() != 0u;
+}
+
 void Ucb1x00Codec::WriteReg(uint8_t reg, uint16_t value) {
     auto& board = emu_.Get<Ucb1x00Board>();
     regs_[reg & 0xFu] = value;
