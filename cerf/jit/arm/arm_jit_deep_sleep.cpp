@@ -13,6 +13,12 @@ void ArmJit::EnterDeepSleep() {
     UpdateInterruptOnPoll();
 }
 
+void ArmJit::ExitDeepSleep() {
+    std::lock_guard<std::mutex> guard(interrupt_lock_);
+    cpu_->State()->deep_sleep = 0;
+    UpdateInterruptOnPoll();
+}
+
 void __fastcall ArmJit::EnterDeepSleepHelper(ArmJit* jit) {
     jit->emu_.Get<GuestDeepSleep>().Enter();
 }

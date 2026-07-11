@@ -50,9 +50,13 @@ constexpr uint32_t kCfg4Reserved = 0x000E00C0u;
 
 /* ENARB and DISSNOOP control CPU-interface arbitration and the SNOOP signal during DMA;
    CLRWRBUSERRINT gates WRBUSERRINT, which drives CPU INT[0] directly and independently
-   of the interrupt controller; MEMPOWERDOWN drops the memory interface into
-   self-refresh. */
-constexpr uint32_t kCfg4Unmodeled = (1u << 29) | (1u << 28) | (1u << 27) | (1u << 16);
+   of the interrupt controller. */
+constexpr uint32_t kCfg4Unmodeled = (1u << 29) | (1u << 28) | (1u << 27);
+
+/* "The first access outside them clears the MEMPOWERDOWN bit and DRAMs and/or SDRAMs will
+   go out of the self-refresh mode" (§12.2.7, p.12-10) - only cache and internal-function-
+   register accesses hold it. CERF has no cache, so the guest's next access clears it. */
+constexpr uint32_t kCfg4MemPowerDown = 1u << 16;
 
 }  /* namespace */
 
@@ -128,11 +132,9 @@ void Pr31x00Biu::WriteConfig4(uint32_t addr, uint32_t value) {
     if (value & kCfg4Unmodeled) {
         HaltUnsupportedAccess("PR31x00 BIU MEM_CONFIG4 unmodeled control", addr, value);
     }
-    /* ENBANKnHDRAM picks the DRAM device type, ENBANKnOPT inserts a RAS-to-CAS clock,
-       ENRFSHn / RFSHVALn set the refresh interval, and ENWATCH / WATCHTIMEVAL arm the
-       bus Watch Dog Timer, which times out an access memory never completes (§4.7.5).
-       A CERF access always completes or halts, and its DRAM needs no refresh. */
-    reg_[4] = value;
+    /* Device type, RAS-to-CAS, refresh interval and the bus Watch Dog Timer (§4.7.5).
+       CERF's host-backed DRAM neither refreshes nor loses contents. */
+    reg_[4] = value & ~kCfg4MemPowerDown;
 }
 
 void Pr31x00Biu::SaveState(StateWriter& w) {

@@ -40,6 +40,8 @@ public:
        and parks until a reset is pended. GuestDeepSleep::Enter routes here. */
     virtual void EnterDeepSleep() = 0;
 
+    virtual void ExitDeepSleep() = 0;
+
     virtual void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) = 0;
 
     virtual uint8_t* ResolveGuestVaToHost(uint32_t va) = 0;

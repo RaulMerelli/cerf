@@ -33,6 +33,10 @@ public:
        matching Clear Interrupt Register (§8.2.2). */
     void SetPending(uint32_t set, uint32_t bits);
 
+    /* Deassert a source's request: a device that resets or loses power drops its
+       interrupt line along with the data behind it. */
+    void ClearPending(uint32_t set, uint32_t bits);
+
     void SetSourceFreeRunning(uint32_t set, uint32_t bits, bool active);
 
     /* Notify `cb` when the guest unmasks any of `bits` in Enable Interrupt

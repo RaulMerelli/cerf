@@ -10,7 +10,27 @@
 REGISTER_SERVICE(GuestDeepSleep);
 
 void GuestDeepSleep::RegisterWaker(DeepSleepWaker* waker) {
+    if (clock_stop_ != nullptr) {
+        LOG(Caution, "GuestDeepSleep: a DeepSleepWaker and a DeepSleepClockStop are both "
+                "registered - sleep-exit is one shape or the other, so one SoC's wake "
+                "model is wrong\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     waker_ = waker;
+}
+
+void GuestDeepSleep::RegisterClockStopWaker(DeepSleepClockStop* waker) {
+    if (waker_ != nullptr) {
+        LOG(Caution, "GuestDeepSleep: a DeepSleepClockStop and a DeepSleepWaker are both "
+                "registered - sleep-exit is one shape or the other, so one SoC's wake "
+                "model is wrong\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    clock_stop_ = waker;
+}
+
+void GuestDeepSleep::RegisterPowerUpListener(std::function<void()> fn) {
+    power_up_listeners_.push_back(std::move(fn));
 }
 
 void GuestDeepSleep::ClearWakeCause() {
@@ -41,6 +61,13 @@ void GuestDeepSleep::Enter() {
 }
 
 void GuestDeepSleep::DeliverWake() {
+    if (clock_stop_) {
+        clock_stop_->OnPowerUp();
+        for (auto& fn : power_up_listeners_) fn();
+        emu_.Get<GuestPowerNotifier>().NotifyResume();
+        emu_.Get<GuestEngine>().ExitDeepSleep();
+        return;
+    }
     waker_->LatchSleepWakeCause();
     if (resume_vector_provider_) resume_vector_provider_->ApplyPendingResume();
     emu_.Get<GuestEngine>().SetResetPending(/*is_resume=*/true);

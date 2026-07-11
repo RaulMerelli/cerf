@@ -253,6 +253,7 @@ public:
 
     void SetResetPending(bool is_resume = false) override;
     void EnterDeepSleep() override;
+    void ExitDeepSleep() override;
     void NotifyResetDelivered();
 
     void SaveCpuState(StateWriter& w)    override;

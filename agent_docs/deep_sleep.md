@@ -31,15 +31,39 @@ wakes (`DeliverWake`), OK exits (optionally saving). The recovery dialog is
 **no-timeout** by design - a countdown could auto-exit and discard live guest RAM
 while the user is away.
 
-## The wake IS a reset
+## Two wake shapes - read the SoC before picking one
 
-A sleep wake is delivered through the reset path, not as an in-place resume:
+Sleep-exit is silicon behavior, and it takes one of two forms. Which one a SoC
+implements is a fact to establish from its manual and its guest's own resume code,
+never assumed:
+
+- **Reset-on-wake.** Powering back up applies an internal CPU reset. The core
+  re-enters at the reset/boot vector, reads the reset-cause register to
+  distinguish sleep-exit from a cold boot, and runs the kernel/bootloader resume
+  path from there. SA-1110 and PXA255 are this shape; it is the `DeepSleepWaker` /
+  `SetResetPending` path below.
+- **Clock-stop, resume in place.** The chip stops the CPU clock; the core holds
+  its entire state and, when the clock restarts, continues at the instruction
+  after the one it stopped on. No reset, no reset cause, no resume vector. The
+  PR31x00 is this shape - TMPR3911 §12.2.4 (p.12-8): *"the CPU will remain
+  suspended at its last state ... Then the CPU will resume the instruction
+  execution from where it stopped."* CERF models it with `DeepSleepClockStop` +
+  `GuestEngine::ExitDeepSleep()`: `DeliverWake()` applies what the silicon asserts
+  on the power-up edge and un-halts the CPU at its halted PC.
+
+**The guest binary settles which shape a SoC has.** On a clock-stop SoC the guest's
+power-down routine keeps executing past the register write that cuts power (the
+PR31x00 kernel finishes an RTC wait loop and then re-enters its own entry point with
+a resume magic); under reset-on-wake every instruction after that write would be
+dead code. Code that runs after the power-down store is proof the core was never
+reset.
+
+## Reset-on-wake
+
+Where the wake IS a reset, it is delivered through the reset path:
 `GuestDeepSleep::DeliverWake()` latches the wake cause and calls
-`ArmJit::SetResetPending()`. The guest's OWN kernel/bootloader resume code - which
-runs at the reset/boot entry - is what restores the live session. Modelling the
-wake as "no reset / resume in place" is wrong: real SoCs apply an internal reset
-on sleep-exit, and the boot path reads the reset-cause register to take its resume
-branch.
+`SetResetPending()`. The guest's OWN kernel/bootloader resume code - which runs at
+the reset/boot entry - is what restores the live session.
 
 Because the wake re-enters through reset, two things must hold:
 
@@ -61,11 +85,13 @@ vs `NotifyReboot()`; only the deep-sleep wake passes `is_resume`.
 
 ## Per-SoC / per-board wiring contract
 
-To bring deep sleep up on a new SoC or board:
+To bring deep sleep up on a new SoC or board. Step 1 is common; steps 2-4 are the
+reset-on-wake shape, step 5 the clock-stop shape. A SoC takes one shape or the
+other, never both.
 
 1. **Detect the power-down write** in the SoC peripheral that owns it (a
-   power-manager force-sleep bit, a CP power-mode write, …) and call
-   `emu_.Get<GuestDeepSleep>().Enter()`.
+   power-manager force-sleep bit, a CP power-mode write, a simultaneous
+   power-rail-enable clear, …) and call `emu_.Get<GuestDeepSleep>().Enter()`.
 2. **Latch the wake cause.** The peripheral owning the reset-cause register
    implements `DeepSleepWaker::LatchSleepWakeCause()` (set the sleep/SMR cause
    bit) and registers via `GuestDeepSleep::RegisterWaker`.
@@ -81,6 +107,20 @@ To bring deep sleep up on a new SoC or board:
    reset at the cold entry. The `GuestEngine` seam is ISA-neutral
    (`jit.md` § The `GuestEngine` seam), so no cp15 crosses it - the board owns
    its own architecture's registers.
+5. **On a clock-stop SoC**, steps 2-4 do not apply - there is no reset, no cause to
+   latch and no resume vector. The peripheral owning the power register implements
+   `DeepSleepClockStop::OnPowerUp()` and registers via
+   `GuestDeepSleep::RegisterClockStopWaker`. `OnPowerUp()` applies exactly what the
+   silicon asserts on the power-up edge (on the PR31x00, POWER_CTL PWRCS + VCCON,
+   which §12.3.1 says hardware sets when ONBUTN is asserted while PWROK is high);
+   `DeliverWake()` then calls `GuestEngine::ExitDeepSleep()`, which clears the halt
+   so `JitRunner`'s park exits and `Run()` continues at the halted PC.
+   **Silicon that loses power in the Suspend State still re-initialises.** No reset
+   line fires on this path, so a `GuestCpuReset` reset listener does NOT run: a
+   device on a power rail the suspend cuts (TMPR3911 §12.2.3: in the Suspend State
+   "VSTANDBY and VCCDRAM are powered but VCC3 is not powered") must be re-initialised
+   off the power-up edge instead. Miss it and the resumed guest's driver re-handshakes
+   against a device still holding its pre-sleep state.
 
 Suspend/resume serializes nothing - RAM stays live the whole time; the CPU is
 merely parked.

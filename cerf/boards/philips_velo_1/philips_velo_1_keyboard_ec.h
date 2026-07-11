@@ -24,6 +24,7 @@ public:
 private:
     void StageEnableLocked();     /* caller holds mtx_ */
     void OnSpiRcvIntEnabled();
+    void Unhandshake();
 
     std::mutex mtx_;
     std::deque<uint8_t> tx_;

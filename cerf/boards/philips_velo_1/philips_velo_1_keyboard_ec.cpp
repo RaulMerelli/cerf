@@ -3,6 +3,8 @@
 #include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../host/guest_deep_sleep.h"
+#include "../../socs/guest_cpu_reset.h"
 #include "../../socs/pr31x00/pr31x00_intc.h"
 #include "../../state/state_stream.h"
 
@@ -40,6 +42,19 @@ void PhilipsVelo1KeyboardEc::OnReady() {
        the 0x10000 layout event gwes needs to allocate its keyboard-layout buffer. */
     emu_.Get<Pr31x00Intc>().RegisterEnableListener(
         kStatus5Set, kSpiRcvInt, [this] { OnSpiRcvIntEnabled(); });
+
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this] { Unhandshake(); });
+
+    emu_.Get<GuestDeepSleep>().RegisterPowerUpListener([this] { Unhandshake(); });
+}
+
+void PhilipsVelo1KeyboardEc::Unhandshake() {
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        enabled_ = false;
+        tx_.clear();
+    }
+    emu_.Get<Pr31x00Intc>().ClearPending(kStatus5Set, kSpiRcvInt);
 }
 
 void PhilipsVelo1KeyboardEc::StageEnableLocked() {

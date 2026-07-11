@@ -7,6 +7,11 @@ void MipsJit::EnterDeepSleep() {
     cpu_state_.deep_sleep = 1;
 }
 
+void MipsJit::ExitDeepSleep() {
+    cpu_state_.deep_sleep = 0;
+    SignalIdleWake();
+}
+
 void __fastcall MipsJit::HibernateHelper(uint32_t next_pc, MipsJit* jit) {
     jit->cpu_state_.pc = next_pc;
     jit->emu_.Get<GuestDeepSleep>().Enter();

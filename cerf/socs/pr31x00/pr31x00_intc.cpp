@@ -5,6 +5,7 @@
 #include "../../jit/mips/mips_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 
 #include <cstdint>
 
@@ -85,6 +86,15 @@ bool Pr31x00Intc::ShouldRegister() {
 void Pr31x00Intc::OnReady() {
     jit_ = &emu_.Get<MipsJit>();
     emu_.Get<PeripheralDispatcher>().Register(this);
+
+    /* Enable Interrupt 1-5 (§8.3.13-§8.3.16): "This register is not cleared upon reset;
+       however, the GLOBALEN global interrupt enable bit is cleared upon reset, therefore
+       disabling all interrupts." */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this] {
+        std::lock_guard<std::mutex> lk(mtx_);
+        enable6_ &= ~kGlobalEn;
+        RecomputeLocked();
+    });
 }
 
 /* The priority encoder takes only the Priority Mask and the 15 high priority sources,
@@ -144,6 +154,16 @@ void Pr31x00Intc::SetPending(uint32_t set, uint32_t bits) {
         HaltUnsupportedAccess("PR31x00 INTC SetPending set index", set, bits);
     }
     status_[set] |= bits;
+    RecomputeLocked();
+}
+
+void Pr31x00Intc::ClearPending(uint32_t set, uint32_t bits) {
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (set >= kSets) {
+        HaltUnsupportedAccess("PR31x00 INTC ClearPending set index", set, bits);
+    }
+    status_[set] &= ~bits;
+    status_[set] |= free_running_[set];
     RecomputeLocked();
 }
 

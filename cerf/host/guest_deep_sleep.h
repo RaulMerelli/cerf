@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
+#include <vector>
 
 /* Deep-sleep recovery: a SoC power-down register write (e.g. SA-1110 PMCR.SF)
    calls Enter(), which halts the CPU and shows a no-timeout "Shut down CERF?"
@@ -35,12 +37,31 @@ public:
     virtual void ApplyPendingResume() = 0;
 };
 
+/* TMPR3911 §12.2.4 (p.12-8): "the CPU will remain suspended at its last state ...
+   Then the CPU will resume the instruction execution from where it stopped."
+   OnPowerUp applies what the silicon asserts on the power-up edge. */
+class DeepSleepClockStop {
+public:
+    virtual ~DeepSleepClockStop() = default;
+    virtual void OnPowerUp() = 0;
+};
+
 class GuestDeepSleep : public Service {
 public:
     using Service::Service;
 
     /* OnReady-time only; at most one waker per emulator instance. */
     void RegisterWaker(DeepSleepWaker* waker);
+
+    /* OnReady-time only; at most one per emulator instance, and never together
+       with a DeepSleepWaker. */
+    void RegisterClockStopWaker(DeepSleepClockStop* waker);
+
+    /* OnReady-time only. Listeners model silicon on a power rail the Suspend State
+       cuts (TMPR3911 §12.2.3, p.12-7: "VSTANDBY and VCCDRAM are powered but VCC3 is
+       not powered"): they lose power with the CPU clock and re-initialise on the
+       power-up edge, which no reset line reaches. */
+    void RegisterPowerUpListener(std::function<void()> fn);
 
     /* Any thread. Clears the latched sleep-wake cause; called from a non-resume
        reset so the rebooting guest doesn't misread it as another sleep wake. */
@@ -59,8 +80,10 @@ public:
 
 private:
     void Recover();      /* UI thread: run the prompt and act on the choice. */
-    void DeliverWake();  /* latch the wake cause and reset to the resume vector. */
+    void DeliverWake();
 
+    std::vector<std::function<void()>> power_up_listeners_;
+    DeepSleepClockStop*        clock_stop_             = nullptr;
     DeepSleepWaker*            waker_                  = nullptr;
     SleepResumeVectorProvider* resume_vector_provider_ = nullptr;
     std::atomic<bool>          active_{false};
