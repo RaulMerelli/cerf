@@ -28,6 +28,7 @@ Dont use use grep or other text finding utilities in background tasks. The backg
 
 ## Rules (Summary)
 
+- **Comments are CITATIONS ONLY** - a comment names an external source of truth (chip datasheet section, BSP source path, CPU architecture reference manual section, decompiled guest address, standard/RFC clause) or it does not exist. Rationale, narration, restatement, and design defence are forbidden - see [agent_docs/code_style.md](agent_docs/code_style.md) § Comments
 - **Reference citations required** - every non-trivial peripheral / BSP behavior needs a comment naming its reference (chip datasheet section, BSP source path, CPU architecture reference manual section)
 - **No hacks** - emulated peripheral behavior comes from chip datasheet + matching BSP source, not from invented values
 - **Full rules** - see [agent_docs/rules.md](agent_docs/rules.md)

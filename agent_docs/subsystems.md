@@ -147,12 +147,29 @@ itself the tech-debt shape this layout exists to prevent.
   occupy two slots at once. Concretes:
   `cerf/peripherals/realtek_rtl8019/` (NE2000 NIC),
   `cerf/peripherals/compactflash/` (PC Card ATA + FAT32 image builder +
-  insert submenu).
+  insert submenu), `cerf/peripherals/serial_pccard/` (16550 serial /
+  modem card - the PC-card consumer of the Serial stack below).
+
+  **A card releases its pins in `PowerOff` / `OnShutdown`, NEVER in a
+  destructor.** Nothing ejects a card at shutdown - it dies inside its
+  controller's destructor, when that controller's own members are already
+  gone, so a line dropped from a card dtor reaches into freed state. And
+  **no Vcc means a card drives no pin, its interrupt included** (the
+  socket floats its data lines on the same rule): a card with its own
+  host or network thread gates its interrupt on power, or it strands a
+  line on a socket it has already left.
 - **`PcmciaSlot`** (`pcmcia_slot.{h,cpp}`) - one physical socket; owns
   card lifetime + bus serialization, IS the HostWidget with the
   universal Insert/Eject/Eject-and-insert menu. The owning controller
   implements **`PcmciaSlotHost`** (card-detect / IRQ callbacks) and
   routes guest accesses to the slot's Read/Write surface.
+  **Card-detect and Vcc (`HasCard` / `IsPowered`) are lock-free reads of
+  an atomic pin word, published under the bus lock - keep them that way.**
+  A controller reads them from inside its own lock, while eject runs bus
+  lock -> card -> IRQ callback -> that same controller lock: a pin
+  accessor that took the bus lock closes an AB-BA against the UI thread.
+  Every other slot entry point is a bus transaction, and a host calls it
+  with its own lock released.
 - **`PcmciaCardCatalog`** (`pcmcia_card_catalog.{h,cpp}`) - the
   insert-menu card registry; a new card type = one `PcmciaCard`
   subclass + one catalog entry.
@@ -169,6 +186,39 @@ drives `SetPowered` from its power register - see `cirrus_pd6710/`
 `ipaq_gen1_pcmcia_sleeve.cpp`, `falcon_pcmcia.cpp`.
 
 - `cerf/peripherals/pcmcia/`
+
+## Serial
+
+The serial stack any UART can sit behind - the same endpoints serve an
+on-SoC UART and a serial PC card, so a board gains ActiveSync / dial-up
+by implementing one interface. Split line/personality:
+
+- **`SerialLine`** (`cerf/peripherals/serial/serial_line.h`) - abstract
+  UART surface an endpoint drives: push RX, read the guest's line config
+  (baud/framing), raise modem-status inputs, drain callbacks. Concretes:
+  **`Serial16550`** (the PC16550D model the ROM's own `ser16550` MDD/PDD
+  drives unmodified) and any SoC UART peripheral that implements it.
+- **`SerialEndpoint`** (`serial_endpoint.h`) - the "personality" behind a
+  line: consumes guest TX, reacts to DTR/RTS, pushes RX + modem status
+  back. Concretes: **`HostSerialForward`** (bridges to a real host COM
+  port - overlapped I/O, baud-faithful TX pacing) and
+  **`ModemPersonality`** (AT command set -> **`PppTerminator`** ->
+  libslirp). One endpoint per attach point, owned by whatever holds the
+  line.
+- **`SerialCradle`** (`serial_cradle.{h,cpp}`) - the HostWidget for an
+  on-SoC UART, mirroring `PcmciaSlot`'s insert/eject flow and sharing its
+  card menus, so plugging a modem into a board's serial port looks like
+  inserting a card. Owned by the UART peripheral, not a Service.
+- `cerf/peripherals/serial_pccard/` holds ONLY the PC-card consumer; the
+  framework above is board-neutral and lives in `cerf/peripherals/serial/`.
+
+Wiring a board's stock UART = implement `SerialLine` on the UART
+peripheral (RX path + an RX interrupt + baud from its divisor + modem
+status on whatever pins the board wires), own a `SerialCradle`, and
+supply a per-board seam naming the modem pins. Take those pin numbers
+from the board's own serial driver, never a guess.
+
+- `cerf/peripherals/serial/`
 
 ## CPU reset & cold boot
 
