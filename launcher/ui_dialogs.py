@@ -15,6 +15,13 @@ import ui_theme as theme
 DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
 GITHUB_URL  = "https://github.com/gweslab/cerf"
 
+# Funding targets, mirroring .github/FUNDING.yml (patreon: dz3n,
+# buy_me_a_coffee: dz3n, ko_fi: dz333n) - that file is not shipped with the
+# packaged launcher, so the handles are spelled out here.
+PATREON_URL        = "https://www.patreon.com/dz3n"
+KOFI_URL           = "https://ko-fi.com/dz333n"
+BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/dz3n"
+
 
 def show_dialog(parent: tk.Misc, title: str, message: str,
                 buttons: tuple[str, ...] = ("OK",),

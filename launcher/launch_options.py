@@ -13,6 +13,7 @@ from device_state import (
     read_persist_fields,
     write_persist_overrides,
 )
+from supported_devices import board_features
 from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
 import ui_theme as theme
 
@@ -62,6 +63,7 @@ class LaunchOptionsPanel:
         self._device_dir: Optional[Path] = None
         self._baseline: dict = {}
         self._restoring = False
+        self._guest_additions_available = True
 
         container = ttk.Frame(inner)
         container.grid(row=row, column=0, sticky="ew", pady=(0, 8))
@@ -76,7 +78,7 @@ class LaunchOptionsPanel:
         cfg.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         cfg.columnconfigure(0, weight=1)
 
-        guest = ttk.Frame(cfg)
+        guest = self.guest_block = ttk.Frame(cfg)
         guest.grid(row=0, column=0, sticky="ew")
         guest.columnconfigure(0, weight=1)
         ttk.Checkbutton(guest, text="Enable guest additions",
@@ -88,15 +90,15 @@ class LaunchOptionsPanel:
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
-        ttk.Separator(cfg, orient="horizontal").grid(row=1, column=0,
-                                                     sticky="ew", pady=8)
+        self.guest_sep = ttk.Separator(cfg, orient="horizontal")
+        self.guest_sep.grid(row=1, column=0, sticky="ew", pady=8)
 
         self.res_note = ttk.Label(cfg, text="Resolution override:")
         self.res_note.grid(row=2, column=0, sticky="w")
         self.var_width  = tk.StringVar(value="240")
         self.var_height = tk.StringVar(value="320")
         numeric_vcmd = (parent_window.register(self._is_optional_uint), "%P")
-        res_fields = ttk.Frame(cfg)
+        res_fields = self.res_fields = ttk.Frame(cfg)
         res_fields.grid(row=3, column=0, sticky="ew", pady=(2, 0))
         res_fields.columnconfigure(5, weight=1)
         self.width_entry = ttk.Entry(res_fields, textvariable=self.var_width, width=8,
@@ -123,23 +125,21 @@ class LaunchOptionsPanel:
         self.var_height.trace_add("write", self._on_res_text_changed)
         self._sync_slider_to_text()
 
-        ttk.Separator(cfg, orient="horizontal").grid(row=4, column=0,
-                                                     sticky="ew", pady=8)
+        self.res_sep = ttk.Separator(cfg, orient="horizontal")
+        self.res_sep.grid(row=4, column=0, sticky="ew", pady=8)
 
         self.var_override_dpi = tk.BooleanVar(value=False)
         self.var_dpi = tk.StringVar(value="96")
-        dpi_head = ttk.Frame(cfg)
+        dpi_head = self.dpi_head = ttk.Frame(cfg)
         dpi_head.grid(row=5, column=0, sticky="ew")
         dpi_head.columnconfigure(0, weight=1)
-        self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
-                                         variable=self.var_override_dpi,
-                                         command=self._on_override_dpi_changed)
-        self.dpi_check.grid(row=0, column=0, sticky="w")
-        self.dpi_help_btn = ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
-                                       command=lambda: show_dpi_help(self._window))
-        self.dpi_help_btn.grid(row=0, column=1, sticky="e")
+        ttk.Checkbutton(dpi_head, text="Override DPI",
+                        variable=self.var_override_dpi,
+                        command=self._on_override_dpi_changed).grid(row=0, column=0, sticky="w")
+        ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
+                   command=lambda: show_dpi_help(self._window)).grid(row=0, column=1, sticky="e")
 
-        dpi_fields = ttk.Frame(cfg)
+        dpi_fields = self.dpi_fields = ttk.Frame(cfg)
         dpi_fields.grid(row=6, column=0, sticky="ew", pady=(2, 0))
         dpi_fields.columnconfigure(3, weight=1)
         ttk.Label(dpi_fields, text="DPI").grid(row=0, column=0, sticky="w")
@@ -154,8 +154,8 @@ class LaunchOptionsPanel:
         self.var_dpi.trace_add("write", self._on_dpi_text_changed)
         self._sync_dpi_slider_to_text()
 
-        ttk.Separator(cfg, orient="horizontal").grid(row=7, column=0,
-                                                     sticky="ew", pady=8)
+        self.dpi_sep = ttk.Separator(cfg, orient="horizontal")
+        self.dpi_sep.grid(row=7, column=0, sticky="ew", pady=8)
 
         ttk.Checkbutton(cfg, text="Borderless full screen",
                         variable=self.var_full_screen,
@@ -169,7 +169,7 @@ class LaunchOptionsPanel:
         ttk.Checkbutton(cfg, text="Disable network backend",
                         variable=self.var_no_net,
                         command=self._persist).grid(row=11, column=0, sticky="w")
-        self._refresh_dpi_state()
+        self.refresh_resolution_state()
 
     def set_device(self, device: Optional[DeviceBundle]) -> None:
         self._device = device
@@ -180,12 +180,14 @@ class LaunchOptionsPanel:
             self._device_dir = self._devices_dir / device.name
             base, override = read_persist_fields(self._device_dir)
         self._baseline = self._resolve_baseline(base, device)
+        self._guest_additions_available = self._resolve_guest_additions_available(device)
         eff = dict(self._baseline)
         eff.update(override)
         self._restoring = True
         try:
             self.var_no_net.set(not eff["network_enabled"])
-            self.var_guest_additions.set(eff["guest_additions"])
+            self.var_guest_additions.set(eff["guest_additions"]
+                                         and self._guest_additions_available)
             self.var_full_screen.set(eff["full_screen"])
             self.var_width.set(str(eff["width"]))
             self.var_height.set(str(eff["height"]))
@@ -221,6 +223,17 @@ class LaunchOptionsPanel:
         if "dpi" in base:
             b["dpi"] = base["dpi"]
         return b
+
+    def _resolve_guest_additions_available(self,
+                                           device: Optional[DeviceBundle]) -> bool:
+        """Guest additions are offered unless the board's feature map says the
+        board cannot run them, or the ROM is a CE 1.x image (the guest driver
+        needs APIs CE 1.x does not have)."""
+        if device is None:
+            return True
+        if device.meta.os_ver_major == 1:
+            return False
+        return board_features(device.meta.board_id).get("guest_additions") is not False
 
     def _current_fields(self) -> dict:
         f: dict = {}
@@ -316,29 +329,35 @@ class LaunchOptionsPanel:
         var.set(str(value))
         return value
 
-    def _set_resolution_fields_enabled(self, enabled: bool) -> None:
-        state = "normal" if enabled else "disabled"
-        self.width_entry.config(state=state)
-        self.height_entry.config(state=state)
-        self.res_slider.config(state=state)
-        self.res_preset_label.config(
-            foreground=theme.FG_DIM if enabled else theme.BG_FIELD)
+    def _set_block_visible(self, visible: bool, *widgets: tk.Widget) -> None:
+        for w in widgets:
+            if visible:
+                w.grid()
+            else:
+                w.grid_remove()
 
     def refresh_resolution_state(self) -> None:
-        self._refresh_dpi_state()
+        """Show only the blocks the selected device can actually use: a board
+        whose resolution is fixed hides the resolution block, and DPI - which
+        only the CERF display driver honours - is shown with guest additions
+        on. A block that cannot apply is hidden, never shown disabled."""
         device = self._device
-        if self.var_guest_additions.get():
-            self.res_note.config(text="CERF display driver resolution:")
-            self._set_resolution_fields_enabled(True)
-            return
+        guest_additions = self.var_guest_additions.get()
 
-        if device is not None and device.screen_supported is False:
-            self.res_note.config(text="Resolution changes unsupported.")
-            self._set_resolution_fields_enabled(False)
-            return
+        self._set_block_visible(self._guest_additions_available,
+                                self.guest_block, self.guest_sep)
 
-        self.res_note.config(text="Resolution override:")
-        self._set_resolution_fields_enabled(True)
+        res_visible = guest_additions or not (device is not None
+                                              and device.screen_supported is False)
+        self._set_block_visible(res_visible, self.res_note, self.res_fields,
+                                self.res_sep)
+        self.res_note.config(text="CERF display driver resolution:"
+                             if guest_additions else "Resolution override:")
+        self.res_preset_label.config(foreground=theme.FG_DIM)
+
+        self._set_block_visible(guest_additions, self.dpi_head, self.dpi_fields,
+                                self.dpi_sep)
+        self._refresh_dpi_state()
 
     def _on_res_slider(self, value: str) -> None:
         if self._res_sync_guard:
@@ -388,10 +407,7 @@ class LaunchOptionsPanel:
             self._res_sync_guard = False
 
     def _refresh_dpi_state(self) -> None:
-        ga = self.var_guest_additions.get()
-        self.dpi_check.config(state="normal" if ga else "disabled")
-        self.dpi_help_btn.config(state="normal" if ga else "disabled")
-        fields = "normal" if (ga and self.var_override_dpi.get()) else "disabled"
+        fields = "normal" if self.var_override_dpi.get() else "disabled"
         self.dpi_entry.config(state=fields)
         self.dpi_slider.config(state=fields)
 

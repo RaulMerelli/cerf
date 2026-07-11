@@ -7,7 +7,13 @@ import webbrowser
 from tkinter import ttk
 from typing import Optional
 
-from ui_dialogs import DISCORD_URL, GITHUB_URL
+from ui_dialogs import (
+    BUY_ME_A_COFFEE_URL,
+    DISCORD_URL,
+    GITHUB_URL,
+    KOFI_URL,
+    PATREON_URL,
+)
 import ui_theme as theme
 
 
@@ -15,33 +21,39 @@ class StatusBar:
     def __init__(self, root: tk.Misc):
         bar = ttk.Frame(root, padding=(8, 4))
         bar.pack(fill="x", side="bottom")
-        bar.columnconfigure(3, weight=1)
+        bar.columnconfigure(1, weight=1)
 
         links = (
-            ("Discord", lambda: webbrowser.open(DISCORD_URL)),
-            ("GitHub",  lambda: webbrowser.open(GITHUB_URL)),
+            ("Discord",         DISCORD_URL),
+            ("GitHub",          GITHUB_URL),
+            ("Patreon",         PATREON_URL),
+            ("Ko-fi",           KOFI_URL),
+            ("Buy me a coffee", BUY_ME_A_COFFEE_URL),
         )
+        link_bar = ttk.Frame(bar)
+        link_bar.grid(row=0, column=0, sticky="w")
         self._link_labels: list[ttk.Label] = []
-        for col, (text, action) in enumerate(links):
-            label = ttk.Label(bar, text=text, foreground=theme.LINK_FG,
+        for col, (text, url) in enumerate(links):
+            label = ttk.Label(link_bar, text=text, foreground=theme.LINK_FG,
                               cursor="hand2")
             label.grid(row=0, column=col, sticky="w", padx=(0, 12))
-            label.bind("<Button-1>", lambda _e, a=action: a())
+            label.bind("<Button-1>",
+                       lambda _e, u=url: webbrowser.open(u))
             self._link_labels.append(label)
 
         self.update_var = tk.StringVar(value="")
         self._update_url: Optional[str] = None
         self._update_is_link = False
         self.update_link = ttk.Label(bar, textvariable=self.update_var, anchor="w")
-        self.update_link.grid(row=0, column=3, sticky="w")
+        self.update_link.grid(row=0, column=1, sticky="w")
         self.update_link.bind("<Button-1>", self._on_update_link_click)
 
         self.status_var = tk.StringVar(value="Ready.")
         ttk.Label(bar, textvariable=self.status_var, anchor="e").grid(
-            row=0, column=4, sticky="e", padx=(8, 8))
+            row=0, column=2, sticky="e", padx=(8, 8))
         self.progress = ttk.Progressbar(bar, orient="horizontal", length=220,
                                         mode="determinate")
-        self.progress.grid(row=0, column=5, sticky="e")
+        self.progress.grid(row=0, column=3, sticky="e")
 
     def set_status(self, text: str) -> None:
         self.status_var.set(text)
