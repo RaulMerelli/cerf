@@ -1,6 +1,8 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v{version} pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v{version} pre-alpha
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
+
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) {support_badges}
 
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. The project is rather a proof of concept. Contributions are welcome.

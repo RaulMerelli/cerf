@@ -1,6 +1,8 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.1 pre-alpha [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d)
+# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v6.1 pre-alpha
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
+
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) [![Patreon](https://img.shields.io/badge/Patreon-support-FF424D?logo=patreon&logoColor=white)](https://www.patreon.com/dz3n) [![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/dz333n) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/dz3n)
 
 > [!WARNING]
 > **Early stage.** There are some bugs and boards are just MVP implementations. The project is rather a proof of concept. Contributions are welcome.

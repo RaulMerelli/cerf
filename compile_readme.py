@@ -10,6 +10,21 @@ CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
 CHANGELOG_LINK = 'docs/changelog.html'
 CHANGELOG_RECENT = 6
 ICONS_DIR = 'launcher/assets/icons'
+FUNDING = os.path.join(ROOT, '.github', 'FUNDING.yml')
+
+# FUNDING.yml platform key -> shields.io badge (label, hex, logo, logo color)
+# + the profile URL its username slots into. The label is shields' static-badge
+# path, where a lone '-' separates label from message: a literal dash in a label
+# is escaped as '--' (Ko--fi -> "Ko-fi"), and a space as '%20'.
+FUNDING_BADGES = [
+    ('patreon',         'Patreon',
+     'FF424D', 'patreon',      'white', 'https://www.patreon.com/{user}'),
+    ('ko_fi',           'Ko--fi',
+     'FF5E5B', 'kofi',         'white', 'https://ko-fi.com/{user}'),
+    ('buy_me_a_coffee', 'Buy%20Me%20a%20Coffee',
+     'FFDD00', 'buymeacoffee', 'black', 'https://www.buymeacoffee.com/{user}'),
+]
+FUNDING_MESSAGE = 'support'
 
 sys.path.insert(0, os.path.join(ROOT, 'launcher'))
 from supported_devices import BOARDS_INFORMATION, FEATURE_SPECS, board_sort_key
@@ -94,6 +109,28 @@ def build_supported_devices():
     return '\n'.join(lines)
 
 
+def build_support_badges():
+    usernames = {}
+    with open(FUNDING, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.split('#', 1)[0].strip()
+            if ':' not in line:
+                continue
+            key, value = line.split(':', 1)
+            usernames[key.strip()] = value.strip().strip('\'"')
+
+    badges = []
+    for key, label, color, logo, logo_color, url in FUNDING_BADGES:
+        user = usernames.get(key)
+        if not user:
+            continue
+        alt = label.replace('--', '-').replace('%20', ' ')
+        badges.append(
+            f'[![{alt}](https://img.shields.io/badge/{label}-{FUNDING_MESSAGE}-{color}'
+            f'?logo={logo}&logoColor={logo_color})]({url.format(user=user)})')
+    return ' '.join(badges)
+
+
 def build_changelog():
     with open(CHANGELOG, 'r', encoding='utf-8') as f:
         html = f.read()
@@ -133,6 +170,7 @@ def main():
     content = content.replace('{version}', version)
     content = content.replace('{changelog}', build_changelog())
     content = content.replace('{supported_devices}', build_supported_devices())
+    content = content.replace('{support_badges}', build_support_badges())
 
     with open(OUTPUT, 'w', encoding='utf-8') as f:
         f.write(content)
