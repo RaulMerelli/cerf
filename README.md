@@ -243,11 +243,17 @@ Requires Visual Studio 2026 with the C++ desktop development workload.
 > [!NOTE]
 > **First build on a fresh machine takes 1+ hour.** vcpkg compiles dependencies from source before CERF starts linking. This happens once per machine - subsequent builds reuse the cached `vcpkg_installed/` tree and finish in a few minutes. Do not interrupt the first build.
 
-Initialise source/dependency submodules:
+Set up the clone (once per machine):
 
 ```
-git submodule update --init --recursive
+setup.cmd
 ```
+
+This initialises submodules, points git at the repo's tracked hooks
+(`core.hooksPath` = `.githooks` - git does not clone hook config, so hooks are
+inert in a fresh clone until this runs), and reports any missing prerequisite
+(Python launcher, vcpkg MSBuild integration). Re-run it any time; it is
+idempotent. `setup.cmd -Check` reports status without changing anything.
 
 Build via the helper script:
 
