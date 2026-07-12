@@ -45,8 +45,17 @@ class Artifact:
     created_at: str
     branch: str
     sha: str
+    run_id: int
     version: str
     tag: str
+
+    @property
+    def run_url(self) -> str:
+        return f"https://github.com/{REPO}/actions/runs/{self.run_id}"
+
+    @property
+    def commit_url(self) -> str:
+        return f"https://github.com/{REPO}/commit/{self.sha}"
 
 
 def load_env() -> dict:
@@ -143,6 +152,7 @@ def latest_artifact(token: str, sha: Optional[str] = None) -> Artifact:
             created_at=item["created_at"],
             branch=run.get("head_branch") or "?",
             sha=head_sha or name_sha,
+            run_id=run.get("id") or 0,
             version=f"{major}.{minor}.{patch}", tag=f"{major}.{minor}")
     where = f" built from {sha[:7]}" if sha else ""
     raise DeployError(f"no unexpired Release-Win32 artifact{where} found")
@@ -237,9 +247,12 @@ def upload_asset(token: str, release_id: int, archive: Path) -> str:
     return payload["browser_download_url"]
 
 
-def post_discord(secret: str, tag: str, changelog: str) -> None:
-    content = (f"[**CE Runtime Foundation {tag} Released**]"
-               f"(https://github.com/{REPO}/releases/tag/{tag})\n\n{changelog}")
+def post_discord(secret: str, artifact: Artifact, changelog: str) -> None:
+    content = (f"[**CE Runtime Foundation {artifact.tag} Released**]"
+               f"(https://github.com/{REPO}/releases/tag/{artifact.tag})\n\n"
+               f"{changelog}\n\n"
+               f"[CI build]({artifact.run_url}) · "
+               f"[`{artifact.sha[:7]}`]({artifact.commit_url})")
     if len(content) > DISCORD_MESSAGE_LIMIT:
         raise DeployError(
             f"the Discord message is {len(content)} characters, over the "
@@ -284,7 +297,7 @@ def main(argv: List[str]) -> int:
     print(f"  asset: {upload_asset(token, release['id'], archive)}")
 
     confirm(f"\nPost the {artifact.tag} announcement to Discord?", assume_yes)
-    post_discord(secret, artifact.tag, body)
+    post_discord(secret, artifact, body)
     print("  posted.\n")
     print(f"Released {artifact.tag}: {release['html_url']}")
     return 0
