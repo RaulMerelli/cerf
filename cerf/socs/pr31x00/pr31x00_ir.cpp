@@ -1,9 +1,10 @@
-#include "../../peripherals/peripheral_base.h"
+#include "pr31x00_ir.h"
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "pr31x00_intc.h"
 
 #include <cstdint>
 
@@ -24,53 +25,64 @@ constexpr uint32_t kCtl1Unmodeled = 0x00000013u;
    none of them moves a frame while the state machines are off. */
 constexpr uint32_t kCtl1Writable = 0x00FF000Cu;
 
-class Pr31x00Ir : public Peripheral {
-public:
-    using Peripheral::Peripheral;
+/* CARDET<24>, "the status of the CARDET (carrier detect) input pin" (§10.5.1). */
+constexpr uint32_t kCtl1CarDet = 1u << 24;
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
-    }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
-
-    uint32_t MmioBase() const override { return kBase; }
-    uint32_t MmioSize() const override { return 0x4u; }
-
-    /* CARDET is driven into the SoC by the external analog circuit of Figure 10.3.1,
-       which no remote IR transmitter illuminates. */
-    uint32_t ReadWord(uint32_t addr) override {
-        if (addr == kBase) return ctl1_;
-        HaltUnsupportedAccess("PR31x00 IR_CTL1 ReadWord", addr, 0);
-    }
-
-    void WriteWord(uint32_t addr, uint32_t value) override {
-        if (addr != kBase) {
-            HaltUnsupportedAccess("PR31x00 IR_CTL1 WriteWord", addr, value);
-        }
-        if (value & kCtl1Reserved) {
-            HaltUnsupportedAccess("PR31x00 IR_CTL1 reserved", addr, value);
-        }
-        if (value & kCtl1Unmodeled) {
-            HaltUnsupportedAccess("PR31x00 IR_CTL1 arms the IR state machines", addr, value);
-        }
-        ctl1_ = value & kCtl1Writable;   /* CARDET is read-only */
-    }
-
-    uint8_t  ReadByte(uint32_t addr) override { HaltUnsupportedAccess("PR31x00 IR ReadByte", addr, 0); }
-    uint16_t ReadHalf(uint32_t addr) override { HaltUnsupportedAccess("PR31x00 IR ReadHalf", addr, 0); }
-    void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("PR31x00 IR WriteByte", addr, v); }
-    void WriteHalf(uint32_t addr, uint16_t v) override { HaltUnsupportedAccess("PR31x00 IR WriteHalf", addr, v); }
-
-    void SaveState(StateWriter& w) override { w.Write(ctl1_); }
-    void RestoreState(StateReader& r) override { r.Read(ctl1_); }
-
-private:
-    uint32_t ctl1_ = 0;
-};
+/* Interrupt Status 5 (§8.3.5): POSCARINT<15> is set on a CARDET 0->1 transition and
+   NEGCARINT<14> on a 1->0 transition. */
+constexpr uint32_t kStatus5Set    = 4u;
+constexpr uint32_t kPosCarInt     = 1u << 15;
+constexpr uint32_t kNegCarInt     = 1u << 14;
 
 }  /* namespace */
+
+bool Pr31x00Ir::ShouldRegister() {
+    auto* bd = emu_.TryGet<BoardContext>();
+    if (!bd) return false;
+    const SocFamily soc = bd->GetSoc();
+    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+}
+
+void Pr31x00Ir::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+}
+
+uint32_t Pr31x00Ir::ReadWord(uint32_t addr) {
+    if (addr != kBase) {
+        HaltUnsupportedAccess("PR31x00 IR_CTL1 ReadWord", addr, 0);
+    }
+    return ctl1_ | (cardet_.load(std::memory_order_acquire) ? kCtl1CarDet : 0u);
+}
+
+void Pr31x00Ir::WriteWord(uint32_t addr, uint32_t value) {
+    if (addr != kBase) {
+        HaltUnsupportedAccess("PR31x00 IR_CTL1 WriteWord", addr, value);
+    }
+    if (value & kCtl1Reserved) {
+        HaltUnsupportedAccess("PR31x00 IR_CTL1 reserved", addr, value);
+    }
+    if (value & kCtl1Unmodeled) {
+        HaltUnsupportedAccess("PR31x00 IR_CTL1 arms the IR state machines", addr, value);
+    }
+    ctl1_ = value & kCtl1Writable;   /* CARDET is read-only */
+}
+
+void Pr31x00Ir::DriveCarDetInput(bool level) {
+    const bool old = cardet_.exchange(level, std::memory_order_acq_rel);
+    if (old == level) return;
+    emu_.Get<Pr31x00Intc>().SetPending(kStatus5Set, level ? kPosCarInt : kNegCarInt);
+}
+
+void Pr31x00Ir::SaveState(StateWriter& w) {
+    w.Write(ctl1_);
+    w.Write<uint8_t>(cardet_.load(std::memory_order_acquire) ? 1u : 0u);
+}
+
+void Pr31x00Ir::RestoreState(StateReader& r) {
+    r.Read(ctl1_);
+    uint8_t cardet = 0;
+    r.Read(cardet);
+    cardet_.store(cardet != 0u, std::memory_order_release);
+}
 
 REGISTER_SERVICE(Pr31x00Ir);

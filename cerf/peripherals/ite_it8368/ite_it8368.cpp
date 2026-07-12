@@ -87,7 +87,12 @@ void IteIt8368::OnReady() {
 }
 
 bool IteIt8368::CardInterfaceEnabled() const { return (ctrl_ & kCtrlCardEn) != 0; }
-bool IteIt8368::FixedAttributeIo()   const { return (ctrl_ & kCtrlFixAttrIo) != 0; }
+
+/* Attribute decodes from A25 ($0200_0000) with CTRL FIXATTRIO clear, as the Velo OAL
+   leaves it (nk.exe sub_9F40F688 writes CTRL = $0A): pcmcia.dll reads the CIS at its
+   $0A00_0000 attribute window while MEM_CONFIG3 CARD1IOEN stays set, which the legacy
+   CARDnIOEN decode (it8368.c:562-571) would route to I/O space instead. */
+bool IteIt8368::FixedAttributeIo() const { return true; }
 
 /* An undriven card pin floats high, so an empty socket reads CRDDET1 and CRDDET2
    set (it8368.c:419 treats either as "no card"). */
@@ -133,13 +138,10 @@ void IteIt8368::NotifyCardDetect() {
     LatchInputEdgesLocked();
 }
 
-/* GLOBALEN enables card and interrupt driving and INTTRIEN un-tristates the INT
-   output (it8368.c:293-298); a latched edge on an enabled GPIO then asserts it.
-   One pin carries every source - it8368.c:325-345 reads GPIONEGINTSTAT in the
-   single handler to tell BCRDRDY from CRDDET2. */
+/* GLOBALEN alone enables interrupt driving (it8368.c:293-298); the Velo takes card
+   interrupts with INTTRIEN clear (nk.exe sub_9F40F688 writes CTRL = $0A). */
 bool IteIt8368::IntLevelLocked() const {
-    const uint16_t drive_bits = kCtrlGlobalEn | kCtrlIntTriEn;
-    const bool driving = (ctrl_ & drive_bits) == drive_bits;
+    const bool driving = (ctrl_ & kCtrlGlobalEn) != 0u;
     const bool pending = ((gpio_posintstat_ & gpio_posinten_) |
                           (gpio_negintstat_ & gpio_neginten_)) != 0u;
     return driving && pending;
@@ -160,12 +162,12 @@ void IteIt8368::UpdateIntLocked() {
 IteIt8368::BusOps IteIt8368::ApplyOutputsLocked() {
     const uint16_t driven = static_cast<uint16_t>(gpio_dataout_ & gpio_dir_);
 
+    /* CRDVPPON0 alone is Vpp = Vcc (it8368reg.h:106), which a card takes as its
+       operating Vpp; CRDVPPON1 raises the 12 V programming supply (it8368reg.h:107),
+       and both together tri-state Vpp (it8368reg.h:108). Only Vcc reaches the socket,
+       so only the 12 V rail is an unmodeled power state. */
     if (driven & kPinCrdVppOn1) {
         LOG(Caution, "IteIt8368: CRDVPPON1 (Vpp 12 V) unmodeled\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    if (driven & kPinCrdVppOn0) {
-        LOG(Caution, "IteIt8368: CRDVPPON0 (Vpp = Vcc) unmodeled\n");
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     if ((driven & kPinCrdVccMask) == kPinCrdVccMask) {
