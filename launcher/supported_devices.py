@@ -382,7 +382,7 @@ BOARDS_INFORMATION = [
             "battery": True,
             "suspend": True,
             "guest_additions": True,
-            "pcmcia": False,
+            "pcmcia": True,
             "sound": True,
             "serial": True,
         },

@@ -4,6 +4,7 @@
 #include "../../socs/pr31x00/pr31x00_card_space.h"
 
 #include <cstdint>
+#include <mutex>
 
 class PcmciaSlot;
 class StateReader;
@@ -34,6 +35,11 @@ public:
     uint16_t ReadReg(uint32_t off);
     void     WriteReg(uint32_t off, uint16_t value);
 
+    /* The socket's card pins. PcmciaSlot calls these from the guest's bus thread
+       and from a card's own worker thread, so they take mu_. */
+    void SetCardIrq(bool asserted);
+    void NotifyCardDetect();
+
     /* Pr31x00CardBuffer. */
     bool CardInterfaceEnabled() const override;
     bool FixedAttributeIo() const override;
@@ -42,11 +48,24 @@ public:
     void RestoreState(StateReader& r);
 
 private:
-    uint16_t GpioDataIn() const;
-    bool     IntLevel() const;
-    void     LatchInputEdges();
-    void     ApplyOutputs();
-    void     UpdateInt();
+    /* Driving the output pins is a socket bus transaction, and PcmciaSlot's
+       bus lock ranks above mu_ (pcmcia_slot.h): a guest card access runs
+       bus -> card -> RaiseIrq -> mu_, so mu_ is released across these. */
+    struct BusOps {
+        bool drove_pins   = false;
+        bool power_on     = false;
+        bool release_reset = false;
+    };
+
+    BusOps   WriteRegLocked(uint32_t off, uint16_t value);
+    void     ApplyBusOps(const BusOps& ops);
+    uint16_t GpioDataInLocked() const;
+    bool     IntLevelLocked() const;
+    void     LatchInputEdgesLocked();
+    BusOps   ApplyOutputsLocked();
+    void     UpdateIntLocked();
+
+    mutable std::mutex mu_;
 
     PcmciaSlot*       slot_     = nullptr;
     IteIt8368IntSink* int_sink_ = nullptr;
@@ -68,4 +87,5 @@ private:
     /* Every GPIO starts undriven, and an undriven card pin floats high. */
     uint16_t prev_datain_  = 0x1FFF;
     bool     rst_asserted_ = false;
+    bool     card_irq_     = false;
 };

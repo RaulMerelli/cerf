@@ -1,5 +1,4 @@
 #include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
 #include "../../core/service.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/ite_it8368/ite_it8368.h"
@@ -41,20 +40,14 @@ public:
 
     void OnShutdown() override { slot0_.OnShutdown(); }
 
-    /* PcmciaSlotHost. The card-detect and card-IRQ pins reach the SoC through the
-       board's multi-function I/O, whose assignment is not established. An empty,
-       unpowered socket never raises either. */
     void OnCardDetectChanged(PcmciaSlot&) override {
-        LOG(Caution, "PhilipsNino300Pcmcia: card-detect pin unmodeled\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        emu_.Get<IteIt8368>().NotifyCardDetect();
     }
     void OnCardIrqAsserted(PcmciaSlot&) override {
-        LOG(Caution, "PhilipsNino300Pcmcia: card IRQ pin unmodeled\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        emu_.Get<IteIt8368>().SetCardIrq(true);
     }
     void OnCardIrqDeasserted(PcmciaSlot&) override {
-        LOG(Caution, "PhilipsNino300Pcmcia: card IRQ pin unmodeled\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        emu_.Get<IteIt8368>().SetCardIrq(false);
     }
 
 private:

@@ -43,7 +43,11 @@ constexpr uint16_t kPinCrdVccOn1 = 0x0080;
 constexpr uint16_t kPinCrdVccOn0 = 0x0040;
 constexpr uint16_t kPinCrdVppOn1 = 0x0020;
 constexpr uint16_t kPinCrdVppOn0 = 0x0010;
+constexpr uint16_t kPinBcrdWp    = 0x0008;
+constexpr uint16_t kPinBcrdRdy   = 0x0004;
 constexpr uint16_t kPinBcrdRst   = 0x0001;
+
+constexpr uint16_t kPinCrdDetMask = kPinCrdDet1 | kPinCrdDet2;
 
 constexpr uint16_t kPinCrdVccMask = kPinCrdVccOn1 | kPinCrdVccOn0;
 constexpr uint16_t kPinCrdVppMask = kPinCrdVppOn1 | kPinCrdVppOn0;
@@ -54,7 +58,7 @@ constexpr uint16_t kDrivablePins = kPinCrdVccMask | kPinCrdVppMask | kPinBcrdRst
 
 /* CRDSW is an output-capable pin the Velo drives high (nk.exe sub_9F40F688);
    NetBSD never uses it and no ROM path reads it back, so it is accepted as a
-   driven output but has no realized effect (ApplyOutputs models only the
+   driven output but has no realized effect (ApplyOutputsLocked models only the
    kDrivablePins set). */
 constexpr uint16_t kOutputCapablePins = kDrivablePins | kPinCrdSw;
 
@@ -86,32 +90,54 @@ bool IteIt8368::CardInterfaceEnabled() const { return (ctrl_ & kCtrlCardEn) != 0
 bool IteIt8368::FixedAttributeIo()   const { return (ctrl_ & kCtrlFixAttrIo) != 0; }
 
 /* An undriven card pin floats high, so an empty socket reads CRDDET1 and CRDDET2
-   set (it8368.c:419 treats either as "no card"). A seated card drives CRDSENSE1/2,
-   BCRDWP, BCRBVD2 and CRDSW from properties PcmciaSlot does not carry. */
-uint16_t IteIt8368::GpioDataIn() const {
-    if (slot_ && slot_->HasCard()) {
-        LOG(Caution, "IteIt8368: card-present pin levels unmodeled\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
+   set (it8368.c:419 treats either as "no card"). */
+uint16_t IteIt8368::GpioDataInLocked() const {
     const uint16_t driven   = static_cast<uint16_t>(gpio_dataout_ & gpio_dir_);
     const uint16_t undriven = static_cast<uint16_t>(kGpioMask & ~gpio_dir_);
-    return static_cast<uint16_t>(driven | undriven);
+    uint16_t in = static_cast<uint16_t>(driven | undriven);
+
+    if (!slot_->HasCard()) return in;
+    /* Grounded on the card body: pcmcia.dll sub_188145C tests them before Vcc. */
+    in &= static_cast<uint16_t>(~kPinCrdDetMask);
+
+    /* sub_18817C4 reads the pins below only while GPIODATAOUT holds CRDVCCON0. */
+    if (!slot_->IsPowered()) return in;
+
+    /* High is write-protected (sub_18817C4 -> socket status bit 0). */
+    in &= static_cast<uint16_t>(~kPinBcrdWp);
+
+    /* READY/-IREQ: sub_188145C sets CTRL CARDEN only if it reads high, and
+       sub_1881694 arms its falling edge as the card interrupt (it8368.c:447). */
+    if (card_irq_) in &= static_cast<uint16_t>(~kPinBcrdRdy);
+    else           in |= kPinBcrdRdy;
+    return in;
 }
 
-void IteIt8368::LatchInputEdges() {
-    const uint16_t now  = GpioDataIn();
+void IteIt8368::LatchInputEdgesLocked() {
+    const uint16_t now  = GpioDataInLocked();
     const uint16_t diff = static_cast<uint16_t>(now ^ prev_datain_);
     gpio_posintstat_ |= static_cast<uint16_t>(diff & now);
     gpio_negintstat_ |= static_cast<uint16_t>(diff & ~now);
     prev_datain_ = now;
-    UpdateInt();
+    UpdateIntLocked();
+}
+
+void IteIt8368::SetCardIrq(bool asserted) {
+    std::lock_guard<std::mutex> lk(mu_);
+    card_irq_ = asserted;
+    LatchInputEdgesLocked();
+}
+
+void IteIt8368::NotifyCardDetect() {
+    std::lock_guard<std::mutex> lk(mu_);
+    LatchInputEdgesLocked();
 }
 
 /* GLOBALEN enables card and interrupt driving and INTTRIEN un-tristates the INT
    output (it8368.c:293-298); a latched edge on an enabled GPIO then asserts it.
    One pin carries every source - it8368.c:325-345 reads GPIONEGINTSTAT in the
    single handler to tell BCRDRDY from CRDDET2. */
-bool IteIt8368::IntLevel() const {
+bool IteIt8368::IntLevelLocked() const {
     const uint16_t drive_bits = kCtrlGlobalEn | kCtrlIntTriEn;
     const bool driving = (ctrl_ & drive_bits) == drive_bits;
     const bool pending = ((gpio_posintstat_ & gpio_posinten_) |
@@ -119,8 +145,8 @@ bool IteIt8368::IntLevel() const {
     return driving && pending;
 }
 
-void IteIt8368::UpdateInt() {
-    const bool level = IntLevel();
+void IteIt8368::UpdateIntLocked() {
+    const bool level = IntLevelLocked();
     if (level == int_asserted_) return;
 
     if (!int_sink_) {
@@ -131,7 +157,7 @@ void IteIt8368::UpdateInt() {
     int_sink_->OnIt8368IntLevel(level);
 }
 
-void IteIt8368::ApplyOutputs() {
+IteIt8368::BusOps IteIt8368::ApplyOutputsLocked() {
     const uint16_t driven = static_cast<uint16_t>(gpio_dataout_ & gpio_dir_);
 
     if (driven & kPinCrdVppOn1) {
@@ -147,20 +173,27 @@ void IteIt8368::ApplyOutputs() {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    if (slot_) {
-        slot_->SetPowered((driven & kPinCrdVccMask) != 0u);
+    BusOps ops;
+    ops.drove_pins = true;
+    ops.power_on   = (driven & kPinCrdVccMask) != 0u;
 
-        /* it8368.c:686-699 asserts BCRDRST, holds it, then clears it; the card
-           leaves reset on that falling edge. */
-        const bool rst_now = (driven & kPinBcrdRst) != 0u;
-        if (rst_asserted_ && !rst_now) slot_->ResetCard();
-        rst_asserted_ = rst_now;
-    }
+    /* it8368.c:686-699 asserts BCRDRST, holds it, then clears it; the card
+       leaves reset on that falling edge. */
+    const bool rst_now = (driven & kPinBcrdRst) != 0u;
+    ops.release_reset = rst_asserted_ && !rst_now;
+    rst_asserted_ = rst_now;
 
-    LatchInputEdges();
+    LatchInputEdgesLocked();
+    return ops;
+}
+
+void IteIt8368::ApplyBusOps(const BusOps& ops) {
+    slot_->SetPowered(ops.power_on);
+    if (ops.release_reset) slot_->ResetCard();
 }
 
 uint16_t IteIt8368::ReadReg(uint32_t off) {
+    std::lock_guard<std::mutex> lk(mu_);
     switch (off) {
         case kRegGpioDataOut: return gpio_dataout_;
         case kRegGpioDir:     return gpio_dir_;
@@ -170,14 +203,14 @@ uint16_t IteIt8368::ReadReg(uint32_t off) {
         case kRegMfioDataOut: return mfio_dataout_;
 
         case kRegGpioDataIn:
-            LatchInputEdges();
-            return GpioDataIn();
+            LatchInputEdgesLocked();
+            return GpioDataInLocked();
 
         case kRegGpioPosIntStat:
-            LatchInputEdges();
+            LatchInputEdgesLocked();
             return gpio_posintstat_;
         case kRegGpioNegIntStat:
-            LatchInputEdges();
+            LatchInputEdgesLocked();
             return gpio_negintstat_;
 
         case kRegGpioPosIntEn: return gpio_posinten_;
@@ -192,6 +225,21 @@ uint16_t IteIt8368::ReadReg(uint32_t off) {
 }
 
 void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
+    BusOps ops;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        ops = WriteRegLocked(off, value);
+    }
+    if (!ops.drove_pins) return;
+
+    ApplyBusOps(ops);
+
+    /* Vcc and the reset pulse changed what the card drives back. */
+    std::lock_guard<std::mutex> lk(mu_);
+    LatchInputEdgesLocked();
+}
+
+IteIt8368::BusOps IteIt8368::WriteRegLocked(uint32_t off, uint16_t value) {
     switch (off) {
         case kRegGpioDataOut:
             if (value & ~kOutputCapablePins) {
@@ -200,8 +248,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             gpio_dataout_ = value;
-            ApplyOutputs();
-            return;
+            return ApplyOutputsLocked();
 
         case kRegGpioDir:
             if (value & ~kOutputCapablePins) {
@@ -210,8 +257,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             gpio_dir_ = value;
-            ApplyOutputs();
-            return;
+            return ApplyOutputsLocked();
 
         case kRegMfioSel:
             if (value & ~static_cast<uint16_t>(kMfioMask | kMfioSelVgaEn)) {
@@ -224,7 +270,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             mfio_sel_ = value;
-            return;
+            return {};
 
         case kRegGpioPosIntEn:
             if (value & ~kGpioMask) {
@@ -233,8 +279,8 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             gpio_posinten_ = value;
-            UpdateInt();
-            return;
+            UpdateIntLocked();
+            return {};
 
         case kRegGpioNegIntEn:
             if (value & ~kGpioMask) {
@@ -243,8 +289,8 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             gpio_neginten_ = value;
-            UpdateInt();
-            return;
+            UpdateIntLocked();
+            return {};
 
         case kRegMfioPosIntEn:
         case kRegMfioNegIntEn:
@@ -253,25 +299,25 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                         "pin held at its reset function\n", off, value);
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
-            return;
+            return {};
 
         /* Write one to clear (it8368.c:337-339 clears a single latched pin). */
         case kRegGpioPosIntStat:
             gpio_posintstat_ &= static_cast<uint16_t>(~value);
-            UpdateInt();
-            return;
+            UpdateIntLocked();
+            return {};
         case kRegGpioNegIntStat:
             gpio_negintstat_ &= static_cast<uint16_t>(~value);
-            UpdateInt();
-            return;
+            UpdateIntLocked();
+            return {};
 
         /* Write one to clear (it8368.c:337-339). */
         case kRegMfioPosIntStat:
             mfio_posintstat_ &= static_cast<uint16_t>(~value);
-            return;
+            return {};
         case kRegMfioNegIntStat:
             mfio_negintstat_ &= static_cast<uint16_t>(~value);
-            return;
+            return {};
 
         case kRegCtrl:
             if (value & ~kCtrlKnown) {
@@ -292,8 +338,8 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             ctrl_ = value;
-            UpdateInt();
-            return;
+            UpdateIntLocked();
+            return {};
 
         case kRegGpioDataIn:
         case kRegMfioDataIn:
@@ -307,7 +353,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             mfio_dataout_ = value;
-            return;
+            return {};
 
         case kRegMfioDir:
             if (value & ~kMfioMask) {
@@ -316,7 +362,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
             mfio_dir_ = value;
-            return;
+            return {};
 
         default:
             LOG(Caution, "IteIt8368::WriteReg unmodeled register $%02X = 0x%04X\n",
@@ -326,6 +372,7 @@ void IteIt8368::WriteReg(uint32_t off, uint16_t value) {
 }
 
 void IteIt8368::SaveState(StateWriter& w) {
+    std::lock_guard<std::mutex> lk(mu_);
     w.Write(gpio_dataout_);
     w.Write(gpio_dir_);
     w.Write(gpio_posinten_);
@@ -340,9 +387,11 @@ void IteIt8368::SaveState(StateWriter& w) {
     w.Write(ctrl_);
     w.Write(prev_datain_);
     w.Write<uint8_t>(rst_asserted_ ? 1u : 0u);
+    w.Write<uint8_t>(card_irq_ ? 1u : 0u);
 }
 
 void IteIt8368::RestoreState(StateReader& r) {
+    std::lock_guard<std::mutex> lk(mu_);
     r.Read(gpio_dataout_);
     r.Read(gpio_dir_);
     r.Read(gpio_posinten_);
@@ -359,11 +408,14 @@ void IteIt8368::RestoreState(StateReader& r) {
     uint8_t rst = 0;
     r.Read(rst);
     rst_asserted_ = rst != 0u;
+    uint8_t irq = 0;
+    r.Read(irq);
+    card_irq_ = irq != 0u;
 
     /* Every peripheral downstream of the INT pin restores its own copy of the
        line - the pin level in Pr31x00Io's mfio_din_, the latched edge in the
        INTC's status - and restore order across peripherals is unspecified. */
-    int_asserted_ = IntLevel();
+    int_asserted_ = IntLevelLocked();
 }
 
 REGISTER_SERVICE(IteIt8368);
