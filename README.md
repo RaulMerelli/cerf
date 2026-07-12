@@ -231,7 +231,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
           <td>v6.1</td>
-          <td>TBA</td>
+          <td>12 Jun 2026</td>
           <td>
             <ul>
               <li>Nino 300 support (Palm-size PC)</li>

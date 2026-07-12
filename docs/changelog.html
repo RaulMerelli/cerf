@@ -25,7 +25,7 @@
   <tbody>
     <tr>
       <td>v6.1</td>
-      <td>TBA</td>
+      <td>12 Jun 2026</td>
       <td>
         <ul>
           <li>Nino 300 support (Palm-size PC)</li>
@@ -164,6 +164,63 @@
           <li>Initial release</li>
           <li>ARMv4 support</li>
           <li>DevEmu, iPAQ H3600, Microsoft ODO support (MVP)</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>v1.0</td>
+      <td>Vaporware</td>
+      <td>
+        <ul>
+          <li>
+              CERF began as an attempt to rewrite WCECL (Windows CE Compatibility Layer,
+              https://github.com/dz333n/wcecl) from scratch in Feb 2026, this time with an ARM emulator backend. 
+              It was also my first serious experiment with Claude. I had never leaned on AI that heavily before, 
+              and I wanted to find out whether an AI in 2026 could actually build something this complex. The task:
+              read WCECL, rewrite it from the ground up on an ARM emulator backend, and get Solitaire running exactly
+              the way the original WCECL ran it under x86. Claude pulled it off.
+          </li>
+          <li>
+              So the WCECL concept lived on — but the concept itself was fundamentally wrong.
+          </li>
+          <li>
+              CERF v1 ran a number of Windows CE shells, with CE 5 supported best. It even ran a Windows Mobile 5 shell
+              that I had heuristically reconstructed with an extractor tool, despite roughly 90% of the PEs being
+              corrupted. CERF was meant to be a user-space emulator. Then it started running drivers, because COM in
+              Windows CE 5 is a user-space driver. Then apps began hitting kernel API traps, which change from one CE
+              version to the next, and that forced me into per-version "strategies" in cerf.ini. At that point CERF had
+              quietly turned into a kernel rewrite of every CE version, complete with an MMU model and a pile of other
+              frightening machinery — written very sloppily by the AI, because I wasn't really reading what it was doing.
+          </li>
+          <li>
+              Then v1 started crashing at random. That was the fatal moment. I realized a single process has hard limits
+              on the number of Win32 objects it can hold; CE creates icons constantly and never deletes them; and the
+              APIs the AI had written were leaking. My original premise — "to emulate CE user space you just need to mock
+              a single COREDLL.DLL" — collapsed, and what replaced it was an exponentially growing nightmare. By the time
+              I found myself writing a "multi-process architecture," the only honest reaction left was: "what the actual
+              fuck am I doing?" It was too late.
+          </li>
+          <li>
+              But it's never really too late. I figured I had already invested enough in the CE world to build something
+              proper — a real silicon emulator. CERF v2 had a simple premise: emulate what the official Device Emulator
+              emulates, and then some. And that is how WCECL and CERF v1 finally died, never becoming the thing they were
+              meant to be.
+          </li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>WCECL</td>
+      <td>Vaporware</td>
+      <td>
+        <ul>
+          <li>
+            Windows CE Compatibility Layer (https://github.com/dz333n/wcecl) - a project I started in 2019 to play with Win32.
+            I have realized that COREDLL.DLL is the shared library every user-space app imports from, so I can just repoint APIs
+            in my own shim DLL to real desktop Win32 ones and run x86-built apps. And it did work: WCECL ran Solitaire. Some people
+            contributed: @veselcraft fixed some bugs, @TheNNX brought entire cmd.exe to life. Yet it ran only 3 dumb apps and
+            it never ran real MIPS or ARM apps. Basically, it was a dead project that supported absolutely nothing.
+          </li>
         </ul>
       </td>
     </tr>
