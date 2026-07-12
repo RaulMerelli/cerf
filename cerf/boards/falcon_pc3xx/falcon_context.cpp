@@ -12,10 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::PXA25x; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "Datalogic Falcon 4220 (PC3xx), "
-               "Intel XScale PXA255 (ARMv5TE), Windows CE .NET 4.2";
-    }
     const char*    GetShortBoardName()  const override { return "Falcon 4220"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_PSC"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

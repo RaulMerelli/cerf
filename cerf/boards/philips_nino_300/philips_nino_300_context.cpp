@@ -12,9 +12,6 @@ public:
     SocFamily      GetSoc()            const override { return SocFamily::PR31700; }
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    BoardName()         const override {
-        return "Philips Nino 300 (Philips PR31700, MIPS, Windows CE 2.0)";
-    }
     const char*    GetShortBoardName() const override { return "Nino 300"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_PHILIPS"; }
 

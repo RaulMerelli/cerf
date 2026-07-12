@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::Unknown; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::Unknown; }
-    const char* BoardName() const override { return "Unknown / unsupported"; }
 };
 
 }  /* namespace */

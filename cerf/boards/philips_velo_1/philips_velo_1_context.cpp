@@ -12,9 +12,6 @@ public:
     SocFamily      GetSoc()            const override { return SocFamily::PR31500; }
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    BoardName()         const override {
-        return "Philips Velo 1 (Philips PR31500, MIPS)";
-    }
     const char*    GetShortBoardName() const override { return "Velo 1"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_PHILIPS"; }
 

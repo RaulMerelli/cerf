@@ -12,10 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::iMX31; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "Microsoft Zune 30 (codename Keel), "
-               "Freescale i.MX31L (ARM1136JF-S)";
-    }
     const char*    GetShortBoardName()  const override { return "Zune 30"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_ZUNE"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

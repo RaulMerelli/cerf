@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::Poseidon; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "Microsoft Windows CE Hardware Reference Platform, Philips Poseidon ASIC, ARM720T";
-    }
     const char*    GetShortBoardName()  const override { return "Reference Platform"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_MICROSOFT"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

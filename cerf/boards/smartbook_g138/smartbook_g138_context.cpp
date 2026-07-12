@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "SmartBook G138 (webpad), Intel SA-1110 StrongARM + MediaQ MQ200";
-    }
     const char* GetShortBoardName() const override { return "SmartBook G138"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_SMARTBOOK"; }
 

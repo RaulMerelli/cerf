@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "Siemens SIMATIC TP177B 4\" (S3C2410, P177 BSP)";
-    }
     const char*    GetShortBoardName()  const override { return "SIMATIC TP177B"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_SIEMENS"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

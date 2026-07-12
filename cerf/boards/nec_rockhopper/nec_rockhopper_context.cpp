@@ -14,9 +14,6 @@ public:
     SocFamily   GetSoc()     const override { return SocFamily::VR5500; }
     CpuArch     GetCpuArch() const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName()  const override {
-        return "NEC Rockhopper (DDB-VR5500A, MIPS VR5500, Windows CE 6)";
-    }
     const char*    GetShortBoardName()  const override { return "Rockhopper"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_NEC"; }
 

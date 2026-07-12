@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::iMX51; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::Imx51Nand; }
-    const char* BoardName() const override {
-        return "Ford SYNC Gen2 APIM (i.MX51 Cortex-A8, Windows Embedded Compact)";
-    }
     const char* GetShortBoardName() const override { return "Ford SYNC 2"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_FORD"; }
 

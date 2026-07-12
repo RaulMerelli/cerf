@@ -91,9 +91,8 @@ void AboutDialog::BuildControls(HWND hwnd) {
     mk(L"STATIC", L"A universal Windows CE emulator", SS_CENTER,
        tx, 180, tw, 18, IDC_TAGLINE);
 
-    /* Current device, straight from the ROM-fingerprinting detector. */
     auto& bd = emu_.Get<BoardContext>();
-    std::wstring dev = L"Emulating:  " + Utf8ToWide(bd.BoardName());
+    std::wstring dev = L"Emulating:  " + Utf8ToWide(BoardContext::BoardName(bd.GetBoard()));
     const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
     if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
         dev += L"  ·  " + Utf8ToWide(soc);

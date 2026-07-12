@@ -14,9 +14,6 @@ public:
     SocFamily      GetSoc()            const override { return SocFamily::VR4102; }
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    BoardName()         const override {
-        return "NEC MobilePro 700 Series (NEC VR4102, MIPS, Windows CE 2.0)";
-    }
     const char*    GetShortBoardName()  const override { return "MobilePro 700"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_NEC"; }
     /* VR4102 "reserved for future use" span, UM Table 5-6: 0x04000000-0x09FFFFFF (96 MB). */

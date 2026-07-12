@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "HP Jornada 720 Handheld PC, Intel SA-1110 StrongARM";
-    }
     const char*    GetShortBoardName()  const override { return "Jornada 720"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::SA1100; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "HP Jornada 820 Handheld PC, Intel SA-1100 StrongARM";
-    }
     const char*    GetShortBoardName()  const override { return "Jornada 820"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
 

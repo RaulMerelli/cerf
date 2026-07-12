@@ -12,9 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* BoardName() const override {
-        return "SMDK2410 + Microsoft DeviceEmulator BSP";
-    }
     const char*    GetShortBoardName()  const override { return "Device Emulator"; }
     const wchar_t* GetBootLogoResource() const override { return L"OEM_MICROSOFT"; }
 };
