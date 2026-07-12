@@ -26,6 +26,7 @@ GITHUB_UPLOADS = "https://uploads.github.com"
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_CHANNEL_ID = "1517249750796206191"
 DISCORD_MESSAGE_LIMIT = 2000
+DISCORD_SUPPRESS_EMBEDS = 1 << 2
 
 ARTIFACT_NAME = re.compile(r"^CERF-(\d+)\.(\d+)\.(\d+)-([0-9a-f]+)-Release-Win32$")
 CHANGELOG_PATH = Path("docs/changelog.html")
@@ -259,7 +260,8 @@ def post_discord(secret: str, artifact: Artifact, changelog: str) -> None:
             f"{DISCORD_MESSAGE_LIMIT} limit; shorten the changelog")
     request(f"{DISCORD_API}/channels/{DISCORD_CHANNEL_ID}/messages",
             {"Authorization": f"Bot {secret}"}, "POST",
-            json.dumps({"content": content}).encode("utf-8"),
+            json.dumps({"content": content,
+                        "flags": DISCORD_SUPPRESS_EMBEDS}).encode("utf-8"),
             "application/json")
 
 
