@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.1 pre-alpha
+# **CE Runtime Foundation** v6.2 pre-alpha
 
 <p align="center">
   <a href="https://cerf.dz3n.net">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.1) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.2) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the guides](https://cerf.dz3n.net/guides/command-line/).
 
