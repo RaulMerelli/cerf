@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.2 pre-alpha
+# **CE Runtime Foundation** v6.3 pre-alpha
 
 <p align="center">
   <a href="https://cerf.dz3n.net">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.2) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.3) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the guides](https://cerf.dz3n.net/guides/command-line/).
 
@@ -230,6 +230,15 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+          <td>v6.3</td>
+          <td>TBA</td>
+          <td>
+            <ul>
+              <li>...</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v6.2</td>
           <td>12 Jul 2026</td>
           <td>
@@ -320,18 +329,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>Launcher: optional packages feature</li>
               <li>Guest additions: Complete overhaul of XIP injection (Now you can boot Jornada 720 in 4K. Also suddenly Zune 30 is in the game too)</li>
               <li>Various UI/general fixes, improvements</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v3.21</td>
-          <td>6 Jun 2026</td>
-          <td>
-            <ul>
-              <li>iPaq H3100 support</li>
-              <li>iPaq H3100,H3600 PPC2002 sound fixes</li>
-              <li>Jornada 720 support</li>
-              <li>JIT/MMU improvements</li>
             </ul>
           </td>
         </tr>
