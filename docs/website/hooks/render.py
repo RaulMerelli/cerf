@@ -80,7 +80,7 @@ def _stats():
     cells = [
         (str(len(boards)), 'boards'),
         (str(len(socs)),   'SoCs'),
-        (str(len(oses)),   'guest systems'),
+        (f'{len(oses)}+',  'guest OSes'),
         (' + '.join(cpus), 'guest CPUs'),
     ]
     out = ['<div class="cerf-stats">']
