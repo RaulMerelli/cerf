@@ -240,6 +240,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>Serial forwarder bugs fixed, ActiveSync now works</li>
               <li>Launcher now supports full upgrade routine - click a button to upgrade your installation</li>
               <li>NEC MP700: received built-in serial functionality</li>
+              <li>https://cerf.dz3n.net - the official website with guides</li>
             </ul>
           </td>
         </tr>
