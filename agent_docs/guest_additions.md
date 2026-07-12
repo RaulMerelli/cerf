@@ -163,11 +163,23 @@ translated), never a design choice for a hard blit; a blit shape that renders
 correctly under software but is declined to it is unaccelerated work, not a
 finished feature.
 
-**Display colour model.** The GA framebuffer is direct-colour on CE3+/CE2.11
-(≥16bpp; gwes realizes colours to packed device pixels) but 8bpp-indexed on CE2.0
-(gwes there creates only `PAL_INDEXED` palettes). The indexed path publishes the
-device palette over the `cerf_virt` palette channel and the host renderer expands
-index→RGB on scanout; the model is selected by the framebuffer bpp.
+**Display colour model.** Direct-colour on CE3+/CE2.11 (≥16bpp), but **CE2.0
+must be 8bpp-indexed**: its gwes creates only `PAL_INDEXED`, so a ≥16bpp
+framebuffer leaves `hpalDefault` = 0 and faults gwes (Exception 002) in display
+init. A CE2.0 board forces it with `BoardContext::GetGuestAdditionsColorDepth()`
+= 8; the indexed path publishes the palette over the `cerf_virt` palette channel
+and the host expands index→RGB on scanout. Selected by framebuffer bpp, never OS
+version (CE2.11 is already ≥16bpp).
+
+**Floor is CE 2.0; CE 1.0 GA is impossible, not unimplemented.** GA replaces the
+guest's *loadable* display driver - the DDI `DrvEnableDriver` the body
+implements, present from CE 2.0. CE 1.0 gwes is the whole graphics stack: it
+renders every pixel into the physical LCD aperture itself (GDI is an in-gwes
+apiset), exports no `DrvEnableDriver`, and its only external display hook is an
+optional dirty-rectangle flush (`DEVICEMAP\DISPLAY\DriverName` →
+`DirtyRectInit`/`DirtyRectUpdate`), not a renderer. With no replaceable driver
+GA's core cannot attach; the CE 1.0 desktop reaches the host via the board's
+native LCD aperture. Do not attempt CE 1.0 GA.
 
 ## Keyboard injection
 
