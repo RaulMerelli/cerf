@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import tkinter as tk
+import webbrowser
 from tkinter import ttk
 from typing import Callable
+
+
+GUIDES_URL = "https://cerf.dz3n.net/guides/"
 
 
 class Toolbar:
@@ -14,6 +18,9 @@ class Toolbar:
                  on_discard_selected: Callable[[], None]) -> None:
         bar = ttk.Frame(parent, padding=(8, 6))
         self.frame = bar
+        self.btn_help = ttk.Button(bar, text="Help",
+                                   command=lambda: webbrowser.open(GUIDES_URL))
+        self.btn_help.pack(side="right")
         self.btn_download = ttk.Button(bar, text="⬇  Download",
                                        style="Download.TButton",
                                        command=on_download)

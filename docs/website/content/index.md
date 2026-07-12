@@ -1,13 +1,43 @@
 ---
 hide:
   - navigation
+  - toc
 ---
 
-# CE Runtime Foundation {version}
+<div class="cerf-hero" markdown>
 
-A universal Windows CE emulator: a virtual hardware platform that boots real Windows CE and
-Windows Mobile ROMs on modern Windows.
+# CE Runtime Foundation
+
+<p class="cerf-hero-line">Thirty years of Windows CE. Emulated now.</p>
+
+<p class="cerf-hero-sub">
+A long-awaited Windows CE emulator. Handhelds, PDAs, phones, media players and industrial
+panels - from Windows CE 1.0 to Windows CE 7.
+</p>
 
 [Download](download.md){ .md-button .md-button--primary }
-[Boards](boards.md){ .md-button }
-[Guides](guides/index.md){ .md-button }
+[Supported boards](boards.md){ .md-button }
+
+{links}
+
+</div>
+
+{stats}
+
+<p class="cerf-note" markdown>
+**Early stage, permanently.** CERF is an unfunded open-source emulator and a proof of concept.
+Things that work today break tomorrow, and a device listed as supported can still fall over.
+Expect rough edges.
+</p>
+
+## The devices
+
+{devices}
+
+## [Features](features.md)
+
+{features}
+
+## [Guides](guides/index.md)
+
+{guides}

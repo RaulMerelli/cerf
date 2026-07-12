@@ -232,7 +232,7 @@ class LauncherApp(OperationsMixin, tk.Tk):
                       f"The bundle catalog uses a newer format (manifest "
                       f"version {exc.remote_version}) than this build understands "
                       f"({exc.supported_version}).\n\nDownload a newer CERF build:\n"
-                      f"https://github.com/gweslab/cerf\n\n"
+                      f"https://cerf.dz3n.net/download/\n\n"
                       f"Your installed devices remain available to launch.")
         else:
             show_error(self, "Remote manifest outdated",

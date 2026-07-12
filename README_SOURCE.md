@@ -1,91 +1,40 @@
-# <img src="gweslab.png" width="24" height="24" /> **CE Runtime Foundation** v{version} pre-alpha
+# **CE Runtime Foundation** v{version} pre-alpha
+
+<p align="center">
+  <a href="https://cerf.dz3n.net">
+    <img src="gweslab.png" width="400" alt="cerf.dz3n.net" />
+  </a>
+</p>
+
+<p align="center">
+  <b><a href="https://cerf.dz3n.net">cerf.dz3n.net</a></b> - read more about the project
+</p>
+
+<br/>
 
 A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) {support_badges}
 
-> [!WARNING]
-> **Early stage.** There are some bugs and boards are just MVP implementations. The project is rather a proof of concept. Contributions are welcome.
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=LmfaXUNGFlU">
-    <img src="docs/cerf_youtube.png" alt="YouTube Preview" width="640" height="360" />
-  </a>
-</p>
-
 ## Downloads
 
-Download WIP build ({version}) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features or go to [latest release](https://github.com/gweslab/cerf/releases/latest)
+Download the WIP build ({version}) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+
+Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the guides](https://cerf.dz3n.net/guides/command-line/).
 
 ## Supported boards
 
 {supported_devices}
 
-## Usage
+## Running your own ROM
 
-The easiest way to run CERF is **`launcher.exe`** - a GUI app shipped next to `cerf.exe` that downloads publicly available ROM bundles and boots them. Pick a device from the list, tweak launch options (resolution, logging, network) if you want, click **Launch CERF**.
+A ROM boots only if **that exact board is implemented in CERF** - a matching SoC is not enough. Dropping in your own dump of an already-supported board is covered [in the guides](https://cerf.dz3n.net/guides/own-rom/).
 
-![launcher screenshot](docs/launcher.png)
-
-For direct invocation without the launcher:
-
-| Command                        | Action                                                       |
-| ------------------------------ | ------------------------------------------------------------ |
-| `cerf.exe `                    | Boot default device (cerfos)                                 |
-| `cerf.exe --device=devemu_ce6` | Boot specific device                                         |
-| `cerf.exe --log=ALL`           | Enable every log channel                                     |
-| `cerf.exe --flush-outputs`     | Force-flush logs (avoid truncation on crash, extremely slow) |
-
-Logs are written to `cerf.log` next to the executable. On a fatal crash, every other thread's register state and a top-of-stack snapshot is dumped to `cerf.crash.log` next to it. Run `cerf.exe --help` for the full CLI.
-
-> [!NOTE]
-> **`cerf.log` is quiet by default** - only critical `CERF` / `CAUTION` lines are written. Pass `--log=ALL` (or a channel list, e.g. `--log=BOOT,JIT,MMU`) to turn channels on.
-
-## <img src="gweslab.png" width="24" height="24" /> Guest Additions
-
-<p align="center">
-  <img src="launcher/assets/GaBanner.png" width="640"
-       alt="CERF Guest Additions for Windows CE. CERF injects own driver into ROMs to provide ultimate integration level. Guest Additions might render ROM unbootable/broken - consider this a proof of concept/experimental feature. Custom screen resolution / Live resize: boot various ROMs in 4K full color with improved rendering, resize host window to change resolution (CE 4+). Mouse + keyboard emulation: allows to use touch/limited devices in a different way. New apps are directly coupled with touch, configure at runtime. Task Manager: control processes from the host emulator window. Shared folders: mount Storage Card and bind it to host directory on any supported ROM." />
-</p>
-
-## Running ROM images (NK.BIN, etc.)
+Bringing up a board CERF does **not** support is emulator development: the board's memory map, every peripheral its drivers touch, the SoC quirks - all of it implemented in C++, grounded in datasheets, BSP sources and RE, at the quality bar CERF already ships. It is not a config tweak, and not something to hand to an AI and expect magic.
 
 > [!IMPORTANT]
-> **CERF is not a "drop any CE ROM and go" emulator.** It emulates a _whole device_ - the SoC, the board wiring, the memory map (OAT), and every peripheral the ROM's drivers touch. A ROM only boots if **that exact board has been implemented in CERF**. A matching SoC is **not** enough: the same chip on a different board has different RAM/flash addresses, a different display controller, different GPIO wiring, etc., and the ROM will fail immediately without them. Random ROMs pulled from the internet will not boot unless their board is on the [supported list](#supported-boards).
-
-### Running a ROM for a board CERF already supports
-
-Use **`launcher.exe`** - it downloads the right ROM bundle and boots it. That's the whole flow for normal use.
-
-If you have your own dump for a board that's **already supported** (e.g. a different region/revision of the same device), drop it in by hand:
-
-1. Create a folder under `devices/` (next to `cerf.exe`), e.g. `devices/mydump/`.
-2. Put the ROM image in it (e.g. `mykernel.nb0`).
-3. Add a `cerf.json` in that folder naming the board and the ROM file:
-
-   ```json
-   {
-     "board": { "id": "jornada_720" },
-     "rom":   { "primary": "mykernel.nb0" }
-   }
-   ```
-
-   The board id is the one for your device - see the **Supported boards** table above, or run `cerf.exe --help` for the full list.
-4. Run `cerf.exe --device=mydump`.
-
-The board id and the primary ROM are both required - give them in `cerf.json` as above, or on the command line: `cerf.exe --device=mydump --board-id=jornada_720 --rom-primary=mykernel.nb0`. `rom.primary` can name the OEM file as shipped, not just a flat image: CERF unwraps recognised containers (multi-XIP, vendor packages) and serves whole-storage dumps (NAND/flash images) on its own - see [how CERF boots ROM containers](agent_docs/rom_acceptance.md). Beyond the two required fields, `cerf.json` is optional and carries display metadata plus a few board overrides (configurable-resolution boards, network tweaks); see [device_config.h](cerf/core/device_config.h) for the schema.
-
-### Bringing up a board CERF does _not_ support yet
-
-This is **real emulator development**, not a config tweak and not something you can hand to an AI and expect magic. The board's exact memory map (OAT), every peripheral its drivers touch, the SoC quirks - all of it has to be implemented in C++, correctly, by someone who understands the hardware. It takes real skill.
-
-- **Contribute a proper implementation.** Do it right - the code quality bar is whatever CERF already ships, no lower. That means a correct OAT, real per-board peripherals (not board-specific behavior stuffed into shared SoC code), and accuracy grounded in datasheets/BSP/RE - not values that happen to "work." Contributions below that bar create more debugging cost than they save and won't be accepted.
-
-> [!IMPORTANT]
-> **CERF does not accept ROM submissions/board implementation requests.** 
-> The devices worth doing are done and so are several that cost months of work and that essentially nobody needs. Bringing up one more board to arrive at one more Windows CE desktop is a very large amount of work for an outcome that already exists. **Further submissions will be declined**. Unless those are very interesting/in demand and I would have a wish to do the work.
-
-CERF does ship a Claude Code dev environment and a `/start-board-implementation` skill that can _assist_ a capable contributor (see [Claude Development Environment](#-claude-development-environment) below), but it is a tool for someone who already knows what a correct bring-up looks like - not a substitute for that knowledge.
+> **CERF does not accept ROM submissions / board implementation requests.**
+> The devices worth doing are done, and so are several that cost months of work and that essentially nobody needs. Bringing up one more board to arrive at one more Windows CE desktop is a very large amount of work for an outcome that already exists. **Further submissions will be declined**, unless they are genuinely interesting or in demand and I want to do the work.
 
 ## Building
 
@@ -117,6 +66,8 @@ Or invoke msbuild directly:
 ```
 msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 ```
+
+The website is built from `docs/website/` - `python tools/build_site.py --serve` runs it locally with live reload.
 
 ## Changelog
 

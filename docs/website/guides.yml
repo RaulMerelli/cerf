@@ -1,0 +1,17 @@
+# The guide cards on the front page.
+#
+# Same shape as features.yml. Images (optional) go in
+# docs/website/content/assets/guides/.
+
+guides:
+  - title: Running CERF from the command line
+    text: The CLI, the log channels, and the files a bug report needs.
+    link: guides/command-line.md
+
+  - title: Getting the guest online
+    text: Put a network card in the slot and browse the web from Windows CE.
+    link: guides/networking.md
+
+  - title: Connecting to ActiveSync
+    text: Connect a guest handheld to a desktop ActiveSync and move files both ways.
+    link: guides/activesync.md

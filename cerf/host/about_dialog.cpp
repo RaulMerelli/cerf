@@ -101,7 +101,7 @@ void AboutDialog::BuildControls(HWND hwnd) {
 
     HWND links = mk(
         L"SysLink",
-        L"<a href=\"https://github.com/gweslab/cerf\">GitHub</a>"
+        L"<a href=\"https://cerf.dz3n.net\">Website</a>"
         L"      ·      "
         L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>",
         LWS_TRANSPARENT, tx, 238, tw, 22, IDC_LINKS);

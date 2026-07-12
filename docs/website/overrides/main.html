@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  <script>document.documentElement.classList.add('cerf-anim');</script>
+  <script type="module" defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "31bfd662081147d190cccd0972795ac8"}'></script>
+{% endblock %}
+
+{% block hero %}
+  {% if page.is_homepage %}
+    <div class="cerf-scene" aria-hidden="true">
+      <img src="{{ 'assets/img/cerf.svg' | url }}" alt="" />
+    </div>
+    <div class="cerf-scene-overlay" aria-hidden="true"></div>
+  {% endif %}
+{% endblock %}

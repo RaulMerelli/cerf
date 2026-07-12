@@ -10,9 +10,9 @@ from typing import Callable, Optional
 from ui_dialogs import (
     BUY_ME_A_COFFEE_URL,
     DISCORD_URL,
-    GITHUB_URL,
     KOFI_URL,
     PATREON_URL,
+    WEBSITE_URL,
 )
 import ui_theme as theme
 
@@ -25,7 +25,7 @@ class StatusBar:
 
         links = (
             ("Discord",         DISCORD_URL),
-            ("GitHub",          GITHUB_URL),
+            ("Website",         WEBSITE_URL),
             ("Patreon",         PATREON_URL),
             ("Ko-fi",           KOFI_URL),
             ("Buy me a coffee", BUY_ME_A_COFFEE_URL),

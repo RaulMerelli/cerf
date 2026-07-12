@@ -58,7 +58,7 @@ class ManifestVersionError(BundleError):
             msg = (
                 f"remote manifest version {remote_version} is newer than this "
                 f"CERF build supports (version {supported_version}); download a "
-                f"newer CERF build from https://github.com/gweslab/cerf"
+                f"newer CERF build from https://cerf.dz3n.net/download/"
             )
         else:
             msg = (

@@ -13,7 +13,7 @@ import ui_theme as theme
 
 
 DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
-GITHUB_URL  = "https://github.com/gweslab/cerf"
+WEBSITE_URL = "https://cerf.dz3n.net"
 
 # Funding targets, mirroring .github/FUNDING.yml (patreon: dz3n,
 # buy_me_a_coffee: dz3n, ko_fi: dz333n) - that file is not shipped with the

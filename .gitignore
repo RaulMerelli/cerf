@@ -311,3 +311,7 @@ cerf/tracing/*/**
 !cerf/tracing/*/nkdbg/**
 !cerf/tracing/*/*bundle*.h
 .env
+
+# Site assets synced from launcher/ and cerf/ by tools/build_site.py
+docs/website/content/assets/icons/
+docs/website/content/assets/img/

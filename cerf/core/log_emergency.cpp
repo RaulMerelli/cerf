@@ -297,8 +297,11 @@ void CerfFatalExit(int code) {
                     "Two log files were written next to cerf.exe:\n"
                     "  - cerf.log         (full run log)\n"
                     "  - cerf.crash.log   (thread snapshot at the crash)\n\n"
-                    "If you can share those, the developers can take a look "
-                    "and figure out what broke.",
+                    "The run log is nearly empty unless every log channel was on. "
+                    "If the crash happens again, reproduce it with all log channels "
+                    "enabled - the launcher has a tick for it - and keep both files.\n\n"
+                    "To report it, open http://cerf.dz3n.net and search for "
+                    "\"Report a bug\".",
                     "CERF: unexpected error",
                     MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
     }

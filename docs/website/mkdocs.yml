@@ -1,18 +1,19 @@
-site_name: CERF
-site_description: CE Runtime Foundation - a virtual hardware platform that boots real Windows CE and Windows Mobile ROMs on modern Windows.
+site_name: CE Runtime Foundation
+site_description: A virtual hardware platform that boots real Windows CE and Windows Mobile ROMs on modern Windows.
 site_url: https://cerf.dz3n.net/
 repo_url: https://github.com/gweslab/cerf
 repo_name: gweslab/cerf
-copyright: gweslab
+copyright: Yaroslav Kibysh
 
 docs_dir: content
 site_dir: ../../build/site
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
   logo: assets/img/gweslab.png
-  favicon: assets/img/gweslab.png
+  favicon: assets/img/cerf.ico
   icon:
     repo: fontawesome/brands/github
   font:
@@ -29,26 +30,24 @@ theme:
     - search.suggest
     - search.highlight
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: black
-      accent: teal
-      toggle:
-        icon: material/weather-night
-        name: Dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: black
-      accent: teal
-      toggle:
-        icon: material/weather-sunny
-        name: Light mode
+    scheme: slate
+    primary: black
+    accent: purple
 
 nav:
   - Home: index.md
   - Download: download.md
+  - Features: features.md
   - Boards: boards.md
-  - Guides: guides/index.md
+  - Guides:
+      - guides/index.md
+      - Command line: guides/command-line.md
+      - Getting the guest online: guides/networking.md
+      - Touch and mouse: guides/pointer-input.md
+      - Report a bug: guides/report-a-bug.md
+      - Running your own ROM: guides/own-rom.md
+      - Connecting to ActiveSync: guides/activesync.md
+      - Windows CE ROM containers: guides/rom-containers.md
   - Changelog: changelog.md
 
 markdown_extensions:
@@ -60,6 +59,9 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.keys
   - pymdownx.tabbed:
       alternate_style: true
@@ -67,12 +69,28 @@ markdown_extensions:
 extra_css:
   - assets/cerf.css
 
+extra_javascript:
+  - assets/reveal.js
+  - assets/slideshow.js
+  - assets/scene.js
+
 extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/gweslab/cerf
+      name: CERF on GitHub
     - icon: fontawesome/brands/discord
       link: https://discord.gg/QREE9Y2v2d
+      name: CERF on Discord
+    - icon: fontawesome/brands/patreon
+      link: https://www.patreon.com/dz3n
+      name: Support CERF on Patreon
+    - icon: simple/kofi
+      link: https://ko-fi.com/dz333n
+      name: Support CERF on Ko-fi
 
 plugins:
   - search
+
+hooks:
+  - hooks/render.py
