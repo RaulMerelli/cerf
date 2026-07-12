@@ -344,6 +344,7 @@ BOARDS_INFORMATION = [
             "sound": False,
             "network": True,
             "pcmcia": True,
+            "serial": True,
             "battery": False,
             "guest_additions": True,
             "suspend": True,

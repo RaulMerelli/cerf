@@ -41,6 +41,9 @@ public:
     void RestoreState(StateReader& r) override {
         emu_.Get<Pd6710Controller>().RestoreState(r);
     }
+    void PostRestore() override {
+        emu_.Get<Pd6710Controller>().PostRestore();
+    }
 
     uint8_t  ReadByte (uint32_t addr) override;
     uint16_t ReadHalf (uint32_t addr) override;

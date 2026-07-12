@@ -166,6 +166,8 @@ public:
         slot_.RestoreSlotState(r);
     }
 
+    void PostRestore() override { slot_.PostRestoreSlot(); }
+
 private:
     uint32_t PresentStateLocked() const {
         if (!slot_.HasCard()) {

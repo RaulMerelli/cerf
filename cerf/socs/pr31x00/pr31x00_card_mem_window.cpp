@@ -61,6 +61,9 @@ public:
     void RestoreState(StateReader& r) override {
         emu_.Get<Pr31x00CardSpace>().RestoreState(r);
     }
+    void PostRestore() override {
+        emu_.Get<Pr31x00CardSpace>().PostRestore();
+    }
 };
 
 }  /* namespace */

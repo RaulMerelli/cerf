@@ -50,6 +50,7 @@ public:
        (non-Peripheral) bridge + its devices. */
     void SaveState(StateWriter& w) override    { Bridge().SaveState(w); }
     void RestoreState(StateReader& r) override { Bridge().RestoreState(r); }
+    void PostRestore() override                { Bridge().PostRestore(); }
 
 private:
     PciHostBridge& Bridge() { return emu_.Get<PciHostBridge>(); }

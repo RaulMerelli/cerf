@@ -15,7 +15,16 @@
    (Table 4-35). */
 class Pxa255Uart16550 : public Uart16550 {
 public:
-    using Uart16550::Uart16550;
+    /* IER bits 7:4 are DMAE/UUE/NRZE/RTOIE, "used differently from the standard 16550
+       register definition" (Table 10-7): UUE gates the unit ("0 - The unit is disabled")
+       and RTOIE separately enables the character-timeout interrupt. The 64-byte FIFOs
+       trigger at 1/8/16/32 bytes (Table 10-11, FCR[ITL]). */
+    explicit Pxa255Uart16550(CerfEmulator& emu)
+        : Uart16550(emu, Config{/*ier_mask=*/0xFFu,
+                                /*irq_gate_mcr=*/0u,
+                                /*irq_gate_ier=*/0x40u,
+                                /*rx_trigger=*/{1u, 8u, 16u, 32u},
+                                /*cti_ier_bit=*/0x10u}) {}
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
@@ -33,8 +42,6 @@ public:
 
 protected:
     uint32_t RegStride() const override { return 4u; }
-
-    bool UnitEnabled() const override { return (ier() & 0x40u) != 0u; }  /* UUE (IER.6). */
 
     void SetInterruptLine(bool pending) override {
         if (pending) emu_.Get<Pxa255Intc>().AssertSource(IntcBit());

@@ -37,6 +37,9 @@ public:
     void RestoreState(StateReader& r) override {
         emu_.Get<NecMobilePro700Pcic>().RestoreState(r);
     }
+    void PostRestore() override {
+        emu_.Get<NecMobilePro700Pcic>().PostRestore();
+    }
 
     uint8_t ReadByte(uint32_t addr) override {
         const uint32_t off = addr - kBase;

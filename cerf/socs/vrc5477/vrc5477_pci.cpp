@@ -107,6 +107,10 @@ public:
         }
     }
 
+    void PostRestore() override {
+        for (PciDevice* d : devices_) d->PostRestore();
+    }
+
 private:
     bool IsConfigCycle() const { return (pciinit00_ & kPciInitTypeMask) == kPciInitTypeCfg; }
 

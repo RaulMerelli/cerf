@@ -1,6 +1,8 @@
 #include "serial_16550.h"
 
 #include "serial_endpoint.h"
+#include "../../core/log.h"
+#include "../../host/host_widget.h"
 #include "../../state/state_stream.h"
 
 #include <utility>
@@ -38,24 +40,44 @@ constexpr uint8_t MSR_DCTS = 0x01, MSR_DDSR = 0x02, MSR_TERI = 0x04,
 constexpr uint8_t MSR_CTS = 0x10, MSR_DSR = 0x20, MSR_RI = 0x40, MSR_DCD = 0x80;
 constexpr uint8_t MSR_DELTAS = MSR_DCTS | MSR_DDSR | MSR_TERI | MSR_DDCD;
 
-/* FCR bits 7:6 select the RX FIFO trigger; FIFO disabled triggers at 1 byte. */
-size_t RxTrigger(uint8_t fcr) {
-    if (!(fcr & FCR_ENABLE)) return 1;
-    switch (fcr & 0xC0) {
-        case 0x00: return 1;
-        case 0x40: return 4;
-        case 0x80: return 8;
-        default:   return 14;
-    }
-}
+/* Backlog cap for a feeder with no flow control: a guest that stops draining otherwise
+   grows the queue without limit and is later handed the whole stale burst. */
+constexpr size_t kRxMax = 64u * 1024u;
 }  /* namespace */
 
-Serial16550::Serial16550(SerialEndpoint& endpoint, IrqLineFn irq_line)
-    : endpoint_(&endpoint), irq_line_(std::move(irq_line)) {
+/* FCR bits 7:6 select the RX FIFO trigger; FIFO disabled triggers at 1 byte. */
+size_t Serial16550::RxTriggerLocked() const {
+    if (!(fcr_ & FCR_ENABLE)) return 1;
+    return cfg_.rx_trigger[(fcr_ >> 6) & 3u];
+}
+
+Serial16550::Serial16550(SerialEndpoint* endpoint, IrqLineFn irq_line, Config cfg)
+    : irq_line_(std::move(irq_line)), cfg_(cfg), endpoint_(endpoint) {
     Reset();
 }
 
-void Serial16550::SetEndpoint(SerialEndpoint* endpoint) { endpoint_ = endpoint; }
+bool Serial16550::DeliverTxToEndpoint(uint8_t byte) {
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
+    if (!endpoint_) return false;
+    endpoint_->OnGuestTx(&byte, 1);
+    return true;
+}
+
+void Serial16550::DeliverTx(uint8_t byte) { DeliverTxToEndpoint(byte); }
+
+/* A personality plugged after the guest has already raised DTR/RTS would otherwise start
+   with them believed low and read the next edge as a hang-up. */
+void Serial16550::SetEndpoint(SerialEndpoint* endpoint) {
+    bool dtr, rts;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        dtr = (mcr_ & MCR_DTR) != 0;
+        rts = (mcr_ & MCR_RTS) != 0;
+    }
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
+    endpoint_ = endpoint;
+    if (endpoint) endpoint->OnControlLines(dtr, rts);
+}
 
 void Serial16550::Reset() {
     {
@@ -67,6 +89,7 @@ void Serial16550::Reset() {
         rx_pos_ = 0;
         if (last_irq_level_) { last_irq_level_ = false; irq_line_(false); }
     }
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
     if (endpoint_) endpoint_->ResendModemInputs();
 }
 
@@ -103,27 +126,28 @@ Serial16550::LineConfig Serial16550::GetLineConfig() const {
 }
 
 void Serial16550::SetLineConfigCallback(LineConfigFn cb) {
-    std::lock_guard<std::mutex> lk(mu_);
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
     line_cfg_cb_ = std::move(cb);
 }
 
-/* Highest-priority IER-enabled pending source, or kNoSource. */
-static uint8_t PendingSource(uint8_t ier, uint8_t lsr, uint8_t fcr,
-                             size_t rx_avail, bool thre_armed, uint8_t msr) {
-    if ((ier & IER_RLS) && (lsr & LSR_RLS_BITS)) return IIR_RLS;
-    if (ier & IER_RDA) {
-        if (rx_avail >= RxTrigger(fcr)) return IIR_RDA;
-        if (rx_avail > 0)               return IIR_CTI;
-    }
-    if ((ier & IER_THR) && thre_armed)  return IIR_THRE;
-    if ((ier & IER_MS) && (msr & MSR_DELTAS)) return IIR_MS;
+/* Highest-priority enabled pending source, or kNoSource. The character-timeout source
+   is FIFO-mode only and carries its own enable on parts that separate it from RDA. */
+uint8_t Serial16550::PendingSourceLocked() const {
+    const size_t rx_avail = RxAvailLocked();
+    if ((ier_ & IER_RLS) && (lsr_ & LSR_RLS_BITS)) return IIR_RLS;
+    if ((ier_ & IER_RDA) && rx_avail >= RxTriggerLocked()) return IIR_RDA;
+    if ((ier_ & cfg_.cti_ier_bit) && (fcr_ & FCR_ENABLE) && rx_avail > 0) return IIR_CTI;
+    if ((ier_ & IER_THR) && thre_armed_) return IIR_THRE;
+    if ((ier_ & IER_MS) && (msr_ & MSR_DELTAS)) return IIR_MS;
     return kNoSource;
 }
 
+/* PC16550D §8.6.6: "Disabling an interrupt prevents it from being indicated as active in
+   the IIR and from activating the INTR output signal." */
 bool Serial16550::ComputeIrqLevelLocked() const {
-    if (!(mcr_ & MCR_OUT2)) return false;   /* OUT2 gates the IRQ to the bus */
-    return PendingSource(ier_, lsr_, fcr_, RxAvailLocked(), thre_armed_, msr_)
-           != kNoSource;
+    if ((mcr_ & cfg_.irq_gate_mcr) != cfg_.irq_gate_mcr) return false;
+    if ((ier_ & cfg_.irq_gate_ier) != cfg_.irq_gate_ier) return false;
+    return PendingSourceLocked() != kNoSource;
 }
 
 void Serial16550::SettleAndFireIrq() {
@@ -137,8 +161,7 @@ void Serial16550::SettleAndFireIrq() {
 }
 
 uint8_t Serial16550::ReadIirLocked() {
-    const uint8_t src = PendingSource(ier_, lsr_, fcr_, RxAvailLocked(),
-                                      thre_armed_, msr_);
+    const uint8_t src  = PendingSourceLocked();
     const uint8_t fifo = (fcr_ & FCR_ENABLE) ? IIR_FIFO_BITS : 0;
     if (src == kNoSource) return IIR_NONE | fifo;
     if (src == IIR_THRE) thre_armed_ = false;   /* IIR read clears THRE source */
@@ -178,7 +201,10 @@ uint8_t Serial16550::ReadReg8(uint32_t offset) {
     }
     SettleAndFireIrq();
     }
-    if (drained && rx_drain_) rx_drain_();   /* off-lock: feeder pushes next */
+    if (drained) {                           /* off-lock: feeder pushes next */
+        std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
+        if (rx_drain_) rx_drain_();
+    }
     return result;
 }
 
@@ -187,7 +213,6 @@ void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
     bool do_tx = false, loop_tx = false, notify_lines = false, dtr = false,
          rts = false, line_changed = false;
     LineConfig   line_cfg;
-    LineConfigFn line_cfg_cb;
     {
         std::lock_guard<std::mutex> lk(mu_);
         switch (offset & 7u) {
@@ -199,8 +224,12 @@ void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
                 if (mcr_ & MCR_LOOP) loop_tx = true; else do_tx = true;
                 break;
             case kIerDlm:
-                if (lcr_ & LCR_DLAB) { dlm_ = value; line_changed = true; }
-                else                   ier_ = value & 0x0Fu;
+                if (lcr_ & LCR_DLAB) { dlm_ = value; line_changed = true; break; }
+                /* PC16550D §8.6.3 bit 5: THRE "causes the UART to issue an interrupt to
+                   the CPU when the [THRE] Interrupt enable is set high", so a driver that
+                   starts transmitting by arming TIE gets that first interrupt. */
+                if (!(ier_ & IER_THR) && (value & IER_THR)) thre_armed_ = true;
+                ier_ = value & cfg_.ier_mask;
                 break;
             case kIirFcr:
                 fcr_ = value;
@@ -235,13 +264,19 @@ void Serial16550::WriteReg8(uint32_t offset, uint8_t value) {
             case kScr: scr_ = value; break;
         }
         SettleAndFireIrq();
-        if (line_changed) { line_cfg = GetLineConfigLocked(); line_cfg_cb = line_cfg_cb_; }
+        if (line_changed) line_cfg = GetLineConfigLocked();
     }
     /* Off-lock: the endpoint may call back into PushRx (re-locks mu_). */
-    if (do_tx && endpoint_)        endpoint_->OnGuestTx(&tx_byte, 1);
-    if (loop_tx)                   PushRx(&tx_byte, 1);
+    if (do_tx) {
+        DeliverTx(tx_byte);
+        if (activity_) activity_->MarkTx();
+    }
+    if (loop_tx) PushRx(&tx_byte, 1);
+
+    if (!notify_lines && !line_changed) return;
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
     if (notify_lines && endpoint_) endpoint_->OnControlLines(dtr, rts);
-    if (line_cfg_cb)               line_cfg_cb(line_cfg);
+    if (line_changed && line_cfg_cb_) line_cfg_cb_(line_cfg);
 }
 
 bool Serial16550::RxEmpty() const {
@@ -250,15 +285,21 @@ bool Serial16550::RxEmpty() const {
 }
 
 void Serial16550::SetRxDrainCallback(RxDrainFn cb) {
-    std::lock_guard<std::mutex> lk(mu_);
+    std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);
     rx_drain_ = std::move(cb);
 }
 
 void Serial16550::PushRx(const uint8_t* data, size_t n) {
     if (n == 0) return;
+    if (activity_) activity_->MarkRx();
     std::lock_guard<std::mutex> lk(mu_);
     if (rx_pos_ == rx_.size()) { rx_.clear(); rx_pos_ = 0; }
     else if (rx_pos_ > 4096) { rx_.erase(rx_.begin(), rx_.begin() + rx_pos_); rx_pos_ = 0; }
+    if (RxAvailLocked() + n > kRxMax) {
+        LOG(Caution, "[16550] RX overrun: the guest is not draining the receiver, "
+                     "dropping %zu bytes\n", n);
+        return;
+    }
     rx_.insert(rx_.end(), data, data + n);
     SettleAndFireIrq();
 }
@@ -284,6 +325,10 @@ void Serial16550::RestoreState(StateReader& r) {
     rx_.assign(static_cast<size_t>(n), 0u);
     if (n) r.ReadBytes(rx_.data(), static_cast<size_t>(n));
     uint64_t pos = 0; r.Read(pos); rx_pos_ = static_cast<size_t>(pos);
+}
+
+void Serial16550::RepublishIrq() {
+    std::lock_guard<std::mutex> lk(mu_);
     last_irq_level_ = ComputeIrqLevelLocked();
     irq_line_(last_irq_level_);
 }

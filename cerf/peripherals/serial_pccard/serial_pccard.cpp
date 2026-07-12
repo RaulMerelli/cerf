@@ -64,8 +64,16 @@ void SerialPcCard::OnInserted() {
     } else {
         endpoint_ = std::make_unique<ModemPersonality>(emu_);
     }
-    uart_ = std::make_unique<Serial16550>(*endpoint_,
-                                          [this](bool a) { OnUartIrq(a); });
+    /* OUT2 drives the card's tri-state buffer onto the socket IRQ line, so the card
+       raises no interrupt until the driver sets it. That gate is this card's wiring,
+       not the UART's: PC16550D §8.6.7 bit 3 makes OUT2 "an auxiliary user-designated
+       output" with no interrupt role inside the part. */
+    uart_ = std::make_unique<Serial16550>(
+        endpoint_.get(), [this](bool a) { OnUartIrq(a); },
+        Serial16550::Config{/*ier_mask=*/0x0Fu,
+                            /*irq_gate_mcr=*/0x08u,
+                            /*irq_gate_ier=*/0u});
+    uart_->SetActivityWidget(slot_);
     endpoint_->BindUart(*uart_);
 }
 
@@ -158,6 +166,10 @@ void SerialPcCard::RestoreState(StateReader& r) {
     uint8_t irq = 0; r.Read(irq); uart_irq_ = (irq != 0);
     uint8_t pwr = 0; r.Read(pwr); powered_ = (pwr != 0);
     uart_->RestoreState(r);
+}
+
+void SerialPcCard::PostRestore() {
+    uart_->RepublishIrq();
 }
 
 void SerialPcCard::WriteIo16(uint32_t offset, uint16_t value) {

@@ -18,6 +18,7 @@ public:
        (a PciDevice is not a Peripheral, so the hibernation walk can't reach it). */
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
+    virtual void PostRestore() {}
 
     /* Location on bus 0 (the only bus the VRC5477 external host bridge drives). */
     virtual uint8_t PciDev() const = 0;

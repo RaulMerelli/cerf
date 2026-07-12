@@ -38,6 +38,7 @@ public:
 
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
+    void PostRestore();
 
     /* PcmciaSlotHost. */
     void OnCardDetectChanged(PcmciaSlot& slot) override;

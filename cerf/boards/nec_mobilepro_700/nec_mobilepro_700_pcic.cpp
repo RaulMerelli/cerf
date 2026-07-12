@@ -246,4 +246,9 @@ void NecMobilePro700Pcic::RestoreState(StateReader& r) {
     slot1_.RestoreSlotState(r);
 }
 
+void NecMobilePro700Pcic::PostRestore() {
+    slot0_.PostRestoreSlot();
+    slot1_.PostRestoreSlot();
+}
+
 REGISTER_SERVICE(NecMobilePro700Pcic);

@@ -40,6 +40,7 @@ public:
     std::wstring SaveBinding() const override { return image_path_; }
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
     /* A failed-open card still inserts and reports ATA not-ready (status
        without READY), so the OS sees a failed disk, not an empty socket. */

@@ -29,6 +29,10 @@ public:
        non-matching live card can be skipped on restore. */
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
+    /* Second restore pass, once every peripheral is back. A card re-asserts its socket
+       IRQ here: an assertion made during RestoreState reaches an INTC whose own registers
+       are not restored yet, and the pending interrupt is lost. */
+    virtual void PostRestore() {}
     /* Host binding needed to rebuild this card on restore (e.g. CF image
        path, serial COM name). Empty for cards rebuildable from id alone. */
     virtual std::wstring SaveBinding() const { return {}; }

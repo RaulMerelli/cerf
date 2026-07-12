@@ -53,6 +53,11 @@ void PcmciaSpaceRouter::RestoreState(StateReader& r) {
     }
 }
 
+void PcmciaSpaceRouter::PostRestore() {
+    for (PcmciaSlot* s : sockets_)
+        if (s) s->PostRestoreSlot();
+}
+
 PcmciaSlot* PcmciaSpaceRouter::Decode(uint32_t addr, Region* region,
                                       uint32_t* card_offset) const {
     const uint32_t off    = addr - MmioBase();

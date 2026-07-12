@@ -8,11 +8,16 @@
 
 namespace {
 
-/* MobilePro 700 serial port: off-chip 16550 in the VR4102 ISA-IO window,
-   registers at reg-index*2 on the 16-bit bus (PA 0x1600FFC0). */
+/* OAL debug serial port, stride-2 16550 (nk.exe sub_9F00282C: probes SCR at 0x1600FFCE with
+   0x55/0xAA, then programs FCR=7 DLL=3 DLM=0 LCR=3 MCR=0x0B). Its TX carries
+   OEMWriteDebugString - the kernel banner and OAL diagnostics - so this port IS the board's
+   NKDBG channel, not one of serial.dll's three COM devices. */
 class Vr4102ComUart : public Uart16550 {
 public:
-    using Uart16550::Uart16550;
+    explicit Vr4102ComUart(CerfEmulator& emu)
+        : Uart16550(emu, Config{/*ier_mask=*/0x0Fu,
+                                /*irq_gate_mcr=*/0u,
+                                /*irq_gate_ier=*/0u}) {}
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
@@ -26,6 +31,8 @@ protected:
     uint32_t    RegStride() const override { return 2u; }
     const char* Name()      const override { return "COM"; }
 
+    /* The OAL leaves IER 0 (sub_9F00282C writes DLM=0 and never enables an interrupt), so
+       the port is polled and no line should ever be raised. */
     void SetInterruptLine(bool pending) override {
         if (!pending) return;
         LOG(Caution, "COM UART raised an interrupt; interrupt routing to the ICU "

@@ -32,4 +32,5 @@ public:
        state. Driven by the enumerated PCI-window Peripheral's SaveState. */
     virtual void SaveState(StateWriter& w)    = 0;
     virtual void RestoreState(StateReader& r) = 0;
+    virtual void PostRestore()                = 0;
 };

@@ -53,6 +53,7 @@ public:
 
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
+    void PostRestore();
 
 private:
     PcmciaSlot* DecodeCtrl(uint32_t off, bool* io_space, uint32_t* card_offset) const;

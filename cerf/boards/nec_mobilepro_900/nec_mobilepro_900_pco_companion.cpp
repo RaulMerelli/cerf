@@ -1,6 +1,7 @@
 #include "nec_mobilepro_900_pco_companion.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/log.h"
 #include "../../socs/pxa255/pxa255_btuart.h"
 #include "../board_context.h"
 
@@ -12,10 +13,14 @@ bool NecMobilePro900PcoCompanion::ShouldRegister() {
 }
 
 void NecMobilePro900PcoCompanion::OnReady() {
-    /* The CE battery driver reads the main battery synchronously: pco.dll
-       sub_1BC2368 writes 0x70 to BTUART THR and waits <=200ms for the reply on
-       RX. Observe THR so we can answer it. */
-    emu_.Get<Pxa255Btuart>().SetTxObserver([this](uint8_t b) { OnBtuartTx(b); });
+    auto& btuart = emu_.Get<Pxa255Btuart>();
+    BindUart(btuart);
+    btuart.SetEndpoint(this);
+    LOG(Periph, "[PCO] bound as the BTUART's serial endpoint\n");
+}
+
+void NecMobilePro900PcoCompanion::OnGuestTx(const uint8_t* data, size_t n) {
+    for (size_t i = 0; i < n; ++i) OnBtuartTx(data[i]);
 }
 
 /* The guest TX byte stream is not self-framing: command opcodes interleave with
@@ -56,7 +61,7 @@ void NecMobilePro900PcoCompanion::SendBatteryReply(uint16_t raw) {
 }
 
 void NecMobilePro900PcoCompanion::PushByte(uint8_t b) {
-    emu_.Get<Pxa255Btuart>().PushRx(b);
+    uart_->PushRx(&b, 1);
 }
 
 /* Cache only; never push to BTUART. The PICO keyboard is request/reply (Linux

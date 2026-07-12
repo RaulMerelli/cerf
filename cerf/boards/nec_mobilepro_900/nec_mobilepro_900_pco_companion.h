@@ -1,20 +1,23 @@
 #pragma once
 
 #include "../../core/service.h"
+#include "../../peripherals/serial/serial_endpoint.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 
-/* NEC P530 "PCO" companion MCU (keyboard + touch). It has NO MMIO of its own:
-   the in-ROM pco.dll talks to it over the PXA255 BTUART, so CERF drives input
-   purely by feeding report bytes into the BTUART RX FIFO (Uart16550::PushRx).
-   Report byte protocol RE'd from pco.dll sub_1BC28B4. */
-class NecMobilePro900PcoCompanion : public Service {
+/* NEC P530 "PCO" companion MCU (keyboard + touch). It has NO MMIO of its own: the
+   in-ROM pco.dll talks to it over the PXA255 BTUART, so it sits behind that line as its
+   endpoint. Report byte protocol RE'd from pco.dll sub_1BC28B4. */
+class NecMobilePro900PcoCompanion : public Service, public SerialEndpoint {
 public:
     using Service::Service;
     bool ShouldRegister() override;
     void OnReady() override;
+
+    void OnGuestTx(const uint8_t* data, size_t n) override;
 
     /* Main-battery raw value the PCO returns for an IOCTL-0xE main read. The CE
        battery driver (battery.dll sub_1BC2368) writes 0x70 to BTUART THR and waits
@@ -41,9 +44,9 @@ public:
 private:
     void PushByte(uint8_t b);
     void SendBatteryReply(uint16_t raw);
-    /* BTUART TX observer: answers the request commands the guest writes to THR and
-       then blocks on (pco.dll sub_1BC2368, 200ms). 0x70/0x71 battery, 0x13 keyboard
-       scan; an unanswered request holds the PCO_IOControl critsec -> input freeze. */
+    /* Answers the request commands the guest writes to THR and then blocks on (pco.dll
+       sub_1BC2368, 200ms). 0x70/0x71 battery, 0x13 keyboard scan; an unanswered request
+       holds the PCO_IOControl critsec -> input freeze. */
     void OnBtuartTx(uint8_t b);
 
     std::mutex report_mtx_;   /* serializes a full report's bytes into the RX FIFO */

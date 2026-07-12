@@ -168,6 +168,13 @@ void PcmciaSlot::SaveSlotState(StateWriter& w) {
     w.PatchAt(len_off, &len, sizeof(len));
 }
 
+/* Called by the controller with its own lock released: the card may drive its socket IRQ
+   from here, which re-enters the controller. */
+void PcmciaSlot::PostRestoreSlot() {
+    std::lock_guard<std::mutex> lk(bus_mutex_);
+    if (card_) card_->PostRestore();
+}
+
 void PcmciaSlot::RestoreSlotState(StateReader& r) {
     std::lock_guard<std::mutex> lk(bus_mutex_);
     uint8_t powered = 0, has = 0;

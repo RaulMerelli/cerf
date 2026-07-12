@@ -33,6 +33,7 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
 private:
     enum class Region { Io, Reserved, Attribute, Common };

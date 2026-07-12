@@ -38,9 +38,6 @@ void SerialCradle::SaveCradleState(StateWriter& w) {
     if (n) w.WriteBytes(host_port_.data(), n * sizeof(wchar_t));
 }
 
-/* The card is re-inserted in PostRestore, not here: the owning UART's RestoreState
-   clears the endpoint pointer it is about to hand back, so a rebind done now would
-   be dropped and the port would come back with a live card that no TX can reach. */
 void SerialCradle::RestoreCradleState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mtx_);
     uint8_t k = 0;
@@ -53,8 +50,6 @@ void SerialCradle::RestoreCradleState(StateReader& r) {
     if (n) r.ReadBytes(restored_port_.data(), n * sizeof(wchar_t));
 }
 
-/* Re-inserting the saved card rebuilds the endpoint and re-binds it to the line,
-   which is what re-installs the RX-drain and line-config callbacks. */
 void SerialCradle::PostRestore() {
     std::lock_guard<std::mutex> lk(mtx_);
     SetPluggedLocked(restored_kind_, restored_port_);

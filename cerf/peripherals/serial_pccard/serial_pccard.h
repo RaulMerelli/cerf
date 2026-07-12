@@ -42,6 +42,7 @@ public:
     }
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
     void OnShutdown() override;
 
     void PowerOn () override;

@@ -74,6 +74,7 @@ public:
        from the slot's owning Peripheral. */
     void SaveSlotState(StateWriter& w);
     void RestoreSlotState(StateReader& r);
+    void PostRestoreSlot();
 
     /* HostWidget. */
     std::wstring WidgetName() const override { return label_; }

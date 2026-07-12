@@ -480,6 +480,14 @@ void CompactFlashCard::RestoreState(StateReader& r) {
     uint8_t irq = 0; r.Read(irq); irq_line_ = (irq != 0);
 }
 
+/* IrqAssertLocked short-circuits on an already-set irq_line_, so the restored level is
+   driven onto the socket directly. */
+void CompactFlashCard::PostRestore() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (irq_line_) slot_->RaiseIrq();
+    else           slot_->ClearIrq();
+}
+
 void CompactFlashCard::WriteIo16(uint32_t offset, uint16_t value) {
     std::lock_guard<std::mutex> lk(mtx_);
     const int reg = DecodeIoLocked(offset);

@@ -156,4 +156,9 @@ void Pr31x00CardSpace::RestoreState(StateReader& r) {
     }
 }
 
+void Pr31x00CardSpace::PostRestore() {
+    for (PcmciaSlot* s : sockets_)
+        if (s) s->PostRestoreSlot();
+}
+
 REGISTER_SERVICE(Pr31x00CardSpace);
