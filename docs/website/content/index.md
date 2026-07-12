@@ -20,15 +20,13 @@ panels - from Windows CE 1.0 to Windows CE 7.
 
 {links}
 
-</div>
-
 {stats}
 
 <p class="cerf-note" markdown>
-**Early stage, permanently.** CERF is an unfunded open-source emulator and a proof of concept.
-Things that work today break tomorrow, and a device listed as supported can still fall over.
-Expect rough edges.
+CERF is a pre-alpha emulator - expect issues.
 </p>
+
+</div>
 
 ## The devices
 

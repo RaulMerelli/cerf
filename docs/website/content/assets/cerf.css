@@ -30,13 +30,39 @@
   --md-footer-bg-color--dark: rgba(0, 0, 0, 0.45);
 }
 
-.md-header,
-.md-tabs {
-  background: rgba(0, 0, 0, 0.25);
+[data-md-color-primary] .md-header,
+[data-md-color-primary] .md-tabs {
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
   border-bottom: 1px solid var(--cerf-glass-border);
-  box-shadow: none;
+  box-shadow: var(--cerf-glass-shadow);
+}
+
+[data-md-color-primary] .md-header {
+  background: #0000008f;
+}
+
+[data-md-color-primary] .md-tabs {
+  background: #00000054;
+}
+
+.md-search__form {
+  border-radius: 100px;
+  background: var(--cerf-glass-bg);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--cerf-glass-border-strong);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.md-search__form:hover,
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background: var(--cerf-glass-bg-hover);
+  border-color: var(--cerf-glass-border-strong);
+}
+
+.md-search__output {
+  border-radius: 0 0 16px 16px;
 }
 
 /* Section headings, portfolio style: small, uppercase, wide-tracked, muted. */
@@ -197,7 +223,6 @@
 }
 
 /* Glass surfaces */
-.cerf-stats,
 .md-typeset .cerf-device,
 .cerf-banner,
 .cerf-video img {
@@ -251,46 +276,43 @@
   box-shadow: 0 4px 20px rgba(233, 102, 160, 0.25);
 }
 
-/* Early-stage notice - a card like the rest, not bare text in a box. */
+/* Early-stage notice */
 .md-typeset .cerf-note {
-  margin: 1.4rem 0 0;
-  padding: 1rem 1.3rem;
-  border: 1px solid rgba(233, 102, 160, 0.35);
-  border-radius: 16px;
-  background: rgba(233, 102, 160, 0.08);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  box-shadow: var(--cerf-glass-shadow);
-  font-size: 0.74rem;
+  max-width: 34rem;
+  margin: 2.2rem auto 0;
+  font-size: 0.68rem;
   line-height: 1.6;
-  color: rgba(225, 224, 255, 0.8);
-}
-
-.md-typeset .cerf-note strong {
-  color: var(--cerf-text);
+  color: rgba(225, 224, 255, 0.45);
 }
 
 /* Stats strip */
 .cerf-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 1rem;
-  padding: 1.6rem 1rem;
-  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 3rem 0 0;
 }
 
 .cerf-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  flex: 0 1 auto;
+  min-width: 10rem;
+  padding: 0.2rem 1.4rem;
+}
+
+.cerf-stat + .cerf-stat {
+  border-left: 1px solid var(--cerf-glass-border);
 }
 
 .cerf-stat-value {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 900;
   line-height: 1;
   color: var(--cerf-text);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5);
 }
 
 .cerf-stat-label {
