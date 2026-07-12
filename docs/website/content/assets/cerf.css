@@ -148,8 +148,9 @@
   pointer-events: none;
 }
 
-/* The page itself must ride above both scene layers. */
-.md-header,
+/* The content must ride above both scene layers (0 and 1). The header and tabs
+   keep Material's own z-indices (4 and 3), which already clear the scene, so the
+   search dropdown stays above the tabs bar. */
 .md-main,
 .md-footer {
   position: relative;
