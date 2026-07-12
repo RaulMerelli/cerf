@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Publish a CERF release: run from the repo root as `python tools\\deploy.py`.
 
-The release is built from the newest CI artifact, never from the working tree -
-the tree may already be ahead of what is being released. Every step asks first,
-so an unexpected value can be answered with n and finished by hand."""
+  --sha=<commit>  release the artifact built from that commit, not the newest
+  --yes           take every confirmation as yes
+
+The release is built from a CI artifact, never from the working tree - the tree
+may already be ahead of what is being released. Every step asks first, so an
+unexpected value can be answered with n and finished by hand."""
 from __future__ import annotations
 
 import json
@@ -47,19 +50,31 @@ class Artifact:
 
 
 def load_env() -> dict:
-    if not ENV_PATH.is_file():
-        raise DeployError(f"{ENV_PATH} not found; run from the repo root")
     values = {}
-    for line in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        values[key.strip()] = value.strip()
-    for key in ("GITHUB_TOKEN", "DISCORD_SECRET"):
-        if not values.get(key):
-            raise DeployError(f"{ENV_PATH} has no {key}")
+    if ENV_PATH.is_file():
+        for line in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
     return values
+
+
+def load_credentials() -> tuple:
+    values = load_env()
+
+    def pick(*names: str) -> str:
+        for name in names:
+            value = os.environ.get(name) or values.get(name)
+            if value:
+                return value
+        raise DeployError(
+            f"no {' / '.join(names)} in the environment or {ENV_PATH}")
+
+    # Actions refuses to store a secret whose name starts with GITHUB_, so the
+    # workflow supplies the same token as GH_TOKEN.
+    return pick("GITHUB_TOKEN", "GH_TOKEN"), pick("DISCORD_SECRET")
 
 
 class AuthStrippingRedirect(urllib.request.HTTPRedirectHandler):
@@ -101,13 +116,16 @@ def github(token: str, path: str, method: str = "GET",
     return json.loads(raw.decode("utf-8")) if raw else {}
 
 
-def confirm(question: str) -> None:
+def confirm(question: str, assume_yes: bool) -> None:
+    if assume_yes:
+        print(f"{question} y")
+        return
     answer = input(f"{question} [y/n] ").strip().lower()
     if not answer.startswith("y"):
         raise SystemExit("Stopped. Finish by hand from here.")
 
 
-def latest_artifact(token: str) -> Artifact:
+def latest_artifact(token: str, sha: Optional[str] = None) -> Artifact:
     payload = github(token, f"/repos/{REPO}/actions/artifacts?per_page=100")
     for item in payload.get("artifacts", []):
         if item.get("expired"):
@@ -116,14 +134,18 @@ def latest_artifact(token: str) -> Artifact:
         if not match:
             continue
         run = item.get("workflow_run") or {}
-        major, minor, patch, sha = match.groups()
+        head_sha = run.get("head_sha") or ""
+        if sha and not head_sha.startswith(sha) and not sha.startswith(head_sha):
+            continue
+        major, minor, patch, name_sha = match.groups()
         return Artifact(
             id=item["id"], name=item["name"], size=item["size_in_bytes"],
             created_at=item["created_at"],
             branch=run.get("head_branch") or "?",
-            sha=run.get("head_sha") or sha,
+            sha=head_sha or name_sha,
             version=f"{major}.{minor}.{patch}", tag=f"{major}.{minor}")
-    raise DeployError("no unexpired Release-Win32 artifact found")
+    where = f" built from {sha[:7]}" if sha else ""
+    raise DeployError(f"no unexpired Release-Win32 artifact{where} found")
 
 
 class ChangelogParser(HTMLParser):
@@ -228,17 +250,18 @@ def post_discord(secret: str, tag: str, changelog: str) -> None:
             "application/json")
 
 
-def main() -> int:
-    env = load_env()
-    token, secret = env["GITHUB_TOKEN"], env["DISCORD_SECRET"]
+def main(argv: List[str]) -> int:
+    assume_yes = "--yes" in argv
+    sha = next((a.partition("=")[2] for a in argv if a.startswith("--sha=")), None)
+    token, secret = load_credentials()
 
-    artifact = latest_artifact(token)
-    print(f"\nLatest artifact : {artifact.name}")
+    artifact = latest_artifact(token, sha)
+    print(f"\nArtifact        : {artifact.name}")
     print(f"  version / tag : {artifact.version} -> {artifact.tag}")
     print(f"  branch / sha  : {artifact.branch} / {artifact.sha[:7]}")
     print(f"  built         : {artifact.created_at}")
     print(f"  size          : {artifact.size / 1024 / 1024:.1f} MB")
-    confirm(f"Release {artifact.tag} from this artifact?")
+    confirm(f"Release {artifact.tag} from this artifact?", assume_yes)
 
     if existing_release(token, artifact.tag) is not None:
         raise DeployError(f"release {artifact.tag} already exists")
@@ -246,20 +269,21 @@ def main() -> int:
     bullets = changelog_bullets(artifact.tag)
     body = "\n".join(f"- {item}" for item in bullets)
     print(f"\nChangelog for v{artifact.tag}:\n{body}\n")
-    confirm("Use this as the release description?")
+    confirm("Use this as the release description?", assume_yes)
 
     archive = Path("tmp") / f"{artifact.name}.zip"
     print(f"\nDownloading {artifact.name} ...")
     download_artifact(token, artifact, archive)
     print(f"  {archive} ({archive.stat().st_size / 1024 / 1024:.1f} MB)")
-    confirm(f"Publish tag {artifact.tag} at {artifact.sha[:7]} with this asset?")
+    confirm(f"Publish tag {artifact.tag} at {artifact.sha[:7]} with this asset?",
+            assume_yes)
 
     release = create_release(token, artifact, body)
     print(f"  release created: {release['html_url']}")
     print(f"  uploading {archive.name} ...")
     print(f"  asset: {upload_asset(token, release['id'], archive)}")
 
-    confirm(f"\nPost the {artifact.tag} announcement to Discord?")
+    confirm(f"\nPost the {artifact.tag} announcement to Discord?", assume_yes)
     post_discord(secret, artifact.tag, body)
     print("  posted.\n")
     print(f"Released {artifact.tag}: {release['html_url']}")
@@ -268,7 +292,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(main(sys.argv[1:]))
     except DeployError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1)
