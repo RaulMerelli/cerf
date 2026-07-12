@@ -1,7 +1,9 @@
 # Articles
 
-Step-by-step walkthroughs for the things CERF can do that are not obvious from the UI.
+Everything CERF does that is not obvious from the UI - what the features are, how to drive them,
+and reference for the parts underneath.
 
+- [**Features**](features.md) - Guest Additions, PC Cards and serial ports, save and restore.
 - [**Running CERF from the command line**](command-line.md) - the CLI, and the logs a bug report
   needs.
 - [**Getting the guest online**](networking.md) - put a network card in the slot and browse the web

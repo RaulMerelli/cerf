@@ -32,7 +32,7 @@ CERF is a pre-alpha emulator - expect issues.
 
 {devices}
 
-## [Features](features.md)
+## [Features](articles/features.md)
 
 {features}
 

@@ -1,9 +1,7 @@
----
-hide:
-  - navigation
----
-
 # Features
+
+What CERF can do beyond booting the ROM. Each of these has its own controls in the running
+window - the status bar, the Actions menu, or a command-line flag.
 
 ## Guest Additions
 

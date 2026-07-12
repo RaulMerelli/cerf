@@ -7,18 +7,18 @@
 #   - title: Guest Additions
 #     text:  Custom resolutions, host mouse and keyboard, shared folders.
 #     image: guest_additions.png
-#     link:  features.md#guest-additions
+#     link:  articles/features.md#guest-additions
 
 features:
   - title: Guest Additions
     text: Custom resolutions and live resize, host mouse and keyboard, shared folders,
       accelerated drawing, a task manager.
-    link: features.md#guest-additions
+    link: articles/features.md#guest-additions
 
   - title: PC Cards & Serial Ports
     text: Attach CF cards, NE2000, forward serial or go online via dial-up.
-    link: features.md#pc-cards-and-serial-ports
+    link: articles/features.md#pc-cards-and-serial-ports
 
   - title: Save and restore
     text: Snapshot a running machine to a file and bring it back exactly where it was.
-    link: features.md#save-and-restore
+    link: articles/features.md#save-and-restore
