@@ -19,7 +19,7 @@ devices:
     os: Windows CE 1.0
 
   - dir: jornada820
-    device: Jornada 8720
+    device: Jornada 820
     os: Handheld PC 3.0 Professional
 
   - dir: jornada720
