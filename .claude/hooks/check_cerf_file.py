@@ -610,8 +610,9 @@ def main() -> int:
             f"comment only when the WHY is non-obvious. Keep it short.'\n\n"
             f"PRE-EXISTING COMMENTS ARE NOT EXCLUDED. You touched this "
             f"file - you own its rot. 'It was already there' / 'another "
-            f"session wrote it' is not a defence.\n\nYou are very bad "
-            f"at writing code comments - consider NOT WRITING them at all. Please."
+            f"session wrote it' is not a defence.\n\nPer rules: code commnets ARE FORBIDDEN "
+            f"unless those are hardware citations. If you wrote any wrong comments"
+            f" - invoke /leak skill - keep the code clean."
             f"Hits:\n{sample}"
         )
 
