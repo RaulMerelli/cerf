@@ -230,6 +230,17 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+          <td>v6.2</td>
+          <td>12 Jul 2026</td>
+          <td>
+            <ul>
+              <li>Fixed a crash on startup on every Windows older than 10 1809 (dark-mode init)</li>
+              <li>cerf.exe now runs on Windows XP and newer - one binary, XP through 11</li>
+              <li>launcher_vista.exe: the launcher for Windows Vista and newer</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v6.1</td>
           <td>12 Jul 2026</td>
           <td>
@@ -325,16 +336,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           </td>
         </tr>
     <tr>
-          <td>v3.20</td>
-          <td>5 Jun 2026</td>
-          <td>
-            <ul>
-              <li>Falcon 4220 board MVP support</li>
-              <li>Launcher updates</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
       <td colspan="3"><b>Previous versions</b> - see the <a href="docs/changelog.html">full changelog</a>.</td>
     </tr>
   </tbody>
@@ -372,4 +373,5 @@ The environment provides the **`/start-board-implementation`** skill: drop your 
 - **[The Linux kernel](https://www.kernel.org/)**
 - **[nlohmann-json](https://github.com/nlohmann/json)**
 - **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
+- **[YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks)**
 - JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)

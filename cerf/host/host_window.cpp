@@ -14,6 +14,7 @@
 #include "frame_renderer.h"
 #include "host_canvas.h"
 #include "host_dark_mode.h"
+#include "host_dpi.h"
 #include "host_input_capture.h"
 #include "host_menu.h"
 #include "host_status_bar.h"
@@ -139,7 +140,7 @@ void HostWindow::WindowChromeExtent(UINT dpi, int& extra_w, int& extra_h) const 
     const DWORD style = (DWORD)GetWindowLongW(hwnd_, GWL_STYLE);
     const DWORD ex    = (DWORD)GetWindowLongW(hwnd_, GWL_EXSTYLE);
     RECT r = { 0, 0, 0, 0 };
-    AdjustWindowRectExForDpi(&r, style, /*bMenu=*/TRUE, ex, dpi);
+    emu_.Get<HostDpi>().AdjustForDpi(r, style, /*bMenu=*/TRUE, ex, dpi);
     extra_w = (int)(r.right - r.left);                 /* left/top are <= 0 */
     extra_h = (int)(r.bottom - r.top)
             + (int)emu_.Get<HostStatusBar>().Height();
@@ -159,7 +160,7 @@ void HostWindow::AdoptResolutionToWindowMonitor() {
     const int work_h = (int)(mi.rcWork.bottom - mi.rcWork.top);
 
     int ex_w = 0, ex_h = 0;
-    WindowChromeExtent(GetDpiForWindow(hwnd_), ex_w, ex_h);
+    WindowChromeExtent(emu_.Get<HostDpi>().ForWindow(hwnd_), ex_w, ex_h);
     const int surf_w = work_w - ex_w;
     const int surf_h = work_h - ex_h;
     if (surf_w < 1 || surf_h < 1) return;
@@ -176,7 +177,7 @@ void HostWindow::FitWindowToSurface(uint32_t sw, uint32_t sh) {
     if (!hwnd_ || sw == 0 || sh == 0 || fullscreen_.IsActive()) return;
 
     int ex_w = 0, ex_h = 0;
-    WindowChromeExtent(GetDpiForWindow(hwnd_), ex_w, ex_h);
+    WindowChromeExtent(emu_.Get<HostDpi>().ForWindow(hwnd_), ex_w, ex_h);
     int outer_w = (int)sw + ex_w;
     int outer_h = (int)sh + ex_h;
 

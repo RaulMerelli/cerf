@@ -32,11 +32,19 @@ constexpr COLORREF kClrDisabled = RGB(120, 120, 120);
 constexpr COLORREF kClrDlg      = RGB(32, 32, 32);   /* dialog client background */
 constexpr COLORREF kClrEdit     = RGB(45, 45, 45);   /* edit/list field background */
 
+using RtlGetNtVersionNumbers_t        = void (WINAPI*)(LPDWORD, LPDWORD, LPDWORD);
 using SetPreferredAppMode_t           = int  (WINAPI*)(int);
+using AllowDarkModeForApp_t           = bool (WINAPI*)(bool);
 using AllowDarkModeForWindow_t        = BOOL (WINAPI*)(HWND, BOOL);
 using FlushMenuThemes_t               = void (WINAPI*)();
 using RefreshImmersiveColorPolicy_t   = void (WINAPI*)();
 using ShouldAppsUseDarkMode_t         = bool (WINAPI*)();
+
+/* ysc3839/win32-darkmode DarkMode.h: the uxtheme dark-mode ordinals exist from
+   1809 (17763); ordinal 135 is AllowDarkModeForApp below 1903 (18362) and
+   SetPreferredAppMode from 1903. */
+constexpr DWORD kBuild1809 = 17763;
+constexpr DWORD kBuild1903 = 18362;
 
 SetPreferredAppMode_t         g_SetPreferredAppMode      = nullptr;
 AllowDarkModeForWindow_t      g_AllowDarkModeForWindow   = nullptr;
@@ -79,25 +87,43 @@ void HostDarkMode::EnsureUiFont() {
 
 void HostDarkMode::Init() {
     if (inited_) return;
+
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    auto get_ver = (RtlGetNtVersionNumbers_t)GetProcAddress(
+        ntdll, "RtlGetNtVersionNumbers");
+    if (!get_ver) return;
+    DWORD major = 0, minor = 0, build = 0;
+    get_ver(&major, &minor, &build);
+    build &= ~0xF0000000u;
+    if (major != 10 || minor != 0 || build < kBuild1809) return;
+
     HMODULE ux = LoadLibraryExW(L"uxtheme.dll", nullptr,
                                 LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!ux) return;
-    g_SetPreferredAppMode    = (SetPreferredAppMode_t)GetProcAddress(ux, MAKEINTRESOURCEA(135));
+    FARPROC ord135           = GetProcAddress(ux, MAKEINTRESOURCEA(135));
+    g_SetPreferredAppMode    = build >= kBuild1903
+                                   ? (SetPreferredAppMode_t)ord135 : nullptr;
+    auto allow_dark_for_app  = build <  kBuild1903
+                                   ? (AllowDarkModeForApp_t)ord135 : nullptr;
     g_AllowDarkModeForWindow = (AllowDarkModeForWindow_t)GetProcAddress(ux, MAKEINTRESOURCEA(133));
     g_FlushMenuThemes        = (FlushMenuThemes_t)GetProcAddress(ux, MAKEINTRESOURCEA(136));
     g_RefreshImmersivePolicy = (RefreshImmersiveColorPolicy_t)GetProcAddress(ux, MAKEINTRESOURCEA(104));
     g_ShouldAppsUseDarkMode  = (ShouldAppsUseDarkMode_t)GetProcAddress(ux, MAKEINTRESOURCEA(132));
-    if (!g_SetPreferredAppMode) return;  /* OS too old; leave light */
+    if (!ord135) return;
 
-    /* MUST SetPreferredAppMode + RefreshImmersiveColorPolicy (104) BEFORE reading
+    /* MUST allow dark + RefreshImmersiveColorPolicy (104) BEFORE reading
        ShouldAppsUseDarkMode (132): 132 returns the immersive-policy cache, and a
        read against a cold cache (a board that materialises HostWindow very early)
        returns a stale "light" that leaves the dark path off. (ysc3839/win32-darkmode.) */
-    g_SetPreferredAppMode(1 /*AllowDark*/);
+    if (g_SetPreferredAppMode) g_SetPreferredAppMode(1 /*AllowDark*/);
+    else                       allow_dark_for_app(true);
     if (g_RefreshImmersivePolicy) g_RefreshImmersivePolicy();
 
     const bool sys_dark = g_ShouldAppsUseDarkMode && g_ShouldAppsUseDarkMode();
-    g_SetPreferredAppMode(sys_dark ? 2 /*ForceDark*/ : 3 /*ForceLight*/);
+    if (g_SetPreferredAppMode)
+        g_SetPreferredAppMode(sys_dark ? 2 /*ForceDark*/ : 3 /*ForceLight*/);
+    else
+        allow_dark_for_app(sys_dark);
     if (g_RefreshImmersivePolicy) g_RefreshImmersivePolicy();
     if (!sys_dark) return;  /* light system: leave inited_ = false */
 

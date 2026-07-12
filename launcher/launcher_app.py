@@ -14,7 +14,7 @@ from tkinter import ttk
 from typing import Callable, List, Optional, Tuple
 
 from app_paths import resolve_icon, resolve_icons_dir, resolve_version
-from bundles import ManifestVersionError
+from bundles import ManifestVersionError, REMOTE_MANIFEST_URL
 from device_card_list import DeviceCardList
 from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
@@ -222,7 +222,10 @@ class LauncherApp(OperationsMixin, tk.Tk):
                 show_error(self, "Remote manifest unavailable",
                            f"{exc}\n\nLocal devices remain available to launch. "
                            f"Download / update require a reachable remote "
-                           f"manifest - try again later or check your network.")
+                           f"manifest - try again later or check your network.\n\n"
+                           f"The catalog can also be fetched by hand, and the "
+                           f"bundles it lists downloaded manually, from:\n"
+                           f"{REMOTE_MANIFEST_URL}")
             self._reload_device_list()
         self._await_future(future, done)
 

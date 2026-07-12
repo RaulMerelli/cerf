@@ -8,6 +8,7 @@
 #include "../core/log.h"
 #include "frame_source.h"
 #include "host_dark_mode.h"
+#include "host_dpi.h"
 #include "host_screenshot.h"
 #include "host_window.h"
 
@@ -115,7 +116,8 @@ void ExternalDisplayWindow::FitToSurface(uint32_t sw, uint32_t sh) {
     const DWORD style = (DWORD)GetWindowLongW(hwnd_, GWL_STYLE);
     const DWORD ex    = (DWORD)GetWindowLongW(hwnd_, GWL_EXSTYLE);
     RECT r = { 0, 0, (LONG)sw, (LONG)sh };
-    AdjustWindowRectExForDpi(&r, style, /*bMenu=*/TRUE, ex, GetDpiForWindow(hwnd_));
+    auto& dpi = emu_.Get<HostDpi>();
+    dpi.AdjustForDpi(r, style, /*bMenu=*/TRUE, ex, dpi.ForWindow(hwnd_));
     int outer_w = (int)(r.right - r.left);
     int outer_h = (int)(r.bottom - r.top);
 

@@ -105,4 +105,5 @@ The environment provides the **`/start-board-implementation`** skill: drop your 
 - **[The Linux kernel](https://www.kernel.org/)**
 - **[nlohmann-json](https://github.com/nlohmann/json)**
 - **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
+- **[YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks)**
 - JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)

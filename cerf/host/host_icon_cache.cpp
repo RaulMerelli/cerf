@@ -4,8 +4,6 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 
-#include <commctrl.h>   /* LoadIconWithScaleDown */
-
 REGISTER_SERVICE(HostIconCache);
 
 HostIconCache::~HostIconCache() {
@@ -33,8 +31,13 @@ HICON HostIconCache::Resolve(const wchar_t* res_name, int px) {
     auto it = cache_.find(key);
     if (it != cache_.end()) return it->second;
 
-    HICON h = nullptr;
-    LoadIconWithScaleDown(GetModuleHandleW(nullptr), res_name, px, px, &h);
+    /* comctl32's LoadIconWithScaleDown is a NONAME export, so it is reachable
+       only by ordinal - and the ordinal is not stable across Windows versions.
+       LoadImage scales an icon-group image to cx/cy and is exported by name
+       (MS Learn LoadImageW: minimum supported client Windows 2000). */
+    HICON h = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), res_name,
+                                            IMAGE_ICON, px, px,
+                                            LR_DEFAULTCOLOR));
     if (h) cache_[key] = h;
     return h;
 }

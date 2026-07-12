@@ -24,6 +24,7 @@ class DownloadWindow:
         self._icons_dir = icons_dir
         self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
         self._badge_tags: set[str] = set()
+        self._cell_badges = True
         self._checked: set[str] = set()
         self._sizes: Dict[str, int] = {}
         self._payload: Dict[str, DeviceBundle] = {}
@@ -158,12 +159,21 @@ class DownloadWindow:
         self._update_summary()
 
     def _set_soc_badge(self, iid: str, cpu: str, badge: tk.PhotoImage) -> None:
+        # A per-cell image is a ttk::treeview cell tag (TIP 552), which exists
+        # only from Tk 9; Tk 8.6 has no "tag cell" subcommand, so the SoC column
+        # there stays text-only. launcher_vista.exe is built on CPython 3.7,
+        # which is the newest that loads on Vista and carries Tk 8.6.
+        if not self._cell_badges:
+            return
         tag = f"archbadge-{cpu.lower()}"
         w = str(self.tree)
-        if tag not in self._badge_tags:
-            self.tree.tk.call(w, "tag", "configure", tag, "-image", badge)
-            self._badge_tags.add(tag)
-        self.tree.tk.call(w, "tag", "cell", "add", tag, [[iid, "soc"]])
+        try:
+            if tag not in self._badge_tags:
+                self.tree.tk.call(w, "tag", "configure", tag, "-image", badge)
+                self._badge_tags.add(tag)
+            self.tree.tk.call(w, "tag", "cell", "add", tag, [[iid, "soc"]])
+        except tk.TclError:
+            self._cell_badges = False
 
     def _on_click(self, event: tk.Event) -> None:
         if self.tree.identify("region", event.x, event.y) not in ("tree", "cell"):

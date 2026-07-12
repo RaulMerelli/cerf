@@ -10,6 +10,18 @@ REPO_ROOT = THIS_DIR.parent
 ICON_PATH    = str(REPO_ROOT / "cerf" / "assets" / "launcher.ico")
 VERSION_PATH = str(REPO_ROOT / "cerf" / "version.h")
 
+# build.ps1 -Vista reuses this spec with the Python 3.7 interpreter, under a
+# different output name.
+NAME = os.environ.get("CERF_LAUNCHER_NAME", "launcher")
+
+# Windows carries the Universal CRT in-box only from Windows 10; on Vista it is
+# an update (KB2999226). Microsoft supports app-local UCRT deployment, so the
+# Vista build ships the redistributable inside the exe and needs no update.
+# build.ps1 -Vista points CERF_LAUNCHER_UCRT at the SDK's x86 redist directory.
+UCRT_DIR = os.environ.get("CERF_LAUNCHER_UCRT", "")
+UCRT_BINARIES = [(p, ".") for p in glob.glob(os.path.join(UCRT_DIR, "*.dll"))] \
+                if UCRT_DIR else []
+
 # Tcl/Tk 9 embeds its script libraries as a zip appended to the Tcl/Tk DLLs
 # (zipfs); python-build-standalone ships no on-disk copy. PyInstaller's tkinter
 # hook reads `info library`, gets a //zipfs:/ path, finds no on-disk dir, and
@@ -35,7 +47,7 @@ block_cipher = None
 a = Analysis(
     [str(THIS_DIR / "launcher.py")],
     pathex=[str(THIS_DIR)],
-    binaries=[],
+    binaries=UCRT_BINARIES,
     datas=[(ICON_PATH, "."), (VERSION_PATH, "."),
            (str(THIS_DIR / "assets" / "icons"), "assets/icons"),
            (str(THIS_DIR / "assets" / "GaBanner.png"), "assets"),
@@ -58,7 +70,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="launcher",
+    name=NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

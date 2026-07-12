@@ -158,10 +158,12 @@ function Get-LauncherInputSignature {
 $launcherBuild = Join-Path $PSScriptRoot "launcher\build.ps1"
 $launcherStamp = Join-Path $PSScriptRoot "launcher\.launcher_timestamps"
 $launcherExe   = Join-Path $PSScriptRoot "bundled\launcher.exe"
+$launcherVista = Join-Path $PSScriptRoot "bundled\launcher_vista.exe"
 if (Test-Path $launcherBuild) {
     $launcherSig = Get-LauncherInputSignature
     $launcherStampOld = if (Test-Path $launcherStamp) { Get-Content $launcherStamp -Raw } else { "" }
-    $launcherUpToDate = (-not $Rebuild) -and (Test-Path $launcherExe) -and ($launcherStampOld -eq $launcherSig)
+    $launcherUpToDate = (-not $Rebuild) -and (Test-Path $launcherExe) -and
+                        (Test-Path $launcherVista) -and ($launcherStampOld -eq $launcherSig)
 
     if ($launcherUpToDate) {
         Write-Host "[LAUNCHER] up to date (no input changes) -- skipping"
@@ -169,8 +171,16 @@ if (Test-Path $launcherBuild) {
     } else {
         Write-Host "[LAUNCHER]"
         & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherBuild -Config $Config
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[LAUNCHER] build returned $LASTEXITCODE"
+        $launcherExit = $LASTEXITCODE
+        if ($launcherExit -eq 0) {
+            # Same sources on CPython 3.7 + PyInstaller 5.13.2 -- the newest pair
+            # whose binaries load on Windows Vista. Both launchers ship: the
+            # release archive is the staged bundled/ tree.
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherBuild -Config $Config -Vista
+            $launcherExit = $LASTEXITCODE
+        }
+        if ($launcherExit -ne 0) {
+            Write-Host "[LAUNCHER] build returned $launcherExit"
             $buildsFailed++
             $failedNames += "launcher"
         } else {
