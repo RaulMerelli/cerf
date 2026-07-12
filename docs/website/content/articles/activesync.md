@@ -28,13 +28,13 @@ Download and install com0com from [com0com.sourceforge.net](https://com0com.sour
 Open the configurator (`setupg.exe`) and create a virtual COM pair. This guide follows the example
 pair **COM9 &harr; COM10**.
 
-![com0com configurator with a COM9 to COM10 pair](/assets/guides/activesync/com0com_setup.png)
+![com0com configurator with a COM9 to COM10 pair](/assets/articles/activesync/com0com_setup.png)
 
 ## 2. Windows 98 VMware VM
 
 Give the VM one end of the pair - **COM10** in this example. Follow the setup in the screenshot:
 
-![VMware serial port set to COM10](/assets/guides/activesync/vmware_w98_config.png)
+![VMware serial port set to COM10](/assets/articles/activesync/vmware_w98_config.png)
 
 Or add these lines to the VM's `.vmx` file directly:
 
@@ -70,19 +70,19 @@ Launch the device and wait for the desktop.
 insert a **Serial Port Forwarder**, pointing it at the *other* end of your com0com pair. Windows 98
 took COM10, so CERF takes **COM9**.
 
-![Inserting the Serial Port Forwarder on COM9](/assets/guides/activesync/guest-pc-card-1.png)
+![Inserting the Serial Port Forwarder on COM9](/assets/articles/activesync/guest-pc-card-1.png)
 
 **2.** Open **Start &rarr; Programs &rarr; Communications &rarr; Remote Networking**.
 
-![Remote Networking in the Start menu](/assets/guides/activesync/guest-pc-card-2.png)
+![Remote Networking in the Start menu](/assets/articles/activesync/guest-pc-card-2.png)
 
 **3.** Open **Make New Connection**, choose **Direct connection**, and click **Next**.
 
-![Make New Connection, Direct connection selected](/assets/guides/activesync/guest-pc-card-3.png)
+![Make New Connection, Direct connection selected](/assets/articles/activesync/guest-pc-card-3.png)
 
 **4.** Check whether the device list contains `CERF-Serial_Forwarder` or `Serial Cable on PC Card`.
 
-![The device list in the Direct connection wizard](/assets/guides/activesync/guest-pc-card-4.png)
+![The device list in the Direct connection wizard](/assets/articles/activesync/guest-pc-card-4.png)
 
 === "The forwarder is listed"
 
@@ -100,11 +100,11 @@ First, confirm the card really was identified as a modem.
 
 **1.** Click **Back**, this time choose **Dial-up connection**, and click **Next**.
 
-![The Dial-up connection wizard](/assets/guides/activesync/guest-pc-card-5.png)
+![The Dial-up connection wizard](/assets/articles/activesync/guest-pc-card-5.png)
 
 **2.** Look at the device list. Is `CERF-Serial_Forwarder` or `Serial Cable on PC Card` in it?
 
-![The device list in the Dial-up wizard](/assets/guides/activesync/guest-pc-card-6.png)
+![The device list in the Dial-up wizard](/assets/articles/activesync/guest-pc-card-6.png)
 
 !!! warning
 
@@ -119,7 +119,7 @@ the EXE to local storage, and re-insert the forwarder.
 
 **4.** When it runs, does it offer to substitute the identity?
 
-![pccardserial.exe offering to register the card as a serial cable](/assets/guides/activesync/guest-pc-card-7.png)
+![pccardserial.exe offering to register the card as a serial cable](/assets/articles/activesync/guest-pc-card-7.png)
 
 If it does, accept.
 
@@ -133,18 +133,18 @@ If it does, accept.
 the device list. If it now includes `CERF-Serial_Forwarder` or `Serial Cable on PC Card`, that is
 the win - select it and create the connection.
 
-![New connection wizard proposes Serial Cable on PC Card](/assets/guides/activesync/guest-pc-available-direct.png)
+![New connection wizard proposes Serial Cable on PC Card](/assets/articles/activesync/guest-pc-available-direct.png)
 
 **7.** Do **not** connect to it yet - that is the wrong action in the wrong place. Instead, open
 **Control Panel &rarr; Communications Properties**, and go to the **PC Connection** tab.
 
-![Communications Properties, PC Connection tab](/assets/guides/activesync/guest-pc-card-8.png)
+![Communications Properties, PC Connection tab](/assets/articles/activesync/guest-pc-card-8.png)
 
 **8.** Under **Connect using:**, which is probably still set to the built-in communications
 peripheral, click **Change**, and pick the connection you just created. The default name is kept
 here - literally **My Connection**.
 
-![Choosing My Connection under Connect using](/assets/guides/activesync/guest-pc-card-9.png)
+![Choosing My Connection under Connect using](/assets/articles/activesync/guest-pc-card-9.png)
 
 **9.** Click through the **OK** buttons to save and close the Control Panel applets. **Done** - the
 PC Card forwarder is registered and the guest now treats it correctly. Continue to
@@ -159,7 +159,7 @@ Right-click the built-in serial icon in the status bar (or use the Actions menu)
 **Insert card &rarr; Serial Port Forwarder**, then pick the host COM port - the free end of your
 com0com pair, **COM9** here, since COM10 went to the VM.
 
-![Attaching the Serial Port Forwarder to the built-in serial port](/assets/guides/activesync/built-in-selection.png)
+![Attaching the Serial Port Forwarder to the built-in serial port](/assets/articles/activesync/built-in-selection.png)
 
 Then go to [Finishing the connection](#4-finishing-the-connection).
 
@@ -172,13 +172,13 @@ usually already set.
 **2.** With the wiring in place, finish the ActiveSync side. Open ActiveSync 3.8, and from the
 **File** menu choose **Connection Settings...**
 
-![ActiveSync 3.8 File menu, Connection Settings](/assets/guides/activesync/activesync-config-1.png)
+![ActiveSync 3.8 File menu, Connection Settings](/assets/articles/activesync/activesync-config-1.png)
 
 **3.** Enable **Allow serial cable or infrared connection to this COM port:** and pick the
 guest-side COM port below - usually **COM1**. This is the guest's own port, not the COM9/COM10 pair
 you set up on the host.
 
-![Connection Settings with the serial COM port enabled](/assets/guides/activesync/activesync-config-2.png)
+![Connection Settings with the serial COM port enabled](/assets/articles/activesync/activesync-config-2.png)
 
 **4.** Watch the guest right after this - the serial connection window will very likely appear on
 its own.
@@ -186,12 +186,12 @@ its own.
 If it does not, open **Start &rarr; Programs &rarr; Communications &rarr; PC Link** to start the
 connection yourself.
 
-![PC Link in the Start menu](/assets/guides/activesync/guest-pc-link.png)
+![PC Link in the Start menu](/assets/articles/activesync/guest-pc-link.png)
 
 **5.** Done. The guest should now be connected, and ActiveSync 3.8 should offer to set up a
 **partnership** - from here you are in ordinary ActiveSync territory.
 
-![ActiveSync connected, offering a partnership](/assets/guides/activesync/guest-connected.png)
+![ActiveSync connected, offering a partnership](/assets/articles/activesync/guest-connected.png)
 
 !!! warning
 

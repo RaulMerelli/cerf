@@ -38,6 +38,6 @@ Expect rough edges.
 
 {features}
 
-## [Guides](guides/index.md)
+## [Articles](articles/index.md)
 
-{guides}
+{articles}

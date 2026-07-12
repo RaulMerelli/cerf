@@ -19,7 +19,7 @@ executables in the archive do not have the same floor:
 | `launcher_vista.exe` - the same launcher, older floor | **Windows Vista** and newer |
 
 On Windows XP there is no launcher: run `cerf.exe` directly from the
-[command line](/guides/command-line/), pointing it at a device folder you copied
+[command line](/articles/command-line/), pointing it at a device folder you copied
 across from another machine.
 
 !!! warning "XP / Vista support is best-effort"

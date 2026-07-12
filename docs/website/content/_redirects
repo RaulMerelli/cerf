@@ -1,1 +1,6 @@
 /cerf-bundles/*  https://cerf-bundles.dz3n.net/cerf-bundles/:splat  302
+
+/guides         /articles/                 301
+/guides/        /articles/                 301
+/guides/*       /articles/:splat           301
+/assets/guides/*  /assets/articles/:splat  301

@@ -6,7 +6,7 @@
 {stats}           board / SoC / CPU counts, from launcher/supported_devices.py
 {devices}         the front-page device wall, from docs/website/devices.yml
 {features}        the front-page feature cards, from docs/website/features.yml
-{guides}          the front-page guide cards, from docs/website/guides.yml
+{articles}        the front-page article cards, from docs/website/articles.yml
 {links}           GitHub / Discord / support pills, from .github/FUNDING.yml
 
 Keeping these as placeholders - rather than files generated into the docs dir -
@@ -28,8 +28,8 @@ DEV_YML   = os.path.join(SITE, 'devices.yml')
 DEV_DIR   = os.path.join(SITE, 'content', 'assets', 'devices')
 FEAT_YML  = os.path.join(SITE, 'features.yml')
 FEAT_DIR  = os.path.join(SITE, 'content', 'assets', 'features')
-GUIDE_YML = os.path.join(SITE, 'guides.yml')
-GUIDE_DIR = os.path.join(SITE, 'content', 'assets', 'guides')
+ART_YML   = os.path.join(SITE, 'articles.yml')
+ART_DIR   = os.path.join(SITE, 'content', 'assets', 'articles')
 FUNDING   = os.path.join(ROOT, '.github', 'FUNDING.yml')
 
 FUNDING_LINKS = [
@@ -208,9 +208,9 @@ def on_page_markdown(markdown, page, config, files):
     if '{features}' in markdown:
         markdown = markdown.replace(
             '{features}', _cards(FEAT_YML, 'features', FEAT_DIR, '/assets/features'))
-    if '{guides}' in markdown:
+    if '{articles}' in markdown:
         markdown = markdown.replace(
-            '{guides}', _cards(GUIDE_YML, 'guides', GUIDE_DIR, '/assets/guides'))
+            '{articles}', _cards(ART_YML, 'articles', ART_DIR, '/assets/articles'))
     if '{links}' in markdown:
         markdown = markdown.replace('{links}', _links())
     return markdown

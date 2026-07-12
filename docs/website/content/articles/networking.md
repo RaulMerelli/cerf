@@ -53,27 +53,27 @@ lives.
 
     **Start &rarr; Communications &rarr; Remote Networking**.
 
-    ![Remote Networking in the Start menu](/assets/guides/networking/remote-networking-menu-ce2.png)
+    ![Remote Networking in the Start menu](/assets/articles/networking/remote-networking-menu-ce2.png)
 
 === "Desktop CE ≥ 4"
 
     **Start &rarr; Settings &rarr; Network and Dial-up Connections** - it opens the same window as
     on older CE.
 
-    ![Network and Dial-up Connections](/assets/guides/networking/network-ce6.png)
+    ![Network and Dial-up Connections](/assets/articles/networking/network-ce6.png)
 
 === "Pocket PC"
 
     **Start &rarr; Settings &rarr; Connections** tab **&rarr; Modem**.
 
-    ![The Modem settings on Pocket PC](/assets/guides/networking/modems-ppc2000.png)
+    ![The Modem settings on Pocket PC](/assets/articles/networking/modems-ppc2000.png)
 
 === "Windows Mobile"
 
     **Start &rarr; Settings &rarr; Connections** tab **&rarr; Connections**. On Windows Mobile 6.5+
     the Start menu is full-screen, but the path is identical.
 
-    ![Connections on Windows Mobile](/assets/guides/networking/connections-wm6.png)
+    ![Connections on Windows Mobile](/assets/articles/networking/connections-wm6.png)
 
 ### 3. Make a new connection
 
@@ -85,15 +85,15 @@ it is a PC Card. The exact name varies by guest; if in doubt, guess - there is r
 
 === "Desktop CE"
 
-    ![Making a dial-up connection on desktop CE](/assets/guides/networking/setup-dialup-ce2.png)
+    ![Making a dial-up connection on desktop CE](/assets/articles/networking/setup-dialup-ce2.png)
 
 === "Pocket PC"
 
-    ![Making a dial-up connection on Pocket PC](/assets/guides/networking/setup-dialup-ppc2000.png)
+    ![Making a dial-up connection on Pocket PC](/assets/articles/networking/setup-dialup-ppc2000.png)
 
 === "Windows Mobile"
 
-    ![Making a dial-up connection on Windows Mobile](/assets/guides/networking/setup-dialup-wm6.png)
+    ![Making a dial-up connection on Windows Mobile](/assets/articles/networking/setup-dialup-wm6.png)
 
 ### 4. Dial and go online
 
@@ -101,13 +101,13 @@ it is a PC Card. The exact name varies by guest; if in doubt, guess - there is r
 
     Double-click your connection, dial, and you are ready to browse.
 
-    ![Dialling on desktop CE](/assets/guides/networking/dial-ce2.png)
+    ![Dialling on desktop CE](/assets/articles/networking/dial-ce2.png)
 
 === "Pocket PC"
 
     Open the **Connections** link in the Modem applet, then tap your connection and dial.
 
-    ![Dialling on Pocket PC](/assets/guides/networking/dial-ppc2000.png)
+    ![Dialling on Pocket PC](/assets/articles/networking/dial-ppc2000.png)
 
 === "Windows Mobile"
 

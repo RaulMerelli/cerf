@@ -6,7 +6,7 @@ from tkinter import ttk
 from typing import Callable
 
 
-GUIDES_URL = "https://cerf.dz3n.net/guides/"
+ARTICLES_URL = "https://cerf.dz3n.net/articles/"
 
 
 class Toolbar:
@@ -19,7 +19,7 @@ class Toolbar:
         bar = ttk.Frame(parent, padding=(8, 6))
         self.frame = bar
         self.btn_help = ttk.Button(bar, text="Help",
-                                   command=lambda: webbrowser.open(GUIDES_URL))
+                                   command=lambda: webbrowser.open(ARTICLES_URL))
         self.btn_help.pack(side="right")
         self.btn_download = ttk.Button(bar, text="⬇  Download",
                                        style="Download.TButton",

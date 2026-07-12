@@ -43,10 +43,10 @@ enum MenuId : int {
     kIdCopyShot    = 121,
     kIdMatchGuest  = 122,
     kIdAbout       = 130,
-    kIdGuides      = 131,
+    kIdArticles    = 131,
 };
 
-constexpr const wchar_t* kGuidesUrl = L"https://cerf.dz3n.net/guides/";
+constexpr const wchar_t* kArticlesUrl = L"https://cerf.dz3n.net/articles/";
 
 }  /* namespace */
 
@@ -81,7 +81,7 @@ HMENU HostMenu::Build() {
     AppendMenuW(bar, MF_POPUP, (UINT_PTR)view, L"View");
 
     HMENU help = CreatePopupMenu();
-    AppendMenuW(help, MF_STRING, kIdGuides, L"Guides (opens in browser)");
+    AppendMenuW(help, MF_STRING, kIdArticles, L"Articles (opens in browser)");
     AppendMenuW(help, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(help, MF_STRING, kIdAbout, L"About");
     AppendMenuW(bar, MF_POPUP, (UINT_PTR)help, L"Help");
@@ -208,8 +208,8 @@ void HostMenu::HandleCommand(int id) {
         case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
         case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
         case kIdAbout:      emu_.Get<AboutDialog>().Show(); break;
-        case kIdGuides:
-            ShellExecuteW(nullptr, L"open", kGuidesUrl, nullptr, nullptr, SW_SHOWNORMAL);
+        case kIdArticles:
+            ShellExecuteW(nullptr, L"open", kArticlesUrl, nullptr, nullptr, SW_SHOWNORMAL);
             break;
     }
 }

@@ -39,15 +39,15 @@ nav:
   - Download: download.md
   - Features: features.md
   - Boards: boards.md
-  - Guides:
-      - guides/index.md
-      - Command line: guides/command-line.md
-      - Getting the guest online: guides/networking.md
-      - Touch and mouse: guides/pointer-input.md
-      - Report a bug: guides/report-a-bug.md
-      - Running your own ROM: guides/own-rom.md
-      - Connecting to ActiveSync: guides/activesync.md
-      - Windows CE ROM containers: guides/rom-containers.md
+  - Articles:
+      - articles/index.md
+      - Command line: articles/command-line.md
+      - Getting the guest online: articles/networking.md
+      - Touch and mouse: articles/pointer-input.md
+      - Report a bug: articles/report-a-bug.md
+      - Running your own ROM: articles/own-rom.md
+      - Connecting to ActiveSync: articles/activesync.md
+      - Windows CE ROM containers: articles/rom-containers.md
   - Changelog: changelog.md
 
 markdown_extensions:

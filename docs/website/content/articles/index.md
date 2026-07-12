@@ -1,4 +1,4 @@
-# Guides
+# Articles
 
 Step-by-step walkthroughs for the things CERF can do that are not obvious from the UI.
 
