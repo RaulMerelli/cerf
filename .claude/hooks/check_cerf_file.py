@@ -21,11 +21,7 @@ Warns about:
                        agent_docs/code_style.md § Comments. Advisory - agent
                        must self-check whether the reference adds technical
                        substance or is pointer-only narration.
-  6. BLOATED-COMMENT - /* ... */ block comments that are ≥5 lines OR contain
-                       internal blank lines (multi-paragraph essays). Forces
-                       the agent to evaluate each block: real technical
-                       comment or rotten yapping. Pre-existing comments are
-                       NOT excluded - touching the file means owning its rot.
+
   7. REFERENCE-TREE-PATH - a comment cites a path under references/. That
                        tree is a gigabytes-scale external reference dump
                        (chip datasheets, BSP source archives, ARM ARM
@@ -33,16 +29,7 @@ Warns about:
                        narration; the comment should inline the SUBSTANCE
                        (specific bits, register fields, BSP behaviour) or
                        not exist.
-  8. DECISION-DEFENSE-COMMENT - comment phrasing that defends the current
-                       approach against an alternative ("Do NOT <X>",
-                       "rather than", "instead of", "we chose",
-                       "originally / previously / used to"). The worst
-                       bloat shape: decision-history disguised as a
-                       caution. Fires by CONTENT regardless of comment
-                       size - the canonical offender is below the bloat
-                       size trigger. Razor test in the message: would a
-                       fresh reader with no knowledge of the alternative
-                       write this warning from the code alone?
+
   9. ALWAYS-BAILOUT - scheduling-verb phrasings ("deferred to/until/for",
                        "placeholder until X", "to/will be implemented",
                        "TODO: implement X", "implement X later", etc.).
@@ -101,24 +88,6 @@ DEV_EMU_RE = re.compile(r"\bdev_emu_src\b", re.IGNORECASE)
 
 CHECKLIST_PATH_RE = re.compile(r"docs/ai_checklists\b", re.IGNORECASE)
 
-# Decision-defense phrasing in a comment - the worst bloat shape. A
-# comment whose reason to exist is to warn a reader AWAY from an
-# alternative the author considered / removed, or to justify the
-# current approach by contrast. Fires regardless of comment SIZE (the
-# canonical offender is only 3-4 lines, below the bloat size trigger),
-# so it is detected by content, not structure. "do not" / "don't" are
-# included despite also appearing in legitimate hazard notes - the
-# emitted message carries the razor test (system-invariant a fresh
-# reader would hit, vs defending the author's journey) so a real
-# hazard clears in one step while decision-defense is deleted.
-DECISION_DEFENSE_RE = re.compile(
-    r"\bdo\s*not\b|\bdon'?t\b"
-    r"|\brather than\b|\binstead of\b"
-    r"|\bwe chose\b|\bchosen over\b|\bchose\b.*\bover\b"
-    r"|\boriginally\b|\bpreviously\b|\bused to\b|\bno longer\b",
-    re.IGNORECASE,
-)
-
 # Path under the references/ tree mentioned in a comment. The tree is
 # gitignored and gigabytes-scale (chip datasheets, BSP archives, ARM
 # manual excerpts) - enumerating filenames is impractical, so just
@@ -169,28 +138,6 @@ def extract_comment_text(line: str, in_block: bool) -> tuple:
             else:
                 pos = n
     return " ".join(parts), in_block
-
-
-def find_bloated_blocks(content: str) -> list:
-    """Return [(start_line, num_lines, multi_paragraph), ...] for /* ... */
-    block comments that look like bloat: >=5 lines, or contain at least one
-    internal blank line (multi-paragraph essay structure)."""
-    hits = []
-    for m in re.finditer(r"/\*.*?\*/", content, re.DOTALL):
-        block = m.group(0)
-        num_lines = block.count("\n") + 1
-        lines = block.splitlines()
-        multi_paragraph = False
-        if len(lines) > 2:
-            for line in lines[1:-1]:
-                stripped = line.strip().lstrip("*").strip()
-                if not stripped:
-                    multi_paragraph = True
-                    break
-        if num_lines >= 5 or multi_paragraph:
-            start_line = content[:m.start()].count("\n") + 1
-            hits.append((start_line, num_lines, multi_paragraph))
-    return hits
 
 
 def collect_checklist_filenames() -> list:
@@ -286,7 +233,6 @@ def main() -> int:
     cerf_ref_hits = []
     references_tree_hits = []
     always_bailout_hits = []
-    decision_defense_hits = []
 
     checklist_names = collect_checklist_filenames()
     checklist_name_re = (
@@ -320,8 +266,6 @@ def main() -> int:
         if comment_text and REFERENCES_TREE_RE.search(comment_text):
             references_tree_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
 
-        if comment_text and DECISION_DEFENSE_RE.search(comment_text):
-            decision_defense_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
 
     def fmt_block(label: str, hits: list, advice: str) -> str:
         sample = "\n".join(hits[:5])
@@ -469,10 +413,9 @@ def main() -> int:
             "  3. (Rare) if the comment ALREADY inlines the substance "
             "and the path was just decoration, DELETE only the path.\n\n"
             "Common shape this catches: 'we use X instead of Y; see "
-            "references/foo/bar.txt' - both halves are bloat. The 'we "
-            "use X instead of Y' is design narration (the FAIL example "
-            "in BLOATED-COMMENT), and the references/ pointer is "
-            "dead-weight redirection.",
+            "references/foo/bar.txt' - both halves go. The 'we use X "
+            "instead of Y' is design narration, and the references/ "
+            "pointer is dead-weight redirection.",
         ))
 
     if cerf_ref_hits:
@@ -493,128 +436,6 @@ def main() -> int:
             "'body in X' pointers. If the WHY would be the same whether the "
             "code lived here or in the referenced file, delete the comment.",
         ))
-
-    if decision_defense_hits:
-        warnings.append(fmt_block(
-            "DECISION-DEFENSE-COMMENT",
-            decision_defense_hits,
-            "THE WORST FORM OF COMMENT BLOAT. This comment exists to "
-            "warn a reader AWAY from an alternative you considered or "
-            "removed, or to justify the current approach by contrast "
-            "('Do NOT <approach>', 'rather than', 'instead of', 'we "
-            "chose', 'originally / previously / used to'). The code IS "
-            "the approach. Nobody needs to be argued out of the path "
-            "not taken - that path is absent from git history and "
-            "irrelevant to a fresh reader. A comment defending your "
-            "own design decision is decision-history, not a "
-            "description of the code.\n\n"
-            "RAZOR TEST - apply to EACH hit:\n"
-            "  Would a fresh reader, with ZERO knowledge that any "
-            "alternative was ever considered, write this exact warning "
-            "from the code alone? If NO → it leaks your decision "
-            "history → DELETE it.\n\n"
-            "THE ONE EXCEPTION (do not abuse it): a genuine "
-            "forward-facing hazard - a NON-OBVIOUS SYSTEM INVARIANT a "
-            "fresh reader would plausibly violate - stated as a "
-            "PROPERTY OF THE SYSTEM, not as 'don't undo my choice'. "
-            "Rewrite to the positive invariant form:\n"
-            "  BAD  (decision-defense): 'Do NOT VirtualCopy the region "
-            "- that's the approach we removed.'\n"
-            "  OK   (system invariant): 'Mapping the full framebuffer "
-            "overflows the 32 MB process slot above ~Full HD, so the "
-            "surface base is the FB physical address, not a mapped "
-            "VA.'\n"
-            "The OK form names a real constraint of the platform and "
-            "would be written by anyone who understood the system, "
-            "with no knowledge of what you tried. The BAD form only "
-            "makes sense if you know what you removed.\n\n"
-            "If the hit has no real system invariant behind it → "
-            "DELETE the whole comment. If it does → rewrite to the "
-            "positive-invariant form. Never keep the 'do not <X>' / "
-            "'rather than <Y>' framing.",
-        ))
-
-    bloat_hits = find_bloated_blocks(content)
-    if bloat_hits:
-        sample_lines = [
-            f"  {rel_path}:{ln}: {n} lines, multi_paragraph={mp}"
-            for ln, n, mp in bloat_hits[:5]
-        ]
-        more = (
-            f"\n  ... and {len(bloat_hits) - 5} more"
-            if len(bloat_hits) > 5
-            else ""
-        )
-        sample = "\n".join(sample_lines) + more
-        warnings.append(
-            f"BLOATED-COMMENT: {rel_path} has {len(bloat_hits)} comment "
-            f"block(s) that are ≥5 lines OR have multi-paragraph "
-            f"structure (internal blank lines).\n\n"
-            f"DEFAULT ACTION IS DELETE. ~99% of multi-line comments in "
-            f"CERF are AI-generated bloat. The bar for keeping a comment "
-            f"is high and the burden of proof is on you. If you cannot "
-            f"pass BOTH tests below for a block, the block goes.\n\n"
-            f"TEST 1 - FAILURE: name the SPECIFIC, CONCRETE FAILURE that "
-            f"a future agent triggers by ignoring this comment and "
-            f"editing the code the way the comment is silently warning "
-            f"against. Write it as one sentence: 'if Y, then Z breaks "
-            f"because W'. No failure namable → DELETE.\n\n"
-            f"TEST 2 - REDUNDANCY: would a competent CERF reader "
-            f"(someone who has read CLAUDE.md + agent_docs/) infer this "
-            f"from the surrounding code + STANDARD PROJECT CONVENTIONS "
-            f"(cfg comes from cerf.json; BSPs only write the registers "
-            f"they care about; services resolved via emu_.Get<>; FCSE "
-            f"fold below 32 MB; SCTLR-write flushes JIT cache; …)? If "
-            f"YES, this is project-knowledge restatement, not real "
-            f"signal. DELETE.\n\n"
-            f"NON-NEGOTIABLE: 'non-obvious WHY' / 'has a citation' / "
-            f"'tied to the code below' are NECESSARY conditions, NOT "
-            f"SUFFICIENT ones. The historical dodge has been agents "
-            f"ticking off those three phrases and keeping background "
-            f"narration. Both tests above must pass.\n\n"
-            f"PASS examples (specific failure named, NOT inferrable "
-            f"from standard conventions):\n"
-            f"  /* MUST be after PinHostState - Mmu::Translate uses the\n"
-            f"     host TLB directly and a stale entry from the prior\n"
-            f"     process returns the wrong PA. */\n"
-            f"  /* Read XSIZE/YSIZE before PDISP_PD=1 - the regs read 0\n"
-            f"     once powered down (BSP odo_display.c:142), and the\n"
-            f"     renderer would publish a 0-by-0 frame. */\n\n"
-            f"FAIL examples (look technical, fail Test 1 or Test 2):\n"
-            f"  /* Dims come from DeviceConfig (cerf.json) rather than\n"
-            f"     DISP_XSIZE / DISP_YSIZE MMIO: the 2BPP driver\n"
-            f"     hardcodes 480/240 (jornada820 ddi.dll sub_2C014 at\n"
-            f"     0x2C05C) and\n"
-            f"     never writes the XSIZE/YSIZE registers. */\n"
-            f"     → FAILS Test 2: every CERF reader knows cfg comes\n"
-            f"       from cerf.json and BSPs may not write all regs.\n"
-            f"  /* dim comes from cfg, not regs.XSize, per BSP. */\n"
-            f"     → FAILS Test 1: no specific failure named.\n"
-            f"  /* why we use approach A rather than B */\n"
-            f"  /* we chose RAII here over manual close. */\n"
-            f"  /* Implementation note: …  Background: …  Trade-off: … */\n"
-            f"  /* Shape S because consumers resolve this exact type. */\n"
-            f"  /* see also the parallel handling in foo_bar.cpp. */\n\n"
-            f"'Why X not Y' / 'rather than' / 'we chose' framings are "
-            f"BANNED EVEN WITH A CITATION. The reader doesn't need "
-            f"alternatives history. If picking Y would genuinely break, "
-            f"the comment is 'DO NOT switch to Y - Z breaks because W'. "
-            f"Otherwise, no comment.\n\n"
-            f"If a block fails either test → DELETE the entire block. "
-            f"Not 'rephrase', not 'shrink' - DELETE. A 50-line essay "
-            f"distilled to 4 lines is acceptable, but ONLY if every "
-            f"surviving line passes both tests. If nothing survives, "
-            f"the whole block goes.\n\n"
-            f"Per agent_docs/code_style.md § Comments: 'Default: no "
-            f"comment. Well-named identifiers explain the WHAT. Write a "
-            f"comment only when the WHY is non-obvious. Keep it short.'\n\n"
-            f"PRE-EXISTING COMMENTS ARE NOT EXCLUDED. You touched this "
-            f"file - you own its rot. 'It was already there' / 'another "
-            f"session wrote it' is not a defence.\n\nPer rules: code commnets ARE FORBIDDEN "
-            f"unless those are hardware citations. If you wrote any wrong comments"
-            f" - invoke /leak skill - keep the code clean."
-            f"Hits:\n{sample}"
-        )
 
     return emit_warnings(warnings, rel_path)
 

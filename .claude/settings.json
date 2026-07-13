@@ -65,6 +65,11 @@
           },
           {
             "type": "command",
+            "command": "py -3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/check_comments_forbidden.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "py -3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/check_checklist_edit.py",
             "timeout": 5
           },
