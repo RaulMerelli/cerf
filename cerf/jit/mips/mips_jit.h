@@ -273,6 +273,13 @@ private:
     uint8_t* dram_host_base_ = nullptr;
     uint32_t dram_size_      = 0;
 
+    uint8_t* band_host_base_ = nullptr;
+    uint32_t band_size_      = 0;
+    bool InInjectionBand(const uint8_t* host) const {
+        return band_host_base_ && host >= band_host_base_ &&
+               host < band_host_base_ + band_size_;
+    }
+
     MipsBlockContext block_ctx_{};
     MipsCpuState    cpu_state_{};
     MipsDecoder     decoder_;

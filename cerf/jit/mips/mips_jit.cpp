@@ -353,21 +353,22 @@ uint32_t MipsJit::BlockIndexKey(uint32_t phys_start) {
     if (!host) return kBlockUnindexed;
 
     const size_t off = static_cast<size_t>(host - dram_host_base_);
-    if (off >= dram_size_) {
-        LOG(Caution, "MipsJit::BlockIndexKey: block at pa=0x%08X pc=0x%08X is in a "
-                "writable region outside the SMC block index; a store into it "
-                "would not invalidate the block\n", phys_start, cpu_state_.pc);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    return static_cast<uint32_t>(off);
+    if (off < dram_size_) return static_cast<uint32_t>(off);
+    if (InInjectionBand(host)) return kBlockUnindexed;
+    LOG(Caution, "MipsJit::BlockIndexKey: block at pa=0x%08X pc=0x%08X is in a "
+            "writable region that is neither DRAM nor the injection band; a store "
+            "into it would not invalidate the block\n", phys_start, cpu_state_.pc);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
 void MipsJit::InvalidateOnRamWrite(uint8_t* host, uint32_t size) {
     const size_t off = static_cast<size_t>(host - dram_host_base_);
     if (off >= dram_size_) {
+        if (InInjectionBand(host)) return;
         LOG(Caution, "MipsJit::InvalidateOnRamWrite: store of %u byte(s) at host %p "
-                "pc=0x%08X lands in a writable region outside the SMC block index; "
-                "self-modifying code there is unmodeled\n", size, host, cpu_state_.pc);
+                "pc=0x%08X lands in a writable region that is neither DRAM nor the "
+                "injection band; self-modifying code there is unmodeled\n",
+                size, host, cpu_state_.pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     const uint32_t lo = static_cast<uint32_t>(off);

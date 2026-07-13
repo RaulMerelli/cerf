@@ -1,5 +1,6 @@
 #include "mips_jit.h"
 
+#include "../../cpu/emulated_memory.h"
 #include "../../state/state_stream.h"
 
 /* MipsCpuState is a flat integer POD (GPRs + CP0 + the software TLB + the
@@ -24,4 +25,6 @@ void MipsJit::FlushTranslationCache(uint32_t /*va*/, uint32_t /*length*/) {
 
 void MipsJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
     mmu_->SetInjectionBand(va, pa, size);
+    band_host_base_ = memory_->TryTranslateWrite(pa);
+    band_size_      = band_host_base_ ? size : 0u;
 }
