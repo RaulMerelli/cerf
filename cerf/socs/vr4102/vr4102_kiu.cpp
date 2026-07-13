@@ -5,7 +5,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
-#include "vr4102_icu.h"
+#include "../vr41xx_icu.h"
 
 #include <cstdint>
 
@@ -40,7 +40,7 @@ void Vr4102Kiu::OnReady() { emu_.Get<PeripheralDispatcher>().Register(this); }
 
 bool Vr4102Kiu::EnabledLocked() const { return (scanrep_ & kKeyen) != 0; }
 
-void Vr4102Kiu::PublishCausesLocked() { emu_.Get<Vr4102Icu>().SetKiuSource(causes_); }
+void Vr4102Kiu::PublishCausesLocked() { emu_.Get<Vr41xxIcu>().SetKiuSource(causes_); }
 
 uint16_t Vr4102Kiu::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - kBase;

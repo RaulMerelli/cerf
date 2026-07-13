@@ -5,7 +5,7 @@
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
-#include "vr4102_icu.h"
+#include "../vr41xx_icu.h"
 
 #include <cstdint>
 
@@ -169,7 +169,7 @@ void Vr4102Giu::SetPinLevel(int pin, bool level) {
 }
 
 void Vr4102Giu::DriveIcuLocked() {
-    auto& icu = emu_.Get<Vr4102Icu>();
+    auto& icu = emu_.Get<Vr41xxIcu>();
     icu.SetGiuLow(intstat_l_);
     icu.SetGiuHigh(intstat_h_);
 }

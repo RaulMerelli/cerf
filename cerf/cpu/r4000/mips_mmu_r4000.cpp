@@ -13,7 +13,8 @@
 
 namespace {
 
-constexpr uint32_t kAsidMask = 0x000000FF;  /* VR5500/VR4102 EntryHi ASID */
+/* 8-bit EntryHi ASID: VR5500, VR4102, VR4121 (VR4121 UM Fig 6-17). */
+constexpr uint32_t kAsidMask = 0x000000FF;
 
 /* get_tlb_pfn_from_entrylo (tlb_helper.c:42), 32-bit: extract64(entrylo,6,24). */
 inline uint32_t TlbPfnFromEntryLo(uint32_t entrylo) {
@@ -33,6 +34,7 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && (bd->GetSoc() == SocFamily::VR4102 ||
+                      bd->GetSoc() == SocFamily::VR4121 ||
                       bd->GetSoc() == SocFamily::VR5500);
     }
 

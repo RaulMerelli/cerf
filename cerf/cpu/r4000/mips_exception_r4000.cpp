@@ -15,7 +15,8 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::VR4102 || bd->GetSoc() == SocFamily::VR5500);
+        return bd && (bd->GetSoc() == SocFamily::VR4102 || bd->GetSoc() == SocFamily::VR4121 ||
+                      bd->GetSoc() == SocFamily::VR5500);
     }
 
     /* mips_cpu_hw_interrupts_enabled (internal.h): IE && !EXL && !ERL. */

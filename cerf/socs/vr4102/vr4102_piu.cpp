@@ -7,7 +7,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
-#include "vr4102_icu.h"
+#include "../vr41xx_icu.h"
 
 #include <algorithm>
 #include <chrono>
@@ -228,7 +228,7 @@ void Vr4102Piu::CmdScanOnceLocked() {
 void Vr4102Piu::DriveIcuLocked() {
     /* ICU PIUINT (0x0B000082) mirrors PIUINTREG's cause bits {D0,D2-D6}; the ICU
        raises SYSINT1 PIUINTR when (PIUINT & MPIU) (guest ICU decode sub_9F002050). */
-    emu_.Get<Vr4102Icu>().SetPiuSource(intreg_ & kIntCauses);
+    emu_.Get<Vr41xxIcu>().SetPiuSource(intreg_ & kIntCauses);
 }
 
 uint32_t Vr4102Piu::IntervalMsLocked() const {

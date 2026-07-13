@@ -6,7 +6,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
-#include "vr4102_icu.h"
+#include "../vr41xx_icu.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -93,7 +93,7 @@ void Vr4102Rtc::EvaluateLocked() {
 }
 
 void Vr4102Rtc::DriveIcuLocked() {
-    auto& icu = emu_.Get<Vr4102Icu>();
+    auto& icu = emu_.Get<Vr41xxIcu>();
     icu.SetSysint1Source(1u << 3, (rtcintreg_ & kIntElapsed) != 0);   /* ETIMER  */
     icu.SetSysint1Source(1u << 2, (rtcintreg_ & kIntLong1)   != 0);   /* RTCL1   */
     icu.SetSysint2Source(1u << 0, (rtcintreg_ & kIntLong2)   != 0);   /* RTCL2   */

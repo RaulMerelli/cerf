@@ -7,7 +7,7 @@
 #include "../../peripherals/serial/serial_cradle.h"
 #include "../../state/state_stream.h"
 #include "vr4102_giu.h"
-#include "vr4102_icu.h"
+#include "../vr41xx_icu.h"
 #include "vr4102_serial_wiring.h"
 
 #include <cstdint>
@@ -74,7 +74,7 @@ protected:
     const char* Name()      const override { return "SIU"; }
 
     void SetInterruptLine(bool pending) override {
-        emu_.Get<Vr4102Icu>().SetSysint1Source(kSiuIntr, pending);
+        emu_.Get<Vr41xxIcu>().SetSysint1Source(kSiuIntr, pending);
     }
 
     /* 0x08 SIUIRSEL D5:0 R/W (UM 24.2.13, p478). 0x09 is undocumented (UM ch.24
