@@ -50,7 +50,6 @@ a = Analysis(
     binaries=UCRT_BINARIES,
     datas=[(ICON_PATH, "."), (VERSION_PATH, "."),
            (str(THIS_DIR / "assets" / "icons"), "assets/icons"),
-           (str(THIS_DIR / "assets" / "GaBanner.png"), "assets"),
            (str(REPO_ROOT / "gweslab.png"), "assets")] + TCLTK_DATAS,
     hiddenimports=[],
     hookspath=[],

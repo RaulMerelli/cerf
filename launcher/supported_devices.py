@@ -47,7 +47,6 @@ from typing import Callable, Dict, List, NamedTuple, Optional
 
 class OperatingSystem(NamedTuple):
     name: str  # full display name
-    icon: Optional[str] = None  # icon file under assets/icons, if any
 
 
 class Soc(NamedTuple):
@@ -72,7 +71,7 @@ WINDOWS_CE_7 = OperatingSystem("Windows CE 7")
 WINDOWS_MOBILE_2003SE = OperatingSystem("WM 2003 SE")
 WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5")
 WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6")
-ZUNE_OS_5 = OperatingSystem("Windows CE 5", "os_zune.png")
+ZUNE_OS_5 = OperatingSystem("Windows CE 5")
 
 SOC_SA1100 = Soc("Intel SA-1100", "StrongARM", "ARM")
 SOC_SA1110 = Soc("Intel SA-1110", "StrongARM", "ARM")
@@ -88,20 +87,22 @@ SOC_PR31700 = Soc("Philips PR31700", "MIPS I", "MIPS")
 SOC_PR31500 = Soc("Philips PR31500", "MIPS I", "MIPS")
 
 # Feature icons in display order, shared by the launcher side panel and
-# compile_readme.py. (features key, icon file under assets/icons, label).
+# compile_readme.py. (features key, icon stem, label). The stem names an SVG
+# source under cerf/assets/icons_sources/; the launcher renders a build-time
+# raster (<stem>.png under assets/icons), the README/website reference the SVG.
 FEATURE_SPECS = [
-    ("display", "display.png", "Display"),
-    ("touch", "stylus.png", "Touch"),
-    ("mouse", "mouse.png", "Mouse"),
-    ("keyboard", "keyboard.png", "Keyboard"),
-    ("suspend", "suspend.png", "Suspend / Resume"),
-    ("guest_additions", "ga.png", "Guest Additions"),
-    ("sound", "speaker.png", "Sound"),
-    ("mic", "microphone.png", "Microphone"),
-    ("pcmcia", "pcmcia.png", "PCMCIA"),
-    ("network", "internet.png", "Network"),
-    ("battery", "battery.png", "Battery"),
-    ("serial", "serial.png", "Serial Port"),
+    ("display", "display", "Display"),
+    ("touch", "stylus", "Touch"),
+    ("mouse", "cursor", "Mouse"),
+    ("keyboard", "keyboard", "Keyboard"),
+    ("suspend", "suspend", "Suspend / Resume"),
+    ("guest_additions", "ga_autoresize", "Guest Additions"),
+    ("sound", "speaker_active", "Sound"),
+    ("mic", "microphone", "Microphone"),
+    ("pcmcia", "pcmcia_enabled", "PCMCIA"),
+    ("network", "internet", "Network"),
+    ("battery", "battery", "Battery"),
+    ("serial", "serial_com", "Serial Port"),
 ]
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"

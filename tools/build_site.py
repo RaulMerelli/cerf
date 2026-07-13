@@ -10,6 +10,7 @@ tree - into the docs dir, where MkDocs can see them.
 """
 
 import argparse
+import glob
 import os
 import shutil
 import subprocess
@@ -21,21 +22,27 @@ CONTENT   = os.path.join(SITE, 'content')
 OUT       = os.path.join(ROOT, 'build', 'site')
 ICONS_SRC = os.path.join(ROOT, 'launcher', 'assets', 'icons')
 
+ICONS_SVG = os.path.join(ROOT, 'cerf', 'assets', 'icons_sources')
+
 IMAGES = [
     ('gweslab.png',                                      'gweslab.png'),
     (os.path.join('docs', 'cerf_youtube.png'),           'cerf_youtube.png'),
     (os.path.join('docs', 'launcher.png'),               'launcher.png'),
-    (os.path.join('launcher', 'assets', 'GaBanner.png'), 'GaBanner.png'),
     (os.path.join('cerf', 'assets', 'cerf.ico'),         'cerf.ico'),
     (os.path.join('cerf', 'assets', 'icons_sources', 'cerf.svg'), 'cerf.svg'),
 ]
 
 
 def sync_assets():
+    # The boards table references CPU-arch badge PNGs (launcher/assets/icons)
+    # and feature/board icon SVGs (cerf/assets/icons_sources); the render hook
+    # rewrites both to /assets/icons, so stage both source trees into one dir.
     icons = os.path.join(CONTENT, 'assets', 'icons')
     if os.path.isdir(icons):
         shutil.rmtree(icons)
     shutil.copytree(ICONS_SRC, icons, ignore=shutil.ignore_patterns('*.md'))
+    for svg in glob.glob(os.path.join(ICONS_SVG, '*.svg')):
+        shutil.copy2(svg, os.path.join(icons, os.path.basename(svg)))
 
     img = os.path.join(CONTENT, 'assets', 'img')
     os.makedirs(img, exist_ok=True)

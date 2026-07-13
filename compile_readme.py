@@ -9,7 +9,8 @@ OUTPUT    = os.path.join(ROOT, 'README.md')
 CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
 CHANGELOG_LINK = 'docs/changelog.html'
 CHANGELOG_RECENT = 6
-ICONS_DIR = 'launcher/assets/icons'
+ICONS_DIR = 'launcher/assets/icons'          # CPU-arch badge PNGs
+SVG_DIR   = 'cerf/assets/icons_sources'       # feature / board icon SVG sources
 FUNDING = os.path.join(ROOT, '.github', 'FUNDING.yml')
 
 # FUNDING.yml platform key -> shields.io badge (label, hex, logo, logo color)
@@ -39,8 +40,8 @@ def parse_version():
     return f'{major}.{minor}' if patch == 0 else f'{major}.{minor}.{patch}'
 
 
-def icon_img(filename, title):
-    return (f'<img src="{ICONS_DIR}/{filename}" width="16" height="16" '
+def icon_img(stem, title, size=32):
+    return (f'<img src="{SVG_DIR}/{stem}.svg" width="{size}" height="{size}" '
             f'title="{title}" alt="{title}"/>')
 
 
@@ -51,8 +52,8 @@ def badge_img(cpu):
 
 
 def features_cell(features):
-    icons = [icon_img(filename, label)
-             for key, filename, label in FEATURE_SPECS if features.get(key)]
+    icons = [icon_img(stem, label)
+             for key, stem, label in FEATURE_SPECS if features.get(key)]
     return ' '.join(icons) if icons else '&mdash;'
 
 
@@ -95,11 +96,9 @@ def build_supported_devices():
                 lines.append(f'      <td{rowspan} align="center">'
                              f'{badge_img(soc.cpu)}<br/><b>{soc.family}</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
-            cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b> '
+            cell = [f'{icon_img("board", "PDA", 16)} <b>{board["name"]}</b> '
                     f'<code>{board["board_id"]}</code>']
-            cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
-                     if guest_os.icon else guest_os.name
-                     for guest_os in board['operating_systems']]
+            cell += [guest_os.name for guest_os in board['operating_systems']]
             lines.append('      <td>')
             lines.append('        ' + '<br/>\n        '.join(cell))
             lines.append('      </td>')

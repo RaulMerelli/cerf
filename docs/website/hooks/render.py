@@ -53,7 +53,8 @@ from supported_devices import BOARDS_INFORMATION
 
 def _boards_table():
     table = compile_readme.build_supported_devices()
-    return table.replace('launcher/assets/icons', '/assets/icons')
+    return (table.replace('cerf/assets/icons_sources', '/assets/icons')
+                 .replace('launcher/assets/icons', '/assets/icons'))
 
 
 def _changelog_table():

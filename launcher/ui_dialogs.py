@@ -7,13 +7,13 @@ import webbrowser
 from tkinter import ttk
 from typing import Dict, Optional
 
-from app_paths import resolve_ga_banner
 from device_state import DeviceSource
 import ui_theme as theme
 
 
 DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
 WEBSITE_URL = "https://cerf.dz3n.net"
+GUEST_ADDITIONS_URL = "https://cerf.dz3n.net/articles/guest-additions/"
 
 # Funding targets, mirroring .github/FUNDING.yml (patreon: dz3n,
 # buy_me_a_coffee: dz3n, ko_fi: dz333n) - that file is not shipped with the
@@ -110,35 +110,8 @@ def show_dpi_help(parent: tk.Misc) -> None:
 
 
 def show_guest_additions_help(parent: tk.Misc) -> None:
-    """Show the Guest Additions feature banner in a borderless-content window.
-    Falls back to nothing if the banner asset can't be located."""
-    path = resolve_ga_banner()
-    if path is None:
-        return
-
-    dlg = tk.Toplevel(parent)
-    dlg.title("Guest additions")
-    dlg.configure(bg=theme.BG)
-    dlg.transient(parent)
-    dlg.resizable(False, False)
-
-    banner = tk.PhotoImage(file=str(path))
-    lbl = ttk.Label(dlg, image=banner, background=theme.BG)
-    lbl.image = banner  # keep a reference so Tk doesn't GC the image
-    lbl.pack()
-
-    dlg.bind("<Escape>", lambda _e: dlg.destroy())
-    lbl.bind("<Button-1>", lambda _e: dlg.destroy())
-
-    dlg.update_idletasks()
-    theme.apply_titlebar(dlg)
-    w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
-    x = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
-    y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
-    dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
-
-    dlg.grab_set()
-    parent.wait_window(dlg)
+    """Open the Guest Additions article in the browser."""
+    webbrowser.open(GUEST_ADDITIONS_URL)
 
 
 def show_update_available(parent: tk.Misc, remote_version: str,

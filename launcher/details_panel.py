@@ -218,11 +218,11 @@ class DetailsPanel:
             child.destroy()
         features = board_features(device.meta.board_id)
         shown = 0
-        for key, filename, label in FEATURE_SPECS:
+        for key, stem, label in FEATURE_SPECS:
             if key not in features:  # absent -> board has no such hardware
                 continue
             supported = features[key]
-            icon = self._feature_icon(filename, gray=not supported)
+            icon = self._feature_icon(stem, gray=not supported)
             if icon is None:
                 continue
             lbl = ttk.Label(self.features_icons, image=icon)
@@ -237,17 +237,15 @@ class DetailsPanel:
         else:
             self.features_frame.grid_remove()
 
-    def _feature_icon(self, filename: str, gray: bool) -> Optional[tk.PhotoImage]:
-        cache_key = (filename, gray)
+    def _feature_icon(self, stem: str, gray: bool) -> Optional[tk.PhotoImage]:
+        cache_key = (stem, gray)
         if cache_key in self._icon_cache:
             return self._icon_cache[cache_key]
         icon: Optional[tk.PhotoImage] = None
         if self._icons_dir is not None:
-            path = self._icons_dir / filename
+            path = self._icons_dir / f"{stem}.png"
             try:
                 base = tk.PhotoImage(file=str(path))
-                if base.width() > 24:  # source icons are 32px; show ~16px
-                    base = base.subsample(2, 2)
                 icon = self._grayscale_image(base) if gray else base
             except tk.TclError:
                 icon = None

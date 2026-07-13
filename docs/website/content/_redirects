@@ -4,3 +4,6 @@
 /guides/        /articles/                 301
 /guides/*       /articles/:splat           301
 /assets/guides/*  /assets/articles/:splat  301
+
+/articles/guest-additions   /articles/features/#guest-additions  302
+/articles/guest-additions/  /articles/features/#guest-additions  302

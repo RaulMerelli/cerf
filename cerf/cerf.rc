@@ -3,7 +3,7 @@
 
 APPICON ICON "assets/cerf.ico"
 1 ICON "assets/cerf.ico"
-2 ICON "assets/shutdown.ico"
+2 ICON "assets/suspend.ico"
 
 /* built from assets/icons_sources/*.svg by tools/make_icons.py. */
 ICON_GA                  ICON "assets/ga_autoresize.ico"
