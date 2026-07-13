@@ -98,6 +98,7 @@ def build_supported_devices():
             cell = [f'{icon_img("pda.png", "PDA")} <b>{board["name"]}</b> '
                     f'<code>{board["board_id"]}</code>']
             cell += [f'{icon_img(guest_os.icon, guest_os.name)} {guest_os.name}'
+                     if guest_os.icon else guest_os.name
                      for guest_os in board['operating_systems']]
             lines.append('      <td>')
             lines.append('        ' + '<br/>\n        '.join(cell))

@@ -67,6 +67,18 @@ Or invoke msbuild directly:
 msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 ```
 
+### Building the CE-side binaries (optional)
+
+`ce_apps/` holds the Windows CE binaries CERF ships, including the Guest Additions display
+driver. Building them needs a CE toolchain and SDK, which are **not** required for
+`cerf.exe` itself - if you are working on the emulator core, boards, SoCs, the JIT or the
+host UI, ignore this and use the prebuilt binaries.
+
+To build them, install eMbedded Visual C++ 4.0 (a free, officially archived Microsoft
+download) and run one script. Full instructions: **[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
+
+`setup.cmd -Check` reports whether the CE toolchain is present.
+
 The website is built from `docs/website/` - `python tools/build_site.py --serve` runs it locally with live reload.
 
 ## Changelog

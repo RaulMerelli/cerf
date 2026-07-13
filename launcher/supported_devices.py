@@ -47,7 +47,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional
 
 class OperatingSystem(NamedTuple):
     name: str  # full display name
-    icon: str  # icon file under assets/icons
+    icon: Optional[str] = None  # icon file under assets/icons, if any
 
 
 class Soc(NamedTuple):
@@ -56,22 +56,22 @@ class Soc(NamedTuple):
     cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"
 
 
-HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000", "os_old_ce.png")
-POCKET_PC_2000 = OperatingSystem("Pocket PC 2000", "os_ppc2000.png")
-POCKET_PC_2002 = OperatingSystem("Pocket PC 2002", "os_ppc2002.png")
-WINDOWS_CE_1 = OperatingSystem("Windows CE 1.0", "os_old_ce.png")
-WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0", "os_old_ce.png")
-PALM_SIZE_PC = OperatingSystem("Palm-size PC", "os_old_ce.png")
-WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11", "os_old_ce.png")
-HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional", "os_old_ce.png")
-WINDOWS_CE_3 = OperatingSystem("Windows CE 3", "os_old_ce.png")
-WINDOWS_CE_NET = OperatingSystem("Windows CE .NET", "os_ce.png")
-WINDOWS_CE_5 = OperatingSystem("Windows CE 5", "os_ce.png")
-WINDOWS_CE_6 = OperatingSystem("Windows CE 6", "os_ce.png")
-WINDOWS_CE_7 = OperatingSystem("Windows CE 7", "os_ce.png")
-WINDOWS_MOBILE_2003SE = OperatingSystem("WM 2003 SE", "os_ppc2002.png")
-WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5", "os_ppc2002.png")
-WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6", "os_wm6.png")
+HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000")
+POCKET_PC_2000 = OperatingSystem("Pocket PC 2000")
+POCKET_PC_2002 = OperatingSystem("Pocket PC 2002")
+WINDOWS_CE_1 = OperatingSystem("Windows CE 1.0")
+WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0")
+PALM_SIZE_PC = OperatingSystem("Palm-size PC")
+WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11")
+HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional")
+WINDOWS_CE_3 = OperatingSystem("Windows CE 3")
+WINDOWS_CE_NET = OperatingSystem("Windows CE .NET")
+WINDOWS_CE_5 = OperatingSystem("Windows CE 5")
+WINDOWS_CE_6 = OperatingSystem("Windows CE 6")
+WINDOWS_CE_7 = OperatingSystem("Windows CE 7")
+WINDOWS_MOBILE_2003SE = OperatingSystem("WM 2003 SE")
+WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5")
+WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6")
 ZUNE_OS_5 = OperatingSystem("Windows CE 5", "os_zune.png")
 
 SOC_SA1100 = Soc("Intel SA-1100", "StrongARM", "ARM")
