@@ -20,7 +20,7 @@ namespace {
 
 constexpr wchar_t kDlgClass[] = L"CerfFolderShareDlg";
 constexpr COLORREF kFolderClr   = RGB(232, 196, 92);  /* folder yellow (on) */
-constexpr COLORREF kDisabledClr = RGB(128, 128, 128);  /* grayscale (off) */
+constexpr COLORREF kDisabledClr = RGB(224, 224, 224);  /* grayscale (off) */
 
 enum : int { IDC_ENABLE = 1001, IDC_PATH = 1002, IDC_BROWSE = 1003 };
 
