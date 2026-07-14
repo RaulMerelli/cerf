@@ -273,6 +273,9 @@ void Log::InstallCrashHandler() {
 /* ==== Terminal exits ===================================================== */
 
 void CerfFatalExit(int code) {
+    char recent_cautions[1024];
+    Log::CopyRecentCautionsBeforeEmergencyStart(recent_cautions, sizeof(recent_cautions));
+
     LOG(Caution, "CERF is halting (fatal code = %d)\n", code);
 
     if (code == CERF_FATAL_USER_ERROR) {
@@ -292,17 +295,25 @@ void CerfFatalExit(int code) {
 
 #if !CERF_DEV_MODE
     if (code == CERF_FATAL_RUNTIME_ERROR) {
-        MessageBoxA(nullptr,
-                    "Something inside CERF blew up and it has to close.\n\n"
-                    "Two log files were written next to cerf.exe:\n"
-                    "  - cerf.log         (full run log)\n"
-                    "  - cerf.crash.log   (thread snapshot at the crash)\n\n"
-                    "The run log is nearly empty unless every log channel was on. "
-                    "If the crash happens again, reproduce it with all log channels "
-                    "enabled - the launcher has a tick for it - and keep both files.\n\n"
-                    "To report it, open http://cerf.dz3n.net and search for "
-                    "\"Report a bug\".",
-                    "CERF: unexpected error",
+        char detail[1280] = {};
+        if (recent_cautions[0])
+            snprintf(detail, sizeof(detail), "%s\n", recent_cautions);
+
+        char box[2560];
+        snprintf(box, sizeof(box),
+                 "Something inside CERF blew up and it has to close.\n\n"
+                 "%s"
+                 "Two log files were written next to cerf.exe:\n"
+                 "  - cerf.log         (full run log)\n"
+                 "  - cerf.crash.log   (thread snapshot at the crash)\n\n"
+                 "The run log is nearly empty unless every log channel was on. "
+                 "If the crash happens again, reproduce it with all log channels "
+                 "enabled - the launcher has a tick for it - and keep both files.\n\n"
+                 "To report it, open http://cerf.dz3n.net and search for "
+                 "\"Report a bug\".",
+                 detail);
+
+        MessageBoxA(nullptr, box, "CERF: unexpected error",
                     MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
     }
 #endif

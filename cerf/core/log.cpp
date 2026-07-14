@@ -74,8 +74,48 @@ static bool IsFloodSuppressed(Log::Cat cat) {
     return false;
 }
 
+static constexpr size_t CAUTION_RING_LINES = 4;
+static constexpr size_t CAUTION_LINE_MAX   = 256;
+static char   g_caution_ring[CAUTION_RING_LINES][CAUTION_LINE_MAX] = {};
+static size_t g_caution_next  = 0;
+static size_t g_caution_count = 0;
+
 static void EnsureLogCS() {
     std::call_once(g_cs_once, []() { InitializeCriticalSection(&g_log_cs); });
+}
+
+static void RecordCautionLocked(const char* fmt, va_list args) {
+    char* slot = g_caution_ring[g_caution_next];
+    vsnprintf(slot, CAUTION_LINE_MAX, fmt, args);
+    slot[CAUTION_LINE_MAX - 1] = '\0';
+
+    size_t len = strlen(slot);
+    while (len > 0 && (slot[len - 1] == '\n' || slot[len - 1] == '\r'))
+        slot[--len] = '\0';
+
+    g_caution_next = (g_caution_next + 1) % CAUTION_RING_LINES;
+    if (g_caution_count < CAUTION_RING_LINES) g_caution_count++;
+}
+
+void Log::CopyRecentCautionsBeforeEmergencyStart(char* out, size_t out_size) {
+    if (!out || out_size == 0) return;
+    out[0] = '\0';
+
+    EnsureLogCS();
+    EnterCriticalSection(&g_log_cs);
+
+    size_t written = 0;
+    size_t first = (g_caution_next + CAUTION_RING_LINES - g_caution_count) % CAUTION_RING_LINES;
+    for (size_t i = 0; i < g_caution_count && written + 1 < out_size; i++) {
+        const char* line = g_caution_ring[(first + i) % CAUTION_RING_LINES];
+        if (line[0] == '\0') continue;
+        int n = snprintf(out + written, out_size - written, "%s\n", line);
+        if (n <= 0) break;
+        written += (size_t)n;
+        if (written >= out_size) { out[out_size - 1] = '\0'; break; }
+    }
+
+    LeaveCriticalSection(&g_log_cs);
 }
 
 void Log::InitDefaultLogFile() {
@@ -159,6 +199,13 @@ void Log::Print(Cat cat, const char* fmt, ...) {
     EnterCriticalSection(&g_log_cs);
 
     const char* slug = kCategories[(int)cat].slug;
+
+    if (cat == Cat::Caution) {
+        va_list args_ring;
+        va_copy(args_ring, args);
+        RecordCautionLocked(fmt, args_ring);
+        va_end(args_ring);
+    }
 
     if (!IsFloodSuppressed(cat)) {
         PrintPrefix(stdout, tid, slug);

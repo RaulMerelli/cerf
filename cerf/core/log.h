@@ -93,6 +93,8 @@ namespace Log {
 
     void Print(Cat cat, const char* fmt, ...);
 
+    void CopyRecentCautionsBeforeEmergencyStart(char* out, size_t out_size);
+
     /* Comma-separated slugs, plus the special tokens "ALL" and "NONE".
        Unknown tokens warn on stderr and contribute nothing to the mask. */
     uint64_t ParseCategories(const char* str);
