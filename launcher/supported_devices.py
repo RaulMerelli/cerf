@@ -106,8 +106,6 @@ FEATURE_SPECS = [
 ]
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
-CE3_SHARED_STORAGE_PROBLEM = "Guest additions shared storage misbehaves on CE3"
-CE4_SHARED_STORAGE_BROKEN = "Guest additions shared storage is broken on CE4"
 GUEST_ADDITIONS_BREAK_ROM = "Do NOT use guest additions - they break the ROM"
 GUEST_ADDITIONS_POINTER_WARN = "Guest additions mouse does not work in some apps (e.g. calibration) - switch to stock input"
 
@@ -593,14 +591,6 @@ DYNAMIC_NOTES = [
         and not rom.os_contains("Pocket PC 2002")
         and not rom.os_contains("Windows Mobile"),
         note=_NE2000_TOGGLE + ".",
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.os_ver_major == 3,
-        note=CE3_SHARED_STORAGE_PROBLEM,
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.os_ver_major == 4,
-        note=CE4_SHARED_STORAGE_BROKEN,
     ),
     DynamicNote(
         applies=lambda rom: rom.board_is("devemu")
