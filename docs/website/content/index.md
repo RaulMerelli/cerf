@@ -28,7 +28,7 @@ CERF is a pre-alpha emulator - expect issues.
 
 </div>
 
-## The devices
+## [The devices](boards.md)
 
 {devices}
 
