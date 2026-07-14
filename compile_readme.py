@@ -20,8 +20,6 @@ FUNDING = os.path.join(ROOT, '.github', 'FUNDING.yml')
 FUNDING_BADGES = [
     ('patreon',         'Patreon',
      'FF424D', 'patreon',      'white', 'https://www.patreon.com/{user}'),
-    ('buy_me_a_coffee', 'Buy%20Me%20a%20Coffee',
-     'FFDD00', 'buymeacoffee', 'black', 'https://www.buymeacoffee.com/{user}'),
 ]
 FUNDING_MESSAGE = 'support'
 

@@ -8,7 +8,6 @@ from tkinter import ttk
 from typing import Callable, Optional
 
 from ui_dialogs import (
-    BUY_ME_A_COFFEE_URL,
     DISCORD_URL,
     PATREON_URL,
     WEBSITE_URL,
@@ -26,7 +25,6 @@ class StatusBar:
             ("Discord",         DISCORD_URL),
             ("Website",         WEBSITE_URL),
             ("Patreon",         PATREON_URL),
-            ("Buy me a coffee", BUY_ME_A_COFFEE_URL),
         )
         link_bar = ttk.Frame(bar)
         link_bar.grid(row=0, column=0, sticky="w")

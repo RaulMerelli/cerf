@@ -15,11 +15,9 @@ DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
 WEBSITE_URL = "https://cerf.dz3n.net"
 GUEST_ADDITIONS_URL = "https://cerf.dz3n.net/articles/guest-additions/"
 
-# Funding targets, mirroring .github/FUNDING.yml (patreon: dz3n,
-# buy_me_a_coffee: dz3n) - that file is not shipped with the packaged launcher,
-# so the handles are spelled out here.
-PATREON_URL        = "https://www.patreon.com/dz3n"
-BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/dz3n"
+# Funding target, mirroring .github/FUNDING.yml (patreon: dz3n) - that file is
+# not shipped with the packaged launcher, so the handle is spelled out here.
+PATREON_URL = "https://www.patreon.com/dz3n"
 
 
 def show_dialog(parent: tk.Misc, title: str, message: str,
