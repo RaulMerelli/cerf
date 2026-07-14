@@ -42,7 +42,7 @@ def icon_img(stem, title, size=32):
 
 
 def badge_img(cpu):
-    # CPU-arch badge PNG (tools/make_badges.py); intrinsic size, no scaling.
+    # CPU-arch badge PNG (tools/make_icons.py); intrinsic size, no scaling.
     return (f'<img src="{ICONS_DIR}/badge_{cpu.lower()}.png" '
             f'align="middle" title="{cpu}" alt="{cpu}"/>')
 

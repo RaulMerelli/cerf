@@ -88,8 +88,8 @@ SOC_PR31500 = Soc("Philips PR31500", "MIPS I", "MIPS")
 
 # Feature icons in display order, shared by the launcher side panel and
 # compile_readme.py. (features key, icon stem, label). The stem names an SVG
-# source under cerf/assets/icons_sources/; the launcher renders a build-time
-# raster (<stem>.png under assets/icons), the README/website reference the SVG.
+# source under cerf/assets/icons_sources/; the launcher loads <stem>.png under
+# assets/icons (emitted by tools/make_icons.py), the README/website use the SVG.
 FEATURE_SPECS = [
     ("display", "display", "Display"),
     ("touch", "stylus", "Touch"),
