@@ -16,12 +16,10 @@ FUNDING = os.path.join(ROOT, '.github', 'FUNDING.yml')
 # FUNDING.yml platform key -> shields.io badge (label, hex, logo, logo color)
 # + the profile URL its username slots into. The label is shields' static-badge
 # path, where a lone '-' separates label from message: a literal dash in a label
-# is escaped as '--' (Ko--fi -> "Ko-fi"), and a space as '%20'.
+# is escaped as '--', and a space as '%20'.
 FUNDING_BADGES = [
     ('patreon',         'Patreon',
      'FF424D', 'patreon',      'white', 'https://www.patreon.com/{user}'),
-    ('ko_fi',           'Ko--fi',
-     'FF5E5B', 'kofi',         'white', 'https://ko-fi.com/{user}'),
     ('buy_me_a_coffee', 'Buy%20Me%20a%20Coffee',
      'FFDD00', 'buymeacoffee', 'black', 'https://www.buymeacoffee.com/{user}'),
 ]

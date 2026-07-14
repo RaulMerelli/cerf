@@ -35,8 +35,6 @@ FUNDING   = os.path.join(ROOT, '.github', 'FUNDING.yml')
 FUNDING_LINKS = [
     ('patreon',         'Patreon',         ':fontawesome-brands-patreon:',
      'https://www.patreon.com/{user}'),
-    ('ko_fi',           'Ko-fi',           ':simple-kofi:',
-     'https://ko-fi.com/{user}'),
     ('buy_me_a_coffee', 'Buy me a coffee', ':simple-buymeacoffee:',
      'https://www.buymeacoffee.com/{user}'),
 ]

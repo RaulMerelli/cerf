@@ -16,10 +16,9 @@ WEBSITE_URL = "https://cerf.dz3n.net"
 GUEST_ADDITIONS_URL = "https://cerf.dz3n.net/articles/guest-additions/"
 
 # Funding targets, mirroring .github/FUNDING.yml (patreon: dz3n,
-# buy_me_a_coffee: dz3n, ko_fi: dz333n) - that file is not shipped with the
-# packaged launcher, so the handles are spelled out here.
+# buy_me_a_coffee: dz3n) - that file is not shipped with the packaged launcher,
+# so the handles are spelled out here.
 PATREON_URL        = "https://www.patreon.com/dz3n"
-KOFI_URL           = "https://ko-fi.com/dz333n"
 BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/dz3n"
 
 

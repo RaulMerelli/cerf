@@ -10,7 +10,6 @@ from typing import Callable, Optional
 from ui_dialogs import (
     BUY_ME_A_COFFEE_URL,
     DISCORD_URL,
-    KOFI_URL,
     PATREON_URL,
     WEBSITE_URL,
 )
@@ -27,7 +26,6 @@ class StatusBar:
             ("Discord",         DISCORD_URL),
             ("Website",         WEBSITE_URL),
             ("Patreon",         PATREON_URL),
-            ("Ko-fi",           KOFI_URL),
             ("Buy me a coffee", BUY_ME_A_COFFEE_URL),
         )
         link_bar = ttk.Frame(bar)

@@ -85,9 +85,6 @@ extra:
     - icon: fontawesome/brands/patreon
       link: https://www.patreon.com/dz3n
       name: Support CERF on Patreon
-    - icon: simple/kofi
-      link: https://ko-fi.com/dz333n
-      name: Support CERF on Ko-fi
 
 plugins:
   - search
