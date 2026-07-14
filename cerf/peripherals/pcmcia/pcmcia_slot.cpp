@@ -13,10 +13,8 @@
 
 namespace {
 
-/* PCMCIA bus convention: with no card (or no Vcc) nothing drives the
-   data lines and reads float high. */
-constexpr uint8_t  kFloat8  = 0xFFu;
-constexpr uint16_t kFloat16 = 0xFFFFu;
+constexpr uint8_t  kFloat8  = PcmciaCard::kBusFloat8;
+constexpr uint16_t kFloat16 = PcmciaCard::kBusFloat16;
 
 }  /* namespace */
 

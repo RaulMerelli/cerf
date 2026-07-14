@@ -17,6 +17,10 @@ class StateReader;
    controller synthesizes halfword attribute reads. */
 class PcmciaCard {
 public:
+    /* PC Card Standard Vol. 2 Electrical, 4.15.1 Configuration Option Register. */
+    static constexpr uint8_t  kBusFloat8  = 0xFFu;
+    static constexpr uint16_t kBusFloat16 = 0xFFFFu;
+
     explicit PcmciaCard(CerfEmulator& emu) : emu_(emu) {}
     virtual ~PcmciaCard() = default;
 
