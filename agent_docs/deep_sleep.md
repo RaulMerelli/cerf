@@ -51,12 +51,26 @@ never assumed:
   `GuestEngine::ExitDeepSleep()`: `DeliverWake()` applies what the silicon asserts
   on the power-up edge and un-halts the CPU at its halted PC.
 
-**The guest binary settles which shape a SoC has.** On a clock-stop SoC the guest's
-power-down routine keeps executing past the register write that cuts power (the
-PR31x00 kernel finishes an RTC wait loop and then re-enters its own entry point with
-a resume magic); under reset-on-wake every instruction after that write would be
-dead code. Code that runs after the power-down store is proof the core was never
-reset.
+**The SoC manual settles which shape a SoC has; the guest binary corroborates it.** Read
+the power-down section first. It says either that the part stops the clock and holds state
+(TMPR3911 §12.2.4), or that the power-down instruction *"enters reset status"* and recovery
+*"begins the Cold reset exception sequence to access the reset vectors in the ROM space"*
+(VR4102 UM §7.1.4 / VR4121 UM §8.1.4, of the HIBERNATE instruction). Then corroborate in the
+guest: a reset-on-wake guest saves its whole CPU/CP0/peripheral context to RAM before the
+power-down store and restores it from the reset entry, ending in a jump to the saved return
+address - so the suspend call *appears* to return to its caller; a clock-stop guest simply
+runs on.
+
+**Live code after the power-down store does NOT prove the core was never reset.** Whether
+the rails actually drop is a BOARD decision, so an OEM writes a routine that survives both
+outcomes, and both VR41xx ROMs carry real code after their power-down instruction while
+still being reset-on-wake. Modelling a reset-on-wake SoC as clock-stop resumes the guest in
+place: none of the context it saved before the power-down store is restored, so it re-enters
+sleep immediately and loops. Beware equally of a retention sentence that is conditional on
+the core supply: a manual may say registers are retained in the low-power mode and, in the
+same breath, that the mode exists so the core rails CAN be cut - and a battery handheld cuts
+them. When the manual and a plausible reading of the guest disagree, the manual's power-down
+section wins.
 
 ## Reset-on-wake
 
