@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Optional
 
 from app_paths import exe_dir, resolve_version
-from bundles import RELEASE_LATEST_URL, parse_version_tuple
+from bundles import parse_version_tuple
 from github_release import GithubRelease
 import upgrade_dialog
-from ui_dialogs import show_dialog, show_error, show_update_available
+from ui_dialogs import show_dialog, show_error
 from upgrade_download import download_upgrade
 from upgrade_process import (INSTALL_FLAG, UPGRADE_DIR_NAME, UpgradeError,
                              running_cerf_pids, spawn_stage, stage_argument)
@@ -22,7 +22,6 @@ class UpdateCheck:
     def __init__(self, app) -> None:
         self.app = app
         self.release: Optional[GithubRelease] = None
-        self.fallback_version: Optional[str] = None
 
     def start(self) -> None:
         self.app.status_bar.set_update_status("Checking updates…", theme.FG_DIM,
@@ -31,23 +30,15 @@ class UpdateCheck:
 
         def done(exc: Optional[BaseException]) -> None:
             if exc is not None:
-                self._start_fallback()
+                self._no_update(False)
                 return
             self._apply_release(future.result())
 
         self.app._await_future(future, done)
 
-    def _start_fallback(self) -> None:
-        future = self.app.manager.submit_version_check()
-
-        def done(exc: Optional[BaseException]) -> None:
-            self._apply_fallback(None if exc is not None else future.result())
-
-        self.app._await_future(future, done)
-
-    def _is_newer(self, version: Optional[str]) -> bool:
+    def _is_newer(self, version: str) -> bool:
         current = parse_version_tuple(resolve_version())
-        remote = parse_version_tuple(version) if version else None
+        remote = parse_version_tuple(version)
         return current is not None and remote is not None and remote > current
 
     def _announce(self, version: str) -> None:
@@ -67,18 +58,7 @@ class UpdateCheck:
         self._announce(release.tag)
         self.open_offer()
 
-    def _apply_fallback(self, version: Optional[str]) -> None:
-        if not self._is_newer(version):
-            self._no_update(version is not None)
-            return
-        self.fallback_version = version
-        self._announce(version)
-        show_update_available(self.app, f"v{version}", RELEASE_LATEST_URL)
-
     def open_offer(self) -> None:
-        if self.release is None:
-            webbrowser.open(RELEASE_LATEST_URL)
-            return
         choice = upgrade_dialog.show_release_available(self.app, self.release)
         if choice == upgrade_dialog.UPGRADE:
             self._start_upgrade()

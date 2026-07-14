@@ -16,7 +16,6 @@ from bundles import (
     PARALLEL_WORKERS,
     USER_AGENT,
     RemoteBundle,
-    fetch_last_release_version,
     is_safe_bundle_name,
     load_remote_manifest,
     _sha256_file,
@@ -147,9 +146,6 @@ class BundleManager:
 
     def submit_refresh(self) -> Future:
         return self._pool.submit(self._do_refresh)
-
-    def submit_version_check(self) -> Future:
-        return self._pool.submit(fetch_last_release_version)
 
     def submit_release_check(self) -> Future:
         return self._pool.submit(fetch_latest_release)

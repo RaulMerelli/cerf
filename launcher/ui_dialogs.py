@@ -111,23 +111,6 @@ def show_guest_additions_help(parent: tk.Misc) -> None:
     webbrowser.open(GUEST_ADDITIONS_URL)
 
 
-def show_update_available(parent: tk.Misc, remote_version: str,
-                          url: str) -> None:
-    choice = show_dialog(
-        parent,
-        "A new CERF version is available",
-        f"CERF {remote_version} is out - you're running an older build.\n\n"
-        "Updating is strongly recommended. Newer builds add features and "
-        "fixes, and the ROM bundle catalog keeps advancing - ROM downloads "
-        "and updates may not work correctly, or may break, on an outdated "
-        "CERF.\n\n"
-        "Get the latest CERF:",
-        buttons=("Download", "Later"),
-        default="Later")
-    if choice == "Download":
-        webbrowser.open(url)
-
-
 def _link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
     lbl = ttk.Label(parent, text=text, foreground=theme.LINK_FG, cursor="hand2")
     lbl.bind("<Button-1>", lambda _e: webbrowser.open(url))

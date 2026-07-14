@@ -15,10 +15,6 @@ BASE_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
 REMOTE_MANIFEST_URL = BASE_URL + "/manifest.json"
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
-# Latest released CERF version is published as a plain-text file at the repo
-# root on the default branch; the launcher fetches it to offer an update.
-LAST_RELEASE_URL = "https://raw.githubusercontent.com/gweslab/cerf/main/.last-release-version"
-RELEASE_LATEST_URL = "https://github.com/gweslab/cerf/releases/latest"
 USER_AGENT = "CERF launcher"
 SAFE_BUNDLE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DEFAULT_TIMEOUT = 30
@@ -158,12 +154,6 @@ def parse_version_tuple(text) -> Optional[tuple]:
             break
         parts.append(int(token))
     return tuple(parts) if parts else None
-
-
-def fetch_last_release_version(timeout: int = DEFAULT_TIMEOUT) -> str:
-    url = _append_query(LAST_RELEASE_URL, "cb", str(int(time.time())))
-    raw = _fetch_bytes(url, timeout)
-    return raw.decode("utf-8").strip()
 
 
 def _parse_packages(bundle_name: str, raw) -> tuple:
