@@ -247,11 +247,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           <td>
             <ul>
               <li>UI updates</li>
-              <li>
-                Guest Additions: Software mode rendering removed, project decoupled from Microsoft libraries
-              </li>
-              <li>SDK/Build tools reorganization</li>
-              <li>Copyrighted content fully removed</li>
+              <li>Guest Additions: Fixed IMGFS ROMs regression introduced in v6.0</li>
+              <li>Dev only: SDK/Build tools reorganization</li>
             </ul>
           </td>
         </tr>
