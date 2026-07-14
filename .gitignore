@@ -26,7 +26,6 @@ local_files/
 # Only the README.md inside is tracked
 references/*
 !references/README.md
-!references/WindowsCE-Build-Tools
 !references/extract-wince-rom
 
 ## Ignore Visual Studio temporary files, build results, and
