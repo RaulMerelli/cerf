@@ -92,10 +92,10 @@ void BootScreen::EnsureFonts() {
 }
 
 std::wstring BootScreen::CurrentLabelText() const {
-    if (fb_latched_)                          return L"Switched to LCD";
+    if (fb_latched_)                          return L"LCD is rendering.";
     if (label_mode_ == LabelMode::Resuming)   return L"Resuming...";
-    if (label_mode_ == LabelMode::Restarting) return L"Restarting...";
-    return L"Starting " + short_name_ + L"...";
+    if (label_mode_ == LabelMode::Restarting) return L"Rebooting...";
+    return L"Booting " + short_name_ + L"...";
 }
 
 /* In Resuming mode the panel may be dimmed-until-input and the framebuffer tab
