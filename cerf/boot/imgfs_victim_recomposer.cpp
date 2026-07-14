@@ -3,6 +3,7 @@
 #include "imgfs_victim_recomposer.h"
 
 #include "ce_image_relocator.h"
+#include "guest_additions_binaries.h"
 #include "guest_module_placer.h"
 #include "pe_image.h"
 
@@ -98,6 +99,8 @@ ImgfsVictimRecomposer::Recompose(std::span<const uint8_t> orig_hdr,
         LOG(Caution, "[GA recompose] %u unhandled relocations in stub\n", unhandled);
         CerfFatalExit();
     }
+
+    emu_.Get<GuestAdditionsBinaries>().StampWindowBase(reloc_bytes);
 
     auto slots = cerf::ce_imgfs_patcher::PackPeSections(pe, reloc_bytes, num_sections);
     if (slots.empty() || slots.size() > num_sections) {
