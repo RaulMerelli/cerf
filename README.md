@@ -243,7 +243,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
           <td>v6.3</td>
-          <td>TBA</td>
+          <td>15 Jul 2026</td>
           <td>
             <ul>
               <li>UI updates</li>
