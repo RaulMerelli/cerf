@@ -51,6 +51,7 @@ enum class Board {
     CasioToricomail,
     PhilipsNino300,
     PhilipsVelo1,
+    SharpMobilonHc4100,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

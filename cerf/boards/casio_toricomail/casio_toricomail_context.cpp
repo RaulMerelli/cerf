@@ -8,11 +8,12 @@ class CasioToricomailContext : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board          GetBoard()          const override { return Board::CasioToricomail; }
-    SocFamily      GetSoc()            const override { return SocFamily::VR4121; }
-    CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName() const override { return "Toricomail"; }
+    Board          GetBoard()           const override { return Board::CasioToricomail; }
+    SocFamily      GetSoc()             const override { return SocFamily::VR4121; }
+    CpuArch        GetCpuArch()         const override { return CpuArch::Mips; }
+    RomPlacingMode GetRomPlacingMode()  const override { return RomPlacingMode::FlatContainer; }
+    const char*    GetShortBoardName()  const override { return "Toricomail"; }
+    const wchar_t* GetBootLogoResource() const override { return L"OEM_CASIO"; }
 
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 320, 240 };

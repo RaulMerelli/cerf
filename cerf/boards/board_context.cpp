@@ -25,6 +25,7 @@ constexpr BoardIdEntry kBoardIds[] = {
     {"casio_toricomail",  Board::CasioToricomail},
     {"philips_nino_300",  Board::PhilipsNino300},
     {"philips_velo_1",    Board::PhilipsVelo1},
+    {"sharp_mobilon_hc4100", Board::SharpMobilonHc4100},
 };
 
 }  /* namespace */
@@ -70,6 +71,7 @@ const char* BoardContext::BoardName(Board b) {
         case Board::CasioToricomail:  return "Casio Toricomail";
         case Board::PhilipsNino300:   return "Philips Nino 300";
         case Board::PhilipsVelo1:     return "Philips Velo 1";
+        case Board::SharpMobilonHc4100: return "Sharp Mobilon HC-4100";
     }
     return "Unknown / unsupported";
 }
