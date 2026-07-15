@@ -1,10 +1,10 @@
+
 #pragma once
 
 #include <windows.h>
 
 #pragma pack(push, 4)
 
-/* ddraw.h _DDPIXELFORMAT - 0x20 bytes (8 DWORDs); identical CE5/CE6. */
 typedef struct _Ce5_DDPIXELFORMAT {
     DWORD dwSize;
     DWORD dwFlags;
@@ -16,26 +16,25 @@ typedef struct _Ce5_DDPIXELFORMAT {
     union { DWORD dwRGBAlphaBitMask; DWORD dwYUVAlphaBitMask; };
 } Ce5_DDPIXELFORMAT;
 
-/* ddraw.h _DDSCAPS - single DWORD on CE. */
 typedef struct _Ce5_DDSCAPS { DWORD dwCaps; } Ce5_DDSCAPS;
 
 typedef struct _Ce5_VIDMEMINFO {
-    DWORD               fpPrimary;          /* 0x00 FLATPTR primary surface */
-    DWORD               dwFlags;            /* 0x04 */
-    DWORD               dwDisplayWidth;     /* 0x08 */
-    DWORD               dwDisplayHeight;    /* 0x0c */
-    LONG                lDisplayPitch;      /* 0x10 */
-    Ce5_DDPIXELFORMAT   ddpfDisplay;        /* 0x14 (0x20) */
-    DWORD               dwOffscreenAlign;   /* 0x34 */
-    DWORD               dwOverlayAlign;     /* 0x38 */
-    DWORD               dwTextureAlign;     /* 0x3c */
-    DWORD               dwZBufferAlign;     /* 0x40 */
-    DWORD               dwAlphaAlign;       /* 0x44 */
-    DWORD               dwNumHeaps;         /* 0x48 - 0 = HAL owns all video mem */
-    DWORD               pvmList;            /* 0x4c LPVIDMEM - NULL when dwNumHeaps=0 */
+    DWORD               fpPrimary;
+    DWORD               dwFlags;
+    DWORD               dwDisplayWidth;
+    DWORD               dwDisplayHeight;
+    LONG                lDisplayPitch;
+    Ce5_DDPIXELFORMAT   ddpfDisplay;
+    DWORD               dwOffscreenAlign;
+    DWORD               dwOverlayAlign;
+    DWORD               dwTextureAlign;
+    DWORD               dwZBufferAlign;
+    DWORD               dwAlphaAlign;
+    DWORD               dwNumHeaps;
+    DWORD               pvmList;
 } Ce5_VIDMEMINFO;
 
-#define CE5_DD_ROP_SPACE (256 / 32)   /* ddraw.h DD_ROP_SPACE */
+#define CE5_DD_ROP_SPACE (256 / 32)
 
 typedef struct _Ce5_DDCORECAPS {
     DWORD       dwSize;
@@ -102,13 +101,10 @@ typedef struct _Ce5_DDHAL_DDCALLBACKS {
     PVOID CanCreateSurface;
     PVOID CreatePalette;
     PVOID GetScanLine;
-    PVOID SetExclusiveMode;     /* DX2 */
-    PVOID FlipToGDISurface;     /* DX2 */
+    PVOID SetExclusiveMode;
+    PVOID FlipToGDISurface;
 } Ce5_DDHAL_DDCALLBACKS;
 
-/* Must be 18 DWORDs (72B): ddcore validator sub_3764D78 rejects
-   lpDDSurfaceCallbacks with dwSize < 0x48 (→ NODIRECTDRAWSUPPORT). reserved5/6
-   pad to that size, stay NULL (flag bits clear), and are never called. */
 typedef struct _Ce5_DDHAL_DDSURFACECALLBACKS {
     DWORD dwSize;
     DWORD dwFlags;
@@ -126,8 +122,8 @@ typedef struct _Ce5_DDHAL_DDSURFACECALLBACKS {
     PVOID SetOverlayPosition;
     PVOID reserved4;
     PVOID SetPalette;
-    PVOID reserved5;            /* slot14 (bit 0x4000) - runtime size pad, unused */
-    PVOID reserved6;            /* slot15 (bit 0x8000) - runtime size pad, unused */
+    PVOID reserved5;
+    PVOID reserved6;
 } Ce5_DDHAL_DDSURFACECALLBACKS;
 
 typedef struct _Ce5_DDHALMODEINFO {
@@ -144,14 +140,14 @@ typedef struct _Ce5_DDHALMODEINFO {
 } Ce5_DDHALMODEINFO;
 
 typedef struct _Ce5_DDHALINFO {
-    DWORD           dwSize;                 /* a1[0]   = 460 */
-    PVOID           lpDDCallbacks;          /* a1[1] */
-    PVOID           lpDDSurfaceCallbacks;   /* a1[2] */
-    PVOID           lpDDPaletteCallbacks;   /* a1[3] */
-    Ce5_VIDMEMINFO  vmiData;                /* a1[4]  (0x50) */
-    Ce5_DDCORECAPS  ddCaps;                 /* inline */
+    DWORD           dwSize;
+    PVOID           lpDDCallbacks;
+    PVOID           lpDDSurfaceCallbacks;
+    PVOID           lpDDPaletteCallbacks;
+    Ce5_VIDMEMINFO  vmiData;
+    Ce5_DDCORECAPS  ddCaps;
     DWORD           dwMonitorFrequency;
-    PVOID           GetDriverInfo;          /* a1[104] */
+    PVOID           GetDriverInfo;
     DWORD           dwModeIndex;
     PVOID           lpdwFourCC;
     DWORD           dwNumModes;
@@ -164,16 +160,13 @@ typedef struct _Ce5_DDHALINFO {
     PVOID           lpDDExeBufCallbacks;
 } Ce5_DDHALINFO;
 
-/* Per-call DATA structs the CE5 runtime passes our callbacks. Only the two that
-   differ from CE6 (and that the draw path uses) need reshaping; the rest share
-   the CE6 head. */
 typedef struct _Ce5_DDHAL_CREATESURFACEDATA {
     PVOID   lpDD;
     PVOID   lpDDSurfaceDesc;
-    PVOID*  lplpSList;      /* CE5: SList BEFORE count (CE6 swaps these) */
+    PVOID*  lplpSList;
     DWORD   dwSCnt;
     HRESULT ddRVal;
-    PVOID   CreateSurface;  /* private */
+    PVOID   CreateSurface;
 } Ce5_DDHAL_CREATESURFACEDATA;
 
 typedef struct _Ce5_DDHAL_LOCKDATA {
@@ -181,10 +174,10 @@ typedef struct _Ce5_DDHAL_LOCKDATA {
     PVOID   lpDDSurface;
     DWORD   bHasRect;
     RECTL   rArea;
-    PVOID   lpSurfData;     /* return: screen-memory pointer */
+    PVOID   lpSurfData;
     HRESULT ddRVal;
-    PVOID   Lock;           /* private */
-    DWORD   dwFlags;        /* CE5: dwFlags at END (CE6 has it after rArea) */
+    PVOID   Lock;
+    DWORD   dwFlags;
 } Ce5_DDHAL_LOCKDATA;
 
 #pragma pack(pop)

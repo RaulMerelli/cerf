@@ -21,7 +21,7 @@ const char* ChannelTag(uint32_t id) {
     }
 }
 
-}  /* namespace */
+}
 
 bool CerfLogChannelPeripheral::ShouldRegister() {
     return emu_.Get<DeviceConfig>().guest_additions;
@@ -36,21 +36,34 @@ uint32_t CerfLogChannelPeripheral::MmioBase() const {
 }
 uint32_t CerfLogChannelPeripheral::MmioSize() const { return CerfVirt::kLogChannelSize; }
 
-uint8_t  CerfLogChannelPeripheral::ReadByte (uint32_t /*addr*/) { return 0u; }
-uint16_t CerfLogChannelPeripheral::ReadHalf (uint32_t /*addr*/) { return 0u; }
-uint32_t CerfLogChannelPeripheral::ReadWord (uint32_t /*addr*/) { return 0u; }
+uint8_t  CerfLogChannelPeripheral::ReadByte (uint32_t ) { return 0u; }
+uint16_t CerfLogChannelPeripheral::ReadHalf (uint32_t ) { return 0u; }
+uint32_t CerfLogChannelPeripheral::ReadWord (uint32_t ) { return 0u; }
 
 void CerfLogChannelPeripheral::WriteByte(uint32_t addr, uint8_t value) {
-    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
-               static_cast<char>(value));
+    Dispatch(addr, static_cast<char>(value));
 }
 void CerfLogChannelPeripheral::WriteHalf(uint32_t addr, uint16_t value) {
-    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
-               static_cast<char>(value & 0xFFu));
+    Dispatch(addr, static_cast<char>(value & 0xFFu));
 }
 void CerfLogChannelPeripheral::WriteWord(uint32_t addr, uint32_t value) {
-    AppendChar((addr - MmioBase()) / CerfVirt::kLogChannelStride,
-               static_cast<char>(value & 0xFFu));
+    Dispatch(addr, static_cast<char>(value & 0xFFu));
+}
+
+void CerfLogChannelPeripheral::Dispatch(uint32_t addr, char c) {
+    const uint32_t off  = addr - MmioBase();
+    const uint32_t id   = off / CerfVirt::kLogChannelStride;
+    const uint32_t slot = off % CerfVirt::kLogChannelStride;
+    if (slot == CerfVirt::kLogChannelFatalSlot) Fatal(id);
+    else                                        AppendChar(id, c);
+}
+
+void CerfLogChannelPeripheral::Fatal(uint32_t id) {
+    AppendChar(id, '\n');
+    LOG(GuestDriver, "%sFATAL raised by guest driver - halting\n", ChannelTag(id));
+    emu_.Get<HwScreen>().AddLine(std::string(ChannelTag(id)) +
+                                 "FATAL raised by guest driver - halting");
+    CerfFatalExit();
 }
 
 void CerfLogChannelPeripheral::AppendChar(uint32_t id, char c) {

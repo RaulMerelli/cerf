@@ -21,8 +21,6 @@ static const uint32_t kOffscreenMultiple = 3u;
 namespace {
 struct MaxMonitorDims { uint32_t w = 0; uint32_t h = 0; };
 
-/* EnumDisplayMonitors callback (C function-pointer; LPARAM carries the
-   accumulator). Keeps the dims of the largest-by-area single monitor. */
 BOOL CALLBACK AccumulateMaxMonitor(HMONITOR, HDC, LPRECT rc, LPARAM lp) {
     auto* m = reinterpret_cast<MaxMonitorDims*>(lp);
     const uint32_t w = (uint32_t)(rc->right - rc->left);
@@ -30,12 +28,10 @@ BOOL CALLBACK AccumulateMaxMonitor(HMONITOR, HDC, LPRECT rc, LPARAM lp) {
     if ((uint64_t)w * h > (uint64_t)m->w * m->h) { m->w = w; m->h = h; }
     return TRUE;
 }
-}  /* namespace */
+}
 
 uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
-    /* bytes_ cannot grow after this (guest maps it by PA, MmioSize fixed), and
-       the surface tops out at the host monitor it lands on - which may not be
-       the primary - so reserve for the largest single monitor on the desktop. */
+
     const uint32_t bytes_per_px = bpp_ >> 3u;
     uint32_t max_primary = SizeBytes();
     MaxMonitorDims mon;
@@ -47,9 +43,6 @@ uint32_t CerfVirtFramebuffer::ComputeRegionBytes() {
     const uint32_t mon_primary = mon.w * mon.h * bytes_per_px;
     if (mon_primary > max_primary) max_primary = mon_primary;
 
-    /* The primary occupies the region head and GROWS on re-mode up to this span;
-       the driver starts its offscreen video heap past it, so a larger re-mode
-       never overruns cached icon/bitmap surfaces (the high-res scanline bug). */
     primary_reserve_ = max_primary;
     uint32_t desired = max_primary * (1u + kOffscreenMultiple);
     if (desired < CerfVirt::kFramebufferMemSize)
@@ -85,9 +78,7 @@ void CerfVirtFramebuffer::OnReady() {
 }
 
 void CerfVirtFramebuffer::SaveState(StateWriter& w) {
-    /* bpp_/region_bytes_/primary_reserve_ are boot-fixed from DeviceConfig +
-       host monitors and re-derived in OnReady, so only the live guest mode and
-       the pixel region travel in the image. */
+
     w.Write(width_);
     w.Write(height_);
     w.Write<uint8_t>(any_write_ ? 1u : 0u);
@@ -108,9 +99,7 @@ void CerfVirtFramebuffer::RestoreState(StateReader& r) {
     if (n == bytes_.size()) {
         if (n) r.ReadBytes(bytes_.data(), bytes_.size());
     } else {
-        /* The saved video region was sized for a different host monitor set, so
-           it cannot map onto this run's region; consume the bytes to keep the
-           peripheral stream aligned and let the guest repaint. */
+
         LOG(Caution, "[CerfVirtFramebuffer] saved FB region %llu B != live %zu B; "
                      "FB content not restored\n",
             static_cast<unsigned long long>(n), bytes_.size());

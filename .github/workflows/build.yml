@@ -15,7 +15,10 @@ permissions:
 
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[skip build]') }}
+    if: >-
+      ${{ !contains(github.event.head_commit.message, '[skip build]') &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: windows-latest
 
     strategy:
@@ -27,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
@@ -73,6 +76,18 @@ jobs:
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "sha=$sha"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Stamped: $disp (build $run)"
+
+      - name: Fetch CE build tools (private R2 mirror)
+        shell: pwsh
+        run: |
+          curl.exe -fsSL "${{ secrets.CE_TOOLCHAIN_URL }}" -o "$env:RUNNER_TEMP\ce-tools.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\ce-tools.zip" -DestinationPath "$env:RUNNER_TEMP\ce-tools" -Force
+          $sdk = Get-ChildItem "$env:RUNNER_TEMP\ce-tools" -Recurse -Directory -Filter STANDARDSDK -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $sdk) { throw "CE toolchain zip has no STANDARDSDK folder" }
+          New-Item -ItemType Directory -Force third_party | Out-Null
+          if (Test-Path third_party\wince) { Remove-Item third_party\wince -Recurse -Force }
+          Move-Item $sdk.Parent.FullName third_party\wince
+          Write-Host "CE toolchain ready at third_party/wince"
 
       - name: Build
         shell: pwsh

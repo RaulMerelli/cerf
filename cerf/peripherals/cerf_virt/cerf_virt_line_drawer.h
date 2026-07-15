@@ -6,8 +6,6 @@
 
 namespace CerfVirt {
 
-/* Host GPE line draw: styled Bresenham segment, faithful replay of
-   GPE::EmulatedLine. Sibling of the blit / gradient operations. */
 class CerfVirtLineDrawer : public Service, public BltSurfaceAccess {
 public:
     using Service::Service;
@@ -17,4 +15,4 @@ public:
     bool Execute(const CerfLineDescriptor& l);
 };
 
-}  /* namespace CerfVirt */
+}

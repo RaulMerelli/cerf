@@ -57,19 +57,27 @@ void MipsJit::OnReady() {
     arena_.Initialize();
 
     const auto dram = emu_.Get<PageTableBuilder>().CachedDramRegions();
-    if (dram.size() != 1u) {
+    if (dram.empty() || static_cast<int>(dram.size()) > kMaxDramRegions) {
         LOG(Caution, "MipsJit: board declares %zu cached-DRAM regions; the SMC "
-                "block index covers exactly one\n", dram.size());
+                "block index supports 1..%d\n", dram.size(), kMaxDramRegions);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    dram_size_      = dram.front().size;
-    dram_host_base_ = memory_->TryTranslate(dram.front().pa_base);
-    if (!dram_host_base_ || (dram_size_ & 0xFFFu) != 0u) {
-        LOG(Caution, "MipsJit: DRAM pa=0x%08X size=0x%X is not a page-multiple "
-                "backed region\n", dram.front().pa_base, dram_size_);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    uint32_t index_base = 0;
+    for (const auto& r : dram) {
+        uint8_t* host = memory_->TryTranslate(r.pa_base);
+        if (!host || (r.size & 0xFFFu) != 0u) {
+            LOG(Caution, "MipsJit: DRAM pa=0x%08X size=0x%X is not a page-multiple "
+                    "backed region\n", r.pa_base, r.size);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        DramHostRegion& e = dram_regions_[dram_region_count_++];
+        e.host_lo    = host;
+        e.host_hi    = host + r.size;
+        e.index_base = index_base;
+        index_base  += r.size;
     }
-    blocks_.Initialize(0, dram_size_ >> 12);
+    dram_index_size_ = index_base;
+    blocks_.Initialize(0, dram_index_size_ >> 12);
     mmu_ = &emu_.Get<MipsMmu>();
     mmu_->Bind(&blocks_);
 
@@ -113,9 +121,9 @@ void MipsJit::OnReady() {
        kuseg VA and TLB-miss. */
     cpu_state_.pc = emu_.Get<RomParserService>().EntryVa();
 
-    LOG(Jit, "MipsJit::OnReady: bringup done; entry VA=0x%08X dram host=%p "
-             "size=0x%X (%u SMC-indexed pages)\n",
-        cpu_state_.pc, dram_host_base_, dram_size_, dram_size_ >> 12);
+    LOG(Jit, "MipsJit::OnReady: bringup done; entry VA=0x%08X %d DRAM bank(s), "
+             "%u SMC-indexed pages\n",
+        cpu_state_.pc, dram_region_count_, dram_index_size_ >> 12);
 }
 
 void* MipsJit::JitCompile(uint32_t guest_pc) {
@@ -348,12 +356,17 @@ uint8_t* MipsJit::ResolveGuestVaToHost(uint32_t va) {
     return w ? w : memory_->TryTranslate(pa);
 }
 
+bool MipsJit::ResolveGuestVaToPa(uint32_t va, uint32_t* pa) {
+    return mmu_->Translate(&cpu_state_, va, MipsAccess::kRead, pa) ==
+           MipsTlbResult::kMatch;
+}
+
 uint32_t MipsJit::BlockIndexKey(uint32_t phys_start) {
     uint8_t* host = memory_->TryTranslateWrite(phys_start);
     if (!host) return kBlockUnindexed;
 
-    const size_t off = static_cast<size_t>(host - dram_host_base_);
-    if (off < dram_size_) return static_cast<uint32_t>(off);
+    const uint32_t off = DramIndexOffset(host);
+    if (off != UINT32_MAX) return off;
     if (InInjectionBand(host)) return kBlockUnindexed;
     LOG(Caution, "MipsJit::BlockIndexKey: block at pa=0x%08X pc=0x%08X is in a "
             "writable region that is neither DRAM nor the injection band; a store "
@@ -362,18 +375,18 @@ uint32_t MipsJit::BlockIndexKey(uint32_t phys_start) {
 }
 
 void MipsJit::InvalidateOnRamWrite(uint8_t* host, uint32_t size) {
-    const size_t off = static_cast<size_t>(host - dram_host_base_);
-    if (off >= dram_size_) {
+    const uint32_t off = DramIndexOffset(host);
+    if (off == UINT32_MAX) {
         if (InInjectionBand(host)) return;
+        if (InDmaRegion(host)) return;
         LOG(Caution, "MipsJit::InvalidateOnRamWrite: store of %u byte(s) at host %p "
                 "pc=0x%08X lands in a writable region that is neither DRAM nor the "
                 "injection band; self-modifying code there is unmodeled\n",
                 size, host, cpu_state_.pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    const uint32_t lo = static_cast<uint32_t>(off);
-    if (!blocks_.PageHasBlocks(lo)) return;
-    blocks_.RemoveRange(lo, lo + size - 1u);
+    if (!blocks_.PageHasBlocks(off)) return;
+    blocks_.RemoveRange(off, off + size - 1u);
 }
 
 void __fastcall MipsJit::TlbwiHelper(MipsJit* jit) {

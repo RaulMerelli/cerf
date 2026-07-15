@@ -90,7 +90,7 @@ void Pr31x00Intc::OnReady() {
     /* Enable Interrupt 1-5 (§8.3.13-§8.3.16): "This register is not cleared upon reset;
        however, the GLOBALEN global interrupt enable bit is cleared upon reset, therefore
        disabling all interrupts." */
-    emu_.Get<GuestCpuReset>().RegisterResetListener([this] {
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
         std::lock_guard<std::mutex> lk(mtx_);
         enable6_ &= ~kGlobalEn;
         RecomputeLocked();

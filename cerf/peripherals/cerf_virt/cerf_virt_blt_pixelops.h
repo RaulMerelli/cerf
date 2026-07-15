@@ -4,8 +4,6 @@
 
 namespace CerfVirt {
 
-/* Pure pixel math for the host GPE blit pipeline: ROP3 evaluation, CE6 format
-   conversion, packed pixel read/write. Header-inline (hot inner loop). */
 struct BltPixelOps {
 
     static uint32_t ProcessRop3(uint32_t dst, uint32_t src, uint32_t brush,
@@ -33,24 +31,24 @@ struct BltPixelOps {
     static uint32_t ApplyRop3(uint8_t rop3, uint32_t src, uint32_t dst,
                               uint32_t brush, uint8_t dst_bpp) {
         switch (rop3) {
-        case 0xAA: return src;                                   /* NOP (caller skips) */
-        case 0xCC: return src;                                   /* SRCCOPY */
-        case 0x00: return 0u;                                    /* BLACKNESS */
+        case 0xAA: return src;
+        case 0xCC: return src;
+        case 0x00: return 0u;
         case 0x22: return (~src) & dst;
         case 0xB8: return (brush & ~src) | (src & dst);
-        case 0x11: return ~(src | dst);                          /* NOTSRCERASE */
-        case 0x33: return ~src;                                  /* NOTSRCCOPY */
-        case 0x44: return src & ~dst;                            /* SRCERASE */
-        case 0x55: return ~dst;                                  /* DSTINVERT */
-        case 0x5A: return brush ^ dst;                           /* PATINVERT */
-        case 0x66: return src ^ dst;                             /* SRCINVERT */
-        case 0x88: return src & dst;                             /* SRCAND */
-        case 0xBB: return ~src | dst;                            /* MERGEPAINT */
-        case 0xC0: return src & brush;                           /* MERGECOPY */
-        case 0xEE: return src | dst;                             /* SRCPAINT */
-        case 0xF0: return brush;                                 /* PATCOPY */
-        case 0xFB: return brush | ~src | dst;                    /* PATPAINT */
-        case 0xFF: return 0xFFFFFFFFu;                           /* WHITENESS */
+        case 0x11: return ~(src | dst);
+        case 0x33: return ~src;
+        case 0x44: return src & ~dst;
+        case 0x55: return ~dst;
+        case 0x5A: return brush ^ dst;
+        case 0x66: return src ^ dst;
+        case 0x88: return src & dst;
+        case 0xBB: return ~src | dst;
+        case 0xC0: return src & brush;
+        case 0xEE: return src | dst;
+        case 0xF0: return brush;
+        case 0xFB: return brush | ~src | dst;
+        case 0xFF: return 0xFFFFFFFFu;
         case 0xE2: return (dst & ~src) | (brush & src);
         case 0xAC: return ((src ^ dst) & brush) ^ src;
         default:   return ProcessRop3(dst, src, brush, rop3, dst_bpp);
@@ -59,22 +57,22 @@ struct BltPixelOps {
 
     static uint32_t ApplyRop2(uint8_t rop2, uint32_t P, uint32_t D) {
         switch (rop2) {
-        case 1:  return 0u;            /* R2_BLACK */
-        case 2:  return ~(P | D);      /* R2_NOTMERGEPEN */
-        case 3:  return ~P & D;        /* R2_MASKNOTPEN */
-        case 4:  return ~P;            /* R2_NOTCOPYPEN */
-        case 5:  return P & ~D;        /* R2_MASKPENNOT */
-        case 6:  return ~D;            /* R2_NOT */
-        case 7:  return P ^ D;         /* R2_XORPEN */
-        case 8:  return ~(P & D);      /* R2_NOTMASKPEN */
-        case 9:  return P & D;         /* R2_MASKPEN */
-        case 10: return ~(P ^ D);      /* R2_NOTXORPEN */
-        case 11: return D;             /* R2_NOP */
-        case 12: return ~P | D;        /* R2_MERGENOTPEN */
-        case 13: return P;             /* R2_COPYPEN */
-        case 14: return P | ~D;        /* R2_MERGEPENNOT */
-        case 15: return P | D;         /* R2_MERGEPEN */
-        case 16: return 0xFFFFFFFFu;   /* R2_WHITE */
+        case 1:  return 0u;
+        case 2:  return ~(P | D);
+        case 3:  return ~P & D;
+        case 4:  return ~P;
+        case 5:  return P & ~D;
+        case 6:  return ~D;
+        case 7:  return P ^ D;
+        case 8:  return ~(P & D);
+        case 9:  return P & D;
+        case 10: return ~(P ^ D);
+        case 11: return D;
+        case 12: return ~P | D;
+        case 13: return P;
+        case 14: return P | ~D;
+        case 15: return P | D;
+        case 16: return 0xFFFFFFFFu;
         default: return D;
         }
     }
@@ -86,7 +84,6 @@ struct BltPixelOps {
             || (((bg >> 1) ^ bg) & 0x55u) != 0u;
     }
 
-    /* EGPEFormat -> bits per pixel (gpe1Bpp..gpe32Bpp). */
     static uint32_t FormatBits(uint32_t fmt) {
         static const uint32_t b[7] = { 1u, 2u, 4u, 8u, 16u, 24u, 32u };
         return fmt < 7u ? b[fmt] : 0u;
@@ -107,9 +104,6 @@ struct BltPixelOps {
              | (((canon << 8 ) >> d_shift[2]) & d_mask[2]);
     }
 
-    /* EGPEFormat -> {R,G,B} masks + bytes-per-pixel (device 565/888, matches
-       DrvGetMasks). Returns false for sub-byte formats handled by the bit-cache
-       reader, not the byte reader. */
     static bool FormatMasks(uint32_t fmt, uint32_t masks[3], uint32_t* bpp) {
         switch (fmt) {
         case 4: masks[0]=0xF800u;     masks[1]=0x07E0u;     masks[2]=0x001Fu;     *bpp=2; return true;
@@ -133,4 +127,4 @@ struct BltPixelOps {
     }
 };
 
-}  /* namespace CerfVirt */
+}

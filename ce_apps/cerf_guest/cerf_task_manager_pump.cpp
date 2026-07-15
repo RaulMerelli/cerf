@@ -1,9 +1,8 @@
-﻿#include <windows.h>
+#include <windows.h>
 #include <tlhelp32.h>
 
 #include "cerf_regs_map.h"
 
-/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_task_manager_regs.h. */
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_TM_CMD_GEN       0x00u
@@ -54,9 +53,6 @@ typedef struct CerfTmWindowRecord {
 } CerfTmWindowRecord;
 typedef char cerf_tm_winrec_size_check[(sizeof(CerfTmWindowRecord) == 144) ? 1 : -1];
 
-/* Windows CE forbids user APIs before the system has fully booted, and pump
-   start is display-driver init (mid-boot). Toolhelp therefore resolves on the
-   first command, which can only arrive after boot. */
 typedef HANDLE (WINAPI *PFN_CreateToolhelp32Snapshot)(DWORD, DWORD);
 typedef BOOL   (WINAPI *PFN_CloseToolhelp32Snapshot)(HANDLE);
 typedef BOOL   (WINAPI *PFN_Process32First)(HANDLE, LPPROCESSENTRY32);
@@ -98,10 +94,9 @@ static void CerfTmRespond(DWORD gen, DWORD status, DWORD err,
     s_tm_regs[CERF_TM_RESP_ERR / 4]    = err;
     s_tm_regs[CERF_TM_RESP_COUNT / 4]  = count;
     s_tm_regs[CERF_TM_RESP_TOTAL / 4]  = total;
-    s_tm_regs[CERF_TM_RESP_KICK / 4]   = 1;   /* host consumes synchronously */
+    s_tm_regs[CERF_TM_RESP_KICK / 4]   = 1;
 }
 
-/* Stream one staged record (words raw words) through the MMIO window. */
 static void CerfTmSendRecord(const ULONG* words, DWORD count, DWORD index) {
     DWORD i;
     for (i = 0; i < count; ++i)
@@ -167,10 +162,6 @@ static void CerfTmDoKill(DWORD gen, DWORD pid) {
     CerfTmRespond(gen, ok ? 1u : 0u, err, 0, 0);
 }
 
-/* Top-level walk via GetWindow: EnumWindows needs gwes to call back through a
-   caller-supplied function pointer, and that callback marshaling rejects a
-   kernel-space caller (cerf_guest is kernel-loaded on CE6+) with
-   ERROR_INVALID_PARAMETER before enumerating anything. */
 static void CerfTmDoSwitchTo(DWORD gen, DWORD pid) {
     HWND visible = NULL, any = NULL, target;
     DWORD seen = 0;
@@ -199,9 +190,6 @@ static void CerfTmDoSwitchTo(DWORD gen, DWORD pid) {
     CerfTmRespond(gen, 1, 0, 0, 0);
 }
 
-/* Enumerate top-level windows via the same GetWindow walk CerfTmDoSwitchTo
-   uses (EnumWindows' callback marshaling rejects the kernel-loaded caller),
-   one record per window. */
 static void CerfTmDoListWindows(DWORD gen) {
     CerfTmWindowRecord rec;
     HWND  w = GetForegroundWindow();
@@ -268,10 +256,6 @@ static void CerfTmDoRun(DWORD gen) {
     }
     cmd[len] = 0;
 
-    /* CE CreateProcess does not parse the image out of pszCmdLine. A quoted
-       image carries its arguments after the closing quote; an unquoted line
-       is tried whole first (CE paths contain spaces - "\Storage Card\...")
-       and only split at the first space when that image does not exist. */
     image = cmd;
     if (cmd[0] == L'"') {
         image = cmd + 1;

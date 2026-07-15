@@ -2,7 +2,6 @@
 #include "cerf_regs_map.h"
 #include "cerf_debug_log.h"
 
-/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_keyboard_regs.h. */
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_KB_WRITE_SEQ  0x00u
@@ -22,9 +21,6 @@ static BOOL CerfMapKbRegs(void) {
     return s_kb_regs != NULL;
 }
 
-/* keybd_event is a coredll export callable from any thread (CE2.11+ WINUSER.H);
-   it traps into the same GWES API set as mouse_event and synthesizes a keystroke
-   routed to the focused window, with VK->WM_CHAR done by the active layout. */
 static DWORD WINAPI CerfKeyboardPumpThread(LPVOID) {
     HMODULE h = LoadLibraryW(L"coredll.dll");
     PFN_keybd_event ke = h ? (PFN_keybd_event)GetProcAddressW(h, L"keybd_event") : NULL;
@@ -34,14 +30,13 @@ static DWORD WINAPI CerfKeyboardPumpThread(LPVOID) {
         return 0;
     }
 
-    /* Start at the current write seq so boot-time keystrokes aren't replayed. */
     ULONG consumed = s_kb_regs[CERF_KB_WRITE_SEQ / 4];
 
     for (;;) {
         ULONG wseq = s_kb_regs[CERF_KB_WRITE_SEQ / 4];
         while (consumed != wseq) {
             if ((ULONG)(wseq - consumed) > CERF_KB_RING_COUNT)
-                consumed = wseq - CERF_KB_RING_COUNT;  /* fell behind: skip lost edges */
+                consumed = wseq - CERF_KB_RING_COUNT;
             ULONG idx   = consumed % CERF_KB_RING_COUNT;
             ULONG entry = s_kb_regs[(CERF_KB_RING_BASE / 4) + idx];
             BYTE  vk    = (BYTE)(entry & CERF_KB_VK_MASK);

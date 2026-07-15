@@ -15,16 +15,10 @@ const uint32_t kFbRegStride      = 0x0Cu;
 const uint32_t kFbRegSizeBytes   = 0x10u;
 const uint32_t kFbRegMemBasePa   = 0x14u;
 const uint32_t kFbRegPresent     = 0x18u;
-const uint32_t kFbRegMemSizeTotal = 0x1Cu;  /* total host-backed region bytes
-                                               (kFramebufferMemSize); the driver
-                                               carves DDraw video memory from the
-                                               span past the primary surface. */
-const uint32_t kFbRegPrimaryReserve = 0x20u;  /* byte span reserved at the region
-                                                 head for the re-mode-growable
-                                                 primary; the driver's offscreen
-                                                 video heap must start past it. */
-const uint32_t kFbRegLogicalDpi  = 0x24u;  /* DPI override (LOGPIXELSX/Y) the guest
-                                              driver reports; 0 = no override, guest
-                                              falls back to registry then 96. */
+const uint32_t kFbRegMemSizeTotal = 0x1Cu;
 
-}  /* namespace CerfVirt */
+const uint32_t kFbRegPrimaryReserve = 0x20u;
+
+const uint32_t kFbRegLogicalDpi  = 0x24u;
+
+}

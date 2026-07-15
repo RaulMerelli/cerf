@@ -2,9 +2,6 @@
 
 #include <windows.h>
 
-/* AFS volume-level methods. The leading CerfVol* is the context handed to
-   RegisterAFS; the host serves every op against the one shared host folder. */
-
 static void SetName(CerfFsServerPB* pb, PCWSTR name) {
     int n = lstrlenW(name);
     if (n > (int)CERF_FS_MAX_LFN) n = (int)CERF_FS_MAX_LFN;
@@ -108,7 +105,7 @@ BOOL CerfFsGetDiskFreeSpaceW(CerfVol* vol, PCWSTR path, PDWORD pSectorsPerCluste
     e = CerfFsCall(pb, CERF_FS_OP_GET_SPACE);
     if (e == CERF_FS_OK) {
         *pBytesPerSector    = 512;
-        *pSectorsPerCluster = 64;          /* 64 * 512 = 32K, the host's unit */
+        *pSectorsPerCluster = 64;
         *pFreeClusters      = pb->fSize;
         *pClusters          = pb->fPosition;
     }

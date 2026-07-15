@@ -120,6 +120,26 @@ function Test-Vcpkg {
     }
 }
 
+# docs/ce_apps_setup.md
+function Test-CeToolchain {
+    $root = 'third_party/wince'
+    if (-not (Test-Path $root)) {
+        Report 'WARN' 'ce-toolchain' "absent -- optional; needed only to build ce_apps/ (see docs/ce_apps_setup.md)"
+        return
+    }
+    $tools = @('clarm.exe', 'clthumb.exe', 'clmips.exe', 'link.exe', 'lib.exe', 'rc.exe')
+    $missing = @($tools | Where-Object { -not (Test-Path (Join-Path "$root/bin" $_)) })
+    foreach ($a in @('Armv4', 'Armv4i', 'Mipsii', 'Mipsiv')) {
+        if (-not (Test-Path (Join-Path $root "STANDARDSDK/Include/$a")))       { $missing += "Include/$a" }
+        if (-not (Test-Path (Join-Path $root "STANDARDSDK/Lib/$a/coredll.lib"))) { $missing += "Lib/$a/coredll.lib" }
+    }
+    if ($missing.Count) {
+        Report 'FAIL' 'ce-toolchain' ("incomplete -- missing: " + ($missing -join ', ') + " (re-run tools/unpack_evc4.ps1 -Force)")
+    } else {
+        Report 'OK' 'ce-toolchain' 'Armv4, Armv4i, Mipsii, Mipsiv'
+    }
+}
+
 function Invoke-Checks {
     if (-not (Test-GitRepo)) { return }
     Test-GitHooks
@@ -128,6 +148,7 @@ function Invoke-Checks {
     Test-Python
     Test-ClaudeHooks
     Test-Vcpkg
+    Test-CeToolchain
 }
 
 if ($Check) {

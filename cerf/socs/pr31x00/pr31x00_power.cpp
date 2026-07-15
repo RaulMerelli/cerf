@@ -47,7 +47,7 @@ public:
         emu_.Get<PeripheralDispatcher>().Register(this);
         auto& reset = emu_.Get<GuestCpuReset>();
         reset.SetCauseLatch(this);
-        reset.RegisterResetListener([this] { ApplyResetCause(); });
+        reset.RegisterResetListener([this](ResetLineKind) { ApplyResetCause(); });
         emu_.Get<GuestDeepSleep>().RegisterClockStopWaker(this);
     }
 

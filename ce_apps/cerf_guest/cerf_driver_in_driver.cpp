@@ -1,7 +1,5 @@
 #include <windows.h>
 
-/* The Dll value device.exe must LoadLibrary to reach CDD_*: the stock display
-   driver name cerf_guest was injected under (captured at DLL attach). */
 extern "C" const wchar_t* CerfInjectedModuleName(void);
 
 typedef HANDLE (WINAPI *PFN_ActivateDeviceEx)(LPCWSTR, LPCVOID, DWORD, LPVOID);
@@ -10,8 +8,6 @@ typedef HANDLE (WINAPI *PFN_ActivateDevice)(LPCWSTR, DWORD);
 static const wchar_t kDidKeyPath[] = L"Drivers\\CerfDriverInDriver";
 static const wchar_t kDidPrefix[]  = L"CDD";
 
-/* Write HKLM\Drivers\CerfDriverInDriver with the Dll/Prefix/Index values
-   ActivateDevice reads to load and prefix-bind the stream driver. */
 static BOOL CerfWriteDidKey(const wchar_t* dll_name) {
     HKEY key = NULL;
     DWORD disp = 0;
@@ -34,10 +30,6 @@ static BOOL CerfWriteDidKey(const wchar_t* dll_name) {
     return TRUE;
 }
 
-/* The registry write + ActivateDevice run on their OWN thread, never nested in
-   the caller's stack. The caller is the display driver's PDEV-enable; calling
-   ActivateDevice inline there re-enters a half-initialized display driver and
-   faults gwes on CE5. Off-stack, ActivateDevice runs to completion cleanly. */
 static DWORD WINAPI CerfDidWorker(LPVOID unused) {
     (void)unused;
 

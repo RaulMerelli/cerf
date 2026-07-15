@@ -55,8 +55,6 @@ void CerfVirtPointer::RestoreState(StateReader& r) {
     r.Read(v); seq_.store(v);
 }
 
-/* Bump seq AFTER the data stores so the guest never reads a new seq with
-   stale X/Y/buttons. */
 void CerfVirtPointer::Bump() { seq_.fetch_add(1u); }
 
 void CerfVirtPointer::SetPointer(uint32_t nx, uint32_t ny, uint32_t buttons) {
@@ -78,9 +76,6 @@ void CerfVirtPointer::ClearButtons() {
 
 namespace {
 
-/* Forwards host pointer to the channel, normalizing guest-surface pixels to
-   the 0..65535 mouse_event ABSOLUTE convention. Same two-class shape as
-   DevEmuTouchInput/DevEmuTouchPanel. */
 class CerfVirtPointerInput : public PointerInput {
 public:
     using PointerInput::PointerInput;
@@ -120,4 +115,4 @@ private:
 
 REGISTER_SERVICE_AS(CerfVirtPointerInput, PointerInput);
 
-}  /* namespace */
+}

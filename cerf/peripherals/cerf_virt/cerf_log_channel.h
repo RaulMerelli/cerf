@@ -7,9 +7,6 @@
 #include <mutex>
 #include <string>
 
-/* Each guest driver maps its OWN page (id -> kLogChannelOffset + id*stride): on
-   an FCSE kernel two processes that VirtualCopy the same MMIO page evict each
-   other's single mapping, so distinct ids MUST use distinct physical pages. */
 class CerfLogChannelPeripheral : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -28,6 +25,8 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
 private:
+    void Dispatch(uint32_t addr, char c);
+    void Fatal(uint32_t id);
     void AppendChar(uint32_t id, char c);
 
     std::mutex  mutex_;

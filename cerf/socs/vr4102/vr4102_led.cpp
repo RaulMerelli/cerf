@@ -4,6 +4,7 @@
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 
 #include <cstdint>
 
@@ -23,6 +24,10 @@ constexpr uint32_t kOffAstc  = 0x0Au;   /* LEDASTCREG 0x24A */
 
 constexpr uint16_t kCntMask  = 0x0003u; /* LEDSTOP(D1) | LEDENABLE(D0), UM 23.2.3 p456 */
 
+/* LEDCNTREG RTCRST row: LEDSTOP(D1) = 1, LEDENABLE(D0) = 0; its Other-resets row is
+   "Previous value is retained" (UM 23.2.3, p456). */
+constexpr uint16_t kCntPowerOn = 0x0002u;
+
 class Vr4102Led : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -31,7 +36,12 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::VR4102;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            if (kind == ResetLineKind::Rtc) cnt_ = kCntPowerOn;
+        });
+    }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return 0x10u; }
@@ -61,7 +71,7 @@ public:
     void RestoreState(StateReader& r) override { r.Read(cnt_); }
 
 private:
-    uint16_t cnt_ = 0;   /* LEDCNTREG */
+    uint16_t cnt_ = kCntPowerOn;   /* LEDCNTREG */
 };
 
 }  // namespace

@@ -65,7 +65,7 @@ public:
         entry_pa_   = hdr.jump_vector;
         Stage();
         emu_.Get<GuestColdBoot>().RegisterReplay([this] { Stage(); });
-        emu_.Get<GuestCpuReset>().RegisterResetListener([this] { Stage(); });
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) { Stage(); });
 
         LOG(Boot, "Imx51NandBootloaderBoot: flash_header @ flash 0x%llX "
                   "(image base 0x%llX) -> staged %u B at NFC RAM 0x%08X, "

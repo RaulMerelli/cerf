@@ -29,8 +29,6 @@ public:
     FastReadFn  FastReader() override { return &FastReadThunk;  }
     FastWriteFn FastWriter() override { return &FastWriteThunk; }
 
-    /* The pixel region lives in the CerfVirtFramebuffer service, not this
-       window; delegate the snapshot to its owner. */
     void SaveState(StateWriter& w) override { fb_->SaveState(w); }
     void RestoreState(StateReader& r) override { fb_->RestoreState(r); }
 
@@ -56,4 +54,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtFramebufferMem);
 
-}  /* namespace */
+}

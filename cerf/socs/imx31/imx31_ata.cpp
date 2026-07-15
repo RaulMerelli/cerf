@@ -82,7 +82,7 @@ public:
            probe reads ERROR expecting the power-on signature 0x01 and
            never issues SRST - a warm error_=0x00 after a guest reboot
            reads as "bay empty" and the disk never mounts. */
-        emu_.Get<GuestCpuReset>().RegisterResetListener([this] {
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
             drive_.Reset();
             UpdateAvic();
         });

@@ -6,9 +6,6 @@
 #include <atomic>
 #include <cstdint>
 
-/* Host->guest keyboard edge-event MMIO channel for guest additions. The host UI
-   thread appends key transitions via PushKey; the guest pump drains them on the
-   JIT thread and replays each through keybd_event. Single producer/consumer. */
 class CerfVirtKeyboard : public Peripheral {
 public:
     using Peripheral::Peripheral;

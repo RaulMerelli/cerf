@@ -42,9 +42,6 @@ public:
         const uint32_t copy_h = std::min(guest_h, host_h);
         if (copy_w == 0 || copy_h == 0) return;
 
-        /* The host DIB is always BGRA32; a board may run the GA framebuffer at a
-           shallower depth (BoardContext::GetGuestAdditionsColorDepth - Zune 16bpp
-           RGB565, iPaq 24bpp BGR888), so convert per source bpp on scanout. */
         const uint32_t guest_stride = fb.Stride();
         const uint32_t bpp = fb.Bpp();
         for (uint32_t y = 0; y < copy_h; ++y) {
@@ -83,4 +80,4 @@ public:
 
 REGISTER_SERVICE_AS(CerfVirtFramebufferRenderer, FrameRenderer);
 
-}  /* namespace */
+}

@@ -432,7 +432,7 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         std::vector<uint8_t> band_initial(band_used);
         mem.CopyOut(band_pa, band_initial.data(), band_used);
         emu_.Get<GuestCpuReset>().RegisterResetListener(
-            [this, band_pa, band_initial = std::move(band_initial)] {
+            [this, band_pa, band_initial = std::move(band_initial)](ResetLineKind) {
                 emu_.Get<EmulatedMemory>().CopyIn(band_pa, band_initial.data(),
                                                   band_initial.size());
             });

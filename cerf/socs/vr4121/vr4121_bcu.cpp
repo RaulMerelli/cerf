@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 
 #include <cstdint>
 
@@ -49,7 +50,19 @@ public:
         return bd && bd->GetSoc() == SocFamily::VR4121;
     }
 
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        /* BCUERRSTREG RTCRST and After-reset rows are 0 (UM 11.2.6, p287). BCURFCNTREG
+           (UM 11.2.7, p288) and BCUCNTREG3 (UM 11.2.11, p292) carry their RTCRST column
+           only on an RTC reset; their After-reset rows are "Value before reset is
+           retained". */
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            errstreg_ = 0;
+            if (kind != ResetLineKind::Rtc) return;
+            rfcntreg_ = kRfCntPowerOn;
+            cntreg3_  = 0;
+        });
+    }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }

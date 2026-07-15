@@ -42,7 +42,7 @@ uint32_t CerfVirtTaskManager::ReadWord(uint32_t addr) {
         default: break;
     }
     if (off >= kTmCmdRunText && off + 4u <= kTmCmdRunText + kRunTextBytes) {
-        const uint32_t idx = (off - kTmCmdRunText) / 2u;   /* wchar index */
+        const uint32_t idx = (off - kTmCmdRunText) / 2u;
         uint32_t v = 0;
         if (idx < cmd_run_text_.size())
             v |= (uint16_t)cmd_run_text_[idx];
@@ -186,7 +186,7 @@ void CerfVirtTaskManager::PublishNextLocked() {
     cmd_code_       = c.code;
     cmd_pid_        = c.pid;
     cmd_run_text_   = std::move(c.run_text);
-    cmd_gen_        = c.ticket;   /* guest watches this; publish it last */
+    cmd_gen_        = c.ticket;
 }
 
 void CerfVirtTaskManager::ConsumeResponseLocked() {

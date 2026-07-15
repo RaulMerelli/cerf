@@ -6,8 +6,6 @@
 
 namespace CerfVirt {
 
-/* Host GPE gradient fill: a linear colour ramp across the fill rect, faithful
-   to the CE gradient renderer. Sibling of the blit / line operations. */
 class CerfVirtGradientFiller : public Service, public BltSurfaceAccess {
 public:
     using Service::Service;
@@ -17,4 +15,4 @@ public:
     bool Execute(const CerfGradDescriptor& g);
 };
 
-}  /* namespace CerfVirt */
+}

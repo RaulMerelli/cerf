@@ -27,7 +27,7 @@ void Jornada820CompanionAsic::OnReady() {
        clean on hardware; the guest re-inits it with F6+F4 (no FF reset), so flush
        any queued pre-suspend motion that would otherwise sit ahead of the F6 ACK
        and desync the re-init handshake. */
-    emu_.Get<GuestCpuReset>().RegisterResetListener([this] { mouse_.Reset(); });
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) { mouse_.Reset(); });
 }
 
 uint8_t Jornada820CompanionAsic::ReadByte(uint32_t addr) {

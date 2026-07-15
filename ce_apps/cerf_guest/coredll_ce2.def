@@ -8,7 +8,6 @@ EXPORTS
     ; exports them by name.
     __ll_mul
     __ll_rem
-    __ll_lshift
     __ll_rshift
     __ll_bit
     __ll_to

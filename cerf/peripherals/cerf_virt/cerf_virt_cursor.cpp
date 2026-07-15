@@ -7,6 +7,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../cpu/emulated_memory.h"
 #include "../../jit/guest_engine.h"
 #include "../../state/state_stream.h"
 
@@ -20,6 +21,16 @@ bool CerfVirtCursor::ShouldRegister() {
 
 void CerfVirtCursor::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
+    const uint32_t pa = emu_.Get<BoardContext>().GuestAdditionsWindowBase() +
+                        CerfVirt::kCurStageOffset;
+    EmulatedMemory& mem = emu_.Get<EmulatedMemory>();
+    mem.AddRegion(pa, CerfVirt::kCurStageSize, PAGE_READWRITE);
+    stage_ = mem.TryTranslate(pa);
+    if (!stage_) {
+        LOG(Cerf, "[CerfVirtCursor] stage region at PA 0x%08X is not backed\n", pa);
+        CerfFatalExit();
+    }
+    emu_.Get<GuestEngine>().SetDmaRegion(pa, CerfVirt::kCurStageSize);
 }
 
 uint32_t CerfVirtCursor::MmioBase() const {
@@ -27,38 +38,17 @@ uint32_t CerfVirtCursor::MmioBase() const {
 }
 uint32_t CerfVirtCursor::MmioSize() const { return CerfVirt::kCursorSize; }
 
-uint32_t CerfVirtCursor::ReadWord(uint32_t addr) {
-    if (addr - MmioBase() == CerfVirt::kCurDescVa) return desc_va_.load();
+uint32_t CerfVirtCursor::ReadWord(uint32_t) {
     return 0u;
-}
-
-/* Copy the descriptor out of guest memory in the issuing (gwes) context; it may
-   straddle a page, so resolve per page through the live MMU - same as gpe_cmd. */
-bool CerfVirtCursor::ReadBlob(uint32_t va, void* out, uint32_t total) {
-    GuestEngine& engine = emu_.Get<GuestEngine>();
-    uint8_t* d = reinterpret_cast<uint8_t*>(out);
-    uint32_t done = 0;
-    while (done < total) {
-        uint8_t* p = engine.ResolveGuestVaToHost(va + done);
-        if (!p) return false;
-        const uint32_t page_left = 0x1000u - ((va + done) & 0x0FFFu);
-        const uint32_t n = (total - done) < page_left ? (total - done) : page_left;
-        std::memcpy(d + done, p, n);
-        done += n;
-    }
-    return true;
 }
 
 void CerfVirtCursor::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
-    if (off == CerfVirt::kCurDescVa) { desc_va_.store(value); return; }
+    (void)value;
     if (off != CerfVirt::kCurKick) return;
 
-    CerfVirt::CerfCursorDescriptor d;
-    if (!ReadBlob(desc_va_.load(), &d, (uint32_t)sizeof(d))) {
-        LOG(Periph, "[CerfVirtCursor] descriptor VA 0x%08X unreadable\n", desc_va_.load());
-        return;
-    }
+    const CerfVirt::CerfCursorDescriptor& d =
+        *reinterpret_cast<const CerfVirt::CerfCursorDescriptor*>(stage_);
 
     GuestCursorShape s;
     s.visible = d.visible != 0;
@@ -84,7 +74,6 @@ void CerfVirtCursor::WriteWord(uint32_t addr, uint32_t value) {
 
 void CerfVirtCursor::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(shape_mutex_);
-    w.Write<uint32_t>(desc_va_.load());
     w.Write<uint32_t>(seq_.load());
     w.Write<uint8_t>(has_shape_ ? 1u : 0u);
     w.Write<uint8_t>(shape_.visible ? 1u : 0u);
@@ -100,7 +89,6 @@ void CerfVirtCursor::SaveState(StateWriter& w) {
 void CerfVirtCursor::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(shape_mutex_);
     uint32_t v;
-    r.Read(v); desc_va_.store(v);
     r.Read(v); seq_.store(v);
     uint8_t b;
     r.Read(b); has_shape_ = (b != 0);

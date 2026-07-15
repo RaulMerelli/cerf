@@ -1,6 +1,6 @@
 #include "cerf_virt_addr_map.h"
 #include "cerf_virt_folder_share_regs.h"
-#include "cerf_virt_guest_mem.h"
+#include "folder_share_stage.h"
 #include "folder_share_files.h"
 #include "folder_share_dir.h"
 
@@ -21,9 +21,6 @@ namespace {
 
 constexpr uint32_t kMountBytes = kFsMountPointMaxWchars * sizeof(uint16_t);
 
-/* The op MUST run synchronously in the issuing (JIT) thread: the ServerPB is
-   read by guest VA through the live MMU, valid only in that thread's process
-   context - a worker thread would translate the VA against the wrong process. */
 class CerfVirtFolderShare : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -45,9 +42,8 @@ public:
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - MmioBase();
         switch (off) {
-            case kFsServerPbAddr: return serverpb_va_;
             case kFsCode:         return last_code_;
-            case kFsIoPending:    return 0u;          /* synchronous: never pending */
+            case kFsIoPending:    return 0u;
             case kFsResult:       return result_;
             case kFsEnabled:      return emu_.Get<FolderShareConfig>().Enabled() ? 1u : 0u;
             case kFsGeneration:   return emu_.Get<FolderShareConfig>().Generation();
@@ -74,24 +70,17 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - MmioBase();
         switch (off) {
-            case kFsServerPbAddr: serverpb_va_ = value; break;
             case kFsCode:         last_code_ = value; HandleCode(value); break;
             case kFsResult:       result_ = value; break;
-            default: break;   /* Enabled/Generation/MountPoint are read-only */
+            default: break;
         }
     }
 
-    /* serverpb_va_ is guest-registered and not re-sent on a resume, so a
-       mounted share breaks without it. mount_* is a lazy cache of
-       FolderShareConfig (host config, persists across restart) - left
-       uninited so the next read rebuilds it from the live config. */
     void SaveState(StateWriter& w) override {
-        w.Write(serverpb_va_);
         w.Write(last_code_);
         w.Write(result_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(serverpb_va_);
         r.Read(last_code_);
         r.Read(result_);
     }
@@ -111,12 +100,10 @@ private:
     }
 
     void HandleCode(uint32_t code) {
-        if (code == kServerPollCompletion) return;   /* op already completed */
+        if (code == kServerPollCompletion) return;
 
-        auto& mmu = emu_.Get<CerfVirtGuestMem>();
-        CerfVirt::ServerPB pb;
-        if (!mmu.ReadBlob(serverpb_va_, &pb, sizeof(pb)) ||
-            pb.fStructureSize != sizeof(pb)) {
+        CerfVirt::ServerPB& pb = *emu_.Get<FolderShareStage>().Pb();
+        if (pb.fStructureSize != sizeof(pb)) {
             result_ = kErrorGeneralFailure;
             return;
         }
@@ -134,7 +121,6 @@ private:
         else
             r = kErrorInvalidFunction;
 
-        mmu.WriteBlob(serverpb_va_, &pb, sizeof(pb));
         result_ = r;
 #if CERF_DEV_MODE
         LOG(GuestAdditions, "[FolderShare] op=0x%X name='%ls' nlen=%u attr=0x%X sz=%u "
@@ -145,7 +131,6 @@ private:
 #endif
     }
 
-    uint32_t serverpb_va_ = 0;
     uint32_t last_code_   = 0;
     uint32_t result_      = 0;
     uint32_t mount_gen_   = 0;
@@ -155,4 +140,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtFolderShare);
 
-}  /* namespace */
+}

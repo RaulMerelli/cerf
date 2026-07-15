@@ -43,8 +43,7 @@ void CerfVirtResize::WriteWord(uint32_t addr, uint32_t value) {
         case CerfVirt::kRszAppliedH:   applied_h_.store(value); break;
         case CerfVirt::kRszAppliedGen:
             applied_gen_.store(value);
-            /* Re-mode landed on the guest. Marshal to the UI thread: the
-               renderer/canvas update touches a window-owned DIB + scrollbars. */
+
             emu_.Get<HostWindow>().NotifyGuestRemoded(applied_w_.load(),
                                                       applied_h_.load());
             break;

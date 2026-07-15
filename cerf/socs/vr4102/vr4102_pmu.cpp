@@ -1,5 +1,8 @@
 #include "../vr41xx_pmu_impl.h"
 
+#include "../../core/cerf_emulator.h"
+#include "../guest_cpu_reset.h"
+
 #include <cstdint>
 
 namespace {
@@ -41,6 +44,20 @@ class Vr4102Pmu : public Vr41xxPmuBase<SocFamily::VR4102, kModel> {
 public:
     using Vr41xxPmuBase::Vr41xxPmuBase;
 
+    /* "When the RTCRST# signal is asserted, the PMU resets all peripheral units including
+       the RTC unit" (UM 15.1.1(1); Table 15-1 "RTC reset" row): every PMU register takes its
+       RTCRST column. An RSTSW reset (UM 15.1.1(2)) and every shutdown (UM 15.1.2,
+       Table 15-2) reset "all peripheral units except for RTC and PMU", so the PMU keeps its
+       registers and only the new cause is OR'd into PMUINTREG. */
+    void OnReady() override {
+        Vr41xxPmuBase::OnReady();
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            if (kind != ResetLineKind::Rtc) return;
+            StoreIntReg(kModel.int_power_on);
+            cntreg_ = kModel.cnt_power_on;
+        });
+    }
+
     /* PMUINTREG latches the reset cause (UM 15.1.1): start() cold-JUMPOUTs to
        0xBF0043C8 iff RTCRST(D4)/RSTSW(D3) set, else resumes a stale save block and
        hangs. */
@@ -48,12 +65,10 @@ public:
     void LatchColdReset() override     { SetIntBits(kIntRtcRst); }
     void LatchWatchdogReset() override { SetIntBits(kIntDmSrst); }
 
-    /* start() cold-boots iff PMUINTREG D4/D3 are set; a hibernate exit is a
-       power-on factor (UM 7.2) whose cause is POWERSW, so those bits read clear
-       on wake and the guest resumes. */
-    void LatchSleepWakeCause() override {
-        ReplaceIntBits(/*clear=*/kIntRtcRst | kIntRstSw, /*set=*/kIntPowerSw);
-    }
+    /* "Recovery from reset status occurs when the POWER pin is asserted" (UM 7.1.4), and
+       PMUINTREG D0 POWERSWINTR is "POWER switch interrupt detection. Cleared to 0 when 1 is
+       written" with no Hibernate exclusion (UM 15.2.1, p329). */
+    void LatchSleepWakeCause() override { SetIntBits(kIntPowerSw); }
     void ClearSleepWakeCause() override { ClearIntBits(kIntPowerSw); }
 };
 

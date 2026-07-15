@@ -19,10 +19,6 @@ private:
     SurfaceHeap* m_node;
 };
 
-/* Flip-chain back buffer: CPU-writable guest RAM (DDGPESurf self-alloc) but tagged
-   VIDEOMEMORY so DDGPECreateSurface won't OR in SYSTEMMEMORY - a video/system class
-   mismatch makes ddcore reject the Flip (sub_377C594). SurfaceFbPa keys on FB-region
-   residency, not this cap, so it still resolves to the guest-RAM VA. */
 class CerfSysVidSurf : public DDGPESurf {
 public:
     CerfSysVidSurf(int w, int h, EGPEFormat fmt) : DDGPESurf(w, h, fmt) {
@@ -30,9 +26,6 @@ public:
     }
 };
 
-/* Bring up the offscreen video-memory heap over the CERF fb region tail past
-   the primary. Uses only the fb-reg dims (present from DLL attach), so it is
-   callable at HALInit time, before SetMode allocates the primary. */
 bool CerfDDGPE::EnsureVideoHeap() {
     if (m_pVidHeap) return true;
     ULONG primary = g_FbPrimaryReserve ? g_FbPrimaryReserve
@@ -43,8 +36,7 @@ bool CerfDDGPE::EnsureVideoHeap() {
     }
     m_vidSize = g_FbMemTotal - primary;
     if (m_vidBacking == kCerfVidGlobalFb) {
-        /* FCSE/shared-HAL: offscreen heap is the FB-PA aperture tail past the primary
-           (PA as identity VA); surfaces resolve FB-PA, the host accelerator blits by PA. */
+
         void* base = CerfMapFbMemory();
         if (!base) {
             CERF_LOG("cerf_guest: EnsureVideoHeap FB map FAILED");
@@ -52,8 +44,7 @@ bool CerfDDGPE::EnsureVideoHeap() {
         }
         m_vidBaseVa = (BYTE*)base + primary;
     } else {
-        /* ASID: gwes VirtualAllocCopyEx rejects host-MMIO FB-PA (gwes.dll sub_C01B01EC
-           -> DirectDrawCreate OOM), so the heap is guest RAM it maps into each client. */
+
         m_vidBaseVa = (BYTE*)VirtualAlloc(NULL, m_vidSize, MEM_RESERVE | MEM_COMMIT,
                                           PAGE_READWRITE);
         if (!m_vidBaseVa) {
@@ -76,22 +67,17 @@ void CerfDDGPE::GetVirtualVideoMemory(unsigned long* base, unsigned long* size,
 bool CerfDDGPE::SurfaceFbPa(GPESurf* s, ULONG* pa) {
     if (s == NULL) return false;
     if (s == m_pPrimarySurface) { *pa = CerfGpeFbMemBasePa(); return true; }
-    /* GlobalFb: offscreen video-heap surfaces are in the FB-PA aperture, so they
-       resolve to their PA (host blits by PA; client Locks get the global VA). In
-       GuestRamHeap mode the heap is guest RAM, so only the primary is FB-PA. */
+
     if (m_vidBacking == kCerfVidGlobalFb && s->InVideoMemory() && m_vidBaseVa) {
         BYTE* buf = (BYTE*)s->Buffer();
         if (buf >= m_vidBaseVa && buf < m_vidBaseVa + m_vidSize) {
-            *pa = (ULONG)(ULONG_PTR)buf;   /* buf is the FB PA (identity) in GlobalFb */
+            *pa = (ULONG)(ULONG_PTR)buf;
             return true;
         }
     }
     return false;
 }
 
-/* Shadow MUST be carved from the vidmem heap (REQUIRE_VIDEO), not a plain alloc: only
-   [VidMemBase,+vidSize] is mapped into the client by the ddraw runtime, so a shadow
-   outside it faults the client Lock on CE6. */
 DDGPESurf* CerfDDGPE::EnsurePrimaryShadow() {
     if (m_pPrimaryShadow) return m_pPrimaryShadow;
     if (!m_pPrimarySurface) return NULL;
@@ -102,8 +88,6 @@ DDGPESurf* CerfDDGPE::EnsurePrimaryShadow() {
     return m_pPrimaryShadow;
 }
 
-/* Unlock-time present: copy the client-written shadow to the FB-PA scanout so the
-   host renderer displays it. */
 void CerfDDGPE::PrimaryShadowPresent() {
     DDGPESurf* primary = DDGPEPrimarySurface();
     if (!m_pPrimaryShadow || !primary) return;
@@ -114,8 +98,6 @@ void CerfDDGPE::PrimaryShadowPresent() {
     BltExpanded(primary, m_pPrimaryShadow, NULL, &r, &r, 0u, 0u, 0xCCCCu);
 }
 
-/* The DD-HAL Lock (separate TU) needs the shadow VA for the locked origin + the
-   Unlock present; reach the CerfDDGPE-instance shadow through these shims. */
 extern "C" unsigned long CerfPrimaryShadowLockVa(unsigned long origin_pa) {
     DDGPESurf* sh = ((CerfDDGPE*)GetGPE())->EnsurePrimaryShadow();
     if (!sh || !sh->Buffer()) return 0;
@@ -132,9 +114,6 @@ SCODE CerfDDGPE::AllocSurface(GPESurf** ppSurf, int width, int height,
     CERF_LOG_X_DEV("cerf_guest: AllocSurface fmt", (DWORD)format);
     CERF_LOG_X_DEV("cerf_guest: AllocSurface flags", (DWORD)surfaceFlags);
 
-    /* GPE_BACK_BUFFER is not a video-heap request: flip-chain back buffers are
-       Lock'd + CPU-written, so they're allocated as VIDEOMEMORY-tagged guest RAM
-       below, never from the host-MMIO FB-PA heap. */
     const bool wantVideo =
         (surfaceFlags & (GPE_REQUIRE_VIDEO_MEMORY |
                          GPE_PREFER_VIDEO_MEMORY)) != 0;
@@ -230,9 +209,7 @@ SCODE CerfDDGPE::SetMode(int modeId, HPALETTE* pPalette) {
 
     if (pPalette) {
         if (g_FbBpp <= 8) {
-            /* Index 0=black, 255=white uniquely: AND/XOR raster-op transparency runs
-               on index values, so mask-keep=white must be 0xFF, clear=black 0x00.
-               palRealize is COLORREF 0x00BBGGRR (RGBError's compare order). */
+
             static const ULONG kLv[6] = { 0u, 51u, 102u, 153u, 204u, 255u };
             ULONG palHost[256], palRealize[256];
             palHost[0] = 0u;             palRealize[0] = 0u;
@@ -252,11 +229,11 @@ SCODE CerfDDGPE::SetMode(int modeId, HPALETTE* pPalette) {
                 ULONG y = 6u + (ULONG)((i - 215) * 243 / 39);
                 palHost[i] = palRealize[i] = (y << 16) | (y << 8) | y;
             }
-            for (int i = 0; i < 256; ++i) {
-                m_palette[i].peRed   = (BYTE)((palHost[i] >> 16) & 0xFFu);
-                m_palette[i].peGreen = (BYTE)((palHost[i] >> 8) & 0xFFu);
-                m_palette[i].peBlue  = (BYTE)(palHost[i] & 0xFFu);
-                m_palette[i].peFlags = 0;
+            for (int p = 0; p < 256; ++p) {
+                m_palette[p].peRed   = (BYTE)((palHost[p] >> 16) & 0xFFu);
+                m_palette[p].peGreen = (BYTE)((palHost[p] >> 8) & 0xFFu);
+                m_palette[p].peBlue  = (BYTE)(palHost[p] & 0xFFu);
+                m_palette[p].peFlags = 0;
             }
             m_paletteEntries = 256;
             *pPalette = EngCreatePalette(PAL_INDEXED, 256, palRealize, 0, 0, 0);
@@ -275,23 +252,15 @@ SCODE CerfDDGPE::SetMode(int modeId, HPALETTE* pPalette) {
     return S_OK;
 }
 
-/* The CE5 runtime/gemstone read the surface pixel buffer from lpGbl->fpVidMem, but
-   the DDGPE lib only binds its DDGPESurf via lcl->dwReserved1 and leaves fpVidMem 0;
-   expose the DDGPESurf's buffer VA so the CE5 HAL can populate fpVidMem itself. */
 extern "C" unsigned long CerfDDGPESurfBufferVa(unsigned long surf) {
     return surf ? (unsigned long)(ULONG_PTR)((DDGPESurf*)(ULONG_PTR)surf)->Buffer() : 0;
 }
 
-/* GetVirtualVideoMemory is CerfDDGPE-specific (not a GPE base virtual), so the
-   DD-HAL in a separate TU reaches the offscreen extent through this shim. */
 extern "C" void CerfGetVideoMem(unsigned long* base, unsigned long* size,
                                 unsigned long* freeBytes) {
     ((CerfDDGPE*)GetGPE())->GetVirtualVideoMemory(base, size, freeBytes);
 }
 
-/* Driver-construction-layer backing selection (called from DrvEnableDriver before any
-   surface alloc): FCSE/shared-HAL kernels (CE<=5) need the cross-process global FB
-   mapping; ASID kernels (CE6+) need the per-client guest-RAM heap + Lock-shadow. */
 extern "C" void CerfSetVidBackingByOsMajor(unsigned long os_major) {
     ((CerfDDGPE*)GetGPE())->SetVidBacking(
         (os_major >= 6u) ? kCerfVidGuestRamHeap : kCerfVidGlobalFb);
@@ -301,16 +270,12 @@ extern "C" BOOL CerfVidBackingIsGlobalFb(void) {
     return ((CerfDDGPE*)GetGPE())->VidBacking() == kCerfVidGlobalFb;
 }
 
-/* The SURFOBJ->surface resolution (FB-PA + masks) is CerfDDGPE-instance state,
-   so a DDI function in a separate TU reaches it through this shim. */
 extern "C" void CerfFillSurfaceFromSurfobj(CerfVirt::CerfBltSurface* s,
-                                           SURFOBJ* pso) {
-    ((CerfDDGPE*)GetGPE())->FillSurfaceFromSurfobj(s, pso);
+                                           SURFOBJ* pso, int y0, int y1,
+                                           CerfStageWb* wb) {
+    ((CerfDDGPE*)GetGPE())->FillSurfaceFromSurfobj(s, pso, y0, y1, wb);
 }
 
-/* Resolve a DirectDraw surface (DDRAWI_DDRAWSURFACE_LCL) to its FB physical
-   address + geometry; the DD-HAL Lock aperture-maps the locked rect from this,
-   since PA-only FB surfaces have no standing VA. FALSE for a system surface. */
 extern "C" BOOL CerfDDSurfFbInfo(void* lcl, ULONG* pa, int* stride, int* bpp,
                                  int* height) {
     if (!lcl) return FALSE;

@@ -2,25 +2,17 @@
 
 #include <cstdint>
 
-/* Shared host/guest contract for the folder-sharing channel - the Microsoft
-   Device Emulator VCEFSD folder-sharing protocol, reproduced so the guest FSD
-   and this host peripheral agree byte-for-byte (the host checks fStructureSize
-   == sizeof(ServerPB) at runtime to catch any layout drift). */
-
 namespace CerfVirt {
 
-/* Channel registers (offsets within the folder-share channel). 0x00-0x0C are the
-   ServerPB op protocol; 0x10+ is the live-config region the guest polls. */
-constexpr uint32_t kFsServerPbAddr = 0x00;  /* guest writes ServerPB VA */
-constexpr uint32_t kFsCode         = 0x04;  /* guest writes op code -> runs it */
-constexpr uint32_t kFsIoPending    = 0x08;  /* host: nonzero while op in flight */
-constexpr uint32_t kFsResult       = 0x0C;  /* host writes the op result code */
-constexpr uint32_t kFsEnabled      = 0x10;  /* host: 1 when sharing is on */
-constexpr uint32_t kFsGeneration   = 0x14;  /* host bumps on any config change */
-constexpr uint32_t kFsMountPoint   = 0x20;  /* host: mount-point wide string */
+constexpr uint32_t kFsServerPbAddr = 0x00;
+constexpr uint32_t kFsCode         = 0x04;
+constexpr uint32_t kFsIoPending    = 0x08;
+constexpr uint32_t kFsResult       = 0x0C;
+constexpr uint32_t kFsEnabled      = 0x10;
+constexpr uint32_t kFsGeneration   = 0x14;
+constexpr uint32_t kFsMountPoint   = 0x20;
 constexpr uint32_t kFsMountPointMaxWchars = 64;
 
-/* ServerPB op codes. */
 constexpr uint32_t kServerPollCompletion = 0x00;
 constexpr uint32_t kServerGetDriveConfig = 0x04;
 constexpr uint32_t kServerCreate         = 0x05;
@@ -39,7 +31,6 @@ constexpr uint32_t kServerGetInfo        = 0x11;
 constexpr uint32_t kServerGetFCBInfo     = 0x13;
 constexpr uint32_t kServerGetMaxIOSize   = 0x15;
 
-/* ServerPB result codes. */
 constexpr uint16_t kErrorNoError              = 0;
 constexpr uint16_t kErrorInvalidFunction      = 0x0001;
 constexpr uint16_t kErrorFileNotFound         = 0x0002;
@@ -60,7 +51,6 @@ constexpr uint16_t kErrorDiskFull             = 0x0027;
 constexpr uint16_t kErrorFileExists           = 0x0050;
 constexpr uint16_t kErrorInvalidName          = 0x007B;
 
-/* fOpenMode access/share bits. */
 constexpr uint16_t kOpenAccessReadOnly   = 0x0000;
 constexpr uint16_t kOpenAccessWriteOnly  = 0x0001;
 constexpr uint16_t kOpenAccessReadWrite  = 0x0002;
@@ -72,9 +62,6 @@ constexpr uint16_t kOpenShareDenyNone      = 0x0040;
 constexpr uint32_t kMaxLfn = 255;
 constexpr uint32_t kFolderShareMaxReadWriteSize = 1024 * 64;
 
-/* ServerPB - per-request parameter block in guest RAM. Natural alignment (CE
-   default); fName/fName2 are uint16_t so the 2-byte-wchar layout is identical
-   regardless of host wchar_t width; fDTAPtr is a guest VA read via the MMU. */
 struct ServerPB {
     uint16_t fStructureSize;
     uint16_t fResult;
@@ -84,12 +71,12 @@ struct ServerPB {
     uint32_t fFileTimeDate;
     uint32_t fSize;
     uint32_t fPosition;
-    uint32_t fDTAPtr;          /* guest VA of the read/write buffer */
+    uint32_t fDTAPtr;
     uint16_t fFileAttributes;
     uint16_t fOpenMode;
     uint8_t  fWildCard;
     struct {
-        uint16_t fNameLength;               /* bytes, excludes NUL */
+        uint16_t fNameLength;
         uint16_t fName[kMaxLfn + 1];
         uint16_t fName2Length;
         uint16_t fName2[kMaxLfn + 1];
@@ -100,4 +87,4 @@ struct ServerPB {
 static_assert(sizeof(ServerPB) == 1068,
               "ServerPB layout must stay byte-identical to the guest FSD's");
 
-}  /* namespace CerfVirt */
+}

@@ -4,18 +4,17 @@
 
 namespace CerfVirt {
 
-
 const uint32_t kBltAlphaSrcNeg  = 0x0040u;
-const uint32_t kBltAlphaDestNeg = 0x0080u; /* BLT_ALPHADESTNEG */
-const uint8_t  kAcSrcAlpha      = 0x01u;   /* AC_SRC_ALPHA */
+const uint32_t kBltAlphaDestNeg = 0x0080u;
+const uint8_t  kAcSrcAlpha      = 0x01u;
 
 struct BltAlphaContext {
     uint32_t red_mask, green_mask, blue_mask, alpha_mask;
     uint32_t red_shift, green_shift, blue_shift, alpha_shift;
     uint32_t src_alpha_mask, src_alpha_shift;
-    uint8_t  const_alpha;     /* BLENDFUNCTION.SourceConstantAlpha */
-    uint8_t  alpha_format;    /* 0 = constant-only; AC_SRC_ALPHA = per-pixel */
-    uint32_t blend_flags;     /* SRCNEG / DESTNEG */
+    uint8_t  const_alpha;
+    uint8_t  alpha_format;
+    uint32_t blend_flags;
 };
 
 struct BltAlpha {
@@ -102,7 +101,7 @@ struct BltAlpha {
             uint32_t _D5_00aa00gg = _D4_00aa00gg + ((SrcAlpha << 16) | SrcGreen);
             uint32_t _D5_00rr00bb = _D4_00rr00bb + ((SrcRed   << 16) | SrcBlue);
             out = (_D5_00aa00gg << 8) | _D5_00rr00bb;
-        } else { /* AlphaType == 1: constant alpha only */
+        } else {
             uint32_t uB00rr00bb = (DstRed << 16) | DstBlue;
             uint32_t uF00rr00bb = (SrcRed << 16) | SrcBlue;
             uint32_t uMrrrrbbbb = ((uB00rr00bb << 8) - uB00rr00bb)
@@ -123,4 +122,4 @@ struct BltAlpha {
     }
 };
 
-}  /* namespace CerfVirt */
+}

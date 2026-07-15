@@ -45,4 +45,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtPalette);
 
-}  /* namespace */
+}

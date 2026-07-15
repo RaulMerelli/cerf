@@ -8,22 +8,22 @@
 namespace CerfVirt {
 
 struct AATextContext {
-    uint32_t fl[3];      /* R,G,B channel masks (aablt flRed/flGre/flBlu) */
-    int      shR[3];     /* iRedR/iGreR/iBluR (channel right shift) */
-    int      shL[3];     /* iRedL/iGreL/iBluL (channel left shift) */
-    uint32_t uF[3];      /* foreground (text colour) channel value (SetUF) */
-    uint32_t aulB[16];   /* gamma table */
-    uint32_t aulIB[16];  /* inverse-gamma table */
+    uint32_t fl[3];
+    int      shR[3];
+    int      shL[3];
+    uint32_t uF[3];
+    uint32_t aulB[16];
+    uint32_t aulIB[16];
 
     void Build(const uint32_t masks[3], uint32_t on_color, float gamma = 2.330f) {
         for (int c = 0; c < 3; ++c) {
             fl[c] = masks[c];
-            int r = (int)BltPixelOps::HighBitPos(masks[c]) - 8;  /* topbit - 8 */
+            int r = (int)BltPixelOps::HighBitPos(masks[c]) - 8;
             int l = 0;
             if (r < 0) { l = -r; r = 0; }
             shR[c] = r;
             shL[c] = l;
-            uF[c] = ((on_color & masks[c]) >> r) << l;           /* SetUF */
+            uF[c] = ((on_color & masks[c]) >> r) << l;
         }
         for (int k = 0; k < 16; ++k) {
             const float a = (k > 0) ? (float)(k + 1) : 0.0f;
@@ -32,10 +32,6 @@ struct AATextContext {
         }
     }
 
-    /* cov = 4-bit coverage 1..14 (caller handles 0 and 15). The unsigned wrap of
-       (uF-uT) feeding both the (int32_t)dT<0 table select and the product is
-       load-bearing: signed arithmetic here selects the wrong gamma table and
-       shifts the blend (BlendPixelAA). */
     uint32_t BlendAA(uint32_t dst, uint32_t cov) const {
         uint32_t u = 0;
         for (int c = 0; c < 3; ++c) {
@@ -48,4 +44,4 @@ struct AATextContext {
     }
 };
 
-}  /* namespace CerfVirt */
+}

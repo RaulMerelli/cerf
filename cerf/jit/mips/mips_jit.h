@@ -137,6 +137,7 @@ public:
 
     std::optional<uint8_t*> PeekGuestVa(uint32_t va) override;
     uint8_t* ResolveGuestVaToHost(uint32_t va) override;
+    bool ResolveGuestVaToPa(uint32_t va, uint32_t* pa) override;
 
     void* FindBlockNativeStart(uint32_t guest_pc);
 
@@ -263,21 +264,48 @@ public:
     void ResyncInterruptPoll() override;
     void FlushTranslationCache(uint32_t va, uint32_t length) override;
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;
+    void SetDmaRegion(uint32_t pa, uint32_t size) override;
 
 private:
     JitCodeArena    arena_;
     IsaBlockSpace   blocks_;          /* single ISA - no ARM/Thumb split */
 
-    /* DRAM region identity for the SMC block index: a block's / a store's
-       offset from `dram_host_base_` is QEMU's ram_addr. */
-    uint8_t* dram_host_base_ = nullptr;
-    uint32_t dram_size_      = 0;
+    struct DramHostRegion {
+        uint8_t* host_lo    = nullptr;
+        uint8_t* host_hi    = nullptr;
+        uint32_t index_base = 0;
+    };
+    static constexpr int kMaxDramRegions = 4;
+    DramHostRegion dram_regions_[kMaxDramRegions];
+    int            dram_region_count_ = 0;
+    uint32_t       dram_index_size_   = 0;
+    uint32_t DramIndexOffset(const uint8_t* host) const {
+        for (int i = 0; i < dram_region_count_; ++i) {
+            const DramHostRegion& r = dram_regions_[i];
+            if (host >= r.host_lo && host < r.host_hi) {
+                return r.index_base + static_cast<uint32_t>(host - r.host_lo);
+            }
+        }
+        return UINT32_MAX;
+    }
 
     uint8_t* band_host_base_ = nullptr;
     uint32_t band_size_      = 0;
     bool InInjectionBand(const uint8_t* host) const {
         return band_host_base_ && host >= band_host_base_ &&
                host < band_host_base_ + band_size_;
+    }
+
+    static constexpr int kMaxDmaRegions = 4;
+    struct DmaRegionEntry { uint8_t* base = nullptr; uint32_t size = 0; };
+    DmaRegionEntry dma_regions_[kMaxDmaRegions];
+    int            dma_region_count_ = 0;
+    bool InDmaRegion(const uint8_t* host) const {
+        for (int i = 0; i < dma_region_count_; ++i)
+            if (host >= dma_regions_[i].base &&
+                host < dma_regions_[i].base + dma_regions_[i].size)
+                return true;
+        return false;
     }
 
     MipsBlockContext block_ctx_{};

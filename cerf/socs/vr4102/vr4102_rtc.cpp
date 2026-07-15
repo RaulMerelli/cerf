@@ -6,6 +6,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 #include "../vr41xx_icu.h"
 
 #include <algorithm>
@@ -40,7 +41,50 @@ void Vr4102Rtc::OnReady() {
     const Clock::time_point now = Clock::now();
     etime_anchor_ = rtcl1_anchor_ = rtcl2_anchor_ = tclk_anchor_ = now;
     emu_.Get<PeripheralDispatcher>().Register(this);
+
+    /* "When the RTCRST# signal is asserted, the PMU resets all peripheral units including
+       the RTC unit"; an RSTSW reset leaves the RTC "Active" (UM 15.1.1, Table 15-1). On a
+       non-RTCRST reset ETIME "Continues counting" (UM 16.2.1) and ECMP / RTCLong1 / RTCLong2
+       hold their values (UM 16.2.2-16.2.6), but the TClock unit takes its Other-resets row:
+       TCLKLREG/TCLKHREG and TCLKCNTLREG/TCLKCNTHREG are 0 (UM 16.2.7-16.2.8, p349-352) and
+       "The TCLK unit is stopped when all zeros are written" (UM 16.2.7 Caution, p350);
+       RTCINTREG clears D3 there while D2:0 are retained (UM 16.2.9, p353). */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        if (kind == ResetLineKind::Rtc) ApplyRtcResetLocked();
+        else                            StopTclkLocked();
+        EvaluateLocked();
+        DriveIcuLocked();
+    });
+
     worker_ = std::thread([this] { WorkerLoop(); });
+}
+
+/* Every RTC register's RTCRST column is 0 (UM 16.2.1-16.2.9). */
+void Vr4102Rtc::ApplyRtcResetLocked() {
+    const Clock::time_point now = Clock::now();
+    etime_base_   = 0;
+    etime_anchor_ = now;
+    ecmp_         = 0;
+    ecmp_armed_   = false;
+    rtcl1_reload_ = 0; rtcl2_reload_ = 0; tclk_reload_ = 0;
+    rtcl1_anchor_ = now; rtcl2_anchor_ = now; tclk_anchor_ = now;
+    rtcl1_periods_ack_ = 0; rtcl2_periods_ack_ = 0; tclk_periods_ack_ = 0;
+    rtcintreg_    = 0;
+}
+
+void Vr4102Rtc::StopTclkLocked() {
+    tclk_reload_      = 0;
+    tclk_anchor_      = Clock::now();
+    tclk_periods_ack_ = 0;
+    rtcintreg_        = static_cast<uint16_t>(rtcintreg_ & ~kIntTclk);
+}
+
+void Vr4102Rtc::AckIntBitsLocked(uint16_t clr) {
+    rtcintreg_ = static_cast<uint16_t>(rtcintreg_ & ~clr);
+    if (clr & kIntLong1) rtcl1_periods_ack_ = rtcl1_reload_ ? ElapsedTicksLocked(rtcl1_anchor_, kRtcHz) / rtcl1_reload_ : 0;
+    if (clr & kIntLong2) rtcl2_periods_ack_ = rtcl2_reload_ ? ElapsedTicksLocked(rtcl2_anchor_, kRtcHz) / rtcl2_reload_ : 0;
+    if (clr & kIntTclk)  tclk_periods_ack_  = tclk_reload_  ? ElapsedTicksLocked(tclk_anchor_, kTClockHz) / tclk_reload_ : 0;
 }
 
 /* ---- counting (wall-clock, computed on read; UM p338 elapsed, p344 RTCLong) ---- */
@@ -181,16 +225,9 @@ void Vr4102Rtc::WriteHalf2(uint32_t off, uint16_t value) {
         case kTclkL: tclk_reload_ = (tclk_reload_ & ~0xFFFFu) | value; tclk_anchor_ = Clock::now(); tclk_periods_ack_ = 0; break;
         case kTclkH: tclk_reload_ = ((tclk_reload_ & ~0x1FF0000u) | (uint32_t(value & 0x1FF) << 16)) & kMask25; tclk_anchor_ = Clock::now(); tclk_periods_ack_ = 0; break;
         case kTclkCntL: case kTclkCntH: return;   /* count registers read-only */
-        case kRtcIntReg: {
-            /* W1C: clear the written cause bits and ack their period counters so a
-               new period must elapse before the latch re-sets (UM 16.2.9 p353). */
-            const uint16_t clr = value & kRtcIntMask;
-            rtcintreg_ &= ~clr;
-            if (clr & kIntLong1) rtcl1_periods_ack_ = rtcl1_reload_ ? ElapsedTicksLocked(rtcl1_anchor_, kRtcHz) / rtcl1_reload_ : 0;
-            if (clr & kIntLong2) rtcl2_periods_ack_ = rtcl2_reload_ ? ElapsedTicksLocked(rtcl2_anchor_, kRtcHz) / rtcl2_reload_ : 0;
-            if (clr & kIntTclk)  tclk_periods_ack_  = tclk_reload_  ? ElapsedTicksLocked(tclk_anchor_, kTClockHz) / tclk_reload_ : 0;
+        case kRtcIntReg:
+            AckIntBitsLocked(static_cast<uint16_t>(value & kRtcIntMask));
             break;
-        }
         default: HaltUnsupportedAccess("RTC2 WriteHalf", 0x0B0001C0u + off, value);
     }
     EvaluateLocked();

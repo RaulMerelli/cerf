@@ -1,8 +1,8 @@
 #include <windows.h>
 #include <pkfuncs.h>
 #include <winddi.h>
-#include <gpe.h>
 
+#include "cerf_ddi.h"
 #include "cerf_regs_map.h"
 
 #ifndef GCAPS_GRAY16
@@ -10,6 +10,8 @@
 #endif
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
+#include "cerf/peripherals/cerf_virt/cerf_virt_fb_regs.h"
+#include "cerf_dma_arena.h"
 
 #define CERF_GPE_DESC_VA          0x000u
 #define CERF_GPE_STATUS           0x004u
@@ -26,24 +28,18 @@ ULONG g_FbBpp     = 0;
 ULONG g_FbStride  = 0;
 ULONG g_FbDpi     = 0;
 ULONG g_FbMemPa   = 0;
-ULONG g_FbMemTotal = 0;   /* total host-backed region bytes (kFbRegMemSizeTotal);
-                             region tail past the primary = DDraw video memory. */
-ULONG g_FbPrimaryReserve = 0;  /* kFbRegPrimaryReserve: byte span the host reserved
-                                  for the growable primary; video heap starts past it. */
+ULONG g_FbMemTotal = 0;
+
+ULONG g_FbPrimaryReserve = 0;
+
 void* g_FbMemVa   = NULL;
 ULONG g_EngineVersion = 0;
 ULONG g_OsMajor = 0;
 
-/* The filename cerf_guest was injected under (the stock display driver it
-   replaced); the driver-in-driver carrier needs it as the Dll value device.exe
-   LoadLibrarys to reach the CDD_ entry points in this same module. */
 static wchar_t s_module_name[MAX_PATH] = { 0 };
-static HMODULE s_hinst = NULL;   /* captured in DllMain, used by the display init */
+static HMODULE s_hinst = NULL;
 extern "C" const wchar_t* CerfInjectedModuleName(void) { return s_module_name; }
 
-/* A stub-mapped body has no real module handle, so its DllMain
-   GetModuleFileNameW yields nothing; the stub supplies its own (ROM, trusted)
-   name here for driver-in-driver to register as the Dll device.exe loads. */
 extern "C" void CerfSetCarrierName(const wchar_t* name) {
     if (!name) return;
     int i = 0;
@@ -60,10 +56,14 @@ void CerfReadFbRegs(void) {
     g_FbHeight = s_fb_regs[1];
     g_FbBpp    = s_fb_regs[2];
     g_FbStride = s_fb_regs[3];
-    g_FbMemPa   = s_fb_regs[5];   /* kFbRegMemBasePa   (0x14 >> 2) */
-    g_FbMemTotal = s_fb_regs[7];  /* kFbRegMemSizeTotal (0x1C >> 2) */
-    g_FbPrimaryReserve = s_fb_regs[8];  /* kFbRegPrimaryReserve (0x20 >> 2) */
-    g_FbDpi      = s_fb_regs[9];  /* kFbRegLogicalDpi (0x24 >> 2) */
+    g_FbMemPa   = s_fb_regs[5];
+    g_FbMemTotal = s_fb_regs[7];
+    g_FbPrimaryReserve = s_fb_regs[8];
+    g_FbDpi      = s_fb_regs[9];
+}
+
+extern "C" void CerfFbPresent(void) {
+    if (s_fb_regs) s_fb_regs[CerfVirt::kFbRegPresent / 4] = 1u;
 }
 
 BOOL CerfMapGpeCmd(void) {
@@ -74,8 +74,6 @@ BOOL CerfMapGpeCmd(void) {
     return s_gpe_cmd != NULL;
 }
 
-/* Publish the guest VA of a filled CerfBltDescriptor and kick; the host reads
-   it through the live MMU, runs the blit, and returns the status word. */
 extern "C" ULONG CerfGpeBlt(ULONG desc_va) {
     if (!CerfMapGpeCmd()) return (ULONG)-1;
     s_gpe_cmd[CERF_GPE_DESC_VA / 4] = desc_va;
@@ -83,8 +81,6 @@ extern "C" ULONG CerfGpeBlt(ULONG desc_va) {
     return s_gpe_cmd[CERF_GPE_STATUS / 4];
 }
 
-/* Publish a filled CerfGradDescriptor and kick the gradient port; the host
-   reads it through the live MMU, paints the ramp, and returns the status. */
 extern "C" ULONG CerfGpeGrad(ULONG desc_va) {
     if (!CerfMapGpeCmd()) return (ULONG)-1;
     s_gpe_cmd[CERF_GPE_DESC_VA / 4] = desc_va;
@@ -92,8 +88,6 @@ extern "C" ULONG CerfGpeGrad(ULONG desc_va) {
     return s_gpe_cmd[CERF_GPE_STATUS / 4];
 }
 
-/* Publish a filled CerfLineDescriptor and kick the line port; the host reads it
-   through the live MMU, draws the segment by PA, and returns the status. */
 extern "C" ULONG CerfGpeLine(ULONG desc_va) {
     if (!CerfMapGpeCmd()) return (ULONG)-1;
     s_gpe_cmd[CERF_GPE_DESC_VA / 4] = desc_va;
@@ -114,8 +108,6 @@ extern "C" void CerfPublishPalette(const ULONG* rgb, unsigned first, unsigned co
         s_palette_regs[first + i] = rgb[i] & 0x00FFFFFFu;
 }
 
-/* The host accelerator addresses the framebuffer by physical address
-   (SurfaceFbPa), so the surface base is the FB PA itself, not a mapped VA. */
 void* CerfMapFbMemory(void) {
     if (g_FbMemVa) return g_FbMemVa;
     if (g_FbMemPa == 0 || g_FbStride == 0 || g_FbHeight == 0) return NULL;
@@ -127,10 +119,6 @@ void* CerfMapFbMemory(void) {
     return g_FbMemVa;
 }
 
-/* On-demand FB aperture for guest CPU code that must touch PA-only FB pixels
-   (DirectDraw Lock, GDI SW-blit edge). Map only the rect needed - a whole 4K
-   surface (33 MB) exceeds the 32 MB slot. Returns the exact byte; free the same
-   pointer via CerfUnmapFbWindow. */
 extern "C" void* CerfMapFbWindow(ULONG fb_pa, ULONG bytes) {
     const ULONG page_off  = fb_pa & 0xFFFu;
     const ULONG base_pa   = fb_pa & ~0xFFFu;
@@ -153,7 +141,7 @@ static void* g_FbGlobalVa = NULL;
 extern "C" void* CerfMapFbGlobal(void) {
     if (g_FbGlobalVa) return g_FbGlobalVa;
     const ULONG base = CerfGpeFbMemBasePa();
-    if (base == 0 || g_FbMemTotal < 0x200000u) return NULL;  /* < 2MB never global */
+    if (base == 0 || g_FbMemTotal < 0x200000u) return NULL;
     g_FbGlobalVa = CerfMapFbWindow(base, g_FbMemTotal);
     return g_FbGlobalVa;
 }
@@ -171,30 +159,6 @@ extern "C" BOOL APIENTRY DrvEndDoc(SURFOBJ*, FLONG)            { CERF_LOG_DEV("c
 extern "C" BOOL APIENTRY DrvStartDoc(SURFOBJ*, PWSTR, DWORD)   { CERF_LOG_DEV("cerf_guest: DrvStartDoc"); return TRUE; }
 extern "C" BOOL APIENTRY DrvStartPage(SURFOBJ*)                { CERF_LOG_DEV("cerf_guest: DrvStartPage"); return TRUE; }
 extern "C" BOOL APIENTRY DrvExclusiveMode(DHPDEV, BOOL)        { CERF_LOG_DEV("cerf_guest: DrvExclusiveMode"); return TRUE; }
-
-extern "C" BOOL APIENTRY DrvBitBlt(SURFOBJ*, SURFOBJ*, SURFOBJ*, CLIPOBJ*,
-                                    XLATEOBJ*, RECTL*, POINTL*, POINTL*,
-                                    BRUSHOBJ*, POINTL*, ROP4);
-extern "C" BOOL APIENTRY DrvCopyBits(SURFOBJ*, SURFOBJ*, CLIPOBJ*, XLATEOBJ*,
-                                      RECTL*, POINTL*);
-extern "C" BOOL APIENTRY DrvAnyBlt(SURFOBJ*, SURFOBJ*, SURFOBJ*, CLIPOBJ*,
-                                    XLATEOBJ*, POINTL*, RECTL*, RECTL*, POINTL*,
-                                    BRUSHOBJ*, POINTL*, ROP4, ULONG, ULONG);
-extern "C" BOOL APIENTRY DrvTransparentBlt(SURFOBJ*, SURFOBJ*, CLIPOBJ*,
-                                            XLATEOBJ*, RECTL*, RECTL*, ULONG);
-extern "C" BOOL APIENTRY DrvRealizeBrush(BRUSHOBJ*, SURFOBJ*, SURFOBJ*, SURFOBJ*,
-                                          XLATEOBJ*, ULONG);
-extern "C" BOOL APIENTRY DrvStrokePath(SURFOBJ*, PATHOBJ*, CLIPOBJ*, XFORMOBJ*,
-                                        BRUSHOBJ*, POINTL*, LINEATTRS*, MIX);
-extern "C" BOOL APIENTRY DrvFillPath(SURFOBJ*, PATHOBJ*, CLIPOBJ*, BRUSHOBJ*,
-                                      POINTL*, MIX, FLONG);
-extern "C" BOOL APIENTRY DrvPaint(SURFOBJ*, CLIPOBJ*, BRUSHOBJ*, POINTL*, MIX);
-
-extern "C" BOOL APIENTRY CerfDrvGradientFill(SURFOBJ*, CLIPOBJ*, XLATEOBJ*,
-                                              TRIVERTEX*, ULONG, PVOID, ULONG,
-                                              RECTL*, POINTL*, ULONG);
-extern "C" BOOL APIENTRY CerfDrvAlphaBlend(SURFOBJ*, SURFOBJ*, CLIPOBJ*,
-                                            XLATEOBJ*, RECTL*, RECTL*, BLENDOBJ*);
 
 static BOOL APIENTRY CerfTraceBitBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
                                       CLIPOBJ* co, XLATEOBJ* xlo, RECTL* prd,
@@ -239,29 +203,12 @@ static BOOL APIENTRY CerfTraceRealizeBrush(BRUSHOBJ* pbo, SURFOBJ* psoTarget,
     CERF_LOG_X_DEV("cerf_guest: DrvRealizeBrush iHatch", iHatch);
     return DrvRealizeBrush(pbo, psoTarget, psoPattern, psoMask, pxlo, iHatch);
 }
-static BOOL APIENTRY CerfTraceStrokePath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
-                                          XFORMOBJ* pxo, BRUSHOBJ* pbo,
-                                          POINTL* pptlBrush, LINEATTRS* plineattrs,
-                                          MIX mix) {
-    CERF_LOG_X_DEV("cerf_guest: DrvStrokePath mix", mix);
-    return DrvStrokePath(pso, ppo, pco, pxo, pbo, pptlBrush, plineattrs, mix);
-}
-static BOOL APIENTRY CerfTraceFillPath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
-                                        BRUSHOBJ* pbo, POINTL* pptlBrush, MIX mix,
-                                        FLONG flOptions) {
-    CERF_LOG_X_DEV("cerf_guest: DrvFillPath mix", mix);
-    return DrvFillPath(pso, ppo, pco, pbo, pptlBrush, mix, flOptions);
-}
 static BOOL APIENTRY CerfTracePaint(SURFOBJ* pso, CLIPOBJ* pco, BRUSHOBJ* pbo,
                                      POINTL* pptlBrush, MIX mix) {
     CERF_LOG_X_DEV("cerf_guest: DrvPaint mix", mix);
     return DrvPaint(pso, pco, pbo, pptlBrush, mix);
 }
 
-
-/* DO NOT delegate TRIVIAL to the engine - CE3 gwes's static TRIVIAL XLATEOBJ
-   has a bogus internal palette ptr the engine handler derefs → Data Abort.
-   Trivial = no palette anyway, so 0 is correct. */
 static ULONG (*g_EngineXlateObj_cGetPalette)(XLATEOBJ*, ULONG, ULONG, ULONG*) = NULL;
 
 static ULONG WINAPI CerfXlateGetPaletteWrap(XLATEOBJ* pxlo, ULONG iPal,
@@ -273,18 +220,9 @@ static ULONG WINAPI CerfXlateGetPaletteWrap(XLATEOBJ* pxlo, ULONG iPal,
     return g_EngineXlateObj_cGetPalette(pxlo, iPal, cPal, pPal);
 }
 
-
 static BOOL CerfNoPoolGetPalette(ULONG, ULONG**, int*)             { return FALSE; }
 static VOID CerfNoPoolAddPalette(ULONG, ULONG*, int)              { }
 static VOID CerfNoPoolReleasePalette(ULONG, ULONG* pPalette, int) { delete[] pPalette; }
-
-/* Lib's DrvEnablePDEV writes pgdiinfo->ulVersion = DDI_DRIVER_VERSION (0x00040001
-   = CE6) unconditionally. On CE3 (engine expects 0x00020001), this makes engine
-   think driver is CE5+ → takes wrong code path. Wrapper patches ulVersion to
-   the actual iEngineVersion the engine passed in. */
-extern "C" DHPDEV APIENTRY DrvEnablePDEV(DEVMODEW*, LPWSTR, ULONG, HSURF*,
-                                          ULONG, ULONG*, ULONG, DEVINFO*,
-                                          HDEV, LPWSTR, HANDLE);
 
 extern "C" void CerfStartPointerPump(void);
 extern "C" void CerfStartKeyboardPump(void);
@@ -292,7 +230,6 @@ extern "C" void CerfStartResizePump(void);
 extern "C" void CerfStartTaskManagerPump(void);
 extern "C" void CerfStartDriverInDriver(void);
 extern "C" void CerfAdvertiseDisplayPower(void);
-extern "C" void CerfSetVidBackingByOsMajor(unsigned long os_major);
 
 static DHPDEV APIENTRY CerfEnablePDEVWrap(
     DEVMODEW* pdm, LPWSTR pwszLogAddress, ULONG cPat, HSURF* phsurfPatterns,
@@ -307,34 +244,6 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
     if (result) CerfStartTaskManagerPump();
     if (result) CerfStartDriverInDriver();
     if (result) CerfAdvertiseDisplayPower();
-    if (!result || !pdevcaps || cjCaps < sizeof(ULONG) || g_EngineVersion == 0) {
-        return result;
-    }
-    pdevcaps[0] = g_EngineVersion;
-    /* ulHorzRes/ulVertRes (GDIINFO words 4/5). On a runtime re-enable the gwes
-       applier copies these into SM_CXSCREEN/CYSCREEN and the desktop surface
-       rect, so reporting the live g_Fb* target here is what makes auto-resize
-       take effect regardless of which DEVMODE the matched mode carried. */
-    if (cjCaps >= 6 * sizeof(ULONG)) {
-        pdevcaps[4] = g_FbWidth;
-        pdevcaps[5] = g_FbHeight;
-    }
-    if (g_FbBpp > 8) {
-        if (cjCaps >= 13 * sizeof(ULONG)) pdevcaps[12] |= GCAPS_GRAY16;
-        if (pdi && cjDevInfo >= sizeof(DEVINFO)) pdi->flGraphicsCaps |= GCAPS_GRAY16;
-    }
-    if (g_EngineVersion == 0x00020001u && cjCaps >= 20 * sizeof(ULONG)) {
-        pdevcaps[2]  = 64u;
-        pdevcaps[3]  = 60u;
-        pdevcaps[9]  = 0x801u | ((g_FbBpp <= 8) ? 0x100u : 0u);
-        pdevcaps[13] = 0u;
-        pdevcaps[14] = 0u;
-        pdevcaps[15] = 0u;
-        pdevcaps[16] = 1u;
-        pdevcaps[17] = 1u;
-        pdevcaps[18] = 1u;
-        pdevcaps[19] = 0u;
-    }
     return result;
 }
 
@@ -342,9 +251,9 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
                                           ULONG cj,
                                           DRVENABLEDATA* pded,
                                           PENGCALLBACKS pCallbacks) {
-    CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);   /* arm before the first log */
+    CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);
     CERF_LOG_X("cerf_guest: DrvEnableDriver iEngineVersion", iEngineVersion);
-    /* CE2.0's DRVENABLEDATA is 26 slots (cj=104); DrvEscape (slot 27) is CE2.11+. */
+
     if (pded == NULL || pCallbacks == NULL || cj < 26 * sizeof(void*)) return FALSE;
 
     if (!s_module_name[0]) {
@@ -361,9 +270,6 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     }
     CerfReadFbRegs();
 
-    /* Select the ddraw video-memory backing before any surface alloc: FCSE kernels
-       (CE<=5) share one HAL across processes and need a cross-process-global FB VA;
-       ASID kernels (CE6+) get a per-client-remapped guest-RAM heap. */
     {
         OSVERSIONINFOW ovi;
         ovi.dwOSVersionInfoSize = sizeof(ovi);
@@ -406,8 +312,8 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     pded->DrvCreateDeviceBitmap = DrvCreateDeviceBitmap;
     pded->DrvDeleteDeviceBitmap = DrvDeleteDeviceBitmap;
     pded->DrvRealizeBrush       = CerfTraceRealizeBrush;
-    pded->DrvStrokePath         = CerfTraceStrokePath;
-    pded->DrvFillPath           = CerfTraceFillPath;
+    pded->DrvStrokePath         = DrvStrokePath;
+    pded->DrvFillPath           = DrvFillPath;
     pded->DrvPaint              = CerfTracePaint;
     pded->DrvBitBlt             = CerfTraceBitBlt;
     pded->DrvCopyBits           = CerfTraceCopyBits;
@@ -426,9 +332,7 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     pded->DrvStartDoc           = DrvStartDoc;
     pded->DrvStartPage          = DrvStartPage;
     if (cj >= 27 * sizeof(void*)) pded->DrvEscape = DrvEscape;
-    /* Gradient/alpha gated exactly like DeviceEmulator_lcd (sub_17C6048):
-       cj==120 -> both, cj==116 -> gradient only. A NULL slot 27 makes gwes
-       SetLastError(ERROR_NOT_SUPPORTED) and paint nothing (sub_82378). */
+
     if (cj >= 30 * sizeof(void*)) {
         pded->DrvGradientFill   = CerfDrvGradientFill;
         pded->DrvAlphaBlend     = CerfDrvAlphaBlend;
@@ -446,6 +350,7 @@ extern "C" BOOL APIENTRY DllEntryPoint(HANDLE hInst, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         CERF_LOG("cerf_guest: DLL_PROCESS_ATTACH");
         s_hinst = (HMODULE)hInst;
+        CerfArenaProcessAttach();
     } else if (reason == DLL_PROCESS_DETACH) {
         CERF_LOG("cerf_guest: DLL_PROCESS_DETACH");
     }

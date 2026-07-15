@@ -17,7 +17,6 @@ namespace {
 
 constexpr uint32_t kPageMask = 0xFFFu;
 
-/* Serves the cerf_guest.dll body bytes to the cerf_guest_stub carrier. */
 class CerfVirtGuestBody : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -95,4 +94,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtGuestBody);
 
-}  /* namespace */
+}

@@ -11,9 +11,6 @@
 
 REGISTER_SERVICE(CerfVirtKeyboard);
 
-/* The channel page exists on every guest-additions board because the guest body
-   maps it unconditionally; if it were board-gated, a non-SIMpad GA guest would
-   map an unbacked PA and fault. Only the input routing (below) is SIMpad-only. */
 bool CerfVirtKeyboard::ShouldRegister() {
     return emu_.Get<DeviceConfig>().guest_additions;
 }
@@ -43,8 +40,7 @@ void CerfVirtKeyboard::PushKey(uint8_t vk, bool key_up) {
     uint32_t seq = write_seq_.load();
     uint32_t entry = (uint32_t)vk | (key_up ? CerfVirt::kKbEntryKeyUpBit : 0u);
     ring_[seq % CerfVirt::kKbRingCount].store(entry);
-    /* Bump seq AFTER the entry store so the guest never reads a seq covering an
-       index whose entry word hasn't landed yet. */
+
     write_seq_.store(seq + 1u);
 }
 
@@ -64,9 +60,6 @@ void CerfVirtKeyboard::RestoreState(StateReader& r) {
 
 namespace {
 
-/* The guest-additions keyboard source: routes host keystrokes through the
-   channel to the guest's keybd_event. Available on every GA board and the
-   default active source (highest priority) when guest additions is on. */
 class CerfVirtKeyboardInput : public KeyboardInput {
 public:
     using KeyboardInput::KeyboardInput;
@@ -90,4 +83,4 @@ public:
 
 REGISTER_SERVICE(CerfVirtKeyboardInput);
 
-}  /* namespace */
+}

@@ -4,6 +4,7 @@
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 
 #include <cstdint>
 
@@ -27,6 +28,14 @@ constexpr uint16_t kMask[kNumRegs] = {
     0xFFFF, 0x01FF,   /* FIRALREG,   FIRAHREG   */
 };
 
+/* Reset value per register: 0xF800 (low halves) / 0x01FF (high halves); the RTCRST and
+   Other-resets rows are identical (UM 11.2.1-11.2.6). */
+constexpr uint16_t kPowerOn[kNumRegs] = {
+    0xF800, 0x01FF, 0xF800, 0x01FF,
+    0xF800, 0x01FF, 0xF800, 0x01FF,
+    0xF800, 0x01FF, 0xF800, 0x01FF,
+};
+
 class Vr4102Dmaau : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -35,7 +44,12 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::VR4102;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+            for (uint32_t i = 0; i < kNumRegs; ++i) reg_[i] = kPowerOn[i];
+        });
+    }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }
@@ -75,8 +89,6 @@ private:
         return lo;
     }
 
-    /* Reset value per register: 0xF800 (low halves) / 0x01FF (high halves);
-       RTCRST and other resets are identical (UM 11.2.1-11.2.6). */
     uint16_t reg_[kNumRegs] = {
         0xF800, 0x01FF, 0xF800, 0x01FF,
         0xF800, 0x01FF, 0xF800, 0x01FF,

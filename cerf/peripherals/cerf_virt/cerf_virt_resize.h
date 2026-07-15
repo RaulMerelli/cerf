@@ -5,7 +5,6 @@
 #include <atomic>
 #include <cstdint>
 
-/* Host<->guest resolution-negotiation MMIO channel for guest-additions auto-resize. */
 class CerfVirtResize : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -21,8 +20,6 @@ public:
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 
-    /* UI thread. Publish a target resolution and bump want-gen last so the
-       guest never reads a fresh gen with stale W/H/Bpp. */
     void RequestResize(uint32_t w, uint32_t h, uint32_t bpp);
 
 private:

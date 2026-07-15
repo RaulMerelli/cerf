@@ -6,7 +6,8 @@
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/serial/serial_cradle.h"
 #include "../../state/state_stream.h"
-#include "vr4102_giu.h"
+#include "../guest_cpu_reset.h"
+#include "../vr41xx_giu.h"
 #include "../vr41xx_icu.h"
 #include "vr4102_serial_wiring.h"
 
@@ -38,6 +39,15 @@ public:
     void OnReady() override {
         Uart16550::OnReady();
 
+        /* The SIU is an on-chip unit, so the reset line clears it (UM 7.1.4: a reset
+           "initializes the entire internal state except for the RTC timer and the PMU").
+           SIUIRSEL's RTCRST and Other-resets rows are both 0 (UM 24.2.13, p478). */
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+            Serial16550::Reset();
+            irsel_       = 0;
+            baud_reload_ = 0;
+        });
+
         auto* wiring = emu_.TryGet<Vr4102SerialWiring>();
         if (!wiring) return;
         modem_ = wiring->ForSiu();
@@ -62,7 +72,7 @@ public:
        inverse of the endpoint's DCD. */
     void SetModemInputs(bool cts, bool dsr, bool ri, bool dcd) override {
         if (modem_ && modem_->dcd_giu_pin >= 0) {
-            emu_.Get<Vr4102Giu>().SetPinLevel(modem_->dcd_giu_pin, !dcd);
+            emu_.Get<Vr41xxGiu>().SetPinLevel(modem_->dcd_giu_pin, !dcd);
             Uart16550::SetModemInputs(cts, dsr, ri, false);
             return;
         }

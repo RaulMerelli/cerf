@@ -12,3 +12,5 @@ void ArmJit::RestoreMmuState(StateReader& r) { emu_.Get<ArmMmu>().RestoreState(r
 void ArmJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
     emu_.Get<ArmMmu>().SetInjectionBand(va, pa, size);
 }
+
+void ArmJit::SetDmaRegion(uint32_t /*pa*/, uint32_t /*size*/) {}

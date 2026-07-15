@@ -1,5 +1,6 @@
 #include "mips_jit.h"
 
+#include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../state/state_stream.h"
 
@@ -27,4 +28,17 @@ void MipsJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
     mmu_->SetInjectionBand(va, pa, size);
     band_host_base_ = memory_->TryTranslateWrite(pa);
     band_size_      = band_host_base_ ? size : 0u;
+}
+
+void MipsJit::SetDmaRegion(uint32_t pa, uint32_t size) {
+    uint8_t* base = memory_->TryTranslateWrite(pa);
+    if (!base) return;
+    if (dma_region_count_ >= kMaxDmaRegions) {
+        LOG(Caution, "MipsJit::SetDmaRegion: more than %d DMA regions declared\n",
+            kMaxDmaRegions);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    dma_regions_[dma_region_count_].base = base;
+    dma_regions_[dma_region_count_].size = size;
+    ++dma_region_count_;
 }

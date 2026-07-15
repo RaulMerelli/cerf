@@ -1,17 +1,17 @@
 #include "cerf_fs_driver.h"
+#include "cerf_regs_map.h"
 
 #include <windows.h>
-#include <pkfuncs.h>      /* CreateAPISet, RegisterAPISet, CreateAPIHandle, PFNVOID */
+#include <pkfuncs.h>
+
+#include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define AFS_VERSION    0x00000004
 #define HT_FILE        7
 #define HT_FIND        8
-#define HT_AFSVOLUME   16    /* CE6+ file-system volume handle type (WINCE600 kfuncs.h:63) */
-#define OID_FIRST_AFS  0     /* pre-reserved primary slot; stable CE3..CE7 */
+#define HT_AFSVOLUME   16
+#define OID_FIRST_AFS  0
 
-/* pkfuncs.h macro-maps SetHandleOwner to a symbol absent from coredll.lib; call
-   the plain exported function instead. These are coredll C exports - extern "C"
-   so the references bind to the unmangled names. */
 #undef SetHandleOwner
 extern "C" {
 BOOL SetHandleOwner(HANDLE h, HANDLE hProc);
@@ -20,9 +20,6 @@ BOOL DeregisterAFS(int index);
 BOOL DeregisterAFSName(int index);
 }
 
-/* The AFS bind export is RegisterAFS (4 args) on CE3 but RegisterAFSEx (5 args,
-   trailing flags) on CE4.2+; a static import of either fails to LOAD on the
-   other family, so it is resolved from the live coredll at runtime. */
 typedef BOOL (*PFN_RegisterAFS)(int, HANDLE, DWORD, DWORD);
 typedef BOOL (*PFN_RegisterAFSEx)(int, HANDLE, DWORD, DWORD, DWORD);
 
@@ -32,20 +29,12 @@ static BOOL CerfRegisterAFS(int iAFS, HANDLE hApi, DWORD ctx) {
     PFN_RegisterAFS reg;
     if (!core) return FALSE;
     ex = (PFN_RegisterAFSEx)GetProcAddressW(core, L"RegisterAFSEx");
-    if (ex) return ex(iAFS, hApi, ctx, AFS_VERSION, 0);   /* flags 0 = visible mount */
+    if (ex) return ex(iAFS, hApi, ctx, AFS_VERSION, 0);
     reg = (PFN_RegisterAFS)GetProcAddressW(core, L"RegisterAFS");
     if (reg) return reg(iAFS, hApi, ctx, AFS_VERSION);
     return FALSE;
 }
 
-/* CERF guest folder-share filesystem, registered on the coredll AFS API-set
-   primitive (no fsdmgr.dll). Brought up from the driver-in-driver stream
-   driver's CDD_Init (device.exe context). Live mount/unmount tracks the host
-   channel's generation; the mount name is host-configurable. */
-
-/* Table holds the CE6/7 max (24); the REGISTERED count is version-correct
-   (CerfCreateApiSets). Registering fewer methods than the kernel dispatches faults
-   its count guard - the CE5 FindFirstChangeNotification[17] vanish. */
 #define CERF_AFS_METHODS   24
 #define CERF_FILE_METHODS  14
 #define CERF_FIND_METHODS  3
@@ -82,22 +71,16 @@ int CerfFsResultToBool(unsigned long result) {
     return 0;
 }
 
-/* ---- Internal volume methods (AFS slots FSDMGR supplied itself) ---------- */
-
 static SHELLFILECHANGEFUNC_t s_notify = NULL;
 
 BOOL CerfFsCloseVolume(CerfVol* vol)               { (void)vol; return TRUE; }
-/* Per-process file handles are SetHandleOwner'd to the opener, so the kernel
-   auto-CloseFile's them on process exit; nothing extra to do here. */
+
 BOOL CerfFsCloseAllFiles(CerfVol* vol, HANDLE hProc) { (void)vol; (void)hProc; return TRUE; }
 void CerfFsNotify(CerfVol* vol, DWORD dwFlags)     { (void)vol; (void)dwFlags; }
 BOOL CerfFsRegisterFileSystemFunction(CerfVol* vol, SHELLFILECHANGEFUNC_t pfn) {
     (void)vol; s_notify = pfn; return TRUE;
 }
 
-/* Per ODO fatfs: index 10 (RegisterFileSystemNotification) sub_1F74DB8 = return 0;
-   index 11 (CeOidGetInfo) sub_1F74DC8 returns FALSE + SetLastError(87) on a volume
-   with no object store. The kernel CALLS both, so neither may be a NULL slot. */
 static BOOL CerfFsAfsReserved10(CerfVol* vol) {
     (void)vol;
     return FALSE;
@@ -108,73 +91,69 @@ static BOOL CerfFsAfsOidGetInfo(CerfVol* vol, DWORD oid, void* pInfo) {
     return FALSE;
 }
 
-/* FsIoControl(21) / FileSecurity(22,23): a host-folder volume has no custom FSCTLs
-   or security descriptors, so an FSD declines them. One handler - each ignores its
-   differently-shaped args (it reads none) and returns FALSE + not-supported. */
 static BOOL CerfFsAfsNotSupported(CerfVol* vol) {
     (void)vol;
     SetLastError(ERROR_NOT_SUPPORTED);
     return FALSE;
 }
 
-
 static const PFNVOID g_afsMethods[CERF_AFS_METHODS] = {
-    (PFNVOID)CerfFsCloseVolume,            /* 0  CloseVolume               */
-    (PFNVOID)NULL,                         /* 1  (reserved)                */
-    (PFNVOID)CerfFsCreateDirectoryW,       /* 2  CreateDirectoryW          */
-    (PFNVOID)CerfFsRemoveDirectoryW,       /* 3  RemoveDirectoryW          */
-    (PFNVOID)CerfFsGetFileAttributesW,     /* 4  GetFileAttributesW        */
-    (PFNVOID)CerfFsSetFileAttributesW,     /* 5  SetFileAttributesW        */
-    (PFNVOID)CerfFsCreateFileW,            /* 6  CreateFileW               */
-    (PFNVOID)CerfFsDeleteFileW,            /* 7  DeleteFileW               */
-    (PFNVOID)CerfFsMoveFileW,              /* 8  MoveFileW                 */
-    (PFNVOID)CerfFsFindFirstFileW,         /* 9  FindFirstFileW            */
-    (PFNVOID)CerfFsAfsReserved10,          /* 10 fatfs return-0 stub       */
-    (PFNVOID)CerfFsAfsOidGetInfo,          /* 11 CeOidGetInfo (decline)    */
-    (PFNVOID)CerfFsDeleteAndRenameFileW,   /* 12 DeleteAndRenameFileW      */
-    (PFNVOID)CerfFsCloseAllFiles,          /* 13 CloseAllFiles             */
-    (PFNVOID)CerfFsGetDiskFreeSpaceW,      /* 14 GetDiskFreeSpaceW         */
-    (PFNVOID)CerfFsNotify,                 /* 15 Notify                    */
-    (PFNVOID)CerfFsRegisterFileSystemFunction, /* 16 RegisterFileSystemFunction */
-    (PFNVOID)CerfFsFindFirstChangeNotificationW, /* 17 FindFirstChangeNotification (CE5+) */
-    (PFNVOID)NULL,                         /* 18 FindNextChangeNotification (via notify handle) */
-    (PFNVOID)NULL,                         /* 19 FindCloseChangeNotification (via notify handle) */
-    (PFNVOID)NULL,                         /* 20 CeGetFileNotificationInfo */
-    (PFNVOID)CerfFsAfsNotSupported,        /* 21 FsIoControl (CE5+)        */
-    (PFNVOID)CerfFsAfsNotSupported,        /* 22 SetFileSecurityW (CE6+)   */
-    (PFNVOID)CerfFsAfsNotSupported,        /* 23 GetFileSecurityW (CE6+)   */
+    (PFNVOID)CerfFsCloseVolume,
+    (PFNVOID)NULL,
+    (PFNVOID)CerfFsCreateDirectoryW,
+    (PFNVOID)CerfFsRemoveDirectoryW,
+    (PFNVOID)CerfFsGetFileAttributesW,
+    (PFNVOID)CerfFsSetFileAttributesW,
+    (PFNVOID)CerfFsCreateFileW,
+    (PFNVOID)CerfFsDeleteFileW,
+    (PFNVOID)CerfFsMoveFileW,
+    (PFNVOID)CerfFsFindFirstFileW,
+    (PFNVOID)CerfFsAfsReserved10,
+    (PFNVOID)CerfFsAfsOidGetInfo,
+    (PFNVOID)CerfFsDeleteAndRenameFileW,
+    (PFNVOID)CerfFsCloseAllFiles,
+    (PFNVOID)CerfFsGetDiskFreeSpaceW,
+    (PFNVOID)CerfFsNotify,
+    (PFNVOID)CerfFsRegisterFileSystemFunction,
+    (PFNVOID)CerfFsFindFirstChangeNotificationW,
+    (PFNVOID)NULL,
+    (PFNVOID)NULL,
+    (PFNVOID)NULL,
+    (PFNVOID)CerfFsAfsNotSupported,
+    (PFNVOID)CerfFsAfsNotSupported,
+    (PFNVOID)CerfFsAfsNotSupported,
 };
 
 static const PFNVOID g_fileMethods[CERF_FILE_METHODS] = {
-    (PFNVOID)CerfFsCloseFile,                  /* 0  CloseFile                  */
-    (PFNVOID)NULL,                             /* 1  (reserved)                 */
-    (PFNVOID)CerfFsReadFile,                   /* 2  ReadFile                   */
-    (PFNVOID)CerfFsWriteFile,                  /* 3  WriteFile                  */
-    (PFNVOID)CerfFsGetFileSize,                /* 4  GetFileSize                */
-    (PFNVOID)CerfFsSetFilePointer,             /* 5  SetFilePointer             */
-    (PFNVOID)CerfFsGetFileInformationByHandle, /* 6  GetFileInformationByHandle */
-    (PFNVOID)CerfFsFlushFileBuffers,           /* 7  FlushFileBuffers           */
-    (PFNVOID)CerfFsGetFileTime,                /* 8  GetFileTime                */
-    (PFNVOID)CerfFsSetFileTime,                /* 9  SetFileTime                */
-    (PFNVOID)CerfFsSetEndOfFile,               /* 10 SetEndOfFile               */
-    (PFNVOID)CerfFsFileIoControl,              /* 11 DeviceIoControl            */
-    (PFNVOID)CerfFsReadFileWithSeek,           /* 12 ReadFileWithSeek           */
-    (PFNVOID)CerfFsWriteFileWithSeek,          /* 13 WriteFileWithSeek          */
+    (PFNVOID)CerfFsCloseFile,
+    (PFNVOID)NULL,
+    (PFNVOID)CerfFsReadFile,
+    (PFNVOID)CerfFsWriteFile,
+    (PFNVOID)CerfFsGetFileSize,
+    (PFNVOID)CerfFsSetFilePointer,
+    (PFNVOID)CerfFsGetFileInformationByHandle,
+    (PFNVOID)CerfFsFlushFileBuffers,
+    (PFNVOID)CerfFsGetFileTime,
+    (PFNVOID)CerfFsSetFileTime,
+    (PFNVOID)CerfFsSetEndOfFile,
+    (PFNVOID)CerfFsFileIoControl,
+    (PFNVOID)CerfFsReadFileWithSeek,
+    (PFNVOID)CerfFsWriteFileWithSeek,
 };
 
 static const PFNVOID g_findMethods[CERF_FIND_METHODS] = {
-    (PFNVOID)CerfFsFindClose,      /* 0  FindClose      */
-    (PFNVOID)NULL,                 /* 1  (reserved)     */
-    (PFNVOID)CerfFsFindNextFileW,  /* 2  FindNextFileW  */
+    (PFNVOID)CerfFsFindClose,
+    (PFNVOID)NULL,
+    (PFNVOID)CerfFsFindNextFileW,
 };
 
 static const DWORD g_afsSig32[CERF_AFS_METHODS] = {
     0x000, 0x000, 0x014, 0x004, 0x004, 0x004, 0x410, 0x004,
     0x014, 0x050, 0x000, 0x010, 0x014, 0x000, 0x554, 0x000, 0x000,
-    0x010,  /* 17 FindFirstChangeNotification FNSIG5(DW,DW,PTR,DW,DW) */
-    0x000, 0x000, 0x000,                /* 18-20 (via notify handle) */
-    0x5110,                             /* 21 FsIoControl FNSIG8       */
-    0x000, 0x000,                       /* 22-23 CE6/7 only (64-bit)   */
+    0x010,
+    0x000, 0x000, 0x000,
+    0x5110,
+    0x000, 0x000,
 };
 static const DWORD g_fileSig32[CERF_FILE_METHODS] = {
     0x000, 0x000, 0x144, 0x144, 0x004, 0x010, 0x004, 0x000,
@@ -185,58 +164,54 @@ static const DWORD g_findSig32[CERF_FIND_METHODS] = {
 };
 
 static const ULONGLONG g_afsSig64[CERF_AFS_METHODS] = {
-    FNSIG1(DW),                                                  /* 0  CloseVolume          */
-    FNSIG1(DW),                                                  /* 1  PreCloseVolume       */
-    FNSIG5(DW, I_WSTR, I_WSTR, I_PTR, DW),                       /* 2  CreateDirectoryW     */
-    FNSIG2(DW, I_WSTR),                                          /* 3  RemoveDirectoryW     */
-    FNSIG2(DW, I_WSTR),                                          /* 4  GetFileAttributesW   */
-    FNSIG3(DW, I_WSTR, DW),                                      /* 5  SetFileAttributesW   */
-    FNSIG11(DW, DW, I_WSTR, DW, DW, PTR, DW, DW, DW, I_PTR, DW), /* 6  CreateFileW          */
-    FNSIG2(DW, I_WSTR),                                          /* 7  DeleteFileW          */
-    FNSIG3(DW, I_WSTR, I_WSTR),                                  /* 8  MoveFileW            */
-    FNSIG5(DW, DW, I_WSTR, IO_PTR, DW),                          /* 9  FindFirstFileW       */
-    FNSIG0(),                                                    /* 10 (CeRegisterFileSystemNotification) */
-    FNSIG0(),                                                    /* 11 (CeOidGetInfo)       */
-    FNSIG3(DW, I_WSTR, I_WSTR),                                  /* 12 DeleteAndRenameFileW */
-    FNSIG2(DW, DW),                                              /* 13 CloseAllFiles        */
-    FNSIG6(DW, I_WSTR, O_PDW, O_PDW, O_PDW, O_PDW),              /* 14 GetDiskFreeSpaceW    */
-    FNSIG2(DW, DW),                                              /* 15 Notify               */
-    FNSIG2(DW, DW),                                              /* 16 RegisterFileSystemFunction */
-    FNSIG5(DW, DW, I_WSTR, DW, DW),                              /* 17 FindFirstChangeNotification */
-    FNSIG0(),                                                    /* 18 FindNextChangeNotification */
-    FNSIG0(),                                                    /* 19 FindCloseChangeNotification */
-    FNSIG0(),                                                    /* 20 CeGetChangeNotificationInfo */
-    FNSIG9(DW, DW, DW, IO_PTR, DW, IO_PTR, DW, O_PDW, IO_PDW),   /* 21 CeFsIoControl        */
-    FNSIG5(DW, I_WSTR, DW, I_PTR, DW),                           /* 22 SetFileSecurityW     */
-    FNSIG6(DW, I_WSTR, DW, O_PTR, DW, O_PDW),                    /* 23 GetFileSecurityW     */
+    FNSIG1(DW),
+    FNSIG1(DW),
+    FNSIG5(DW, I_WSTR, I_WSTR, I_PTR, DW),
+    FNSIG2(DW, I_WSTR),
+    FNSIG2(DW, I_WSTR),
+    FNSIG3(DW, I_WSTR, DW),
+    FNSIG11(DW, DW, I_WSTR, DW, DW, PTR, DW, DW, DW, I_PTR, DW),
+    FNSIG2(DW, I_WSTR),
+    FNSIG3(DW, I_WSTR, I_WSTR),
+    FNSIG5(DW, DW, I_WSTR, IO_PTR, DW),
+    FNSIG0(),
+    FNSIG0(),
+    FNSIG3(DW, I_WSTR, I_WSTR),
+    FNSIG2(DW, DW),
+    FNSIG6(DW, I_WSTR, O_PDW, O_PDW, O_PDW, O_PDW),
+    FNSIG2(DW, DW),
+    FNSIG2(DW, DW),
+    FNSIG5(DW, DW, I_WSTR, DW, DW),
+    FNSIG0(),
+    FNSIG0(),
+    FNSIG0(),
+    FNSIG9(DW, DW, DW, IO_PTR, DW, IO_PTR, DW, O_PDW, IO_PDW),
+    FNSIG5(DW, I_WSTR, DW, I_PTR, DW),
+    FNSIG6(DW, I_WSTR, DW, O_PTR, DW, O_PDW),
 };
+
 static const ULONGLONG g_fileSig64[CERF_FILE_METHODS] = {
-    FNSIG1(DW),                                           /* 0  CloseFile         */
-    FNSIG0(),                                             /* 1  (reserved)        */
-    FNSIG5(DW, O_PTR, DW, O_PDW, IO_PDW),                 /* 2  ReadFile          */
-    FNSIG5(DW, I_PTR, DW, O_PDW, IO_PDW),                 /* 3  WriteFile         */
-    FNSIG2(DW, O_PDW),                                    /* 4  GetFileSize       */
-    FNSIG4(DW, DW, IO_PDW, DW),                           /* 5  SetFilePointer    */
-    FNSIG3(DW, O_PTR, DW),                                /* 6  GetFileInformationByHandle */
-    FNSIG1(DW),                                           /* 7  FlushFileBuffers  */
-    FNSIG4(DW, O_PI64, O_PI64, O_PI64),                   /* 8  GetFileTime       */
-    FNSIG4(DW, IO_PI64, IO_PI64, IO_PI64),                /* 9  SetFileTime       */
-    FNSIG1(DW),                                           /* 10 SetEndOfFile      */
-    FNSIG8(DW, DW, IO_PTR, DW, IO_PTR, DW, O_PDW, IO_PDW),/* 11 DeviceIoControl   */
-    FNSIG7(DW, O_PTR, DW, O_PDW, IO_PDW, DW, DW),         /* 12 ReadFileWithSeek  */
-    FNSIG7(DW, I_PTR, DW, O_PDW, IO_PDW, DW, DW),         /* 13 WriteFileWithSeek */
+    FNSIG1(DW),
+    FNSIG0(),
+    FNSIG5(DW, O_PTR, DW, O_PDW, IO_PDW),
+    FNSIG5(DW, I_PTR, DW, O_PDW, IO_PDW),
+    FNSIG2(DW, O_PDW),
+    FNSIG4(DW, DW, IO_PDW, DW),
+    FNSIG3(DW, O_PTR, DW),
+    FNSIG1(DW),
+    FNSIG4(DW, O_PI64, O_PI64, O_PI64),
+    FNSIG4(DW, IO_PI64, IO_PI64, IO_PI64),
+    FNSIG1(DW),
+    FNSIG8(DW, DW, IO_PTR, DW, IO_PTR, DW, O_PDW, IO_PDW),
+    FNSIG7(DW, O_PTR, DW, O_PDW, IO_PDW, DW, DW),
+    FNSIG7(DW, I_PTR, DW, O_PDW, IO_PDW, DW, DW),
 };
 static const ULONGLONG g_findSig64[CERF_FIND_METHODS] = {
-    FNSIG1(DW),                                     /* FindClose            */
-    FNSIG0(),                                       /* (reserved)           */
-    FNSIG2(DW, PTR),                                /* FindNextFileW        */
+    FNSIG1(DW),
+    FNSIG0(),
+    FNSIG2(DW, PTR),
 };
 
-/* ---- One-time API-set creation ------------------------------------------ */
-
-/* CreateAPISet's coredll ordinal diverges by CE version (559 CE3/CE5, 2539
-   CE6/CE7 - dumpbin /exports): a static by-ordinal import is unresolvable on
-   the other family and fails the whole module load, so resolve it by name. */
 typedef HANDLE (*PFN_CreateAPISet)(char*, USHORT, const PFNVOID*, const ULONGLONG*);
 typedef BOOL   (*PFN_RegisterDirectMethods)(HANDLE, const PFNVOID*);
 
@@ -254,10 +229,8 @@ static BOOL CerfCreateApiSets(void) {
 
     ovi.dwOSVersionInfoSize = sizeof(ovi);
     GetVersionEx(&ovi);
-    wide = (ovi.dwMajorVersion >= 6);   /* CE6+ uses the 64-bit sig encoding */
-    /* CE6/7 explorer hangs on folder-open when more than 17 AFS methods are
-       registered, so they stay at 17; only CE5/WM5 needs 22 to expose
-       FindFirstChangeNotification at index 17. */
+    wide = (ovi.dwMajorVersion >= 6);
+
     afsCount = (ovi.dwMajorVersion == 5) ? 22 : 17;
 
     if (wide) {
@@ -276,15 +249,12 @@ static BOOL CerfCreateApiSets(void) {
     CERF_LOG_X("cerf_guest: CFSV(AFS) apiset handle", (DWORD)s_hAFSAPI);
     CERF_LOG_X("cerf_guest: CFSF(file) apiset handle", (DWORD)g_hCerfFileAPI);
     CERF_LOG_X("cerf_guest: CFSS(find) apiset handle", (DWORD)g_hCerfFindAPI);
+
     CERF_LOG_X("cerf_guest: RegisterAPISet HT_FILE ok",
                RegisterAPISet(g_hCerfFileAPI, HT_FILE | REGISTER_APISET_TYPE));
     CERF_LOG_X("cerf_guest: RegisterAPISet HT_FIND ok",
                RegisterAPISet(g_hCerfFindAPI, HT_FIND | REGISTER_APISET_TYPE));
 
-    /* CE6+ only: RegisterDirectMethods installs unmarshalled method pointers,
-       but our apiset server runs in gwes, so a cross-process caller's unmapped
-       pointers corrupt the CE3 loader on exe launch. Version-gated because ODO
-       CE3 coredll exports the symbol (a presence check enables it wrongly). */
     if (ovi.dwMajorVersion >= 6) {
         PFN_RegisterDirectMethods pRDM =
             (PFN_RegisterDirectMethods)GetProcAddressW(core, L"RegisterDirectMethods");
@@ -308,8 +278,6 @@ HANDLE CerfFsMakeHandle(HANDLE apiSet, void* ctx, HANDLE hProc) {
     return h;
 }
 
-/* ---- Live mount / unmount ------------------------------------------------ */
-
 static void CerfReadMountName(volatile CerfFsChannel* ch, WCHAR* out, int cap) {
     int i;
     for (i = 0; i < cap - 1; ++i) {
@@ -320,7 +288,6 @@ static void CerfReadMountName(volatile CerfFsChannel* ch, WCHAR* out, int cap) {
     out[i] = 0;
 }
 
-/* Binds the volume apiset to slot iAFS and records it as mounted. */
 static BOOL CerfBindSlot(int iAFS) {
     if (!CerfRegisterAFS(iAFS, s_hAFSAPI, (DWORD)&s_vol)) return FALSE;
     s_vol.iAFS = iAFS;
@@ -328,28 +295,25 @@ static BOOL CerfBindSlot(int iAFS) {
     return TRUE;
 }
 
-/* Claims an AFS name following FSDMGR_RegisterVolume: a free name is registered
-   directly; a name filesys already reserved (e.g. "Storage Card") is claimed via
-   the pre-reserved primary slot OID_FIRST_AFS; otherwise a numbered derivation. */
 static void CerfMount(volatile CerfFsChannel* ch) {
     WCHAR base[64], cand[66];
     const WCHAR* n;
     int blen, iAFS, suffix;
-    if (s_vol.iAFS != -1) return;               /* already mounted */
+    if (s_vol.iAFS != -1) return;
     CerfReadMountName(ch, base, 64);
     n = base;
-    if (*n == L'\\' || *n == L'/') ++n;         /* AFS name has no leading sep */
+    if (*n == L'\\' || *n == L'/') ++n;
     if (!*n) return;
 
     iAFS = RegisterAFSName(n);
-    if (iAFS != -1 && GetLastError() == 0) {    /* free name */
+    if (iAFS != -1 && GetLastError() == 0) {
         if (CerfBindSlot(iAFS)) return;
         DeregisterAFSName(iAFS);
         return;
     }
-    if (CerfBindSlot(OID_FIRST_AFS)) return;    /* name reserved: take primary slot */
+    if (CerfBindSlot(OID_FIRST_AFS)) return;
 
-    blen = lstrlenW(n);                          /* both taken: derive Name2..Name9 */
+    blen = lstrlenW(n);
     if (blen > 64) blen = 64;
     memcpy(cand, n, blen * sizeof(WCHAR));
     for (suffix = 2; suffix <= 9; ++suffix) {
@@ -367,7 +331,7 @@ static void CerfMount(volatile CerfFsChannel* ch) {
 static void CerfUnmount(void) {
     if (s_vol.iAFS == -1) return;
     DeregisterAFS(s_vol.iAFS);
-    if (s_vol.iAFS > OID_FIRST_AFS)             /* primary slot's name is filesys's */
+    if (s_vol.iAFS > OID_FIRST_AFS)
         DeregisterAFSName(s_vol.iAFS);
     CERF_LOG_X("cerf_guest: foldershare unmounted iAFS", s_vol.iAFS);
     s_vol.iAFS = -1;
@@ -386,8 +350,7 @@ static DWORD WINAPI CerfFsMountThread(LPVOID unused) {
         DWORD gen = ch->Generation;
         if (gen != last_gen) {
             last_gen = gen;
-            /* Any config change: re-evaluate. A mount-point change while enabled
-               is unmount-old then mount-new (the name is re-read on mount). */
+
             CerfUnmount();
             if (ch->Enabled) CerfMount(ch);
         }
@@ -401,19 +364,21 @@ void CerfFsAfsInit(void) {
     s_inited = TRUE;
 
     InitializeCriticalSection(&s_cs);
-    s_pb = (CerfFsServerPB*)VirtualAlloc(0, sizeof(CerfFsServerPB),
-                                         MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    s_iobuf = (unsigned char*)VirtualAlloc(0, CERF_FS_MAX_IO,
-                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    if (!s_pb || !s_iobuf) {
-        CERF_LOG("cerf_guest: foldershare buffer alloc FAILED");
-        return;
+    {
+        unsigned char* base = (unsigned char*)CerfMapRegsPage(
+            g_CerfVirtBase + CerfVirt::kFsStageOffset, CerfVirt::kFsStageSize);
+        if (!base) {
+            CERF_LOG("cerf_guest: foldershare stage map FAILED");
+            return;
+        }
+        s_pb    = (CerfFsServerPB*)(base + CerfVirt::kFsStagePbOff);
+        s_iobuf = base + CerfVirt::kFsStageIoOff;
     }
     memset(s_pb, 0, sizeof(*s_pb));
     s_pb->fStructureSize = sizeof(*s_pb);
 
     if (!CerfCreateApiSets()) return;
-    CerfFsNotifyInit();   /* notify apiset for AFS[17]; no-ops pre-CE5 */
+    CerfFsNotifyInit();
 
     t = CreateThread(NULL, 0, CerfFsMountThread, NULL, 0, NULL);
     if (t) CloseHandle(t);

@@ -249,7 +249,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>UI updates</li>
               <li>Fixed a crash when PC Card was re-inserted too fast in DevEmu boards</li>
               <li>Guest Additions: Fixed IMGFS ROMs regression introduced in v6.0</li>
-              <li>Guest Additions: Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencides dropped.</li>
+              <li>Guest Additions: Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencies dropped.</li>
               <li>Guest Additions: Fixed incorrect hardware communication approach for display and shared storage. Now rendering and shared storage is stable.</li>
               <li>Dev only: SDK/Build tools reorganization</li>
             </ul>

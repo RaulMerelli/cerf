@@ -13,15 +13,13 @@ volatile CerfFsChannel* CerfFsMapChannel(void) {
     return g_chan;
 }
 
-/* Caller holds CerfFsLock across the whole op (field-fill + call), so the
-   channel transaction needs no lock of its own. */
 unsigned long CerfFsCall(CerfFsServerPB* pb, unsigned long code) {
     unsigned long result;
     volatile CerfFsChannel* ch = CerfFsMapChannel();
     if (!ch) return CERF_FS_E_GENERAL;
 
     ch->ServerPB = (unsigned long)pb;
-    ch->Code = code;                       /* triggers the op host-side */
+    ch->Code = code;
     while (ch->IOPending) ch->Code = CERF_FS_OP_POLL;
     result = ch->Result;
 

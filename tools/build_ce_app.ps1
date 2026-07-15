@@ -1,8 +1,11 @@
 # Shared builder for CERF's CE apps and DLLs. -Arch selects the guest CPU:
 #   arm        plain ARMv4 (no-Thumb cores)
 #   arm_thumb  ARMV4I Thumb-interworking (Thumb-capable cores)
-# Outputs are staged per-arch under build/<cfg>/Win32/ce_apps/<arch>/. Raising
-# the subsystem stamp from 3.00 locks the resulting binaries out of CE3 kernels.
+#   mips       MIPS-IV / MIPS-II / MIPS-I, per -MipsIsa
+#
+# Toolchain and SDK come from third_party/wince (eMbedded Visual C++ 4.0);
+# see docs/ce_apps_setup.md for the layout contract and how to produce it.
+# Outputs are staged per-arch under build/<cfg>/Win32/ce_apps/<arch>/.
 param(
     [Parameter(Mandatory)][ValidateSet("exe","dll")][string]$Type,
     [Parameter(Mandatory)][string]$Target,
@@ -24,12 +27,8 @@ param(
     # binary load on older H/PC Pro kernels - a lower stamp still loads on
     # CE3+, a higher one locks the binary out of older kernels.
     [string]$SubsystemVersion = "3.00",
-    # Target a different CE SDK than the default CE3/HPC2000 set. When
-    # $SdkIncludes is non-empty it REPLACES the default ce3 include dirs, and
-    # $CoreLibDir REPLACES the default ce42 coredll import-lib dir. $WceVersion
-    # sets _WIN32_WCE. Together these let a single source tree build against,
-    [string[]]$SdkIncludes = @(),
-    [string]$CoreLibDir = "",
+    # _WIN32_WCE. The SDK is the same for every CE target; this and
+    # $SubsystemVersion are what select the CE version a binary targets.
     [string]$WceVersion = "300",
     # Optional resource script (.rc) compiled to .res and linked in - e.g. to
     # give the EXE a shell/title-bar icon. Use classic BMP icon frames; CE's
@@ -39,8 +38,7 @@ param(
     # before the SDK's ordinal coredll.lib, so coredll imports bind by name (the
     # stable cross-version contract) rather than by per-version ordinal.
     [string]$CoreDllDef = "",
-    # Override the arch-default CRT import libs (mips defaults to corelibc). Era
-    # CE 1.x/2.0 SDKs ship the CRT as libc; pass -CrtLibs libc for those.
+    # Override the arch-default CRT import libs.
     [string[]]$CrtLibs = @(),
     # Stage under ce_apps/<OutSubdir> instead of the arch default (<MipsIsa> for
     # mips, <Arch> otherwise).
@@ -49,31 +47,40 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot/..").Path
-$SDK  = Join-Path $RepoRoot "references/WindowsCE-Build-Tools"
-$LINK = Join-Path $SDK "bin/I386/link.exe"
+$SDK  = Join-Path $RepoRoot "third_party/wince"
+$BIN  = Join-Path $SDK "bin"
+$LINK = Join-Path $BIN "link.exe"
 # NB: not $RC - PowerShell variable names are case-insensitive, so $RC would
 # alias the $Rc parameter (the .rc path) and clobber it.
-$RESC = Join-Path $SDK "bin/I386/rc.exe"
+$RESC = Join-Path $BIN "rc.exe"
+
+if (-not (Test-Path $BIN)) {
+    throw @"
+CE toolchain not found at $SDK
+
+Building ce_apps/ needs eMbedded Visual C++ 4.0. See docs/ce_apps_setup.md.
+Verify with: powershell -File setup.ps1 -Check
+"@
+}
 
 switch ($Arch) {
     "mips" {
-        $CL = Join-Path $SDK "bin/I386/MIPS/cl.exe"
-        $BinArch = "MIPS"
+        $CL = Join-Path $BIN "clmips.exe"
         if ($MipsIsa -eq "mips1") {
             # MIPS-I / R3000 (Toshiba TX39 core in Philips PR31500/PR31700). -QMmips1
             # restricts codegen to the MIPS-I ISA the R3000 accepts. Soft-float
             # (-QMFPE): the TX39 has no FPU.
             $Machine = "MIPS"
             $ArchFlags = @("-QMmips1", "-QMFPE", "-D_M_MRX000=3000", "-D_MIPS_", "-DR3000")
-            $DefLibSub = "Mipsii"
+            $SdkSub = "Mipsii"
         } elseif ($MipsIsa -eq "mips2") {
             $Machine = "MIPS"
             $ArchFlags = @("-QMmips2", "-QMFPE", "-D_M_MRX000=4000", "-D_MIPS_", "-DR4000")
-            $DefLibSub = "Mipsii"
+            $SdkSub = "Mipsii"
         } else {
             $Machine = "MIPSFPU"
             $ArchFlags = @("-QMmips4", "-QMn32", "-QMFPE", "-D_MIPS64", "-D_MIPS_", "-DR4000")
-            $DefLibSub = "Mipsiv"
+            $SdkSub = "Mipsiv"
         }
         # Bare MIPS platform macro: CE SDK headers gate arch blocks (e.g.
         # stdlib.h _JBLEN) on defined(MIPS).
@@ -84,47 +91,40 @@ switch ($Arch) {
         $ImplicitLibs = @("corelibc")
     }
     "arm_thumb" {
-        $CL = Join-Path $SDK "bin/I386/ARM/cl.exe"
-        $BinArch = "ARM"; $Machine = "THUMB"
-        $ArchFlags = @("/QRarch4T", "/QRinterwork-return", "/DARMV4I")
-        $CpuMacros = @("/DARM", "/D_ARM_")
-        $DefLibSub = "Armv4i"
+        $CL = Join-Path $BIN "clarm.exe"
+        $Machine = "THUMB"
+        $ArchFlags = @("-QRarch4T", "-QRinterwork-return", "-DARMV4I")
+        $CpuMacros = @("-DARM", "-D_ARM_")
+        $SdkSub = "Armv4i"
         $ImplicitLibs = @()
     }
     default {
-        $CL = Join-Path $SDK "bin/I386/ARM/cl.exe"
-        $BinArch = "ARM"; $Machine = "ARM"
-        $ArchFlags = @("/QRarch4", "/DARMV4")
-        $CpuMacros = @("/DARM", "/D_ARM_")
-        $DefLibSub = "Armv4"
+        $CL = Join-Path $BIN "clarm.exe"
+        $Machine = "ARM"
+        $ArchFlags = @("-QRarch4", "-DARMV4")
+        $CpuMacros = @("-DARM", "-D_ARM_")
+        $SdkSub = "Armv4"
         $ImplicitLibs = @()
     }
 }
 
 if ($CrtLibs.Count) { $ImplicitLibs = $CrtLibs }
 
+$SdkInc = Join-Path $SDK "STANDARDSDK/Include/$SdkSub"
+$LIB    = Join-Path $SDK "STANDARDSDK/Lib/$SdkSub"
+foreach ($p in @($CL, $LINK, $SdkInc, $LIB)) {
+    if (-not (Test-Path $p)) { throw "CE toolchain incomplete: $p is missing (see docs/ce_apps_setup.md)" }
+}
+
 $IncDirs = @()
 foreach ($i in $ExtraIncludes) { $IncDirs += (Resolve-Path $i).Path }
-if ($SdkIncludes.Count) {
-    foreach ($i in $SdkIncludes) { $IncDirs += (Resolve-Path $i).Path }
-} else {
-    $IncDirs += @(
-        (Join-Path $SDK "ce3-hpc2k/include"),
-        (Join-Path $SDK "ce3-oak/INC")
-    )
-}
+$IncDirs += $SdkInc
 $IncDirs += $RepoRoot
-$LIB       = if ($CoreLibDir) { (Resolve-Path $CoreLibDir).Path }
-             else { Join-Path $SDK "ce42-standard/Lib/$DefLibSub" }
+
 $Subsystem = "windowsce,$SubsystemVersion"
 $WceDef    = "_WIN32_WCE=$WceVersion"
 
-if (-not (Test-Path $CL))   { throw "WCE toolchain missing: $CL"   }
-if (-not (Test-Path $LINK)) { throw "WCE toolchain missing: $LINK" }
-
-# cl.exe and link.exe both depend on companion DLLs (c1.dll / c1xx.dll / c2.dll
-# next to cl, mspdb*.dll under bin/I386). Wire PATH up before either is invoked.
-$env:PATH = "$SDK\bin\I386\$BinArch;$SDK\bin\I386;" + $env:PATH
+$env:PATH = "$BIN;" + $env:PATH
 
 $Config = if ($env:CE_APPS_CONFIG) { $env:CE_APPS_CONFIG } else { "Release" }
 $Mode   = if ($env:CE_APPS_MODE)   { $env:CE_APPS_MODE }   else { "dev" }
@@ -141,20 +141,21 @@ if (-not $Entry) {
 New-Item -ItemType Directory -Force -Path $ObjDir | Out-Null
 
 if ($CoreDllDef) {
-    $LIBTOOL = Join-Path $SDK "bin/I386/lib.exe"
+    $LIBTOOL = Join-Path $BIN "lib.exe"
     if (-not (Test-Path $LIBTOOL)) { throw "WCE lib tool missing: $LIBTOOL" }
     $coreLib = Join-Path $ObjDir "coredll.lib"
     & $LIBTOOL /nologo /machine:$Machine "/def:$((Resolve-Path $CoreDllDef).Path)" "/out:$coreLib"
     if ($LASTEXITCODE -ne 0) { throw "by-name coredll import lib build failed: $CoreDllDef" }
 }
 
-# Bust the .obj cache when CERF_DEV_MODE, the arch, or the MIPS ISA changes - a
-# timestamp check can't see a flag change.
+# Bust the compiled-artifact cache when CERF_DEV_MODE, the arch, or the MIPS ISA
+# changes - a timestamp check can't see a flag change.
 $modeMarker = Join-Path $ObjDir ".build_mode"
-$buildKey   = "$Mode-$Arch-$MipsIsa-$WceVersion-$CoreLibDir"
+$buildKey   = "$Mode-$Arch-$MipsIsa-$WceVersion-$SdkSub"
 $cachedMode = if (Test-Path $modeMarker) { (Get-Content $modeMarker -Raw).Trim() } else { "" }
 if ($cachedMode -ne $buildKey) {
-    Get-ChildItem -Path $ObjDir -Filter "*.obj" -ErrorAction SilentlyContinue | Remove-Item -Force
+    Get-ChildItem -Path (Join-Path $ObjDir "*") -Include "*.obj", "*.res" -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force
     Set-Content -Path $modeMarker -Value $buildKey -Encoding ASCII -NoNewline
 }
 
@@ -196,7 +197,7 @@ foreach ($src in $Sources) {
 }
 
 # Compile the optional resource script (.rc -> .res) for the EXE/DLL icon
-# and other resources. rc.exe needs rcdll.dll, already on PATH via bin/I386.
+# and other resources. rc.exe needs rcdll.dll, already on PATH via bin/.
 $res = ""
 if ($Rc) {
     if (-not (Test-Path $RESC)) { throw "WCE resource compiler missing: $RESC" }

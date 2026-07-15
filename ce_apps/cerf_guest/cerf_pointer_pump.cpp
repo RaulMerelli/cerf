@@ -1,7 +1,6 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
 
-/* Register offsets below MUST match cerf/peripherals/cerf_virt/cerf_virt_pointer_regs.h. */
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
 #define CERF_PTR_X            0x00u

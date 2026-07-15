@@ -44,7 +44,11 @@ public:
 
     virtual void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) = 0;
 
+    virtual void SetDmaRegion(uint32_t pa, uint32_t size) = 0;
+
     virtual uint8_t* ResolveGuestVaToHost(uint32_t va) = 0;
+
+    virtual bool ResolveGuestVaToPa(uint32_t va, uint32_t* pa) = 0;
 
     /* Highest addressable physical bit pattern. A SoC whose physical space
        mirrors high addresses into a smaller region returns the reduced mask;

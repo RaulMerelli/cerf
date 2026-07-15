@@ -2,10 +2,6 @@
 
 #include <windows.h>
 
-/* AFS file-handle methods. The leading CerfFile* is the per-open context behind
-   the file API-set handle; the host has no seek op, so position rides each
-   Read/Write and CerfFile tracks it. */
-
 static void SetName(CerfFsServerPB* pb, PCWSTR name) {
     int n = lstrlenW(name);
     if (n > (int)CERF_FS_MAX_LFN) n = (int)CERF_FS_MAX_LFN;
@@ -33,11 +29,9 @@ static unsigned short OpenModeFrom(DWORD access, DWORD share) {
     return m;
 }
 
-/* The host packs file times as MS-DOS date/time (high word = date, low word =
-   time); CE lacks DosDateTimeToFileTime, so unpack via SYSTEMTIME. */
 void CerfFsDosToFiletime(unsigned long dosdt, FILETIME* out) {
-    WORD dd = HIWORD(dosdt);     /* date */
-    WORD dt = LOWORD(dosdt);     /* time */
+    WORD dd = HIWORD(dosdt);
+    WORD dt = LOWORD(dosdt);
     SYSTEMTIME st;
     FILETIME local;
     out->dwLowDateTime = 0;
@@ -49,7 +43,7 @@ void CerfFsDosToFiletime(unsigned long dosdt, FILETIME* out) {
     st.wHour   = (dt >> 11) & 0x1F;
     st.wMinute = (dt >> 5) & 0x3F;
     st.wSecond = (dt & 0x1F) * 2;
-    if (st.wMonth == 0 || st.wDay == 0) return;   /* unset */
+    if (st.wMonth == 0 || st.wDay == 0) return;
     if (SystemTimeToFileTime(&st, &local))
         LocalFileTimeToFileTime(&local, out);
 }
@@ -98,7 +92,7 @@ HANDLE CerfFsCreateFileW(CerfVol* vol, HANDLE hProc, PCWSTR name, DWORD access,
             break;
         case CREATE_ALWAYS:
             SetName(pb, name);
-            CerfFsCall(pb, CERF_FS_OP_DELETE);     /* ignore: may not exist */
+            CerfFsCall(pb, CERF_FS_OP_DELETE);
             e = DoCreate(name);
             if (e == CERF_FS_OK) e = DoOpen(name, mode, &slot);
             break;
@@ -153,21 +147,13 @@ static BOOL RwAtSeek(CerfFile* fc, PVOID buf, DWORD count, PDWORD done,
         pb->fPosition = pos + total;
         pb->fSize = chunk;
         pb->fDTAPtr = (unsigned long)io;
-        if (op == CERF_FS_OP_WRITE) {
+        if (op == CERF_FS_OP_WRITE)
             memcpy(io, (unsigned char*)buf + total, chunk);
-        } else {
-            /* Fault io's pages in before the host writes file bytes there - a
-               demand-committed page has no L2 entry, so the host's PeekVaToHost
-               walk returns null and the read faults (kErrorReadFault). WRITE
-               already touches io via the memcpy above. */
-            DWORD off;
-            for (off = 0; off < chunk; off += 0x1000u) io[off] = 0;
-        }
         e = CerfFsCall(pb, op);
         if (e != CERF_FS_OK) break;
         if (op == CERF_FS_OP_READ) memcpy((unsigned char*)buf + total, io, pb->fSize);
         total += pb->fSize;
-        if (pb->fSize < chunk) break;     /* EOF / short write */
+        if (pb->fSize < chunk) break;
     }
     if (done) *done = total;
     if (e != CERF_FS_OK && total == 0) return CerfFsResultToBool(e);
@@ -282,7 +268,7 @@ BOOL CerfFsSetFileTime(CerfFile* f, const FILETIME* create, const FILETIME* acce
     (void)create; (void)access;
     CerfFsLock();
     pb->fHandle = f->fHandle;
-    e = CerfFsCall(pb, CERF_FS_OP_GET_FCB_INFO);   /* recover name + attrs */
+    e = CerfFsCall(pb, CERF_FS_OP_GET_FCB_INFO);
     if (e == CERF_FS_OK) {
         int n = pb->u.fNameLength / sizeof(WCHAR);
         if (n > (int)CERF_FS_MAX_LFN) n = (int)CERF_FS_MAX_LFN;
@@ -311,11 +297,9 @@ BOOL CerfFsSetEndOfFile(CerfFile* f) {
 
 BOOL CerfFsFlushFileBuffers(CerfFile* f) {
     (void)f;
-    return TRUE;   /* host writes are synchronous to the host file */
+    return TRUE;
 }
 
-/* No file-level ioctl maps onto a host passthrough; report not-supported so the
-   caller can fall back, the same as a real FSD does for codes it doesn't serve. */
 BOOL CerfFsFileIoControl(CerfFile* f, DWORD code, PVOID pIn, DWORD inLen,
                          PVOID pOut, DWORD outLen, PDWORD pActualOut,
                          OVERLAPPED* ov) {

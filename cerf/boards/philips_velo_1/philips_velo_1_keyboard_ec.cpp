@@ -43,7 +43,7 @@ void PhilipsVelo1KeyboardEc::OnReady() {
     emu_.Get<Pr31x00Intc>().RegisterEnableListener(
         kStatus5Set, kSpiRcvInt, [this] { OnSpiRcvIntEnabled(); });
 
-    emu_.Get<GuestCpuReset>().RegisterResetListener([this] { Unhandshake(); });
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) { Unhandshake(); });
 
     emu_.Get<GuestDeepSleep>().RegisterPowerUpListener([this] { Unhandshake(); });
 }

@@ -25,7 +25,7 @@ public:
            deep-sleep wake) - else the OS reads the stale 0x7fff8 power-off magic
            back and re-enters sleep. Reset value 0x7FFF0 = S3C2410A UM p.239. */
         emu_.Get<GuestCpuReset>().RegisterResetListener(
-            [this] { storage_[0x0Cu / 4u] = 0x7FFF0u; });
+            [this](ResetLineKind) { storage_[0x0Cu / 4u] = 0x7FFF0u; });
     }
 
     uint32_t MmioBase() const override { return 0x4C000000u; }

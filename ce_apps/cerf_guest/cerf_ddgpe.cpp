@@ -48,7 +48,7 @@ CerfDDGPE::CerfDDGPE() : DDGPE() {
     m_vidSize   = 0;
     m_vidBacking = kCerfVidGuestRamHeap;
     m_pPrimaryShadow = NULL;
-    m_currentRotation = 0;  /* DMDO_0 */
+    m_currentRotation = 0;
 }
 
 SCODE CerfDDGPE::BltComplete(GPEBltParms* p) {
@@ -64,8 +64,6 @@ SCODE CerfDDGPE::Line(GPELineParms* pLineParms, EGPEPhase phase) {
     return S_OK;
 }
 
-/* No scanout-base register exists on the cerf_virt FB, so a page-flip is never
-   honoured; present by host-blitting the flip target to the FB-PA primary. */
 void CerfDDGPE::SetVisibleSurface(GPESurf* pSurf, BOOL bWaitForVBlank) {
     (void)bWaitForVBlank;
     DDGPESurf* primary = DDGPEPrimarySurface();
@@ -75,13 +73,9 @@ void CerfDDGPE::SetVisibleSurface(GPESurf* pSurf, BOOL bWaitForVBlank) {
     r.left = 0; r.top = 0;
     r.right  = primary->Width();
     r.bottom = primary->Height();
-    BltExpanded(primary, target, NULL, &r, &r, 0u, 0u, 0xCCCCu);  /* SRCCOPY */
+    BltExpanded(primary, target, NULL, &r, &r, 0u, 0u, 0xCCCCu);
 }
 
-/* Claim the hardware cursor and transport the shape to the host, which
-   draws it as the host cursor (vmware model). Returning SPS_DECLINE would
-   make the engine SW-draw it via DrvBitBlt, which doesn't survive the
-   guest-additions host-blit path - the cursor vanishes. */
 SCODE CerfDDGPE::SetPointerShape(GPESurf* pMask, GPESurf*, int xHot, int yHot,
                                  int cx, int cy) {
     if (pMask) CerfPublishCursor(pMask->Buffer(), pMask->Stride(),
@@ -90,8 +84,6 @@ SCODE CerfDDGPE::SetPointerShape(GPESurf* pMask, GPESurf*, int xHot, int yHot,
     return S_OK;
 }
 
-/* Position is tracked by the host pointer (absolute 1:1), so the host
-   cursor is already where GWES thinks it is - nothing to do here. */
 SCODE CerfDDGPE::MovePointer(int, int) { return S_OK; }
 
 SCODE CerfDDGPE::SetPalette(const PALETTEENTRY* src, unsigned short firstEntry,
@@ -119,8 +111,6 @@ SCODE CerfDDGPE::GetPalette(PALETTEENTRY** ppPalette, unsigned short* pcEntries)
     return S_OK;
 }
 
-/* Single mode at the live g_Fb* dimensions. Runtime resize is driven by the
-   rotation-escape path (DrvEscape), not by enumerating alternate modes. */
 SCODE CerfDDGPE::GetModeInfo(GPEMode* pMode, int modeNo) {
     CERF_LOG_X_DEV("cerf_guest: GPE::GetModeInfo modeNo", (DWORD)modeNo);
     if (modeNo != 0 || pMode == NULL) return E_FAIL;
@@ -150,10 +140,6 @@ ULONG CerfDDGPE::GetGraphicsCaps() {
     return 0;
 }
 
-/* The CE5/WM5 kernel's only runtime-resize hook is gwes's rotation apply path,
-   which re-queries this driver's GDIINFO and resizes the desktop to it (gwes.exe
-   sub_16488; CE6 sub_C0164EDC). The surface stays axis-aligned at g_Fb*;
-   orientation is tracked state consumed by GET. ABI: VGAFLAT::DrvEscape. */
 ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
                            ULONG cjOut, PVOID pvOut) {
     ULONG pwrRet;
@@ -168,8 +154,7 @@ ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
         return GPE::DrvEscape(pso, iEsc, cjIn, pvIn, cjOut, pvOut);
     }
     if (iEsc == DRVESC_GETSCREENROTATION) {
-        /* gwes passes cjOut=0 with a valid 4-byte pvOut (&word_B9444) and reads the
-           result back, like VGAFLAT - so the write is gated on pvOut only. */
+
         if (pvOut)
             *(int*)pvOut = ((DMDO_0 | DMDO_90 | DMDO_180 | DMDO_270) << 8)
                          | (m_currentRotation & 0xFF);
@@ -177,12 +162,9 @@ ULONG CerfDDGPE::DrvEscape(SURFOBJ* pso, ULONG iEsc, ULONG cjIn, PVOID pvIn,
         return DISP_CHANGE_SUCCESSFUL;
     }
     if (iEsc == DRVESC_SETSCREENROTATION) {
-        /* Orientation arrives in cjIn (CE GPE escape ABI). No pixel rotation. */
+
         m_currentRotation = (int)cjIn;
-        /* The rotation apply is the only surface re-enable point on the CE5 path, so
-           rebuild the primary at g_Fb* (the pump set it before this CDS) - otherwise
-           GDI keeps drawing at the boot stride while the host renders the new one,
-           shearing the screen. */
+
         if (m_pPrimarySurface == NULL ||
             m_pPrimarySurface->Width()  != (int)g_FbWidth ||
             m_pPrimarySurface->Height() != (int)g_FbHeight)
@@ -220,8 +202,7 @@ static ULONG CerfReadGpeDpi(const wchar_t* value_name) {
 BOOL CerfDDGPE::GetScreenDimensions(GPEScreenProps* pProps) {
     CERF_LOG_DEV("cerf_guest: GPE::GetScreenDimensions");
     if (!pProps) return FALSE;
-    /* DPI priority: 1) emulator override (kFbRegLogicalDpi), 2) the ROM's own
-       registry DPI (what the stock GPE lib would read), 3) 96. */
+
     ULONG dpiX = g_FbDpi ? g_FbDpi : CerfReadGpeDpi(L"LogicalPixelsX");
     ULONG dpiY = g_FbDpi ? g_FbDpi : CerfReadGpeDpi(L"LogicalPixelsY");
     if (!dpiX) dpiX = 96;

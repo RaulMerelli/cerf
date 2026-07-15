@@ -5,6 +5,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 #include "../vr41xx_icu.h"
 
 #include <cstdint>
@@ -24,6 +25,7 @@ constexpr uint32_t kOffScanLine = 0x1Eu;
 
 constexpr uint16_t kKeyen       = 0x8000u;
 constexpr uint16_t kScanRepMask = 0x83FFu;   /* UM 21.2.2, p425. */
+constexpr uint16_t kScanRepPowerOn = 0x0001u;   /* UM 21.2.2 reset rows: D0 ATSCAN = 1. */
 constexpr uint16_t kKDatRdy     = 1u << 1;
 constexpr uint16_t kIntMask     = 0x0007u;
 
@@ -36,7 +38,19 @@ bool Vr4102Kiu::ShouldRegister() {
     return bd && bd->GetSoc() == SocFamily::VR4102;
 }
 
-void Vr4102Kiu::OnReady() { emu_.Get<PeripheralDispatcher>().Register(this); }
+void Vr4102Kiu::OnReady() {
+    emu_.Get<PeripheralDispatcher>().Register(this);
+    /* An RSTSW reset "resets all peripheral units except for RTC and PMU" (UM 15.1.1(2)).
+       KIUSCANREP's RTCRST and Other-resets rows are 0 but for D0 ATSCAN = 1 (UM 21.2.2);
+       KIUINT's are 0 (UM 21.2.6). KIUDAT0-5 carry the key-matrix pin state, which no
+       reset drives. */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        scanrep_ = kScanRepPowerOn;
+        causes_  = 0;
+        PublishCausesLocked();
+    });
+}
 
 bool Vr4102Kiu::EnabledLocked() const { return (scanrep_ & kKeyen) != 0; }
 

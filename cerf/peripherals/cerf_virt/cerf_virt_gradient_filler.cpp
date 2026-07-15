@@ -5,7 +5,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../jit/guest_engine.h"
 
 #include <vector>
 
@@ -19,45 +18,52 @@ bool CerfVirtGradientFiller::ShouldRegister() {
 
 void CerfVirtGradientFiller::OnReady() {
     fb_  = &emu_.Get<CerfVirtFramebuffer>();
-    engine_ = &emu_.Get<GuestEngine>();
+    arena_  = &emu_.Get<CerfVirtDmaArena>();
 }
 
 namespace {
-/* Floor division (round toward -inf) with span > 0, matching the gradient
-   step sub_17D1518 computes - C truncation would round a negative delta the
-   wrong way and shift the ramp by one LSB. */
+
 int64_t GradFloorDiv(int64_t num, int64_t span) {
     int64_t q = num / span;
     if (num % span != 0 && num < 0) --q;
     return q;
 }
-}  /* namespace */
+}
 
 bool CerfVirtGradientFiller::Execute(const CerfGradDescriptor& g) {
     if (g.magic != kCerfGradMagic) {
-        LOG(Periph, "[CerfVirtGradientFiller] bad gradient magic 0x%08X\n", g.magic);
-        return false;
+        LOG(Cerf, "[CerfVirtGradientFiller] corrupt gradient magic 0x%08X\n", g.magic);
+        CerfFatalExit();
     }
     const int32_t span = g.end_coord - g.start_coord;
     if (span <= 0) return true;
 
+    const uint32_t d_bits = BltPixelOps::FormatBits(g.dst.format);
+    if (d_bits <= 8u) {
+        LOG(Cerf, "[CerfVirtGradientFiller] UNIMPLEMENTED indexed/sub-byte dst "
+                  "format %u (%u bpp)\n", g.dst.format, d_bits);
+        CerfFatalExit();
+    }
     uint32_t d_masks[3], d_bpp = 0, d_shift[3];
     if (!ResolveMasks(g.dst, d_masks, &d_bpp)) {
-        LOG(Periph, "[CerfVirtGradientFiller] unsupported dst format %u\n", g.dst.format);
-        return false;
+        LOG(Cerf, "[CerfVirtGradientFiller] UNIMPLEMENTED dst format %u (%u bpp)\n",
+            g.dst.format, d_bits);
+        CerfFatalExit();
     }
     for (int i = 0; i < 3; ++i) d_shift[i] = 32u - BltPixelOps::HighBitPos(d_masks[i]);
-    /* 32bpp writes the alpha channel only when the surface carries an ARGB
-       mask set (sub_17D3434 case 6: alpha packed iff pal entries == 4). */
+
     const uint32_t a_mask  = (g.dst.pal_entries == 4u) ? g.dst.mask[3] : 0u;
     const uint32_t a_shift = a_mask ? 32u - BltPixelOps::HighBitPos(a_mask) : 0u;
 
     Surface dst;
-    if (!ResolveSurface(g.dst, d_bpp, &dst)) return false;
+    if (!ResolveSurface(g.dst, d_bpp, &dst)) {
+        LOG(Cerf, "[CerfVirtGradientFiller] dst surface unresolvable: buffer=0x%08X "
+                  "is_fb_pa=%u fmt=%u stride=%d stage_off=0x%08X stage_len=%u\n",
+            g.dst.buffer, g.dst.is_fb_pa, g.dst.format, g.dst.stride,
+            g.dst.stage_off, g.dst.stage_len);
+        CerfFatalExit();
+    }
 
-    /* Per-channel base = COLOR16<<8 in the high dword; step = fixed-point
-       per-unit delta. Output 8-bit channel = high byte of the <<8 value
-       (bits 48..55 of the 64-bit accumulator). */
     int64_t base[4], step[4];
     for (int c = 0; c < 4; ++c) {
         base[c] = (int64_t)((uint32_t)g.start_color[c] << 8) << 32;
@@ -87,12 +93,20 @@ bool CerfVirtGradientFiller::Execute(const CerfGradDescriptor& g) {
     }
 
     for (int32_t y = r.top; y < r.bottom; ++y) {
+        if (g.band_y_count != 0u &&
+            ((uint32_t)y < g.band_y_first ||
+             (uint32_t)y >= g.band_y_first + g.band_y_count)) continue;
         const uint32_t row_px = horiz ? 0u : line[(size_t)(y - r.top)];
         for (int32_t x = r.left; x < r.right; ++x) {
             const uint32_t px = horiz ? line[(size_t)(x - r.left)] : row_px;
             uint32_t run = 0;
             uint8_t* dp = PixelPtr(dst, x, y, d_bpp, &run);
-            if (!dp) continue;
+            if (!dp) {
+                LOG(Cerf, "[CerfVirtGradientFiller] dst pixel unaddressable at x=%d y=%d: "
+                          "buffer=0x%08X is_fb_pa=%u stage_off=0x%08X stage_len=%u\n",
+                    x, y, g.dst.buffer, g.dst.is_fb_pa, g.dst.stage_off, g.dst.stage_len);
+                CerfFatalExit();
+            }
             if (run >= d_bpp) BltPixelOps::WritePixel(dp, d_bpp, px);
             else              WriteStraddlePixel(dst, x, y, d_bpp, px);
         }
@@ -101,4 +115,4 @@ bool CerfVirtGradientFiller::Execute(const CerfGradDescriptor& g) {
     return true;
 }
 
-}  /* namespace CerfVirt */
+}

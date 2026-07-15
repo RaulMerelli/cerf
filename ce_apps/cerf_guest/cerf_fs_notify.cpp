@@ -3,16 +3,15 @@
 #include <windows.h>
 #include <pkfuncs.h>
 
-
 #define CERF_HT_FIND              8
 #define CERF_REGISTER_APISET_TYPE 0x80000000
 #define CERF_FS_MAX_WATCH         32
 
 typedef struct CerfWatch {
-    HANDLE hEvent;            /* manual-reset event the app waits on */
-    HANDLE hNotify;           /* notify API-set handle behind it */
+    HANDLE hEvent;
+    HANDLE hNotify;
     BOOL   subtree;
-    DWORD  filter;            /* FILE_NOTIFY_CHANGE_* */
+    DWORD  filter;
     BOOL   inUse;
     WCHAR  path[CERF_FS_MAX_LFN + 1];
 } CerfWatch;
@@ -22,14 +21,10 @@ static CRITICAL_SECTION g_notifyCs;
 static HANDLE           g_hNotifyAPI  = NULL;
 static BOOL             g_notifyReady = FALSE;
 
-/* SetEventData links an event to an API-set handle; CE5+ only (absent CE3/CE4). */
 typedef BOOL   (*PFN_SetEventData)(HANDLE, DWORD);
 typedef HANDLE (*PFN_CreateAPISet)(char*, USHORT, const PFNVOID*, const ULONGLONG*);
 static PFN_SetEventData pSetEventData = NULL;
 
-/* Notify API-set methods (index order matches fsnotify apfnFindNotify): 0 = close,
-   2 = reset. Index 2 is shared HT_FIND dispatch with FindNextFile, so a notify
-   handle's "FindNext" is its event reset; it ignores the WIN32_FIND_DATA arg. */
 static BOOL CerfNotifyClose(CerfWatch* w) {
     if (!w) return TRUE;
     EnterCriticalSection(&g_notifyCs);
@@ -49,8 +44,7 @@ static BOOL CerfNotifyReset(CerfWatch* w, void* ignored) {
 static const PFNVOID g_notifyMethods[3] = {
     (PFNVOID)CerfNotifyClose, (PFNVOID)NULL, (PFNVOID)CerfNotifyReset,
 };
-/* FNSIG1(DW), FNSIG0(), FNSIG2(DW,PTR) - byte-identical to fsnotify asigFindNotify.
-   CE5/WM5 (the only family this runs on) uses the 32-bit encoding. */
+
 static const DWORD g_notifySig32[3] = { 0x000, 0x000, 0x004 };
 
 void CerfFsNotifyInit(void) {
@@ -67,8 +61,7 @@ void CerfFsNotifyInit(void) {
 
     ovi.dwOSVersionInfoSize = sizeof(ovi);
     GetVersionEx(&ovi);
-    /* CE5/WM5 (major 5) only - the family whose volume apiset registers FFCN at
-       index 17. DO NOT enable on CE6/7: their explorer hangs on folder-open. */
+
     if (ovi.dwMajorVersion != 5) { CERF_LOG("cerf_guest: notify skipped (not CE5)"); return; }
     g_hNotifyAPI = pCreateAPISet("CFSN", 3, g_notifyMethods, (const ULONGLONG*)g_notifySig32);
     if (!g_hNotifyAPI) { CERF_LOG("cerf_guest: notify CreateAPISet FAILED"); return; }
@@ -79,7 +72,6 @@ void CerfFsNotifyInit(void) {
     CERF_LOG("cerf_guest: notify init complete");
 }
 
-/* AFS[17] FindFirstChangeNotificationW(volData, hProc, path, subtree, filter). */
 HANDLE CerfFsFindFirstChangeNotificationW(CerfVol* vol, HANDLE hProc, PCWSTR path,
                                           BOOL subtree, DWORD filter) {
     int i, n;
@@ -96,7 +88,7 @@ HANDLE CerfFsFindFirstChangeNotificationW(CerfVol* vol, HANDLE hProc, PCWSTR pat
         SetLastError(ERROR_TOO_MANY_OPEN_FILES);
         return INVALID_HANDLE_VALUE;
     }
-    hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);   /* manual-reset, per NotifyCreateEvent */
+    hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!hEvent) { LeaveCriticalSection(&g_notifyCs); return INVALID_HANDLE_VALUE; }
 
     n = path ? lstrlenW(path) : 0;
@@ -113,7 +105,7 @@ HANDLE CerfFsFindFirstChangeNotificationW(CerfVol* vol, HANDLE hProc, PCWSTR pat
         return INVALID_HANDLE_VALUE;
     }
     w->hNotify = hNotify;
-    pSetEventData(hEvent, (DWORD)hNotify);   /* coredll FindNext/Close recover hNotify from here */
+    pSetEventData(hEvent, (DWORD)hNotify);
     LeaveCriticalSection(&g_notifyCs);
     CERF_LOG_X("cerf_guest: FFCN watch armed hEvent", (DWORD)hEvent);
     return hEvent;

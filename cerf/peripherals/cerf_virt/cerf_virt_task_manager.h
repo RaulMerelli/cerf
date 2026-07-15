@@ -9,9 +9,6 @@
 #include <string>
 #include <vector>
 
-/* Host<->guest task-manager MMIO channel for guest additions. The host UI
-   enqueues commands; one command is published to the guest at a time and the
-   next is published when the guest's response kick is consumed. */
 class CerfVirtTaskManager : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -32,8 +29,8 @@ public:
         std::wstring title;
     };
     struct Snapshot {
-        uint64_t gen = 0;          /* bumps on every accepted LIST/LIST-WINDOWS */
-        uint32_t guest_total = 0;  /* > procs.size() => process table truncated */
+        uint64_t gen = 0;
+        uint32_t guest_total = 0;
         std::vector<ProcEntry> procs;
         std::vector<WinEntry>  wins;
     };
@@ -41,7 +38,7 @@ public:
         uint32_t ticket;
         uint32_t code;
         bool     ok;
-        uint32_t guest_err;   /* guest GetLastError() when !ok */
+        uint32_t guest_err;
     };
 
     bool ShouldRegister() override;
@@ -52,9 +49,8 @@ public:
     uint32_t ReadWord(uint32_t addr) override;
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
-    /* UI thread. Tickets identify the eventual ActionResult; 0 = rejected. */
-    void     RequestProcessList();   /* deduped: at most one list cycle live */
-    void     RequestWindowList();    /* deduped: at most one list cycle live */
+    void     RequestProcessList();
+    void     RequestWindowList();
     uint32_t RequestKill(uint32_t pid);
     uint32_t RequestSwitchTo(uint32_t pid);
     uint32_t RequestSwitchToWindow(uint32_t hwnd);
@@ -78,24 +74,20 @@ private:
     std::deque<PendingCmd> queue_;
     bool                   in_flight_      = false;
     uint32_t               in_flight_code_ = 0;
-    bool                   list_live_      = false;  /* LIST queued or in flight */
+    bool                   list_live_      = false;
     uint32_t               next_ticket_    = 0;
 
-    /* Published command registers (guest-visible; cmd_gen_ is the ticket). */
     uint32_t     cmd_gen_  = 0;
     uint32_t     cmd_code_ = 0;
     uint32_t     cmd_pid_  = 0;
     std::wstring cmd_run_text_;
 
-    /* Guest-written response registers. */
     uint32_t resp_cmd_gen_ = 0;
     uint32_t resp_status_  = 0;
     uint32_t resp_err_     = 0;
     uint32_t resp_count_   = 0;
     uint32_t resp_total_   = 0;
 
-    /* LIST record staging: one record streamed through the window per
-       kTmRecKick, accumulated until the response kick publishes them. */
     uint32_t               rec_words_[37] = {};
     uint32_t               rec_index_     = 0;
     std::vector<ProcEntry> pending_rows_;

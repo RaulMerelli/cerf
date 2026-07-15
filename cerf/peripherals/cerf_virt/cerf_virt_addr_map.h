@@ -41,6 +41,8 @@ const uint32_t kLogChannelIdDisplay       = 1u;
 const uint32_t kLogChannelIdSharedFolders = 2u;
 const uint32_t kLogChannelCount  = 3u;
 const uint32_t kLogChannelSize   = kLogChannelCount * kLogChannelStride;
+const uint32_t kLogChannelTxSlot    = 0x000u;
+const uint32_t kLogChannelFatalSlot = 0x800u;
 
 const uint32_t kTaskManagerOffset = 0xA000u;
 const uint32_t kTaskManagerSize   = 0x1000u;
@@ -51,6 +53,10 @@ const uint32_t kKeyboardSize   = 0x1000u;
 const uint32_t kPaletteOffset  = 0xC000u;
 const uint32_t kPaletteSize    = 0x1000u;
 const uint32_t kPaletteEntries = 256u;
+
+const uint32_t kArenaCtlOffset = 0xD000u;
+const uint32_t kArenaCtlSize   = 0x1000u;
+const uint32_t kArenaCtlClaimPid  = 0x000u;
 
 const uint32_t kFramebufferMemOffset = 0x00100000u;
 const uint32_t kFramebufferMemSize   = 0x02000000u;
@@ -63,7 +69,24 @@ const uint32_t kInjectionBandOffset = kFramebufferMemOffset - kInjectionBandSize
 
 const uint32_t kGuestBodyMaxSize = kInjectionBandOffset - kGuestBodyOffset;
 
-}  /* namespace CerfVirt */
+const uint32_t kDmaArenaOffset   = kFramebufferMemOffset + kFramebufferMemSize;
+const uint32_t kDmaArenaProcMax  = 8u;
+const uint32_t kDmaPartitionSize = 0x00080000u;
+const uint32_t kDmaArenaSize     = kDmaArenaProcMax * kDmaPartitionSize;
+
+const uint32_t kFsStageOffset = kDmaArenaOffset + kDmaArenaSize;
+const uint32_t kFsStagePbOff  = 0x0000u;
+const uint32_t kFsStageIoOff  = 0x1000u;
+const uint32_t kFsStageIoSize = 0x10000u;
+const uint32_t kFsStageSize   = kFsStageIoOff + kFsStageIoSize;
+
+const uint32_t kCurStageOffset = kFsStageOffset + kFsStageSize;
+const uint32_t kCurStageSize   = 0x1000u;
+
+const uint32_t kDmaPartOwnerPid    = 0x0Cu;
+const uint32_t kDmaPartHdrSize     = 0x40u;
+
+}
 
 #ifdef CERF_VIRT_GUEST
 extern volatile unsigned long g_CerfVirtBase;

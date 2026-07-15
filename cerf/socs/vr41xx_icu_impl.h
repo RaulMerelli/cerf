@@ -8,6 +8,7 @@
 #include "../jit/mips/mips_jit.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
+#include "guest_cpu_reset.h"
 
 #include <cstdint>
 #include <mutex>
@@ -56,6 +57,11 @@ constexpr uint16_t kS1RtcL1 = 1u << 2;   /* SYSINT1REG D2 RTCL1INTR */
 constexpr uint16_t kS2RtcL2 = 1u << 0;   /* SYSINT2REG D0 RTCL2INTR */
 constexpr uint16_t kS2Hsp   = 1u << 2;   /* SYSINT2REG D2 HSPINTR   */
 
+/* DSIUINTREG (0x0B00008A) D11 INTDCTS, D10 INTSER0, D9 INTSR0, D8 INTST0, all R; D7:1 RFU
+   read 0; D0 is an RFU that reads back 1 ("Write 1 to this bit. 1 is returned after a
+   read"), with RTCRST = 1 and After reset = 1 (VR4121 UM 15.2.6, VR4102 UM 14.2.6). */
+constexpr uint16_t kDsiuFixedRead = 0x0001u;
+
 /* NMIREG D0 NMIORINT, "Low battery detect interrupt type setting. 1: Int0, 0: NMI"
    (VR4121 UM 15.2.13 == VR4102 UM 14.2.13); D15:1 RFU read 0. */
 constexpr uint16_t kNmiOrInt = 1u << 0;
@@ -89,7 +95,13 @@ public:
         return bd && bd->GetSoc() == Soc;
     }
 
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+            std::lock_guard<std::mutex> lk(mtx_);
+            ApplyResetLocked();
+        });
+    }
 
     uint32_t MmioBase() const override { return M.base1; }
     uint32_t MmioSize() const override { return M.size1; }
@@ -104,7 +116,7 @@ public:
             case kOffAiuint:   return aiuint_;
             case kOffKiuint:   return kiuint_;
             case kOffGiuintl:  return giuintl_;
-            case kOffDsiuint:  return dsiuint_;
+            case kOffDsiuint:  return static_cast<uint16_t>(dsiuint_ | kDsiuFixedRead);
             case kOffMsysint1: return msysint1_;
             case kOffMpiu:     return mpiu_;
             case kOffMaiu:     return maiu_;
@@ -204,6 +216,11 @@ public:
         kiuint_ = bits;
         RecomputeLocked();
     }
+    void SetDsiuSource(uint16_t bits) override {
+        std::lock_guard<std::mutex> lk(mtx_);
+        dsiuint_ = bits;
+        RecomputeLocked();
+    }
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(mtx_);
@@ -231,6 +248,18 @@ public:
     }
 
 private:
+    /* The ICU's own R/W registers, whose RTCRST and After-reset rows are all 0 (VR4121 UM
+       15.2.7-15.2.14, 15.2.18-15.2.20; VR4102 UM 14.2.7-14.2.14, 14.2.18-14.2.19). The
+       indication registers are not latched here: they carry the interrupt each source unit
+       is driving ("Interrupt to GPIO pin. 1: Occurred", VR4121 UM 15.2.5), so a source that
+       the reset line clears re-drives its own line. */
+    void ApplyResetLocked() {
+        mgiul_ = 0; mgiuh_ = 0; mpiu_ = 0; maiu_ = 0;
+        mkiu_  = 0; mdsiu_ = 0; mfir_ = 0;
+        msysint1_ = 0; msysint2_ = 0; nmireg_ = 0; softint_ = 0;
+        RecomputeLocked();
+    }
+
     uint16_t ComputeSysint1Locked() const {
         uint16_t s = static_cast<uint16_t>(sysint1_direct_ & M.s1_direct);
         if (piuint_ & mpiu_)  s |= kS1Piu;

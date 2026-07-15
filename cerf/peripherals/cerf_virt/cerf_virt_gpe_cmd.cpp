@@ -6,7 +6,7 @@
 #include "cerf_virt_gradient_filler.h"
 #include "cerf_virt_line_drawer.h"
 #include "cerf_virt_addr_map.h"
-#include "cerf_virt_guest_mem.h"
+#include "cerf_virt_dma_arena.h"
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
@@ -57,14 +57,17 @@ public:
 private:
     void ExecuteCmd() {
         regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusBusy;
-        const uint32_t desc_va = regs_[CerfVirt::kGpeCmdDescVa / 4];
+        const uint32_t off = regs_[CerfVirt::kGpeCmdDescVa / 4];
 
-        CerfVirt::CerfBltDescriptor d;
-        if (!emu_.Get<CerfVirtGuestMem>().ReadBlob(desc_va, &d, (uint32_t)sizeof(d))) {
-            LOG(Periph, "[CerfVirtGpeCmd] descriptor VA 0x%08X unreadable\n", desc_va);
-            regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
-            return;
+        uint8_t* p = emu_.Get<CerfVirtDmaArena>().At(
+            off, (uint32_t)sizeof(CerfVirt::CerfBltDescriptor));
+        if (!p) {
+            LOG(Cerf, "[CerfVirtGpeCmd] blit descriptor offset 0x%X outside arena\n",
+                off);
+            CerfFatalExit();
         }
+        const CerfVirt::CerfBltDescriptor& d =
+            *reinterpret_cast<const CerfVirt::CerfBltDescriptor*>(p);
         const bool ok = emu_.Get<CerfVirt::CerfVirtBlitter>().Execute(d);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
@@ -72,30 +75,36 @@ private:
 
     void ExecuteGradCmd() {
         regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusBusy;
-        const uint32_t desc_va = regs_[CerfVirt::kGpeCmdDescVa / 4];
+        const uint32_t off = regs_[CerfVirt::kGpeCmdDescVa / 4];
 
-        CerfVirt::CerfGradDescriptor g;
-        if (!emu_.Get<CerfVirtGuestMem>().ReadBlob(desc_va, &g, (uint32_t)sizeof(g))) {
-            LOG(Periph, "[CerfVirtGpeCmd] gradient VA 0x%08X unreadable\n", desc_va);
-            regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
-            return;
+        uint8_t* p = emu_.Get<CerfVirtDmaArena>().At(
+            off, (uint32_t)sizeof(CerfVirt::CerfGradDescriptor));
+        if (!p) {
+            LOG(Cerf, "[CerfVirtGpeCmd] gradient descriptor offset 0x%X outside arena\n",
+                off);
+            CerfFatalExit();
         }
-        const bool ok = emu_.Get<CerfVirt::CerfVirtGradientFiller>().Execute(g);
+        const CerfVirt::CerfGradDescriptor& d =
+            *reinterpret_cast<const CerfVirt::CerfGradDescriptor*>(p);
+        const bool ok = emu_.Get<CerfVirt::CerfVirtGradientFiller>().Execute(d);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
     }
 
     void ExecuteLineCmd() {
         regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusBusy;
-        const uint32_t desc_va = regs_[CerfVirt::kGpeCmdDescVa / 4];
+        const uint32_t off = regs_[CerfVirt::kGpeCmdDescVa / 4];
 
-        CerfVirt::CerfLineDescriptor l;
-        if (!emu_.Get<CerfVirtGuestMem>().ReadBlob(desc_va, &l, (uint32_t)sizeof(l))) {
-            LOG(Periph, "[CerfVirtGpeCmd] line VA 0x%08X unreadable\n", desc_va);
-            regs_[CerfVirt::kGpeCmdStatus / 4] = CerfVirt::kGpeStatusError;
-            return;
+        uint8_t* p = emu_.Get<CerfVirtDmaArena>().At(
+            off, (uint32_t)sizeof(CerfVirt::CerfLineDescriptor));
+        if (!p) {
+            LOG(Cerf, "[CerfVirtGpeCmd] line descriptor offset 0x%X outside arena\n",
+                off);
+            CerfFatalExit();
         }
-        const bool ok = emu_.Get<CerfVirt::CerfVirtLineDrawer>().Execute(l);
+        const CerfVirt::CerfLineDescriptor& d =
+            *reinterpret_cast<const CerfVirt::CerfLineDescriptor*>(p);
+        const bool ok = emu_.Get<CerfVirt::CerfVirtLineDrawer>().Execute(d);
         regs_[CerfVirt::kGpeCmdStatus / 4] =
             ok ? CerfVirt::kGpeStatusDone : CerfVirt::kGpeStatusError;
     }
@@ -105,4 +114,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtGpeCmd);
 
-}  /* namespace */
+}

@@ -71,4 +71,4 @@ private:
 
 REGISTER_SERVICE(CerfVirtFramebufferRegs);
 
-}  /* namespace */
+}

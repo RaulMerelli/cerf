@@ -5,9 +5,6 @@
 #include <atomic>
 #include <cstdint>
 
-/* Host->guest absolute-pointer MMIO channel for guest additions. The host UI
-   thread publishes via SetPointer/AddWheel; the guest pump reads via MMIO on
-   the JIT thread, so the registers are atomic and the seq is bumped last. */
 class CerfVirtPointer : public Peripheral {
 public:
     using Peripheral::Peripheral;

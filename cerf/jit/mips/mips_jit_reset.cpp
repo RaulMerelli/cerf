@@ -8,6 +8,7 @@
 #include "../../socs/guest_cpu_reset.h"
 
 void MipsJit::SetResetPending(bool is_resume) {
+    emu_.Get<GuestCpuReset>().SetPendingResume(is_resume);
     cpu_state_.reset_pending = 1;
     SignalIdleWake();   /* wake the JIT thread if parked so Run() delivers it */
     if (is_resume) { emu_.Get<GuestPowerNotifier>().NotifyResume(); return; }

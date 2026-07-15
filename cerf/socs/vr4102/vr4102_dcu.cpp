@@ -4,6 +4,7 @@
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../guest_cpu_reset.h"
 
 #include <cstdint>
 
@@ -30,7 +31,17 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::VR4102;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        emu_.Get<PeripheralDispatcher>().Register(this);
+        /* DMARSTREG (UM 12.3.1, p282), DMASENREG (12.3.3, p284), DMAMSKREG (12.3.4, p285)
+           and TDREG (12.3.6, p287) all have RTCRST and Other-resets rows of 0. */
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+            rst_ = 0;
+            sen_ = 0;
+            msk_ = 0;
+            td_  = 0;
+        });
+    }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kSize; }

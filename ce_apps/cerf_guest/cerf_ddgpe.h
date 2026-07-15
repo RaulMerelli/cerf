@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <pkfuncs.h>
 #include <winddi.h>
-#include <ddgpe.h>
+#include "include/cerf_gpe.h"
 #include "cerf/peripherals/cerf_virt/cerf_virt_blt_descriptor.h"
 #include "cerf/peripherals/cerf_virt/cerf_virt_line_descriptor.h"
 
@@ -19,11 +19,15 @@ extern "C" void CerfPublishCursor(const void* mask_bits, int stride,
                                   int cx, int cy, int xhot, int yhot, BOOL visible);
 extern ULONG g_FbWidth, g_FbHeight, g_FbBpp, g_FbStride, g_FbMemTotal, g_FbPrimaryReserve;
 extern ULONG g_OsMajor;
-extern ULONG g_FbDpi;   /* emulator DPI override (kFbRegLogicalDpi); 0 = none */
+extern ULONG g_FbDpi;
 
-/* RGB formats the host blitter reads/writes directly: 16/24/32bpp. */
+struct CerfStageWb { BOOL active; ULONG dst_va; void* arena_ptr; ULONG span; };
+
+ULONG CerfSpanBytes(int x0, int y0, int x1, int y1, int stride, int bits);
+
 inline bool CerfConvertibleFmt(EGPEFormat f) {
-    return f == gpe16Bpp || f == gpe24Bpp || f == gpe32Bpp;
+    return f == gpe1Bpp  || f == gpe2Bpp  || f == gpe4Bpp || f == gpe8Bpp ||
+           f == gpe16Bpp || f == gpe24Bpp || f == gpe32Bpp;
 }
 
 inline int CerfFormatBpp(EGPEFormat fmt) {
@@ -39,18 +43,6 @@ inline int CerfFormatBpp(EGPEFormat fmt) {
     }
 }
 
-inline EDDGPEPixelFormat CerfFormatToDDGPE(EGPEFormat fmt) {
-    switch (fmt) {
-        case gpe8Bpp:  return ddgpePixelFormat_8bpp;
-        case gpe16Bpp: return ddgpePixelFormat_565;
-        case gpe24Bpp: return ddgpePixelFormat_8880;
-        case gpe32Bpp: return ddgpePixelFormat_8888;
-        default:       return ddgpePixelFormat_8888;
-    }
-}
-
-/* Video-memory backing, selected once at driver construction by OS major (set via
-   CerfSetVidBackingByOsMajor), consumed by EnsureVideoHeap/SurfaceFbPa/the Lock. */
 enum CerfVidBacking { kCerfVidGuestRamHeap, kCerfVidGlobalFb };
 
 class CerfDDGPE : public DDGPE {
@@ -64,25 +56,20 @@ public:
     void GetVirtualVideoMemory(unsigned long* base, unsigned long* size,
                                unsigned long* freeBytes);
     bool SurfaceFbPa(GPESurf* s, ULONG* pa);
-    SCODE ApplyFbMode();  /* (re)build the primary surface from g_Fb* */
-    /* The FB-PA primary is host-MMIO (not cross-process-mappable), so a client Lock of
-       it faults; back the Lock with a guest-RAM shadow carved from the cross-process
-       vidmem heap, and blit it to the FB-PA scanout on Unlock. */
+    SCODE ApplyFbMode();
+
     DDGPESurf* EnsurePrimaryShadow();
     void       PrimaryShadowPresent();
 
     virtual SCODE BltPrepare(GPEBltParms* p);
     static void RectToDesc(CerfVirt::CerfBltRect* r, const RECTL* s);
-    void FillSurface(CerfVirt::CerfBltSurface* s, GPESurf* surf, bool read_palette = true);
-    void FillSurfaceFromSurfobj(CerfVirt::CerfBltSurface* s, SURFOBJ* pso);
-    SCODE SwFallback(GPEBltParms* p);
-    void FaultResident(GPESurf* surf, int x0, int y0, int x1, int y1);
+    void FillSurface(CerfVirt::CerfBltSurface* s, GPESurf* surf,
+                     int x0, int y0, int x1, int y1, bool host_writes,
+                     bool read_palette = true, CerfStageWb* wb = NULL);
+    void FillSurfaceFromSurfobj(CerfVirt::CerfBltSurface* s, SURFOBJ* pso,
+                                int y0, int y1, CerfStageWb* wb = NULL);
     SCODE HwBlt(GPEBltParms* p);
     SCODE HostLine(GPELineParms* p);
-    /* Run a GPE software blit whose dst/src/mask/brush may be PA-only FB surfaces:
-       aperture-map each FB surface's touched rows, redirect EmulatedBlt at the
-       mapped window, then release. Both EmulatedBlt entry points route here. */
-    SCODE SwBlt(GPEBltParms* p);
 
     virtual SCODE BltComplete(GPEBltParms* p);
     virtual SCODE Line(GPELineParms* pLineParms, EGPEPhase phase);
@@ -115,5 +102,5 @@ private:
     ULONG           m_vidSize;
     CerfVidBacking  m_vidBacking;
     DDGPESurf*      m_pPrimaryShadow;
-    int             m_currentRotation;  /* DMDO_* last accepted via DrvEscape */
+    int             m_currentRotation;
 };

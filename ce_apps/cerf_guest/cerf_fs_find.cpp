@@ -2,9 +2,8 @@
 
 #include <windows.h>
 
-#define CERF_FS_MAX_FIND 40   /* host find-handle table size */
+#define CERF_FS_MAX_FIND 40
 
-/* Transaction-id pool, guarded by CerfFsLock (every find op holds it). */
 static unsigned char g_tid_used[CERF_FS_MAX_FIND];
 
 static unsigned long AllocTid(void) {
@@ -47,7 +46,7 @@ HANDLE CerfFsFindFirstFileW(CerfVol* vol, HANDLE hProc, PCWSTR spec,
         SetLastError(ERROR_TOO_MANY_OPEN_FILES);
         return INVALID_HANDLE_VALUE;
     }
-    pb->fIndex = 0;                      /* FindFirst */
+    pb->fIndex = 0;
     pb->fFindTransactionID = tid;
     n = lstrlenW(spec);
     if (n > (int)CERF_FS_MAX_LFN) n = (int)CERF_FS_MAX_LFN;
@@ -78,7 +77,7 @@ BOOL CerfFsFindNextFileW(CerfFind* s, PWIN32_FIND_DATAW fd) {
     CerfFsServerPB* pb = CerfFsPb();
     unsigned long e;
     CerfFsLock();
-    pb->fIndex = 1;                      /* >0 selects FindNext */
+    pb->fIndex = 1;
     pb->fFindTransactionID = s->tid;
     e = CerfFsCall(pb, CERF_FS_OP_GET_INFO);
     if (e == CERF_FS_OK) FillFindData(fd, pb);
