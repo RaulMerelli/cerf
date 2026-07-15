@@ -50,18 +50,8 @@ $sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
     -LinkExtras "/MERGE:.rdata=.text"
 
 & $build `
-    -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 -DefFile cerf_guest.def `
-    -Sources $sources -Entry DllEntryPoint `
-    -ExtraIncludes $baseInc `
-    -Libs $libs `
-    -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
-    -ForcedInclude "cerf_debug_log.h" `
-    -LinkExtras "/MERGE:.rdata=.text"
-
-# CE 2.x MIPS-II body: coredll def trimmed of the CRT/soft-FP/C++ runtime.
-& $build `
-    -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2_ce2 -DefFile cerf_guest.def `
-    -Sources $sources_ce2 -Entry DllEntryPoint -OutSubdir mips2_ce2 `
+    -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips1 -ObjDir obj_mips1 -DefFile cerf_guest.def `
+    -Sources $sources_ce2 -Entry DllEntryPoint `
     -ExtraIncludes $baseInc `
     -Libs $libs `
     -CoreDllDef "$PSScriptRoot/coredll_ce2.def" `

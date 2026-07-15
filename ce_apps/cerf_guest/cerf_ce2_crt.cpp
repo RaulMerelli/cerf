@@ -1,7 +1,11 @@
 #include <windows.h>
 #include <stddef.h>
 
+#if defined(MIPS)
 #pragma function(memset, memcpy, __ll_lshift)
+#else
+#pragma function(memset, memcpy)
+#endif
 
 extern "C" void* __cdecl memset(void* dst, int c, size_t n) {
     unsigned char* p = (unsigned char*)dst;
@@ -35,29 +39,49 @@ extern "C" int __cdecl _purecall(void) {
 }
 
 extern "C" __int64 __ll_div(__int64 num, __int64 den) {
-    if (den == 0) return 0;
+    union { __int64 s; unsigned int w[2]; } n, d, q;
+    n.s = num; d.s = den;
+    if (d.w[0] == 0u && d.w[1] == 0u) return 0;
 
-    int negate = 0;
-    unsigned __int64 n, d;
+    int neg = 0;
+    unsigned int nlo = n.w[0], nhi = n.w[1];
+    unsigned int dlo = d.w[0], dhi = d.w[1];
 
-    if (num < 0) { n = (unsigned __int64)(-num); negate ^= 1; }
-    else         { n = (unsigned __int64)num; }
-    if (den < 0) { d = (unsigned __int64)(-den); negate ^= 1; }
-    else         { d = (unsigned __int64)den; }
+    if (nhi & 0x80000000u) {
+        nlo = (~nlo) + 1u;
+        nhi = (~nhi) + (nlo == 0u ? 1u : 0u);
+        neg ^= 1;
+    }
+    if (dhi & 0x80000000u) {
+        dlo = (~dlo) + 1u;
+        dhi = (~dhi) + (dlo == 0u ? 1u : 0u);
+        neg ^= 1;
+    }
 
-    unsigned __int64 q = 0;
-    unsigned __int64 r = 0;
+    unsigned int qlo = 0u, qhi = 0u;
+    unsigned int rlo = 0u, rhi = 0u;
     for (int i = 63; i >= 0; --i) {
-        r <<= 1;
-        r |= (n >> i) & 1u;
-        if (r >= d) {
-            r -= d;
-            q |= ((unsigned __int64)1) << i;
+        rhi = (rhi << 1) | (rlo >> 31);
+        rlo <<= 1;
+        rlo |= (i < 32) ? ((nlo >> i) & 1u) : ((nhi >> (i - 32)) & 1u);
+        if (rhi > dhi || (rhi == dhi && rlo >= dlo)) {
+            unsigned int borrow = (rlo < dlo) ? 1u : 0u;
+            rlo = rlo - dlo;
+            rhi = rhi - dhi - borrow;
+            if (i < 32) qlo |= (1u << i);
+            else        qhi |= (1u << (i - 32));
         }
     }
-    return negate ? -(__int64)q : (__int64)q;
+
+    if (neg) {
+        qlo = (~qlo) + 1u;
+        qhi = (~qhi) + (qlo == 0u ? 1u : 0u);
+    }
+    q.w[0] = qlo; q.w[1] = qhi;
+    return q.s;
 }
 
+#if defined(MIPS)
 extern "C" ULONGLONG NTAPI __ll_lshift(ULONGLONG Value, DWORD ShiftCount) {
     union { ULONGLONG q; unsigned int w[2]; } u;
     u.q = Value;
@@ -74,6 +98,7 @@ extern "C" ULONGLONG NTAPI __ll_lshift(ULONGLONG Value, DWORD ShiftCount) {
     }
     return u.q;
 }
+#endif
 
 void* __cdecl operator new(size_t n) {
     if (n == 0) n = 1;

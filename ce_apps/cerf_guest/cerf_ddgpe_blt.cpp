@@ -169,6 +169,79 @@ void CerfDDGPE::FillSurfaceFromSurfobj(CerfVirt::CerfBltSurface* s, SURFOBJ* pso
                      (int)pso->lDelta, CerfFormatBpp((EGPEFormat)s->format), wb);
 }
 
+void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1) {
+    if (!CerfArenaEnter()) CERF_FATAL("cerf_guest: DMA arena unavailable - halting");
+    ULONG desc_off = 0u;
+    CerfVirt::CerfBltDescriptor* pd = (CerfVirt::CerfBltDescriptor*)
+        CerfArenaAlloc((ULONG)sizeof(CerfVirt::CerfBltDescriptor), &desc_off);
+    if (!pd) CERF_FATAL("cerf_guest: DMA arena descriptor alloc failed - halting");
+    CerfVirt::CerfBltDescriptor& d = *pd;
+    memset(&d, 0, sizeof(d));
+    d.magic          = CerfVirt::kCerfBltMagic;
+    d.rop4           = (uint32_t)p->rop4;
+    d.blt_flags      = (uint32_t)p->bltFlags;
+    d.solid_color    = (uint32_t)p->solidColor;
+    d.i_mode         = (uint32_t)p->iMode;
+    d.x_positive     = p->xPositive ? 1u : 0u;
+    d.y_positive     = p->yPositive ? 1u : 0u;
+    d.blend_function = *(const ULONG*)&p->blendFunction;
+    d.band_row_first = (uint32_t)r0;
+    d.band_row_count = (uint32_t)(r1 - r0);
+
+    CerfStageWb dstwb = {0};
+    RectToDesc(&d.dst_rect, p->prclDst);
+    FillSurface(&d.dst, p->pDst, b.dl, b.dt + r0, b.dr, b.dt + r1, true, true, &dstwb);
+
+    if (b.has_src) {
+        const int sy0 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r0) : r0;
+        const int sy1 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r1 - 1) : (r1 - 1);
+        d.has_src        = 1u;
+        d.convert_active = (!b.src_pal && p->pConvert != NULL) ? 1u : 0u;
+        if (b.src_pal && p->pLookup) {
+            const ULONG entries = 1u << CerfFormatBpp(p->pSrc->Format());
+            ULONG  lut_off = 0u;
+            ULONG* lut = (ULONG*)CerfArenaAlloc(entries * (ULONG)sizeof(ULONG),
+                                                &lut_off);
+            if (!lut) CERF_FATAL("cerf_guest: DMA arena lookup alloc failed - halting");
+            memcpy(lut, p->pLookup, entries * sizeof(ULONG));
+            d.lookup_off = lut_off;
+            d.has_lookup = 1u;
+        }
+        d.to_mono = p->toMono ? 1u : 0u;
+        d.mono_bg = (uint32_t)p->monoBg;
+        RectToDesc(&d.src_rect, p->prclSrc);
+        FillSurface(&d.src, p->pSrc, b.sl, b.st + sy0, b.sr, b.st + sy1 + 1, false);
+    }
+    if (b.has_mask) {
+        const int my0 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r0) : r0;
+        const int my1 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r1 - 1) : (r1 - 1);
+        d.has_mask = 1u;
+        RectToDesc(&d.mask_rect, p->prclMask);
+        FillSurface(&d.mask, p->pMask, b.ml, b.mt + my0, b.mr, b.mt + my1 + 1, false);
+    }
+    if (b.has_brush) {
+        d.has_brush    = 1u;
+        d.brush_width  = (uint32_t)p->pBrush->Width();
+        d.brush_height = (uint32_t)p->pBrush->Height();
+        FillSurface(&d.brush, p->pBrush, 0, 0, b.bw, b.bh, false, false);
+        if (p->pptlBrush) {
+            d.brush_has_ptl = 1u;
+            d.brush_ptl_x   = p->pptlBrush->x;
+            d.brush_ptl_y   = p->pptlBrush->y;
+        }
+    }
+    if (p->prclClip) {
+        d.has_clip = 1u;
+        RectToDesc(&d.clip_rect, p->prclClip);
+    }
+
+    const ULONG cgb = CerfGpeBlt(desc_off);
+    if (cgb == 2u && dstwb.active)
+        memcpy((void*)(ULONG_PTR)dstwb.dst_va, dstwb.arena_ptr, dstwb.span);
+    CerfArenaLeave();
+    if (cgb != 2u) CERF_FATAL("cerf_guest: host blit did not complete - halting");
+}
+
 SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     ULONG pa;
     if (!p->pDst || !p->prclDst || !CerfConvertibleFmt(p->pDst->Format())) {
@@ -250,6 +323,10 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
                          - (ULONG)sizeof(CerfVirt::CerfBltDescriptor)
                          - lut_bytes - brush_span - 64u;
 
+    const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt, mr,
+                               height, src_h, bw, bh,
+                               has_src, has_mask, has_brush, src_pal, use_lut_y };
+
     int r0 = 0;
     while (r0 < height) {
         int r1 = height;
@@ -271,76 +348,7 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
             r1 = r0 + (r1 - r0) / 2;
         }
 
-        if (!CerfArenaEnter()) CERF_FATAL("cerf_guest: DMA arena unavailable - halting");
-        ULONG desc_off = 0u;
-        CerfVirt::CerfBltDescriptor* pd = (CerfVirt::CerfBltDescriptor*)
-            CerfArenaAlloc((ULONG)sizeof(CerfVirt::CerfBltDescriptor), &desc_off);
-        if (!pd) CERF_FATAL("cerf_guest: DMA arena descriptor alloc failed - halting");
-        CerfVirt::CerfBltDescriptor& d = *pd;
-        memset(&d, 0, sizeof(d));
-        d.magic          = CerfVirt::kCerfBltMagic;
-        d.rop4           = (uint32_t)p->rop4;
-        d.blt_flags      = (uint32_t)p->bltFlags;
-        d.solid_color    = (uint32_t)p->solidColor;
-        d.i_mode         = (uint32_t)p->iMode;
-        d.x_positive     = p->xPositive ? 1u : 0u;
-        d.y_positive     = p->yPositive ? 1u : 0u;
-        d.blend_function = *(const ULONG*)&p->blendFunction;
-        d.band_row_first = (uint32_t)r0;
-        d.band_row_count = (uint32_t)(r1 - r0);
-
-        CerfStageWb dstwb = {0};
-        RectToDesc(&d.dst_rect, p->prclDst);
-        FillSurface(&d.dst, p->pDst, dl, dt + r0, dr, dt + r1, true, true, &dstwb);
-
-        if (has_src) {
-            const int sy0 = use_lut_y ? CerfSrcDyAt(height, src_h, r0) : r0;
-            const int sy1 = use_lut_y ? CerfSrcDyAt(height, src_h, r1 - 1) : (r1 - 1);
-            d.has_src        = 1u;
-            d.convert_active = (!src_pal && p->pConvert != NULL) ? 1u : 0u;
-            if (src_pal && p->pLookup) {
-                const ULONG entries = 1u << CerfFormatBpp(p->pSrc->Format());
-                ULONG  lut_off = 0u;
-                ULONG* lut = (ULONG*)CerfArenaAlloc(entries * (ULONG)sizeof(ULONG),
-                                                    &lut_off);
-                if (!lut) CERF_FATAL("cerf_guest: DMA arena lookup alloc failed - halting");
-                memcpy(lut, p->pLookup, entries * sizeof(ULONG));
-                d.lookup_off = lut_off;
-                d.has_lookup = 1u;
-            }
-            d.to_mono = p->toMono ? 1u : 0u;
-            d.mono_bg = (uint32_t)p->monoBg;
-            RectToDesc(&d.src_rect, p->prclSrc);
-            FillSurface(&d.src, p->pSrc, sl, st + sy0, sr, st + sy1 + 1, false);
-        }
-        if (has_mask) {
-            const int my0 = use_lut_y ? CerfSrcDyAt(height, src_h, r0) : r0;
-            const int my1 = use_lut_y ? CerfSrcDyAt(height, src_h, r1 - 1) : (r1 - 1);
-            d.has_mask = 1u;
-            RectToDesc(&d.mask_rect, p->prclMask);
-            FillSurface(&d.mask, p->pMask, ml, mt + my0, mr, mt + my1 + 1, false);
-        }
-        if (has_brush) {
-            d.has_brush    = 1u;
-            d.brush_width  = (uint32_t)p->pBrush->Width();
-            d.brush_height = (uint32_t)p->pBrush->Height();
-            FillSurface(&d.brush, p->pBrush, 0, 0, bw, bh, false, false);
-            if (p->pptlBrush) {
-                d.brush_has_ptl = 1u;
-                d.brush_ptl_x   = p->pptlBrush->x;
-                d.brush_ptl_y   = p->pptlBrush->y;
-            }
-        }
-        if (p->prclClip) {
-            d.has_clip = 1u;
-            RectToDesc(&d.clip_rect, p->prclClip);
-        }
-
-        const ULONG cgb = CerfGpeBlt(desc_off);
-        if (cgb == 2u && dstwb.active)
-            memcpy((void*)(ULONG_PTR)dstwb.dst_va, dstwb.arena_ptr, dstwb.span);
-        CerfArenaLeave();
-        if (cgb != 2u) CERF_FATAL("cerf_guest: host blit did not complete - halting");
+        EmitBltBand(band, p, r0, r1);
 
         r0 = r1;
     }

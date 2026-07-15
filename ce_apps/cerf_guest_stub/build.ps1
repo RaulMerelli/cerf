@@ -35,18 +35,8 @@ $build   = "$PSScriptRoot/../../tools/build_ce_app.ps1"
     -LinkExtras "/MERGE:.rdata=.text"
 
 & $build `
-    -Type dll -Target cerf_guest_stub.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2 -DefFile cerf_guest_stub.def `
+    -Type dll -Target cerf_guest_stub.dll -Arch mips -MipsIsa mips1 -ObjDir obj_mips1 -DefFile cerf_guest_stub.def `
     -Sources $sources -Entry DllEntryPoint `
-    -ExtraIncludes $baseInc `
-    -Libs coredll `
-    -CoreDllDef "$PSScriptRoot/../cerf_guest/coredll_byname.def" `
-    -LinkExtras "/MERGE:.rdata=.text"
-
-# CE 2.x MIPS-II stub, staged beside the CE 2.x body so ArchDir resolves both
-# from mips2_ce2.
-& $build `
-    -Type dll -Target cerf_guest_stub.dll -Arch mips -MipsIsa mips2 -ObjDir obj_mips2_ce2 -DefFile cerf_guest_stub.def `
-    -Sources $sources -Entry DllEntryPoint -OutSubdir mips2_ce2 `
     -ExtraIncludes $baseInc `
     -Libs coredll `
     -CoreDllDef "$PSScriptRoot/../cerf_guest/coredll_byname.def" `

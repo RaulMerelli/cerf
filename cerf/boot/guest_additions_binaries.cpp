@@ -18,13 +18,9 @@ constexpr uint16_t kImageFileMachineMipsFpu = 0x366;
 
 std::string GuestAdditionsBinaries::ArchDir() {
     if (emu_.Get<BoardContext>().GetCpuArch() == CpuArch::Mips) {
-        auto& parser = emu_.Get<RomParserService>();
-        const ParsedRom& rom = parser.Primary();
+        const ParsedRom& rom = emu_.Get<RomParserService>().Primary();
         const uint16_t cpu = rom.xips.empty() ? 0 : rom.xips[0].toc.romhdr.usCPUType;
-        if (cpu == kImageFileMachineMipsFpu) return "mips4";
-        uint16_t maj = 0, min = 0;
-        parser.KernelSubsystemVersion(maj, min);
-        return maj <= 2 ? "mips2_ce2" : "mips2";
+        return cpu == kImageFileMachineMipsFpu ? "mips4" : "mips1";
     }
     return emu_.Get<ArmProcessorConfig>().HasThumb() ? "arm_thumb" : "arm";
 }

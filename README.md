@@ -254,6 +254,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           <td>
             <ul>
               <li>Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)</li>
+              <li>Guest additions: fixed named imports for CE2 ce_apps, GA driver moved to proper unified mips1 build</li>
             </ul>
           </td>
         </tr>

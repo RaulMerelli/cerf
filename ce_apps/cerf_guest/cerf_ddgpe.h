@@ -23,6 +23,15 @@ extern ULONG g_FbDpi;
 
 struct CerfStageWb { BOOL active; ULONG dst_va; void* arena_ptr; ULONG span; };
 
+struct CerfBltBand {
+    int dl, dt, dr;
+    int sl, st, sr;
+    int ml, mt, mr;
+    int height, src_h;
+    int bw, bh;
+    bool has_src, has_mask, has_brush, src_pal, use_lut_y;
+};
+
 ULONG CerfSpanBytes(int x0, int y0, int x1, int y1, int stride, int bits);
 
 inline bool CerfConvertibleFmt(EGPEFormat f) {
@@ -103,4 +112,5 @@ private:
     CerfVidBacking  m_vidBacking;
     DDGPESurf*      m_pPrimaryShadow;
     int             m_currentRotation;
+    void EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1);
 };
