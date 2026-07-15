@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.4 pre-alpha
+# **CE Runtime Foundation** v6.5 pre-alpha
 
 <p align="center">
   <a href="https://cerf.cx">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.4) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.5) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
 
@@ -242,6 +242,15 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+          <td>v6.5</td>
+          <td>TBA</td>
+          <td>
+            <ul>
+              <li>...</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v6.4</td>
           <td>15 Jul 2026</td>
           <td>
@@ -309,34 +318,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>romdump.exe for MIPS updated to emit MIPS1 code, support CE 2.0 and maybe 1.0 too, and now includes several real MIPS CPUs, + full UI redesign</li>
               <li>Guest Additions: CE 2.0 support (display only so far)</li>
               <li>Zune 30: added audio</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v5.0</td>
-          <td>18 Jun 2026</td>
-          <td>
-            <ul>
-              <li>iPaqs now use original .nbf format instead of normalized .nb0. <b>Upgrade bundle in launcher!</b></li>
-              <li>New boards booting: Jornada 820, Siemens SIMpad SL4, Siemens SIMATIC HMI TP 177B, NEC MobilePro 900 Series, SmartBook G138</li>
-              <li>Experimental hibernation/state saving system for all boards</li>
-              <li>Added HP Palmtop VGA (F1252A) card</li>
-              <li>Soft/hard reset fixes for some SoCs</li>
-              <li>UI refresh/updates for CERF and launcher</li>
-              <li>PC Cards: Serial modem emulator and serial forwader</li>
-              <li>Added Keyboard mapping window for boards with keyboard</li>
-              <li>Guest additions: DDraw export (now Zune and friends render, but might be broken in some cases)</li>
-              <li>Guest additions: IMGFS injection fixes (e.g. WM >= 6)</li>
-              <li>Guest additions: change resolution on Windows CE 3 at runtime with soft reset</li>
-              <li>Guest additions: XIP injection improvements</li>
-              <li>Guest additions: Keyboard support</li>
-              <li>Guest additions: Windows CE 2.11 support</li>
-              <li>Guest additions: DPI support</li>
-              <li>SA-1110, PXA255 RTC implementation</li>
-              <li>Falcon 4220 main battery wiring (fixes the idle suspend problem)</li>
-              <li>Suspend feature support for different SoCs</li>
-              <li>Ipaq 1st gen: microphone support</li>
-              <li>ce_apps/xplorer.exe - dependency-free minimal shell, CE2+, useful for Zune 30 GA mode</li>
             </ul>
           </td>
         </tr>
