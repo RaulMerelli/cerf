@@ -6,7 +6,7 @@ from tkinter import ttk
 from typing import Callable
 
 
-ARTICLES_URL = "https://cerf.dz3n.net/articles/"
+ARTICLES_URL = "https://cerf.cx/articles/"
 
 
 class Toolbar:

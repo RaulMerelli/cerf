@@ -46,7 +46,7 @@ enum MenuId : int {
     kIdArticles    = 131,
 };
 
-constexpr const wchar_t* kArticlesUrl = L"https://cerf.dz3n.net/articles/";
+constexpr const wchar_t* kArticlesUrl = L"https://cerf.cx/articles/";
 
 }  /* namespace */
 

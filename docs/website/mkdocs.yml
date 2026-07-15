@@ -1,6 +1,6 @@
 site_name: CE Runtime Foundation
 site_description: A virtual hardware platform that boots real Windows CE and Windows Mobile ROMs on modern Windows.
-site_url: https://cerf.dz3n.net/
+site_url: https://cerf.cx/
 repo_url: https://github.com/gweslab/cerf
 repo_name: gweslab/cerf
 copyright: Yaroslav Kibysh

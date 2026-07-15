@@ -1,13 +1,13 @@
 # **CE Runtime Foundation** v{version} pre-alpha
 
 <p align="center">
-  <a href="https://cerf.dz3n.net">
-    <img src="gweslab.png" width="400" alt="cerf.dz3n.net" />
+  <a href="https://cerf.cx">
+    <img src="gweslab.png" width="400" alt="cerf.cx" />
   </a>
 </p>
 
 <p align="center">
-  <b><a href="https://cerf.dz3n.net">cerf.dz3n.net</a></b> - read more about the project
+  <b><a href="https://cerf.cx">cerf.cx</a></b> - read more about the project
 </p>
 
 <br/>
@@ -20,7 +20,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 Download the WIP build ({version}) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
-Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.dz3n.net/articles/command-line/).
+Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
 
 ## Supported boards
 
@@ -28,7 +28,7 @@ Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots
 
 ## Running your own ROM
 
-A ROM boots only if **that exact board is implemented in CERF** - a matching SoC is not enough. Dropping in your own dump of an already-supported board is covered [in the articles](https://cerf.dz3n.net/articles/own-rom/).
+A ROM boots only if **that exact board is implemented in CERF** - a matching SoC is not enough. Dropping in your own dump of an already-supported board is covered [in the articles](https://cerf.cx/articles/own-rom/).
 
 Bringing up a board CERF does **not** support is emulator development: the board's memory map, every peripheral its drivers touch, the SoC quirks - all of it implemented in C++, grounded in datasheets, BSP sources and RE, at the quality bar CERF already ships. It is not a config tweak, and not something to hand to an AI and expect magic.
 

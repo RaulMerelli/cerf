@@ -309,7 +309,7 @@ void CerfFatalExit(int code) {
                  "The run log is nearly empty unless every log channel was on. "
                  "If the crash happens again, reproduce it with all log channels "
                  "enabled - the launcher has a tick for it - and keep both files.\n\n"
-                 "To report it, open http://cerf.dz3n.net and search for "
+                 "To report it, open http://cerf.cx and search for "
                  "\"Report a bug\".",
                  detail);
 

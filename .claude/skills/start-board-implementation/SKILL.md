@@ -134,7 +134,7 @@ fact gets a source.
   relative sharing silicon/core? Reuse is the difference between a short and a
   long bring-up - name it.
 - **B6 - Public manifest.** `WebFetch`
-  `https://cerf.dz3n.net/cerf-bundles/manifest.json`. Listed → officially
+  `https://cerf.cx/cerf-bundles/manifest.json`. Listed → officially
   distributed (tell the user). Not listed → user's own ROM; if it's a genuinely
   unusual board, suggest they submit it (CERF Discord or `cerf@dz3n.net`) so
   other devs benefit - a suggestion, never a requirement.
