@@ -75,6 +75,19 @@ extra_javascript:
   - assets/scene.js
 
 extra:
+  analytics:
+    provider: google
+    property: G-F3KZ6CR3GD
+  consent:
+    title: Cookie consent
+    description: >-
+      We use cookies to measure the reach of our documentation and whether
+      visitors find what they came for. With your consent, you help us improve
+      the site.
+    actions:
+      - accept
+      - reject
+      - manage
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/gweslab/cerf
