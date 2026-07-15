@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.3 pre-alpha
+# **CE Runtime Foundation** v6.4 pre-alpha
 
 <p align="center">
   <a href="https://cerf.dz3n.net">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.3) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.4) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.dz3n.net/articles/command-line/).
 
@@ -242,6 +242,15 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+          <td>v6.4</td>
+          <td>TBA</td>
+          <td>
+            <ul>
+              <li>...</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v6.3</td>
           <td>15 Jul 2026</td>
           <td>
@@ -328,25 +337,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>Suspend feature support for different SoCs</li>
               <li>Ipaq 1st gen: microphone support</li>
               <li>ce_apps/xplorer.exe - dependency-free minimal shell, CE2+, useful for Zune 30 GA mode</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v4.0</td>
-          <td>8 Jun 2026</td>
-          <td>
-            <ul>
-              <li>NE2000 is now hot pluggable in all boards that support PCMCIA</li>
-              <li>Compact Flash too with configurator/generator</li>
-              <li>iPaq 1st gen now has extensions sleeve emulated (for PCMCIA support)</li>
-              <li>iPaq H3100: monochrome screen inversion fixed</li>
-              <li>Soft/hard reset your device in Actions menu (might be broken for some SoCs) + corresponding SoC/peripheral updates</li>
-              <li>Guest additions: task manager on host - see process list, switch to processes, kill and run right from HOST window</li>
-              <li>NE2000 internet delivery hangs are fixed</li>
-              <li>Jornada720/SA1110/JIT updates to make it boot Linux-based OS</li>
-              <li>Launcher: optional packages feature</li>
-              <li>Guest additions: Complete overhaul of XIP injection (Now you can boot Jornada 720 in 4K. Also suddenly Zune 30 is in the game too)</li>
-              <li>Various UI/general fixes, improvements</li>
             </ul>
           </td>
         </tr>
