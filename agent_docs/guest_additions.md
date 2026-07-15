@@ -42,7 +42,7 @@ Only **how the stub is placed into the ROM** differs by ROM class:
   board's `MappedVaSpans()` - and served by an MMU-walker overlay
   (`ArmMmu::ServeInjectionBand` at the L1-fault site); never the victim's own
   section bytes. On CE6/7 the stub runs in place from the band (a kernel-VA base
-  makes the loader skip ReadSection); on CE3/4/5 the loader copies it to a
+  makes the loader skip its section copy); on CE3/4/5 the loader copies it to a
   section-1 vbase (`GuestModulePlacer::ComputeVbase`), with the band sections
   flagged MEM_WRITE|SHARED so the loader takes the overlay-servable memcpy without
   a per-process slot-base fold on the device.exe carrier load.
@@ -68,16 +68,18 @@ stub's mapper.
 coredll is imported **by name**, not by ordinal - high ordinals are per-CE-version
 with no cross-version contract, names are the contract - and the stub resolves
 each name with `GetProcAddress` in the loading process. The trap: a coredll
-function that some target coredll exports **by ordinal only** has no name to
-resolve, so the by-name manual-map fails and the whole body never loads (Pocket
-PC 2000's coredll exports `CeSetExtendedPdata` ordinal-only; older coredlls are
-where this bites). Such a symbol must be **defined locally in cerf_guest** rather
-than imported - a local definition wins over the import-lib thunk, so no coredll
-import is emitted for it. `cerf_cacherangeflush.cpp` and
-`cerf_cesetextendedpdata.cpp` do exactly this for their GENBLT-only symbols
-(both are blit-codegen support, safe to local-no-op). When adding a coredll
-import to `cerf_guest`, confirm the **oldest** target coredll exports it by name;
-if not, define it locally.
+function that some target coredll does not export **by name** - exported by
+ordinal only, or absent entirely - cannot be resolved, so the by-name manual-map
+fails and the whole body never loads (Pocket PC 2000's coredll exports
+`CeSetExtendedPdata` ordinal-only; the CE2.0 coredll lacks the CRT and the 64-bit
+compiler helpers entirely; older coredlls are where this bites). Such a symbol
+must be **defined locally in cerf_guest** rather than imported - a local
+definition wins over the import-lib thunk, so no coredll import is emitted for it.
+`cerf_ce2_crt.cpp` does this for the CE2.0 target: `memset` / `memcpy` /
+`operator new` / `operator delete` and the compiler helpers `__ll_lshift` /
+`__ll_div`, none of which that coredll exports. When adding a coredll import to
+`cerf_guest`, confirm the **oldest** target coredll exports it by name; if not,
+define it locally.
 
 ## Shared host storage (AFS FSD in device.exe)
 
@@ -99,8 +101,8 @@ The injected module is loaded by more than one process - gwes (display),
 device.exe (the FSD carrier), and any DirectDraw-HAL client that loads the
 display driver (`HALInit`). Whether the kernel gives each process its own
 writable copy depends on the module's vbase: a **CE5/FCSE kernel folds a
-`WRITE & !SHARED` section to a per-process slot copy (`ReadSection`
-ZeroPtr) only when the vbase is in a slot / section-1 region; a module at a high
+`WRITE & !SHARED` section to a per-process slot copy only when the vbase is in a
+slot / section-1 region; a module at a high
 shared-region vbase keeps one physical `.data` shared across every loading
 process.** This is why a low-vbase IMGFS victim (WM6.0) tolerated a full
 kernel-loaded body but a high-vbase one (WM6.5) corrupted gwes's globals
@@ -138,19 +140,22 @@ their inputs are produced, rather than assuming they are still required.
 ## Display driver + blit pipeline
 
 The universal CERF display driver, injected into the guest ROM at load time by
-`--guest-additions`. Built from real CE driver sources against the CE6 DDGPE/GPE
-libraries; a compatibility shim under `ce_apps/cerf_guest/shim/` reshapes the
-driver-interface data at the OS boundary so the single CE6-based driver runs
+`--guest-additions`. The body is CERF's own GPE/DDGPE/DDI scaffolding
+(`ce_apps/cerf_guest/include/cerf_gpe.h`, `include/cerf_ddi.h`) plus the driver
+built on it, linking `coredll` only. A per-version compatibility layer - the
+DDI/DDHAL translation (`cerf_ddi_*.cpp`, `cerf_ddhal*.cpp`) and per-generation
+ddraw headers
+(`include/ddraw_ce5.h` / `ddraw_ce6.h` / `ddraw_wm.h`) - reshapes the
+driver-interface data at the OS boundary so the single CE6-shaped driver runs
 unmodified across CE2.0 → CE7 and Windows Mobile 5/6 (each OS sees its own
 generation's shapes; the driver always sees CE6 shapes).
 
 It is the guest-side partner of the host `cerf/peripherals/cerf_virt/` virtual
 framebuffer + `gpe_cmd` accelerator channel: the driver routes blits over that
-channel and the host performs them natively (see `cerf_ddgpe.cpp` for the
-`BltPrepare` routing, `main.cpp` for the channel ABI). What it owns today is the
-universal display path - host-framebuffer rendering plus host-accelerated blits.
-Planned growth is host-side GPU acceleration, runtime screen resize, and
-host↔guest shared storage / clipboard.
+channel and the host performs them natively (`cerf_ddgpe_blt.cpp` `BltPrepare`
+routing; `main.cpp` channel ABI). It owns the universal display path -
+host-framebuffer rendering, host-accelerated blits, a DirectDraw HAL, dynamic
+resolution, and the cursor / keyboard / shared-storage / task-manager transport.
 
 **HW means HW.** The `cerf_guest` accelerator must handle every blit class
 (copy, fill, format-convert, palette, masked text, transparency, ROP, …)
