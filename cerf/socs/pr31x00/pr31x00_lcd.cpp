@@ -206,9 +206,15 @@ uint32_t Pr31x00Lcd::ShadeFor(uint32_t raw) const {
 }
 
 uint32_t Pr31x00Lcd::ReadWord(uint32_t addr) {
-    if (addr == kBase) return reg_[kCtl1];
-    /* Video Control 2 through 14 are write-only (§17.4.2-§17.4.14). */
-    HaltUnsupportedAccess("PR31x00 LCD ReadWord", addr, 0);
+    switch ((addr - kBase) / 4u) {
+        case kCtl1: return reg_[kCtl1];
+        /* $034 is write-only (§17.4.4) but latches: nk.exe sub_91002514
+           read-modify-writes it (v0[13] &= 0xFF0FFFFF). */
+        case kCtl4: return reg_[kCtl4];
+        default:
+            /* Video Control 2,3,5-14 are write-only (§17.4.2-§17.4.14). */
+            HaltUnsupportedAccess("PR31x00 LCD ReadWord", addr, 0);
+    }
 }
 
 void Pr31x00Lcd::WriteWord(uint32_t addr, uint32_t value) {
