@@ -20,20 +20,16 @@ namespace {
 
 constexpr uint64_t kCerfFadeInMs  = 350;
 constexpr uint64_t kCerfHoldMs    = 1200;
-constexpr uint64_t kCerfFadeOutMs = 350;
-constexpr uint64_t kOemFadeInMs   = 350;
-constexpr uint64_t kOemHoldMs     = 2000;
+constexpr uint64_t kTextFadeInMs  = 350;
+constexpr uint64_t kTextHoldMs    = 2000;
 
 constexpr float    kDimOpacity    = 0.15f;
 
-constexpr int      kOemMaxWidthPx = 190;   /* OEM logos authored <= 190 px wide */
 constexpr uint32_t kCerfLogoMinPx = 96;
 constexpr uint32_t kCerfLogoMaxPx = 220;
 
 constexpr int      kLabelFontPx      = 18;
 constexpr int      kDisclaimerFontPx = 12;
-const wchar_t*     kDisclaimer =
-    L"Logos are property of their respective owners";
 const wchar_t*     kResumeHint =
     L"If nothing happens, try View -> Framebuffer and do some input - maybe screen is dimmed";
 const wchar_t*     kResumeStalledHint =
@@ -52,13 +48,10 @@ void BootScreen::OnShutdown() {
        destructor, so HostGdiPlus (GdiplusShutdown in its dtor) is still up.
        Deleting a Bitmap after GdiplusShutdown faults. */
     delete cerf_logo_; cerf_logo_ = nullptr;
-    delete oem_logo_;  oem_logo_  = nullptr;
 }
 
 void BootScreen::OnReady() {
-    auto& bd      = emu_.Get<BoardContext>();
-    oem_resource_ = bd.GetBootLogoResource();
-    short_name_   = Utf8ToWide(bd.GetShortBoardName());
+    short_name_ = Utf8ToWide(emu_.Get<BoardContext>().GetShortBoardName());
 }
 
 void BootScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
@@ -73,9 +66,7 @@ void BootScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
 void BootScreen::EnsureLogosLoaded() {
     if (logos_loaded_) return;
     logos_loaded_ = true;
-    auto& gdip = emu_.Get<HostGdiPlus>();
-    cerf_logo_ = gdip.DecodeResourcePng(L"CERF_LOGO");
-    oem_logo_  = gdip.DecodeResourcePng(oem_resource_);
+    cerf_logo_ = emu_.Get<HostGdiPlus>().DecodeResourcePng(L"CERF_LOGO");
 }
 
 void BootScreen::EnsureFonts() {
@@ -98,10 +89,7 @@ std::wstring BootScreen::CurrentLabelText() const {
     return L"Booting " + short_name_ + L"...";
 }
 
-/* In Resuming mode the panel may be dimmed-until-input and the framebuffer tab
-   not shown yet; the disclaimer becomes a hint to reach it via View -> Framebuffer. */
 const wchar_t* BootScreen::CurrentDisclaimerText() const {
-    if (label_mode_ != LabelMode::Resuming) return kDisclaimer;
     return resume_stalled_ ? kResumeStalledHint : kResumeHint;
 }
 
@@ -124,7 +112,7 @@ void BootScreen::Advance(uint64_t now) {
            LCD". The resumed guest's first frame re-latches later. */
         fb_latched_req_.store(false, std::memory_order_release);
         resume_stalled_ = false;
-        phase_       = Phase::OemFadeIn;
+        phase_       = Phase::TextFadeIn;
         phase_start_ = now;
     }
     if (fb_latched_req_.exchange(false)) { fb_latched_ = true; phase_ = Phase::Finished; }
@@ -138,19 +126,17 @@ void BootScreen::Advance(uint64_t now) {
             break;
         case Phase::CerfHold:
             cur_op_ = 1.0f;
-            if (elapsed >= kCerfHoldMs) { phase_ = Phase::CerfFadeOut; phase_start_ = now; }
+            if (elapsed >= kCerfHoldMs) {
+                phase_ = Phase::TextFadeIn; phase_start_ = now; cur_op_ = 0.0f;
+            }
             break;
-        case Phase::CerfFadeOut:
-            cur_op_ = std::max(0.0f, 1.0f - (float)elapsed / (float)kCerfFadeOutMs);
-            if (elapsed >= kCerfFadeOutMs) { phase_ = Phase::OemFadeIn; phase_start_ = now; }
+        case Phase::TextFadeIn:
+            cur_op_ = std::min(1.0f, (float)elapsed / (float)kTextFadeInMs);
+            if (elapsed >= kTextFadeInMs) { phase_ = Phase::TextHold; phase_start_ = now; }
             break;
-        case Phase::OemFadeIn:
-            cur_op_ = std::min(1.0f, (float)elapsed / (float)kOemFadeInMs);
-            if (elapsed >= kOemFadeInMs) { phase_ = Phase::OemHold; phase_start_ = now; }
-            break;
-        case Phase::OemHold:
+        case Phase::TextHold:
             cur_op_ = 1.0f;
-            if (elapsed >= kOemHoldMs) phase_ = Phase::Finished;
+            if (elapsed >= kTextHoldMs) phase_ = Phase::Finished;
             break;
         case Phase::Finished:
             cur_op_ = 1.0f;
@@ -159,28 +145,20 @@ void BootScreen::Advance(uint64_t now) {
 }
 
 void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
-                               bool use_oem, float opacity,
-                               bool show_label, const std::wstring& label,
+                               float logo_opacity,
+                               bool show_label, const std::wstring& label, float text_opacity,
                                bool show_disclaimer, bool cerf_native_size) {
     EnsureLogosLoaded();
-    opacity = std::clamp(opacity, 0.0f, 1.0f);
+    logo_opacity = std::clamp(logo_opacity, 0.0f, 1.0f);
+    text_opacity = std::clamp(text_opacity, 0.0f, 1.0f);
 
-    Gdiplus::Bitmap* bmp = use_oem ? oem_logo_ : cerf_logo_;
-    if (!bmp) bmp = cerf_logo_;   /* OEM decode failed -> CERF fallback */
+    Gdiplus::Bitmap* bmp = cerf_logo_;
 
     int dst_w = 0, dst_h = 0;
     if (bmp) {
         const int bw = (int)bmp->GetWidth();
         const int bh = (int)bmp->GetHeight();
-        if (use_oem && oem_logo_) {
-            const int cap_w = std::min((int)kOemMaxWidthPx, std::max(1, (int)width - 20));
-            const int cap_h = std::max(1, (int)(height * 0.45f));
-            float s = 1.0f;
-            if (bw > cap_w) s = (float)cap_w / (float)bw;
-            if (bh * s > cap_h) s = (float)cap_h / (float)bh;
-            dst_w = std::max(1, (int)(bw * s));
-            dst_h = std::max(1, (int)(bh * s));
-        } else if (cerf_native_size) {
+        if (cerf_native_size) {
             dst_w = bw;   /* native size, window-independent (text-mode watermark) */
             dst_h = bh;
         } else {
@@ -190,11 +168,12 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
         }
     }
 
-    /* With a label below (OEM phase / held), the logo sits above centre to
+    /* With a label below (text phase / held), the logo sits above centre to
        leave room; without one (CERF intro, text-mode watermark) it is centred
        on the screen. */
     const int cx = (int)width / 2;
-    const int cy = show_label ? (int)(height * 0.40f) : (int)height / 2;
+    const float cy_frac = show_label ? (0.5f - 0.10f * text_opacity) : 0.5f;
+    const int cy = (int)(height * cy_frac);
 
     if (bmp && dst_w > 0 && dst_h > 0) {
         Gdiplus::Graphics g(dc);
@@ -203,7 +182,7 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
 
         Gdiplus::ColorMatrix cm = {};
         cm.m[0][0] = cm.m[1][1] = cm.m[2][2] = 1.0f;
-        cm.m[3][3] = opacity;
+        cm.m[3][3] = logo_opacity;
         cm.m[4][4] = 1.0f;
         Gdiplus::ImageAttributes ia;
         ia.SetColorMatrix(&cm);
@@ -216,7 +195,7 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     if (!show_label && !show_disclaimer) return;
 
     EnsureFonts();
-    const int v = (int)(255.0f * opacity);
+    const int v = (int)(255.0f * text_opacity);
     SetBkMode(dc, TRANSPARENT);
 
     /* Lay the disclaimer out first (bottom-anchored, above the 16 px boot bar)
@@ -249,7 +228,7 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
         SelectObject(dc, old);
     }
     if (show_disclaimer && disclaimer_font_) {
-        const int dv = (int)(150.0f * opacity);
+        const int dv = (int)(150.0f * text_opacity);
         HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
         SetTextColor(dc, RGB(dv, dv, dv));
         DrawTextW(dc, CurrentDisclaimerText(), -1, &disc_rect,
@@ -262,34 +241,31 @@ void BootScreen::DrawAnimation(HDC dc, uint32_t width, uint32_t height) {
     switch (phase_) {
         case Phase::CerfFadeIn:
         case Phase::CerfHold:
-        case Phase::CerfFadeOut:
-            DrawLogoFrame(dc, width, height, /*use_oem=*/false, cur_op_,
-                          /*label=*/false, L"", /*disclaimer=*/false);
+            DrawLogoFrame(dc, width, height, /*logo_opacity=*/cur_op_,
+                          /*label=*/false, L"", /*text_opacity=*/0.0f,
+                          /*disclaimer=*/false);
             break;
-        case Phase::OemFadeIn:
-        case Phase::OemHold: {
-            const bool oem = (oem_logo_ != nullptr);
-            DrawLogoFrame(dc, width, height, oem, cur_op_,
-                          /*label=*/true, CurrentLabelText(),
-                          /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
+        case Phase::TextFadeIn:
+        case Phase::TextHold:
+            DrawLogoFrame(dc, width, height, /*logo_opacity=*/1.0f,
+                          /*label=*/true, CurrentLabelText(), /*text_opacity=*/cur_op_,
+                          /*disclaimer=*/(label_mode_ == LabelMode::Resuming));
             break;
-        }
         case Phase::Finished:
             break;
     }
 }
 
 void BootScreen::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
-    const bool oem = (oem_logo_ != nullptr);
-    DrawLogoFrame(dc, width, height, oem, 1.0f,
-                  /*label=*/true, CurrentLabelText(),
-                  /*disclaimer=*/(oem || label_mode_ == LabelMode::Resuming));
+    DrawLogoFrame(dc, width, height, /*logo_opacity=*/1.0f,
+                  /*label=*/true, CurrentLabelText(), /*text_opacity=*/1.0f,
+                  /*disclaimer=*/(label_mode_ == LabelMode::Resuming));
 }
 
 void BootScreen::DrawWatermark(HDC dc, uint32_t width, uint32_t height) {
-    DrawLogoFrame(dc, width, height, /*use_oem=*/false, kDimOpacity,
-                  /*label=*/false, L"", /*disclaimer=*/false,
-                  /*cerf_native_size=*/true);
+    DrawLogoFrame(dc, width, height, /*logo_opacity=*/kDimOpacity,
+                  /*label=*/false, L"", /*text_opacity=*/0.0f,
+                  /*disclaimer=*/false, /*cerf_native_size=*/true);
 }
 
 void BootScreen::Restart(bool resuming) {

@@ -11,7 +11,7 @@
 
 namespace Gdiplus { class Bitmap; }
 
-/* The Boot Screen tab: CERF/OEM logo fade animation + bottom CPU-activity bar.
+/* The Boot Screen tab: CERF logo fade animation + bottom CPU-activity bar.
    Advance() runs off the render loop's wall clock, never an internal timer: a
    separate timer would not freeze on pause and would keep ticking after the
    tab stops being rendered. */
@@ -35,9 +35,9 @@ public:
 
     bool Finished() const { return phase_ == Phase::Finished; }
 
-    /* Any thread. Restart the animation from the OEM-logo fade-in. resuming
-       picks the label: "Resuming..." (deep-sleep wake) vs "Restarting..."
-       (guest reboot). */
+    /* Any thread. Restart the animation from the text fade-in (CERF logo stays
+       held). resuming picks the label: "Resuming..." (deep-sleep wake) vs
+       "Restarting..." (guest reboot). */
     void Restart(bool resuming = false);
 
     /* Any thread. The framebuffer tab has taken over; finish the animation and
@@ -50,7 +50,7 @@ public:
     void SetResumeStalled();
 
 private:
-    enum class Phase { CerfFadeIn, CerfHold, CerfFadeOut, OemFadeIn, OemHold, Finished };
+    enum class Phase { CerfFadeIn, CerfHold, TextFadeIn, TextHold, Finished };
     enum class LabelMode { Starting, Restarting, Resuming };
 
     /* UI thread. Progress the state machine to wall-clock `now_ms` and consume
@@ -61,16 +61,14 @@ private:
     std::wstring CurrentLabelText() const;
     const wchar_t* CurrentDisclaimerText() const;
     void DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
-                       bool use_oem, float opacity,
-                       bool show_label, const std::wstring& label,
+                       float logo_opacity,
+                       bool show_label, const std::wstring& label, float text_opacity,
                        bool show_disclaimer, bool cerf_native_size = false);
     void DrawAnimation(HDC dc, uint32_t width, uint32_t height);   /* live frame */
     void DrawHeldFinal(HDC dc, uint32_t width, uint32_t height);   /* finished */
 
     Gdiplus::Bitmap* cerf_logo_     = nullptr;
-    Gdiplus::Bitmap* oem_logo_      = nullptr;
     bool             logos_loaded_  = false;
-    const wchar_t*   oem_resource_  = nullptr;  /* resolved in OnReady */
     std::wstring     short_name_;               /* board short name, widened */
 
     HFONT label_font_      = nullptr;

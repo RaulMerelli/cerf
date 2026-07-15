@@ -13,8 +13,6 @@ public:
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "Jornada 820"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
-
     /* Fixed 640x480 VGA dual-panel STN; size the window to it pre-boot. */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 480 };

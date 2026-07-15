@@ -15,7 +15,6 @@ public:
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "MobilePro 700"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_NEC"; }
     /* VR4102 "reserved for future use" span, UM Table 5-6: 0x04000000-0x09FFFFFF (96 MB). */
     uint32_t GuestAdditionsWindowBase() const override { return 0x04000000u; }
     /* CE2.0 gwes creates only PAL_INDEXED palettes, so the device is 8bpp indexed. */

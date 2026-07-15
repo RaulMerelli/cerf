@@ -13,8 +13,6 @@ public:
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "SIMpad SL4"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_SIEMENS"; }
-
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{800, 600};
     }

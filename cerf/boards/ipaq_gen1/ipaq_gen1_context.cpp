@@ -13,7 +13,6 @@ public:
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "iPAQ"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_COMPAQ"; }
     /* CE3 imgdecmp DecompressImageIndirect rejects bpp not in {2,4,8,16,24}
        (imgdecmp.dll 0x1124300) and blanks the shell bitmaps at 32bpp. */
     uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }

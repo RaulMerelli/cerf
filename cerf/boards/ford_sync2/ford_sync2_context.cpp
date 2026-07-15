@@ -13,8 +13,6 @@ public:
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::Imx51Nand; }
     const char* GetShortBoardName() const override { return "Ford SYNC 2"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_FORD"; }
-
     /* Pre-boot hint only; real sizing comes from OnLcdEnabled. The SYNC2 8" panel
        is 800x480 (runtime IPU CPMEM ch23 scanout: 800x480 RGB565 @ 0x90E34000). */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

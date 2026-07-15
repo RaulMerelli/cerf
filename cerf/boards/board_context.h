@@ -76,12 +76,6 @@ public:
        override with a brief device name. */
     virtual const char* GetShortBoardName() const { return BoardName(GetBoard()); }
 
-    /* RT_RCDATA resource name of the board's OEM boot logo (a PNG embedded via
-       cerf.rc). Defaults to the generic Windows CE logo; boards override with
-       their own. BootScreen owns decoding; the context stays free of any
-       GDI/Win32 dependency (a wchar_t* resource name needs no windows.h). */
-    virtual const wchar_t* GetBootLogoResource() const { return L"OEM_WINCE"; }
-
     /* Cosmetic pre-boot window-size hint for boards with a single fixed LCD.
        Never route actual sizing through this - the real resolution comes
        solely from OnLcdEnabled, and overriding that here would ignore what

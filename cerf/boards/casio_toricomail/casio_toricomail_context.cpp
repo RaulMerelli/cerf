@@ -13,8 +13,6 @@ public:
     CpuArch        GetCpuArch()         const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode()  const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "Toricomail"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_CASIO"; }
-
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 320, 240 };
     }

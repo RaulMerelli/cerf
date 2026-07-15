@@ -13,8 +13,6 @@ public:
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName() const override { return "Velo 1"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_PHILIPS"; }
-
     /* 480x240 landscape (Philips Velo 1 panel). */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{480, 240};

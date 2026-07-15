@@ -13,7 +13,7 @@ public:
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
     const char*    GetShortBoardName()  const override { return "Jornada 720"; }
-    const wchar_t* GetBootLogoResource() const override { return L"OEM_HP"; }
+
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 240 };
     }

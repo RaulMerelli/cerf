@@ -285,13 +285,10 @@ concretes (strategy pattern, selected by `BoardContext`).
   line; `RenderInto` draws the scrolling log over the `BootBar`.
   - `cerf/host/hw_screen.{h,cpp}`
 
-- **`BootScreen`** - the boot screen behind the `Tab::Boot` tab: the CERF-logo
-  fade-in/hold/fade-out intro, the optional OEM-logo fade-in ("Starting
-  <board>…", logo + short name from `BoardContext::GetBootLogoResource` /
-  `GetShortBoardName`), the held final state, and the `BootBar`. Time-driven
-  off the 60 Hz present loop (no thread); `Restart` (guest reboot →
-  "Restarting…", deep-sleep wake → "Resuming…") and `OnFramebufferLatched`
-  ("Switched to LCD") are its cross-thread control hooks.
+- **`BootScreen`** - the CERF-logo boot animation behind the `Tab::Boot` tab,
+  plus the `BootBar`. Time-driven off the 60 Hz present loop (no thread);
+  `Restart` (guest reboot / deep-sleep wake) and `OnFramebufferLatched` are its
+  cross-thread control hooks.
   - `cerf/host/boot_screen.{h,cpp}`
 
 - **`BootBar`** - the bottom CPU-activity bar shared by the Boot Screen and
