@@ -111,6 +111,10 @@ The environment provides the **`/start-board-implementation`** skill: drop your 
 > [!WARNING]
 > The dev environment runs Claude in skip-permissions mode - it can execute anything on your machine without prompting. It also force-kills its own Claude instance, and **any** `clangd.exe`, that leaks memory past a threshold. The first launch shows a one-time explanation; press Enter to acknowledge it.
 
+## License
+
+[MIT](LICENSE). Third-party components and studied references are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Third-party / Credits
 
 - **[QEMU](https://www.qemu.org/)**
@@ -118,4 +122,4 @@ The environment provides the **`/start-board-implementation`** skill: drop your 
 - **[nlohmann-json](https://github.com/nlohmann/json)**
 - **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
 - **[YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks)**
-- JIT studied/inspired by Microsoft's Device Emulator (Shared Source Academic License, 2006)
+- Microsoft Device Emulator (2006) - studied during early JIT research
