@@ -30,13 +30,22 @@ constexpr uint64_t kMask40 = 0xFFFFFFFFFFull;
 /* Timer Control (§15.4.3): FREEZEPRE<7> FREEZERTC<6> FREEZETIMER<5> ENPERTIMER<4>
    RTCCLR<3> TESTC8MS<2> ENTESTCLK<1> ENRTCTST<0>; bits 31-8 reserved. */
 constexpr uint32_t kRtcClr           = 1u << 3;
+constexpr uint32_t kEnPerTimer       = 1u << 4;
 constexpr uint32_t kTimerCtlReserved = 0xFFFFFF00u;
-constexpr uint32_t kTimerCtlUnmodeled = 0xF7u;   /* everything except RTCCLR */
+constexpr uint32_t kTimerCtlUnmodeled = 0xE7u;   /* except RTCCLR<3> and ENPERTIMER<4> */
 
 /* Interrupt Status 5 (§8.3.5), Status set index 4. */
 constexpr uint32_t kStatusSet = 4u;
 constexpr uint32_t kRtcInt    = 1u << 31;   /* counter reaches $FFFFFFFFFF */
 constexpr uint32_t kAlarmInt  = 1u << 30;   /* counter equals ALARM[39:0]  */
+constexpr uint32_t kPerInt    = 1u << 29;   /* Periodic Timer reaches zero  */
+
+/* Periodic Timer (§15.4.4): PERCNT[15:0]<31:16> read-only, PERVAL[15:0]<15:0> R/W;
+   Interrupt Rate = (PERVAL + 1) / f_TIMERCLK. TIMERCLK = CLK/32 (§15.1), = 1.152 MHz
+   at the 36.864 MHz CLK (§15.3.2). */
+constexpr uint32_t kPervalMask = 0xFFFFu;
+constexpr uint64_t kTimerClkHz = 1152000u;
+constexpr uint64_t kNsPerSec   = 1000000000ull;
 
 }  /* namespace */
 
@@ -66,9 +75,28 @@ Pr31x00Rtc::Clock::time_point Pr31x00Rtc::TimeAtCountLocked(uint64_t target) con
                          RtcTicks{(target - base_ticks_) & kMask40});
 }
 
-void Pr31x00Rtc::EvaluateLocked() {
-    if (rtc_clr_) return;
+Pr31x00Rtc::Clock::duration Pr31x00Rtc::PeriodLocked() const {
+    const uint64_t ns = (static_cast<uint64_t>(perval_) + 1u) * kNsPerSec / kTimerClkHz;
+    return std::chrono::duration_cast<Clock::duration>(std::chrono::nanoseconds(ns));
+}
+
+uint32_t Pr31x00Rtc::PerCntLocked() const {
+    if (!periodic_enabled_) return perval_;
     const auto now = Clock::now();
+    if (now >= periodic_next_) return 0;
+    const uint64_t rem_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                periodic_next_ - now).count();
+    const uint64_t ticks = rem_ns * kTimerClkHz / kNsPerSec;
+    return static_cast<uint32_t>(std::min<uint64_t>(ticks, perval_));
+}
+
+void Pr31x00Rtc::EvaluateLocked() {
+    const auto now = Clock::now();
+    if (periodic_enabled_ && now >= periodic_next_) {
+        intc_->SetPending(kStatusSet, kPerInt);
+        do { periodic_next_ += PeriodLocked(); } while (periodic_next_ <= now);
+    }
+    if (rtc_clr_) return;
     if (alarm_armed_ && !alarm_fired_ && now >= TimeAtCountLocked(alarm_)) {
         alarm_fired_ = true;
         intc_->SetPending(kStatusSet, kAlarmInt);
@@ -105,6 +133,7 @@ void Pr31x00Rtc::WorkerLoop() {
                     deadline = std::min(deadline, TimeAtCountLocked(alarm_));
                 }
             }
+            if (periodic_enabled_) deadline = std::min(deadline, periodic_next_);
         }
         std::unique_lock<std::mutex> lk(cv_mtx_);
         const auto woke = [this] { return stop_.load() || rearm_; };
@@ -126,6 +155,7 @@ uint32_t Pr31x00Rtc::ReadWord(uint32_t addr) {
         case kOffAlarmHi:  return static_cast<uint32_t>(alarm_ >> 32);
         case kOffAlarmLow: return static_cast<uint32_t>(alarm_ & 0xFFFFFFFFu);
         case kOffTimerCtl: return timer_ctl_;
+        case kOffPeriodic: return (PerCntLocked() << 16) | perval_;
         default:           HaltUnsupportedAccess("PR31x00 RTC ReadWord", addr, 0);
     }
 }
@@ -172,13 +202,21 @@ void Pr31x00Rtc::WriteWord(uint32_t addr, uint32_t value) {
                 alarm_fired_    = false;
                 rollover_fired_ = false;
             }
+            const bool was_periodic = periodic_enabled_;
+            periodic_enabled_ = (value & kEnPerTimer) != 0;
+            /* PERVAL loads into the counter when the timer is enabled (§15.4.4). */
+            if (periodic_enabled_ && !was_periodic) {
+                periodic_next_ = Clock::now() + PeriodLocked();
+            }
             timer_ctl_ = value;
             NotifyWorker();
             return;
         }
 
         case kOffPeriodic:
-            HaltUnsupportedAccess("PR31x00 RTC PeriodicTimer", addr, value);
+            /* PERCNT<31:16> is read-only (§15.4.4); the write sets PERVAL<15:0>. */
+            perval_ = static_cast<uint16_t>(value & kPervalMask);
+            return;
 
         default:
             HaltUnsupportedAccess("PR31x00 RTC WriteWord", addr, value);
@@ -194,6 +232,17 @@ void Pr31x00Rtc::SaveState(StateWriter& w) {
     w.Write(rollover_fired_);
     w.Write(timer_ctl_);
     w.Write(rtc_clr_);
+    w.Write(perval_);
+    w.Write(periodic_enabled_);
+    uint64_t rem_ns = 0;
+    if (periodic_enabled_) {
+        const auto now = Clock::now();
+        if (periodic_next_ > now) {
+            rem_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         periodic_next_ - now).count();
+        }
+    }
+    w.Write(rem_ns);
 }
 
 void Pr31x00Rtc::RestoreState(StateReader& r) {
@@ -205,7 +254,13 @@ void Pr31x00Rtc::RestoreState(StateReader& r) {
     r.Read(rollover_fired_);
     r.Read(timer_ctl_);
     r.Read(rtc_clr_);
+    r.Read(perval_);
+    r.Read(periodic_enabled_);
+    uint64_t rem_ns = 0;
+    r.Read(rem_ns);
     anchor_ = Clock::now();
+    periodic_next_ = Clock::now() +
+        std::chrono::duration_cast<Clock::duration>(std::chrono::nanoseconds(rem_ns));
 }
 
 void Pr31x00Rtc::PostRestore() {

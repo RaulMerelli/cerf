@@ -39,6 +39,9 @@ public:
 
     void SetSourceFreeRunning(uint32_t set, uint32_t bits, bool active);
 
+    /* GLOBALEN, Enable Interrupt 6 bit 18 (TMPR3911 §8.3.17). */
+    void SetGlobalEnable();
+
     /* Notify `cb` when the guest unmasks any of `bits` in Enable Interrupt
        `set+1` (and once at registration if already unmasked). Fired OUTSIDE the
        lock: the callback re-enters via SetPending, which would deadlock the

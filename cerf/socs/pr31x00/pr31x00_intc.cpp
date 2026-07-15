@@ -148,6 +148,12 @@ void Pr31x00Intc::SetSourceFreeRunning(uint32_t set, uint32_t bits, bool active)
     RecomputeLocked();
 }
 
+void Pr31x00Intc::SetGlobalEnable() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    enable6_ |= kGlobalEn;
+    RecomputeLocked();
+}
+
 void Pr31x00Intc::SetPending(uint32_t set, uint32_t bits) {
     std::lock_guard<std::mutex> lk(mtx_);
     if (set >= kSets) {

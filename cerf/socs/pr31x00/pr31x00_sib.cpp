@@ -86,7 +86,11 @@ constexpr uint32_t kCtlRunning = 0x0000002Cu;   /* ENTEL<5>, SIBLOOP<3>, ENSF1<2
    ENDMARXTEL<1> ENDMATXTEL<0>. */
 constexpr uint32_t kDmaEnTxSnd     = 1u << 16;   /* ENDMATXSND */
 constexpr uint32_t kDmaCtlReadOnly = 0x3FFC3FFCu;
-constexpr uint32_t kDmaCtlArmed    = 0xC002C003u;
+/* SNDDMALOOP<30> excluded from the armed set: §13.6.15 makes it only the full-duplex
+   RX/TX DMA request ordering (RX-first vs TX-first), inert when just ENDMATXSND (TX)
+   is armed, so wavedev's continuous TX sound DMA is accepted. Still armed (no modeled
+   path): SNDBUFF1TIME<31> one-shot, ENDMARXSND<17> RX, telecom<15,14,1,0>. */
+constexpr uint32_t kDmaCtlArmed    = 0x8002C003u;
 
 class Pr31x00Sib : public Peripheral {
 public:

@@ -17,7 +17,8 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const Board board = bd->GetBoard();
-        return board == Board::PhilipsNino300 || board == Board::PhilipsVelo1;
+        return board == Board::PhilipsNino300 || board == Board::PhilipsVelo1 ||
+               board == Board::SharpMobilonHc4100;
     }
 
     uint16_t ReadReg(uint8_t reg) override {

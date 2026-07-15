@@ -63,6 +63,7 @@ private:
     bool     IntLevelLocked() const;
     void     LatchInputEdgesLocked();
     BusOps   ApplyOutputsLocked();
+    BusOps   SoftResetLocked();
     void     UpdateIntLocked();
 
     mutable std::mutex mu_;

@@ -70,6 +70,12 @@ constexpr uint16_t kCtrlCardEn    = 0x0004;
 constexpr uint16_t kCtrlGlobalEn  = 0x0002;
 constexpr uint16_t kCtrlIntTriEn  = 0x0001;
 
+/* Bit 6 is a self-clearing soft reset, undocumented in it8368reg.h: pcmcia.dll
+   sub_149120C writes CTRL 0x0040 alone, settles, then reconfigures every
+   register; the card-enable CTRL read-modify-write (it8368.c:294-298) carries no
+   reset bit. */
+constexpr uint16_t kCtrlSoftReset = 0x0040;
+
 constexpr uint16_t kCtrlKnown = kCtrlFixAttrIo | kCtrlAddrSel | kCtrlByteSwap |
                                 kCtrlCardEn | kCtrlGlobalEn | kCtrlIntTriEn;
 
@@ -79,7 +85,8 @@ bool IteIt8368::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
     const Board board = bd->GetBoard();
-    return board == Board::PhilipsNino300 || board == Board::PhilipsVelo1;
+    return board == Board::PhilipsNino300 || board == Board::PhilipsVelo1 ||
+           board == Board::SharpMobilonHc4100;
 }
 
 void IteIt8368::OnReady() {
@@ -187,6 +194,22 @@ IteIt8368::BusOps IteIt8368::ApplyOutputsLocked() {
 
     LatchInputEdgesLocked();
     return ops;
+}
+
+IteIt8368::BusOps IteIt8368::SoftResetLocked() {
+    gpio_dataout_    = 0;
+    gpio_dir_        = 0;
+    gpio_posinten_   = 0;
+    gpio_neginten_   = 0;
+    gpio_posintstat_ = 0;
+    gpio_negintstat_ = 0;
+    mfio_posintstat_ = 0;
+    mfio_negintstat_ = 0;
+    mfio_dataout_    = 0;
+    mfio_dir_        = 0;
+    mfio_sel_        = 0;
+    ctrl_            = 0;
+    return ApplyOutputsLocked();
 }
 
 void IteIt8368::ApplyBusOps(const BusOps& ops) {
@@ -322,6 +345,14 @@ IteIt8368::BusOps IteIt8368::WriteRegLocked(uint32_t off, uint16_t value) {
             return {};
 
         case kRegCtrl:
+            if (value & kCtrlSoftReset) {
+                if (value != kCtrlSoftReset) {
+                    LOG(Caution, "IteIt8368: CTRL 0x%04X combines soft reset with "
+                            "other bits\n", value);
+                    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+                }
+                return SoftResetLocked();
+            }
             if (value & ~kCtrlKnown) {
                 LOG(Caution, "IteIt8368: CTRL 0x%04X sets a reserved bit\n", value);
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
@@ -332,13 +363,10 @@ IteIt8368::BusOps IteIt8368::WriteRegLocked(uint32_t off, uint16_t value) {
                 LOG(Caution, "IteIt8368: CTRL ADDRSEL unmodeled\n");
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
-            /* This board crosses the chip's byte lanes, so a card cycle is only
-               byte-correct while the chip swaps it back. */
-            if ((value & kCtrlCardEn) && !(value & kCtrlByteSwap)) {
-                LOG(Caution, "IteIt8368: CTRL 0x%04X enables the card interface "
-                        "with BYTESWAP clear\n", value);
-                CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-            }
+            /* HC-4100 pcmcia.dll enables the card with BYTESWAP clear:
+               sub_1491BF8 sets CARDEN, sub_14918E4 sets GLOBALEN, and BYTESWAP
+               is set nowhere (init sub_149120C, enable, reset). NetBSD
+               it8368e_attach (it8368.c:294-298) ORs GLOBALEN|CARDEN the same. */
             ctrl_ = value;
             UpdateIntLocked();
             return {};

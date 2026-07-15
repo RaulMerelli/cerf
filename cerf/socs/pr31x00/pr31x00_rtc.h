@@ -44,6 +44,8 @@ private:
 
     uint64_t          CountLocked() const;
     Clock::time_point TimeAtCountLocked(uint64_t target) const;
+    Clock::duration   PeriodLocked() const;
+    uint32_t          PerCntLocked() const;
     void              EvaluateLocked();
     void     NotifyWorker();
     void     StopWorker();
@@ -60,6 +62,10 @@ private:
     bool     alarm_fired_    = false;
     bool     rollover_fired_ = false;
     uint32_t timer_ctl_      = 0;
+
+    uint16_t          perval_           = 0;       /* $154 PERVAL[15:0] reload */
+    bool              periodic_enabled_ = false;   /* TimerCtl ENPERTIMER<4>   */
+    Clock::time_point periodic_next_    = {};      /* next PERINT deadline     */
 
     Pr31x00Intc* intc_ = nullptr;
 

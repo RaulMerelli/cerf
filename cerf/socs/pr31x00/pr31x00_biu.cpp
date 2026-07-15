@@ -32,16 +32,9 @@ constexpr uint32_t kCfg0EnCs1Dram = 1u << 20;
    CARD2IOEN<5> CARD1IOEN<4> PORT8SEL<3> PORT2_8SEL<2> PORT1_8SEL<1> DCLKDISABLE<0>. */
 constexpr uint32_t kCfg3Card2IoEn = 1u << 5;
 constexpr uint32_t kCfg3Card1IoEn = 1u << 4;
-constexpr uint32_t kCfg3Port8Sel  = 1u << 3;
-constexpr uint32_t kCfg3Port2_8Sel = 1u << 2;
-constexpr uint32_t kCfg3Port1_8Sel = 1u << 1;
 
 /* DCLKDISABLE gates the DCLKOUT pin (§4.7.4); it resets to 0. */
 constexpr uint32_t kCfg3DclkDisable = 1u << 0;
-
-/* §4.7.4 port-size table: PORT8SEL forces both PCMCIA ports to 8-bit access,
-   otherwise PORTn_8SEL selects 8-bit for port n. */
-constexpr uint32_t kCfg3PortWidth = kCfg3Port8Sel | kCfg3Port2_8Sel | kCfg3Port1_8Sel;
 
 /* §4.7.5: ENBANK1HDRAM<31> ENBANK0HDRAM<30> ENARB<29> DISSNOOP<28> CLRWRBUSERRINT<27>
    ENBANK1OPT<26> ENBANK0OPT<25> ENWATCH<24> WATCHTIMEVAL<23:20> Reserved<19:17>
@@ -116,12 +109,9 @@ void Pr31x00Biu::WriteConfig3(uint32_t addr, uint32_t value) {
     if (value & kCfg3DclkDisable) {
         HaltUnsupportedAccess("PR31x00 BIU MEM_CONFIG3 DCLKDISABLE", addr, value);
     }
-    if (value & kCfg3PortWidth) {
-        HaltUnsupportedAccess("PR31x00 BIU MEM_CONFIG3 8-bit PCMCIA port", addr, value);
-    }
-    /* CARDnACCVAL / CARDnIOACCVAL access times, the ENMCSnPAGE / ENCSnPAGE
-       read-page-mode enables and the CARDnWAITEN wait-signal enables (§4.7.4) are
-       bus timing, unobservable in CERF's zero-wait-state memory. */
+    /* §4.7.4: PORT8SEL / PORTn_8SEL select the 8- or 16-bit PCMCIA port size,
+       CARDnACCVAL / CARDnIOACCVAL are access times, ENMCSnPAGE / ENCSnPAGE the
+       read-page-mode enables, CARDnWAITEN the wait-signal enables. */
     reg_[3] = value;
 }
 
