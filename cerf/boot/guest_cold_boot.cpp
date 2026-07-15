@@ -27,6 +27,16 @@ void GuestColdBoot::RequestHardReset() {
     emu_.Get<GuestCpuReset>().ColdReset();
 }
 
+void GuestColdBoot::SaveState(StateWriter& w) const {
+    w.Write<uint8_t>(pending_.load(std::memory_order_acquire) ? 1u : 0u);
+}
+
+void GuestColdBoot::RestoreState(StateReader& r) {
+    uint8_t pending = 0;
+    r.Read(pending);
+    pending_.store(pending != 0, std::memory_order_release);
+}
+
 void GuestColdBoot::ExecuteIfPending() {
     if (!pending_.exchange(false, std::memory_order_acq_rel)) return;
 

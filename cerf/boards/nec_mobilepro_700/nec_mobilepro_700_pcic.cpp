@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
-#include "../../socs/vr4102/vr4102_giu.h"
+#include "../../socs/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
 
@@ -183,7 +183,7 @@ void NecMobilePro700Pcic::UpdateGiuLine() {
             if (card_irq_[b] && Exca(b).CardIrqRouted())  level = true;
         }
     }
-    emu_.Get<Vr4102Giu>().SetPinLevel(kGiuPin, level);
+    emu_.Get<Vr41xxGiu>().SetPinLevel(kGiuPin, level);
 }
 
 void NecMobilePro700Pcic::OnCardDetectChanged(PcmciaSlot& slot) {

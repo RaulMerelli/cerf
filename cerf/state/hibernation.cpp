@@ -15,7 +15,9 @@
 #include "../host/host_key_prompt.h"
 #include "../host/host_screenshot.h"
 #include "../host/guest_deep_sleep.h"
+#include "../boot/guest_cold_boot.h"
 #include "../host/host_widget_registry.h"
+#include "../socs/guest_cpu_reset.h"
 #include "../host/host_window.h"
 #include "../host/hw_screen.h"
 #include "../jit/guest_engine.h"
@@ -171,7 +173,7 @@ bool Hibernation::Save(const std::wstring& path_in) {
         StateWriter w(path);
         if (w.Ok()) {
             WriteHeader(w);
-            w.Write<uint32_t>(7u);   /* section count */
+            w.Write<uint32_t>(8u);   /* section count */
 
             auto section = [&w](StateSection id, const std::function<void()>& body) {
                 const uint64_t hdr_off = w.BytesWritten();
@@ -213,6 +215,11 @@ bool Hibernation::Save(const std::wstring& path_in) {
                restored widget then lands consistently. */
             section(StateSection::Widget, [&] {
                 emu_.Get<HostWidgetRegistry>().SaveState(w);
+            });
+
+            section(StateSection::Reset, [&] {
+                emu_.Get<GuestCpuReset>().SaveState(w);
+                emu_.Get<GuestColdBoot>().SaveState(w);
             });
             ok = w.Ok() && w.Commit();
         }
@@ -317,6 +324,10 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                     case StateSection::Periph: RestorePeripherals(r); break;
                     case StateSection::Presentation: RestorePresentation(r); break;
                     case StateSection::Widget: emu_.Get<HostWidgetRegistry>().RestoreState(r); break;
+                    case StateSection::Reset:
+                        emu_.Get<GuestCpuReset>().RestoreState(r);
+                        emu_.Get<GuestColdBoot>().RestoreState(r);
+                        break;
                     default: break;
                 }
             }

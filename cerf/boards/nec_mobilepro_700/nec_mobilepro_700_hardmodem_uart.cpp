@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/serial/serial_cradle.h"
-#include "../../socs/vr4102/vr4102_giu.h"
+#include "../../socs/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
 
@@ -55,7 +55,7 @@ protected:
 
     void SetInterruptLine(bool pending) override {
         /* GIU pin 0: nk.exe OAL ISR sub_9F002050 returns SYSINTR 39 on GIUINT bit0. */
-        emu_.Get<Vr4102Giu>().SetPinLevel(0, pending);
+        emu_.Get<Vr41xxGiu>().SetPinLevel(0, pending);
     }
 
     void SaveState(StateWriter& w) override {

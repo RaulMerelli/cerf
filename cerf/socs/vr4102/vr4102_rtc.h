@@ -68,6 +68,9 @@ private:
     uint32_t ReadDownCountLocked(uint32_t reload, Clock::time_point anchor,
                                  uint32_t hz, uint32_t mask) const;
 
+    void     ApplyRtcResetLocked();     /* RTCRST: every register takes its reset column */
+    void     StopTclkLocked();          /* non-RTCRST reset: TCLK period/count/latch = 0 */
+    void     AckIntBitsLocked(uint16_t clr);   /* W1C a cause + ack its period counter */
     void     EvaluateLocked();          /* update the four RTCINTR latches */
     void     DriveIcuLocked();          /* push RTCINTREG bits to the ICU  */
     void     NotifyWorker();

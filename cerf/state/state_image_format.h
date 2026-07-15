@@ -50,6 +50,7 @@ enum class StateSection : uint32_t {
        lines the CE driver reads). Full restore only - a warm boot re-asserts
        it when the board service re-drives at startup. */
     Widget       = 7,
+    Reset        = 8,
 };
 
 #pragma pack(push, 1)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/service.h"
+#include "../state/state_stream.h"
 
 #include <atomic>
 #include <cstdint>
@@ -33,6 +34,9 @@ public:
        so the wipe + replay cannot race guest stores. No-op when only a
        soft reset is pending. */
     void ExecuteIfPending();
+
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
 
 private:
     std::vector<std::function<void()>> replays_;

@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
 #include "../peripheral_dispatcher.h"
-#include "../../socs/vr4102/vr4102_giu.h"
+#include "../../socs/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>
@@ -122,7 +122,7 @@ void Vrc4172Gpio::DriveGiuLocked() {
     const bool asserted = (intst_ & inten_) != 0;
     if (asserted == giu_asserted_) return;
     giu_asserted_ = asserted;
-    emu_.Get<Vr4102Giu>().SetPinLevel(kGiuIntPin, asserted);
+    emu_.Get<Vr41xxGiu>().SetPinLevel(kGiuIntPin, asserted);
 }
 
 void Vrc4172Gpio::SaveState(StateWriter& w) {
@@ -138,5 +138,5 @@ void Vrc4172Gpio::RestoreState(StateReader& r) {
 void Vrc4172Gpio::PostRestore() {
     std::lock_guard<std::mutex> lk(mtx_);
     giu_asserted_ = (intst_ & inten_) != 0;
-    emu_.Get<Vr4102Giu>().SetPinLevel(kGiuIntPin, giu_asserted_);
+    emu_.Get<Vr41xxGiu>().SetPinLevel(kGiuIntPin, giu_asserted_);
 }

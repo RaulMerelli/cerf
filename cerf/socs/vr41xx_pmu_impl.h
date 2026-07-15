@@ -31,6 +31,10 @@ struct Vr41xxPmuModel {
     uint16_t cnt_power_on;    /* PMUCNTREG: RTCRST column                     */
 };
 
+/* "When the software executes the HIBERNATE instruction, the VR4102 ... enters reset status ...
+   A reset by software shutdown initializes the entire internal state except for the RTC timer
+   and the PMU ... the processor ... begins the Cold reset exception sequence to access the reset
+   vectors in the ROM space" (VR4102 UM 7.1.4 + Fig 7-4, VR4121 UM 8.1.4 + Fig 8-6). */
 template <SocFamily Soc, Vr41xxPmuModel M>
 class Vr41xxPmuBase : public Peripheral, public ResetCauseLatch, public DeepSleepWaker {
 public:
@@ -107,13 +111,6 @@ protected:
 
     void ClearIntBits(uint16_t bits) {
         intreg_.fetch_and(static_cast<uint16_t>(~bits), std::memory_order_acq_rel);
-    }
-
-    void ReplaceIntBits(uint16_t clear, uint16_t set) {
-        uint16_t cur = intreg_.load(std::memory_order_acquire), next;
-        do {
-            next = static_cast<uint16_t>((cur & ~clear) | set);
-        } while (!intreg_.compare_exchange_weak(cur, next, std::memory_order_acq_rel));
     }
 
     void StoreIntReg(uint16_t value) { intreg_.store(value, std::memory_order_release); }

@@ -35,7 +35,7 @@ private:
     mutable std::mutex mtx_;
 
     uint16_t matrix_[6] = {0, 0, 0, 0, 0, 0};   /* KIUDAT0-5: bit set = key pressed. */
-    uint16_t scanrep_   = 0;
+    uint16_t scanrep_   = 0x0001;   /* KIUSCANREP RTCRST row: D0 ATSCAN = 1 (UM 21.2.2). */
     uint16_t causes_    = 0;
 
     bool EnabledLocked() const;
