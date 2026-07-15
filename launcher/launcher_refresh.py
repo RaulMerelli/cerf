@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 from bundles import ManifestVersionError
-from bundle_repositories import MAIN_REPOSITORY_URL
+from bundle_repositories import MAIN_REPOSITORY_URL, manifest_url_for
 from device_state import DeviceBundle
 from ui_dialogs import show_error, show_info
 
@@ -26,7 +26,7 @@ class RefreshMixin:
                            f"manifest - try again later or check your network.\n\n"
                            f"The catalog can also be fetched by hand, and the "
                            f"bundles it lists downloaded manually, from:\n"
-                           f"{MAIN_REPOSITORY_URL}")
+                           f"{manifest_url_for(MAIN_REPOSITORY_URL)}")
             self._surface_repo_errors()
             self._reload_device_list()
         self._await_future(future, done)

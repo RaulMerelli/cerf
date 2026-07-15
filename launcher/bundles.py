@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from bundle_repositories import BundleRepository, repository_suffix
+from bundle_repositories import (BundleRepository, manifest_url_for,
+                                 repository_suffix)
 
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
@@ -210,7 +211,8 @@ def _parse_packages(bundle_name: str, raw, manifest_url: str) -> tuple:
     return tuple(parsed)
 
 
-def _fetch_repo_bundles(manifest_url: str, main: bool) -> List[RemoteBundle]:
+def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
+    manifest_url = manifest_url_for(base_url)
     fresh_url = _append_query(manifest_url, "cb", str(int(time.time())))
     try:
         raw = _fetch_bytes(fresh_url)
@@ -228,7 +230,7 @@ def _fetch_repo_bundles(manifest_url: str, main: bool) -> List[RemoteBundle]:
     if not isinstance(bundles, list):
         raise BundleError("remote manifest has no bundles list")
 
-    suffix = "" if main else repository_suffix(manifest_url)
+    suffix = "" if main else repository_suffix(base_url)
     parsed: List[RemoteBundle] = []
     for item in bundles:
         if not isinstance(item, dict):

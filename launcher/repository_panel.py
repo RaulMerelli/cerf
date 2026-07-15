@@ -97,12 +97,12 @@ class RepositoryPanel:
             return
         top = self.frame.winfo_toplevel()
         url = ask_text(top, "Add bundle repository",
-                       "Manifest URL (manifest.json):")
+                       "Bundle repository URL (without /manifest.json):")
         if not url:
             return
         if not (url.startswith("http://") or url.startswith("https://")):
             show_info(top, "Invalid URL",
-                      "Enter a full http:// or https:// manifest URL.")
+                      "Enter a full http:// or https:// repository URL.")
             return
         if any(r.url == url for r in self._repos):
             show_info(top, "Already added",

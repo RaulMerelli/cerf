@@ -8,8 +8,9 @@ from typing import List, Optional
 
 from app_paths import exe_dir
 
-MAIN_REPOSITORY_URL = "https://cerf-bundles.dz3n.net/cerf-bundles/manifest.json"
+MAIN_REPOSITORY_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
 CONFIG_KEY = "bundle_repositories"
+_MANIFEST_NAME = "manifest.json"
 _SUFFIX_LEN = 6
 
 
@@ -22,6 +23,10 @@ class BundleRepository:
 
 def config_path() -> Path:
     return exe_dir() / "cerf.json"
+
+
+def manifest_url_for(base_url: str) -> str:
+    return base_url.rstrip("/") + "/" + _MANIFEST_NAME
 
 
 def repository_suffix(url: str) -> str:
@@ -74,6 +79,20 @@ def write_repositories(repos: List[BundleRepository]) -> None:
     obj[CONFIG_KEY] = [
         {"url": r.url, "enabled": r.enabled, "main": r.main} for r in repos]
     path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+
+
+def strip_manifest_from_repos(value):
+    if not isinstance(value, list):
+        return value
+    suffix = "/" + _MANIFEST_NAME
+    out = []
+    for e in value:
+        if isinstance(e, dict) and isinstance(e.get("url"), str) \
+                and e["url"].endswith(suffix):
+            e = dict(e)
+            e["url"] = e["url"][:-len(suffix)]
+        out.append(e)
+    return out
 
 
 def merge_repositories(old_value, new_value):
