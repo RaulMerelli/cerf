@@ -11,6 +11,7 @@ from app_paths import exe_dir
 MAIN_REPOSITORY_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
 CONFIG_KEY = "bundle_repositories"
 _MANIFEST_NAME = "manifest.json"
+_ANALYTICS_NAME = "analytics.json"
 _SUFFIX_LEN = 6
 
 
@@ -27,6 +28,10 @@ def config_path() -> Path:
 
 def manifest_url_for(base_url: str) -> str:
     return base_url.rstrip("/") + "/" + _MANIFEST_NAME
+
+
+def analytics_url_for(base_url: str) -> str:
+    return base_url.rstrip("/") + "/" + _ANALYTICS_NAME
 
 
 def repository_suffix(url: str) -> str:

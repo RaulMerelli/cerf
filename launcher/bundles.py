@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from bundle_repositories import (BundleRepository, manifest_url_for,
-                                 repository_suffix)
+from bundle_repositories import (BundleRepository, analytics_url_for,
+                                 manifest_url_for, repository_suffix)
 
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
@@ -257,6 +257,48 @@ def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
             packages=_parse_packages(display, item.get("additional_packages"), manifest_url),
         ))
     return parsed
+
+
+def _fetch_repo_analytics(base_url: str, main: bool) -> dict:
+    """Download one repo's analytics.json and return {display_name: place}.
+    Display names carry the same per-repo suffix _fetch_repo_bundles applies,
+    so the map keys match DeviceBundle.name directly."""
+    url = _append_query(analytics_url_for(base_url), "cb", str(int(time.time())))
+    raw = _fetch_bytes(url)
+    data = json.loads(raw.decode("utf-8"))
+    per_rom = data.get("per_rom")
+    if not isinstance(per_rom, list):
+        raise BundleError("analytics.json has no per_rom list")
+    suffix = "" if main else repository_suffix(base_url)
+    places: dict = {}
+    for entry in per_rom:
+        if not isinstance(entry, dict):
+            raise BundleError("analytics.json contains a malformed entry")
+        name = entry.get("name")
+        place = entry.get("place")
+        if not isinstance(name, str) or not name:
+            raise BundleError("analytics.json entry has no name")
+        if not isinstance(place, int) or isinstance(place, bool):
+            raise BundleError(f"analytics.json entry {name} has no integer place")
+        places[name if main else f"{name}_{suffix}"] = place
+    return places
+
+
+def load_analytics(repositories: List[BundleRepository]) -> Optional[dict]:
+    """Merge every enabled repo's download-rank analytics into one
+    {display_name: place} map. Returns None when any enabled repo's
+    analytics.json is absent or unparseable - the download-count sort is a
+    single ordering over all repos, so one bad source disables it rather than
+    mixing ranked and unranked repos."""
+    merged: dict = {}
+    for repo in repositories:
+        if not repo.enabled:
+            continue
+        try:
+            merged.update(_fetch_repo_analytics(repo.url, repo.main))
+        except Exception:
+            return None
+    return merged
 
 
 def load_merged_manifest(

@@ -281,7 +281,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         if self.busy:
             return
         DownloadWindow(self, self.tree_panel.devices, self._download_queue,
-                       resolve_icons_dir(), reload_fn=self._reload_download_sources)
+                       resolve_icons_dir(), reload_fn=self._reload_download_sources,
+                       download_places=self.manager.download_places)
 
     def _download_queue(self, names: List[str]) -> None:
         if self.busy or not names:

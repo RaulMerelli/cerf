@@ -16,17 +16,23 @@ import ui_theme as theme
 
 _OSNOTE_PREFIX = "osnote::"
 
-ReloadFn = Callable[[Callable[[List[DeviceBundle], list], None]], None]
+_SORT_DOWNLOADS = "By downloads"
+_SORT_REGULAR = "Regular"
+
+ReloadFn = Callable[
+    [Callable[[List[DeviceBundle], list, Optional[dict]], None]], None]
 
 
 class DownloadWindow:
     def __init__(self, parent: tk.Misc, devices: List[DeviceBundle],
                  on_download: Callable[[List[str]], None],
                  icons_dir: Optional[Path] = None,
-                 reload_fn: Optional[ReloadFn] = None) -> None:
+                 reload_fn: Optional[ReloadFn] = None,
+                 download_places: Optional[Dict[str, int]] = None) -> None:
         self._on_download = on_download
         self._icons_dir = icons_dir
         self._reload_fn = reload_fn
+        self._places = download_places
         self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
         self._badge_tags: set[str] = set()
         self._cell_badges = True
@@ -58,6 +64,15 @@ class DownloadWindow:
         ttk.Checkbutton(filt, text="Hide unsupported",
                         variable=self.var_hide_unsupported,
                         command=self._refill).pack(side="left")
+        ttk.Label(filt, text="Sort:").pack(side="left", padx=(12, 4))
+        self.var_sort = tk.StringVar(
+            value=_SORT_DOWNLOADS if self._places is not None else _SORT_REGULAR)
+        self.sort_combo = ttk.Combobox(
+            filt, textvariable=self.var_sort, state="readonly", width=14,
+            values=(_SORT_DOWNLOADS, _SORT_REGULAR))
+        self.sort_combo.pack(side="left")
+        self.sort_combo.bind("<<ComboboxSelected>>", lambda *_: self._refill())
+        self._sync_sort_availability()
         self.var_search = tk.StringVar(value="")
         ttk.Entry(filt, textvariable=self.var_search, width=24).pack(side="right")
         ttk.Label(filt, text="Search:").pack(side="right", padx=(0, 4))
@@ -115,12 +130,37 @@ class DownloadWindow:
         self._panel.set_enabled(False)
         self._reload_fn(self._reloaded)
 
-    def _reloaded(self, devices: List[DeviceBundle], errors: list) -> None:
+    def _reloaded(self, devices: List[DeviceBundle], errors: list,
+                  places: Optional[Dict[str, int]]) -> None:
+        self._places = places
         self._candidates = self._compute_candidates(devices)
         self._checked.intersection_update(d.name for d in self._candidates)
         self._panel.set_enabled(True)
         self._panel.show_errors(errors)
+        self._sync_sort_availability()
         self._refill()
+
+    def _sync_sort_availability(self) -> None:
+        if self._places is None:
+            self.var_sort.set(_SORT_REGULAR)
+            self.sort_combo.configure(state="disabled")
+        else:
+            self.sort_combo.configure(state="readonly")
+
+    def _sort_mode(self) -> str:
+        if self._places is not None and self.var_sort.get() == _SORT_DOWNLOADS:
+            return "downloads"
+        return "regular"
+
+    def _place_key(self, d: DeviceBundle) -> tuple:
+        place = self._places.get(d.name) if self._places else None
+        return (place is None, place if place is not None else 0,
+                _device_sort_key(d))
+
+    def _ordered_candidates(self) -> List[DeviceBundle]:
+        if self._sort_mode() == "downloads":
+            return sorted(self._candidates, key=self._place_key)
+        return self._candidates
 
     def _check_glyph(self, name: str) -> str:
         return "☑  " if name in self._checked else "☐  "
@@ -146,42 +186,50 @@ class DownloadWindow:
         self._device_group = {}
         hide_unsupported = self.var_hide_unsupported.get()
         query = self.var_search.get().strip().lower()
+        grouped = self._sort_mode() == "regular"
         groups: Dict[str, str] = {}
-        for d in self._candidates:
+        for d in self._ordered_candidates():
             if hide_unsupported and board_support_state(d.meta.board_id) is not True:
                 continue
             if query and query not in _device_search_haystack(d):
                 continue
-            board = d.meta.board_name or ""
-            gid = groups.get(board)
-            if gid is None:
-                gid = GROUP_IID_PREFIX + board
-                tree.insert("", "end", iid=gid, text="", open=True,
-                            tags=("group",))
-                groups[board] = gid
-                self._group_members[gid] = []
-            self._sizes[d.name] = d.remote.archive_size or 0
-            soc = d.meta.soc_family or ""
-            tree.insert(gid, "end", iid=d.name, open=bool(d.meta.os_notes),
-                        text=self._check_glyph(d.name) + _table_device_label(d),
-                        values=(_table_os_label(d), soc,
-                                format_size(d.remote.archive_size) or ""))
-            cpu = board_soc_cpu(d.meta.board_id) if soc else ""
-            if cpu:
-                badge = theme.load_badge(self._icons_dir, cpu, self._badge_cache)
-                if badge is not None:
-                    self._set_soc_badge(d.name, cpu, badge)
-            self._payload[d.name] = d
-            self._group_members[gid].append(d.name)
-            self._device_group[d.name] = gid
-            for i, note in enumerate(d.meta.os_notes):
-                tree.insert(d.name, "end",
-                            iid=f"{_OSNOTE_PREFIX}{d.name}::{i}",
-                            text="", values=(f"↳ {note}", "", ""),
-                            tags=("osnote",))
+            parent = ""
+            if grouped:
+                board = d.meta.board_name or ""
+                parent = groups.get(board)
+                if parent is None:
+                    parent = GROUP_IID_PREFIX + board
+                    tree.insert("", "end", iid=parent, text="", open=True,
+                                tags=("group",))
+                    groups[board] = parent
+                    self._group_members[parent] = []
+            self._insert_device_row(parent, d)
+            if grouped:
+                self._group_members[parent].append(d.name)
+                self._device_group[d.name] = parent
         for gid in self._group_members:
             self._refresh_group_text(gid)
         self._update_summary()
+
+    def _insert_device_row(self, parent: str, d: DeviceBundle) -> None:
+        tree = self.tree
+        self._sizes[d.name] = d.remote.archive_size or 0
+        soc = d.meta.soc_family or ""
+        tree.insert(parent, "end", iid=d.name, open=bool(d.meta.os_notes),
+                    text=self._check_glyph(d.name) + _table_device_label(d),
+                    values=(_table_os_label(d), soc,
+                            format_size(d.remote.archive_size) or ""))
+        cpu = board_soc_cpu(d.meta.board_id) if soc else ""
+        if cpu:
+            badge = theme.load_badge(self._icons_dir, cpu, self._badge_cache)
+            if badge is not None:
+                self._set_soc_badge(d.name, cpu, badge)
+        self._payload[d.name] = d
+        for i, note in enumerate(d.meta.os_notes):
+            tree.insert(d.name, "end",
+                        iid=f"{_OSNOTE_PREFIX}{d.name}::{i}",
+                        text="", values=(f"↳ {note}", "", ""),
+                        tags=("osnote",))
 
     def _set_soc_badge(self, iid: str, cpu: str, badge: tk.PhotoImage) -> None:
         # A per-cell image is a ttk::treeview cell tag (TIP 552), which exists

@@ -38,10 +38,13 @@ class RefreshMixin:
                 f"{len(errors)} bundle repository(ies) unavailable")
 
     def _reload_download_sources(
-            self, done: Callable[[List[DeviceBundle], list], None]) -> None:
+            self,
+            done: Callable[[List[DeviceBundle], list, Optional[dict]], None]
+    ) -> None:
         if self.busy:
             done(self.tree_panel.devices,
-                 getattr(self.manager, "repo_errors", []))
+                 getattr(self.manager, "repo_errors", []),
+                 getattr(self.manager, "download_places", None))
             return
         self._set_busy(True, "Fetching manifest…")
         future = self.manager.submit_refresh()
@@ -57,7 +60,8 @@ class RefreshMixin:
                            f"manifest - try again later or check your network.")
             self._reload_device_list()
             done(self.manager.list_devices(),
-                 getattr(self.manager, "repo_errors", []))
+                 getattr(self.manager, "repo_errors", []),
+                 getattr(self.manager, "download_places", None))
         self._await_future(future, cb)
 
     def _show_manifest_version_error(self, exc: ManifestVersionError) -> None:

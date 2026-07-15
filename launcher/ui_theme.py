@@ -297,6 +297,28 @@ def apply_theme(root: tk.Tk) -> None:
                     fieldbackground=BG_FIELD, foreground=FG,
                     bordercolor=BORDER, insertcolor=FG)
 
+    style.configure("TCombobox",
+                    fieldbackground=BG_FIELD, background=BG_FIELD,
+                    foreground=FG, arrowcolor=FG, bordercolor=BORDER,
+                    lightcolor=BG_FIELD, darkcolor=BG_FIELD,
+                    selectbackground=BG_SELECTED, selectforeground=FG,
+                    padding=2)
+    style.map("TCombobox",
+              fieldbackground=[("readonly", BG_FIELD), ("disabled", BG)],
+              foreground=[("disabled", FG_DIM)],
+              background=[("active", BG_HOVER)],
+              arrowcolor=[("disabled", FG_DIM)],
+              bordercolor=[("focus", BG_SELECTED)],
+              selectbackground=[("readonly", BG_FIELD)],
+              selectforeground=[("readonly", FG)])
+    # The readonly combobox's drop-down is a plain tk::listbox created lazily
+    # by ttk::combobox; it reads its colours from the option database, not the
+    # ttk style, so theme it via the documented *TCombobox*Listbox pattern.
+    root.option_add("*TCombobox*Listbox.background", BG_FIELD)
+    root.option_add("*TCombobox*Listbox.foreground", FG)
+    root.option_add("*TCombobox*Listbox.selectBackground", BG_SELECTED)
+    root.option_add("*TCombobox*Listbox.selectForeground", FG)
+
     style.configure("TScrollbar",
                     background=BG_FIELD, troughcolor=BG,
                     bordercolor=BORDER, arrowcolor=FG)
