@@ -254,12 +254,14 @@ private:
             DriveIcuLocked();
             wake_.store(true, std::memory_order_release);
             cv_.notify_all();
-        } else if (state_ == kStCmdScan) {
+        } else if (pen_cur_ && state_ == kStCmdScan) {
             /* A command scan fetches "one port only" per PIUSEQEN kick and CmdScan has no
                self-loop (VR4121 UM 20.2 (4), Figure 20-4; VR4102 UM 19.2, Figure 19-4);
                touch.dll sub_15A0E24 re-arms "PIUCNTREG |= PIUSEQEN" after every sample. */
             CmdScanOnceLocked();
             DriveIcuLocked();
+            wake_.store(true, std::memory_order_release);
+            cv_.notify_all();
         }
     }
 
@@ -375,6 +377,11 @@ private:
                 std::lock_guard<std::mutex> sl(mtx_);
                 if (pen_cur_ && state_ == kStPenDataScan) {
                     SampleOnceLocked();
+                    DriveIcuLocked();
+                    interval = IntervalMsLocked();
+                    sampled = true;
+                } else if (pen_cur_ && state_ == kStCmdScan) {
+                    CmdScanOnceLocked();
                     DriveIcuLocked();
                     interval = IntervalMsLocked();
                     sampled = true;
