@@ -8,11 +8,10 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
+from bundle_repositories import BundleRepository, repository_suffix
 
-BASE_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
-REMOTE_MANIFEST_URL = BASE_URL + "/manifest.json"
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
 USER_AGENT = "CERF launcher"
@@ -76,14 +75,14 @@ class RemotePackage:
     is_directory: bool
     name: str
     archive_path: str
+    manifest_url: str
     archive_sha256: Optional[str] = None
     archive_size: Optional[int] = None
     unpacked_size: Optional[int] = None
 
     @property
     def archive_url(self) -> str:
-        base = urllib.parse.urljoin(BASE_URL + "/", self.archive_path)
-        # Packages carry no updated_at; the content hash is the cache-buster.
+        base = urllib.parse.urljoin(self.manifest_url, self.archive_path)
         if self.archive_sha256:
             return _append_query(base, "v", self.archive_sha256)
         return base
@@ -94,6 +93,7 @@ class RemoteBundle:
     name: str
     updated_at: str
     archive_path: str
+    manifest_url: str
     archive_sha256: Optional[str] = None
     archive_size: Optional[int] = None
     unpacked_size: Optional[int] = None
@@ -102,7 +102,7 @@ class RemoteBundle:
 
     @property
     def archive_url(self) -> str:
-        base = urllib.parse.urljoin(BASE_URL + "/", self.archive_path)
+        base = urllib.parse.urljoin(self.manifest_url, self.archive_path)
         return _append_query(base, "v", self.updated_at)
 
     def find_package(self, category: str, key: str) -> Optional[RemotePackage]:
@@ -156,7 +156,7 @@ def parse_version_tuple(text) -> Optional[tuple]:
     return tuple(parts) if parts else None
 
 
-def _parse_packages(bundle_name: str, raw) -> tuple:
+def _parse_packages(bundle_name: str, raw, manifest_url: str) -> tuple:
     if raw is None:
         return ()
     if not isinstance(raw, dict):
@@ -199,6 +199,7 @@ def _parse_packages(bundle_name: str, raw) -> tuple:
                 is_directory=is_directory,
                 name=display if isinstance(display, str) and display else key,
                 archive_path=archive_path,
+                manifest_url=manifest_url,
                 archive_sha256=item.get("archive_sha256")
                 if isinstance(item.get("archive_sha256"), str) else None,
                 archive_size=item.get("archive_size")
@@ -209,8 +210,8 @@ def _parse_packages(bundle_name: str, raw) -> tuple:
     return tuple(parsed)
 
 
-def load_remote_manifest() -> List[RemoteBundle]:
-    fresh_url = _append_query(REMOTE_MANIFEST_URL, "cb", str(int(time.time())))
+def _fetch_repo_bundles(manifest_url: str, main: bool) -> List[RemoteBundle]:
+    fresh_url = _append_query(manifest_url, "cb", str(int(time.time())))
     try:
         raw = _fetch_bytes(fresh_url)
         manifest = json.loads(raw.decode("utf-8"))
@@ -227,6 +228,7 @@ def load_remote_manifest() -> List[RemoteBundle]:
     if not isinstance(bundles, list):
         raise BundleError("remote manifest has no bundles list")
 
+    suffix = "" if main else repository_suffix(manifest_url)
     parsed: List[RemoteBundle] = []
     for item in bundles:
         if not isinstance(item, dict):
@@ -240,14 +242,34 @@ def load_remote_manifest() -> List[RemoteBundle]:
             raise BundleError(f"bundle {name} has no updated_at")
         if not isinstance(archive_path, str) or not archive_path:
             raise BundleError(f"bundle {name} has no archive_path")
+        display = name if main else f"{name}_{suffix}"
         parsed.append(RemoteBundle(
-            name=name,
+            name=display,
             updated_at=updated_at,
             archive_path=archive_path,
+            manifest_url=manifest_url,
             archive_sha256=item.get("archive_sha256") if isinstance(item.get("archive_sha256"), str) else None,
             archive_size=item.get("archive_size") if isinstance(item.get("archive_size"), int) else None,
             unpacked_size=item.get("unpacked_size") if isinstance(item.get("unpacked_size"), int) else None,
             cerf_json=item.get("cerf_json") if isinstance(item.get("cerf_json"), dict) else None,
-            packages=_parse_packages(name, item.get("additional_packages")),
+            packages=_parse_packages(display, item.get("additional_packages"), manifest_url),
         ))
-    return sorted(parsed, key=lambda b: b.name.lower())
+    return parsed
+
+
+def load_merged_manifest(
+        repositories: List[BundleRepository],
+) -> Tuple[List[RemoteBundle], List[Tuple[str, str]]]:
+    all_bundles: List[RemoteBundle] = []
+    errors: List[Tuple[str, str]] = []
+    for repo in repositories:
+        if not repo.enabled:
+            continue
+        try:
+            all_bundles.extend(_fetch_repo_bundles(repo.url, repo.main))
+        except Exception as exc:
+            if repo.main:
+                raise
+            errors.append((repo.url, str(exc)))
+    all_bundles.sort(key=lambda b: b.name.lower())
+    return all_bundles, errors

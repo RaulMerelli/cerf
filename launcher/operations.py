@@ -17,9 +17,10 @@ from bundles import (
     USER_AGENT,
     RemoteBundle,
     is_safe_bundle_name,
-    load_remote_manifest,
+    load_merged_manifest,
     _sha256_file,
 )
+from bundle_repositories import read_repositories
 from github_release import fetch_latest_release
 from device_state import (
     DeviceBundle,
@@ -139,6 +140,7 @@ class BundleManager:
         self._pool = ThreadPoolExecutor(max_workers=PARALLEL_WORKERS)
         self._manifest_lock = threading.Lock()
         self.remote_bundles: List[RemoteBundle] = []
+        self.repo_errors: List[Tuple[str, str]] = []
         self.installed: Dict[str, LocalBundleRecord] = {}
 
     def shutdown(self) -> None:
@@ -155,7 +157,8 @@ class BundleManager:
             self.installed = load_local_manifest(self.local_manifest_path)
         except BundleError:
             self.installed = {}
-        self.remote_bundles = load_remote_manifest()
+        self.remote_bundles, self.repo_errors = load_merged_manifest(
+            read_repositories())
         self._reconcile_cerf_json()
 
     def _reconcile_cerf_json(self) -> None:

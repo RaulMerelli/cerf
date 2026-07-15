@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
+
+from app_paths import exe_dir
+
+MAIN_REPOSITORY_URL = "https://cerf-bundles.dz3n.net/cerf-bundles/manifest.json"
+CONFIG_KEY = "bundle_repositories"
+_SUFFIX_LEN = 6
+
+
+@dataclass
+class BundleRepository:
+    url: str
+    enabled: bool
+    main: bool = False
+
+
+def config_path() -> Path:
+    return exe_dir() / "cerf.json"
+
+
+def repository_suffix(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()[:_SUFFIX_LEN]
+
+
+def default_repositories() -> List[BundleRepository]:
+    return [BundleRepository(url=MAIN_REPOSITORY_URL, enabled=True, main=True)]
+
+
+def _parse_repositories(raw) -> Optional[List[BundleRepository]]:
+    if not isinstance(raw, list):
+        return None
+    repos: List[BundleRepository] = []
+    seen: set = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("url")
+        enabled = item.get("enabled")
+        if not isinstance(url, str) or not url or not isinstance(enabled, bool):
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        main = item.get("main")
+        repos.append(BundleRepository(
+            url=url, enabled=enabled,
+            main=main if isinstance(main, bool) else False))
+    return repos or None
+
+
+def _load_config(path: Path) -> dict:
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+        parsed = json.loads(text)
+    except (OSError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def read_repositories() -> List[BundleRepository]:
+    repos = _parse_repositories(_load_config(config_path()).get(CONFIG_KEY))
+    return repos if repos is not None else default_repositories()
+
+
+def write_repositories(repos: List[BundleRepository]) -> None:
+    path = config_path()
+    obj = _load_config(path)
+    obj[CONFIG_KEY] = [
+        {"url": r.url, "enabled": r.enabled, "main": r.main} for r in repos]
+    path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+
+
+def merge_repositories(old_value, new_value):
+    if not isinstance(old_value, list):
+        return new_value
+    merged = [e for e in old_value if isinstance(e, dict)]
+    old_urls = {e.get("url") for e in merged if isinstance(e.get("url"), str)}
+    if isinstance(new_value, list):
+        for e in new_value:
+            if isinstance(e, dict) and e.get("url") not in old_urls:
+                merged.append(e)
+    return merged

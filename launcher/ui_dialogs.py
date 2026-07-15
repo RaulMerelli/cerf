@@ -60,6 +60,48 @@ def show_dialog(parent: tk.Misc, title: str, message: str,
     return result["value"]
 
 
+def ask_text(parent: tk.Misc, title: str, prompt: str,
+             initial: str = "") -> Optional[str]:
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.configure(bg=theme.BG)
+    dlg.transient(parent)
+    dlg.resizable(False, False)
+    result: Dict[str, Optional[str]] = {"value": None}
+
+    body = ttk.Frame(dlg, padding=16)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text=prompt, wraplength=460, justify="left").pack(
+        anchor="w", pady=(0, 8))
+    var = tk.StringVar(value=initial)
+    entry = ttk.Entry(body, textvariable=var, width=64)
+    entry.pack(fill="x")
+    entry.focus_set()
+
+    def accept() -> None:
+        result["value"] = var.get().strip()
+        dlg.destroy()
+
+    btns = ttk.Frame(body)
+    btns.pack(anchor="e", pady=(14, 0))
+    ttk.Button(btns, text="OK", command=accept).pack(side="left", padx=(6, 0))
+    ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left",
+                                                              padx=(6, 0))
+    dlg.bind("<Return>", lambda _e: accept())
+    dlg.bind("<Escape>", lambda _e: dlg.destroy())
+
+    dlg.update_idletasks()
+    theme.apply_titlebar(dlg)
+    w, h = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+    x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+    dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    dlg.grab_set()
+    parent.wait_window(dlg)
+    return result["value"]
+
+
 def show_info(parent: tk.Misc, title: str, message: str) -> None:
     show_dialog(parent, title, message)
 

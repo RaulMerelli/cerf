@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from bundle_repositories import CONFIG_KEY, merge_repositories
+
 
 def merge_preserving_old(old, new):
     if isinstance(old, dict) and isinstance(new, dict):
@@ -40,6 +42,9 @@ def migrate_cerf_json(new_path: Path, installed_path: Path) -> None:
     if not installed_path.is_file():
         merged = new
     else:
-        merged = merge_preserving_old(_load(installed_path), new)
+        old = _load(installed_path)
+        merged = merge_preserving_old(old, new)
+        merged[CONFIG_KEY] = merge_repositories(
+            old.get(CONFIG_KEY), new.get(CONFIG_KEY))
     installed_path.write_text(json.dumps(merged, indent=2) + "\n",
                               encoding="utf-8")

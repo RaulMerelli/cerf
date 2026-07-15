@@ -14,7 +14,6 @@ from tkinter import ttk
 from typing import Callable, List, Optional, Tuple
 
 from app_paths import resolve_icon, resolve_icons_dir, resolve_version
-from bundles import ManifestVersionError, REMOTE_MANIFEST_URL
 from device_card_list import DeviceCardList
 from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
@@ -26,6 +25,7 @@ from details_panel import DetailsPanel
 from launch_button import LaunchSplitButton
 from launch_options import LaunchOptionsPanel
 from launcher_operations import OperationsMixin
+from launcher_refresh import RefreshMixin
 from operations import BundleManager
 from preview_tile import PreviewTile
 from status_bar import StatusBar
@@ -41,7 +41,7 @@ _WM_SETTINGCHANGE = 0x001A
 _GWLP_WNDPROC = -4
 
 
-class LauncherApp(OperationsMixin, tk.Tk):
+class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
     def __init__(self, manager: BundleManager, cerf_exe: Optional[Path],
                  upgraded: bool = False):
         super().__init__()
@@ -209,40 +209,6 @@ class LauncherApp(OperationsMixin, tk.Tk):
             pass
         self.after(50, self._pump_progress)
 
-    def _refresh_manifest(self) -> None:
-        if self.busy:
-            return
-        self._set_busy(True, "Fetching manifest…")
-        future = self.manager.submit_refresh()
-        def done(exc: Optional[BaseException]) -> None:
-            self._set_busy(False)
-            if isinstance(exc, ManifestVersionError):
-                self._show_manifest_version_error(exc)
-            elif exc is not None:
-                show_error(self, "Remote manifest unavailable",
-                           f"{exc}\n\nLocal devices remain available to launch. "
-                           f"Download / update require a reachable remote "
-                           f"manifest - try again later or check your network.\n\n"
-                           f"The catalog can also be fetched by hand, and the "
-                           f"bundles it lists downloaded manually, from:\n"
-                           f"{REMOTE_MANIFEST_URL}")
-            self._reload_device_list()
-        self._await_future(future, done)
-
-    def _show_manifest_version_error(self, exc: ManifestVersionError) -> None:
-        if exc.remote_is_newer:
-            show_info(self, "A newer CERF build is required",
-                      f"The bundle catalog uses a newer format (manifest "
-                      f"version {exc.remote_version}) than this build understands "
-                      f"({exc.supported_version}).\n\nDownload a newer CERF build:\n"
-                      f"https://cerf.dz3n.net/download/\n\n"
-                      f"Your installed devices remain available to launch.")
-        else:
-            show_error(self, "Remote manifest outdated",
-                       f"The server's catalog (manifest version "
-                       f"{exc.remote_version}) is older than this build expects "
-                       f"({exc.supported_version}). Usually temporary - try later.")
-
     def _reload_device_list(self) -> None:
         self.tree_panel.reload(self.manager.list_devices())
         self._update_empty_state()
@@ -315,7 +281,7 @@ class LauncherApp(OperationsMixin, tk.Tk):
         if self.busy:
             return
         DownloadWindow(self, self.tree_panel.devices, self._download_queue,
-                       resolve_icons_dir())
+                       resolve_icons_dir(), reload_fn=self._reload_download_sources)
 
     def _download_queue(self, names: List[str]) -> None:
         if self.busy or not names:

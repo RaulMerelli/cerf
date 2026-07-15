@@ -11,17 +11,22 @@ from device_model import (GROUP_IID_PREFIX, UNKNOWN_BOARD_LABEL,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
 from supported_devices import board_soc_cpu, board_support_state
+from repository_panel import RepositoryPanel
 import ui_theme as theme
 
 _OSNOTE_PREFIX = "osnote::"
+
+ReloadFn = Callable[[Callable[[List[DeviceBundle], list], None]], None]
 
 
 class DownloadWindow:
     def __init__(self, parent: tk.Misc, devices: List[DeviceBundle],
                  on_download: Callable[[List[str]], None],
-                 icons_dir: Optional[Path] = None) -> None:
+                 icons_dir: Optional[Path] = None,
+                 reload_fn: Optional[ReloadFn] = None) -> None:
         self._on_download = on_download
         self._icons_dir = icons_dir
+        self._reload_fn = reload_fn
         self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
         self._badge_tags: set[str] = set()
         self._cell_badges = True
@@ -31,22 +36,24 @@ class DownloadWindow:
         self._group_members: Dict[str, List[str]] = {}
         self._device_group: Dict[str, str] = {}
 
-        self._candidates = sorted(
-            [d for d in devices if d.remote is not None and not d.is_installed],
-            key=lambda d: (_board_group_key(d), _device_sort_key(d)))
+        self._candidates = self._compute_candidates(devices)
 
         dlg = tk.Toplevel(parent)
         self._dlg = dlg
         dlg.title("Download ROMs")
         dlg.transient(parent)
-        dlg.minsize(940, 500)
+        dlg.minsize(940, 560)
         body = ttk.Frame(dlg, padding=8)
         body.pack(fill="both", expand=True)
-        body.rowconfigure(1, weight=1)
+        body.rowconfigure(2, weight=1)
         body.columnconfigure(0, weight=1)
 
+        self._panel = RepositoryPanel(body, self._sources_changed)
+        self._panel.frame.grid(row=0, column=0, columnspan=2, sticky="ew",
+                               pady=(0, 8))
+
         filt = ttk.Frame(body)
-        filt.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        filt.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self.var_hide_unsupported = tk.BooleanVar(value=True)
         ttk.Checkbutton(filt, text="Hide unsupported",
                         variable=self.var_hide_unsupported,
@@ -67,9 +74,9 @@ class DownloadWindow:
         tree.column("os", width=340, minwidth=240, anchor="w", stretch=True)
         tree.column("soc", width=150, minwidth=100, anchor="w", stretch=True)
         tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
-        tree.grid(row=1, column=0, sticky="nsew")
+        tree.grid(row=2, column=0, sticky="nsew")
         vsb = ttk.Scrollbar(body, orient="vertical", command=tree.yview)
-        vsb.grid(row=1, column=1, sticky="ns")
+        vsb.grid(row=2, column=1, sticky="ns")
         tree.configure(yscrollcommand=vsb.set)
         tree.tag_configure("group", background=theme.GROUP_BG, foreground=theme.FG)
         tree.tag_configure("osnote", foreground=theme.FG_DIM)
@@ -77,7 +84,7 @@ class DownloadWindow:
         self.tree = tree
 
         footer = ttk.Frame(body)
-        footer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        footer.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         footer.columnconfigure(0, weight=1)
         self.summary = ttk.Label(footer, text="")
         self.summary.grid(row=0, column=0, sticky="w")
@@ -91,11 +98,29 @@ class DownloadWindow:
         self._refill()
         dlg.update_idletasks()
         theme.apply_titlebar(dlg)
-        w, h = 1000, 560
+        w, h = 1000, 720
         x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
         y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
         dlg.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
         dlg.grab_set()
+
+    def _compute_candidates(self, devices: List[DeviceBundle]) -> List[DeviceBundle]:
+        return sorted(
+            [d for d in devices if d.remote is not None and not d.is_installed],
+            key=lambda d: (_board_group_key(d), _device_sort_key(d)))
+
+    def _sources_changed(self) -> None:
+        if self._reload_fn is None:
+            return
+        self._panel.set_enabled(False)
+        self._reload_fn(self._reloaded)
+
+    def _reloaded(self, devices: List[DeviceBundle], errors: list) -> None:
+        self._candidates = self._compute_candidates(devices)
+        self._checked.intersection_update(d.name for d in self._candidates)
+        self._panel.set_enabled(True)
+        self._panel.show_errors(errors)
+        self._refill()
 
     def _check_glyph(self, name: str) -> str:
         return "☑  " if name in self._checked else "☐  "
