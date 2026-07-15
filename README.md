@@ -243,10 +243,10 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
           <td>v6.4</td>
-          <td>TBA</td>
+          <td>15 Jul 2026</td>
           <td>
             <ul>
-              <li>...</li>
+              <li>Hotfix: Fixed NEC MP700 touch</li>
             </ul>
           </td>
         </tr>
