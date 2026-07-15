@@ -95,6 +95,12 @@
   margin: 1.6rem 0 0;
 }
 
+/* Markdown mode wraps the pills in a <p>; dissolve it so the pills are direct
+   flex items and .cerf-links' gap applies between rows when they wrap. */
+.md-typeset .cerf-links p {
+  display: contents;
+}
+
 .md-typeset .cerf-pill {
   display: inline-flex;
   align-items: center;
@@ -290,6 +296,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  row-gap: 0.8rem;
   margin: 3rem 0 0;
 }
 
@@ -303,8 +310,13 @@
   padding: 0.2rem 1.4rem;
 }
 
-.cerf-stat + .cerf-stat {
-  border-left: 1px solid var(--cerf-glass-border);
+/* Vertical dividers only read correctly on one row; once the strip wraps, the
+   first stat of each new row would carry a stray left border. Show them at the
+   width where all four fit on one line; below that, row-gap does the spacing. */
+@media (min-width: 60rem) {
+  .cerf-stat + .cerf-stat {
+    border-left: 1px solid var(--cerf-glass-border);
+  }
 }
 
 .cerf-stat-value {
