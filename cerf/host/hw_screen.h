@@ -24,6 +24,8 @@ public:
        stripped by the caller. Lines beyond kMaxLines drop the oldest. */
     void AddLine(std::string_view line);
 
+    std::string LastLine() const;
+
     /* Render into the host DIB. dc wraps the same pixels for GDI text drawing;
        dib_bgra32 / width / height describe the raw surface. */
     void RenderInto(HDC dc, uint32_t* dib_bgra32, uint32_t width, uint32_t height);

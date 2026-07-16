@@ -13,13 +13,11 @@ void GuestPowerNotifier::Banner(const char* line) {
     LOG(Caution, "%s\n", line);
     auto& uart = emu_.Get<HwScreen>();
     uart.AddLine("");
-    uart.AddLine("=========================");
     uart.AddLine(line);
-    uart.AddLine("=========================");
 }
 
 void GuestPowerNotifier::NotifyPowerDown() {
-    Banner(" SLEEP MODE");
+    Banner("!! CERF: Power down !!");
     emu_.Get<HostWindow>().ShowHwScreenTab(/*rearm=*/false);
 }
 
@@ -32,10 +30,10 @@ void GuestPowerNotifier::Relaunch(const char* line, bool resuming) {
     emu_.Get<HostWindow>().ShowStartupTab(/*rearm=*/true);
 }
 
-void GuestPowerNotifier::NotifyReboot() { Relaunch(" REBOOTING", /*resuming=*/false); }
+void GuestPowerNotifier::NotifyReboot() { Relaunch("!! CERF: Soft reset !!", /*resuming=*/false); }
 
-void GuestPowerNotifier::NotifyResume() { Relaunch(" RESUMING",  /*resuming=*/true); }
+void GuestPowerNotifier::NotifyResume() { Relaunch("!! CERF: Resuming !!",  /*resuming=*/true); }
 
 void GuestPowerNotifier::NotifyHardReset() {
-    Banner(" HARD RESET (RAM cleared)");
+    Banner("!! CERF: Hard reset !!");
 }

@@ -62,6 +62,11 @@ void HwScreen::AddLine(std::string_view line) {
     lines_.emplace_back(line);
 }
 
+std::string HwScreen::LastLine() const {
+    std::lock_guard<std::mutex> lk(mtx_);
+    return lines_.empty() ? std::string() : lines_.back();
+}
+
 void HwScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
                           uint32_t width, uint32_t height) {
     std::memset(dib_bgra32, 0, (size_t)width * height * 4u);

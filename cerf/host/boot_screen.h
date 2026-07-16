@@ -49,6 +49,8 @@ public:
     bool IsResuming() const;
     void SetResumeStalled();
 
+    bool HitTestHwLine(int x, int y) const;
+
 private:
     enum class Phase { CerfFadeIn, CerfHold, TextFadeIn, TextHold, Finished };
     enum class LabelMode { Starting, Restarting, Resuming };
@@ -66,6 +68,7 @@ private:
                        bool show_disclaimer, bool cerf_native_size = false);
     void DrawAnimation(HDC dc, uint32_t width, uint32_t height);   /* live frame */
     void DrawHeldFinal(HDC dc, uint32_t width, uint32_t height);   /* finished */
+    void DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height);
 
     Gdiplus::Bitmap* cerf_logo_     = nullptr;
     bool             logos_loaded_  = false;
@@ -73,6 +76,8 @@ private:
 
     HFONT label_font_      = nullptr;
     HFONT disclaimer_font_ = nullptr;
+
+    RECT hw_line_rect_{};
 
     /* State-machine fields - touched only by Advance/Draw* on the UI thread. */
     Phase     phase_        = Phase::CerfFadeIn;

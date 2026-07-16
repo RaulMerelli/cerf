@@ -3,6 +3,7 @@
 #include "host_canvas_input.h"
 
 #include "../core/cerf_emulator.h"
+#include "boot_screen.h"
 #include "host_canvas.h"
 #include "host_guest_cursor.h"
 #include "host_input_capture.h"
@@ -166,6 +167,24 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
     }
 
     const bool framebuffer = hc.CurrentTab() == HostCanvas::Tab::Framebuffer;
+
+    if (hc.CurrentTab() == HostCanvas::Tab::Boot) {
+        auto& boot = emu_.Get<BootScreen>();
+        if (msg == WM_SETCURSOR && LOWORD(lp) == HTCLIENT) {
+            POINT p;
+            GetCursorPos(&p);
+            ScreenToClient(hwnd, &p);
+            if (boot.HitTestHwLine(p.x, p.y)) {
+                SetCursor(LoadCursorW(nullptr, IDC_HAND));
+                out = TRUE;
+                return true;
+            }
+        } else if (msg == WM_LBUTTONDOWN &&
+                   boot.HitTestHwLine((int)(short)LOWORD(lp), (int)(short)HIWORD(lp))) {
+            hc.SetTab(HostCanvas::Tab::Hw, /*user_initiated=*/true);
+            return true;
+        }
+    }
 
     PointerKind kind = PointerKind::Absolute;
     if (auto* a = emu_.Get<PointerRouter>().Active()) kind = a->Kind();

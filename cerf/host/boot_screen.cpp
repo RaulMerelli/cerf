@@ -8,6 +8,7 @@
 #include "boot_bar.h"
 #include "emulation_pause.h"
 #include "host_gdiplus.h"
+#include "hw_screen.h"
 
 #include <algorithm>
 #include <cstring>
@@ -30,6 +31,9 @@ constexpr uint32_t kCerfLogoMaxPx = 220;
 
 constexpr int      kLabelFontPx      = 18;
 constexpr int      kDisclaimerFontPx = 12;
+constexpr int      kMargin           = 8;
+constexpr int      kBootBarPx        = 16;
+constexpr int      kHwLineHeightPx   = kDisclaimerFontPx + 4;
 const wchar_t*     kResumeHint =
     L"If nothing happens, try View -> Framebuffer and do some input - maybe screen is dimmed";
 const wchar_t*     kResumeStalledHint =
@@ -60,6 +64,7 @@ void BootScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
     Advance(emu_.Get<EmulationPause>().AnimationTickMs());
     if (!Finished()) DrawAnimation(dc, width, height);
     else             DrawHeldFinal(dc, width, height);
+    DrawHwStatusLine(dc, width, height);
     emu_.Get<BootBar>().RenderInto(dib_bgra32, width, height);
 }
 
@@ -198,9 +203,9 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     const int v = (int)(255.0f * text_opacity);
     SetBkMode(dc, TRANSPARENT);
 
-    /* Lay the disclaimer out first (bottom-anchored, above the 16 px boot bar)
-       so the label can be kept above it on short panels (e.g. 640x240). */
-    constexpr int kMargin = 8;
+    /* Lay the disclaimer out first (bottom-anchored, above the boot bar and the
+       hw status line) so the label can be kept above it on short panels
+       (e.g. 640x240). */
     int disclaimer_top = (int)height;   /* sentinel: nothing below the label */
     RECT disc_rect{};
     if (show_disclaimer && disclaimer_font_) {
@@ -209,7 +214,7 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
         DrawTextW(dc, CurrentDisclaimerText(), -1, &calc,
                   DT_CENTER | DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
         const int dh     = calc.bottom - calc.top;
-        const int bottom = (int)height - 16 - 6;
+        const int bottom = (int)height - kBootBarPx - kHwLineHeightPx - 6;
         disclaimer_top = bottom - dh;
         disc_rect = RECT{ kMargin, disclaimer_top, (int)width - kMargin, bottom };
         SelectObject(dc, old);
@@ -218,10 +223,12 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
     if (show_label && label_font_) {
         HFONT old = (HFONT)SelectObject(dc, label_font_);
         SetTextColor(dc, RGB(v, v, v));
-        int label_y = cy + dst_h / 2 + 44;
+        const int logo_bottom = cy + dst_h / 2;
         const int max_y = disclaimer_top - kLabelFontPx - 8;   /* keep clear of disclaimer */
-        if (label_y > max_y)                  label_y = max_y;
-        if (label_y < cy + dst_h / 2 + 8)     label_y = cy + dst_h / 2 + 8;  /* but below logo */
+        const int gap = std::clamp((int)((max_y - logo_bottom) * 0.35f), 8, 44);
+        int label_y = logo_bottom + gap;
+        if (label_y > max_y)              label_y = max_y;
+        if (label_y < logo_bottom + 8)    label_y = logo_bottom + 8;  /* but below logo */
         RECT r{ 0, label_y, (int)width, label_y + kLabelFontPx * 2 };
         DrawTextW(dc, label.c_str(), (int)label.size(), &r,
                   DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
@@ -260,6 +267,36 @@ void BootScreen::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
     DrawLogoFrame(dc, width, height, /*logo_opacity=*/1.0f,
                   /*label=*/true, CurrentLabelText(), /*text_opacity=*/1.0f,
                   /*disclaimer=*/(label_mode_ == LabelMode::Resuming));
+}
+
+void BootScreen::DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height) {
+    hw_line_rect_ = RECT{};
+    const std::string last = emu_.Get<HwScreen>().LastLine();
+    if (last.empty()) return;
+
+    EnsureFonts();
+    if (!disclaimer_font_) return;
+
+    const float op = (phase_ == Phase::CerfFadeIn) ? cur_op_ : 1.0f;
+    const int   dv = (int)(150.0f * op);
+
+    const int bottom = (int)height - kBootBarPx - 4;
+    RECT r{ kMargin, bottom - kHwLineHeightPx, (int)width - kMargin, bottom };
+
+    const std::wstring wide = Utf8ToWide(last.c_str());
+    HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, RGB(dv, dv, dv));
+    DrawTextW(dc, wide.c_str(), (int)wide.size(), &r,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    SelectObject(dc, old);
+
+    hw_line_rect_ = RECT{ 0, r.top - 2, (int)width, (int)height - kBootBarPx };
+}
+
+bool BootScreen::HitTestHwLine(int x, int y) const {
+    return x >= hw_line_rect_.left && x < hw_line_rect_.right &&
+           y >= hw_line_rect_.top  && y < hw_line_rect_.bottom;
 }
 
 void BootScreen::DrawWatermark(HDC dc, uint32_t width, uint32_t height) {
