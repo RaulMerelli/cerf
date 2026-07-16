@@ -6,8 +6,8 @@ from tkinter import ttk
 from typing import Callable, Dict, List, Optional
 
 from device_state import DeviceBundle, format_size
-from device_model import (GROUP_IID_PREFIX, UNKNOWN_BOARD_LABEL,
-                          _board_group_key, _device_sort_key,
+from device_model import (GROUP_IID_PREFIX, _device_group_key,
+                          _device_group_name, _device_sort_key,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
 from supported_devices import board_soc_cpu, board_support_state
@@ -123,7 +123,7 @@ class DownloadWindow:
     def _compute_candidates(self, devices: List[DeviceBundle]) -> List[DeviceBundle]:
         return sorted(
             [d for d in devices if d.remote is not None and not d.is_installed],
-            key=lambda d: (_board_group_key(d), _device_sort_key(d)))
+            key=lambda d: (_device_group_key(d), _device_sort_key(d)))
 
     def _open_sources(self) -> None:
         SourcesDialog(self._dlg, self._sources_changed)
@@ -160,10 +160,13 @@ class DownloadWindow:
         return (place is None, place if place is not None else 0,
                 _device_sort_key(d))
 
-    def _ordered_candidates(self) -> List[DeviceBundle]:
-        if self._sort_mode() == "downloads":
-            return sorted(self._candidates, key=self._place_key)
-        return self._candidates
+    def _visible_candidates(self) -> List[DeviceBundle]:
+        hide_unsupported = self.var_hide_unsupported.get()
+        query = self.var_search.get().strip().lower()
+        return [d for d in self._candidates
+                if not (hide_unsupported and
+                        board_support_state(d.meta.board_id) is not True)
+                and (not query or query in _device_search_haystack(d))]
 
     def _check_glyph(self, name: str) -> str:
         return "☑  " if name in self._checked else "☐  "
@@ -177,9 +180,8 @@ class DownloadWindow:
         return "☐  "
 
     def _refresh_group_text(self, gid: str) -> None:
-        board = gid[len(GROUP_IID_PREFIX):]
         self.tree.item(gid, text=self._group_glyph(gid) +
-                       (board or UNKNOWN_BOARD_LABEL))
+                       gid[len(GROUP_IID_PREFIX):])
 
     def _refill(self) -> None:
         tree = self.tree
@@ -187,29 +189,33 @@ class DownloadWindow:
         self._payload.clear()
         self._group_members = {}
         self._device_group = {}
-        hide_unsupported = self.var_hide_unsupported.get()
-        query = self.var_search.get().strip().lower()
-        grouped = self._sort_mode() == "regular"
+        visible = self._visible_candidates()
+        if self._sort_mode() == "downloads":
+            group_rank: Dict[str, int] = {}
+            for d in visible:
+                place = self._places.get(d.name)
+                prev = group_rank.get(_device_group_name(d))
+                if place is not None and (prev is None or place < prev):
+                    group_rank[_device_group_name(d)] = place
+
+            def downloads_key(d: DeviceBundle) -> tuple:
+                rank = group_rank.get(_device_group_name(d))
+                return (rank is None, rank if rank is not None else 0,
+                        _device_group_key(d), self._place_key(d))
+            visible.sort(key=downloads_key)
         groups: Dict[str, str] = {}
-        for d in self._ordered_candidates():
-            if hide_unsupported and board_support_state(d.meta.board_id) is not True:
-                continue
-            if query and query not in _device_search_haystack(d):
-                continue
-            parent = ""
-            if grouped:
-                board = d.meta.board_name or ""
-                parent = groups.get(board)
-                if parent is None:
-                    parent = GROUP_IID_PREFIX + board
-                    tree.insert("", "end", iid=parent, text="", open=True,
-                                tags=("group",))
-                    groups[board] = parent
-                    self._group_members[parent] = []
-            self._insert_device_row(parent, d)
-            if grouped:
-                self._group_members[parent].append(d.name)
-                self._device_group[d.name] = parent
+        for d in visible:
+            name = _device_group_name(d)
+            gid = groups.get(name)
+            if gid is None:
+                gid = GROUP_IID_PREFIX + name
+                tree.insert("", "end", iid=gid, text="", open=True,
+                            tags=("group",))
+                groups[name] = gid
+                self._group_members[gid] = []
+            self._insert_device_row(gid, d)
+            self._group_members[gid].append(d.name)
+            self._device_group[d.name] = gid
         for gid in self._group_members:
             self._refresh_group_text(gid)
         self._update_summary()

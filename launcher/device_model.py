@@ -15,7 +15,6 @@ from supported_devices import board_sort_key, sort_text
 # names, so they can never collide with a bundle directory name used as a
 # device iid.
 GROUP_IID_PREFIX    = "board-group::"
-UNKNOWN_BOARD_LABEL = "Unknown board"
 
 
 @dataclass
@@ -38,6 +37,18 @@ def _sort_optional_int(value: object, *, missing_when_zero: bool = True) -> tupl
 
 def _board_group_key(d: DeviceBundle) -> tuple[int, str]:
     return board_sort_key(d.meta.board_name)
+
+
+def _device_group_name(d: DeviceBundle) -> str:
+    return d.meta.device_name or d.name
+
+
+def _device_group_key(d: DeviceBundle) -> tuple[int, str]:
+    """Device-name group order: alphabetical within the board tiers of
+    board_sort_key, so the Device Emulator board's device groups stay pinned
+    last regardless of what its ROMs' device names are."""
+    tier, _ = board_sort_key(d.meta.board_name)
+    return (tier, sort_text(_device_group_name(d)))
 
 
 def _device_sort_key(d: DeviceBundle) -> tuple:
