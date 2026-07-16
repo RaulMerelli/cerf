@@ -222,10 +222,7 @@ BOARDS_INFORMATION = [
             "serial": False,
         },
         "notes": [
-            "Guest additions mouse is behaving weird",
             GUEST_ADDITIONS_POINTER_WARN,
-            "The guest Fn key is mapped to host F10 (e.g. hold F10 + P = '{'). "
-            "The keys widget menu lists the common Fn symbols.",
         ],
     },
     {
@@ -280,11 +277,9 @@ BOARDS_INFORMATION = [
             "battery": False,
         },
         "notes": [
-            "Main input is the keyboard: use arrows, enter, backspace, space",
             "CERF auto-generates HDD on first boot if there was no (hdd.img in device dir)",
             "Guest additions: You can open apps through shared storage + task manager, "
             "only extremely simple apps will run (like literally blank Win32 skeletons)",
-            "Guest additions task manager wont poll process list (but run works)",
         ],
     },
     {
@@ -327,7 +322,7 @@ BOARDS_INFORMATION = [
         },
         "notes": [
             GUEST_ADDITIONS_POINTER_WARN,
-            "Emulated with lags / audio / visual issues",
+            "Emulated with serious lags / audio / visual issues",
         ],
     },
     {
@@ -590,33 +585,7 @@ class DynamicNote(NamedTuple):
     note: str
 
 
-_NE2000_TOGGLE = "To enable internet access through NE2000, toggle on the card"
-
 DYNAMIC_NOTES = [
-    DynamicNote(
-        applies=lambda rom: rom.has_feature("network")
-        and (
-            rom.os_contains("Pocket PC 2002")
-            or (rom.os_contains("Windows Mobile") and rom.os_ver_major >= 4)
-        ),
-        note=_NE2000_TOGGLE
-        + ", then go to Settings > Connections (tab) > Connections (icon) -> "
-        'set "My network card connects to" to "The Internet". In newer '
-        "versions, after opening Connections (icon) go to Advanced > "
-        'Select Networks > change everything to "My Work Network".',
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.has_feature("network")
-        and not rom.os_contains("Pocket PC 2002")
-        and not rom.os_contains("Windows Mobile"),
-        note=_NE2000_TOGGLE + ".",
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.board_is("devemu")
-        and rom.os_contains("Windows Mobile")
-        and rom.os_ver_major >= 6,
-        note="This ROM is most likely IMGFS, guest additions will break the boot.",
-    ),
     DynamicNote(
         applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
         note="Keyboard is misbehaving on Smartphone ROMs.",
@@ -624,10 +593,6 @@ DYNAMIC_NOTES = [
     DynamicNote(
         applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
         note="Guest additions break or cause visual artifacts on Smartphone OS.",
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.cpu_is("MIPS"),
-        note="MIPS support is bare-bones and slow - expect the unexpected.",
     ),
 ]
 
