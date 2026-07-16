@@ -16,6 +16,10 @@ public:
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 320, 240 };
     }
+
+    /* VR4121 UM Table 6-6 (p.172): PA above 0x1FFFFFFF mirrors into
+       0x00000000-0x1FFFFFFF. */
+    uint32_t GuestAdditionsWindowBase() const override { return 0x04000000u; }
 };
 
 }  /* namespace */
