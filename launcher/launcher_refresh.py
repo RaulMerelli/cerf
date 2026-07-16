@@ -58,6 +58,7 @@ class RefreshMixin:
                            f"{exc}\n\nLocal devices remain available to launch. "
                            f"Download / update require a reachable remote "
                            f"manifest - try again later or check your network.")
+            self._surface_repo_errors()
             self._reload_device_list()
             done(self.manager.list_devices(),
                  getattr(self.manager, "repo_errors", []),

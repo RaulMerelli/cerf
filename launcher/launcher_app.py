@@ -27,6 +27,7 @@ from launch_options import LaunchOptionsPanel
 from launcher_operations import OperationsMixin
 from launcher_refresh import RefreshMixin
 from operations import BundleManager
+from screen_geometry import fit_geometry
 from preview_tile import PreviewTile
 from status_bar import StatusBar
 from ui_dialogs import (ask_yesno, confirm_rom_license, show_error, show_info,
@@ -58,8 +59,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
             dpi = 96.0
 
         scale = max(1.0, dpi / 96.0)
-        self.geometry(f"{int(1100 * scale)}x{int(640 * scale)}")
-        self.minsize(int(940 * scale), int(540 * scale))
+        self.minsize(int(500 * scale), int(300 * scale))
 
         icon = resolve_icon()
         if icon is not None:
@@ -76,6 +76,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
 
         self._build_ui()
         theme.apply_titlebar(self)
+        fit_geometry(self, int(1100 * scale), int(640 * scale))
         self._install_theme_listener()
         self._pump_progress()
         self.after(50, self._refresh_manifest)

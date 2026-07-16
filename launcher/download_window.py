@@ -11,7 +11,8 @@ from device_model import (GROUP_IID_PREFIX, UNKNOWN_BOARD_LABEL,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
 from supported_devices import board_soc_cpu, board_support_state
-from repository_panel import RepositoryPanel
+from screen_geometry import fit_geometry
+from sources_dialog import SourcesDialog
 import ui_theme as theme
 
 _OSNOTE_PREFIX = "osnote::"
@@ -48,18 +49,13 @@ class DownloadWindow:
         self._dlg = dlg
         dlg.title("Download ROMs")
         dlg.transient(parent)
-        dlg.minsize(940, 560)
         body = ttk.Frame(dlg, padding=8)
         body.pack(fill="both", expand=True)
-        body.rowconfigure(2, weight=1)
+        body.rowconfigure(1, weight=1)
         body.columnconfigure(0, weight=1)
 
-        self._panel = RepositoryPanel(body, self._sources_changed)
-        self._panel.frame.grid(row=0, column=0, columnspan=2, sticky="ew",
-                               pady=(0, 8))
-
         filt = ttk.Frame(body)
-        filt.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        filt.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self.var_hide_unsupported = tk.BooleanVar(value=True)
         ttk.Checkbutton(filt, text="Hide unsupported",
                         variable=self.var_hide_unsupported,
@@ -73,6 +69,9 @@ class DownloadWindow:
         self.sort_combo.pack(side="left")
         self.sort_combo.bind("<<ComboboxSelected>>", lambda *_: self._refill())
         self._sync_sort_availability()
+        self.btn_sources = ttk.Button(filt, text="Sources…",
+                                      command=self._open_sources)
+        self.btn_sources.pack(side="right", padx=(8, 0))
         self.var_search = tk.StringVar(value="")
         ttk.Entry(filt, textvariable=self.var_search, width=24).pack(side="right")
         ttk.Label(filt, text="Search:").pack(side="right", padx=(0, 4))
@@ -89,9 +88,9 @@ class DownloadWindow:
         tree.column("os", width=340, minwidth=240, anchor="w", stretch=True)
         tree.column("soc", width=150, minwidth=100, anchor="w", stretch=True)
         tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
-        tree.grid(row=2, column=0, sticky="nsew")
+        tree.grid(row=1, column=0, sticky="nsew")
         vsb = ttk.Scrollbar(body, orient="vertical", command=tree.yview)
-        vsb.grid(row=2, column=1, sticky="ns")
+        vsb.grid(row=1, column=1, sticky="ns")
         tree.configure(yscrollcommand=vsb.set)
         tree.tag_configure("group", background=theme.GROUP_BG, foreground=theme.FG)
         tree.tag_configure("osnote", foreground=theme.FG_DIM)
@@ -99,7 +98,7 @@ class DownloadWindow:
         self.tree = tree
 
         footer = ttk.Frame(body)
-        footer.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        footer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         footer.columnconfigure(0, weight=1)
         self.summary = ttk.Label(footer, text="")
         self.summary.grid(row=0, column=0, sticky="w")
@@ -113,10 +112,12 @@ class DownloadWindow:
         self._refill()
         dlg.update_idletasks()
         theme.apply_titlebar(dlg)
-        w, h = 1000, 720
-        x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
-        dlg.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+        try:
+            scale = max(1.0, float(dlg.winfo_fpixels("1i")) / 96.0)
+        except tk.TclError:
+            scale = 1.0
+        dlg.minsize(int(360 * scale), int(240 * scale))
+        fit_geometry(dlg, 1000, 620, parent=parent)
         dlg.grab_set()
 
     def _compute_candidates(self, devices: List[DeviceBundle]) -> List[DeviceBundle]:
@@ -124,10 +125,13 @@ class DownloadWindow:
             [d for d in devices if d.remote is not None and not d.is_installed],
             key=lambda d: (_board_group_key(d), _device_sort_key(d)))
 
+    def _open_sources(self) -> None:
+        SourcesDialog(self._dlg, self._sources_changed)
+
     def _sources_changed(self) -> None:
         if self._reload_fn is None:
             return
-        self._panel.set_enabled(False)
+        self.btn_sources.config(state="disabled")
         self._reload_fn(self._reloaded)
 
     def _reloaded(self, devices: List[DeviceBundle], errors: list,
@@ -135,8 +139,7 @@ class DownloadWindow:
         self._places = places
         self._candidates = self._compute_candidates(devices)
         self._checked.intersection_update(d.name for d in self._candidates)
-        self._panel.set_enabled(True)
-        self._panel.show_errors(errors)
+        self.btn_sources.config(state="normal")
         self._sync_sort_availability()
         self._refill()
 
