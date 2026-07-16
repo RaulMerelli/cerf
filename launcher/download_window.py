@@ -41,6 +41,7 @@ class DownloadWindow:
         self._sizes: Dict[str, int] = {}
         self._payload: Dict[str, DeviceBundle] = {}
         self._group_members: Dict[str, List[str]] = {}
+        self._group_labels: Dict[str, str] = {}
         self._device_group: Dict[str, str] = {}
 
         self._candidates = self._compute_candidates(devices)
@@ -77,15 +78,13 @@ class DownloadWindow:
         ttk.Label(filt, text="Search:").pack(side="right", padx=(0, 4))
         self.var_search.trace_add("write", lambda *_: self._refill())
 
-        columns = ("os", "soc", "size")
+        columns = ("soc", "size")
         tree = ttk.Treeview(body, columns=columns, show="tree headings",
                             selectmode="none")
-        tree.heading("#0", text="☐  Device")
-        tree.heading("os", text="OS")
+        tree.heading("#0", text="☐  Device / OS")
         tree.heading("soc", text="SoC")
         tree.heading("size", text="Size")
-        tree.column("#0", width=300, minwidth=200, anchor="w", stretch=True)
-        tree.column("os", width=340, minwidth=240, anchor="w", stretch=True)
+        tree.column("#0", width=640, minwidth=320, anchor="w", stretch=True)
         tree.column("soc", width=150, minwidth=100, anchor="w", stretch=True)
         tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
         tree.grid(row=1, column=0, sticky="nsew")
@@ -181,13 +180,14 @@ class DownloadWindow:
 
     def _refresh_group_text(self, gid: str) -> None:
         self.tree.item(gid, text=self._group_glyph(gid) +
-                       gid[len(GROUP_IID_PREFIX):])
+                       self._group_labels[gid])
 
     def _refill(self) -> None:
         tree = self.tree
         tree.delete(*tree.get_children())
         self._payload.clear()
         self._group_members = {}
+        self._group_labels = {}
         self._device_group = {}
         visible = self._visible_candidates()
         if self._sort_mode() == "downloads":
@@ -213,6 +213,7 @@ class DownloadWindow:
                             tags=("group",))
                 groups[name] = gid
                 self._group_members[gid] = []
+                self._group_labels[gid] = _table_device_label(d)
             self._insert_device_row(gid, d)
             self._group_members[gid].append(d.name)
             self._device_group[d.name] = gid
@@ -225,9 +226,8 @@ class DownloadWindow:
         self._sizes[d.name] = d.remote.archive_size or 0
         soc = d.meta.soc_family or ""
         tree.insert(parent, "end", iid=d.name, open=bool(d.meta.os_notes),
-                    text=self._check_glyph(d.name) + _table_device_label(d),
-                    values=(_table_os_label(d), soc,
-                            format_size(d.remote.archive_size) or ""))
+                    text=self._check_glyph(d.name) + _table_os_label(d),
+                    values=(soc, format_size(d.remote.archive_size) or ""))
         cpu = board_soc_cpu(d.meta.board_id) if soc else ""
         if cpu:
             badge = theme.load_badge(self._icons_dir, cpu, self._badge_cache)
@@ -237,7 +237,7 @@ class DownloadWindow:
         for i, note in enumerate(d.meta.os_notes):
             tree.insert(d.name, "end",
                         iid=f"{_OSNOTE_PREFIX}{d.name}::{i}",
-                        text="", values=(f"↳ {note}", "", ""),
+                        text=f"↳ {note}", values=("", ""),
                         tags=("osnote",))
 
     def _set_soc_badge(self, iid: str, cpu: str, badge: tk.PhotoImage) -> None:
@@ -271,7 +271,7 @@ class DownloadWindow:
             for n in members:
                 self._checked.add(n) if check else self._checked.discard(n)
                 self.tree.item(n, text=self._check_glyph(n) +
-                               _table_device_label(self._payload[n]))
+                               _table_os_label(self._payload[n]))
             self._refresh_group_text(iid)
             self._update_summary()
             return
@@ -282,7 +282,7 @@ class DownloadWindow:
         else:
             self._checked.add(iid)
         self.tree.item(iid, text=self._check_glyph(iid) +
-                       _table_device_label(self._payload[iid]))
+                       _table_os_label(self._payload[iid]))
         gid = self._device_group.get(iid)
         if gid:
             self._refresh_group_text(gid)
