@@ -114,12 +114,3 @@ The environment provides the **`/start-board-implementation`** skill: drop your 
 ## License
 
 [MIT](LICENSE). Third-party components and studied references are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Third-party / Credits
-
-- **[QEMU](https://www.qemu.org/)**
-- **[The Linux kernel](https://www.kernel.org/)**
-- **[nlohmann-json](https://github.com/nlohmann/json)**
-- **[libslirp](https://gitlab.freedesktop.org/slirp/libslirp)**
-- **[YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks)**
-- Microsoft Device Emulator (2006) - studied during early JIT research
