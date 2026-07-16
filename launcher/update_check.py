@@ -13,7 +13,8 @@ import upgrade_dialog
 from ui_dialogs import show_dialog, show_error
 from upgrade_download import download_upgrade
 from upgrade_process import (INSTALL_FLAG, UPGRADE_DIR_NAME, UpgradeError,
-                             running_cerf_pids, spawn_stage, stage_argument)
+                             launcher_exe_in, running_cerf_pids, spawn_stage,
+                             stage_argument)
 from upgrade_window import UpgradeWindow
 import ui_theme as theme
 
@@ -106,7 +107,7 @@ class UpdateCheck:
         if error is None:
             staged = install_dir / UPGRADE_DIR_NAME
             try:
-                spawn_stage(staged / "launcher.exe",
+                spawn_stage(launcher_exe_in(staged),
                             stage_argument(os.getpid(), INSTALL_FLAG), staged)
             except UpgradeError as exc:
                 error = exc

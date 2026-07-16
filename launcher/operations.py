@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import tempfile
 import threading
 import urllib.request
@@ -146,7 +147,10 @@ class BundleManager:
         self.installed: Dict[str, LocalBundleRecord] = {}
 
     def shutdown(self) -> None:
-        self._pool.shutdown(wait=False, cancel_futures=True)
+        if sys.version_info >= (3, 9):
+            self._pool.shutdown(wait=False, cancel_futures=True)
+        else:
+            self._pool.shutdown(wait=False)
 
     def submit_refresh(self) -> Future:
         return self._pool.submit(self._do_refresh)

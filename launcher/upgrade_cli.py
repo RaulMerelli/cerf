@@ -14,8 +14,8 @@ from ui_dialogs import show_dialog, show_error
 from upgrade_install import install_upgrade
 from upgrade_process import (INSTALL_FLAG, POST_UPGRADE_FLAG, UPGRADE_DIR_NAME,
                              WAIT_FOR_PID_PREFIX, UpgradeError,
-                             find_pid_argument, spawn_stage, stage_argument,
-                             wait_for_pid_exit)
+                             find_pid_argument, launcher_exe_in, spawn_stage,
+                             stage_argument, wait_for_pid_exit)
 from upgrade_window import UpgradeWindow
 import ui_theme as theme
 
@@ -50,7 +50,7 @@ def _install(window: UpgradeWindow, wait_pid: Optional[int],
         install_upgrade(upgrade_dir, install_dir, window.post_log,
                         window.ask_retry)
         window.post_log("Restarting the upgraded launcher")
-        spawn_stage(install_dir / "launcher.exe",
+        spawn_stage(launcher_exe_in(install_dir),
                     stage_argument(os.getpid(), POST_UPGRADE_FLAG), install_dir)
     except BaseException as exc:
         window.post_result(exc)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import subprocess
+import sys
 import time
 from ctypes import wintypes
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import List, Optional
 
 
 CERF_EXE_NAME = "cerf.exe"
+DEFAULT_LAUNCHER_NAME = "launcher.exe"
 UPGRADE_DIR_NAME = "upgrade"
 UPGRADE_ZIP_NAME = "upgrade.zip"
 GLOBAL_CONFIG_NAME = "cerf.json"
@@ -83,6 +85,13 @@ def wait_for_pid_exit(pid: int, timeout: float = PID_WAIT_TIMEOUT) -> None:
                 f"the previous CERF launcher (pid {pid}) is still running after "
                 f"{int(timeout)}s; its files cannot be replaced")
         time.sleep(0.05)
+
+
+def launcher_exe_in(directory: Path) -> Path:
+    own = Path(sys.executable).name if getattr(sys, "frozen", False) \
+        else DEFAULT_LAUNCHER_NAME
+    candidate = directory / own
+    return candidate if candidate.exists() else directory / DEFAULT_LAUNCHER_NAME
 
 
 def spawn_stage(exe: Path, args: List[str], cwd: Path) -> None:

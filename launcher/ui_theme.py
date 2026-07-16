@@ -18,10 +18,10 @@ from device_state import (
 
 
 def system_uses_dark() -> bool:
-    """Windows app theme via the documented HKCU Personalize key:
-    AppsUseLightTheme 1 = light, 0 = dark. Unreadable / non-Windows -> dark."""
+    """HKCU Personalize AppsUseLightTheme: 1 = light, 0 = dark; absent or
+    unreadable -> light."""
     if sys.platform != "win32":
-        return True
+        return False
     try:
         import winreg
         with winreg.OpenKey(
@@ -31,7 +31,7 @@ def system_uses_dark() -> bool:
             value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
         return int(value) == 0
     except (OSError, ValueError):
-        return True
+        return False
 
 
 _DARK_PALETTE: Dict[str, str] = {
