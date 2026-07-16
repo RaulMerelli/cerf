@@ -7,6 +7,8 @@ description: The user invokes `/supported-devices` after board work landed - eit
 
 The user invoked `/supported-devices`. Update `launcher/supported_devices.py` to match the board work done this session, then regenerate the README.
 
+**User-invoked only.** Only the user triggers this skill by typing `/supported-devices`. An agent never invokes it on its own initiative - landing board work is not a license to edit the boards list.
+
 ## Procedure
 
 1. **Open `launcher/supported_devices.py`** and read its docstring + `FEATURE_SPECS` + a neighboring board entry - the file documents its own semantics; follow them, not memory.

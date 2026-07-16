@@ -7,6 +7,8 @@ description: The user invokes `/changelog-append` to record a change just made (
 
 The user invoked `/changelog-append`. Add one concise entry for the change just made, then regenerate the README.
 
+**User-invoked only.** Only the user triggers this skill by typing `/changelog-append`. An agent never invokes it on its own initiative - finishing a change is not a license to write the changelog.
+
 ## Procedure
 
 1. **Open `docs/changelog.html`.** The **latest version is the topmost `<tr>`** in `<tbody>` (currently `TBA` at the top). Find its `<td>` → `<ul>`.
