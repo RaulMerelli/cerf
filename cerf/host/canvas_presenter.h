@@ -52,6 +52,9 @@ public:
     uint32_t SurfaceWidth () const { return surface_w_.load(std::memory_order_acquire); }
     uint32_t SurfaceHeight() const { return surface_h_.load(std::memory_order_acquire); }
 
+    int ContentWidth () const;
+    int ContentHeight() const;
+
     ViewportMode Mode()          const { return mode_; }
     bool         Antialias()     const { return antialias_; }
     int          IntegerFactor() const { return integer_factor_; }
@@ -98,11 +101,6 @@ private:
         bool stretch;
     };
     Layout ComputeLayout(int canvas_w, int canvas_h) const;
-
-    /* Composed content size in canvas pixels - surface dims, scaled by the
-       factor in Integer mode. Drives scrollbar range and overflow centering. */
-    int ContentW() const;
-    int ContentH() const;
 
     FrameSource* source_;
 

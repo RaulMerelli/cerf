@@ -102,12 +102,12 @@ void CanvasPresenter::SetIntegerScale(int factor) {
     if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
-int CanvasPresenter::ContentW() const {
+int CanvasPresenter::ContentWidth() const {
     const int sw = (int)surface_w_.load(std::memory_order_acquire);
     return mode_ == ViewportMode::Integer ? sw * integer_factor_ : sw;
 }
 
-int CanvasPresenter::ContentH() const {
+int CanvasPresenter::ContentHeight() const {
     const int sh = (int)surface_h_.load(std::memory_order_acquire);
     return mode_ == ViewportMode::Integer ? sh * integer_factor_ : sh;
 }
@@ -218,8 +218,8 @@ void CanvasPresenter::ClampGuest(int& sx, int& sy) const {
 
 void CanvasPresenter::UpdateScrollbars() {
     if (!hwnd_) return;
-    const int sw = ContentW();
-    const int sh = ContentH();
+    const int sw = ContentWidth();
+    const int sh = ContentHeight();
     const bool scrollable = active_ && (mode_ == ViewportMode::Original ||
                                         mode_ == ViewportMode::Integer);
     const bool want_h = scrollable && sw > canvas_w_;
@@ -261,7 +261,7 @@ void CanvasPresenter::OnHScroll(WPARAM wp) {
         case SB_THUMBTRACK:
         case SB_THUMBPOSITION: pos = si.nTrackPos;  break;
     }
-    const int maxs = std::max(0, ContentW() - canvas_w_);
+    const int maxs = std::max(0, ContentWidth() - canvas_w_);
     scroll_x_ = std::clamp(pos, 0, maxs);
     SCROLLINFO s2 = { sizeof(s2) }; s2.fMask = SIF_POS; s2.nPos = scroll_x_;
     SetScrollInfo(hwnd_, SB_HORZ, &s2, TRUE);
@@ -281,7 +281,7 @@ void CanvasPresenter::OnVScroll(WPARAM wp) {
         case SB_THUMBTRACK:
         case SB_THUMBPOSITION: pos = si.nTrackPos;     break;
     }
-    const int maxs = std::max(0, ContentH() - canvas_h_);
+    const int maxs = std::max(0, ContentHeight() - canvas_h_);
     scroll_y_ = std::clamp(pos, 0, maxs);
     SCROLLINFO s2 = { sizeof(s2) }; s2.fMask = SIF_POS; s2.nPos = scroll_y_;
     SetScrollInfo(hwnd_, SB_VERT, &s2, TRUE);

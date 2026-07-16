@@ -203,11 +203,15 @@ void HostWindow::FitWindowToSurface(uint32_t sw, uint32_t sh) {
 
 void HostWindow::AutoResizeToGuest() {
     auto& canvas = emu_.Get<HostCanvas>();
-    const uint32_t sw = canvas.GuestSurfaceWidth();
-    const uint32_t sh = canvas.GuestSurfaceHeight();
+    const uint32_t sw = canvas.ContentWidth();
+    const uint32_t sh = canvas.ContentHeight();
     if (sw == 0 || sh == 0) return;
     FitWindowToSurface(sw, sh);
     LOG(Lcd, "HostWindow: matched guest size %ux%u\n", sw, sh);
+}
+
+void HostWindow::RefitIfFollowingGuest() {
+    if (follow_guest_) AutoResizeToGuest();
 }
 
 void HostWindow::RunShutdownPrompt() {
@@ -380,6 +384,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const LONG sbh = fs ? 0 : (LONG)emu_.Get<HostStatusBar>().Height();
             RECT cv = { 0, 0, rc.right, rc.bottom - sbh };
             emu_.Get<HostCanvas>().Reposition(cv);
+            if (user_resizing_ && wp != SIZE_MINIMIZED) user_resized_ = true;
             ShowWindow(emu_.Get<HostStatusBar>().Hwnd(), fs ? SW_HIDE : SW_SHOW);
             if (!fs) {
                 RECT sb = { 0, rc.bottom - sbh, rc.right, rc.bottom };
@@ -399,9 +404,13 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
            AutoResizeToGuest, which must NOT count as the user taking over. */
         case WM_ENTERSIZEMOVE:
             user_resizing_ = true;
+            user_resized_  = false;
             return 0;
         case WM_EXITSIZEMOVE:
-            if (user_resizing_) { user_resizing_ = false; follow_guest_ = false; }
+            if (user_resizing_) {
+                user_resizing_ = false;
+                if (user_resized_) follow_guest_ = false;
+            }
             return 0;
         case WM_SYSCOMMAND:
             if ((wp & 0xFFF0) == (WPARAM)SC_MAXIMIZE) follow_guest_ = false;

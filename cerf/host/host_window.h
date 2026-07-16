@@ -64,6 +64,7 @@ public:
     /* HostMenu's "Match guest size" state + action. */
     bool FollowGuest() const { return follow_guest_; }
     void MatchGuestSize();
+    void RefitIfFollowingGuest();
 
     /* Borderless-fullscreen toggle (View menu + Right Ctrl+F). UI thread. */
     bool IsFullscreen() const  { return fullscreen_.IsActive(); }
@@ -115,6 +116,7 @@ private:
 
     bool follow_guest_  = true;   /* false once user resizes/maximizes */
     bool user_resizing_ = false;  /* between WM_ENTER/EXITSIZEMOVE */
+    bool user_resized_  = false;
 
     bool      shutdown_pending_ = false;  /* dialog/save in flight, before teardown */
     bool      closing_          = false;  /* teardown started; waiting on JIT stop */

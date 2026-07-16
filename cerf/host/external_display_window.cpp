@@ -230,7 +230,7 @@ LRESULT ExternalDisplayWindow::WndProc(HWND hwnd, UINT msg,
         const uint32_t w = (uint32_t)wp, h = (uint32_t)lp;
         if (w && h) {
             canvas_.SetGuestSurfaceSize(w, h);
-            FitToSurface(w, h);
+            FitToSurface(canvas_.ContentWidth(), canvas_.ContentHeight());
         }
         return 0;
     }
@@ -269,8 +269,14 @@ LRESULT ExternalDisplayWindow::WndProc(HWND hwnd, UINT msg,
                         canvas_.SetViewportMode(PresenterCanvas::ViewportMode::Aspect); break;
                     case kIdVpStretch:
                         canvas_.SetViewportMode(PresenterCanvas::ViewportMode::Stretch); break;
-                    case kIdVpInteger2: canvas_.SetIntegerScale(2); break;
-                    case kIdVpInteger3: canvas_.SetIntegerScale(3); break;
+                    case kIdVpInteger2:
+                        canvas_.SetIntegerScale(2);
+                        FitToSurface(canvas_.ContentWidth(), canvas_.ContentHeight());
+                        break;
+                    case kIdVpInteger3:
+                        canvas_.SetIntegerScale(3);
+                        FitToSurface(canvas_.ContentWidth(), canvas_.ContentHeight());
+                        break;
                     case kIdAliasing:
                         canvas_.SetAntialias(!canvas_.Antialias()); break;
                     case kIdFullscreen: fullscreen_.Toggle(hwnd); break;

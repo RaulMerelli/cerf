@@ -29,6 +29,9 @@ public:
     uint32_t GuestSurfaceWidth () const { return canvas_.GuestSurfaceWidth();  }
     uint32_t GuestSurfaceHeight() const { return canvas_.GuestSurfaceHeight(); }
 
+    uint32_t ContentWidth () const { return canvas_.ContentWidth();  }
+    uint32_t ContentHeight() const { return canvas_.ContentHeight(); }
+
     /* UI thread. Re-size the guest surface (rebuilds the surface DIB). */
     void SetGuestSurfaceSize(uint32_t w, uint32_t h) {
         canvas_.SetGuestSurfaceSize(w, h);

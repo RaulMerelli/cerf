@@ -66,6 +66,9 @@ public:
 
     uint32_t GuestSurfaceWidth () const { return presenter_.SurfaceWidth();  }
     uint32_t GuestSurfaceHeight() const { return presenter_.SurfaceHeight(); }
+
+    uint32_t ContentWidth () const { return (uint32_t)presenter_.ContentWidth();  }
+    uint32_t ContentHeight() const { return (uint32_t)presenter_.ContentHeight(); }
     void     SetGuestSurfaceSize(uint32_t w, uint32_t h) {
         presenter_.SetSurfaceSize(w, h);
     }
