@@ -16,9 +16,11 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import List, Optional
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import changelog
 
 REPO = "gweslab/cerf"
 GITHUB_API = "https://api.github.com"
@@ -29,7 +31,7 @@ DISCORD_MESSAGE_LIMIT = 2000
 DISCORD_SUPPRESS_EMBEDS = 1 << 2
 
 ARTIFACT_NAME = re.compile(r"^CERF-(\d+)\.(\d+)\.(\d+)-([0-9a-f]+)-Release-Win32$")
-CHANGELOG_PATH = Path("docs/changelog.html")
+CHANGELOG_PATH = Path("docs/changelog.yml")
 ENV_PATH = Path(".env")
 USER_AGENT = "CERF deploy"
 
@@ -159,52 +161,13 @@ def latest_artifact(token: str, sha: Optional[str] = None) -> Artifact:
     raise DeployError(f"no unexpired Release-Win32 artifact{where} found")
 
 
-class ChangelogParser(HTMLParser):
-    def __init__(self, tag: str) -> None:
-        super().__init__(convert_charrefs=True)
-        self._wanted = f"v{tag}"
-        self._row: List[str] = []
-        self._cell: List[str] = []
-        self._items: List[str] = []
-        self._in_cell = False
-        self._in_item = False
-        self.bullets: Optional[List[str]] = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "tr":
-            self._row, self._items = [], []
-        elif tag == "td":
-            self._in_cell, self._cell = True, []
-        elif tag == "li":
-            self._in_item, self._cell = True, []
-
-    def handle_endtag(self, tag):
-        text = " ".join("".join(self._cell).split())
-        if tag == "li" and self._in_item:
-            self._in_item = False
-            if text:
-                self._items.append(text)
-        elif tag == "td" and self._in_cell:
-            self._in_cell = False
-            self._row.append(text)
-        elif tag == "tr" and self.bullets is None:
-            version = self._row[0] if self._row else ""
-            if version == self._wanted or version.startswith(self._wanted + " "):
-                self.bullets = list(self._items)
-
-    def handle_data(self, data):
-        if self._in_cell or self._in_item:
-            self._cell.append(data)
-
-
-def changelog_bullets(tag: str) -> List[str]:
+def changelog_body(tag: str) -> str:
     if not CHANGELOG_PATH.is_file():
         raise DeployError(f"{CHANGELOG_PATH} not found; run from the repo root")
-    parser = ChangelogParser(tag)
-    parser.feed(CHANGELOG_PATH.read_text(encoding="utf-8"))
-    if not parser.bullets:
+    entry = changelog.entry_for(tag)
+    if entry is None or not entry["groups"]:
         raise DeployError(f"{CHANGELOG_PATH} has no entries for v{tag}")
-    return parser.bullets
+    return changelog.render_markdown(entry["groups"])
 
 
 def existing_release(token: str, tag: str) -> Optional[dict]:
@@ -281,8 +244,7 @@ def main(argv: List[str]) -> int:
     if existing_release(token, artifact.tag) is not None:
         raise DeployError(f"release {artifact.tag} already exists")
 
-    bullets = changelog_bullets(artifact.tag)
-    body = "\n".join(f"- {item}" for item in bullets)
+    body = changelog_body(artifact.tag)
     print(f"\nChangelog for v{artifact.tag}:\n{body}\n")
     confirm("Use this as the release description?", assume_yes)
 

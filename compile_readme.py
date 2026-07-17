@@ -6,8 +6,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 VERSION_H = os.path.join(ROOT, 'cerf', 'version.h')
 SOURCE    = os.path.join(ROOT, 'README_SOURCE.md')
 OUTPUT    = os.path.join(ROOT, 'README.md')
-CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
-CHANGELOG_LINK = 'docs/changelog.html'
+CHANGELOG_LINK = 'https://cerf.cx/changelog/'
 CHANGELOG_RECENT = 6
 ICONS_DIR = 'launcher/assets/icons'          # CPU-arch badge PNGs
 SVG_DIR   = 'cerf/assets/icons_sources'       # feature / board icon SVG sources
@@ -25,6 +24,9 @@ FUNDING_MESSAGE = 'support'
 
 sys.path.insert(0, os.path.join(ROOT, 'launcher'))
 from supported_devices import BOARDS_INFORMATION, FEATURE_SPECS, board_sort_key
+
+sys.path.insert(0, os.path.join(ROOT, 'tools'))
+import changelog
 
 
 def parse_version():
@@ -128,12 +130,8 @@ def build_support_badges():
 
 
 def build_changelog():
-    with open(CHANGELOG, 'r', encoding='utf-8') as f:
-        html = f.read()
-
-    tbody = re.search(r'<tbody>(.*?)</tbody>', html, re.DOTALL).group(1)
-    rows = re.findall(r'<tr>.*?</tr>', tbody, re.DOTALL)
-    recent = rows[:CHANGELOG_RECENT]
+    entries = changelog.load()
+    recent = entries[:CHANGELOG_RECENT]
 
     lines = [
         '<table>',
@@ -145,10 +143,9 @@ def build_changelog():
         '    </tr>',
         '  </thead>',
         '  <tbody>',
+        changelog.render_rows(recent),
     ]
-    for row in recent:
-        lines.append('    ' + row.strip().replace('\n', '\n    '))
-    if len(rows) > CHANGELOG_RECENT:
+    if len(entries) > CHANGELOG_RECENT:
         lines.append('    <tr>')
         lines.append('      <td colspan="3"><b>Previous versions</b> - '
                      f'see the <a href="{CHANGELOG_LINK}">full changelog</a>.</td>')

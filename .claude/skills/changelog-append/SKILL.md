@@ -1,6 +1,6 @@
 ---
 name: changelog-append
-description: The user invokes `/changelog-append` to record a change just made (bug fix, feature, etc.) as a concise changelog entry. It appends one `<li>` to the top (latest) version block in `docs/changelog.html`, matching the surrounding style, then runs `./compile_readme.py` to regenerate `README.md`. Invoke when the user types `/changelog-append` or asks to add a changelog entry.
+description: The user invokes `/changelog-append` to record a change just made (bug fix, feature, etc.) as a concise changelog entry. It appends one raw line under the right component group + subcategory of the top (latest) version block in `docs/changelog.yml`, then runs `./compile_readme.py` to regenerate `README.md`. Invoke when the user types `/changelog-append` or asks to add a changelog entry.
 ---
 
 # changelog-append - record one change in the changelog
@@ -9,24 +9,52 @@ The user invoked `/changelog-append`. Add one concise entry for the change just 
 
 **User-invoked only.** Only the user triggers this skill by typing `/changelog-append`. An agent never invokes it on its own initiative - finishing a change is not a license to write the changelog.
 
+## Categories
+
+Each change goes under one **component group** and one **subcategory**. Order and emoji are applied by `tools/changelog.py`; the YAML only names the keys.
+
+Component groups:
+
+- **`devices`** - a board/device: new board support, per-board fixes (touch, sound, screen), on-board silicon (SoC RTC, suspend, battery, reset), PC cards / PCMCIA (NE2000, CompactFlash, modem), sleeves.
+- **`emulator`** - the CERF core (`cerf.exe`): JIT / MMU / CPU, VFP/NEON, host UI/UX, hibernation/state saving, the serial stack, host-OS compatibility, board detection, crashes, general fixes.
+- **`launcher`** - the launcher tool.
+- **`ce_apps`** - CERF-built CE binaries and shipped tools (xplorer, romdump, `tools\fileserver.py`, bundled CE apps).
+- **`guest_additions`** - the Guest Additions subsystem: display driver, ROM injection, mouse/keyboard, shared folders, task manager, DPI, resolution.
+- **`website`** - the cerf.cx docs site.
+
+Subcategories:
+
+- **`new`** - an addition: board support, a new feature/app, a redesign or overhaul.
+- **`fixed`** - a bug fix, or an improvement/update to existing behavior.
+- **`deleted`** - a removal.
+
 ## Procedure
 
-1. **Open `docs/changelog.html`.** The **latest version is the topmost `<tr>`** in `<tbody>` (currently `TBA` at the top). Find its `<td>` → `<ul>`.
-2. **Append one `<li>` to the bottom of that `<ul>`.** Do not create a new version row. Do not touch older version rows.
-3. **Run `python compile_readme.py`** (from repo root) to regenerate `README.md` from the updated changelog. Confirm it prints `README.md compiled (vX.Y)`.
+`docs/changelog.yml` is the source; the README table and the website changelog page are generated from it.
+
+1. **Open `docs/changelog.yml`.** The **latest version is the topmost list entry** (currently `TBA` at the top).
+2. **Pick the group + subcategory** from the legend above. If that `group:` / `subcat:` key already exists in the top entry, append your line to its `|` block; otherwise add the key (a `|` literal block) in any order. Do not create a new version entry. Do not touch older entries.
+3. **Write one raw line.** Plain string - no escaping; colons and `<`, `&`, quotes are fine. `**text**` renders bold. Strip a prefix that just repeats the group (`Guest Additions:`, `Launcher:`), but keep a board name that says which device (`NEC MP700:`, `Zune 30:`).
+4. **Run `python compile_readme.py`** (from repo root). Confirm it prints `README.md compiled (vX.Y)`.
 
 ## Writing the entry
 
 - **A changelog line, not narration.** State what changed to the product, in the fewest words that are still clear. Smaller is better.
-- **Match the surrounding examples** - read the existing `<li>`s in the top block and follow their voice, tense, and prefix convention (`Guest Additions:`, `Launcher:`, `Dev only:`, `Fixed …`, `<Board> support`, …).
-- **One line per change.** If the work spans clearly separate user-visible changes, add one `<li>` each - but do not pad; prefer a single tight line.
+- **One line per change.** If the work spans clearly separate user-visible changes, add one line each - but do not pad; prefer a single tight line.
 - **No conversation echoes**, no session history, no model/agent references, no "as you asked".
 
-Examples already in the file (copy this register):
-- `Fixed NEC MP700 touch`
-- `Guest Additions: Fixed IMGFS ROMs regression introduced in v6.0`
-- `Launcher: added downloads count sort`
-- `Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)`
+Example top entry after adding a device fix and a guest-additions feature:
+
+```yaml
+- version: v6.6
+  date: TBA
+  devices:
+    fixed: |
+      Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs
+  guest_additions:
+    new: |
+      Clipboard sharing with the host
+```
 
 ## Git
 

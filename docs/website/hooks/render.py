@@ -2,7 +2,7 @@
 
 {version}         cerf/version.h
 {boards_table}    launcher/supported_devices.py (via compile_readme.py)
-{changelog_table} docs/changelog.html
+{changelog_table} docs/changelog.yml (via changelog.py)
 {stats}           board / SoC / CPU counts, from launcher/supported_devices.py
 {devices}         the front-page device wall, from docs/website/devices.yml
 {features}        the front-page feature cards, from docs/website/features.yml
@@ -15,7 +15,6 @@ lets `mkdocs serve` run straight from docs/website with live reload.
 
 import html
 import os
-import re
 import sys
 
 import yaml
@@ -23,7 +22,6 @@ import yaml
 HERE      = os.path.dirname(os.path.abspath(__file__))
 SITE      = os.path.dirname(HERE)
 ROOT      = os.path.dirname(os.path.dirname(SITE))
-CHANGELOG = os.path.join(ROOT, 'docs', 'changelog.html')
 DEV_YML   = os.path.join(SITE, 'devices.yml')
 DEV_DIR   = os.path.join(SITE, 'content', 'assets', 'devices')
 FEAT_YML  = os.path.join(SITE, 'features.yml')
@@ -43,6 +41,8 @@ SITE_LINKS = [
 ]
 
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'tools'))
+import changelog
 import compile_readme
 from supported_devices import BOARDS_INFORMATION
 
@@ -54,17 +54,11 @@ def _boards_table():
 
 
 def _changelog_table():
-    with open(CHANGELOG, 'r', encoding='utf-8') as f:
-        page = f.read()
-    tbody = re.search(r'<tbody>(.*?)</tbody>', page, re.DOTALL).group(1)
-    rows = re.findall(r'<tr>.*?</tr>', tbody, re.DOTALL)
-
     lines = ['<table>', '  <thead>', '    <tr>', '      <th>Version</th>',
              '      <th>Release date</th>', '      <th>Changes</th>',
-             '    </tr>', '  </thead>', '  <tbody>']
-    for row in rows:
-        lines.append('    ' + row.strip().replace('\n', '\n    '))
-    lines += ['  </tbody>', '</table>']
+             '    </tr>', '  </thead>', '  <tbody>',
+             changelog.render_rows(changelog.load()),
+             '  </tbody>', '</table>']
     return '\n'.join(lines)
 
 

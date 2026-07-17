@@ -76,7 +76,7 @@ def main():
                                '-f', config,
                                '-w', SITE,
                                '-w', os.path.join(ROOT, 'launcher', 'supported_devices.py'),
-                               '-w', os.path.join(ROOT, 'docs', 'changelog.html')])
+                               '-w', os.path.join(ROOT, 'docs', 'changelog.yml')])
         return
 
     subprocess.check_call([sys.executable, '-m', 'mkdocs', 'build', '--strict',

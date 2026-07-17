@@ -257,80 +257,86 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
-          <td>v6.6</td>
-          <td>TBA</td>
-          <td>
-            <ul>
-              <li>Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.6</td>
+      <td>TBA</td>
+      <td>
+        <p><b>📱 Devices</b><br/>
+          ✅ Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs</p>
+      </td>
+    </tr>
     <tr>
-          <td>v6.5</td>
-          <td>17 Jul 2026</td>
-          <td>
-            <ul>
-              <li>Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)</li>
-              <li>Guest additions: fixed named imports for CE2 ce_apps, GA driver moved to proper unified mips1 build</li>
-              <li>Launcher: added downloads count sort</li>
-              <li>Fixed Integer scale 2x/3x not resizing the window under "Match guest size"</li>
-              <li>Fixed moving the window releasing the "Match guest size" lock (now only a resize does)</li>
-              <li>Casio Toricomail support</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.5</td>
+      <td>17 Jul 2026</td>
+      <td>
+        <p><b>📱 Devices</b><br/>
+          🆕 Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)<br/>
+          🆕 Casio Toricomail support</p>
+        <p><b>💿 Emulator</b><br/>
+          ✅ Fixed Integer scale 2x/3x not resizing the window under &quot;Match guest size&quot;<br/>
+          ✅ Fixed moving the window releasing the &quot;Match guest size&quot; lock (now only a resize does)</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 Added downloads count sort</p>
+        <p><b>💾 CE Apps</b><br/>
+          ✅ Fixed bundled CE2 apps (ROM dumper and others) crashing on launch - their coredll imports were bound by version-specific ordinal instead of by name</p>
+        <p><b>✨ Guest Additions</b><br/>
+          ✅ Display driver unified onto a single mips1 build across MIPS devices</p>
+      </td>
+    </tr>
     <tr>
-          <td>v6.4</td>
-          <td>15 Jul 2026</td>
-          <td>
-            <ul>
-              <li>Hotfix: Fixed NEC MP700 touch</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.4</td>
+      <td>15 Jul 2026</td>
+      <td>
+        <p><b>📱 Devices</b><br/>
+          ✅ Fixed NEC MP700 touch</p>
+      </td>
+    </tr>
     <tr>
-          <td>v6.3</td>
-          <td>15 Jul 2026</td>
-          <td>
-            <ul>
-              <li>UI updates</li>
-              <li>Fixed a crash when PC Card was re-inserted too fast in DevEmu boards</li>
-              <li>Guest Additions: Fixed IMGFS ROMs regression introduced in v6.0</li>
-              <li>Guest Additions: Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencies dropped.</li>
-              <li>Guest Additions: Fixed incorrect hardware communication approach for display and shared storage. Now rendering and shared storage is stable.</li>
-              <li>Launcher: added multiple bundle repositories configuration</li>
-              <li>Dev only: SDK/Build tools reorganization</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.3</td>
+      <td>15 Jul 2026</td>
+      <td>
+        <p><b>📱 Devices</b><br/>
+          ✅ Fixed a crash when PC Card was re-inserted too fast in DevEmu boards</p>
+        <p><b>💿 Emulator</b><br/>
+          ✅ UI updates<br/>
+          ✅ Dev only: SDK/Build tools reorganization</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 Added multiple bundle repositories configuration</p>
+        <p><b>✨ Guest Additions</b><br/>
+          ✅ Fixed IMGFS ROMs regression introduced in v6.0<br/>
+          ✅ Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencies dropped.<br/>
+          ✅ Fixed incorrect hardware communication approach for display and shared storage. Now rendering and shared storage is stable.</p>
+      </td>
+    </tr>
     <tr>
-          <td>v6.2</td>
-          <td>12 Jul 2026</td>
-          <td>
-            <ul>
-              <li>Fixed a crash on startup on every Windows older than 10 1809 (dark-mode init)</li>
-              <li>cerf.exe now runs on Windows XP and newer - one binary, XP through 11</li>
-              <li>launcher_vista.exe: the launcher for Windows Vista and newer</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.2</td>
+      <td>12 Jul 2026</td>
+      <td>
+        <p><b>💿 Emulator</b><br/>
+          🆕 cerf.exe now runs on Windows XP and newer - one binary, XP through 11<br/>
+          ✅ Fixed a crash on startup on every Windows older than 10 1809 (dark-mode init)</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 launcher_vista.exe: the launcher for Windows Vista and newer</p>
+      </td>
+    </tr>
     <tr>
-          <td>v6.1</td>
-          <td>12 Jul 2026</td>
-          <td>
-            <ul>
-              <li>Nino 300 support (Palm-size PC)</li>
-              <li>Philips Velo 1 support (Windows CE 1.0)</li>
-              <li>Built-in serial support</li>
-              <li>Serial forwarder bugs fixed, ActiveSync now works</li>
-              <li>Launcher now supports full upgrade routine - click a button to upgrade your installation</li>
-              <li>NEC MP700: received built-in serial functionality</li>
-              <li>https://cerf.cx - the official website with guides</li>
-            </ul>
-          </td>
-        </tr>
+      <td>v6.1</td>
+      <td>12 Jul 2026</td>
+      <td>
+        <p><b>📱 Devices</b><br/>
+          🆕 Nino 300 support (Palm-size PC)<br/>
+          🆕 Philips Velo 1 support (Windows CE 1.0)<br/>
+          🆕 NEC MP700: received built-in serial functionality</p>
+        <p><b>💿 Emulator</b><br/>
+          🆕 Built-in serial support<br/>
+          ✅ Serial forwarder bugs fixed, ActiveSync now works</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 Full upgrade routine - click a button to upgrade your installation</p>
+        <p><b>🌐 Website</b><br/>
+          🆕 https://cerf.cx - the official website with guides</p>
+      </td>
+    </tr>
     <tr>
-      <td colspan="3"><b>Previous versions</b> - see the <a href="docs/changelog.html">full changelog</a>.</td>
+      <td colspan="3"><b>Previous versions</b> - see the <a href="https://cerf.cx/changelog/">full changelog</a>.</td>
     </tr>
   </tbody>
 </table>
