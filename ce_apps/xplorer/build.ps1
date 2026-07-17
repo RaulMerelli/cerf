@@ -6,7 +6,11 @@ $src    = "main.c,xplorer_view.c,xplorer_icons.c,xplorer_desktop.c,xplorer_taskb
 $ce2def = "$PSScriptRoot/../cerf_guest/coredll_ce2.def"
 $def    = "$PSScriptRoot/../cerf_guest/coredll_byname.def"
 $crt    = "$PSScriptRoot/../cerf_guest/cerf_ce2_crt.cpp"
-$ce2src = ($src -split ",") + $crt
+# CE 2.x coredll exports GetVersionEx unsuffixed only; the shim forwards
+# GetVersionExW to it (same placement as cerf_guest/build.ps1).
+$gvx    = "$PSScriptRoot/../cerf_guest/cerf_getversionexw.cpp"
+$allsrc = ($src -split ",") + $gvx
+$ce2src = $allsrc + $crt
 
 & $build -Type exe -Target xplorer.exe -Arch arm -ObjDir obj_arm `
     -Sources $ce2src -Entry WinMain -Libs coredll `
@@ -17,4 +21,4 @@ $ce2src = ($src -split ",") + $crt
     -CoreDllDef $ce2def -WceVersion "211" -SubsystemVersion "2.11"
 
 & $build -Type exe -Target xplorer.exe -Arch mips -MipsIsa mips4 -ObjDir obj_mips4 `
-    -Sources ($src -split ",") -Entry WinMain -Libs coredll -CoreDllDef $def
+    -Sources $allsrc -Entry WinMain -Libs coredll -CoreDllDef $def

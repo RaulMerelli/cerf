@@ -50,10 +50,19 @@ static void ShowStartMenu(HWND h) {
 
     if (cmd == ID_SM_RUN)
         ShowRunDialog(hi);
-    else if (cmd == ID_SM_ABOUT)
-        MessageBoxW(h, L"xplorer\nCERF minimal shell\n"
-                       L"coredll-only, CE 2.11+",
-                    L"About xplorer", MB_OK | MB_ICONINFORMATION);
+    else if (cmd == ID_SM_ABOUT) {
+        OSVERSIONINFOW vi;
+        WCHAR          text[160];
+        memset(&vi, 0, sizeof(vi));
+        vi.dwOSVersionInfoSize = sizeof(vi);
+        GetVersionExW(&vi);
+        wsprintfW(text, L"xplorer\nCERF minimal shell\n"
+                        L"coredll-only, CE 2.11+\n\n"
+                        L"Windows CE %d.%d (build %d)",
+                  (int)vi.dwMajorVersion, (int)vi.dwMinorVersion,
+                  (int)vi.dwBuildNumber);
+        MessageBoxW(h, text, L"About xplorer", MB_OK | MB_ICONINFORMATION);
+    }
     else if (cmd == ID_SM_TASKMGR)
         ShowTaskManager(hi);
 }
