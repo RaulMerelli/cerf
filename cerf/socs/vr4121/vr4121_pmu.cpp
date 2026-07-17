@@ -1,4 +1,4 @@
-#include "../vr41xx_pmu_impl.h"
+#include "../vr41xx/vr41xx_pmu_impl.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../guest_cpu_reset.h"
@@ -40,6 +40,7 @@ constexpr uint32_t kOffWaitReg = 0x08u;
 
 constexpr uint16_t kIntRtcRst = 0x0010u;   /* PMUINTREG D4 RTCRST */
 constexpr uint16_t kIntRstSw = 0x0008u;   /* PMUINTREG D3 RSTSW  */
+constexpr uint16_t kIntDmsRst = 0x0004u;  /* PMUINTREG D2 DMSRST */
 
 /* PMUWAITREG (UM 16.2.5): D13:0 WCOUNT, "Activation wait time = WCOUNT x (1/32.768)
    ms"; D15:14 RFU. "This register is set to 0x2C00 (it sets 343.75-ms activation wait
@@ -69,12 +70,10 @@ public:
     void LatchWarmReset() override { SetIntBits(kIntRstSw); }
     void LatchColdReset() override { SetIntBits(kIntRtcRst); }
 
-    /* A deadman's SW shutdown sets DMSRST and RSTSW (UM 16.2.1, 16.1.2(2)), but CERF
-       raises a watchdog reset from no VR4121 peripheral: the DSU (UM ch.18) is not
-       implemented and the HALTimer has no dog (see PMUCNTREG D2 above). */
-    void LatchWatchdogReset() override {
-        HaltUnsupportedAccess("VR4121 PMU watchdog reset cause", kModel.base, IntReg());
-    }
+    /* A deadman's SW shutdown sets DMSRST and RSTSW (UM 16.2.1, 16.1.2(2)); the Casio
+       IOCTL_HAL_REBOOT (ASIC 0x1118/0x111A) routes here. nk.exe StartUp's reset gate
+       0x9F0B5EB4 reaches the shell only when both D2 DMSRST and D3 RSTSW are set. */
+    void LatchWatchdogReset() override { SetIntBits(kIntDmsRst | kIntRstSw); }
 
     /* Software shutdown's PMUINTREG column is "-" (UM Table 16-2), and D0 POWERSWINTR "is
        not set to 1 when the POWER signal becomes high in the Hibernate mode (MPOWER = 0)"

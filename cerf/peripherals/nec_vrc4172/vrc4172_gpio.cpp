@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
 #include "../peripheral_dispatcher.h"
-#include "../../socs/vr41xx_giu.h"
+#include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>

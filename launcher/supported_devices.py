@@ -62,6 +62,7 @@ WINDOWS_CE_1 = OperatingSystem("Windows CE 1.0")
 WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0")
 PALM_SIZE_PC = OperatingSystem("Palm-size PC")
 WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11")
+WINDOWS_CE_212 = OperatingSystem("Windows CE 2.12")
 HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional")
 WINDOWS_CE_3 = OperatingSystem("Windows CE 3")
 WINDOWS_CE_NET = OperatingSystem("Windows CE .NET")
@@ -83,6 +84,7 @@ SOC_IMX51 = Soc("Freescale i.MX51", "Cortex-A8", "ARM")
 SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
 SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
 SOC_VR4102 = Soc("NEC VR4102", "MIPS III", "MIPS")
+SOC_VR4121 = Soc("NEC VR4121", "MIPS III", "MIPS")
 SOC_PR31700 = Soc("Philips PR31700", "MIPS I", "MIPS")
 SOC_PR31500 = Soc("Philips PR31500", "MIPS I", "MIPS")
 
@@ -343,6 +345,25 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
             "suspend": True,
         },
+    },
+    {
+        "name": "Casio Toricomail",
+        "board_id": "casio_toricomail",
+        "supported": True,
+        "soc": SOC_VR4121,
+        "operating_systems": [WINDOWS_CE_212],
+        "features": {
+            "display": True,
+            "touch": True,
+            "keyboard": True,
+            "sound": False,
+            "network": False,
+            "pcmcia": False,
+            "mic": False,
+        },
+        "notes": [
+            "Camera and microphone access crashes the emulator",
+        ],
     },
     {
         "name": "NEC Rockhopper SG2_VR5500",

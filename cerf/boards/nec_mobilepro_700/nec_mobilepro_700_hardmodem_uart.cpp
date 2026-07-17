@@ -4,7 +4,7 @@
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/serial/serial_cradle.h"
-#include "../../socs/vr41xx_giu.h"
+#include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
 

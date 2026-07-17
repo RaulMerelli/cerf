@@ -1,13 +1,20 @@
 #include "intel_28f128j3.h"
 
+#include "../../boards/board_context.h"
+#include "../../core/cerf_emulator.h"
+
 namespace {
 
-/* nCS1 data/FFS bank (PA 0x08000000, uncached alias 0xA2000000). Two x16 chips
-   in 2-way interleave -> 32-bit bus: OAL detect sub_800B442C (nk.exe) reads mfr
-   0x00890089 / device 0x00180018 (width=4/parallel=2). */
+/* SIMpad nCS1 data/FFS bank: two x16 chips 2-way interleaved (32-bit bus). OAL
+   detect sub_800B442C (nk.exe) reads mfr 0x00890089 / device 0x00180018. */
 class Intel28F128J3Cs1 : public Intel28F128J3 {
 public:
     using Intel28F128J3::Intel28F128J3;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetBoard() == Board::SimpadSl4;
+    }
 
     uint32_t MmioBase() const override { return 0x08000000u; }
     uint32_t MmioSize() const override { return 0x01000000u; }

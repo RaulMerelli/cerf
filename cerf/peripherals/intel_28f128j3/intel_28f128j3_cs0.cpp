@@ -1,14 +1,20 @@
 #include "intel_28f128j3.h"
 
+#include "../../boards/board_context.h"
+#include "../../core/cerf_emulator.h"
+
 namespace {
 
-/* nCS0 boot flash (PA 0, uncached 0xA4000000): one x16 28F128J3, 16 MB (Linux
-   simpad mach CS0 = SZ_16M); 16-bit bus -> CFI word 0x10 at byte 0x20. The CFI
-   consumer sizes the bank as per-chip 16 MB * Parallel(), so parallel=1 keeps
-   its reads inside the 16 MB EmulatedMemory backing. */
+/* SIMpad nCS0 boot flash: one x16 28F128J3, 16 MB (Linux arch/arm mach-sa1100
+   simpad CS0 = SZ_16M). */
 class Intel28F128J3Cs0 : public Intel28F128J3 {
 public:
     using Intel28F128J3::Intel28F128J3;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetBoard() == Board::SimpadSl4;
+    }
 
     uint32_t MmioBase() const override { return 0x00000000u; }
     uint32_t MmioSize() const override { return 0x01000000u; }

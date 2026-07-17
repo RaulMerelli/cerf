@@ -2,7 +2,7 @@
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
 #include "../../host/keyboard_router.h"
-#include "../../socs/vr4102/vr4102_kiu.h"
+#include "../../socs/vr41xx/vr41xx_kiu.h"
 #include "../board_context.h"
 
 #include <cstdint>
@@ -23,7 +23,7 @@ public:
     void OnHostKey(uint8_t vk, bool key_up) override {
         uint32_t code;
         if (!emu_.Get<KeyboardMap>().BaseDeviceCode(vk, code)) return;
-        emu_.Get<Vr4102Kiu>().SetKeyState(static_cast<uint8_t>(code), !key_up);
+        emu_.Get<Vr41xxKiu>().SetKeyState(static_cast<uint8_t>(code), !key_up);
     }
 };
 

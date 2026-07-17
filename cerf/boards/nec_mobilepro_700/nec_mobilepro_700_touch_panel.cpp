@@ -1,4 +1,4 @@
-#include "../../socs/vr41xx_piu_panel.h"
+#include "../../socs/vr41xx/vr41xx_piu_panel.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -43,6 +43,12 @@ public:
     }
 
     std::optional<uint16_t> PressureSample() override { return kPressureContact; }
+
+    std::optional<uint16_t> AdPortScanSample(uint16_t port) override {
+        LOG(Caution, "NecMobilePro700TouchPanel: ADPortScan A/D port 0x%X is not modeled on "
+                "this board\n", port);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
 };
 
 }  /* namespace */

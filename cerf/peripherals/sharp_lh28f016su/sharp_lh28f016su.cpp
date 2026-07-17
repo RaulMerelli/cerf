@@ -1,40 +1,27 @@
-#include "../peripheral_base.h"
+#include "../intel_command_set_flash.h"
 
 #include "../../boards/board_context.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../cpu/emulated_memory.h"
-#include "../../state/state_stream.h"
-#include "../peripheral_dispatcher.h"
 
 #include <cstdint>
 
 namespace {
 
-/* Sharp LH28F016SU, 16M (1M x 16, 2M x 8) flash memory, LH28F008SA-compatible
-   command set. Two devices sit in parallel on the PR31700's 32-bit CS0 port, so
-   every command and every identifier code appears in both 16-bit halves. */
+/* Sharp LH28F016SU, 16 Mbit, LH28F008SA-compatible (Intel basic command set).
+   Two devices in parallel on the PR31700 32-bit CS0; the board crosses byte
+   lanes so each identifier code appears in both halves, byte-swapped
+   (datasheet PDF p.8-9; nk.exe 0x9F4321B0-0x9F4321C8 compares the swapped codes). */
+constexpr uint32_t kIdentWordMfr = 0xB000B000u;   /* mfr 00B0h, lanes crossed */
+constexpr uint32_t kIdentWordDev = 0x88668866u;   /* device 6688h, lanes crossed */
+constexpr uint32_t kIdentOffMfr  = 0u;
+constexpr uint32_t kIdentOffDev  = 4u;
+constexpr uint32_t kKsegUnmask   = 0x1FFFFFFFu;
 
-/* Word-wide bus operations (datasheet PDF p.8): A1 low reads the manufacturer ID
-   00B0H, A1 high the device ID 6688H. The board crosses the byte lanes, so the CPU
-   sees each halfword swapped - nk.exe 0x9F4321B0-0x9F4321C8 builds the compares
-   against the swapped codes, and the CS2 buffer crosses the same lanes. */
-constexpr uint32_t kIdentWordMfr = 0xB000B000u;
-constexpr uint32_t kIdentWordDev = 0x88668866u;
-
-/* Command bus definitions (datasheet PDF p.9). */
-constexpr uint8_t kCmdReadArray  = 0xFFu;
-constexpr uint8_t kCmdIdentifier = 0x90u;
-
-constexpr uint32_t kIdentOffsetMfr = 0u;
-constexpr uint32_t kIdentOffsetDev = 4u;
-
-constexpr uint32_t kKsegUnmask = 0x1FFFFFFFu;
-
-class SharpLh28F016Su : public Peripheral {
+class SharpLh28F016Su : public IntelCommandSetFlash {
 public:
-    using Peripheral::Peripheral;
+    using IntelCommandSetFlash::IntelCommandSetFlash;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
@@ -50,71 +37,44 @@ public:
         const ParsedROMHDR& hdr = rom.Primary().xips.front().toc.romhdr;
         base_ = hdr.physfirst & kKsegUnmask;
         size_ = hdr.physlast - hdr.physfirst;
-        emu_.Get<PeripheralDispatcher>().Register(this);
+        IntelCommandSetFlash::OnReady();
     }
 
     uint32_t MmioBase() const override { return base_; }
     uint32_t MmioSize() const override { return size_; }
 
-    /* Reads of the array never reach here: CS0 is backed PAGE_EXECUTE_READ, so a
-       read resolves to that host memory. The identifier codes are therefore
-       presented by mutating the backing, the way Intel28F128J3::PresentId does. */
-    void WriteWord(uint32_t addr, uint32_t value) override {
-        const uint16_t lo = static_cast<uint16_t>(value);
-        const uint16_t hi = static_cast<uint16_t>(value >> 16);
-        if (lo != hi) {
-            HaltUnsupportedAccess("Sharp LH28F016SU per-device command", addr, value);
-        }
-        /* The crossed byte lanes put the device's DQ0-DQ7 in the halfword's
-           high byte. */
-        switch (static_cast<uint8_t>(lo >> 8)) {
-            case kCmdIdentifier: PresentIdent(); return;
-            case kCmdReadArray:  RestoreArray(); return;
-            default:
-                HaltUnsupportedAccess("Sharp LH28F016SU command", addr, value);
-        }
+protected:
+    uint16_t Manufacturer() const override { return 0x00B0u; }
+    uint16_t Device()       const override { return 0x6688u; }
+    uint32_t Parallel()    const override { return 2u; }
+    uint32_t DeviceWidth() const override { return 2u; }
+    uint32_t ChipEraseBlockBytes() const override { return 0x10000u; }
+
+    /* The Nino OAL only reads the array and the identifier codes
+       (nk.exe 0x9F4321B0); every other command FATALs. */
+    bool CommandEnabled(uint8_t cmd) const override { return cmd == 0xFFu || cmd == 0x90u; }
+
+    /* Word-wide command with the byte lanes crossed: the command byte is the
+       high byte of each identical 16-bit half (datasheet PDF p.9). */
+    uint8_t DecodeCommand(uint32_t value, uint32_t width) override {
+        if (width != 4u)
+            HaltUnsupportedAccess("Sharp LH28F016SU non-word command", MmioBase(), value);
+        const uint16_t lo = uint16_t(value);
+        const uint16_t hi = uint16_t(value >> 16);
+        if (lo != hi)
+            HaltUnsupportedAccess("Sharp LH28F016SU per-device command", MmioBase(), value);
+        return uint8_t(lo >> 8);
     }
 
-    void SaveState(StateWriter& w) override {
-        w.Write<uint8_t>(ident_presented_ ? 1u : 0u);
-        w.Write(array_word_mfr_);
-        w.Write(array_word_dev_);
-    }
-
-    void RestoreState(StateReader& r) override {
-        uint8_t presented = 0;
-        r.Read(presented);
-        r.Read(array_word_mfr_);
-        r.Read(array_word_dev_);
-        ident_presented_ = presented != 0u;
+    void PresentIdentifier(uint32_t /*addr*/) override {
+        RestoreArray();
+        SaveAndWriteWord(MmioBase() + kIdentOffMfr, kIdentWordMfr);
+        SaveAndWriteWord(MmioBase() + kIdentOffDev, kIdentWordDev);
     }
 
 private:
-    void PresentIdent() {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        if (!ident_presented_) {
-            array_word_mfr_  = mem.ReadWord(base_ + kIdentOffsetMfr);
-            array_word_dev_  = mem.ReadWord(base_ + kIdentOffsetDev);
-            ident_presented_ = true;
-        }
-        mem.WriteWord(base_ + kIdentOffsetMfr, kIdentWordMfr);
-        mem.WriteWord(base_ + kIdentOffsetDev, kIdentWordDev);
-    }
-
-    void RestoreArray() {
-        if (!ident_presented_) return;
-        auto& mem = emu_.Get<EmulatedMemory>();
-        mem.WriteWord(base_ + kIdentOffsetMfr, array_word_mfr_);
-        mem.WriteWord(base_ + kIdentOffsetDev, array_word_dev_);
-        ident_presented_ = false;
-    }
-
-    uint32_t base_ = 0;
-    uint32_t size_ = 0;
-
-    bool     ident_presented_ = false;
-    uint32_t array_word_mfr_  = 0;
-    uint32_t array_word_dev_  = 0;
+    uint32_t base_ = 0u;
+    uint32_t size_ = 0u;
 };
 
 }  /* namespace */

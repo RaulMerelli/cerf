@@ -1,4 +1,4 @@
-#include "../vr41xx_pmu_impl.h"
+#include "../vr41xx/vr41xx_pmu_impl.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../guest_cpu_reset.h"

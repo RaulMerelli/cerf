@@ -34,6 +34,14 @@ Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots
   </thead>
   <tbody>
     <tr>
+      <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>NEC VR4121</b><br/><sub>MIPS III</sub></td>
+      <td>
+        <img src="cerf/assets/icons_sources/board.svg" width="16" height="16" title="PDA" alt="PDA"/> <b>Casio Toricomail</b> <code>casio_toricomail</code><br/>
+        Windows CE 2.12
+      </td>
+      <td><img src="cerf/assets/icons_sources/display.svg" width="32" height="32" title="Display" alt="Display"/> <img src="cerf/assets/icons_sources/stylus.svg" width="32" height="32" title="Touch" alt="Touch"/> <img src="cerf/assets/icons_sources/keyboard.svg" width="32" height="32" title="Keyboard" alt="Keyboard"/></td>
+    </tr>
+    <tr>
       <td rowspan="2" align="center"><img src="launcher/assets/icons/badge_arm.png" align="middle" title="ARM" alt="ARM"/><br/><b>Intel XScale PXA255</b><br/><sub>ARMv5TE</sub></td>
       <td>
         <img src="cerf/assets/icons_sources/board.svg" width="16" height="16" title="PDA" alt="PDA"/> <b>Falcon 4220</b> <code>falcon_4220</code><br/>
@@ -250,7 +258,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
           <td>v6.5</td>
-          <td>TBA</td>
+          <td>17 Jul 2026</td>
           <td>
             <ul>
               <li>Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)</li>
@@ -258,6 +266,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>Launcher: added downloads count sort</li>
               <li>Fixed Integer scale 2x/3x not resizing the window under "Match guest size"</li>
               <li>Fixed moving the window releasing the "Match guest size" lock (now only a resize does)</li>
+              <li>Casio Toricomail support</li>
             </ul>
           </td>
         </tr>
