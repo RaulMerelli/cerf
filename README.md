@@ -261,7 +261,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           <td>TBA</td>
           <td>
             <ul>
-              <li>...</li>
+              <li>Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs</li>
             </ul>
           </td>
         </tr>
