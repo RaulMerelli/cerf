@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.5 pre-alpha
+# **CE Runtime Foundation** v6.6 pre-alpha
 
 <p align="center">
   <a href="https://cerf.cx">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.5) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.6) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
 
@@ -257,6 +257,15 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+          <td>v6.6</td>
+          <td>TBA</td>
+          <td>
+            <ul>
+              <li>...</li>
+            </ul>
+          </td>
+        </tr>
+    <tr>
           <td>v6.5</td>
           <td>17 Jul 2026</td>
           <td>
@@ -317,27 +326,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
               <li>Launcher now supports full upgrade routine - click a button to upgrade your installation</li>
               <li>NEC MP700: received built-in serial functionality</li>
               <li>https://cerf.cx - the official website with guides</li>
-            </ul>
-          </td>
-        </tr>
-    <tr>
-          <td>v6.0</td>
-          <td>10 Jul 2026</td>
-          <td>
-            <ul>
-              <li>MIPS JIT engine</li>
-              <li>NEC Rockhopper SG2_VR5500 support</li>
-              <li>NEC MobilePro 700 support</li>
-              <li>Ford Sync 2 bare-bones support</li>
-              <li>UX/UI improvements</li>
-              <li>Launcher full redesign: save settings, fully new layout, multidownload, live/suspened screen previews</li>
-              <li>Added tools\fileserver.py in build directory (simple directory serving web server)</li>
-              <li>Microsoft Reference Platform: added full PS/2 key mapping set</li>
-              <li>Removed heuristics board detector - it was a bad non-scalable conception, now you need to specify board ID directly.
-                This also lets users to run ROMs on other boards. Obviously if it's not the same device the chance it will work is around 0%.</li>
-              <li>romdump.exe for MIPS updated to emit MIPS1 code, support CE 2.0 and maybe 1.0 too, and now includes several real MIPS CPUs, + full UI redesign</li>
-              <li>Guest Additions: CE 2.0 support (display only so far)</li>
-              <li>Zune 30: added audio</li>
             </ul>
           </td>
         </tr>
