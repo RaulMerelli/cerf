@@ -44,17 +44,53 @@ LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 TARGETS = ("ico", "launcher", "badges")
 
 
-def render_png(svg_path, size):
-    """resvg-render svg_path at size*size, return a clean RGBA PNG blob."""
+def render_image(svg_path, size):
+    """resvg-render svg_path at size*size, return a clean RGBA PIL Image."""
     import resvg_py
     from PIL import Image
     raw = resvg_py.svg_to_bytes(svg_path=str(svg_path), width=size, height=size)
     im = Image.open(BytesIO(bytes(raw))).convert("RGBA")
     if im.size != (size, size):
         im = im.resize((size, size), Image.LANCZOS)
+    return im
+
+
+def render_png(svg_path, size):
+    """resvg-render svg_path at size*size, return a clean RGBA PNG blob."""
     buf = BytesIO()
-    im.save(buf, format="PNG")
+    render_image(svg_path, size).save(buf, format="PNG")
     return buf.getvalue()
+
+
+UNSUP_DIM_ALPHA = 0.73
+UNSUP_BADGE_FRAC = 0.42
+UNSUP_RED = (229, 72, 77)
+UNSUP_WHITE = (255, 255, 255)
+
+
+def make_unsupported_variant(base):
+    """base RGBA PIL Image -> a dimmed copy with a bottom-right error badge."""
+    from PIL import Image, ImageDraw
+    size = base.width
+    out = base.copy()
+    out.putalpha(out.getchannel("A").point(lambda a: int(a * UNSUP_DIM_ALPHA)))
+
+    d = max(1, round(size * UNSUP_BADGE_FRAC))
+    big = Image.new("RGBA", (d * SS, d * SS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(big)
+    hi = d * SS - 1
+    ring = max(1, round(d * SS * 0.08))
+    draw.ellipse([0, 0, hi, hi], fill=UNSUP_WHITE + (255,))
+    draw.ellipse([ring, ring, hi - ring, hi - ring], fill=UNSUP_RED + (255,))
+    inset = d * SS * 0.30
+    stroke = max(1, round(d * SS * 0.14))
+    draw.line([inset, inset, hi - inset, hi - inset],
+              fill=UNSUP_WHITE + (255,), width=stroke)
+    draw.line([hi - inset, inset, inset, hi - inset],
+              fill=UNSUP_WHITE + (255,), width=stroke)
+    badge = big.resize((d, d), Image.LANCZOS)
+    out.alpha_composite(badge, (size - d, size - d))
+    return out
 
 
 def render_dib(svg_path, size):
@@ -163,10 +199,17 @@ def build_launcher_pngs(names):
         svg = SRC_DIR / f"{stem}.svg"
         if not svg.exists():
             sys.exit(f"source not found: {svg}")
+        base = render_image(svg, LAUNCHER_SIZE)
+        buf = BytesIO()
+        base.save(buf, format="PNG")
         out = LAUNCHER_DIR / f"{stem}.png"
-        write_if_changed(out, render_png(svg, LAUNCHER_SIZE))
-        print(f"{svg.name} -> {out.relative_to(REPO)}  "
-              f"({LAUNCHER_SIZE}x{LAUNCHER_SIZE})")
+        write_if_changed(out, buf.getvalue())
+        buf = BytesIO()
+        make_unsupported_variant(base).save(buf, format="PNG")
+        out_u = LAUNCHER_DIR / f"{stem}_unsupported.png"
+        write_if_changed(out_u, buf.getvalue())
+        print(f"{svg.name} -> {out.relative_to(REPO)}, "
+              f"{out_u.name}  ({LAUNCHER_SIZE}x{LAUNCHER_SIZE})")
 
 
 # Badges have no SVG source: they are text-in-a-box, sized to the widest label.

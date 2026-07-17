@@ -243,25 +243,11 @@ class DetailsPanel:
             return self._icon_cache[cache_key]
         icon: Optional[tk.PhotoImage] = None
         if self._icons_dir is not None:
-            path = self._icons_dir / f"{stem}.png"
+            name = f"{stem}_unsupported.png" if gray else f"{stem}.png"
+            path = self._icons_dir / name
             try:
-                base = tk.PhotoImage(file=str(path))
-                icon = self._grayscale_image(base) if gray else base
+                icon = tk.PhotoImage(file=str(path))
             except tk.TclError:
                 icon = None
         self._icon_cache[cache_key] = icon
         return icon
-
-    def _grayscale_image(self, img: tk.PhotoImage) -> tk.PhotoImage:
-        # Desaturate in-place on a copy, preserving per-pixel transparency.
-        w, h = img.width(), img.height()
-        gray = img.copy()
-        tk_interp = img.tk
-        for y in range(h):
-            for x in range(w):
-                if tk_interp.call(img, "transparency", "get", x, y):
-                    continue
-                r, g, b = img.get(x, y)
-                lum = (r * 299 + g * 587 + b * 114) // 1000
-                gray.put(f"#{lum:02x}{lum:02x}{lum:02x}", to=(x, y))
-        return gray
