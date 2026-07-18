@@ -8,12 +8,9 @@ from typing import List, Optional
 
 from pathlib import Path
 
-from device_state import (
-    DeviceBundle,
-    read_persist_fields,
-    write_persist_overrides,
-)
-from supported_devices import board_features
+from cerf_user_json import read_persist_fields, write_persist_overrides
+from device_state import DeviceBundle
+from board_info import board_configurable_screen, board_features
 from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
 import ui_theme as theme
 
@@ -288,7 +285,7 @@ class LaunchOptionsPanel:
         guest_additions = self.var_guest_additions.get()
         if guest_additions:
             argv.append("--guest-additions")
-        if guest_additions or device.screen_supported is not False:
+        if guest_additions or board_configurable_screen(device.meta.board_id):
             w = self._resolution_value(self.var_width, self.width_entry, "Width")
             if w is None:
                 return None
@@ -347,8 +344,9 @@ class LaunchOptionsPanel:
         self._set_block_visible(self._guest_additions_available,
                                 self.guest_block, self.guest_sep)
 
-        res_visible = guest_additions or not (device is not None
-                                              and device.screen_supported is False)
+        res_visible = guest_additions or (
+            device is not None
+            and board_configurable_screen(device.meta.board_id))
         self._set_block_visible(res_visible, self.res_note, self.res_fields,
                                 self.res_sep)
         self.res_note.config(text="CERF display driver resolution:"

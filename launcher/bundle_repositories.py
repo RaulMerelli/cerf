@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,14 +11,12 @@ MAIN_REPOSITORY_URL = "https://cerf-bundles.dz3n.net/cerf-bundles"
 CONFIG_KEY = "bundle_repositories"
 _MANIFEST_NAME = "manifest.json"
 _ANALYTICS_NAME = "analytics.json"
-_SUFFIX_LEN = 6
 
 
 @dataclass
 class BundleRepository:
     url: str
     enabled: bool
-    main: bool = False
 
 
 def config_path() -> Path:
@@ -34,15 +31,12 @@ def analytics_url_for(base_url: str) -> str:
     return base_url.rstrip("/") + "/" + _ANALYTICS_NAME
 
 
-def repository_suffix(url: str) -> str:
-    return hashlib.sha256(url.encode("utf-8")).hexdigest()[:_SUFFIX_LEN]
-
-
 def default_repositories() -> List[BundleRepository]:
-    return [BundleRepository(url=MAIN_REPOSITORY_URL, enabled=True, main=True)]
+    return [BundleRepository(url=MAIN_REPOSITORY_URL, enabled=True)]
 
 
 def _parse_repositories(raw) -> Optional[List[BundleRepository]]:
+    """Reads the config list; a legacy "main" key on an entry is ignored."""
     if not isinstance(raw, list):
         return None
     repos: List[BundleRepository] = []
@@ -57,10 +51,7 @@ def _parse_repositories(raw) -> Optional[List[BundleRepository]]:
         if url in seen:
             continue
         seen.add(url)
-        main = item.get("main")
-        repos.append(BundleRepository(
-            url=url, enabled=enabled,
-            main=main if isinstance(main, bool) else False))
+        repos.append(BundleRepository(url=url, enabled=enabled))
     return repos or None
 
 
@@ -81,8 +72,7 @@ def read_repositories() -> List[BundleRepository]:
 def write_repositories(repos: List[BundleRepository]) -> None:
     path = config_path()
     obj = _load_config(path)
-    obj[CONFIG_KEY] = [
-        {"url": r.url, "enabled": r.enabled, "main": r.main} for r in repos]
+    obj[CONFIG_KEY] = [{"url": r.url, "enabled": r.enabled} for r in repos]
     path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 
 

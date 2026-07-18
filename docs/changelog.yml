@@ -3,6 +3,13 @@
   devices:
     fixed: |
       Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs
+  emulator:
+    new: |
+      Device names with spaces and absolute rom.* paths in cerf.json are now supported
+  launcher:
+    new: |
+      **New-device wizard**: create a device from your own ROM dump - pick a board, name it, point at the ROM (copied into the device directory or referenced by absolute path)
+      Rename a device from its right-click menu
 
 - version: v6.5
   date: 17 Jul 2026

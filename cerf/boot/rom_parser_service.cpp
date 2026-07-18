@@ -344,8 +344,7 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 }
 
 void RomParserService::OnReady() {
-    const auto&       cfg        = emu_.Get<DeviceConfig>();
-    const std::string device_dir = GetDeviceDir(cfg.device_name);
+    const auto& cfg = emu_.Get<DeviceConfig>();
 
     std::vector<std::string> filenames;
     if (cfg.boot_in_recovery) {
@@ -377,7 +376,7 @@ void RomParserService::OnReady() {
     for (size_t i = 0; i < filenames.size(); ++i) {
         ParsedRom rom;
         rom.filename = filenames[i];
-        rom.path     = device_dir + filenames[i];
+        rom.path     = ResolveDeviceFile(cfg.device_name, filenames[i]);
         if (!ParseOne(rom)) {
             loaded_.clear();
             return;

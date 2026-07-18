@@ -23,7 +23,9 @@ FUNDING_BADGES = [
 FUNDING_MESSAGE = 'support'
 
 sys.path.insert(0, os.path.join(ROOT, 'launcher'))
-from supported_devices import BOARDS_INFORMATION, FEATURE_SPECS, board_sort_key
+from board_catalog_schema import FEATURE_SPECS
+from board_info import board_sort_key
+from supported_devices import BOARDS_INFORMATION
 
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import changelog

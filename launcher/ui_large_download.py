@@ -107,7 +107,7 @@ def gate_bundle_download(app, device: DeviceBundle) -> bool:
 
 def _manual_bundle(app, device: DeviceBundle) -> None:
     try:
-        app.manager.prepare_manual_install(device.name)
+        dir_name = app.manager.prepare_manual_install(device)
     except BundleError as exc:
         show_error(app, "Could not prepare manual download", str(exc))
         return
@@ -116,9 +116,9 @@ def _manual_bundle(app, device: DeviceBundle) -> None:
     show_info(
         app, "Manual download started",
         f"Your browser is downloading the ZIP. The launcher created "
-        f"devices/{device.name}/ with its cerf.json.\n\n"
+        f"devices/{dir_name}/ with its cerf.json.\n\n"
         f"When the download finishes, unpack the ZIP so its files land "
-        f"directly in devices/{device.name}/, then refresh the launcher.")
+        f"directly in devices/{dir_name}/, then refresh the launcher.")
 
 
 def gate_package_download(app, device: DeviceBundle, ps: PackageStatus) -> bool:

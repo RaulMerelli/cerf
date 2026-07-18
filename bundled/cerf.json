@@ -13,8 +13,7 @@
   "bundle_repositories": [
     {
       "url": "https://cerf-bundles.dz3n.net/cerf-bundles",
-      "enabled": true,
-      "main": true
+      "enabled": true
     }
   ]
 }

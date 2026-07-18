@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from device_state import DeviceBundle, PackageStatus
-from supported_devices import board_sort_key, sort_text
+from board_catalog_schema import sort_text
+from board_info import board_display_name, board_sort_key
 
 
 # Board-group row iids contain ':' which is invalid in Windows directory
@@ -35,19 +36,26 @@ def _sort_optional_int(value: object, *, missing_when_zero: bool = True) -> tupl
     return (missing, number)
 
 
+def _effective_board_name(d: DeviceBundle) -> str:
+    """meta.board_name, falling back to the supported_devices.py board name
+    for devices whose cerf.json carries none (wizard-created user devices)."""
+    return d.meta.board_name or board_display_name(d.meta.board_id)
+
+
 def _board_group_key(d: DeviceBundle) -> tuple[int, str]:
-    return board_sort_key(d.meta.board_name)
+    return board_sort_key(_effective_board_name(d))
 
 
 def _device_group_name(d: DeviceBundle) -> str:
-    return d.meta.device_name or d.name
+    return (d.meta.device_name or board_display_name(d.meta.board_id)
+            or d.name)
 
 
 def _device_group_key(d: DeviceBundle) -> tuple[int, str]:
     """Device-name group order: alphabetical within the board tiers of
     board_sort_key, so the Device Emulator board's device groups stay pinned
     last regardless of what its ROMs' device names are."""
-    tier, _ = board_sort_key(d.meta.board_name)
+    tier, _ = board_sort_key(_effective_board_name(d))
     return (tier, sort_text(_device_group_name(d)))
 
 
@@ -113,12 +121,14 @@ def _table_os_label(d: DeviceBundle) -> str:
 
 
 def _table_device_label(d: DeviceBundle) -> str:
-    display = d.meta.device_name or d.name
+    display = (d.meta.device_name or board_display_name(d.meta.board_id)
+               or d.name)
     return f"{display} ({d.meta.device_year})" if d.meta.device_year else display
 
 
 def _device_search_haystack(d: DeviceBundle) -> str:
     parts: List[str] = [
+        d.meta.name,
         _table_device_label(d),
         _table_os_label(d),
         d.meta.board_name or "",

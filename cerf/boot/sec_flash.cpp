@@ -28,12 +28,12 @@ bool SecFlash::ShouldRegister() {
     if (emu_.Get<BoardContext>().GetBoard() != Board::FordSyncGen2) return false;
     const auto& cfg = emu_.Get<DeviceConfig>();
     if (cfg.rom_primary.empty()) return false;
-    return FileExists(GetDeviceDir(cfg.device_name) + cfg.rom_primary);
+    return FileExists(ResolveDeviceFile(cfg.device_name, cfg.rom_primary));
 }
 
 void SecFlash::OnReady() {
     const auto&       cfg  = emu_.Get<DeviceConfig>();
-    const std::string path = GetDeviceDir(cfg.device_name) + cfg.rom_primary;
+    const std::string path = ResolveDeviceFile(cfg.device_name, cfg.rom_primary);
 
     if (!mf_.Open(path)) {
         LOG(Caution, "SecFlash: failed to map %s\n", path.c_str());

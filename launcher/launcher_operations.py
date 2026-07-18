@@ -4,7 +4,7 @@ from concurrent.futures import Future
 from typing import Callable, List, Optional, Tuple
 
 from device_state import DeviceBundle, PackageStatus
-from operations import CancelledError
+from bundle_download import CancelledError
 from ui_dialogs import ask_yesno, confirm_rom_license, show_error, show_info
 from ui_large_download import (filter_update_all_targets, gate_bundle_download,
                                gate_package_download)
@@ -24,7 +24,7 @@ class OperationsMixin:
         if not gate_bundle_download(self, d):
             return
         self._set_busy(True, f"Downloading {d.name}…")
-        f = self.manager.submit_install(d.name, progress=self._progress_cb,
+        f = self.manager.submit_install(d, progress=self._progress_cb,
                                         cancel_event=self.cancel_event)
         self._await_future(f, lambda exc: self._after_op(exc, f"Downloaded {d.name}"))
 
@@ -110,8 +110,8 @@ class OperationsMixin:
         self._set_busy(True, f"Updating {total} item(s)…")
         work: List[Tuple[str, Callable[[], Future]]] = []
         for d in rom_targets:
-            work.append((d.name, lambda name=d.name: self.manager.submit_install(
-                name, progress=self._progress_cb, cancel_event=self.cancel_event)))
+            work.append((d.name, lambda dev=d: self.manager.submit_install(
+                dev, progress=self._progress_cb, cancel_event=self.cancel_event)))
         for d, ps in pkg_targets:
             work.append((f"{d.name}: {ps.remote.name}",
                          lambda name=d.name, c=ps.remote.category, k=ps.remote.key:

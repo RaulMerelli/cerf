@@ -7,7 +7,7 @@ from typing import Callable, Optional
 from bundles import BundleError
 from device_state import format_size
 from github_release import GithubRelease
-from operations import _safe_extract, _stream_download
+from bundle_download import safe_extract, stream_download
 from upgrade_process import UPGRADE_DIR_NAME, UPGRADE_ZIP_NAME, UpgradeError
 
 LogFn = Callable[[str], None]
@@ -35,7 +35,7 @@ def download_upgrade(release: GithubRelease, install_dir: Path,
 
     log(f"Downloading {release.asset_name} {format_size(release.asset_size)}")
     try:
-        _stream_download(release.asset_url, zip_path, "Downloading",
+        stream_download(release.asset_url, zip_path, "Downloading",
                          release.asset_size, progress, None)
     except BundleError as exc:
         raise UpgradeError(f"download failed: {exc}") from exc
@@ -46,7 +46,7 @@ def download_upgrade(release: GithubRelease, install_dir: Path,
     progress("Unpacking", 0, None)
     upgrade_dir.mkdir(parents=True)
     try:
-        _safe_extract(zip_path, upgrade_dir)
+        safe_extract(zip_path, upgrade_dir)
     except (BundleError, OSError) as exc:
         raise UpgradeError(f"unpacking failed: {exc}") from exc
 

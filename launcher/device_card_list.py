@@ -12,7 +12,7 @@ from device_model import (TreeSelection, _board_group_key, _device_sort_key,
                           _device_search_haystack, _os_name_has_version,
                           _table_device_label)
 from preview_tile import PreviewTile
-from supported_devices import board_soc_cpu
+from board_info import board_soc_cpu, board_soc_label
 import ui_theme as theme
 
 
@@ -111,6 +111,10 @@ class DeviceCardList:
             devices, key=lambda d: (_board_group_key(d), _device_sort_key(d)))
         self._refill()
 
+    def select_device(self, name: str) -> None:
+        if name in self._cards:
+            self._set_selected(name)
+
     def update_runtime(self) -> None:
         for card in self._cards.values():
             label, fg = self._status_text(card.device)
@@ -196,6 +200,8 @@ class DeviceCardList:
         return hdr
 
     def _card_title(self, d: DeviceBundle, collide: bool) -> str:
+        if d.meta.name:
+            return d.meta.name
         title = self._os_title(d)
         if collide:
             ce = self._os_ce_version(d)
@@ -236,8 +242,9 @@ class DeviceCardList:
                 parts.append(ce)
         if d.meta.os_year:
             parts.append(str(d.meta.os_year))
-        soc = d.meta.soc_family or ""
-        size = format_size(d.remote.unpacked_size) if d.remote else ""
+        soc = d.meta.soc_family or board_soc_label(d.meta.board_id)
+        size = (format_size(d.remote.unpacked_size) if d.remote
+                else format_size(d.rom_size))
         prefix = "  ·  ".join(parts)
         if soc:
             if prefix:

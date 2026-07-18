@@ -26,12 +26,15 @@ from launch_button import LaunchSplitButton
 from launch_options import LaunchOptionsPanel
 from launcher_operations import OperationsMixin
 from launcher_refresh import RefreshMixin
+from new_device_wizard import NewDeviceWizard
+from user_device_create import UserDeviceSpec
 from operations import BundleManager
 from screen_geometry import fit_geometry
 from preview_tile import PreviewTile
 from status_bar import StatusBar
-from ui_dialogs import (ask_yesno, confirm_rom_license, show_error, show_info,
-                        show_sources_thanks)
+from cerf_user_json import write_user_meta_name
+from ui_dialogs import (ask_text, ask_yesno, confirm_rom_license, show_error,
+                        show_info, show_sources_thanks)
 from ui_large_download import gate_large_bundle
 from ui_scroll import ScrollColumn
 from update_check import UpdateCheck
@@ -93,7 +96,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
     def _build_ui(self) -> None:
         self.status_bar = StatusBar(self)
 
-        self.toolbar = Toolbar(self, on_download=self._open_download_window,
+        self.toolbar = Toolbar(self, on_new=self._open_new_wizard,
                                on_refresh=self._refresh_manifest,
                                on_update_all=self._update_all,
                                on_update_selected=self._update_selected,
@@ -164,10 +167,10 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         self.empty_frame = ttk.Frame(outer)
         empty_center = ttk.Frame(self.empty_frame)
         empty_center.place(relx=0.5, rely=0.5, anchor="center")
-        ttk.Label(empty_center, text="No ROMs yet",
+        ttk.Label(empty_center, text="No devices yet",
                   font=("Segoe UI", 16, "bold")).pack()
-        ttk.Button(empty_center, text="⬇  Download", style="Download.TButton",
-                   command=self._open_download_window).pack(pady=(14, 0))
+        ttk.Button(empty_center, text="＋  New", style="Accent.TButton",
+                   command=self._open_new_wizard).pack(pady=(14, 0))
 
     def _update_empty_state(self) -> None:
         if any(d.is_installed for d in self.tree_panel.devices):
@@ -278,6 +281,26 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         self.tree_panel.retheme()
         self.launch_options.refresh_resolution_state()
 
+    def _open_new_wizard(self) -> None:
+        if self.busy:
+            return
+        NewDeviceWizard(self, resolve_icons_dir(), self.manager.devices_dir,
+                        on_download_roms=self._open_download_window,
+                        on_create=self._create_user_device)
+
+    def _create_user_device(self, spec: UserDeviceSpec) -> None:
+        if self.busy:
+            return
+        self._set_busy(True, f"Creating {spec.name}…")
+        f = self.manager.submit_create_user_device(
+            spec, progress=self._progress_cb, cancel_event=self.cancel_event)
+
+        def done(exc: Optional[BaseException]) -> None:
+            self._after_op(exc, f"Created {spec.name}")
+            if exc is None:
+                self.tree_panel.select_device(spec.name)
+        self._await_future(f, done)
+
     def _open_download_window(self) -> None:
         if self.busy:
             return
@@ -285,12 +308,12 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
                        resolve_icons_dir(), reload_fn=self._reload_download_sources,
                        download_places=self.manager.download_places)
 
-    def _download_queue(self, names: List[str]) -> None:
-        if self.busy or not names:
+    def _download_queue(self, keys: List[str]) -> None:
+        if self.busy or not keys:
             return
-        by_name = {d.name: d for d in self.tree_panel.devices}
-        targets = [by_name[n] for n in names
-                   if n in by_name and not by_name[n].is_installed]
+        by_key = {d.key: d for d in self.tree_panel.devices}
+        targets = [by_key[k] for k in keys
+                   if k in by_key and not by_key[k].is_installed]
         if not targets:
             return
         label = ((targets[0].meta.device_name or targets[0].name)
@@ -304,8 +327,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
             return
         self._set_busy(True, f"Downloading {len(stream)} item(s)…")
         work: List[Tuple[str, Callable[[], Future]]] = [
-            (d.name, lambda name=d.name: self.manager.submit_install(
-                name, progress=self._progress_cb, cancel_event=self.cancel_event))
+            (d.name, lambda dev=d: self.manager.submit_install(
+                dev, progress=self._progress_cb, cancel_event=self.cancel_event))
             for d in stream]
         self._run_sequence(work)
 
@@ -338,6 +361,21 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
                        f"Could not delete the saved state:\n{exc}")
         self._reload_device_list()
 
+    def _rename_device(self, d: DeviceBundle) -> None:
+        """Rename = the cerf-user.json meta.name override. The device
+        directory name never changes (mirrors VMware/VirtualBox)."""
+        current = d.meta.name or (d.meta.device_name or d.name)
+        new = ask_text(self, "Rename device",
+                       "Display name (leave empty to reset):",
+                       initial=current)
+        if new is None:
+            return
+        try:
+            write_user_meta_name(self.manager.devices_dir / d.name, new)
+        except OSError as exc:
+            show_error(self, "Rename failed", str(exc))
+        self._reload_device_list()
+
     def _open_device_folder(self, d: DeviceBundle) -> None:
         try:
             os.startfile(str(self.manager.devices_dir / d.name))
@@ -357,6 +395,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         if saved_state_info(self.manager.devices_dir / d.name) is not None:
             menu.add_command(label="Discard saved state",
                              command=self._discard_state)
+        menu.add_command(label="Rename…",
+                         command=lambda: self._rename_device(d))
         menu.add_command(label="Open device folder",
                          command=lambda: self._open_device_folder(d))
         if d.has_update:

@@ -11,12 +11,17 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from bundle_repositories import (BundleRepository, analytics_url_for,
-                                 manifest_url_for, repository_suffix)
+                                 manifest_url_for)
 
 SUPPORTED_REMOTE_MANIFEST_VERSION = 2
 
 USER_AGENT = "CERF launcher"
-SAFE_BUNDLE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+SAFE_BUNDLE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\- ]*$")
+_WINDOWS_RESERVED_NAMES = (
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
 DEFAULT_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 120
 DOWNLOAD_CHUNK = 1024 * 1024
@@ -92,6 +97,7 @@ class RemotePackage:
 @dataclass(frozen=True)
 class RemoteBundle:
     name: str
+    repo_url: str
     updated_at: str
     archive_path: str
     manifest_url: str
@@ -133,7 +139,16 @@ def _sha256_file(path: Path) -> str:
 
 
 def is_safe_bundle_name(name: str) -> bool:
-    return bool(SAFE_BUNDLE_NAME.fullmatch(name)) and name not in {".", ".."}
+    """True for a name usable verbatim as a directory under devices/: no path
+    separators or traversal, no trailing space/dot (Windows strips them), no
+    reserved device name (CON, COM1, ...)."""
+    if not SAFE_BUNDLE_NAME.fullmatch(name):
+        return False
+    if name.endswith(" ") or name.endswith("."):
+        return False
+    if name.split(".")[0].rstrip(" ").upper() in _WINDOWS_RESERVED_NAMES:
+        return False
+    return name not in {".", ".."}
 
 
 def is_large_download(archive_size: Optional[int]) -> bool:
@@ -211,7 +226,7 @@ def _parse_packages(bundle_name: str, raw, manifest_url: str) -> tuple:
     return tuple(parsed)
 
 
-def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
+def _fetch_repo_bundles(base_url: str) -> List[RemoteBundle]:
     manifest_url = manifest_url_for(base_url)
     fresh_url = _append_query(manifest_url, "cb", str(int(time.time())))
     try:
@@ -230,7 +245,6 @@ def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
     if not isinstance(bundles, list):
         raise BundleError("remote manifest has no bundles list")
 
-    suffix = "" if main else repository_suffix(base_url)
     parsed: List[RemoteBundle] = []
     for item in bundles:
         if not isinstance(item, dict):
@@ -244,9 +258,9 @@ def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
             raise BundleError(f"bundle {name} has no updated_at")
         if not isinstance(archive_path, str) or not archive_path:
             raise BundleError(f"bundle {name} has no archive_path")
-        display = name if main else f"{name}_{suffix}"
         parsed.append(RemoteBundle(
-            name=display,
+            name=name,
+            repo_url=base_url,
             updated_at=updated_at,
             archive_path=archive_path,
             manifest_url=manifest_url,
@@ -254,22 +268,20 @@ def _fetch_repo_bundles(base_url: str, main: bool) -> List[RemoteBundle]:
             archive_size=item.get("archive_size") if isinstance(item.get("archive_size"), int) else None,
             unpacked_size=item.get("unpacked_size") if isinstance(item.get("unpacked_size"), int) else None,
             cerf_json=item.get("cerf_json") if isinstance(item.get("cerf_json"), dict) else None,
-            packages=_parse_packages(display, item.get("additional_packages"), manifest_url),
+            packages=_parse_packages(name, item.get("additional_packages"), manifest_url),
         ))
     return parsed
 
 
-def _fetch_repo_analytics(base_url: str, main: bool) -> dict:
-    """Download one repo's analytics.json and return {display_name: place}.
-    Display names carry the same per-repo suffix _fetch_repo_bundles applies,
-    so the map keys match DeviceBundle.name directly."""
+def _fetch_repo_analytics(base_url: str) -> dict:
+    """Download one repo's analytics.json and return
+    {(repo_url, name): place}."""
     url = _append_query(analytics_url_for(base_url), "cb", str(int(time.time())))
     raw = _fetch_bytes(url)
     data = json.loads(raw.decode("utf-8"))
     per_rom = data.get("per_rom")
     if not isinstance(per_rom, list):
         raise BundleError("analytics.json has no per_rom list")
-    suffix = "" if main else repository_suffix(base_url)
     places: dict = {}
     for entry in per_rom:
         if not isinstance(entry, dict):
@@ -280,13 +292,13 @@ def _fetch_repo_analytics(base_url: str, main: bool) -> dict:
             raise BundleError("analytics.json entry has no name")
         if not isinstance(place, int) or isinstance(place, bool):
             raise BundleError(f"analytics.json entry {name} has no integer place")
-        places[name if main else f"{name}_{suffix}"] = place
+        places[(base_url, name)] = place
     return places
 
 
 def load_analytics(repositories: List[BundleRepository]) -> Optional[dict]:
     """Merge every enabled repo's download-rank analytics into one
-    {display_name: place} map. Returns None when any enabled repo's
+    {(repo_url, name): place} map. Returns None when any enabled repo's
     analytics.json is absent or unparseable - the download-count sort is a
     single ordering over all repos, so one bad source disables it rather than
     mixing ranked and unranked repos."""
@@ -295,7 +307,7 @@ def load_analytics(repositories: List[BundleRepository]) -> Optional[dict]:
         if not repo.enabled:
             continue
         try:
-            merged.update(_fetch_repo_analytics(repo.url, repo.main))
+            merged.update(_fetch_repo_analytics(repo.url))
         except Exception:
             return None
     return merged
@@ -304,16 +316,28 @@ def load_analytics(repositories: List[BundleRepository]) -> Optional[dict]:
 def load_merged_manifest(
         repositories: List[BundleRepository],
 ) -> Tuple[List[RemoteBundle], List[Tuple[str, str]]]:
+    """Fetch every enabled repo's manifest. Per-repo failures are collected
+    into the returned (url, error) list; when NO repo could be fetched at all
+    the first failure is raised so the GUI surfaces it as the refresh error.
+    A manifest-version mismatch always raises - it carries the upgrade
+    notice."""
     all_bundles: List[RemoteBundle] = []
     errors: List[Tuple[str, str]] = []
+    first_exc: Optional[Exception] = None
+    fetched = 0
     for repo in repositories:
         if not repo.enabled:
             continue
         try:
-            all_bundles.extend(_fetch_repo_bundles(repo.url, repo.main))
+            all_bundles.extend(_fetch_repo_bundles(repo.url))
+            fetched += 1
+        except ManifestVersionError:
+            raise
         except Exception as exc:
-            if repo.main:
-                raise
+            if first_exc is None:
+                first_exc = exc
             errors.append((repo.url, str(exc)))
+    if not fetched and first_exc is not None:
+        raise first_exc
     all_bundles.sort(key=lambda b: b.name.lower())
     return all_bundles, errors

@@ -70,8 +70,8 @@ bool SpawnLauncher(const std::wstring& args) {
 
 bool SpawnLauncherFetch(const std::string& device) {
     LOG(Cerf, "spawning launcher to fetch '%s'\n", device.c_str());
-    return SpawnLauncher(L"sync download " + Utf8ToWide(device.c_str())
-                         + L" --run-in-cerf");
+    return SpawnLauncher(L"sync download \"" + Utf8ToWide(device.c_str())
+                         + L"\" --run-in-cerf");
 }
 
 bool SpawnLauncherApp() {
@@ -86,7 +86,7 @@ bool DeviceNotFoundService::ShouldRegister() { return !IsDevicePresent(); }
 bool DeviceNotFoundService::IsDevicePresent() {
     const auto& cfg = emu_.Get<DeviceConfig>();
     if (!cfg.rom_primary.empty() &&
-        FileExists(GetDeviceDir(cfg.device_name) + cfg.rom_primary))
+        FileExists(ResolveDeviceFile(cfg.device_name, cfg.rom_primary)))
         return true;
     if (auto* sf = emu_.TryGet<SecFlash>(); sf && sf->IsPresent()) return true;
     return emu_.TryGet<Imx51NandStore>() != nullptr;

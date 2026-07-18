@@ -108,6 +108,12 @@ def _download_packages_all(manager: BundleManager,
             print()
 
 
+def _install_device(manager: BundleManager, device: DeviceBundle,
+                    cancel: threading.Event) -> str:
+    """Download/update one device; returns the device directory name."""
+    return manager.submit_install(device, _cli_progress, cancel).result()
+
+
 def run_cli(devices_dir: Path, argv: List[str]) -> int:
     parser = argparse.ArgumentParser(prog="launcher.exe sync")
     parser.add_argument("command", choices=(
@@ -150,7 +156,7 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
             for d in targets:
                 _print_source_notice(d)
                 print(f"Updating {d.name}...")
-                manager.submit_install(d.name, _cli_progress, cancel).result()
+                _install_device(manager, d, cancel)
                 print()
             return 0
         if args.command == "download-packages-all":
@@ -164,11 +170,12 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
             return 0
         if args.command in ("download", "update"):
             _print_rom_license_notice(args.bundle)
-            _print_source_notice(_find_device(manager, args.bundle))
-            manager.submit_install(args.bundle, _cli_progress, cancel).result()
+            device = _find_device(manager, args.bundle)
+            _print_source_notice(device)
+            dir_name = _install_device(manager, device, cancel)
             if args.run_in_cerf:
                 print()
-                _run_in_cerf(args.bundle)
+                _run_in_cerf(dir_name)
         elif args.command == "delete":
             manager.submit_delete(args.bundle).result()
         elif args.command in ("download-package", "delete-package"):

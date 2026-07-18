@@ -35,7 +35,6 @@ class SourcesDialog:
         vsb = ttk.Scrollbar(body, orient="vertical", command=tree.yview)
         vsb.grid(row=0, column=1, sticky="ns")
         tree.configure(yscrollcommand=vsb.set)
-        tree.tag_configure("main", foreground=theme.FG_DIM)
         tree.bind("<Button-1>", self._on_click)
         tree.bind("<<TreeviewSelect>>", lambda _e: self._sync_buttons())
         self.tree = tree
@@ -64,18 +63,13 @@ class SourcesDialog:
         self.tree.delete(*self.tree.get_children())
         for r in self._repos:
             glyph = "☑" if r.enabled else "☐"
-            label = r.url + ("  (main)" if r.main else "")
             self.tree.insert("", "end", iid=r.url, text=glyph,
-                             values=(label,),
-                             tags=(("main",) if r.main else ()))
+                             values=(r.url,))
         self._sync_buttons()
 
     def _sync_buttons(self) -> None:
         sel = self.tree.selection()
-        url = sel[0] if sel else None
-        is_main = any(r.url == url and r.main for r in self._repos)
-        self.btn_del.config(
-            state="normal" if (url is not None and not is_main) else "disabled")
+        self.btn_del.config(state="normal" if sel else "disabled")
 
     def _on_click(self, event: tk.Event) -> str:
         region = self.tree.identify("region", event.x, event.y)
@@ -102,7 +96,7 @@ class SourcesDialog:
             show_info(self._dlg, "Already added",
                       "That repository URL is already in the list.")
             return
-        self._repos.append(BundleRepository(url=url, enabled=True, main=False))
+        self._repos.append(BundleRepository(url=url, enabled=True))
         self._reload_table()
 
     def _delete(self) -> None:
@@ -110,8 +104,7 @@ class SourcesDialog:
         if not sel:
             return
         url = sel[0]
-        self._repos = [r for r in self._repos
-                       if not (r.url == url and not r.main)]
+        self._repos = [r for r in self._repos if r.url != url]
         self._reload_table()
 
     def _ok(self) -> None:

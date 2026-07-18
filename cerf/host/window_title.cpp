@@ -16,7 +16,9 @@ std::wstring WindowTitle::Compose() const {
     const DeviceMeta& meta = emu_.Get<DeviceConfig>().meta;
 
     std::vector<std::wstring> parts;
-    if (!meta.device_name.empty())
+    if (!meta.name.empty())
+        parts.push_back(Utf8ToWide(meta.name.c_str()));
+    else if (!meta.device_name.empty())
         parts.push_back(Utf8ToWide(meta.device_name.c_str()));
     const std::string os = OsDisplayLabel(meta);
     if (!os.empty())

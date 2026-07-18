@@ -33,6 +33,15 @@ as icons. Three states per capability:
   * key absent -> the board has no such hardware (icon hidden entirely)
 Recognised keys are the first column of ``FEATURE_SPECS``.
 
+``storage`` names the ROM input the board boots from - what the New-device
+wizard asks the user for. Absent means ``STORAGE_FLAT`` (a flat storage
+container: NK/XIP/NB0/etc, the CERF default). ``STORAGE_SEC_CONTAINER`` is
+the Ford SYNC 2 factory-recovery ``.sec`` package.
+
+``configurable_screen: True`` marks a board whose OAL accepts a configurable
+stock-video screen size (cerf.exe --screen-width/height without guest
+additions). Absent means fixed-LCD.
+
 Supported entries also carry the board's silicon + OS coverage, shown in
 the README table (and available to the launcher):
   * ``soc``               -> a ``Soc`` constant (family + microarchitecture).
@@ -40,72 +49,44 @@ the README table (and available to the launcher):
                              boots in this cerf version.
 """
 
+
 from __future__ import annotations
 
-from typing import Callable, Dict, List, NamedTuple, Optional
-
-
-class OperatingSystem(NamedTuple):
-    name: str  # full display name
-
-
-class Soc(NamedTuple):
-    family: str  # e.g. "Intel SA-1110"
-    arch: str  # e.g. "StrongARM"
-    cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"
-
-
-HANDHELD_PC_2000 = OperatingSystem("Handheld PC 2000")
-POCKET_PC_2000 = OperatingSystem("Pocket PC 2000")
-POCKET_PC_2002 = OperatingSystem("Pocket PC 2002")
-WINDOWS_CE_1 = OperatingSystem("Windows CE 1.0")
-WINDOWS_CE_2 = OperatingSystem("Windows CE 2.0")
-PALM_SIZE_PC = OperatingSystem("Palm-size PC")
-WINDOWS_CE_211 = OperatingSystem("Windows CE 2.11")
-WINDOWS_CE_212 = OperatingSystem("Windows CE 2.12")
-HANDHELD_PC_PRO = OperatingSystem("Handheld PC 3.0 Professional")
-WINDOWS_CE_3 = OperatingSystem("Windows CE 3")
-WINDOWS_CE_NET = OperatingSystem("Windows CE .NET")
-WINDOWS_CE_5 = OperatingSystem("Windows CE 5")
-WINDOWS_CE_6 = OperatingSystem("Windows CE 6")
-WINDOWS_CE_7 = OperatingSystem("Windows CE 7")
-WINDOWS_MOBILE_2003SE = OperatingSystem("WM 2003 SE")
-WINDOWS_MOBILE_5 = OperatingSystem("Windows Mobile 5")
-WINDOWS_MOBILE_6 = OperatingSystem("Windows Mobile 6")
-ZUNE_OS_5 = OperatingSystem("Windows CE 5")
-
-SOC_SA1100 = Soc("Intel SA-1100", "StrongARM", "ARM")
-SOC_SA1110 = Soc("Intel SA-1110", "StrongARM", "ARM")
-SOC_PXA255 = Soc("Intel XScale PXA255", "ARMv5TE", "ARM")
-SOC_ODO = Soc("ARM720T", "ARMv4T", "ARM")
-SOC_OMAP3530 = Soc("TI OMAP 3530", "Cortex-A8", "ARM")
-SOC_IMX31L = Soc("Freescale i.MX31L", "ARM1136", "ARM")
-SOC_IMX51 = Soc("Freescale i.MX51", "Cortex-A8", "ARM")
-SOC_S3C2410 = Soc("Samsung S3C2410", "ARM920T", "ARM")
-SOC_VR5500 = Soc("NEC VR5500", "MIPS IV", "MIPS")
-SOC_VR4102 = Soc("NEC VR4102", "MIPS III", "MIPS")
-SOC_VR4121 = Soc("NEC VR4121", "MIPS III", "MIPS")
-SOC_PR31700 = Soc("Philips PR31700", "MIPS I", "MIPS")
-SOC_PR31500 = Soc("Philips PR31500", "MIPS I", "MIPS")
-
-# Feature icons in display order, shared by the launcher side panel and
-# compile_readme.py. (features key, icon stem, label). The stem names an SVG
-# source under cerf/assets/icons_sources/; the launcher loads <stem>.png under
-# assets/icons (emitted by tools/make_icons.py), the README/website use the SVG.
-FEATURE_SPECS = [
-    ("display", "display", "Display"),
-    ("touch", "stylus", "Touch"),
-    ("mouse", "cursor", "Mouse"),
-    ("keyboard", "keyboard", "Keyboard"),
-    ("suspend", "suspend", "Suspend / Resume"),
-    ("guest_additions", "ga_autoresize", "Guest Additions"),
-    ("sound", "speaker_active", "Sound"),
-    ("mic", "microphone", "Microphone"),
-    ("pcmcia", "pcmcia_enabled", "PCMCIA"),
-    ("network", "internet", "Network"),
-    ("battery", "battery", "Battery"),
-    ("serial", "serial_com", "Serial Port"),
-]
+from board_catalog_schema import (
+    DynamicNote,
+    HANDHELD_PC_2000,
+    HANDHELD_PC_PRO,
+    PALM_SIZE_PC,
+    POCKET_PC_2000,
+    POCKET_PC_2002,
+    SOC_IMX31L,
+    SOC_IMX51,
+    SOC_ODO,
+    SOC_OMAP3530,
+    SOC_PR31500,
+    SOC_PR31700,
+    SOC_PXA255,
+    SOC_S3C2410,
+    SOC_SA1100,
+    SOC_SA1110,
+    SOC_VR4102,
+    SOC_VR4121,
+    SOC_VR5500,
+    STORAGE_SEC_CONTAINER,
+    WINDOWS_CE_1,
+    WINDOWS_CE_2,
+    WINDOWS_CE_211,
+    WINDOWS_CE_212,
+    WINDOWS_CE_3,
+    WINDOWS_CE_5,
+    WINDOWS_CE_6,
+    WINDOWS_CE_7,
+    WINDOWS_CE_NET,
+    WINDOWS_MOBILE_2003SE,
+    WINDOWS_MOBILE_5,
+    WINDOWS_MOBILE_6,
+    ZUNE_OS_5,
+)
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
 GUEST_ADDITIONS_BREAK_ROM = "Do NOT use guest additions - they break the ROM"
@@ -116,6 +97,7 @@ BOARDS_INFORMATION = [
         "name": "Device Emulator",
         "board_id": "devemu",
         "supported": True,
+        "configurable_screen": True,
         "soc": SOC_S3C2410,
         "operating_systems": [
             WINDOWS_CE_6,
@@ -477,6 +459,7 @@ BOARDS_INFORMATION = [
         "name": "Ford SYNC 2",
         "board_id": "ford_sync_2",
         "supported": True,
+        "storage": STORAGE_SEC_CONTAINER,
         "soc": SOC_IMX51,
         "operating_systems": [WINDOWS_CE_6],
         "features": {
@@ -496,116 +479,6 @@ BOARDS_INFORMATION = [
 ]
 
 
-def sort_text(value: object) -> str:
-    """Casefolded, whitespace-collapsed text for ordering/matching."""
-    if not isinstance(value, str):
-        return ""
-    return " ".join(value.casefold().split())
-
-
-def board_sort_key(board_name: object) -> tuple[int, str]:
-    """Board display order shared by the launcher tree and the README table.
-
-    Three tiers: unknown boards (no cerf.json / no board meta) first, the
-    unusual real boards alphabetically in the middle, and the massive
-    official "Device Emulator" group pinned last (board names compare
-    case-insensitively, same as the entry matching here).
-    """
-    board = sort_text(board_name)
-    if not board:
-        tier = 0
-    elif board == "device emulator":
-        tier = 2
-    else:
-        tier = 1
-    return (tier, board)
-
-
-def _board_entry(board_id: str) -> Optional[dict]:
-    if not isinstance(board_id, str) or not board_id.strip():
-        return None
-    key = board_id.strip()
-    for entry in BOARDS_INFORMATION:
-        if entry.get("board_id") == key:
-            return entry
-    return None
-
-
-def board_support_state(board_id: str) -> Optional[bool]:
-    """True/False for a known board_id; None when no entry matches (board_id
-    absent or not in this list -> unsupported)."""
-    entry = _board_entry(board_id)
-    if entry is None:
-        return None
-    return bool(entry.get("supported", False))
-
-
-def board_extra_notes(board_id: str) -> List[str]:
-    """Board-wide quirk notes that extend a ROM's own meta.notes."""
-    entry = _board_entry(board_id)
-    if entry is None:
-        return []
-    notes = entry.get("notes")
-    if not isinstance(notes, list):
-        return []
-    return [n for n in notes if isinstance(n, str) and n.strip()]
-
-
-def board_soc_cpu(board_id: str) -> Optional[str]:
-    """CPU instruction-set family (e.g. "ARM" / "MIPS") for the board's SoC;
-    None when the launcher has no SoC data for it."""
-    entry = _board_entry(board_id)
-    if entry is None:
-        return None
-    soc = entry.get("soc")
-    if soc is None:
-        return None
-    return soc.cpu
-
-
-def board_features(board_id: str) -> dict:
-    """Capability -> bool map for the board; empty when the launcher has no
-    feature data for it (unknown board_id, or no features declared)."""
-    entry = _board_entry(board_id)
-    if entry is None:
-        return {}
-    features = entry.get("features")
-    if not isinstance(features, dict):
-        return {}
-    return {k: bool(v) for k, v in features.items() if isinstance(k, str)}
-
-
-class RomContext(NamedTuple):
-    """What a DYNAMIC_NOTES predicate gets to look at: the selected ROM's
-    cerf.json metadata plus the board's feature map (same shape as
-    ``board_features()``)."""
-
-    os_name: str
-    os_ver_major: int
-    os_ver_minor: int
-    board_id: str
-    features: Dict[str, bool]
-    cpu: str  # CPU instruction-set family, e.g. "ARM" / "MIPS"; "" when unknown
-
-    def os_contains(self, fragment: str) -> bool:
-        return sort_text(fragment) in sort_text(self.os_name)
-
-    def board_is(self, board_id: str) -> bool:
-        return self.board_id == board_id
-
-    def cpu_is(self, name: str) -> bool:
-        return sort_text(name) == sort_text(self.cpu)
-
-    def has_feature(self, key: str) -> bool:
-        # True only when present AND working; False = present-but-unsupported.
-        return self.features.get(key) is True
-
-
-class DynamicNote(NamedTuple):
-    applies: Callable[[RomContext], bool]
-    note: str
-
-
 DYNAMIC_NOTES = [
     DynamicNote(
         applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
@@ -616,22 +489,3 @@ DYNAMIC_NOTES = [
         note="Guest additions break or cause visual artifacts on Smartphone OS.",
     ),
 ]
-
-
-def dynamic_extra_notes(
-    os_name: str,
-    os_ver_major: int,
-    os_ver_minor: int,
-    board_id: str,
-) -> List[str]:
-    """Predicate-gated additional notes for one selected ROM; extend the
-    ROM's meta.notes and board_extra_notes() in the side panel."""
-    rom = RomContext(
-        os_name=os_name,
-        os_ver_major=os_ver_major,
-        os_ver_minor=os_ver_minor,
-        board_id=board_id,
-        features=board_features(board_id),
-        cpu=board_soc_cpu(board_id) or "",
-    )
-    return [entry.note for entry in DYNAMIC_NOTES if entry.applies(rom)]

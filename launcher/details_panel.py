@@ -14,8 +14,8 @@ from device_state import (
     PackageStatus,
     format_size,
 )
-from supported_devices import (
-    FEATURE_SPECS,
+from board_catalog_schema import FEATURE_SPECS
+from board_info import (
     board_extra_notes,
     board_features,
     dynamic_extra_notes,

@@ -6,6 +6,7 @@
 #include <vector>
 
 struct DeviceMeta {
+    std::string name;
     std::string device_name;
     std::string board_name;
     std::string soc_family;

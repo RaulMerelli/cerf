@@ -10,7 +10,7 @@ ARTICLES_URL = "https://cerf.cx/articles/"
 
 
 class Toolbar:
-    def __init__(self, parent: tk.Misc, on_download: Callable[[], None],
+    def __init__(self, parent: tk.Misc, on_new: Callable[[], None],
                  on_refresh: Callable[[], None],
                  on_update_all: Callable[[], None],
                  on_update_selected: Callable[[], None],
@@ -21,10 +21,10 @@ class Toolbar:
         self.btn_help = ttk.Button(bar, text="Help",
                                    command=lambda: webbrowser.open(ARTICLES_URL))
         self.btn_help.pack(side="right")
-        self.btn_download = ttk.Button(bar, text="⬇  Download",
-                                       style="Download.TButton",
-                                       command=on_download)
-        self.btn_download.pack(side="left")
+        self.btn_new = ttk.Button(bar, text="＋  New",
+                                  style="Accent.TButton",
+                                  command=on_new)
+        self.btn_new.pack(side="left")
         self.btn_refresh = ttk.Button(bar, text="Refresh", command=on_refresh)
         self.btn_refresh.pack(side="left", padx=(8, 0))
         self.btn_update_all = ttk.Button(bar, text="Update all",
@@ -45,7 +45,7 @@ class Toolbar:
 
     def set_busy(self, busy: bool) -> None:
         state = "disabled" if busy else "normal"
-        for b in (self.btn_download, self.btn_refresh, self.btn_update_all,
+        for b in (self.btn_new, self.btn_refresh, self.btn_update_all,
                   self.btn_update, self.btn_remove, self.btn_discard):
             b.config(state=state)
 

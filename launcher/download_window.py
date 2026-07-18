@@ -10,7 +10,7 @@ from device_model import (GROUP_IID_PREFIX, _device_group_key,
                           _device_group_name, _device_sort_key,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
-from supported_devices import board_soc_cpu, board_support_state
+from board_info import board_soc_cpu, board_support_state
 from screen_geometry import fit_geometry
 from sources_dialog import SourcesDialog
 import ui_theme as theme
@@ -29,7 +29,7 @@ class DownloadWindow:
                  on_download: Callable[[List[str]], None],
                  icons_dir: Optional[Path] = None,
                  reload_fn: Optional[ReloadFn] = None,
-                 download_places: Optional[Dict[str, int]] = None) -> None:
+                 download_places: Optional[dict] = None) -> None:
         self._on_download = on_download
         self._icons_dir = icons_dir
         self._reload_fn = reload_fn
@@ -134,10 +134,10 @@ class DownloadWindow:
         self._reload_fn(self._reloaded)
 
     def _reloaded(self, devices: List[DeviceBundle], errors: list,
-                  places: Optional[Dict[str, int]]) -> None:
+                  places: Optional[dict]) -> None:
         self._places = places
         self._candidates = self._compute_candidates(devices)
-        self._checked.intersection_update(d.name for d in self._candidates)
+        self._checked.intersection_update(d.key for d in self._candidates)
         self.btn_sources.config(state="normal")
         self._sync_sort_availability()
         self._refill()
@@ -154,8 +154,13 @@ class DownloadWindow:
             return "downloads"
         return "regular"
 
+    def _place(self, d: DeviceBundle) -> Optional[int]:
+        if self._places is None or d.remote is None:
+            return None
+        return self._places.get((d.remote.repo_url, d.remote.name))
+
     def _place_key(self, d: DeviceBundle) -> tuple:
-        place = self._places.get(d.name) if self._places else None
+        place = self._place(d)
         return (place is None, place if place is not None else 0,
                 _device_sort_key(d))
 
@@ -193,7 +198,7 @@ class DownloadWindow:
         if self._sort_mode() == "downloads":
             group_rank: Dict[str, int] = {}
             for d in visible:
-                place = self._places.get(d.name)
+                place = self._place(d)
                 prev = group_rank.get(_device_group_name(d))
                 if place is not None and (prev is None or place < prev):
                     group_rank[_device_group_name(d)] = place
@@ -215,28 +220,28 @@ class DownloadWindow:
                 self._group_members[gid] = []
                 self._group_labels[gid] = _table_device_label(d)
             self._insert_device_row(gid, d)
-            self._group_members[gid].append(d.name)
-            self._device_group[d.name] = gid
+            self._group_members[gid].append(d.key)
+            self._device_group[d.key] = gid
         for gid in self._group_members:
             self._refresh_group_text(gid)
         self._update_summary()
 
     def _insert_device_row(self, parent: str, d: DeviceBundle) -> None:
         tree = self.tree
-        self._sizes[d.name] = d.remote.archive_size or 0
+        self._sizes[d.key] = d.remote.archive_size or 0
         soc = d.meta.soc_family or ""
-        tree.insert(parent, "end", iid=d.name, open=bool(d.meta.os_notes),
-                    text=self._check_glyph(d.name) + _table_os_label(d),
+        tree.insert(parent, "end", iid=d.key, open=bool(d.meta.os_notes),
+                    text=self._check_glyph(d.key) + _table_os_label(d),
                     values=(soc, format_size(d.remote.archive_size) or ""))
         cpu = board_soc_cpu(d.meta.board_id) if soc else ""
         if cpu:
             badge = theme.load_badge(self._icons_dir, cpu, self._badge_cache)
             if badge is not None:
-                self._set_soc_badge(d.name, cpu, badge)
-        self._payload[d.name] = d
+                self._set_soc_badge(d.key, cpu, badge)
+        self._payload[d.key] = d
         for i, note in enumerate(d.meta.os_notes):
-            tree.insert(d.name, "end",
-                        iid=f"{_OSNOTE_PREFIX}{d.name}::{i}",
+            tree.insert(d.key, "end",
+                        iid=f"{_OSNOTE_PREFIX}{d.key}::{i}",
                         text=f"↳ {note}", values=("", ""),
                         tags=("osnote",))
 
@@ -296,7 +301,7 @@ class DownloadWindow:
         self.btn_download.config(state=("normal" if n else "disabled"))
 
     def _confirm(self) -> None:
-        names = [d.name for d in self._candidates if d.name in self._checked]
+        keys = [d.key for d in self._candidates if d.key in self._checked]
         self._dlg.destroy()
-        if names:
-            self._on_download(names)
+        if keys:
+            self._on_download(keys)

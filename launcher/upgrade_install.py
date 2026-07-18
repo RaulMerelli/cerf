@@ -4,11 +4,42 @@ import shutil
 from pathlib import Path
 from typing import Callable, List
 
+from bundle_repositories import MAIN_REPOSITORY_URL
+from bundles import BundleError, is_safe_bundle_name
 from cerf_json_merge import migrate_cerf_json
+from cerf_user_json import (LauncherLink, read_launcher_link,
+                            write_launcher_link)
+from device_state import load_local_manifest
 from upgrade_process import GLOBAL_CONFIG_NAME, UpgradeError
 
 LogFn = Callable[[str], None]
 RetryFn = Callable[[str, str], bool]
+
+
+def migrate_device_links(devices_dir: Path, log: LogFn) -> None:
+    """Pre-link-era installs: a device recorded in devices/manifest.json was
+    downloaded by the launcher, and the main repository was the only source
+    that existed before the cerf-user.json launcher block - so every recorded
+    directory without a link block is linked to the main repository under its
+    own name. Wizard/hand-made devices are not in the manifest and stay
+    untouched."""
+    try:
+        installed = load_local_manifest(devices_dir / "manifest.json")
+    except BundleError as exc:
+        log(f"  device-link migration skipped: {exc}")
+        return
+    for dir_name in installed:
+        device_dir = devices_dir / dir_name
+        if not device_dir.is_dir() or not is_safe_bundle_name(dir_name):
+            continue
+        if read_launcher_link(device_dir) is not None:
+            continue
+        log(f"  linking devices/{dir_name} to the main repository")
+        try:
+            write_launcher_link(
+                device_dir, LauncherLink(MAIN_REPOSITORY_URL, dir_name))
+        except OSError as exc:
+            log(f"  devices/{dir_name}: link not written ({exc})")
 
 
 def _payload_files(upgrade_dir: Path) -> List[Path]:
@@ -54,4 +85,7 @@ def install_upgrade(upgrade_dir: Path, install_dir: Path, log: LogFn,
                              f"Retry?"):
                 raise UpgradeError(
                     f"migrating {GLOBAL_CONFIG_NAME} was cancelled") from exc
+
+    log("Migrating device repository links")
+    migrate_device_links(install_dir / "devices", log)
     log("Installation complete")

@@ -31,7 +31,8 @@ public:
     void OnReady() override {
         const auto& cfg = emu_.Get<DeviceConfig>();
         if (!cfg.rom_eeprom.empty()) {
-            const std::string path = GetDeviceDir(cfg.device_name) + cfg.rom_eeprom;
+            const std::string path = ResolveDeviceFile(cfg.device_name,
+                                                       cfg.rom_eeprom);
             std::ifstream f(path, std::ios::binary | std::ios::ate);
             if (f) {
                 const std::streamsize n = f.tellg();

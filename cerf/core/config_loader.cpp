@@ -55,24 +55,37 @@ int ReadOptInt(const json& obj, const char* key,
     return v.get<int>();
 }
 
+void SetMetaString(std::string& field, const json& obj, const char* key,
+                   const std::string& path, const std::string& ctx) {
+    std::string v = ReadOptString(obj, key, path, ctx);
+    if (!v.empty()) field = std::move(v);
+}
+
+void SetMetaInt(int& field, const json& obj, const char* key,
+                const std::string& path, const std::string& ctx) {
+    int v = ReadOptInt(obj, key, path, ctx);
+    if (v) field = v;
+}
+
 void LoadMeta(const json& root, DeviceMeta& meta, const std::string& path) {
     if (!root.contains("meta")) return;
     const auto& m = root["meta"];
     if (!m.is_object())
         Fatal(path, "'meta' must be an object");
 
-    meta.device_name = ReadOptString(m, "device_name", path, "meta");
-    meta.board_name  = ReadOptString(m, "board_name",  path, "meta");
-    meta.soc_family  = ReadOptString(m, "soc_family",  path, "meta");
-    meta.device_year = ReadOptInt   (m, "device_year", path, "meta");
+    SetMetaString(meta.name,        m, "name",        path, "meta");
+    SetMetaString(meta.device_name, m, "device_name", path, "meta");
+    SetMetaString(meta.board_name,  m, "board_name",  path, "meta");
+    SetMetaString(meta.soc_family,  m, "soc_family",  path, "meta");
+    SetMetaInt   (meta.device_year, m, "device_year", path, "meta");
 
     if (m.contains("os")) {
         const auto& o = m["os"];
         if (!o.is_object())
             Fatal(path, "'meta.os' must be an object");
-        meta.os_name      = ReadOptString(o, "name",      path, "meta.os");
-        meta.os_ver_major = ReadOptInt   (o, "ver_major", path, "meta.os");
-        meta.os_ver_minor = ReadOptInt   (o, "ver_minor", path, "meta.os");
+        SetMetaString(meta.os_name,      o, "name",      path, "meta.os");
+        SetMetaInt   (meta.os_ver_major, o, "ver_major", path, "meta.os");
+        SetMetaInt   (meta.os_ver_minor, o, "ver_minor", path, "meta.os");
     }
 }
 

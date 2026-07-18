@@ -35,13 +35,15 @@ from pathlib import Path
 
 DEFAULT_SIZES = [16, 20, 24, 32, 48, 64, 256]
 LAUNCHER_SIZE = 32  # rendered 1:1 at the side-panel display size
+WIZARD_SIZE = 64    # New-device wizard pivot buttons
+WIZARD_STEMS = ("new_device", "download")
 
 REPO = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO / "cerf" / "assets" / "icons_sources"
 ICO_DIR = REPO / "cerf" / "assets"
 LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 
-TARGETS = ("ico", "launcher", "badges")
+TARGETS = ("ico", "launcher", "wizard", "badges")
 
 
 def render_image(svg_path, size):
@@ -172,7 +174,7 @@ def resolve_sources(names, src_dir):
 
 def launcher_stems():
     sys.path.insert(0, str(REPO / "launcher"))
-    from supported_devices import FEATURE_SPECS
+    from board_catalog_schema import FEATURE_SPECS
     return sorted({stem for _key, stem, _label in FEATURE_SPECS})
 
 
@@ -180,6 +182,8 @@ def launcher_stems():
 
 def build_icos(names, sizes):
     svgs = resolve_sources(names, SRC_DIR)
+    if not names:
+        svgs = [s for s in svgs if s.stem not in WIZARD_STEMS]
     if not svgs:
         sys.exit(f"no .svg sources in {SRC_DIR}")
     ICO_DIR.mkdir(parents=True, exist_ok=True)
@@ -210,6 +214,22 @@ def build_launcher_pngs(names):
         write_if_changed(out_u, buf.getvalue())
         print(f"{svg.name} -> {out.relative_to(REPO)}, "
               f"{out_u.name}  ({LAUNCHER_SIZE}x{LAUNCHER_SIZE})")
+
+
+def build_wizard_pngs(names):
+    stems = list(WIZARD_STEMS)
+    if names:
+        wanted = {Path(n).stem for n in names}
+        stems = [s for s in stems if s in wanted]
+    LAUNCHER_DIR.mkdir(parents=True, exist_ok=True)
+    for stem in stems:
+        svg = SRC_DIR / f"{stem}.svg"
+        if not svg.exists():
+            sys.exit(f"source not found: {svg}")
+        out = LAUNCHER_DIR / f"{stem}.png"
+        write_if_changed(out, render_png(svg, WIZARD_SIZE))
+        print(f"{svg.name} -> {out.relative_to(REPO)}  "
+              f"({WIZARD_SIZE}x{WIZARD_SIZE})")
 
 
 # Badges have no SVG source: they are text-in-a-box, sized to the widest label.
@@ -312,6 +332,8 @@ def main():
         build_icos(args.names, sizes)
     if "launcher" in args.targets:
         build_launcher_pngs(args.names)
+    if "wizard" in args.targets:
+        build_wizard_pngs(args.names)
     if "badges" in args.targets and not args.names:
         build_badges()
 
