@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.6 pre-alpha
+# **CE Runtime Foundation** v6.7 pre-alpha
 
 <p align="center">
   <a href="https://cerf.cx">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.6) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.7) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
 
@@ -257,6 +257,14 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+      <td>v6.7</td>
+      <td>TBA</td>
+      <td>
+        <p><b>📝 Changes</b><br/>
+          ...</p>
+      </td>
+    </tr>
+    <tr>
       <td>v6.6</td>
       <td>18 Jul 2026</td>
       <td>
@@ -321,23 +329,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Fixed a crash on startup on every Windows older than 10 1809 (dark-mode init)</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 launcher_vista.exe: the launcher for Windows Vista and newer</p>
-      </td>
-    </tr>
-    <tr>
-      <td>v6.1</td>
-      <td>12 Jul 2026</td>
-      <td>
-        <p><b>📱 Devices</b><br/>
-          🆕 Nino 300 support (Palm-size PC)<br/>
-          🆕 Philips Velo 1 support (Windows CE 1.0)<br/>
-          🆕 NEC MP700: received built-in serial functionality</p>
-        <p><b>💿 Emulator</b><br/>
-          🆕 Built-in serial support<br/>
-          ✅ Serial forwarder bugs fixed, ActiveSync now works</p>
-        <p><b>🚀 Launcher</b><br/>
-          🆕 Full upgrade routine - click a button to upgrade your installation</p>
-        <p><b>🌐 Website</b><br/>
-          🆕 https://cerf.cx - the official website with guides</p>
       </td>
     </tr>
     <tr>
