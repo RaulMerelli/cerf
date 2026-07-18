@@ -258,14 +258,14 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
       <td>v6.6</td>
-      <td>TBA</td>
+      <td>18 Jul 2026</td>
       <td>
         <p><b>📱 Devices</b><br/>
           ✅ Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs</p>
         <p><b>💿 Emulator</b><br/>
-          🆕 Device names with spaces and absolute rom.* paths in cerf.json are now supported</p>
+          ✅ Device names with spaces and absolute rom.* paths in cerf.json are now supported</p>
         <p><b>🚀 Launcher</b><br/>
-          🆕 <b>New-device wizard</b>: create a device from your own ROM dump - pick a board, name it, point at the ROM (copied into the device directory or referenced by absolute path)<br/>
+          🆕 <b>New-device wizard</b>: create a device profile from your local ROM dump<br/>
           🆕 Rename a device from its right-click menu</p>
       </td>
     </tr>
