@@ -2,7 +2,7 @@
 #
 # Concatenates the mandatory CLAUDE.md subdoc set into a single system prompt
 # and hands it to `claude`, so the agent can't "skip reading the reference
-# pages" — the reference pages are already in its system prompt.
+# pages" - the reference pages are already in its system prompt.
 #
 # Format (matches the spec in the original task):
 #   <file[0].content>                  # first entry is the system-prompt base (no header)
@@ -15,7 +15,7 @@
 #   ...
 #
 # CLAUDE.md always comes first. Add new mandatory subdocs by appending to
-# $files below — priority is top-down.
+# $files below - priority is top-down.
 #
 # Memory watchdog: claude.exe occasionally leaks. A background runspace polls
 # its working set every $PollSeconds and force-kills it if it exceeds
@@ -24,7 +24,7 @@
 #
 # clangd watchdog: a second runspace sweeps ALL clangd.exe instances every
 # $PollSeconds and force-kills any whose private bytes exceed
-# $ClangdMemoryLimitGB. No prompt, no restart — the editor respawns clangd
+# $ClangdMemoryLimitGB. No prompt, no restart - the editor respawns clangd
 # on demand.
 
 # Parse our own flags out of $args manually instead of using a param() block.
@@ -91,11 +91,12 @@ if (-not (Test-Path -LiteralPath $gateFile)) {
 }
 
 # Ordered list of mandatory documents. Matches CLAUDE.md's "Reference Pages"
-# section (the MANDATORY bullets — the lazy-read set is intentionally omitted).
+# section (the MANDATORY bullets - the lazy-read set is intentionally omitted).
 $files = @(
     @{ Name = $null;                                 Path = 'CLAUDE.md' },
     @{ Name = 'README_SOURCE.md';                    Path = 'README_SOURCE.md' },
     @{ Name = 'agent_docs/workflow.md';              Path = 'agent_docs\workflow.md' },
+    @{ Name = 'agent_docs/workflow_examples.md';     Path = 'agent_docs\workflow_examples.md' },
     @{ Name = 'agent_docs/subsystems.md';            Path = 'agent_docs\subsystems.md' },
     @{ Name = 'agent_docs/boot_loaders.md';          Path = 'agent_docs\boot_loaders.md' },
     @{ Name = 'agent_docs/rom_acceptance.md';        Path = 'agent_docs\rom_acceptance.md' },
@@ -121,7 +122,7 @@ do {
         }
         # Must use .NET ReadAllText with explicit UTF-8, NOT Get-Content -Raw.
         # Windows PowerShell 5.1's Get-Content defaults to the legacy ANSI
-        # codepage and mis-decodes UTF-8-without-BOM source files — a single
+        # codepage and mis-decodes UTF-8-without-BOM source files - a single
         # em-dash ends up as three garbage codepoints in the system prompt.
         $content = [System.IO.File]::ReadAllText($fullPath, [System.Text.Encoding]::UTF8)
         if ($null -eq $entry.Name) {
@@ -136,8 +137,8 @@ do {
 
     # Replace the %USE_PWD_TO_FIND_OUT_IF_YOU_READ_THIS% tag in CLAUDE.md with
     # the project root (this script's own directory). If this script didn't run
-    # — e.g. the user launched `claude --system-prompt-file CLAUDE.md` directly
-    # — the tag stays literal in the prompt, which is itself a hint to the
+    # - e.g. the user launched `claude --system-prompt-file CLAUDE.md` directly
+    # - the tag stays literal in the prompt, which is itself a hint to the
     # agent that `pwd` is the authoritative source for the project root.
     $combined = $combined.Replace(
         '%USE_PWD_TO_FIND_OUT_IF_YOU_READ_THIS%',
@@ -171,7 +172,7 @@ do {
 
     # Snapshot pre-existing claude.exe PIDs HERE in the parent (before the
     # runspace starts). Avoids any race between runspace startup and `&
-    # claude` spawning — anything that appears later is "ours."
+    # claude` spawning - anything that appears later is "ours."
     $preExistingPids = @{}
     Get-Process -Name claude -ErrorAction SilentlyContinue | ForEach-Object {
         $preExistingPids[$_.Id] = $true
@@ -191,7 +192,7 @@ do {
     $ps = [powershell]::Create()
     $ps.Runspace = $rs
     [void]$ps.AddScript({
-        # Diagnostic log — read %TEMP%\cerf_watchdog.log post-mortem if the
+        # Diagnostic log - read %TEMP%\cerf_watchdog.log post-mortem if the
         # watchdog didn't fire as expected. Writes can fail silently under
         # extreme memory pressure; that's fine, the kill path is what matters.
         function Log([string]$msg) {
@@ -205,7 +206,7 @@ do {
         Log "preExisting claude.exe pids: $(($preExistingPids.Keys | Sort-Object) -join ',')"
 
         # Snapshot-diff: any claude.exe that wasn't running pre-launch is ours.
-        # Robust against `claude` being a .cmd/node shim — we don't need to be
+        # Robust against `claude` being a .cmd/node shim - we don't need to be
         # claude.exe's direct parent. 30 s timeout in case claude never starts.
         $targetPid = $null
         $deadline  = (Get-Date).AddSeconds(30)
@@ -250,7 +251,7 @@ do {
     $async = $ps.BeginInvoke()
 
     # clangd.exe watchdog. Unlike the claude watchdog there is no single target
-    # pid — every clangd.exe on the machine is fair game, and the sweep runs
+    # pid - every clangd.exe on the machine is fair game, and the sweep runs
     # for the whole claude session (clangd instances come and go as editors
     # restart them). Same private-bytes metric as above.
     $rsClangd = [runspacefactory]::CreateRunspace()
@@ -294,7 +295,7 @@ do {
     } finally {
         # Monitor exits on its own when claude.exe is gone. Stop+dispose to
         # be safe in case it's still in Start-Sleep. The clangd sweep loops
-        # forever by design — Stop() is its only exit path.
+        # forever by design - Stop() is its only exit path.
         try { $ps.Stop()          } catch {}
         try { $ps.Dispose()       } catch {}
         try { $rs.Dispose()       } catch {}
@@ -305,7 +306,7 @@ do {
     }
 
     if ($monitorState.Killed) {
-        # Best-effort terminal reset — claude leaves the console in alt-screen
+        # Best-effort terminal reset - claude leaves the console in alt-screen
         # raw mode when killed mid-run. Leave alt screen, show cursor, reset SGR.
         # `e is a PS 6+ escape; this script must work on Windows PowerShell 5.1.
         $esc = [char]27

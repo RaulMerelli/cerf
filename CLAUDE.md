@@ -39,6 +39,7 @@ The following pages are authoritative project knowledge; their full contents are
 
 - **[README.md](README.md)** - project overview, build & run.
 - **[agent_docs/workflow.md](agent_docs/workflow.md)** - how to investigate and work.
+- **[agent_docs/workflow_examples.md](agent_docs/workflow_examples.md)** - proven investigation recipes.
 - **[agent_docs/subsystems.md](agent_docs/subsystems.md)** - what CERF owns.
 - **[agent_docs/jit.md](agent_docs/jit.md)** - the JIT.
 - **[agent_docs/rules.md](agent_docs/rules.md)** - project rules.
