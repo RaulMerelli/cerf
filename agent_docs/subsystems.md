@@ -134,6 +134,14 @@ directory. Splitting one impl's pieces across multiple trees (chip
 pieces in board dir, board pieces in chip dir) is the wrong axis and is
 itself the tech-debt shape this layout exists to prevent.
 
+**Place code by what the behavior IS, not by which file is safe to
+touch.** A property identical across every board on a core (instruction
+semantics, clock / power behavior, MMU / exception behavior) is a
+CPU-arch / SoC fact and belongs in the SoC / CPU / JIT layer even when
+that means editing the most fragile shared code; pushing it into a
+board-local carve-out to avoid the shared file - and calling that
+"faithful" or "minimal" - is architecture destruction, not faithfulness.
+
 - `cerf/socs/`, `cerf/boards/`, `cerf/peripherals/`
 
 ## PCMCIA
