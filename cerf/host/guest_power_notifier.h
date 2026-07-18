@@ -17,9 +17,6 @@ public:
        the rebooted guest's video brings the Framebuffer tab back automatically. */
     void NotifyReboot();
 
-    /* Guest woke from deep sleep: banner "RESUMING", re-arm the framebuffer
-       auto-switch so the resumed guest's video returns to the Framebuffer tab,
-       and restart the boot animation with the resume label. */
     void NotifyResume();
 
     /* Hard reset executed: volatile RAM wiped. Follows the NotifyReboot the
@@ -28,7 +25,4 @@ public:
 
 private:
     void Banner(const char* line);
-    /* Shared reboot/resume screen handling (banner + framebuffer re-arm + boot-
-       animation restart); resuming picks the RESUMING vs REBOOTING wording. */
-    void Relaunch(const char* line, bool resuming);
 };

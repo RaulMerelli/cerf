@@ -35,37 +35,26 @@ public:
 
     bool Finished() const { return phase_ == Phase::Finished; }
 
-    /* Any thread. Restart the animation from the text fade-in (CERF logo stays
-       held). resuming picks the label: "Resuming..." (deep-sleep wake) vs
-       "Restarting..." (guest reboot). */
-    void Restart(bool resuming = false);
+    void Restart();
 
     /* Any thread. The framebuffer tab has taken over; finish the animation and
        switch the held label to "Switched to LCD". */
     void OnFramebufferLatched();
 
-    /* UI thread. IsResuming: resume screen up, framebuffer not yet latched.
-       SetResumeStalled: flip the resume hint to a blank-framebuffer warning. */
-    bool IsResuming() const;
-    void SetResumeStalled();
-
     bool HitTestHwLine(int x, int y) const;
 
 private:
     enum class Phase { CerfFadeIn, CerfHold, TextFadeIn, TextHold, Finished };
-    enum class LabelMode { Starting, Restarting, Resuming };
+    enum class LabelMode { Starting, Restarting };
 
-    /* UI thread. Progress the state machine to wall-clock `now_ms` and consume
-       any pending cross-thread requests (restart / framebuffer-latch). */
     void         Advance(uint64_t now_ms);
     void         EnsureLogosLoaded();
     void         EnsureFonts();
     std::wstring CurrentLabelText() const;
-    const wchar_t* CurrentDisclaimerText() const;
     void DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
                        float logo_opacity,
                        bool show_label, const std::wstring& label, float text_opacity,
-                       bool show_disclaimer, bool cerf_native_size = false);
+                       bool cerf_native_size = false);
     void DrawAnimation(HDC dc, uint32_t width, uint32_t height);   /* live frame */
     void DrawHeldFinal(HDC dc, uint32_t width, uint32_t height);   /* finished */
     void DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height);
@@ -86,10 +75,8 @@ private:
     float     cur_op_       = 0.0f;
     LabelMode label_mode_   = LabelMode::Starting;
     bool      fb_latched_   = false;
-    bool      resume_stalled_ = false;
 
     /* Cross-thread requests, consumed at the top of Advance. */
     std::atomic<bool> restart_req_{false};
-    std::atomic<bool> restart_resuming_{false};  /* label: Resuming vs Restarting */
     std::atomic<bool> fb_latched_req_{false};
 };

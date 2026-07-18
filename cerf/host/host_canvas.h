@@ -49,6 +49,9 @@ public:
        first frame, so a guest reboot returns to Framebuffer when video resumes. */
     void RearmFramebufferAutoSwitch();
 
+    void RememberTabForResume();
+    void RestoreTabForResume();
+
     bool Antialias() const     { return canvas_.Antialias(); }
     void SetAntialias(bool on) { canvas_.SetAntialias(on); }
 
@@ -80,9 +83,8 @@ private:
     bool user_picked_view_ = false;
     bool latched_once_     = false;
 
-    uint32_t resume_nudge_start_ms_ = 0;
-    uint32_t resume_nudge_last_ms_  = 0;
-    bool     resume_nudge_warned_   = false;
+    Tab  resume_tab_       = Tab::Boot;
+    bool have_resume_tab_  = false;
 
     PresenterCanvas canvas_{nullptr, this};
 };

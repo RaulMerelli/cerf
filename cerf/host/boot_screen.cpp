@@ -34,11 +34,6 @@ constexpr int      kDisclaimerFontPx = 12;
 constexpr int      kMargin           = 8;
 constexpr int      kBootBarPx        = 16;
 constexpr int      kHwLineHeightPx   = kDisclaimerFontPx + 4;
-const wchar_t*     kResumeHint =
-    L"If nothing happens, try View -> Framebuffer and do some input - maybe screen is dimmed";
-const wchar_t*     kResumeStalledHint =
-    L"WARNING: framebuffer blank for 10s - the guest may have hung. "
-    L"Try View -> Framebuffer and send input if the screen is only dimmed.";
 
 }  /* namespace */
 
@@ -89,34 +84,21 @@ void BootScreen::EnsureFonts() {
 
 std::wstring BootScreen::CurrentLabelText() const {
     if (fb_latched_)                          return L"LCD is rendering.";
-    if (label_mode_ == LabelMode::Resuming)   return L"Resuming...";
     if (label_mode_ == LabelMode::Restarting) return L"Rebooting...";
     return L"Booting " + short_name_ + L"...";
 }
-
-const wchar_t* BootScreen::CurrentDisclaimerText() const {
-    return resume_stalled_ ? kResumeStalledHint : kResumeHint;
-}
-
-bool BootScreen::IsResuming() const {
-    return label_mode_ == LabelMode::Resuming && !fb_latched_;
-}
-
-void BootScreen::SetResumeStalled() { resume_stalled_ = true; }
 
 void BootScreen::Advance(uint64_t now) {
     if (!started_) { started_ = true; phase_ = Phase::CerfFadeIn; phase_start_ = now; }
 
     if (restart_req_.exchange(false)) {
-        label_mode_  = restart_resuming_.load(std::memory_order_acquire)
-                           ? LabelMode::Resuming : LabelMode::Restarting;
+        label_mode_  = LabelMode::Restarting;
         fb_latched_  = false;
         /* Drop a latch request the previous session left pending (Advance stops
            once the framebuffer tab takes over, so it was never consumed); else
            it fires this same Advance and flips the fresh label to "Switched to
            LCD". The resumed guest's first frame re-latches later. */
         fb_latched_req_.store(false, std::memory_order_release);
-        resume_stalled_ = false;
         phase_       = Phase::TextFadeIn;
         phase_start_ = now;
     }
@@ -152,7 +134,7 @@ void BootScreen::Advance(uint64_t now) {
 void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
                                float logo_opacity,
                                bool show_label, const std::wstring& label, float text_opacity,
-                               bool show_disclaimer, bool cerf_native_size) {
+                               bool cerf_native_size) {
     EnsureLogosLoaded();
     logo_opacity = std::clamp(logo_opacity, 0.0f, 1.0f);
     text_opacity = std::clamp(text_opacity, 0.0f, 1.0f);
@@ -197,66 +179,37 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
                     Gdiplus::UnitPixel, &ia);
     }   /* g flushes to the DC on scope exit, before the GDI text below */
 
-    if (!show_label && !show_disclaimer) return;
+    if (!show_label) return;
 
     EnsureFonts();
+    if (!label_font_) return;
+
     const int v = (int)(255.0f * text_opacity);
     SetBkMode(dc, TRANSPARENT);
 
-    /* Lay the disclaimer out first (bottom-anchored, above the boot bar and the
-       hw status line) so the label can be kept above it on short panels
-       (e.g. 640x240). */
-    int disclaimer_top = (int)height;   /* sentinel: nothing below the label */
-    RECT disc_rect{};
-    if (show_disclaimer && disclaimer_font_) {
-        HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
-        RECT calc{ kMargin, 0, (int)width - kMargin, 0 };
-        DrawTextW(dc, CurrentDisclaimerText(), -1, &calc,
-                  DT_CENTER | DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
-        const int dh     = calc.bottom - calc.top;
-        const int bottom = (int)height - kBootBarPx - kHwLineHeightPx - 6;
-        disclaimer_top = bottom - dh;
-        disc_rect = RECT{ kMargin, disclaimer_top, (int)width - kMargin, bottom };
-        SelectObject(dc, old);
-    }
-
-    if (show_label && label_font_) {
-        HFONT old = (HFONT)SelectObject(dc, label_font_);
-        SetTextColor(dc, RGB(v, v, v));
-        const int logo_bottom = cy + dst_h / 2;
-        const int max_y = disclaimer_top - kLabelFontPx - 8;   /* keep clear of disclaimer */
-        const int gap = std::clamp((int)((max_y - logo_bottom) * 0.35f), 8, 44);
-        int label_y = logo_bottom + gap;
-        if (label_y > max_y)              label_y = max_y;
-        if (label_y < logo_bottom + 8)    label_y = logo_bottom + 8;  /* but below logo */
-        RECT r{ 0, label_y, (int)width, label_y + kLabelFontPx * 2 };
-        DrawTextW(dc, label.c_str(), (int)label.size(), &r,
-                  DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
-        SelectObject(dc, old);
-    }
-    if (show_disclaimer && disclaimer_font_) {
-        const int dv = (int)(150.0f * text_opacity);
-        HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
-        SetTextColor(dc, RGB(dv, dv, dv));
-        DrawTextW(dc, CurrentDisclaimerText(), -1, &disc_rect,
-                  DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
-        SelectObject(dc, old);
-    }
+    HFONT old = (HFONT)SelectObject(dc, label_font_);
+    SetTextColor(dc, RGB(v, v, v));
+    const int logo_bottom = cy + dst_h / 2;
+    const int max_y = (int)height - kLabelFontPx - 8;
+    const int gap = std::clamp((int)((max_y - logo_bottom) * 0.35f), 8, 44);
+    int label_y = logo_bottom + gap;
+    if (label_y > max_y)              label_y = max_y;
+    if (label_y < logo_bottom + 8)    label_y = logo_bottom + 8;  /* but below logo */
+    RECT r{ 0, label_y, (int)width, label_y + kLabelFontPx * 2 };
+    DrawTextW(dc, label.c_str(), (int)label.size(), &r,
+              DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
+    SelectObject(dc, old);
 }
 
 void BootScreen::DrawAnimation(HDC dc, uint32_t width, uint32_t height) {
     switch (phase_) {
         case Phase::CerfFadeIn:
         case Phase::CerfHold:
-            DrawLogoFrame(dc, width, height, /*logo_opacity=*/cur_op_,
-                          /*label=*/false, L"", /*text_opacity=*/0.0f,
-                          /*disclaimer=*/false);
+            DrawLogoFrame(dc, width, height, cur_op_, false, L"", 0.0f);
             break;
         case Phase::TextFadeIn:
         case Phase::TextHold:
-            DrawLogoFrame(dc, width, height, /*logo_opacity=*/1.0f,
-                          /*label=*/true, CurrentLabelText(), /*text_opacity=*/cur_op_,
-                          /*disclaimer=*/(label_mode_ == LabelMode::Resuming));
+            DrawLogoFrame(dc, width, height, 1.0f, true, CurrentLabelText(), cur_op_);
             break;
         case Phase::Finished:
             break;
@@ -264,9 +217,7 @@ void BootScreen::DrawAnimation(HDC dc, uint32_t width, uint32_t height) {
 }
 
 void BootScreen::DrawHeldFinal(HDC dc, uint32_t width, uint32_t height) {
-    DrawLogoFrame(dc, width, height, /*logo_opacity=*/1.0f,
-                  /*label=*/true, CurrentLabelText(), /*text_opacity=*/1.0f,
-                  /*disclaimer=*/(label_mode_ == LabelMode::Resuming));
+    DrawLogoFrame(dc, width, height, 1.0f, true, CurrentLabelText(), 1.0f);
 }
 
 void BootScreen::DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height) {
@@ -300,13 +251,10 @@ bool BootScreen::HitTestHwLine(int x, int y) const {
 }
 
 void BootScreen::DrawWatermark(HDC dc, uint32_t width, uint32_t height) {
-    DrawLogoFrame(dc, width, height, /*logo_opacity=*/kDimOpacity,
-                  /*label=*/false, L"", /*text_opacity=*/0.0f,
-                  /*disclaimer=*/false, /*cerf_native_size=*/true);
+    DrawLogoFrame(dc, width, height, kDimOpacity, false, L"", 0.0f, true);
 }
 
-void BootScreen::Restart(bool resuming) {
-    restart_resuming_.store(resuming, std::memory_order_release);
+void BootScreen::Restart() {
     restart_req_.store(true, std::memory_order_release);
 }
 void BootScreen::OnFramebufferLatched() { fb_latched_req_.store(true); }

@@ -4,6 +4,7 @@
 #include "../core/log.h"
 #include "boot_screen.h"
 #include "frame_renderer.h"
+#include "host_canvas.h"
 #include "host_window.h"
 #include "hw_screen.h"
 
@@ -18,21 +19,21 @@ void GuestPowerNotifier::Banner(const char* line) {
 
 void GuestPowerNotifier::NotifyPowerDown() {
     Banner("!! CERF: Power down !!");
-    emu_.Get<HostWindow>().ShowHwScreenTab(/*rearm=*/false);
+    emu_.Get<HostWindow>().RunOnUiThread([this] { emu_.Get<HostCanvas>().RememberTabForResume(); });
+    emu_.Get<HostWindow>().ShowHwScreenTab(false);
 }
 
-void GuestPowerNotifier::Relaunch(const char* line, bool resuming) {
-    Banner(line);
-    /* Renderer first: while the renderer still reports the stale frame, the
-       canvas re-latches to the framebuffer off the startup tab on its next tick. */
+void GuestPowerNotifier::NotifyReboot() {
+    Banner("!! CERF: Soft reset !!");
     if (auto* fr = emu_.TryGet<FrameRenderer>()) fr->RearmContentLatch();
-    emu_.Get<BootScreen>().Restart(resuming);
-    emu_.Get<HostWindow>().ShowStartupTab(/*rearm=*/true);
+    emu_.Get<BootScreen>().Restart();
+    emu_.Get<HostWindow>().ShowStartupTab(true);
 }
 
-void GuestPowerNotifier::NotifyReboot() { Relaunch("!! CERF: Soft reset !!", /*resuming=*/false); }
-
-void GuestPowerNotifier::NotifyResume() { Relaunch("!! CERF: Resuming !!",  /*resuming=*/true); }
+void GuestPowerNotifier::NotifyResume() {
+    Banner("!! CERF: Resuming !!");
+    emu_.Get<HostWindow>().RunOnUiThread([this] { emu_.Get<HostCanvas>().RestoreTabForResume(); });
+}
 
 void GuestPowerNotifier::NotifyHardReset() {
     Banner("!! CERF: Hard reset !!");

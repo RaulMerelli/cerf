@@ -260,8 +260,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>v6.7</td>
       <td>TBA</td>
       <td>
-        <p><b>📝 Changes</b><br/>
-          ...</p>
+        <p><b>💿 Emulator</b><br/>
+          ❌ Resume-time framebuffer re-probe - it wrongly blanked the still-valid framebuffer on wake; the display now restores instantly on resume</p>
       </td>
     </tr>
     <tr>
