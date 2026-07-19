@@ -59,7 +59,7 @@ static void EnsureFx(HWND h) {
 void PresentBg(HWND h) {
     DWORD tk; int el, f, i, py, px;
     EnsureFx(h);
-    tk = GetTickCount();
+    tk = g_anim_clock;
     el = (int)(tk - g_start);
     f = (el >= FADE_MS || el < 0) ? 256 : el * 256 / FADE_MS;
 
@@ -114,6 +114,10 @@ LRESULT CALLBACK BgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
     case WM_CREATE: EnsureFx(h); return 0;
     case WM_SIZE:   EnsureFx(h); return 0;
+    case WM_DISPLAYCHANGE:
+        MoveWindow(h, 0, 0, GetSystemMetrics(SM_CXSCREEN),
+                   GetSystemMetrics(SM_CYSCREEN), TRUE);
+        return 0;
     case WM_ERASEBKGND: return 1;
     case WM_PAINT: {
         PAINTSTRUCT ps;

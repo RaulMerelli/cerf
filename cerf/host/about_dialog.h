@@ -5,13 +5,8 @@
 #define NOMINMAX
 #include <windows.h>
 
-#include <cstdint>
-
 namespace Gdiplus { class Bitmap; }
 
-/* The "About CERF" modal dialog: logo, version, current device, real clickable
-   Website/Discord links (SysLink), credits - dark-theme aware. UI-thread only.
-   Hidden: the Konami code replays the boot-logo spin inside the box. */
 class AboutDialog : public Service {
 public:
     using Service::Service;
@@ -24,28 +19,25 @@ public:
 
 private:
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
+    static BOOL CALLBACK SetChildFontProc(HWND, LPARAM);
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
 
     void BuildControls(HWND hwnd);
     void ApplyCustomFonts();      /* after HostDarkMode stomps the UI font */
-    void PaintLogo(HDC dc, int origin_x, int origin_y);
+    void PaintBand(HDC dc, int origin_x, int origin_y);
     bool OpenLink(LPARAM notify); /* SysLink NM_CLICK/NM_RETURN -> ShellExecute */
 
-    /* Konami easter egg: ↑↑↓↓←→←→ B A -> spin the logo. */
-    void TrackKonami(int vk);
-    void StartEgg();
-    void AdvanceEgg();
+    int S(int v) const;
 
-    HWND hwnd_      = nullptr;
-    HWND title_     = nullptr;
-    bool done_      = false;
+    HWND hwnd_  = nullptr;
+    HWND title_ = nullptr;
+    bool done_  = false;
 
-    Gdiplus::Bitmap* logo_ = nullptr;
+    UINT dpi_ = USER_DEFAULT_SCREEN_DPI;
+
+    Gdiplus::Bitmap* band_ = nullptr;
+    int  band_h_dip_ = 0;
+
     HFONT title_font_ = nullptr;
-
-    int       konami_idx_ = 0;
-    bool      egg_active_  = false;
-    uint64_t  egg_start_   = 0;
-    float     egg_angle_   = 0.0f;
-    float     egg_scale_   = 1.0f;
+    HFONT ui_font_    = nullptr;
 };

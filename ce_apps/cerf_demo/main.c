@@ -17,8 +17,8 @@
 #define ID_EDIT    1002
 #define BANNER_H   CERF_BAND_RGB_H
 #define DLG_W      412
-#define DLG_COL_H  244
-#define DLG_EXP_H  452
+#define DLG_COL_H  (BANNER_H + 132)
+#define DLG_EXP_H  (BANNER_H + 340)
 #define STARTUP_MS 650    /* hero reveal: clipped band -> full collapsed */
 #define TOGGLE_MS  220    /* details expand / collapse, near-native feel */
 
@@ -31,7 +31,7 @@ static const TCHAR* DLG_TITLE = TEXT("CERF");
 static const TCHAR* LINK_TEXT = TEXT("Run command line prompt");
 
 static HINSTANCE g_inst;
-static int      g_sw, g_sh;
+static int      g_sw, g_sh, g_dlgw = DLG_W;
 HWND            g_dlg;     /* non-static on purpose: desktop.c links to it */
 static HWND     g_btn, g_edit;
 static int      g_expanded;
@@ -40,6 +40,7 @@ static HFONT    g_ui, g_ui_bold, g_link;
 static HDC      g_banddc, g_cmddc;
 static HBITMAP  g_bandbmp, g_cmdbmp;
 DWORD           g_start;   /* non-static on purpose: desktop.c links to it */
+DWORD           g_anim_clock;
 static int      g_anim_active, g_anim_centered, g_anim_target_exp;
 static int      g_anim_h0, g_anim_h1, g_anim_top, g_anim_dur;
 static DWORD    g_anim_start;
@@ -116,12 +117,12 @@ static void BuildStats(TCHAR* buf) {
     GetSystemInfo(&si);
     wsprintf(buf,
         TEXT("CE Runtime Foundation - guest diagnostics\r\n\r\n")
-        TEXT("OS:        Windows CE %u.%u  (build %u)\r\n")
-        TEXT("Screen:    %d x %d px\r\n")
-        TEXT("Memory:    %u KB total / %u KB free\r\n")
-        TEXT("CPUs:      %u\r\n")
+        TEXT("OS: Windows CE %u.%u (build %u)\r\n")
+        TEXT("Screen: %d x %d px\r\n")
+        TEXT("Memory: %u KB total / %u KB free\r\n")
+        TEXT("CPUs: %u\r\n")
         TEXT("Page size: %u bytes\r\n")
-        TEXT("Platform:  CERF virtual ARM"),
+        TEXT("Platform: CERF virtual ARM"),
         osv.dwMajorVersion, osv.dwMinorVersion, osv.dwBuildNumber,
         GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
         (unsigned)(ms.dwTotalPhys / 1024), (unsigned)(ms.dwAvailPhys / 1024),
@@ -178,11 +179,11 @@ static void TickDlgAnim(HWND h) {
     now = GetTickCount();
     el = (int)(now - g_anim_start);
     if (el < 0) el = 0;
-    x = (g_sw - DLG_W) / 2;
+    x = (g_sw - g_dlgw) / 2;
     if (el >= g_anim_dur) {
         hh = g_anim_h1;
         y = g_anim_centered ? (g_sh - hh) / 2 : g_anim_top;
-        SetWindowPos(h, HWND_TOPMOST, x, y, DLG_W, hh,
+        SetWindowPos(h, HWND_TOPMOST, x, y, g_dlgw, hh,
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
         g_anim_active = 0;
         LayoutDlg(h, g_anim_target_exp);
@@ -191,7 +192,7 @@ static void TickDlgAnim(HWND h) {
     hh = g_anim_h0 + (g_anim_h1 - g_anim_h0)
          * EaseOut(el * 256 / g_anim_dur) / 256;
     y = g_anim_centered ? (g_sh - hh) / 2 : g_anim_top;
-    SetWindowPos(h, HWND_TOPMOST, x, y, DLG_W, hh,
+    SetWindowPos(h, HWND_TOPMOST, x, y, g_dlgw, hh,
                  SWP_NOACTIVATE | SWP_SHOWWINDOW);
     InvalidateRect(h, NULL, TRUE);
 }
@@ -255,11 +256,11 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             RECT wr;
             int cur;
             GetWindowRect(h, &wr);
-            cur = wr.bottom - wr.top;       /* hold top fixed, grow/shrink */
+            cur = wr.bottom - wr.top;
             if (!g_expanded)
-                StartDlgAnim(cur, DLG_EXP_H, 0, wr.top, TOGGLE_MS, 1);
+                StartDlgAnim(cur, DLG_EXP_H, 1, 0, TOGGLE_MS, 1);
             else
-                StartDlgAnim(cur, DLG_COL_H, 0, wr.top, TOGGLE_MS, 0);
+                StartDlgAnim(cur, DLG_COL_H, 1, 0, TOGGLE_MS, 0);
         }
         return 0;
     case WM_CTLCOLORSTATIC:
@@ -280,8 +281,8 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         RECT rc;
         GetClientRect(h, &rc);
         if (g_banddc)
-            StretchBlt(dc, 0, 0, rc.right, BANNER_H, g_banddc,
-                       0, 0, CERF_BAND_RGB_W, CERF_BAND_RGB_H, SRCCOPY);
+            BitBlt(dc, 0, 0, CERF_BAND_RGB_W, CERF_BAND_RGB_H, g_banddc,
+                   0, 0, SRCCOPY);
         SetBkMode(dc, TRANSPARENT);
         if (g_anim_active) {
             /* mid-animation: band only; children hidden, content not yet laid out */
@@ -304,6 +305,27 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             g_linkrect.bottom = g_linkrect.top + sz.cy;
         }
         EndPaint(h, &ps);
+        return 0;
+    }
+    case WM_DISPLAYCHANGE: {
+        RECT wr;
+        int hh, x, y;
+        g_sw = GetSystemMetrics(SM_CXSCREEN);
+        g_sh = GetSystemMetrics(SM_CYSCREEN);
+        if (g_edit) {
+            TCHAR stats[512];
+            BuildStats(stats);
+            SetWindowText(g_edit, stats);
+        }
+        if (!g_anim_active) {
+            GetWindowRect(h, &wr);
+            hh = wr.bottom - wr.top;
+            x = (g_sw - g_dlgw) / 2; if (x < 0) x = 0;
+            y = (g_sh - hh) / 2;     if (y < 0) y = 0;
+            SetWindowPos(h, HWND_TOPMOST, x, y, g_dlgw, hh,
+                         SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            LayoutDlg(h, g_expanded);
+        }
         return 0;
     }
     case WM_CLOSE:
@@ -329,31 +351,6 @@ static HFONT MakeFont(int height, int weight, int underline) {
     return CreateFontIndirect(&lf);
 }
 
-/* Full Windows 2000 "Windows Standard" classic scheme: warm 212/208/200
-   face across every classic system index 0..24, so nothing the OS draws
-   (menus, tooltips, borders, highlight, scrollbars) keeps a cold default. */
-static void ApplyClassicTheme(void) {
-    static const int idx[] = {
-        COLOR_SCROLLBAR, COLOR_BACKGROUND, COLOR_ACTIVECAPTION,
-        COLOR_INACTIVECAPTION, COLOR_MENU, COLOR_WINDOW, COLOR_WINDOWFRAME,
-        COLOR_MENUTEXT, COLOR_WINDOWTEXT, COLOR_CAPTIONTEXT, COLOR_ACTIVEBORDER,
-        COLOR_INACTIVEBORDER, COLOR_APPWORKSPACE, COLOR_HIGHLIGHT,
-        COLOR_HIGHLIGHTTEXT, COLOR_BTNFACE, COLOR_BTNSHADOW, COLOR_GRAYTEXT,
-        COLOR_BTNTEXT, COLOR_INACTIVECAPTIONTEXT, COLOR_BTNHIGHLIGHT,
-        COLOR_3DDKSHADOW, COLOR_3DLIGHT, COLOR_INFOTEXT, COLOR_INFOBK,
-    };
-    static const COLORREF clr[] = {
-        RGB(212,208,200), RGB( 58,110,165), RGB( 10, 36,106),
-        RGB(128,128,128), RGB(212,208,200), RGB(255,255,255), RGB(  0,  0,  0),
-        RGB(  0,  0,  0), RGB(  0,  0,  0), RGB(255,255,255), RGB(212,208,200),
-        RGB(212,208,200), RGB(128,128,128), RGB( 10, 36,106),
-        RGB(255,255,255), RGB(212,208,200), RGB(128,128,128), RGB(128,128,128),
-        RGB(  0,  0,  0), RGB(212,208,200), RGB(255,255,255),
-        RGB( 64, 64, 64), RGB(212,208,200), RGB(  0,  0,  0), RGB(255,255,225),
-    };
-    SetSysColors(sizeof(idx) / sizeof(idx[0]), idx, clr);
-}
-
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
     WNDCLASS bc, dc;
     HWND bg;
@@ -363,7 +360,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
     g_sw = GetSystemMetrics(SM_CXSCREEN);
     g_sh = GetSystemMetrics(SM_CYSCREEN);
 
-    ApplyClassicTheme();
     InitDiscs();
     BuildAssets();
     g_ui      = MakeFont(17, FW_NORMAL, 0);
@@ -402,28 +398,50 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
 
     if (g_dlg) {
         RECT wr, cr;
-        int ncv, hband;
+        int ncv, ncw, hband;
         GetWindowRect(g_dlg, &wr);
         GetClientRect(g_dlg, &cr);
         ncv = (wr.bottom - wr.top) - (cr.bottom - cr.top);  /* caption+frame */
+        ncw = (wr.right - wr.left) - (cr.right - cr.left);
+        g_dlgw = CERF_BAND_RGB_W + ncw;
         hband = ncv + BANNER_H;                             /* client == band */
-        SetWindowPos(g_dlg, HWND_TOPMOST, (g_sw - DLG_W) / 2,
-                     (g_sh - hband) / 2, DLG_W, hband,
+        SetWindowPos(g_dlg, HWND_TOPMOST, (g_sw - g_dlgw) / 2,
+                     (g_sh - hband) / 2, g_dlgw, hband,
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
         ShowWindow(g_dlg, SW_SHOWNA);
         SetForegroundWindow(g_dlg);     /* active (blue) caption, not bg */
         StartDlgAnim(hband, DLG_COL_H, 1, 0, STARTUP_MS, 0);
     }
-    g_start = GetTickCount();
+    g_start = 0;
+    g_anim_clock = 0;
 
+    {
+    DWORD prev = GetTickCount();
     for (;;) {
+        DWORD now, dt;
+        HWND  fg;
+        int   ours;
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) goto done;
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+        if (GetSystemMetrics(SM_CXSCREEN) != g_sw ||
+            GetSystemMetrics(SM_CYSCREEN) != g_sh) {
+            SendMessage(bg, WM_DISPLAYCHANGE, 0, 0);
+            if (g_dlg) SendMessage(g_dlg, WM_DISPLAYCHANGE, 0, 0);
+        }
+        now = GetTickCount();
+        dt  = now - prev;
+        prev = now;
+        fg   = GetForegroundWindow();
+        ours = (fg == bg || fg == g_dlg);
         TickDlgAnim(g_dlg);
-        PresentBg(bg);
+        if (ours) {
+            g_anim_clock += dt;
+            PresentBg(bg);
+        }
+    }
     }
 done:
     if (g_ui)      DeleteObject(g_ui);

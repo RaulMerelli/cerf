@@ -13,9 +13,14 @@
 #include <windows.h>
 #include <tchar.h>
 
+#ifndef WM_DISPLAYCHANGE
+#define WM_DISPLAYCHANGE 0x007E
+#endif
+
 /* Defined in main.c, read by the background compositor. */
-extern HWND  g_dlg;     /* About dialog; the bg destroys it on WM_DESTROY */
-extern DWORD g_start;   /* fade-in epoch (GetTickCount), shared by the bokeh */
+extern HWND  g_dlg;
+extern DWORD g_start;
+extern DWORD g_anim_clock;
 
 /* 32bpp top-down DIB section helper (main.c). */
 HBITMAP MakeDib32(int w, int h, unsigned int** bits);

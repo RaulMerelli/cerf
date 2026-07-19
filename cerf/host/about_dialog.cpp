@@ -1,7 +1,6 @@
 #define NOMINMAX
 #include "about_dialog.h"
 
-#include <cmath>
 #include <commctrl.h>
 #include <gdiplus.h>
 #include <shellapi.h>
@@ -11,6 +10,7 @@
 #include "../core/string_utils.h"
 #include "../version.h"
 #include "host_dark_mode.h"
+#include "host_dpi.h"
 #include "host_gdiplus.h"
 #include "host_window.h"
 
@@ -18,6 +18,7 @@ REGISTER_SERVICE(AboutDialog);
 
 AboutDialog::~AboutDialog() {
     if (title_font_) DeleteObject(title_font_);
+    if (ui_font_)    DeleteObject(ui_font_);
 }
 
 namespace {
@@ -25,13 +26,14 @@ namespace {
 constexpr wchar_t kClass[] = L"CerfAboutDlg";
 
 constexpr int kClientW = 470;
-constexpr int kClientH = 326;
 
-/* Logo box (painted, centred on the top strip). Sized so the Konami spin's
-   45° corner sweep clears the title text below it. */
-constexpr int kLogoTop = 16;
-constexpr int kLogoMax = 80;
-constexpr float kEggMaxScale = 1.12f;
+constexpr int kTitleDy   = 16;
+constexpr int kSubDy     = 46;
+constexpr int kTagDy     = 68;
+constexpr int kDevDy     = 94;
+constexpr int kLinksDy   = 126;
+constexpr int kContentH  = 210;
+constexpr int kCloseGap  = 42;
 
 enum : int {
     IDC_TITLE   = 5001,
@@ -41,19 +43,23 @@ enum : int {
     IDC_LINKS,
 };
 
-constexpr int kEggTimer = 1;
-constexpr uint64_t kEggDurMs = 1400;
-
-/* ↑ ↑ ↓ ↓ ← → ← → B A */
-const int kKonami[] = { VK_UP, VK_UP, VK_DOWN, VK_DOWN, VK_LEFT, VK_RIGHT,
-                        VK_LEFT, VK_RIGHT, 'B', 'A' };
-constexpr int kKonamiLen = (int)(sizeof(kKonami) / sizeof(kKonami[0]));
-
 /* Hyperlink colour with enough contrast on the dark dialog background; the
    system COLOR_HOTLIGHT blue is too dim against ~RGB(32,32,32). */
 constexpr COLORREF kDarkLink = RGB(96, 170, 255);
 
+const wchar_t* BandResourceForDpi(UINT dpi) {
+    const int pct = MulDiv(100, (int)dpi, USER_DEFAULT_SCREEN_DPI);
+    if (pct <= 100) return L"ABOUT_BAND_100";
+    if (pct <= 150) return L"ABOUT_BAND_150";
+    if (pct <= 200) return L"ABOUT_BAND_200";
+    return L"ABOUT_BAND_300";
+}
+
 }  /* namespace */
+
+int AboutDialog::S(int v) const {
+    return MulDiv(v, (int)dpi_, USER_DEFAULT_SCREEN_DPI);
+}
 
 void AboutDialog::OnReady() {
     /* SysLink lives in ICC_LINK_CLASS, which no other init covers. */
@@ -71,6 +77,11 @@ void AboutDialog::OnReady() {
     RegisterClassExW(&wc);   /* ERROR_CLASS_ALREADY_EXISTS is benign */
 }
 
+BOOL CALLBACK AboutDialog::SetChildFontProc(HWND child, LPARAM font) {
+    SendMessageW(child, WM_SETFONT, (WPARAM)font, TRUE);
+    return TRUE;
+}
+
 void AboutDialog::BuildControls(HWND hwnd) {
     HINSTANCE inst = GetModuleHandleW(nullptr);
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
@@ -80,79 +91,71 @@ void AboutDialog::BuildControls(HWND hwnd) {
                                nullptr);
     };
 
+    const int cb = band_h_dip_;
+    const int clientH = cb + kContentH;
     const int tx = 20, tw = kClientW - 40;
 
-    title_ = mk(L"STATIC", L"CE Runtime Foundation", SS_CENTER,
-                tx, 128, tw, 28, IDC_TITLE);
+    title_ = mk(L"STATIC", L"CE Runtime Foundation", SS_LEFT,
+                S(tx), S(cb + kTitleDy), S(tw), S(28), IDC_TITLE);
 
-    mk(L"STATIC", L"Version " CERF_VERSION_DISPLAY_WSTR, SS_CENTER,
-       tx, 158, tw, 18, IDC_SUBTITLE);
+    mk(L"STATIC", L"Version " CERF_VERSION_DISPLAY_WSTR, SS_LEFT,
+       S(tx), S(cb + kSubDy), S(tw), S(18), IDC_SUBTITLE);
 
-    mk(L"STATIC", L"A universal Windows CE emulator", SS_CENTER,
-       tx, 180, tw, 18, IDC_TAGLINE);
+    mk(L"STATIC", L"A universal Windows CE emulator", SS_LEFT,
+       S(tx), S(cb + kTagDy), S(tw), S(18), IDC_TAGLINE);
 
     auto& bd = emu_.Get<BoardContext>();
     std::wstring dev = L"Emulating:  " + Utf8ToWide(BoardContext::BoardName(bd.GetBoard()));
     const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
     if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
         dev += L"  ·  " + Utf8ToWide(soc);
-    mk(L"STATIC", dev.c_str(), SS_CENTER, tx, 206, tw, 18, IDC_DEVICE);
+    mk(L"STATIC", dev.c_str(), SS_LEFT, S(tx), S(cb + kDevDy), S(tw), S(18),
+       IDC_DEVICE);
 
     HWND links = mk(
         L"SysLink",
         L"<a href=\"https://cerf.cx\">Website</a>"
         L"      ·      "
         L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>",
-        LWS_TRANSPARENT, tx, 238, tw, 22, IDC_LINKS);
-    /* Centre the SysLink on its measured ideal width. */
+        LWS_TRANSPARENT, S(tx), S(cb + kLinksDy), S(tw), S(22), IDC_LINKS);
     if (links) {
         SIZE ideal = { 0, 0 };
-        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)tw, (LPARAM)&ideal) &&
+        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)S(tw), (LPARAM)&ideal) &&
             ideal.cx > 0)
-            SetWindowPos(links, nullptr, (kClientW - ideal.cx) / 2, 238,
-                         ideal.cx, ideal.cy > 0 ? ideal.cy : 22,
+            SetWindowPos(links, nullptr, S(tx), S(cb + kLinksDy),
+                         ideal.cx, ideal.cy > 0 ? ideal.cy : S(22),
                          SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
-    mk(L"BUTTON", L"Close", BS_DEFPUSHBUTTON | WS_TABSTOP,
-       (kClientW - 100) / 2, kClientH - 42, 100, 30, IDOK);
+    mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
+       S(kClientW - tx - 100), S(clientH - kCloseGap), S(100), S(30), IDOK);
 }
 
 void AboutDialog::ApplyCustomFonts() {
-    /* HostDarkMode::ApplyToDialog stamps the UI font on every child; re-stamp the
-       title in a larger semibold face afterwards. */
-    if (!title_font_)
-        title_font_ = CreateFontW(-19, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                  CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                  VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
+    NONCLIENTMETRICSW ncm = { sizeof(ncm) };
+    if (emu_.Get<HostDpi>().NonClientMetricsForDpi(ncm, dpi_))
+        ui_font_ = CreateFontIndirectW(&ncm.lfMessageFont);
+    if (ui_font_)
+        EnumChildWindows(hwnd_, &AboutDialog::SetChildFontProc, (LPARAM)ui_font_);
+
+    title_font_ = CreateFontW(-S(19), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                              CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                              VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
     if (title_) SendMessageW(title_, WM_SETFONT, (WPARAM)title_font_, TRUE);
 }
 
-void AboutDialog::PaintLogo(HDC dc, int origin_x, int origin_y) {
-    if (!logo_) return;
-    const UINT bw = logo_->GetWidth(), bh = logo_->GetHeight();
+void AboutDialog::PaintBand(HDC dc, int origin_x, int origin_y) {
+    if (!band_) return;
+    const UINT bw = band_->GetWidth(), bh = band_->GetHeight();
     if (bw == 0 || bh == 0) return;
-
-    /* Fit the logo into the kLogoMax box, keeping aspect. Centre is expressed
-       relative to the target DC's origin so a buffered DC can be offset. */
-    float s = (float)kLogoMax / (float)(bw > bh ? bw : bh);
-    const int dw = (int)(bw * s), dh = (int)(bh * s);
-    const int cx = kClientW / 2 - origin_x;
-    const int cy = kLogoTop + kLogoMax / 2 - origin_y;
 
     Gdiplus::Graphics g(dc);
     g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-    g.TranslateTransform((Gdiplus::REAL)cx, (Gdiplus::REAL)cy);
-    if (egg_active_) {
-        g.RotateTransform(egg_angle_);
-        g.ScaleTransform(egg_scale_, egg_scale_);
-    }
-    Gdiplus::Rect dst(-dw / 2, -dh / 2, dw, dh);
-    g.DrawImage(logo_, dst, 0, 0, (int)bw, (int)bh, Gdiplus::UnitPixel);
+    Gdiplus::Rect dst(-origin_x, -origin_y, S(kClientW), S(band_h_dip_));
+    g.DrawImage(band_, dst, 0, 0, (int)bw, (int)bh, Gdiplus::UnitPixel);
 }
 
 bool AboutDialog::OpenLink(LPARAM lp) {
@@ -165,56 +168,24 @@ bool AboutDialog::OpenLink(LPARAM lp) {
     return false;
 }
 
-void AboutDialog::TrackKonami(int vk) {
-    if (vk == kKonami[konami_idx_]) {
-        if (++konami_idx_ >= kKonamiLen) { konami_idx_ = 0; StartEgg(); }
-    } else {
-        konami_idx_ = (vk == kKonami[0]) ? 1 : 0;
-    }
-}
-
-void AboutDialog::StartEgg() {
-    if (egg_active_ || !hwnd_) return;
-    egg_active_ = true;
-    egg_start_  = GetTickCount64();
-    SetTimer(hwnd_, kEggTimer, 16, nullptr);
-}
-
-void AboutDialog::AdvanceEgg() {
-    const uint64_t elapsed = GetTickCount64() - egg_start_;
-    if (elapsed >= kEggDurMs) {
-        egg_active_ = false;
-        egg_angle_  = 0.0f;
-        egg_scale_  = 1.0f;
-        KillTimer(hwnd_, kEggTimer);
-    } else {
-        const float t  = (float)elapsed / (float)kEggDurMs;        /* 0..1 */
-        const float eo = 1.0f - (1.0f - t) * (1.0f - t);           /* ease-out */
-        egg_angle_ = 360.0f * eo;
-        egg_scale_ = 1.0f + 0.12f * sinf(3.14159265f * t);         /* gentle pulse */
-    }
-    /* The spinning square sweeps a circle of radius = half-diagonal × max scale;
-       invalidate that whole disc so rotated corners leave no smear. */
-    const int r = (int)(kLogoMax * 0.70710678f * kEggMaxScale) + 4;
-    const int cx = kClientW / 2, cy = kLogoTop + kLogoMax / 2;
-    RECT lr = { cx - r, cy - r, cx + r, cy + r };
-    InvalidateRect(hwnd_, &lr, FALSE);   /* buffered paint clears its own bg */
-}
-
 void AboutDialog::Show() {
     if (hwnd_) { SetForegroundWindow(hwnd_); return; }
 
     HWND owner = emu_.Get<HostWindow>().Hwnd();
-    done_        = false;
-    konami_idx_  = 0;
-    egg_active_  = false;
-    egg_angle_   = 0.0f;
-    egg_scale_   = 1.0f;
-    logo_        = emu_.Get<HostGdiPlus>().DecodeResourcePng(L"CERF_LOGO");
+    done_ = false;
+    dpi_  = emu_.Get<HostDpi>().ForWindow(owner);
+
+    band_ = emu_.Get<HostGdiPlus>().DecodeResourcePng(BandResourceForDpi(dpi_));
+    band_h_dip_ = 0;
+    if (band_ && band_->GetWidth() > 0)
+        band_h_dip_ = MulDiv(kClientW, (int)band_->GetHeight(),
+                             (int)band_->GetWidth());
+    const int clientH = band_h_dip_ + kContentH;
 
     const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
-    RECT wr = { 0, 0, kClientW, kClientH };
-    AdjustWindowRect(&wr, style, FALSE);
+    const DWORD ex    = WS_EX_DLGMODALFRAME;
+    RECT wr = { 0, 0, S(kClientW), S(clientH) };
+    emu_.Get<HostDpi>().AdjustForDpi(wr, style, FALSE, ex, dpi_);
     const int ww = wr.right - wr.left;
     const int wh = wr.bottom - wr.top;
     RECT orc = { 0, 0, 0, 0 };
@@ -223,12 +194,12 @@ void AboutDialog::Show() {
     const int y = orc.top  + ((orc.bottom - orc.top) - wh) / 2;
 
     EnableWindow(owner, FALSE);
-    hwnd_ = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass, L"About CERF", style,
+    hwnd_ = CreateWindowExW(ex, kClass, L"About CERF", style,
                             x, y, ww, wh, owner, nullptr,
                             GetModuleHandleW(nullptr), this);
     if (!hwnd_) {
         EnableWindow(owner, TRUE);
-        delete logo_; logo_ = nullptr;
+        delete band_; band_ = nullptr;
         return;
     }
 
@@ -240,19 +211,17 @@ void AboutDialog::Show() {
 
     MSG msg;
     while (!done_ && GetMessageW(&msg, nullptr, 0, 0)) {
-        if (msg.message == WM_KEYDOWN &&
-            (msg.hwnd == hwnd_ || IsChild(hwnd_, msg.hwnd)))
-            TrackKonami((int)msg.wParam);
         if (!IsDialogMessageW(hwnd_, &msg)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
     }
 
-    if (egg_active_) KillTimer(hwnd_, kEggTimer);
     DestroyWindow(hwnd_);
     hwnd_ = nullptr;
-    delete logo_; logo_ = nullptr;
+    delete band_; band_ = nullptr;
+    if (title_font_) { DeleteObject(title_font_); title_font_ = nullptr; }
+    if (ui_font_)    { DeleteObject(ui_font_);    ui_font_ = nullptr; }
     EnableWindow(owner, TRUE);
     SetForegroundWindow(owner);
 }
@@ -265,9 +234,6 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const RECT& rc = ps.rcPaint;
             const int w = rc.right - rc.left, h = rc.bottom - rc.top;
             if (w > 0 && h > 0) {
-                /* Double-buffer: fill background + draw the (possibly rotating)
-                   logo into a memory DC, then blit once - no erase-then-draw
-                   flash during the Konami spin. */
                 HDC     mem = CreateCompatibleDC(dc);
                 HBITMAP bmp = CreateCompatibleBitmap(dc, w, h);
                 HGDIOBJ ob  = SelectObject(mem, bmp);
@@ -276,7 +242,7 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                                         : GetSysColorBrush(COLOR_BTNFACE);
                 RECT fr = { 0, 0, w, h };
                 FillRect(mem, &fr, bg);
-                PaintLogo(mem, rc.left, rc.top);
+                PaintBand(mem, rc.left, rc.top);
                 BitBlt(dc, rc.left, rc.top, w, h, mem, 0, 0, SRCCOPY);
                 SelectObject(mem, ob);
                 DeleteObject(bmp);
@@ -285,10 +251,6 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             EndPaint(hwnd, &ps);
             return 0;
         }
-
-        case WM_TIMER:
-            if (wp == kEggTimer) { AdvanceEgg(); return 0; }
-            break;
 
         case WM_NOTIFY: {
             auto* nh = reinterpret_cast<NMHDR*>(lp);

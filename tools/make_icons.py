@@ -50,7 +50,10 @@ SRC_DIR = REPO / "cerf" / "assets" / "icons_sources"
 ICO_DIR = REPO / "cerf" / "assets"
 LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 
-TARGETS = ("ico", "launcher", "wizard", "toolbar", "badges")
+BAND_STEM = "about_band"
+BAND_SCALES = (100, 150, 200, 300)
+
+TARGETS = ("ico", "launcher", "wizard", "toolbar", "badges", "band")
 
 
 def render_image(svg_path, size):
@@ -189,6 +192,7 @@ def launcher_stems():
 
 def build_icos(names, sizes):
     svgs = resolve_sources(names, SRC_DIR)
+    svgs = [s for s in svgs if s.stem != BAND_STEM]
     if not names:
         svgs = [s for s in svgs if s.stem not in LAUNCHER_ONLY_STEMS]
     if not svgs:
@@ -198,6 +202,46 @@ def build_icos(names, sizes):
         out = convert_ico(svg, sizes, ICO_DIR)
         print(f"{svg.name} -> {out.relative_to(REPO)}  "
               f"({len(sizes)} sizes: {','.join(map(str, sizes))})")
+
+
+def svg_intrinsic(svg_path):
+    import re
+    t = svg_path.read_text(encoding="utf-8")
+    w = re.search(r'<svg[^>]*\bwidth="(\d+)"', t)
+    h = re.search(r'<svg[^>]*\bheight="(\d+)"', t)
+    if w and h:
+        return int(w.group(1)), int(h.group(1))
+    vb = re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"', t)
+    if vb:
+        return round(float(vb.group(1))), round(float(vb.group(2)))
+    sys.exit(f"cannot determine intrinsic size: {svg_path}")
+
+
+def render_png_wh(svg_path, w, h):
+    import resvg_py
+    from PIL import Image
+    raw = resvg_py.svg_to_bytes(svg_path=str(svg_path), width=w, height=h)
+    im = Image.open(BytesIO(bytes(raw))).convert("RGBA")
+    if im.size != (w, h):
+        im = im.resize((w, h), Image.LANCZOS)
+    buf = BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def build_band(names):
+    if names and BAND_STEM not in {Path(n).stem for n in names}:
+        return
+    svg = SRC_DIR / f"{BAND_STEM}.svg"
+    if not svg.exists():
+        sys.exit(f"source not found: {svg}")
+    w0, h0 = svg_intrinsic(svg)
+    ICO_DIR.mkdir(parents=True, exist_ok=True)
+    for pct in BAND_SCALES:
+        w, h = round(w0 * pct / 100), round(h0 * pct / 100)
+        out = ICO_DIR / f"{BAND_STEM}_{pct}.png"
+        write_if_changed(out, render_png_wh(svg, w, h))
+        print(f"{svg.name} -> {out.relative_to(REPO)}  ({w}x{h})")
 
 
 def build_launcher_pngs(names):
@@ -359,6 +403,8 @@ def main():
         build_wizard_pngs(args.names)
     if "toolbar" in args.targets:
         build_toolbar_pngs(args.names)
+    if "band" in args.targets:
+        build_band(args.names)
     if "badges" in args.targets and not args.names:
         build_badges()
 
