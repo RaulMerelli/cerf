@@ -26,6 +26,9 @@ Trigger words:
   - "Fig <n>" / "Figure <n>" - a reference-manual / datasheet figure
     citation ("Fig 45-41", "Figure 3"). Same shape as Table; capital
     "Fig"/"Figure" + a number.
+  - manual chapter / page references ("ch.27", "chapter 27", "page 643",
+    "pg 12", "p.643", "p643"). Case-insensitive. The bare "p<n>" page
+    form needs 3+ digits so 1-2 digit GPIO pin names do not fire.
 """
 import json
 import os
@@ -38,6 +41,10 @@ SOURCE_EXTS = (".cpp", ".h", ".hpp", ".cc", ".c")
 
 CITATION_TRIGGER_RE = re.compile(
     r"\bARM ARM\b|§|\bTable\s+\d|\bFig(?:ure)?\.?\s+\d"
+    # Manual chapter / page references ("ch.27", "chapter 27", "p643",
+    # "p.643", "page 643", "pg 12"). Case-insensitive. Page form needs
+    # 3+ bare digits so 1-2 digit GPIO pin names ("p12") do not fire.
+    r"|(?i:\bch\.\s*\d|\bchapter\s+\d|\bpage\s+\d|\bpg\.?\s*\d|\bp\.?\s*\d{3,})"
 )
 
 
@@ -86,8 +93,9 @@ def main() -> int:
     msg = (
         f"CITATION-VERIFICATION: this {rel_path} write/edit added "
         f"{len(hits)} line(s) containing a citation trigger "
-        f"('ARM ARM', '§', or a 'Table <n>' / 'Fig <n>' reference). "
-        f"Trigger lines:\n\n{sample}{more}\n\n"
+        f"('ARM ARM', '§', a 'Table <n>' / 'Fig <n>' reference, or a "
+        f"chapter / page reference like 'ch.27' / 'p643'). Trigger "
+        f"lines:\n\n{sample}{more}\n\n"
         f"FALSE-POSITIVE GATE: if those lines were ALREADY in the "
         f"file and you are just moving / relocating them - not "
         f"authoring a new citation - ignore the rest of this "
