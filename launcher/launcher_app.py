@@ -26,6 +26,7 @@ from launch_options import LaunchOptionsPanel
 from launcher_operations import OperationsMixin
 from launcher_refresh import RefreshMixin
 from new_device_wizard import NewDeviceWizard
+from settings_dialog import SettingsDialog
 from user_device_create import UserDeviceSpec
 from operations import BundleManager
 from screen_geometry import fit_geometry
@@ -102,7 +103,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
                                on_update=self._update,
                                on_remove_selected=self._delete_selected,
                                on_discard_selected=self._discard_state,
-                               on_launch=self._launch)
+                               on_launch=self._launch,
+                               on_settings=self._open_settings)
         self.toolbar.frame.pack(fill="x", side="top")
         self.split = self.toolbar.start
 
@@ -283,6 +285,9 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         NewDeviceWizard(self, resolve_icons_dir(), self.manager.devices_dir,
                         on_download_roms=self._open_download_window,
                         on_create=self._create_user_device)
+
+    def _open_settings(self) -> None:
+        SettingsDialog(self)
 
     def _create_user_device(self, spec: UserDeviceSpec) -> None:
         if self.busy:

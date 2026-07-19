@@ -1,8 +1,13 @@
 - version: v6.7
   date: TBA
   emulator:
-    deleted: |
-      Resume-time framebuffer re-probe - it wrongly blanked the still-valid framebuffer on wake; the display now restores instantly on resume
+    new: |
+      Discord Rich Presence - shows the current device and OS in your Discord profile
+    fixed: |
+      Fixed framebuffer not relatching on suspend/resume
+  launcher:
+    new: |
+      UI refresh
 
 - version: v6.6
   date: 18 Jul 2026

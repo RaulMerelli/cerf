@@ -23,7 +23,8 @@ class Toolbar:
                  on_update: Callable[[], None],
                  on_remove_selected: Callable[[], None],
                  on_discard_selected: Callable[[], None],
-                 on_launch: Callable[[Optional[str]], None]) -> None:
+                 on_launch: Callable[[Optional[str]], None],
+                 on_settings: Callable[[], None]) -> None:
         self._icons_dir = icons_dir
         self._icons: Dict[str, object] = {}
 
@@ -34,6 +35,10 @@ class Toolbar:
                                    compound="top",
                                    command=lambda: webbrowser.open(ARTICLES_URL))
         self.btn_help.pack(side="right")
+        self.btn_settings = ttk.Button(bar, text="Settings",
+                                       image=self._icon("settings"),
+                                       compound="top", command=on_settings)
+        self.btn_settings.pack(side="right", padx=(0, 8))
 
         self.btn_new = ttk.Button(bar, text="New",
                                   image=self._icon("new_device"), compound="top",

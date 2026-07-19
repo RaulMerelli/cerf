@@ -55,7 +55,7 @@ def _parse_repositories(raw) -> Optional[List[BundleRepository]]:
     return repos or None
 
 
-def _load_config(path: Path) -> dict:
+def load_config(path: Path) -> dict:
     try:
         text = path.read_text(encoding="utf-8-sig")
         parsed = json.loads(text)
@@ -65,13 +65,13 @@ def _load_config(path: Path) -> dict:
 
 
 def read_repositories() -> List[BundleRepository]:
-    repos = _parse_repositories(_load_config(config_path()).get(CONFIG_KEY))
+    repos = _parse_repositories(load_config(config_path()).get(CONFIG_KEY))
     return repos if repos is not None else default_repositories()
 
 
 def write_repositories(repos: List[BundleRepository]) -> None:
     path = config_path()
-    obj = _load_config(path)
+    obj = load_config(path)
     obj[CONFIG_KEY] = [{"url": r.url, "enabled": r.enabled} for r in repos]
     path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 

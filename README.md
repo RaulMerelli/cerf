@@ -261,7 +261,10 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>TBA</td>
       <td>
         <p><b>💿 Emulator</b><br/>
-          ❌ Resume-time framebuffer re-probe - it wrongly blanked the still-valid framebuffer on wake; the display now restores instantly on resume</p>
+          🆕 Discord Rich Presence - shows the current device and OS in your Discord profile<br/>
+          ✅ Fixed framebuffer not relatching on suspend/resume</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 UI refresh</p>
       </td>
     </tr>
     <tr>
