@@ -289,6 +289,11 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
                     Fatal(top_path, "'last_save_state_mode' must be a boolean");
                 config.last_save_state_mode = j["last_save_state_mode"].get<bool>();
             }
+            if (j.contains("discord_rich_presence")) {
+                if (!j["discord_rich_presence"].is_boolean())
+                    Fatal(top_path, "'discord_rich_presence' must be a boolean");
+                config.discord_rich_presence = j["discord_rich_presence"].get<bool>();
+            }
             LoadGlobalSubstitutions(j, config, top_path);
         }
     }

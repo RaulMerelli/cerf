@@ -40,7 +40,8 @@ namespace Log {
         X(Trace,       "TRACE",       "TraceManager + device-specific trace files") \
         X(Perf,        "PERF",        "RateProbe - per-second event counters")    \
         X(GuestDriver, "GUEST",       "CERF guest driver runtime output via cerf_debug_tx") \
-        X(GuestAdditions, "GUEST_HOST", "CERF guest additions")
+        X(GuestAdditions, "GUEST_HOST", "CERF guest additions")                          \
+        X(Discord,     "DISCORD",     "Discord Rich Presence")
 
     enum class Cat : uint8_t {
     #define X(name, slug, desc) name,

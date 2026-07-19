@@ -136,4 +136,6 @@ struct DeviceConfig : public Service {
        "Remember choice" checkbox writes the user's selection back to that file
        via ConfigLoader. Defaults off so a close never auto-saves silently. */
     bool last_save_state_mode = false;
+
+    bool discord_rich_presence = false;
 };
