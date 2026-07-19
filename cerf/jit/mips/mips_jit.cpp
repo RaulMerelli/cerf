@@ -163,8 +163,8 @@ void MipsJit::SignalIdleWake() {
 }
 
 void MipsJit::SetExternalInterruptLevel(uint32_t ip_mask) {
-    external_ip_.store(ip_mask, std::memory_order_release);
-    SignalIdleWake();
+    const uint32_t prev = external_ip_.exchange(ip_mask, std::memory_order_acq_rel);
+    if (ip_mask & ~prev) SignalIdleWake();
 }
 
 void MipsJit::Run() {

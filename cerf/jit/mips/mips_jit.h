@@ -102,6 +102,10 @@ public:
        (UM ch.27 p587). __fastcall: next pc in ECX, jit in EDX. */
     static void __fastcall HibernateHelper(uint32_t next_pc, MipsJit* jit);
 
+    /* STANDBY/SUSPEND: halt the CPU core until any interrupt (VR4102 UM ch.27
+       p643/p646); RTC+ICU keep running (Table 15-3 p326). __fastcall: jit in ECX. */
+    static void __fastcall WaitHelper(MipsJit* jit);
+
     /* SYSCALL / BREAK: deliver the Sys (cause 8) / Bp (cause 9) CP0 exception to
        the general vector; the guest handler processes it and ERETs past the
        instruction. __fastcall: jit in ECX. */
