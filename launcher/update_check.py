@@ -31,7 +31,7 @@ class UpdateCheck:
 
         def done(exc: Optional[BaseException]) -> None:
             if exc is not None:
-                self._no_update(False)
+                self._no_update()
                 return
             self._apply_release(future.result())
 
@@ -47,13 +47,12 @@ class UpdateCheck:
             f"CERF {version} is available", theme.UPDATE_LINK, link=True,
             on_click=self.open_offer)
 
-    def _no_update(self, checked: bool) -> None:
-        text = "No new releases of CERF available" if checked else ""
-        self.app.status_bar.set_update_status(text, theme.FG_DIM, link=False)
+    def _no_update(self) -> None:
+        self.app.status_bar.set_update_status("", theme.FG_DIM, link=False)
 
     def _apply_release(self, release: GithubRelease) -> None:
         if not self._is_newer(release.tag):
-            self._no_update(True)
+            self._no_update()
             return
         self.release = release
         self._announce(release.tag)

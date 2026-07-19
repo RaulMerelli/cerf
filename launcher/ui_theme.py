@@ -39,7 +39,7 @@ _DARK_PALETTE: Dict[str, str] = {
     "BG_HOVER": "#3c3c3c", "BG_SELECTED": "#094771", "FG": "#e0e0e0",
     "FG_DIM": "#808080", "BORDER": "#3f3f46", "UPDATE_LINK": "#e8c44a",
     "LINK_FG": "#569cd6", "GROUP_BG": "#252526", "PREVIEW_STOPPED": "#cfcfcf",
-    "DANGER_FG": "#f48771", "WARN_FG": "#ffb900",
+    "DANGER_FG": "#f48771", "WARN_FG": "#ffb900", "LAUNCH_FG": "#3fb950",
     "CARD_RUNNING_BG": "#1e3a1e", "CARD_UPDATE_BG": "#3a2f12",
     "CARD_RUNNING_SEL": "#2e5a2e", "CARD_UPDATE_SEL": "#5c4a1e",
 }
@@ -48,7 +48,7 @@ _LIGHT_PALETTE: Dict[str, str] = {
     "BG_HOVER": "#e6e6e6", "BG_SELECTED": "#cce4f7", "FG": "#1b1b1b",
     "FG_DIM": "#6b6b6b", "BORDER": "#c4c4c4", "UPDATE_LINK": "#8a5a00",
     "LINK_FG": "#0a66c2", "GROUP_BG": "#ececec", "PREVIEW_STOPPED": "#8a8a8a",
-    "DANGER_FG": "#c42b1c", "WARN_FG": "#8a5a00",
+    "DANGER_FG": "#c42b1c", "WARN_FG": "#8a5a00", "LAUNCH_FG": "#107c10",
     "CARD_RUNNING_BG": "#dff3df", "CARD_UPDATE_BG": "#fbeecb",
     "CARD_RUNNING_SEL": "#bfe6bf", "CARD_UPDATE_SEL": "#f2dca0",
 }
@@ -70,6 +70,7 @@ GROUP_BG    = _PALETTE["GROUP_BG"]
 PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
 DANGER_FG   = _PALETTE["DANGER_FG"]
 WARN_FG     = _PALETTE["WARN_FG"]
+LAUNCH_FG   = _PALETTE["LAUNCH_FG"]
 CARD_RUNNING_BG = _PALETTE["CARD_RUNNING_BG"]
 CARD_UPDATE_BG  = _PALETTE["CARD_UPDATE_BG"]
 CARD_RUNNING_SEL = _PALETTE["CARD_RUNNING_SEL"]
@@ -95,6 +96,7 @@ def refresh_palette() -> bool:
     global IS_DARK, _PALETTE, STATE_TINT
     global BG, BG_LIGHTER, BG_FIELD, BG_HOVER, BG_SELECTED, FG, FG_DIM, BORDER
     global UPDATE_LINK, LINK_FG, GROUP_BG, PREVIEW_STOPPED, DANGER_FG, WARN_FG
+    global LAUNCH_FG
     global CARD_RUNNING_BG, CARD_UPDATE_BG, CARD_RUNNING_SEL, CARD_UPDATE_SEL
     dark = system_uses_dark()
     if dark == IS_DARK:
@@ -115,6 +117,7 @@ def refresh_palette() -> bool:
     PREVIEW_STOPPED = _PALETTE["PREVIEW_STOPPED"]
     DANGER_FG   = _PALETTE["DANGER_FG"]
     WARN_FG     = _PALETTE["WARN_FG"]
+    LAUNCH_FG   = _PALETTE["LAUNCH_FG"]
     CARD_RUNNING_BG = _PALETTE["CARD_RUNNING_BG"]
     CARD_UPDATE_BG  = _PALETTE["CARD_UPDATE_BG"]
     CARD_RUNNING_SEL = _PALETTE["CARD_RUNNING_SEL"]
@@ -200,30 +203,6 @@ def apply_theme(root: tk.Tk) -> None:
               foreground=[("disabled", FG_DIM)],
               bordercolor=[("focus", BG_SELECTED)])
 
-    style.configure("Launch.TButton",
-                    background="#107c10", foreground="#ffffff",
-                    bordercolor="#0b5a0b", padding=(16, 8),
-                    borderwidth=1, font=("Segoe UI", 10, "bold"))
-    style.map("Launch.TButton",
-              background=[("pressed",  "#0b5a0b"),
-                          ("active",   "#168a16"),
-                          ("disabled", BG_FIELD)],
-              foreground=[("disabled", FG_DIM)],
-              bordercolor=[("focus", "#168a16")])
-
-    # The boot-mode dropdown half of the launch split button: same green and
-    # height as Launch.TButton, narrow so it reads as a chevron beside it.
-    style.configure("LaunchArrow.TButton",
-                    background="#107c10", foreground="#ffffff",
-                    bordercolor="#0b5a0b", padding=(2, 8),
-                    borderwidth=1, font=("Segoe UI", 10, "bold"))
-    style.map("LaunchArrow.TButton",
-              background=[("pressed",  "#0b5a0b"),
-                          ("active",   "#168a16"),
-                          ("disabled", BG_FIELD)],
-              foreground=[("disabled", FG_DIM)],
-              bordercolor=[("focus", "#168a16")])
-
     style.configure("Accent.TButton",
                     background="#0e639c", foreground="#ffffff",
                     bordercolor="#0a4d7a", padding=4, borderwidth=1)
@@ -254,6 +233,17 @@ def apply_theme(root: tk.Tk) -> None:
               foreground=[("disabled", FG_DIM)],
               bordercolor=[("disabled", BORDER),
                            ("focus", "#c42b1c")])
+
+    style.configure("Launch.TButton",
+                    background=BG_FIELD, foreground=LAUNCH_FG,
+                    bordercolor=LAUNCH_FG, padding=4, borderwidth=1)
+    style.map("Launch.TButton",
+              background=[("pressed", CARD_RUNNING_SEL),
+                          ("active",  CARD_RUNNING_BG),
+                          ("disabled", BG)],
+              foreground=[("disabled", FG_DIM)],
+              bordercolor=[("disabled", BORDER),
+                           ("focus", LAUNCH_FG)])
 
     style.configure("TCheckbutton",
                     background=BG, foreground=FG,

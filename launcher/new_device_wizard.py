@@ -101,7 +101,7 @@ class NewDeviceWizard:
         body.columnconfigure(1, weight=1, uniform="pivot")
 
         new_btn = _PivotButton(
-            body, self._load_icon(icons_dir, "new_device.png"),
+            body, self._load_icon(icons_dir, "local_rom.png"),
             "New device", "Create a device from your local ROM",
             self._show_step2)
         new_btn.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))

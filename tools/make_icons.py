@@ -5,6 +5,8 @@
   targets :
     ico       cerf/assets/<name>.ico               16/20/24/32/48/64/256, 32-bit alpha
     launcher  launcher/assets/icons/<stem>.png     32x32 RGBA
+    wizard    launcher/assets/icons/<stem>.png     64x64 RGBA (New-device wizard pivots)
+    toolbar   launcher/assets/icons/<stem>.png     48x48 RGBA (main-window toolbar buttons)
     badges    launcher/assets/icons/badge_<key>.png  CPU-arch badges (no SVG source)
 
 Each .ico carries every size as its own resvg-rendered frame (vector rendered
@@ -36,14 +38,19 @@ from pathlib import Path
 DEFAULT_SIZES = [16, 20, 24, 32, 48, 64, 256]
 LAUNCHER_SIZE = 32  # rendered 1:1 at the side-panel display size
 WIZARD_SIZE = 64    # New-device wizard pivot buttons
-WIZARD_STEMS = ("new_device", "download")
+WIZARD_STEMS = ("local_rom", "download")
+TOOLBAR_SIZE = 48
+TOOLBAR_STEMS = ("new_device", "start_device", "refresh_remote",
+                 "update_from_remote", "delete_device", "discard_state",
+                 "help", "settings")
+LAUNCHER_ONLY_STEMS = WIZARD_STEMS + TOOLBAR_STEMS
 
 REPO = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO / "cerf" / "assets" / "icons_sources"
 ICO_DIR = REPO / "cerf" / "assets"
 LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 
-TARGETS = ("ico", "launcher", "wizard", "badges")
+TARGETS = ("ico", "launcher", "wizard", "toolbar", "badges")
 
 
 def render_image(svg_path, size):
@@ -183,7 +190,7 @@ def launcher_stems():
 def build_icos(names, sizes):
     svgs = resolve_sources(names, SRC_DIR)
     if not names:
-        svgs = [s for s in svgs if s.stem not in WIZARD_STEMS]
+        svgs = [s for s in svgs if s.stem not in LAUNCHER_ONLY_STEMS]
     if not svgs:
         sys.exit(f"no .svg sources in {SRC_DIR}")
     ICO_DIR.mkdir(parents=True, exist_ok=True)
@@ -230,6 +237,22 @@ def build_wizard_pngs(names):
         write_if_changed(out, render_png(svg, WIZARD_SIZE))
         print(f"{svg.name} -> {out.relative_to(REPO)}  "
               f"({WIZARD_SIZE}x{WIZARD_SIZE})")
+
+
+def build_toolbar_pngs(names):
+    stems = list(TOOLBAR_STEMS)
+    if names:
+        wanted = {Path(n).stem for n in names}
+        stems = [s for s in stems if s in wanted]
+    LAUNCHER_DIR.mkdir(parents=True, exist_ok=True)
+    for stem in stems:
+        svg = SRC_DIR / f"{stem}.svg"
+        if not svg.exists():
+            sys.exit(f"source not found: {svg}")
+        out = LAUNCHER_DIR / f"{stem}.png"
+        write_if_changed(out, render_png(svg, TOOLBAR_SIZE))
+        print(f"{svg.name} -> {out.relative_to(REPO)}  "
+              f"({TOOLBAR_SIZE}x{TOOLBAR_SIZE})")
 
 
 # Badges have no SVG source: they are text-in-a-box, sized to the widest label.
@@ -334,6 +357,8 @@ def main():
         build_launcher_pngs(args.names)
     if "wizard" in args.targets:
         build_wizard_pngs(args.names)
+    if "toolbar" in args.targets:
+        build_toolbar_pngs(args.names)
     if "badges" in args.targets and not args.names:
         build_badges()
 

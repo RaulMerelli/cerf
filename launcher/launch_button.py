@@ -1,4 +1,4 @@
-"""Launch split-button: the "Launch CERF" button plus a boot-mode dropdown
+"""Launch split-button: the "Start" button plus a boot-mode dropdown
 (warm/cold) that appears only when the selected device has a saved state.img."""
 from __future__ import annotations
 
@@ -13,14 +13,16 @@ import ui_theme as theme
 
 class LaunchSplitButton:
     def __init__(self, parent: tk.Misc, devices_dir: Path,
-                 on_launch: Callable[[Optional[str]], None]) -> None:
+                 on_launch: Callable[[Optional[str]], None],
+                 icon: object = "") -> None:
         self._devices_dir = devices_dir
         self._device: Optional[DeviceBundle] = None
         self._running = False
+        self._image = icon
         self.frame = ttk.Frame(parent)
-        self.btn_launch = ttk.Button(self.frame, text="Launch CERF",
-                                     command=lambda: on_launch(None),
-                                     style="Launch.TButton")
+        self.btn_launch = ttk.Button(self.frame, text="Start", image=icon,
+                                     compound="top", style="Launch.TButton",
+                                     command=lambda: on_launch(None))
         self.btn_launch.grid(row=0, column=0, sticky="ns")
 
         self._menu = tk.Menu(self.frame, tearoff=0, bd=0,
@@ -32,8 +34,7 @@ class LaunchSplitButton:
         self._menu.add_command(label="Cold boot",
                                command=lambda: on_launch("cold"))
         self._btn_boot = ttk.Button(self.frame, text="▾", width=2,
-                                     takefocus=False,
-                                     style="LaunchArrow.TButton",
+                                     takefocus=False, style="Launch.TButton",
                                      command=self._popup)
         self._btn_boot.grid(row=0, column=1, sticky="ns")
         self._btn_boot.grid_remove()
@@ -59,7 +60,7 @@ class LaunchSplitButton:
         if running == self._running:
             return
         self._running = running
-        self.btn_launch.config(text="Show CERF" if running else "Launch CERF")
+        self.btn_launch.config(text="Show" if running else "Start")
         self.refresh()
 
     def refresh(self) -> None:

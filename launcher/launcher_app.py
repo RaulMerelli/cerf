@@ -22,7 +22,6 @@ from download_window import DownloadWindow
 from running_state import show_running_window
 from toolbar import Toolbar
 from details_panel import DetailsPanel
-from launch_button import LaunchSplitButton
 from launch_options import LaunchOptionsPanel
 from launcher_operations import OperationsMixin
 from launcher_refresh import RefreshMixin
@@ -96,13 +95,16 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
     def _build_ui(self) -> None:
         self.status_bar = StatusBar(self)
 
-        self.toolbar = Toolbar(self, on_new=self._open_new_wizard,
+        self.toolbar = Toolbar(self, resolve_icons_dir(),
+                               self.manager.devices_dir,
+                               on_new=self._open_new_wizard,
                                on_refresh=self._refresh_manifest,
-                               on_update_all=self._update_all,
-                               on_update_selected=self._update_selected,
+                               on_update=self._update,
                                on_remove_selected=self._delete_selected,
-                               on_discard_selected=self._discard_state)
+                               on_discard_selected=self._discard_state,
+                               on_launch=self._launch)
         self.toolbar.frame.pack(fill="x", side="top")
+        self.split = self.toolbar.start
 
         outer = ttk.Frame(self, padding=8)
         outer.pack(fill="both", expand=True)
@@ -155,12 +157,6 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
                                     on_package_action=self._package_action)
 
         self.launch_options = LaunchOptionsPanel(inner, self, self.manager.devices_dir, row=7)
-
-        launch_bar = ttk.Frame(right)
-        launch_bar.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        self.launch_bar = launch_bar
-        self.split = LaunchSplitButton(launch_bar, self.manager.devices_dir, self._launch)
-        self.split.frame.pack(side="right")
 
         self.scroll.bind_wheel(inner)
 
@@ -416,7 +412,6 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
             self.split.set_running(self._running_status_for(sel.device) is not None)
             self.preview.set_device(sel.device)
             self.launch_options.frame.grid()
-            self.launch_bar.grid()
         self._refresh_selection_state()
 
     def _on_tree_activate(self, sel: TreeSelection) -> None:
@@ -428,13 +423,16 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
         if self.busy:
             return
         d = sel.device
+        any_updateable = any(x.has_update or x.has_package_updates
+                             for x in self.tree_panel.devices)
         if sel.kind == "device" and d is not None:
             can_discard = saved_state_info(
                 self.manager.devices_dir / d.name) is not None
-            self.toolbar.set_selection_enabled(d.has_update, d.is_installed,
-                                               can_discard)
+            self.toolbar.set_selection_enabled(d.has_update, any_updateable,
+                                               d.is_installed, can_discard)
         else:
-            self.toolbar.set_selection_enabled(False, False, False)
+            self.toolbar.set_selection_enabled(False, any_updateable,
+                                               False, False)
         self.split.set_enabled(d is not None and self.cerf_exe is not None)
 
     def _launch(self, boot: Optional[str] = None) -> None:
