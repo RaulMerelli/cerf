@@ -93,9 +93,8 @@ Because the wake re-enters through reset, two things must hold:
   power-off value is read back and re-enters sleep, or a stale input-device FIFO
   desyncs the driver's re-init handshake.
 
-The wake banners "RESUMING" rather than "REBOOTING":
-`ArmJit::SetResetPending(is_resume)` selects `GuestPowerNotifier::NotifyResume()`
-vs `NotifyReboot()`; only the deep-sleep wake passes `is_resume`.
+On wake the deep-sleep decider banners `GuestPowerNotifier::NotifyResume(ResumeSource)`
+(`User` = dialog Cancel, `Hardware` = a startup-factor wake); a reboot banners `NotifyReboot()`.
 
 ## Per-SoC / per-board wiring contract
 
