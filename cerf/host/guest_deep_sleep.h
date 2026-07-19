@@ -3,8 +3,10 @@
 #include "../core/service.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <vector>
 
 /* Deep-sleep recovery: a SoC power-down register write (e.g. SA-1110 PMCR.SF)
@@ -70,8 +72,9 @@ public:
     /* OnReady-time, board-scoped: supplies the sleep-wake resume vector. */
     void RegisterResumeVectorProvider(SleepResumeVectorProvider* p);
 
-    /* JIT thread. Halt the CPU for deep sleep and post the recovery prompt. */
     void Enter();
+
+    void RequestHardwareWake();
 
     /* Hibernation worker, after a full restore: a machine saved mid-deep-sleep
        comes back with deep_sleep set, so auto-wake it (the dialog's Cancel
@@ -81,10 +84,14 @@ public:
 private:
     void Recover();      /* UI thread: run the prompt and act on the choice. */
     void DeliverWake();
+    void TearDownPromptForHardwareWake();
 
     std::vector<std::function<void()>> power_up_listeners_;
     DeepSleepClockStop*        clock_stop_             = nullptr;
     DeepSleepWaker*            waker_                  = nullptr;
     SleepResumeVectorProvider* resume_vector_provider_ = nullptr;
     std::atomic<bool>          active_{false};
+    std::atomic<bool>          hw_resumed_{false};
+    std::mutex                 resume_mtx_;
+    std::condition_variable    resume_cv_;
 };

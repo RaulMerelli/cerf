@@ -57,11 +57,6 @@ constexpr uint16_t kS1RtcL1 = 1u << 2;   /* SYSINT1REG D2 RTCL1INTR */
 constexpr uint16_t kS2RtcL2 = 1u << 0;   /* SYSINT2REG D0 RTCL2INTR */
 constexpr uint16_t kS2Hsp   = 1u << 2;   /* SYSINT2REG D2 HSPINTR   */
 
-/* DSIUINTREG (0x0B00008A) D11 INTDCTS, D10 INTSER0, D9 INTSR0, D8 INTST0, all R; D7:1 RFU
-   read 0; D0 is an RFU that reads back 1 ("Write 1 to this bit. 1 is returned after a
-   read"), with RTCRST = 1 and After reset = 1 (VR4121 UM 15.2.6, VR4102 UM 14.2.6). */
-constexpr uint16_t kDsiuFixedRead = 0x0001u;
-
 /* NMIREG D0 NMIORINT, "Low battery detect interrupt type setting. 1: Int0, 0: NMI"
    (VR4121 UM 15.2.13 == VR4102 UM 14.2.13); D15:1 RFU read 0. */
 constexpr uint16_t kNmiOrInt = 1u << 0;
@@ -81,8 +76,9 @@ struct Vr41xxIcuModel {
     uint32_t size1;
     uint32_t base2;
     uint32_t size2;
-    uint16_t s1_direct;   /* SYSINT1REG bits with no Level-2 register */
-    uint16_t s2_direct;   /* SYSINT2REG bits with no Level-2 register */
+    uint16_t s1_direct;        /* SYSINT1REG bits with no Level-2 register */
+    uint16_t s2_direct;        /* SYSINT2REG bits with no Level-2 register */
+    uint16_t dsiu_fixed_read;  /* DSIUINTREG bits reading back 1 */
 };
 
 template <SocFamily Soc, Vr41xxIcuModel M>
@@ -116,7 +112,7 @@ public:
             case kOffAiuint:   return aiuint_;
             case kOffKiuint:   return kiuint_;
             case kOffGiuintl:  return giuintl_;
-            case kOffDsiuint:  return static_cast<uint16_t>(dsiuint_ | kDsiuFixedRead);
+            case kOffDsiuint:  return static_cast<uint16_t>(dsiuint_ | M.dsiu_fixed_read);
             case kOffMsysint1: return msysint1_;
             case kOffMpiu:     return mpiu_;
             case kOffMaiu:     return maiu_;
@@ -165,7 +161,7 @@ public:
             case kOffMsysint2: return msysint2_;
             case kOffMgiuh:    return mgiuh_;
             case kOffMfir:     return mfir_;
-            default: return Peripheral::ReadHalf(M.base2 + off);
+            default: return ReadHalf2Ext(off);
         }
     }
 
@@ -180,7 +176,7 @@ public:
             case kOffMsysint2: msysint2_ = value; RecomputeLocked(); return;
             case kOffMgiuh:    mgiuh_    = value; RecomputeLocked(); return;
             case kOffMfir:     mfir_     = value; RecomputeLocked(); return;
-            default: Peripheral::WriteHalf(M.base2 + off, value); return;
+            default: WriteHalf2Ext(off, value); return;
         }
     }
 
@@ -230,6 +226,7 @@ public:
         w.Write(mkiu_);    w.Write(mdsiu_);   w.Write(mfir_);
         w.Write(sysint1_direct_); w.Write(sysint2_direct_);
         w.Write(msysint1_); w.Write(msysint2_); w.Write(nmireg_); w.Write(softint_);
+        SaveStateExtLocked(w);
     }
 
     void RestoreState(StateReader& r) override {
@@ -240,12 +237,24 @@ public:
         r.Read(mkiu_);    r.Read(mdsiu_);   r.Read(mfir_);
         r.Read(sysint1_direct_); r.Read(sysint2_direct_);
         r.Read(msysint1_); r.Read(msysint2_); r.Read(nmireg_); r.Read(softint_);
+        RestoreStateExtLocked(r);
     }
 
     void PostRestore() override {
         std::lock_guard<std::mutex> lk(mtx_);
         RecomputeLocked();
     }
+
+protected:
+    /* VR4131 UM Table 11-1 adds PCIINTREG..MBCUINTREG 0xAC-0xBA over VR4121 UM Table
+       15-1 == VR4102 UM Table 14-1; hooks run with mtx_ held (re-locking deadlocks). */
+    virtual uint16_t ReadHalf2Ext(uint32_t off) { return Peripheral::ReadHalf(M.base2 + off); }
+    virtual void WriteHalf2Ext(uint32_t off, uint16_t value) {
+        Peripheral::WriteHalf(M.base2 + off, value);
+    }
+    virtual void ApplyResetExtLocked() {}
+    virtual void SaveStateExtLocked(StateWriter&) {}
+    virtual void RestoreStateExtLocked(StateReader&) {}
 
 private:
     /* The ICU's own R/W registers, whose RTCRST and After-reset rows are all 0 (VR4121 UM
@@ -257,6 +266,7 @@ private:
         mgiul_ = 0; mgiuh_ = 0; mpiu_ = 0; maiu_ = 0;
         mkiu_  = 0; mdsiu_ = 0; mfir_ = 0;
         msysint1_ = 0; msysint2_ = 0; nmireg_ = 0; softint_ = 0;
+        ApplyResetExtLocked();
         RecomputeLocked();
     }
 

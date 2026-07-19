@@ -80,6 +80,7 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
     d->place_fn           = nullptr;
     d->guest_address      = pc;
     d->raw                = word;
+    d->length             = 4;
     d->op                 = word >> 26;
     d->rs                 = (word >> 21) & 0x1f;
     d->rt                 = (word >> 16) & 0x1f;
@@ -129,6 +130,11 @@ bool MipsDecoder::Decode(uint32_t word, uint32_t pc, MipsDecodedInsn* d) {
         case MipsOp::kJ:    case MipsOp::kJAL:
             d->is_branch = 1;
             return true;
+
+        /* JALX: reserved instruction unless MIPS16 is enabled (U15509EJ2V0UM 3.4.3). */
+        case MipsOp::kJALX:
+            d->is_branch = 1;
+            return has_mips16_;
         case MipsOp::kBEQL: case MipsOp::kBNEL:
         case MipsOp::kBLEZL: case MipsOp::kBGTZL:
             d->is_branch = 1;

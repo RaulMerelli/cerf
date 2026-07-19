@@ -18,23 +18,24 @@ void GuestPowerNotifier::Banner(const char* line) {
 }
 
 void GuestPowerNotifier::NotifyPowerDown() {
-    Banner("!! CERF: Power down !!");
+    Banner("!! CERF: CPU Sleep !!");
     emu_.Get<HostWindow>().RunOnUiThread([this] { emu_.Get<HostCanvas>().RememberTabForResume(); });
     emu_.Get<HostWindow>().ShowHwScreenTab(false);
 }
 
 void GuestPowerNotifier::NotifyReboot() {
-    Banner("!! CERF: Soft reset !!");
+    Banner("!! CERF: CPU reset !!");
     if (auto* fr = emu_.TryGet<FrameRenderer>()) fr->RearmContentLatch();
     emu_.Get<BootScreen>().Restart();
     emu_.Get<HostWindow>().ShowStartupTab(true);
 }
 
-void GuestPowerNotifier::NotifyResume() {
-    Banner("!! CERF: Resuming !!");
+void GuestPowerNotifier::NotifyResume(ResumeSource src) {
+    Banner(src == ResumeSource::Hardware ? "!! CERF: CPU Resume by hardware !!"
+                                         : "!! CERF: CPU Resume by user !!");
     emu_.Get<HostWindow>().RunOnUiThread([this] { emu_.Get<HostCanvas>().RestoreTabForResume(); });
 }
 
 void GuestPowerNotifier::NotifyHardReset() {
-    Banner("!! CERF: Hard reset !!");
+    Banner("!! CERF: CPU+RAM hard reset !!");
 }

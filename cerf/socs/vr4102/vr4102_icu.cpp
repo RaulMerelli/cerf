@@ -22,6 +22,8 @@ constexpr Vr41xxIcuModel kModel = {
     /* SYSINT2REG bits with no Level-2 register (UM 14.2.15): D3 TCLKINTR, D2 HSPINTR,
        D1 LEDINTR, D0 RTCL2INTR. */
     /*s2_direct=*/0x000Fu,
+    /* DSIUINTREG D0: "Write 1 to this bit. 1 is returned after a read" (UM 14.2.6). */
+    /*dsiu_fixed_read=*/0x0001u,
 };
 
 class Vr4102Icu : public Vr41xxIcuBase<SocFamily::VR4102, kModel> {

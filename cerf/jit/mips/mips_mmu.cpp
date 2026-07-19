@@ -19,8 +19,14 @@ uint32_t MipsMmu::NextRandom(uint32_t first, uint32_t nb) {
 void MipsMmu::FlushAll(MipsCpuState* st) {
     /* cpu_mips_tlb_flush (tlb_helper.c:492): flush the host translation cache +
        discard all shadow entries. */
-    blocks_->JumpCacheFlush();
+    blocks32_->JumpCacheFlush();
+    blocks16_->JumpCacheFlush();
     st->tlb_in_use = st->nb_tlb;
+}
+
+void MipsMmu::JumpCacheClearPage(uint32_t page_va) {
+    blocks32_->JumpCacheClearPage(page_va);
+    blocks16_->JumpCacheClearPage(page_va);
 }
 
 void MipsMmu::SaveState(StateWriter& w) const {

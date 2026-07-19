@@ -26,6 +26,10 @@ struct MipsDecodedInsn {
     uint32_t imm;                /* raw 16-bit immediate; place fns sign/zero-extend */
     uint32_t target;             /* raw 26-bit jump target */
 
+    /* Instruction byte length: 4, or 2 in MIPS16 mode where EXTEND and
+       JAL/JALX are 4 (U15509EJ2V0UM 3.6). */
+    uint32_t length;
+
     /* A branch/jump owns the following instruction (its delay slot), which
        executes regardless of outcome - the translator must emit the pair as a
        unit or control flow is wrong. is_likely squashes the delay slot when the

@@ -2,9 +2,9 @@
 
 #include "../../peripherals/peripheral_base.h"
 
-/* NEC VR41xx GIU (General Purpose I/O Unit), 0x0B000100-0x0B00011F: the GPIO
-   direction/data registers plus the Level-2 GPIO interrupt block, whose output the
-   ICU takes as GIUINTLREG/GIUINTHREG (VR4121 UM ch.19, VR4102 UM ch.18). */
+/* NEC VR41xx GIU (General Purpose I/O Unit): the GPIO direction/data registers plus
+   the Level-2 GPIO interrupt block, whose output the ICU takes as GIUINTLREG/
+   GIUINTHREG (VR4121 UM ch.19, VR4102 UM ch.18, VR4131 UM ch.14). */
 class Vr41xxGiu : public Peripheral {
 public:
     using Peripheral::Peripheral;

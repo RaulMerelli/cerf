@@ -240,26 +240,46 @@ inline void EmitTrappingArith64RR(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_
 inline int32_t BranchStateOff() { return static_cast<int32_t>(offsetof(MipsCpuState, branch_state)); }
 inline int32_t BtargetOff()     { return static_cast<int32_t>(offsetof(MipsCpuState, btarget)); }
 inline int32_t BcondOff()       { return static_cast<int32_t>(offsetof(MipsCpuState, bcond)); }
+inline int32_t BtargetIsaOff()  { return static_cast<int32_t>(offsetof(MipsCpuState, btarget_isa)); }
+inline int32_t BranchLenOff()   { return static_cast<int32_t>(offsetof(MipsCpuState, branch_len)); }
 
-/* j/jal: record an unconditional branch to a compile-time target (QEMU
-   gen_compute_branch OPC_J/JAL -> MIPS_HFLAG_B). */
-inline void EmitBranchUncond(uint8_t*& c, uint32_t btarget) {
+/* j/jal/jalx: record an unconditional branch to a compile-time target (QEMU
+   gen_compute_branch OPC_J/JAL/JALX -> MIPS_HFLAG_B; JALX adds MIPS_HFLAG_BX,
+   translate.c:4525 - the target ISA mode carried as btarget_isa). */
+inline void EmitBranchUncond(uint8_t*& c, uint32_t btarget, uint32_t btarget_isa,
+                             uint32_t branch_len) {
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetIsaOff(), btarget_isa);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kUncond);
 }
 
 /* jr/jalr: btarget = gpr[rs] low 32, read NOW (the delay slot may clobber rs).
-   QEMU gen_compute_branch OPC_JR/JALR gen_load_gpr(btarget, rs) -> MIPS_HFLAG_BR. */
-inline void EmitBranchRegister(uint8_t*& c, uint32_t rs) {
+   QEMU gen_compute_branch OPC_JR/JALR gen_load_gpr(btarget, rs) -> MIPS_HFLAG_BR.
+   mips16: JR/JALR "load the ISA mode bit from bit 0 ... Bit 0 is not a part of
+   the target address" (U15509EJ2V0UM 3.4.1); disabled -> JR/JALR with bit 0 set
+   address-fault (ibid. 3.4.3), so bit 0 stays in btarget. */
+inline void EmitBranchRegister(uint8_t*& c, uint32_t rs, bool mips16,
+                               uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
+    if (mips16) {
+        x86::EmitMovRegReg(c, x86::kEcx, x86::kEax);
+        x86::EmitAndRegImm32(c, x86::kEcx, 1u);
+        x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BtargetIsaOff(), x86::kEcx);
+        x86::EmitAndRegImm32(c, x86::kEax, ~1u);
+    } else {
+        x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetIsaOff(), 0u);
+    }
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BtargetOff(), x86::kEax);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), MipsBranch::kRegister);
 }
 
 /* beq/bne: bcond = (gpr[rs]==gpr[rt]) 64-bit for take_if_equal, else negated,
    computed NOW (delay slot may clobber rs/rt). QEMU OPC_BEQ/BNE -> MIPS_HFLAG_BC. */
 inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t btarget,
-                             bool take_if_equal, uint32_t branch_state) {
+                             bool take_if_equal, uint32_t branch_state,
+                             uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
     x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
     uint8_t* j_neq_lo = x86::EmitJnzLabel(c);
@@ -275,13 +295,15 @@ inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t bta
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 /* bltz/bgez: bcond = sign of the 64-bit gpr[rs] (= hi bit31): take_if_neg for
    BLTZ, !take_if_neg for BGEZ. QEMU OPC_BLTZ/BGEZ setcondi LT/GE 0. */
 inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
-                               bool take_if_neg, uint32_t branch_state) {
+                               bool take_if_neg, uint32_t branch_state,
+                               uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_neg = x86::EmitJsLabel32(c);
@@ -293,6 +315,7 @@ inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
@@ -300,7 +323,7 @@ inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
    lo bit31 set is +2^31 (>0), so the test must not collapse to a 32-bit signed
    lo>0. QEMU OPC_BGTZ setcondi GT 0. */
 inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget,
-                              uint32_t branch_state) {
+                              uint32_t branch_state, uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_neg = x86::EmitJsLabel32(c);     /* hi<0 -> value<0 -> not >0 */
@@ -319,13 +342,14 @@ inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget,
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 
 /* blez: bcond = (int64)gpr[rs] <= 0 (hi<0, or hi==0 && lo==0) - the negation of
    the bgtz >0 test. QEMU OPC_BLEZ setcondi LE 0. */
 inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget,
-                              uint32_t branch_state) {
+                              uint32_t branch_state, uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_taken_neg = x86::EmitJsLabel32(c);   /* hi<0 -> value<0 -> <=0 */
@@ -344,6 +368,7 @@ inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget,
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
+    x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchLenOff(), branch_len);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BranchStateOff(), branch_state);
 }
 

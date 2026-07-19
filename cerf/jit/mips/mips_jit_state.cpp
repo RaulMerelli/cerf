@@ -22,6 +22,7 @@ void MipsJit::ResyncInterruptPoll() {}
 void MipsJit::FlushTranslationCache(uint32_t /*va*/, uint32_t /*length*/) {
     arena_.Flush();
     blocks_.FlushAll();
+    blocks16_.FlushAll();
 }
 
 void MipsJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {

@@ -49,6 +49,8 @@ public:
     /* CP0 WatchLo (r18) + WatchHi (r19) present (UM Table 1-18). */
     bool HasWatch()   const override { return true; }
     bool HasVr41xxPowerModes() const override { return true; }   /* VR4102 UM ch.27 */
+    /* "32-bit fixed instruction encoding, MIPS III ISA, no MIPS16" (UM ch.3). */
+    bool HasMips16() const override { return false; }
 };
 
 }  // namespace

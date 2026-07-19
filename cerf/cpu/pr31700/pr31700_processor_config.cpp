@@ -53,6 +53,8 @@ public:
     bool HasWatch()   const override { return false; }
     /* Power-down is a CPU clock-stop mode (PR31700.PDF p.2). */
     bool HasVr41xxPowerModes() const override { return false; }
+    /* No MIPS16 on the R3900 core (TMPR39xx-um documents none). */
+    bool HasMips16() const override { return false; }
 };
 
 }  // namespace

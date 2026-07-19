@@ -62,7 +62,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
                 EmitCmpRegImm32(code_location, kEax, MipsBranch::kCondLikely);
                 j_skip_gate = EmitJnzLabel(code_location);
             }
-            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + insn.length);
             EmitMovRegImm32(code_location, kEdx, self);
             EmitCall(code_location, reinterpret_cast<void*>(&NullifyLikelyHelper));
             EmitTestRegReg(code_location, kEax, kEax);
@@ -70,6 +70,16 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             EmitRetn(code_location, 0);              /* nullified: pc set, exit block */
             FixupLabel(j_run, code_location);
             if (j_skip_gate) FixupLabel(j_skip_gate, code_location);
+        }
+
+        if (i == 0 && block_ctx_.insn0_pcrel_guard) {
+            EmitMovRegBaseDisp32(code_location, kEax, kStateReg, kBranchStateOff);
+            EmitTestRegReg(code_location, kEax, kEax);
+            uint8_t* j_not_ds = EmitJzLabel(code_location);
+            EmitPush32(code_location, insn.guest_address);
+            EmitPush32(code_location, self);
+            EmitCall(code_location, reinterpret_cast<void*>(&PcrelDelaySlotHelper));
+            FixupLabel(j_not_ds, code_location);
         }
 
         code_location = insn.place_fn(code_location, &insn, &block_ctx_);
@@ -85,7 +95,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
         if (i > 0 && block_ctx_.insns[i - 1].is_branch) {
             /* Within-block delay slot (block's last insn): branch_state is pending
                (set by insns[i-1]); resolve and exit (QEMU gen_branch). */
-            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + insn.length);
             EmitMovRegImm32(code_location, kEdx, self);
             EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
             EmitRetn(code_location, 0);
@@ -96,7 +106,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             /* insn[0] may be a delay slot entered from a branch in the prior block
                (branch_state pending). Resolve-if-pending; a normal entry returns 0
                and the block continues (QEMU delay-slot-entry TB + gen_branch). */
-            EmitMovRegImm32(code_location, kEcx, insn.guest_address + 4u);
+            EmitMovRegImm32(code_location, kEcx, insn.guest_address + insn.length);
             EmitMovRegImm32(code_location, kEdx, self);
             EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
             EmitTestRegReg(code_location, kEax, kEax);
@@ -107,8 +117,8 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
     }
 
     if (!terminated) {
-        const uint32_t next_pc =
-            block_ctx_.insns[block_ctx_.num_insns - 1].guest_address + 4u;
+        const MipsDecodedInsn& last = block_ctx_.insns[block_ctx_.num_insns - 1];
+        const uint32_t next_pc = last.guest_address + last.length;
         EmitMovBaseDisp32Imm32(code_location, kStateReg, kPcOff, next_pc);
         EmitRetn(code_location, 0);
     }

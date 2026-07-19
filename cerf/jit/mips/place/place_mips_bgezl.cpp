@@ -12,6 +12,6 @@ uint8_t* PlaceMipsBgezl(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) 
                               static_cast<int16_t>(d->imm)));
     const uint32_t btgt = d->guest_address + 4u + (soff << 2);
     mips_emit::EmitBranchCondSign(cursor, d->rs, btgt, /*take_if_neg=*/false,
-                                  MipsBranch::kCondLikely);
+                                  MipsBranch::kCondLikely, d->length);
     return cursor;
 }

@@ -4,7 +4,6 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../jit/isa_block_space.h"
 
 /* QEMU target/mips tlb_helper.c r4k_*, parameterized on the SoC min-page shift
    S = MipsCpuState::min_page_shift (QEMU TARGET_PAGE_BITS): a PFN gives PA[31:S]
@@ -13,7 +12,8 @@
 
 namespace {
 
-/* 8-bit EntryHi ASID: VR5500, VR4102, VR4121 (VR4121 UM Fig 6-17). */
+/* 8-bit EntryHi ASID: VR5500, VR4102, VR4121 (VR4121 UM Fig 6-17), VR4122
+   (VR4100 Series UM U15509EJ2V0UM 5.4). */
 constexpr uint32_t kAsidMask = 0x000000FF;
 
 /* get_tlb_pfn_from_entrylo (tlb_helper.c:42), 32-bit: extract64(entrylo,6,24). */
@@ -35,6 +35,7 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && (bd->GetSoc() == SocFamily::VR4102 ||
                       bd->GetSoc() == SocFamily::VR4121 ||
+                      bd->GetSoc() == SocFamily::VR4122 ||
                       bd->GetSoc() == SocFamily::VR5500);
     }
 
@@ -198,7 +199,7 @@ private:
             uint32_t addr = e.vpn & ~mask;
             const uint32_t end = addr | (mask >> 1);
             while (addr < end) {
-                blocks_->JumpCacheClearPage(addr);
+                JumpCacheClearPage(addr);
                 addr += 0x1000u;
             }
         }
@@ -206,7 +207,7 @@ private:
             uint32_t addr = (e.vpn & ~mask) | ((mask >> 1) + 1u);
             const uint32_t end = addr | mask;
             while (addr - 1u < end) {
-                blocks_->JumpCacheClearPage(addr);
+                JumpCacheClearPage(addr);
                 addr += 0x1000u;
             }
         }

@@ -10,6 +10,6 @@
 uint8_t* PlaceMipsJal(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     const uint32_t tgt = ((d->guest_address + 4u) & 0xF0000000u) | (d->target << 2);
     mips_emit::EmitStoreGprSextImm32(cursor, 31, d->guest_address + 8u);
-    mips_emit::EmitBranchUncond(cursor, tgt);
+    mips_emit::EmitBranchUncond(cursor, tgt, 0u, d->length);
     return cursor;
 }

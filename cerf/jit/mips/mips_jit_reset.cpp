@@ -11,7 +11,7 @@ void MipsJit::SetResetPending(bool is_resume) {
     emu_.Get<GuestCpuReset>().SetPendingResume(is_resume);
     cpu_state_.reset_pending = 1;
     SignalIdleWake();   /* wake the JIT thread if parked so Run() delivers it */
-    if (is_resume) { emu_.Get<GuestPowerNotifier>().NotifyResume(); return; }
+    if (is_resume) return;
     emu_.Get<GuestDeepSleep>().ClearWakeCause();
     emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
@@ -38,4 +38,5 @@ void MipsJit::DeliverReset() {
     /* The reset zeroes the MMU (ASID 0), so the VA->native jump-cache shortcuts
        are stale; the phys-keyed block index stays valid for warm RAM. */
     blocks_.JumpCacheFlush();
+    blocks16_.JumpCacheFlush();
 }

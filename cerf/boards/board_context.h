@@ -23,6 +23,7 @@ enum class SocFamily {
     VR5500,
     VR4102,
     VR4121,
+    VR4122,
     PR31700,
     PR31500,
 };
@@ -52,6 +53,7 @@ enum class Board {
     PhilipsNino300,
     PhilipsVelo1,
     SharpMobilonHc4100,
+    CasioCassiopeiaEm500,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */

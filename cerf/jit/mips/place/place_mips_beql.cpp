@@ -13,6 +13,6 @@ uint8_t* PlaceMipsBeql(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
                               static_cast<int16_t>(d->imm)));
     const uint32_t btgt = d->guest_address + 4u + (soff << 2);
     mips_emit::EmitBranchCondEq(cursor, d->rs, d->rt, btgt, /*take_if_equal=*/true,
-                                MipsBranch::kCondLikely);
+                                MipsBranch::kCondLikely, d->length);
     return cursor;
 }

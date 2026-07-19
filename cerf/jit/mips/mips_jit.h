@@ -11,6 +11,7 @@
 #include "../guest_engine.h"
 #include "../jit_code_arena.h"
 #include "../isa_block_space.h"
+#include "mips16_decoder.h"
 #include "mips_block_context.h"
 #include "mips_cpu_state.h"
 #include "mips_decoder.h"
@@ -50,6 +51,11 @@ public:
     /* Emitted by trapping arithmetic (ADDI/ADD/SUB) on a signed overflow:
        loud-fatals until CP0 Integer Overflow exception delivery exists. */
     static void __cdecl ArithOverflowHelper(MipsJit* jit, uint32_t pc);
+
+    /* Emitted before a block-leading PC-relative MIPS16 insn: loud-fatals when
+       the block is entered as a pending jump's delay slot, whose Table 3-12
+       p67 base (the jump's PC) the block-local decode cannot know. */
+    static void __cdecl PcrelDelaySlotHelper(MipsJit* jit, uint32_t pc);
 
     /* TLBWI: drive the indexed software-TLB write (and its JIT block-cache
        invalidation) via MipsMmu::WriteIndexed. __fastcall: jit in ECX. */
@@ -268,7 +274,8 @@ public:
 
 private:
     JitCodeArena    arena_;
-    IsaBlockSpace   blocks_;          /* single ISA - no ARM/Thumb split */
+    IsaBlockSpace   blocks_;
+    IsaBlockSpace   blocks16_;
 
     struct DramHostRegion {
         uint8_t* host_lo    = nullptr;
@@ -311,6 +318,7 @@ private:
     MipsBlockContext block_ctx_{};
     MipsCpuState    cpu_state_{};
     MipsDecoder     decoder_;
+    Mips16Decoder   m16_decoder_;
 
     MipsMmu*              mmu_         = nullptr;
     EmulatedMemory*       memory_      = nullptr;
@@ -383,6 +391,12 @@ private:
 
     void* JitCompile(uint32_t guest_pc);
     void  JitDecode(uint32_t guest_pc);
+
+    void  JitDecode16(uint32_t guest_pc);
+    bool  Fetch16(uint32_t va, uint16_t* hw, uint32_t* pa);
+
+    bool  TailStillMapped(const JitBlock* blk);
+
     uint32_t BlockIndexKey(uint32_t phys_start);
 
     /* Decode -> emit dispatch: implemented opcode -> its place fn, else the

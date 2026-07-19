@@ -13,8 +13,11 @@ constexpr uint32_t kJumpCacheSize = 4096;   /* power of two */
 
 constexpr uint32_t kBlockUnindexed = 0xFFFFFFFFu;
 struct JumpCacheEntry {
-    uint32_t folded_va;
-    void*    native;
+    uint32_t  folded_va;
+    void*     native;
+    /* QEMU cpu-exec.c tb_lookup: a tb_jmp_cache hit is validated against the
+       TB before use. */
+    JitBlock* blk;
 };
 
 /* Per-ISA blocks. CE7 sets FCSE process_id=0, so the index key no
@@ -50,10 +53,17 @@ struct IsaBlockSpace {
         return e.folded_va == folded_va ? e.native : nullptr;
     }
 
-    void JumpCacheInsert(uint32_t folded_va, void* native) {
+    const JumpCacheEntry* JumpCacheProbe(uint32_t folded_va) const {
+        const JumpCacheEntry& e = jump_cache[(folded_va >> 2) & (kJumpCacheSize - 1u)];
+        return e.folded_va == folded_va ? &e : nullptr;
+    }
+
+    void JumpCacheInsert(uint32_t folded_va, void* native,
+                         JitBlock* blk = nullptr) {
         JumpCacheEntry& e = jump_cache[(folded_va >> 2) & (kJumpCacheSize - 1u)];
         e.folded_va = folded_va;
         e.native    = native;
+        e.blk       = blk;
     }
 
     void Initialize(uint32_t dram_page_base, uint32_t dram_page_count) {
@@ -93,17 +103,49 @@ struct IsaBlockSpace {
         }
     }
 
-    /* QEMU tb_page_add. */
-    void IndexInsert(JitBlock* outer, JitBlockIndex* owner, uint32_t index_start) {
-        outer->owner       = owner;
-        outer->page_next   = nullptr;
-        outer->index_start = index_start;
-        const uint32_t pg = index_start >> 12;
+    /* QEMU tb_link_page. */
+    void IndexInsert(JitBlock* outer, JitBlockIndex* owner, uint32_t index_start,
+                     uint32_t index_split = 0,
+                     uint32_t index_start2 = kBlockUnindexed) {
+        outer->owner        = owner;
+        outer->page_next[0] = nullptr;
+        outer->page_next[1] = nullptr;
+        outer->index_start  = index_start;
+        outer->index_split  = index_split;
+        outer->index_start2 = index_start2;
+        LinkIntoPage(outer, 0, index_start >> 12);
+        if (index_split != 0 && (index_start2 >> 12) != (index_start >> 12)) {
+            LinkIntoPage(outer, 1, index_start2 >> 12);
+        }
+    }
+
+    void LinkIntoPage(JitBlock* outer, int slot, uint32_t pg) {
         if (pg >= page_base && pg < page_base + page_count) {
             JitBlock*& head = page_heads[pg - page_base];
-            outer->page_next = head;
+            outer->page_next[slot] = head;
             head = outer;
         }
+    }
+
+    static int LinkSlot(const JitBlock* blk, uint32_t pg) {
+        return (blk->index_start >> 12) == pg ? 0 : 1;
+    }
+
+    static bool RangesOverlap(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo,
+                              uint32_t b_hi) {
+        return a_hi >= b_lo && a_lo <= b_hi;
+    }
+
+    /* QEMU tb_invalidate_phys_page_range__locked. */
+    static bool IntersectsBlock(const JitBlock* blk, uint32_t lo, uint32_t hi) {
+        const uint32_t span = blk->guest_end - blk->guest_start;
+        if (blk->index_split == 0) {
+            return RangesOverlap(blk->index_start, blk->index_start + span, lo, hi);
+        }
+        return RangesOverlap(blk->index_start,
+                             blk->index_start + blk->index_split - 1u, lo, hi) ||
+               RangesOverlap(blk->index_start2,
+                             blk->index_start2 + (span - blk->index_split), lo, hi);
     }
 
     /* QEMU's !cpu_physical_memory_get_dirty_flag(DIRTY_MEMORY_CODE): the CODE bit
@@ -115,14 +157,24 @@ struct IsaBlockSpace {
         return page_heads[pg - page_base] != nullptr;
     }
 
-    void UnlinkPage(JitBlock* outer) {
-        const uint32_t pg = outer->index_start >> 12;
+    void UnlinkFromPage(JitBlock* outer, int slot) {
+        if (slot == 1 &&
+            (outer->index_split == 0 ||
+             (outer->index_start2 >> 12) == (outer->index_start >> 12))) {
+            return;
+        }
+        const uint32_t pg =
+            (slot == 0 ? outer->index_start : outer->index_start2) >> 12;
         if (pg < page_base || pg >= page_base + page_count) return;
         JitBlock** pp = &page_heads[pg - page_base];
-        while (*pp) {
-            if (*pp == outer) { *pp = outer->page_next; return; }
-            pp = &(*pp)->page_next;
+        while (JitBlock* b = *pp) {
+            if (b == outer) { *pp = b->page_next[slot]; return; }
+            pp = &b->page_next[LinkSlot(b, pg)];
         }
+    }
+    void UnlinkPage(JitBlock* outer) {
+        UnlinkFromPage(outer, 0);
+        UnlinkFromPage(outer, 1);
     }
     /* QEMU tb_invalidate_phys_page_range__locked. */
     uint32_t RemoveRange(uint32_t lo, uint32_t hi) {
@@ -133,12 +185,12 @@ struct IsaBlockSpace {
             if (pg < page_base || pg >= page_base + page_count) continue;
             JitBlock** pp = &page_heads[pg - page_base];
             while (JitBlock* blk = *pp) {
-                const uint32_t blk_lo = blk->index_start;
-                const uint32_t blk_hi = blk_lo + (blk->guest_end - blk->guest_start);
-                if (blk_hi < lo || blk_lo > hi) {
-                    pp = &blk->page_next;
+                const int n = LinkSlot(blk, pg);
+                if (!IntersectsBlock(blk, lo, hi)) {
+                    pp = &blk->page_next[n];
                 } else {
-                    *pp = blk->page_next;
+                    *pp = blk->page_next[n];
+                    UnlinkFromPage(blk, 1 - n);
                     blk->owner->RemoveNode(blk, &ClearJcSlot, this);
                     ++removed;
                 }

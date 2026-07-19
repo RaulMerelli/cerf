@@ -116,7 +116,7 @@ private:
 
     void Replace(MipsCpuState* st, uint32_t idx) {
         MipsTlbEntry& e = st->tlb[idx];
-        if (e.v0 && blocks_) blocks_->JumpCacheClearPage(e.vpn);
+        if (e.v0) JumpCacheClearPage(e.vpn);
         e.vpn       = st->cp0_entryhi & kVpnMask;
         e.asid      = static_cast<uint16_t>(Pid(st));
         e.page_mask = 0;
@@ -128,7 +128,7 @@ private:
         e.v1 = e.d1 = e.c1 = 0;
         e.pfn[1] = 0;
 
-        if (blocks_) blocks_->JumpCacheClearPage(e.vpn);
+        JumpCacheClearPage(e.vpn);
     }
 };
 

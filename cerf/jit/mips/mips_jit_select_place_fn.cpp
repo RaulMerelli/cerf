@@ -20,6 +20,7 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
         case MipsOp::kANDI:  return &PlaceMipsAndi;
         case MipsOp::kJ:     return &PlaceMipsJ;
         case MipsOp::kJAL:   return &PlaceMipsJal;
+        case MipsOp::kJALX:  return &PlaceMipsJalx;
         case MipsOp::kLW:    return &PlaceMipsLw;
         case MipsOp::kLD:    return &PlaceMipsLd;
         case MipsOp::kSW:    return &PlaceMipsSw;

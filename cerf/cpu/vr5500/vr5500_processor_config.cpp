@@ -31,6 +31,8 @@ public:
     bool HasWatch()   const override { return true;  }   /* MIPS_CPU_WATCH */
     bool HasLlsc()    const override { return true;  }   /* MIPS_CPU_LLSC */
     bool HasVr41xxPowerModes() const override { return false; }
+    /* No MIPS16 (vr5500a_upd30550a_datasheet.pdf documents none). */
+    bool HasMips16() const override { return false; }
 };
 
 }  /* namespace */

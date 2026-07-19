@@ -25,6 +25,8 @@ public:
        unattended), deep-sleep wording, and a "Resume" button in place of Cancel. */
     ShutdownChoice Show(ShutdownTrigger trigger = ShutdownTrigger::WindowClose);
 
+    void DismissAsCancel();
+
 private:
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);

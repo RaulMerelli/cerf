@@ -26,6 +26,7 @@ constexpr BoardIdEntry kBoardIds[] = {
     {"philips_nino_300",  Board::PhilipsNino300},
     {"philips_velo_1",    Board::PhilipsVelo1},
     {"sharp_mobilon_hc4100", Board::SharpMobilonHc4100},
+    {"casio_cassiopeia_em500", Board::CasioCassiopeiaEm500},
 };
 
 }  /* namespace */
@@ -72,6 +73,7 @@ const char* BoardContext::BoardName(Board b) {
         case Board::PhilipsNino300:   return "Philips Nino 300";
         case Board::PhilipsVelo1:     return "Philips Velo 1";
         case Board::SharpMobilonHc4100: return "Sharp Mobilon HC-4100";
+        case Board::CasioCassiopeiaEm500: return "Casio Cassiopeia EM-500";
     }
     return "Unknown / unsupported";
 }
@@ -93,6 +95,7 @@ const char* BoardContext::SocFamilyName(SocFamily f) {
         case SocFamily::VR5500:    return "VR5500";
         case SocFamily::VR4102:    return "VR4102";
         case SocFamily::VR4121:    return "VR4121";
+        case SocFamily::VR4122:    return "VR4122";
         case SocFamily::PR31700:   return "PR31700";
         case SocFamily::PR31500:   return "PR31500";
     }

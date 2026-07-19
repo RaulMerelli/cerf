@@ -188,6 +188,21 @@ struct MipsCpuState {
     /* AND-mask for a TLB-translated PA, from MipsProcessorConfig::PhysAddrMask()
        (VR4102 0x1FFFFFFF physical mirror; VR5500 0xFFFFFFFF). */
     uint32_t phys_addr_mask;
+
+    /* MIPS16 ISA mode bit (VR4100 Series UM U15509EJ2V0UM 3.4): 0 = 32-bit
+       instructions only, 1 = MIPS16 only. Changed by JALX/JR/JALR (3.4.1),
+       cleared on exception entry with the prior mode saved to EPC/ErrorEPC
+       bit 0 (3.4.2), cleared by cold/soft reset (ibid.). */
+    uint32_t isa_mode;
+
+    /* ISA mode the pending branch target executes in, applied with btarget at
+       delay-slot resolve: JR/JALR take it from bit 0 of the source register,
+       JALX inverts the current mode, every other branch keeps it (UM 3.4.1). */
+    uint32_t btarget_isa;
+
+    /* Pending branch/jump byte length; delay-slot EPC = slot PC - branch_len
+       (QEMU exception.c exception_resume_pc:41, MIPS_HFLAG_B16 ? 2 : 4). */
+    uint32_t branch_len;
 };
 
 /* CP0 register number -> byte offset of its field in MipsCpuState, or -1 for a

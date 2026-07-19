@@ -55,6 +55,12 @@ public:
        outside that family decodes them as reserved. */
     virtual bool HasVr41xxPowerModes() const = 0;
 
+    /* MIPS16 ASE decode enabled (VR4100 Series UM U15509EJ2V0UM ch.3; the
+       MIPS16EN pin state at RTC reset, ibid. 3.1/3.4.3). False = JALX is a
+       reserved instruction and JR/JALR with source bit 0 set address-fault
+       (ibid. 3.4.3). */
+    virtual bool HasMips16() const = 0;
+
     /* Whether this SoC implements CP0 register `rd` - gates the config-dependent
        registers (Count/Compare, WatchLo/WatchHi); always-present registers
        return true and are further validated by Cp0RegOffset. Consumed by the

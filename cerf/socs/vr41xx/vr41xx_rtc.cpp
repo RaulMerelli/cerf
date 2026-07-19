@@ -3,6 +3,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../host/guest_deep_sleep.h"
+#include "../../jit/guest_engine.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
@@ -255,14 +257,24 @@ void Vr41xxRtc::StopWorker() {
 
 void Vr41xxRtc::WorkerLoop() {
     auto& freeze = emu_.Get<EmulationFreeze>();
+    auto& engine = emu_.Get<GuestEngine>();
     std::unique_lock<std::mutex> lk(cv_mtx_);
     while (!stop_.load(std::memory_order_acquire)) {
         lk.unlock();
         {
             auto frozen = freeze.WorkerSection();
-            std::lock_guard<std::mutex> sl(mtx_);
-            EvaluateLocked();
-            DriveIcuLocked();
+            bool elapsed_pending = false;
+            {
+                std::lock_guard<std::mutex> sl(mtx_);
+                EvaluateLocked();
+                DriveIcuLocked();
+                elapsed_pending = (rtcintreg_ & kIntElapsed) != 0;
+            }
+            /* Hibernate startup factor "an Elapsed Time timer interrupt" (VR4131 UM
+               U15350EJ2V0UM 12.1.3 p216); a match pending at HIBERNATE entry wakes
+               immediately - the guest arms ECMP = ETIME - 4 at 0x9F0359B0. */
+            if (elapsed_pending && engine.DeepSleep() && !engine.ResetPending())
+                emu_.Get<GuestDeepSleep>().RequestHardwareWake();
         }
         lk.lock();
         if (stop_.load(std::memory_order_acquire)) break;

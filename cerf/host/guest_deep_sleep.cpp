@@ -7,7 +7,13 @@
 #include "guest_power_notifier.h"
 #include "host_window.h"
 
+#include <chrono>
+
 REGISTER_SERVICE(GuestDeepSleep);
+
+namespace {
+constexpr int kResumeGraceMs = 100;
+}
 
 void GuestDeepSleep::RegisterWaker(DeepSleepWaker* waker) {
     if (clock_stop_ != nullptr) {
@@ -60,17 +66,35 @@ void GuestDeepSleep::Enter() {
     emu_.Get<HostWindow>().RunOnUiThread([this] { Recover(); });
 }
 
+void GuestDeepSleep::RequestHardwareWake() {
+    emu_.Get<GuestEngine>().SetResetPending(/*is_resume=*/true);
+    TearDownPromptForHardwareWake();
+    emu_.Get<GuestPowerNotifier>().NotifyResume(ResumeSource::Hardware);
+}
+
+void GuestDeepSleep::TearDownPromptForHardwareWake() {
+    if (!active_.load(std::memory_order_acquire)) return;
+    {
+        std::lock_guard<std::mutex> lk(resume_mtx_);
+        hw_resumed_.store(true, std::memory_order_release);
+    }
+    resume_cv_.notify_all();
+    emu_.Get<HostWindow>().RunOnUiThread(
+        [this] { emu_.Get<ShutdownDialog>().DismissAsCancel(); });
+}
+
 void GuestDeepSleep::DeliverWake() {
     if (clock_stop_) {
         clock_stop_->OnPowerUp();
         for (auto& fn : power_up_listeners_) fn();
-        emu_.Get<GuestPowerNotifier>().NotifyResume();
+        emu_.Get<GuestPowerNotifier>().NotifyResume(ResumeSource::User);
         emu_.Get<GuestEngine>().ExitDeepSleep();
         return;
     }
     waker_->LatchSleepWakeCause();
     if (resume_vector_provider_) resume_vector_provider_->ApplyPendingResume();
     emu_.Get<GuestEngine>().SetResetPending(/*is_resume=*/true);
+    emu_.Get<GuestPowerNotifier>().NotifyResume(ResumeSource::User);
 }
 
 void GuestDeepSleep::OnFullRestore() {
@@ -79,13 +103,23 @@ void GuestDeepSleep::OnFullRestore() {
 }
 
 void GuestDeepSleep::Recover() {
+    {
+        std::unique_lock<std::mutex> lk(resume_mtx_);
+        resume_cv_.wait_for(lk, std::chrono::milliseconds(kResumeGraceMs),
+                            [this] { return hw_resumed_.load(std::memory_order_acquire); });
+    }
+    if (hw_resumed_.exchange(false)) {
+        active_.store(false);
+        return;
+    }
     const ShutdownChoice c =
         emu_.Get<ShutdownDialog>().Show(ShutdownTrigger::DeepSleep);
     LOG(SocReset, "[DEEPSLEEP] Recover: dialog choice=%d (0=Cancel/wake)\n",
         static_cast<int>(c));
+    const bool hw_resumed = hw_resumed_.exchange(false);
     active_.store(false);
     if (c == ShutdownChoice::Cancel) {
-        DeliverWake();                           /* wake = sleep-mode reset */
+        if (!hw_resumed) DeliverWake();          /* wake = sleep-mode reset */
         return;
     }
     emu_.Get<HostWindow>().PerformShutdownChoice(c);

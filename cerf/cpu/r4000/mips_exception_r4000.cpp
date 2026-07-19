@@ -16,7 +16,7 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && (bd->GetSoc() == SocFamily::VR4102 || bd->GetSoc() == SocFamily::VR4121 ||
-                      bd->GetSoc() == SocFamily::VR5500);
+                      bd->GetSoc() == SocFamily::VR4122 || bd->GetSoc() == SocFamily::VR5500);
     }
 
     /* mips_cpu_hw_interrupts_enabled (internal.h): IE && !EXL && !ERL. */
@@ -46,7 +46,11 @@ public:
                the branch place fn sets it before the slot, the resolve clears it only
                after. */
             const bool in_bds = (s.branch_state != MipsBranch::kNone);
-            s.cp0_epc = in_bds ? (s.pc - 4u) : s.pc;
+            /* "The ISA mode status before the exception occurred is saved to the
+               least significant bit of the EPC register" (U15509EJ2V0UM 3.4.2).
+               Delay-slot EPC = slot PC - the branch's byte length (QEMU
+               exception.c exception_resume_pc:41, MIPS_HFLAG_B16 ? 2 : 4). */
+            s.cp0_epc = (in_bds ? (s.pc - s.branch_len) : s.pc) | s.isa_mode;
             if (in_bds) {
                 s.cp0_cause |= (1u << MipsCauseBit::kBD);
             } else {
@@ -54,6 +58,9 @@ public:
             }
             s.cp0_status |= (1u << MipsStatusBit::kEXL);
         }
+        /* "When an exception occurs, the ISA mode bit is cleared to 0 so that the
+           exception is serviced with 32-bit code" (U15509EJ2V0UM 3.4.2). */
+        s.isa_mode = 0;
 
         /* Vector base: BEV picks the boot ROM space, else the fixed EBase. */
         const uint32_t base = ((s.cp0_status >> MipsStatusBit::kBEV) & 1u)

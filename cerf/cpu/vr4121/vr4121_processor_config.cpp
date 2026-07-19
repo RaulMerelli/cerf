@@ -51,6 +51,10 @@ public:
     bool HasWatch()   const override { return true; }
     /* HIBERNATE/STANDBY/SUSPEND added in the VR4120 CPU core (UM 5.6). */
     bool HasVr41xxPowerModes() const override { return true; }
+    /* The VR4120 core implements MIPS16 (U15509EJ2V0UM ch.3), gated by the
+       MIPS16EN pin at RTC reset (ibid. 3.1); this board's strap state is not
+       established from its ROM - JALX stays undecoded (loud-fatal). */
+    bool HasMips16() const override { return false; }
 };
 
 }  // namespace

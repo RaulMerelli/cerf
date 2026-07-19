@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
@@ -8,51 +10,45 @@
 
 #include <cstdint>
 
-namespace {
+namespace cerf_vr41xx_cmu_detail {
 
-/* NEC VR41xx CMU (Clock Mask Unit): CMUCLKMSK, 0x0B000060, R/W (VR4121 UM Table 14-1,
-   VR4102 UM Table 13-1). */
-constexpr uint32_t kBase   = 0x0B000060u;
-constexpr uint32_t kSize   = 0x20u;
-constexpr uint32_t kOffMsk = 0x00u;
+/* Per-chip CMU shape: the VR4102/VR4121 CMUCLKMSK sits at 0x0B000060 (VR4102 UM
+   Table 13-1, VR4121 UM Table 14-1) and the VR4122/VR4131 generation moved it to
+   0x0F000060 (VR4131 UM Table 10-1) with a different mask-bit set. */
+struct Vr41xxCmuModel {
+    uint32_t base;
+    uint32_t size;
+    uint16_t mask;   /* CMUCLKMSK R/W bits; reserved bits "write 0 ... 0 is returned" */
+};
 
-/* D10 MSKFFIR, D9 MSKSHSP, D8 MSKSSIU, D5 MSKDSIU, D4 MSKFIR, D3 MSKKIU, D2 MSKAIU,
-   D1 MSKSIU, D0 MSKPIU are R/W ("1: Supply / 0: Mask"); D15:11 and D7:6 are reserved,
-   "write 0 when writing. 0 is returned after a read" (VR4121 UM 14.2.1, VR4102 UM
-   13.2.1). */
-constexpr uint16_t kMask = 0x073Fu;
-
-/* "The initial value is '0', which specifies masking. No clock is supplied unless the CPU
-   writes '1' to CMUCLKMSK register" (VR4102 UM 13.1); both reset rows are 0 (VR4121 UM
-   14.2.1, VR4102 UM 13.2.1). */
-constexpr uint16_t kPowerOn = 0x0000u;
-
-class Vr41xxCmu : public Peripheral {
+/* "The initial value is '0', which specifies masking. No clock is supplied unless the
+   CPU writes '1' to CMUCLKMSK register" (VR4102 UM 13.1); both reset rows are 0
+   (VR4102 UM 13.2.1, VR4121 UM 14.2.1, VR4131 UM 10.2.1). */
+template <SocFamily Soc, Vr41xxCmuModel M>
+class Vr41xxCmuBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::VR4102 || soc == SocFamily::VR4121;
+        return bd && bd->GetSoc() == Soc;
     }
 
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
         emu_.Get<GuestCpuReset>().RegisterResetListener(
-            [this](ResetLineKind) { clkmsk_ = kPowerOn; });
+            [this](ResetLineKind) { clkmsk_ = 0; });
     }
 
-    uint32_t MmioBase() const override { return kBase; }
-    uint32_t MmioSize() const override { return kSize; }
+    uint32_t MmioBase() const override { return M.base; }
+    uint32_t MmioSize() const override { return M.size; }
 
     uint16_t ReadHalf(uint32_t addr) override {
-        if (addr - kBase == kOffMsk) return clkmsk_;
+        if (addr - M.base == 0) return clkmsk_;
         HaltUnsupportedAccess("VR41xx CMU ReadHalf", addr, 0);
     }
     void WriteHalf(uint32_t addr, uint16_t value) override {
-        if (addr - kBase == kOffMsk) { clkmsk_ = value & kMask; return; }
+        if (addr - M.base == 0) { clkmsk_ = value & M.mask; return; }
         HaltUnsupportedAccess("VR41xx CMU WriteHalf", addr, value);
     }
 
@@ -65,9 +61,7 @@ public:
     void RestoreState(StateReader& r) override { r.Read(clkmsk_); }
 
 private:
-    uint16_t clkmsk_ = kPowerOn;
+    uint16_t clkmsk_ = 0;
 };
 
-}  /* namespace */
-
-REGISTER_SERVICE(Vr41xxCmu);
+}  /* namespace cerf_vr41xx_cmu_detail */

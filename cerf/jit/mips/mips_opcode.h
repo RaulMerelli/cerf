@@ -34,6 +34,8 @@ namespace MipsOp {            /* major opcode, bits 31..26 */
     constexpr uint32_t kDADDIU  = 0x19;   /* doubleword add immediate unsigned (64-bit, no trap) */
     constexpr uint32_t kLDL     = 0x1A;   /* load doubleword left (unaligned, 64-bit) */
     constexpr uint32_t kLDR     = 0x1B;   /* load doubleword right (unaligned, 64-bit) */
+    constexpr uint32_t kJALX    = 0x1D;   /* jump and link exchange to MIPS16 (VR4100 Series UM
+                                             U15509EJ2V0UM 3.4.1; QEMU translate.c OPC_JALX) */
     constexpr uint32_t kLB      = 0x20;
     constexpr uint32_t kLH      = 0x21;
     constexpr uint32_t kLWL     = 0x22;

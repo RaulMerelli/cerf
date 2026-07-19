@@ -2,6 +2,8 @@
 
 #include "../core/service.h"
 
+enum class ResumeSource { User, Hardware };
+
 /* The single host-side path for surfacing a guest power-state transition to the
    user. Every SoC's power-down / reset detection funnels through here so the
    notification (UART tab + forceful banner, framebuffer re-arm on reboot) is
@@ -17,7 +19,7 @@ public:
        the rebooted guest's video brings the Framebuffer tab back automatically. */
     void NotifyReboot();
 
-    void NotifyResume();
+    void NotifyResume(ResumeSource src);
 
     /* Hard reset executed: volatile RAM wiped. Follows the NotifyReboot the
        reset request itself raised, so it only banners. */

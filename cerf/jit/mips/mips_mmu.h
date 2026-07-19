@@ -38,9 +38,12 @@ class MipsMmu : public Service {
 public:
     using Service::Service;
 
-    /* The JIT block cache MipsMmu invalidates as QEMU's tlb_flush_page would;
-       bound in MipsJit::OnReady. */
-    void Bind(IsaBlockSpace* blocks) { blocks_ = blocks; }
+    /* The JIT block caches MipsMmu invalidates as QEMU's tlb_flush_page would
+       (one per ISA mode); bound in MipsJit::OnReady. */
+    void Bind(IsaBlockSpace* b32, IsaBlockSpace* b16) {
+        blocks32_ = b32;
+        blocks16_ = b16;
+    }
 
     /* Translate a guest VA. kseg0/kseg1 resolve directly; kuseg/kseg2 walk the
        software TLB (ASID from CP0_EntryHi). On kMatch, *pa holds the physical
@@ -112,9 +115,12 @@ protected:
        mapping in a reserved slot tlbwr can never evict. */
     uint32_t NextRandom(uint32_t first, uint32_t nb);
 
-    IsaBlockSpace* blocks_ = nullptr;
+    /* QEMU tb_jmp_cache_clear_page (accel/tcg/cputlb.c:157), on both ISA spaces. */
+    void JumpCacheClearPage(uint32_t page_va);
 
 private:
+    IsaBlockSpace* blocks32_ = nullptr;
+    IsaBlockSpace* blocks16_ = nullptr;
     uint32_t lcg_seed_        = 1;
     uint32_t prev_random_idx_ = 0;
     uint32_t injection_band_va_   = 0;

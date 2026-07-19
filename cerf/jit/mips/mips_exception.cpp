@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include "../../core/log.h"
+#include "../../cpu/mips_processor_config.h"
 #include "mips_cpu_state.h"
 #include "mips_exception_model.h"
 #include "mips_mmu.h"
@@ -109,6 +110,12 @@ void __fastcall MipsJit::EretHelper(MipsJit* jit) {
     } else {
         s.pc = s.cp0_epc;
         s.cp0_status &= ~(1u << MipsStatusBit::kEXL);
+    }
+    /* "The ERET instruction loads the ISA mode from bit 0 of the EPC or
+       ErrorEPC register" when MIPS16 is enabled (U15509EJ2V0UM 3.4.3). */
+    if (jit->CpuConfig()->HasMips16()) {
+        s.isa_mode = s.pc & 1u;
+        s.pc &= ~1u;
     }
     s.llbit = 0;
 }

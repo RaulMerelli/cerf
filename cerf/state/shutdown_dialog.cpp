@@ -160,6 +160,10 @@ LRESULT CALLBACK ShutdownDialog::WndProcStatic(HWND hwnd, UINT msg, WPARAM wp, L
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+void ShutdownDialog::DismissAsCancel() {
+    if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
+}
+
 ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
     HWND owner = emu_.Get<HostWindow>().Hwnd();
 
