@@ -77,7 +77,7 @@ private:
         if (!state_.empty()) a["state"] = state_;
         a["timestamps"]["start"] = start_secs_;
         a["assets"]["large_image"] = kLargeImage;
-        a["assets"]["large_text"]  = "CERF";
+        a["assets"]["large_text"]  = "CE Runtime Foundation";
         a["buttons"] = json::array();
         a["buttons"].push_back({ {"label", "Join Discord"}, {"url", kInviteUrl} });
 
