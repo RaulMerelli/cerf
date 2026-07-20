@@ -166,13 +166,13 @@ bool BatteryWidget::PollDirty() {
     return true;
 }
 
-void BatteryWidget::SaveState(StateWriter& w) const {
+void BatteryWidget::SaveWidgetState(StateWriter& w) const {
     std::lock_guard<std::mutex> lk(state_mutex_);
     w.Write<uint8_t>(on_battery_ ? 1u : 0u);
     w.Write<int32_t>(fill_percent_);
 }
 
-void BatteryWidget::RestoreState(StateReader& r) {
+void BatteryWidget::RestoreWidgetState(StateReader& r) {
     uint8_t on = 0;
     int32_t fill = 100;
     r.Read(on);

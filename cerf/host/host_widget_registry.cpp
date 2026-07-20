@@ -105,7 +105,7 @@ void HostWidgetRegistry::SaveState(StateWriter& w) {
         const uint64_t len_off  = w.BytesWritten();
         w.Write<uint64_t>(0);                       /* blob-length placeholder. */
         const uint64_t body_off = w.BytesWritten();
-        widget->SaveState(w);
+        widget->SaveWidgetState(w);
         const uint64_t len = w.BytesWritten() - body_off;
         w.PatchAt(len_off, &len, sizeof(len));
     }
@@ -127,7 +127,7 @@ void HostWidgetRegistry::RestoreState(StateReader& r) {
         HostWidget* target = nullptr;
         for (HostWidget* widget : ordered)
             if (widget->WidgetName() == name) { target = widget; break; }
-        if (target) target->RestoreState(r);
+        if (target) target->RestoreWidgetState(r);
         r.SeekTo(body_start + blob_len);            /* skip a missing/asymmetric widget. */
     }
 }

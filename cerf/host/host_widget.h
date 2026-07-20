@@ -75,12 +75,8 @@ public:
        LED). Return true when the drawn appearance changed. UI-thread only. */
     virtual bool PollDirty() { return false; }
 
-    /* Hibernation: a widget whose state drives guest-visible hardware (the
-       battery's charge/AC) serializes it so a restore reproduces it; the
-       RestoreState override re-applies it (re-fires its change handler).
-       Default no-op for widgets that hold no guest-visible state. */
-    virtual void SaveState(StateWriter&) const {}
-    virtual void RestoreState(StateReader&) {}
+    virtual void SaveWidgetState(StateWriter&) const {}
+    virtual void RestoreWidgetState(StateReader&) {}
 
 private:
     std::atomic<bool> rx_pending_{false};

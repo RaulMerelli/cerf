@@ -82,14 +82,14 @@ std::vector<WidgetMenuItem> KeyboardWidget::BuildMenu() {
     return items;
 }
 
-void KeyboardWidget::SaveState(StateWriter& w) const {
+void KeyboardWidget::SaveWidgetState(StateWriter& w) const {
     KeyboardInput* a = emu_.Get<KeyboardRouter>().Active();
     const std::wstring name = a ? a->SourceName() : std::wstring();
     w.Write<uint32_t>(static_cast<uint32_t>(name.size()));
     w.WriteBytes(name.data(), name.size() * sizeof(wchar_t));
 }
 
-void KeyboardWidget::RestoreState(StateReader& r) {
+void KeyboardWidget::RestoreWidgetState(StateReader& r) {
     uint32_t n = 0;
     r.Read(n);
     if (n > 1024u) return;   /* corrupt; outer section frame realigns */

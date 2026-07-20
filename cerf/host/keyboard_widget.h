@@ -27,8 +27,8 @@ public:
     std::vector<WidgetMenuItem> BuildMenu() override;
     bool PollDirty() override;
 
-    void SaveState(StateWriter& w) const override;
-    void RestoreState(StateReader& r) override;
+    void SaveWidgetState(StateWriter& w) const override;
+    void RestoreWidgetState(StateReader& r) override;
 
 private:
     const KeyboardInput* drawn_source_ = nullptr;   /* UI-thread only */

@@ -62,7 +62,7 @@ public:
         return ServeDownload(dst, max);
     }
 
-    void SaveState(StateWriter& w) override {
+    void SaveWidgetState(StateWriter& w) const override {
         w.Write<uint8_t>(static_cast<uint8_t>(step_));
         w.Write(conf_total_);
         w.Write<uint8_t>(static_cast<uint8_t>(dl_));
@@ -71,7 +71,7 @@ public:
         w.Write(seg_off_);
         w.Write(seg_remaining_);
     }
-    void RestoreState(StateReader& r) override {
+    void RestoreWidgetState(StateReader& r) override {
         uint8_t s = 0; r.Read(s); step_ = static_cast<Step>(s);
         r.Read(conf_total_);
         uint8_t d = 0; r.Read(d); dl_ = static_cast<DlPhase>(d);

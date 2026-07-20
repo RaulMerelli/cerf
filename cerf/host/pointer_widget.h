@@ -28,8 +28,8 @@ public:
     std::vector<WidgetMenuItem> BuildMenu() override;
     void DrawIcon(HDC dc, const RECT& box) const override;
     bool PollDirty() override;
-    void SaveState(StateWriter& w) const override;
-    void RestoreState(StateReader& r) override;
+    void SaveWidgetState(StateWriter& w) const override;
+    void RestoreWidgetState(StateReader& r) override;
 
 private:
     const PointerSource* drawn_source_ = nullptr;  /* UI-thread only */

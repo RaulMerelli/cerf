@@ -61,14 +61,14 @@ bool PointerWidget::PollDirty() {
     return true;
 }
 
-void PointerWidget::SaveState(StateWriter& w) const {
+void PointerWidget::SaveWidgetState(StateWriter& w) const {
     PointerSource* a = emu_.Get<PointerRouter>().Active();
     const std::wstring name = a ? a->SourceName() : std::wstring();
     w.Write<uint32_t>(static_cast<uint32_t>(name.size()));
     w.WriteBytes(name.data(), name.size() * sizeof(wchar_t));
 }
 
-void PointerWidget::RestoreState(StateReader& r) {
+void PointerWidget::RestoreWidgetState(StateReader& r) {
     uint32_t n = 0;
     r.Read(n);
     if (n > 1024u) return;   /* corrupt; outer section frame realigns */

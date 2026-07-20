@@ -21,10 +21,6 @@ public:
 
     void OnShutdown();
 
-    /* The cradle is not a Peripheral, so it is not in the RegisteredPeripherals()
-       walk: the owning UART drives these from its own hibernation methods. NOT named
-       SaveState/RestoreState - those are HostWidget virtuals, so the Widget section
-       would override them and re-run this restore over another widget's bytes. */
     void SaveCradleState(StateWriter& w);
     void RestoreCradleState(StateReader& r);
     void PostRestore();
