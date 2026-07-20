@@ -5,7 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "docs/website/**"
-      - "docs/changelog.html"
+      - "docs/changelog.yml"
       - "launcher/supported_devices.py"
       - "compile_readme.py"
       - "tools/build_site.py"
