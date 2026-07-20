@@ -54,12 +54,13 @@ public:
                    which are empty while no transfer is staged (§14.3.1). */
                 return ctl_ | kCtlEmpty | ((ctl_ & kCtlEnSpi) ? kCtlSpion : 0u);
 
-            /* RXDATA is only valid after SPIRCVINT (§14.3.3), which the slave asserts
-               while it has a byte staged. */
+            /* §14.3.3: RXDATA[15:0] read-only, RESET = X, valid only after
+               SPIRCVINT; an unstaged read returns the undefined Receiver
+               Holding Register. */
             case kOffData: {
                 auto* slave = emu_.TryGet<Pr31x00SpiSlave>();
                 if (slave && slave->SpiRxHasByte()) return slave->SpiRxReadByte();
-                HaltUnsupportedAccess("PR31x00 SPI RXDATA read with no byte staged", addr, 0);
+                return 0;
             }
 
             default:

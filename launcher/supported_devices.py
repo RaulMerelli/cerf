@@ -415,7 +415,7 @@ BOARDS_INFORMATION = [
             "touch": True,
             "keyboard": True,
             "battery": True,
-            "suspend": True,
+            "suspend": False,
             "guest_additions": True,
             "pcmcia": True,
             "network": True,

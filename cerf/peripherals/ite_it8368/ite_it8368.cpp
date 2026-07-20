@@ -13,6 +13,9 @@ constexpr uint32_t kRegGpioDataOut    = 0x00;
 constexpr uint32_t kRegMfioDataOut    = 0x02;
 constexpr uint32_t kRegGpioDir        = 0x04;
 constexpr uint32_t kRegMfioDir        = 0x06;
+/* it8368reg.h defines no register at 0x08 (gap between IT8368_MFIODIR_REG
+   0x06 and IT8368_MFIOSEL_REG 0x0a). */
+constexpr uint32_t kRegReserved08     = 0x08;
 constexpr uint32_t kRegMfioSel        = 0x0A;
 constexpr uint32_t kRegGpioDataIn     = 0x0C;
 constexpr uint32_t kRegMfioDataIn     = 0x0E;
@@ -227,6 +230,10 @@ uint16_t IteIt8368::ReadReg(uint32_t off) {
            debug-probe strobe; the output register reads back its latch. */
         case kRegMfioDataOut: return mfio_dataout_;
 
+        /* it8368reg.h IT8368_MFIODIR_REG 0x06 (R/W, mask IT8368_MFIODIR_MASK);
+           NetBSD it8368.c:244-246 RMWs it: read -> |= mask -> write. */
+        case kRegMfioDir: return mfio_dir_;
+
         case kRegGpioDataIn:
             LatchInputEdgesLocked();
             return GpioDataInLocked();
@@ -242,6 +249,25 @@ uint16_t IteIt8368::ReadReg(uint32_t off) {
         case kRegGpioNegIntEn: return gpio_neginten_;
 
         case kRegCtrl: return ctrl_;
+
+        /* pcmcia.dll suspend save sub_14912D4 reads regs 0x00..0x20; restore
+           sub_149131C writes back only offsets 4/6/0x10-0x1E/0x20. */
+        case kRegMfioSel:        return mfio_sel_;
+        case kRegReserved08:     return 0;
+
+        /* it8368reg.h IT8368_MFIODATAIN_REG 0x0e; NetBSD it8368.c:243-246 drives
+           every MFIO as an output. */
+        case kRegMfioDataIn:
+            return static_cast<uint16_t>(mfio_dataout_ & mfio_dir_);
+
+        /* it8368reg.h IT8368_MFIOPOSINTSTAT_REG 0x1a / IT8368_MFIONEGINTSTAT_REG
+           0x1e (W1C). */
+        case kRegMfioPosIntStat: return mfio_posintstat_;
+        case kRegMfioNegIntStat: return mfio_negintstat_;
+
+        /* NetBSD it8368.c:253-259 clears MFIOPOSINTEN / MFIONEGINTEN. */
+        case kRegMfioPosIntEn:
+        case kRegMfioNegIntEn:   return 0;
 
         default:
             LOG(Caution, "IteIt8368::ReadReg unmodeled register $%02X\n", off);

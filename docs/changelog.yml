@@ -1,5 +1,8 @@
 - version: v6.7
   date: TBA
+  devices:
+    fixed: |
+      Sharp Mobilon HC-4100: fixed suspend crash
   emulator:
     new: |
       Discord Rich Presence - shows the current device and OS in your Discord profile
