@@ -267,7 +267,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Fixed framebuffer not relatching on suspend/resume<br/>
           ✅ Fixed 100% CPU usage and UI deadlocks on Windows XP on non-framebuffer tabs</p>
         <p><b>🚀 Launcher</b><br/>
-          🆕 UI refresh</p>
+          🆕 UI refresh<br/>
+          ✅ Remote metadata-only updates no longer mark installed bundles as pending an update</p>
         <p><b>💾 CE Apps</b><br/>
           ✅ CerfDemo: UI and performance improvements</p>
         <p><b>✨ Guest Additions</b><br/>

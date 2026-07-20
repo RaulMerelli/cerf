@@ -12,6 +12,8 @@
   launcher:
     new: |
       UI refresh
+    fixed: |
+      Remote metadata-only updates no longer mark installed bundles as pending an update
   guest_additions:
     new: |
       High refresh rate support: the guest video mode and host window scanout follow the host monitor's refresh rate

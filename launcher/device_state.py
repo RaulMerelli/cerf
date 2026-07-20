@@ -122,7 +122,7 @@ class DeviceBundle:
     name: str
     remote: Optional[RemoteBundle]
     local_dir_exists: bool
-    installed_at: Optional[str]
+    installed_sha256: Optional[str]
     meta: DeviceMeta = field(default_factory=DeviceMeta)
     default_screen_width: Optional[int] = None
     default_screen_height: Optional[int] = None
@@ -146,9 +146,11 @@ class DeviceBundle:
 
     @property
     def has_update(self) -> bool:
-        if not self.local_dir_exists or self.remote is None or self.installed_at is None:
-            return False
-        return self.installed_at != self.remote.updated_at
+        return (self.local_dir_exists
+                and self.remote is not None
+                and self.installed_sha256 is not None
+                and self.remote.archive_sha256 is not None
+                and self.installed_sha256.lower() != self.remote.archive_sha256.lower())
 
     @property
     def state_label(self) -> str:
@@ -355,6 +357,7 @@ class LocalBundleRecord:
     # None when the device dir was placed by hand and only a package was ever
     # installed through the launcher; ROM freshness is then unknown.
     updated_at: Optional[str] = None
+    sha256: Optional[str] = None
     packages: List[LocalPackageRecord] = field(default_factory=list)
 
     def find_package(self, category: str, key: str) -> Optional[LocalPackageRecord]:
@@ -409,8 +412,10 @@ def load_local_manifest(local_manifest_path: Path) -> Dict[str, LocalBundleRecor
             if not isinstance(n, str):
                 continue
             u = item.get("updated_at")
+            s = item.get("sha256")
             installed[n] = LocalBundleRecord(
                 updated_at=u if isinstance(u, str) else None,
+                sha256=s if isinstance(s, str) and s else None,
                 packages=_parse_local_packages(item.get("additional_packages")),
             )
     elif isinstance(bundles, dict):
@@ -431,6 +436,8 @@ def save_local_manifest(local_manifest_path: Path,
         entry: dict = {"name": name}
         if record.updated_at is not None:
             entry["updated_at"] = record.updated_at
+        if record.sha256 is not None:
+            entry["sha256"] = record.sha256
         if record.packages:
             # Mirrors the remote manifest's additional_packages nesting.
             categories: Dict[str, list] = {}
