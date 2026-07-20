@@ -2,12 +2,13 @@
 
 #include "presenter_canvas.h"
 
+#include <mmsystem.h>
+
 #include "../core/log.h"
 
 namespace {
-constexpr wchar_t  kCanvasClass[]     = L"CerfPresenterCanvas";
-constexpr UINT_PTR kPresentTimerId    = 1;
-constexpr UINT     kPresentIntervalMs = 16;  /* ~60 Hz */
+constexpr wchar_t kCanvasClass[] = L"CerfPresenterCanvas";
+constexpr UINT    kPresentMsg    = WM_APP + 1;
 
 void DesaturatePresent(uint32_t* px, int count) {
     for (int i = 0; i < count; ++i) {
@@ -21,11 +22,14 @@ void DesaturatePresent(uint32_t* px, int count) {
 }  /* namespace */
 
 PresenterCanvas::~PresenterCanvas() {
+    if (timer_mm_) { timeKillEvent(timer_mm_); timer_mm_ = 0; }
     if (hwnd_) DestroyWindow(hwnd_);
 }
 
 void PresenterCanvas::CreateOn(HWND parent, const RECT& rect,
-                               uint32_t surf_w, uint32_t surf_h) {
+                               uint32_t surf_w, uint32_t surf_h,
+                               UINT present_interval_ms) {
+    present_interval_ms_ = present_interval_ms ? present_interval_ms : 16;
     WNDCLASSEXW wc = {};
     wc.cbSize        = sizeof(wc);
     wc.style         = CS_HREDRAW | CS_VREDRAW;
@@ -59,8 +63,28 @@ void PresenterCanvas::CreateOn(HWND parent, const RECT& rect,
     presenter_.Attach(hwnd_, surf_w, surf_h);
     presenter_.OnCanvasResized(canvas_w_, canvas_h_);
     TickAndPresent();
-    timer_id_ = SetTimer(hwnd_, kPresentTimerId, kPresentIntervalMs, nullptr);
+    timer_mm_ = timeSetEvent(present_interval_ms_, 1, &PresenterCanvas::PresentTimerProc,
+                             reinterpret_cast<DWORD_PTR>(this),
+                             TIME_PERIODIC | TIME_CALLBACK_FUNCTION);
     SetFocus(hwnd_);
+}
+
+void CALLBACK PresenterCanvas::PresentTimerProc(UINT, UINT, DWORD_PTR user,
+                                                DWORD_PTR, DWORD_PTR) {
+    auto* self = reinterpret_cast<PresenterCanvas*>(user);
+    if (self && self->hwnd_ &&
+        !self->present_pending_.exchange(true, std::memory_order_acq_rel))
+        PostMessageW(self->hwnd_, kPresentMsg, 0, 0);
+}
+
+void PresenterCanvas::PresentDirect() {
+    TickAndPresent();
+    if (!present_dc_) return;
+    HDC dc = GetDC(hwnd_);
+    if (dc) {
+        BitBlt(dc, 0, 0, canvas_w_, canvas_h_, present_dc_, 0, 0, SRCCOPY);
+        ReleaseDC(hwnd_, dc);
+    }
 }
 
 void PresenterCanvas::Reposition(const RECT& r) {
@@ -131,13 +155,10 @@ LRESULT PresenterCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (host_ && host_->HandleInput(hwnd, msg, wp, lp, out)) return out;
 
     switch (msg) {
-        case WM_TIMER:
-            if (wp == kPresentTimerId) {
-                TickAndPresent();
-                InvalidateRect(hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
+        case kPresentMsg:
+            present_pending_.store(false, std::memory_order_release);
+            PresentDirect();
+            return 0;
 
         case WM_SIZE: {
             /* canvas_w_/h_ is the reference the presenter tests for scrollbar
@@ -172,7 +193,7 @@ LRESULT PresenterCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_DESTROY:
-            if (timer_id_)   { KillTimer(hwnd, timer_id_); timer_id_ = 0; }
+            if (timer_mm_) { timeKillEvent(timer_mm_); timer_mm_ = 0; }
             presenter_.Detach();
             if (present_dc_) { DeleteDC(present_dc_); present_dc_ = nullptr; }
             if (present_dib_){ DeleteObject(present_dib_); present_dib_ = nullptr; present_bits_ = nullptr; }

@@ -359,6 +359,10 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             int n = atoi(a + sizeof(kArgScreenDpi) - 1);
             if (n < 1) Fatal("(command line)", "--screen-dpi must be >= 1");
             config.screen_dpi = (uint32_t)n;
+        } else if (strncmp(a, kArgScreenRefreshRate, sizeof(kArgScreenRefreshRate) - 1) == 0) {
+            int n = atoi(a + sizeof(kArgScreenRefreshRate) - 1);
+            if (n < 1) Fatal("(command line)", "--screen-refresh-rate must be >= 1");
+            config.screen_refresh_rate = (uint32_t)n;
         } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
             config.share_folder = a + sizeof(kArgShareFolder) - 1;
         } else if (strcmp(a, kArgFullScreen) == 0) {

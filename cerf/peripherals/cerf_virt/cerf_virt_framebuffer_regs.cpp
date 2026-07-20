@@ -8,6 +8,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../host/refresh_rate_service.h"
 
 namespace {
 
@@ -21,6 +22,7 @@ using CerfVirt::kFbRegPresent;
 using CerfVirt::kFbRegMemSizeTotal;
 using CerfVirt::kFbRegPrimaryReserve;
 using CerfVirt::kFbRegLogicalDpi;
+using CerfVirt::kFbRegRefreshRate;
 
 class CerfVirtFramebufferRegs : public Peripheral {
 public:
@@ -54,6 +56,8 @@ public:
             case kFbRegMemSizeTotal: return fb_->RegionBytes();
             case kFbRegPrimaryReserve: return fb_->PrimaryReserveBytes();
             case kFbRegLogicalDpi: return emu_.Get<DeviceConfig>().screen_dpi;
+            case kFbRegRefreshRate:
+                return (uint32_t)emu_.Get<RefreshRateService>().GetRefreshRate();
             default:              return 0u;
         }
     }

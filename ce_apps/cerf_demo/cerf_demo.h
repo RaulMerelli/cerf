@@ -21,9 +21,12 @@
 extern HWND  g_dlg;
 extern DWORD g_start;
 extern DWORD g_anim_clock;
+extern int   g_fps;
 
 /* 32bpp top-down DIB section helper (main.c). */
 HBITMAP MakeDib32(int w, int h, unsigned int** bits);
+
+int CountProcesses(void);
 
 /* Animated bokeh desktop background compositor (desktop.c). */
 void InitDiscs(void);

@@ -18,6 +18,7 @@ inline constexpr char kArgRomPrimary[]     = "--rom-primary=";
 inline constexpr char kArgScreenWidth[]    = "--screen-width=";
 inline constexpr char kArgScreenHeight[]   = "--screen-height=";
 inline constexpr char kArgScreenDpi[]      = "--screen-dpi=";
+inline constexpr char kArgScreenRefreshRate[] = "--screen-refresh-rate=";
 inline constexpr char kArgDisableNetwork[] = "--disable-network";
 inline constexpr char kArgGuestAdditions[] = "--guest-additions";
 inline constexpr char kArgRecovery[]       = "--recovery";

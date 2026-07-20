@@ -27,6 +27,7 @@ ULONG g_FbHeight  = 0;
 ULONG g_FbBpp     = 0;
 ULONG g_FbStride  = 0;
 ULONG g_FbDpi     = 0;
+ULONG g_FbRefreshRate = 60;
 ULONG g_FbMemPa   = 0;
 ULONG g_FbMemTotal = 0;
 
@@ -60,6 +61,7 @@ void CerfReadFbRegs(void) {
     g_FbMemTotal = s_fb_regs[7];
     g_FbPrimaryReserve = s_fb_regs[8];
     g_FbDpi      = s_fb_regs[9];
+    if (s_fb_regs[10]) g_FbRefreshRate = s_fb_regs[10];
 }
 
 extern "C" void CerfFbPresent(void) {

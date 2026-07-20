@@ -8,6 +8,7 @@ extern ULONG g_FbWidth;
 extern ULONG g_FbHeight;
 extern ULONG g_FbBpp;
 extern ULONG g_FbStride;
+extern ULONG g_FbRefreshRate;
 
 extern "C" void  CerfGetVideoMem(unsigned long* base, unsigned long* size,
                                  unsigned long* freeBytes);
@@ -406,7 +407,7 @@ extern "C" BOOL Ce5HALInit(void* lpddhi) {
     s_modeInfo.lPitch         = (LONG)g_FbStride;
     s_modeInfo.dwBPP          = g_FbBpp;
     s_modeInfo.wFlags         = 0;
-    s_modeInfo.wRefreshRate   = 60;
+    s_modeInfo.wRefreshRate   = (WORD)g_FbRefreshRate;
     s_modeInfo.dwRBitMask     = h->vmiData.ddpfDisplay.dwRBitMask;
     s_modeInfo.dwGBitMask     = h->vmiData.ddpfDisplay.dwGBitMask;
     s_modeInfo.dwBBitMask     = h->vmiData.ddpfDisplay.dwBBitMask;

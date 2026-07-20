@@ -11,6 +11,12 @@
 #define ANTIALIASED_QUALITY 4
 #endif
 
+#ifndef ENUM_CURRENT_SETTINGS
+#define ENUM_CURRENT_SETTINGS ((DWORD)-1)
+#endif
+
+extern BOOL WINAPI EnumDisplaySettings(LPCTSTR, DWORD, LPDEVMODE);
+
 #define BG_CLASS   TEXT("CerfBg")
 #define DLG_CLASS  TEXT("CerfDlg")
 #define ID_DETAILS 1001
@@ -24,17 +30,13 @@
 #define FOCUSED_FRAME_MS    16
 #define UNFOCUSED_SLEEP_MS 100
 
-/* IOCTL_HAL_REBOOT = CTL_CODE(FILE_DEVICE_HAL 0x101, 15, METHOD_BUFFERED,
-   FILE_ANY_ACCESS) = 0x0101003C (pkfuncs.h); KernelIoControl: coredll export. */
-#define IOCTL_HAL_REBOOT 0x0101003Cu
-extern BOOL KernelIoControl(DWORD, LPVOID, DWORD, LPVOID, DWORD, LPDWORD);
-
-static const TCHAR* DLG_TITLE = TEXT("CERF");
+static const TCHAR* DLG_TITLE = TEXT("CE Runtime Foundation - Demo");
 static const TCHAR* LINK_TEXT = TEXT("Run command line prompt");
 
 static HINSTANCE g_inst;
 static int      g_sw, g_sh, g_dlgw = DLG_W;
 HWND            g_dlg;     /* non-static on purpose: desktop.c links to it */
+static HWND     g_bg;
 static HWND     g_btn, g_edit;
 static int      g_expanded;
 static RECT     g_linkrect;
@@ -110,23 +112,34 @@ static void LaunchCmd(HWND h) {
     }
 }
 
+static int GuestRefreshHz(void) {
+    DEVMODE dm;
+    ZeroMemory(&dm, sizeof(dm));
+    dm.dmSize = sizeof(dm);
+    if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm) &&
+        (dm.dmFields & DM_DISPLAYFREQUENCY))
+        return (int)dm.dmDisplayFrequency;
+    return 0;
+}
+
 static void BuildStats(TCHAR* buf) {
     OSVERSIONINFO osv;
     MEMORYSTATUS ms;
     SYSTEM_INFO si;
+    int hz = GuestRefreshHz();
     osv.dwOSVersionInfoSize = sizeof(osv); GetVersionEx(&osv);
     ms.dwLength = sizeof(ms); GlobalMemoryStatus(&ms);
     GetSystemInfo(&si);
     wsprintf(buf,
         TEXT("CE Runtime Foundation - guest diagnostics\r\n\r\n")
         TEXT("OS: Windows CE %u.%u (build %u)\r\n")
-        TEXT("Screen: %d x %d px\r\n")
+        TEXT("Screen: %d x %d px (%d Hz)\r\n")
         TEXT("Memory: %u KB total / %u KB free\r\n")
         TEXT("CPUs: %u\r\n")
         TEXT("Page size: %u bytes\r\n")
         TEXT("Platform: CERF virtual ARM"),
         osv.dwMajorVersion, osv.dwMinorVersion, osv.dwBuildNumber,
-        GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
+        GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), hz,
         (unsigned)(ms.dwTotalPhys / 1024), (unsigned)(ms.dwAvailPhys / 1024),
         si.dwNumberOfProcessors, si.dwPageSize);
 }
@@ -331,9 +344,12 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_CLOSE:
-        if (MessageBox(h, TEXT("Reset the device?"), TEXT("CERF"),
-                       MB_YESNO | MB_ICONQUESTION) == IDYES)
-            KernelIoControl(IOCTL_HAL_REBOOT, NULL, 0, NULL, 0, NULL);
+        if (CountProcesses() > 2) {
+            PostQuitMessage(0);
+        } else {
+            ShowWindow(h, SW_HIDE);
+            if (g_bg) SetForegroundWindow(g_bg);
+        }
         return 0;
     }
     return DefWindowProc(h, m, wp, lp);
@@ -385,6 +401,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
     bg = CreateWindow(BG_CLASS, TEXT("CERF"), WS_POPUP | WS_VISIBLE,
                       0, 0, g_sw, g_sh, NULL, NULL, hInst, NULL);
     if (!bg) return 1;
+    g_bg = bg;
 
     /* Created hidden at full collapsed size so WM_CREATE lays children out
        against the final client metrics; then shrunk to a band-only height
@@ -419,6 +436,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
 
     {
     DWORD prev = GetTickCount();
+    int last_fps = -1;
+    int   hz = GuestRefreshHz();
+    int   frame_ms = hz > 0 ? 1000 / hz : FOCUSED_FRAME_MS;
+    if (frame_ms < 1) frame_ms = 1;
     for (;;) {
         DWORD frame_start = GetTickCount();
         DWORD now, dt, spent;
@@ -446,8 +467,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
         }
         g_anim_clock += dt;
         PresentBg(bg);
+        if (g_fps != last_fps && g_dlg) {
+            TCHAR title[64];
+            last_fps = g_fps;
+            wsprintf(title, TEXT("%s - %d FPS"), DLG_TITLE, g_fps);
+            SetWindowText(g_dlg, title);
+        }
         spent = GetTickCount() - frame_start;
-        if (spent < FOCUSED_FRAME_MS) Sleep(FOCUSED_FRAME_MS - spent);
+        if (spent < (DWORD)frame_ms) Sleep((DWORD)frame_ms - spent);
     }
     }
 done:

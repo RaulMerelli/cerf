@@ -192,7 +192,7 @@ SCODE CerfDDGPE::ApplyFbMode() {
     m_gpeMode.width     = (int)g_FbWidth;
     m_gpeMode.height    = (int)g_FbHeight;
     m_gpeMode.Bpp       = (int)g_FbBpp;
-    m_gpeMode.frequency = 60;
+    m_gpeMode.frequency = (int)g_FbRefreshRate;
     m_gpeMode.format    = fmt;
     m_pMode = &m_gpeMode;
     m_nScreenWidth  = m_gpeMode.width;

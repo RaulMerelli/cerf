@@ -12,6 +12,9 @@
     new: |
       UI refresh
   guest_additions:
+    new: |
+      High refresh rate support: the guest video mode and host window scanout follow the host monitor's refresh rate
+      --screen-refresh-rate flag to set the refresh rate manually
     fixed: |
       Input devices now run at the proper priority, staying responsive under heavy guest CPU load
   ce_apps:

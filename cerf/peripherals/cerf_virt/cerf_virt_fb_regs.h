@@ -21,4 +21,6 @@ const uint32_t kFbRegPrimaryReserve = 0x20u;
 
 const uint32_t kFbRegLogicalDpi  = 0x24u;
 
+const uint32_t kFbRegRefreshRate = 0x28u;
+
 }

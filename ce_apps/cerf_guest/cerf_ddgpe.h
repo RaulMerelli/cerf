@@ -18,6 +18,7 @@ extern "C" void  CerfPublishPalette(const ULONG* rgb, unsigned first, unsigned c
 extern "C" void CerfPublishCursor(const void* mask_bits, int stride,
                                   int cx, int cy, int xhot, int yhot, BOOL visible);
 extern ULONG g_FbWidth, g_FbHeight, g_FbBpp, g_FbStride, g_FbMemTotal, g_FbPrimaryReserve;
+extern ULONG g_FbRefreshRate;
 extern ULONG g_OsMajor;
 extern ULONG g_FbDpi;
 

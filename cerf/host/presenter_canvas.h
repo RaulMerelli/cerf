@@ -3,6 +3,7 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <atomic>
 #include <cstdint>
 #include <vector>
 
@@ -59,7 +60,8 @@ public:
     /* UI thread. Create the child window inside `parent` at `rect`, guest
        surface sized to surf_w x surf_h. */
     void CreateOn(HWND parent, const RECT& rect,
-                  uint32_t surf_w, uint32_t surf_h);
+                  uint32_t surf_w, uint32_t surf_h,
+                  UINT present_interval_ms = 16);
     void Reposition(const RECT& rect);
 
     HWND Hwnd() const { return hwnd_; }
@@ -99,6 +101,9 @@ private:
 
     void RebuildPresentDib(int w, int h);
     void TickAndPresent();
+    void PresentDirect();
+    static void CALLBACK PresentTimerProc(UINT, UINT, DWORD_PTR, DWORD_PTR,
+                                          DWORD_PTR);
 
     PresenterCanvasHost* host_;
 
@@ -110,7 +115,9 @@ private:
     int       canvas_w_ = 0;
     int       canvas_h_ = 0;
 
-    UINT_PTR  timer_id_ = 0;
+    UINT      timer_mm_ = 0;
+    std::atomic<bool> present_pending_{ false };
+    UINT      present_interval_ms_ = 16;
 
     CanvasPresenter presenter_;
 };

@@ -11,6 +11,7 @@
 #include "memory_visualizer.h"
 #include "boot_screen.h"
 #include "hw_screen.h"
+#include "refresh_rate_service.h"
 
 REGISTER_SERVICE(HostCanvas);
 
@@ -18,7 +19,9 @@ void HostCanvas::CreateOn(HWND parent, const RECT& rect,
                           uint32_t surf_w, uint32_t surf_h) {
     tab_ = emu_.Get<DeviceConfig>().start_tab;
     canvas_.SetSource(emu_.TryGet<FrameRenderer>());
-    canvas_.CreateOn(parent, rect, surf_w, surf_h);
+    const int rate = emu_.Get<RefreshRateService>().GetRefreshRate();
+    const UINT interval = rate > 0 ? (UINT)(1000 / rate) : 16;
+    canvas_.CreateOn(parent, rect, surf_w, surf_h, interval < 1 ? 1 : interval);
     canvas_.SetFramebufferActive(tab_ == Tab::Framebuffer);
 }
 

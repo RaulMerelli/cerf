@@ -21,6 +21,7 @@ void PrintUsage(const char* prog) {
     printf("  --screen-width=N         Override device cerf.json board.configurable_screen_width\n");
     printf("  --screen-height=N        Override device cerf.json board.configurable_screen_height\n");
     printf("  --screen-dpi=N           Force guest display DPI (logical px/inch; guest-additions only)\n");
+    printf("  --screen-refresh-rate=N  Force guest refresh rate in Hz (default: host monitor max)\n");
     printf("  --guest-additions        Inject CERF guest-additions DLL into the ROM\n");
     printf("                           (replaces matching modules with CERF-built equivalents)\n");
     printf("  --share-folder=PATH      Pre-enable the guest-additions shared folder on a host\n");

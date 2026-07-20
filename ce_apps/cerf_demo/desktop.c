@@ -14,6 +14,9 @@ static HBITMAP       g_fxbmp;
 static unsigned int* g_fxbits;
 static int           g_fxw, g_fxh;
 
+static DWORD         g_fps_base, g_fps_frames;
+int                  g_fps;
+
 /* dimmed purple/blue bokeh discs drifting up, concentrated at the bottom */
 typedef struct { int xf, rf, col, div, off; } Disc;
 static Disc g_disc[NDISC];
@@ -59,6 +62,16 @@ static void EnsureFx(HWND h) {
 void PresentBg(HWND h) {
     DWORD tk; int el, f, i, py, px;
     EnsureFx(h);
+    {
+        DWORD nowt = GetTickCount();
+        if (g_fps_base == 0) g_fps_base = nowt;
+        g_fps_frames++;
+        if (nowt - g_fps_base >= 500) {
+            g_fps = (int)(g_fps_frames * 1000 / (nowt - g_fps_base));
+            g_fps_base = nowt;
+            g_fps_frames = 0;
+        }
+    }
     tk = g_anim_clock;
     el = (int)(tk - g_start);
     f = (el >= FADE_MS || el < 0) ? 256 : el * 256 / FADE_MS;
@@ -117,6 +130,12 @@ LRESULT CALLBACK BgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_DISPLAYCHANGE:
         MoveWindow(h, 0, 0, GetSystemMetrics(SM_CXSCREEN),
                    GetSystemMetrics(SM_CYSCREEN), TRUE);
+        return 0;
+    case WM_LBUTTONDOWN:
+        if (g_dlg && !IsWindowVisible(g_dlg)) {
+            ShowWindow(g_dlg, SW_SHOW);
+            SetForegroundWindow(g_dlg);
+        }
         return 0;
     case WM_ERASEBKGND: return 1;
     case WM_PAINT: {

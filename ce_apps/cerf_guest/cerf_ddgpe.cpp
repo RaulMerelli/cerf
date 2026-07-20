@@ -118,7 +118,7 @@ SCODE CerfDDGPE::GetModeInfo(GPEMode* pMode, int modeNo) {
     pMode->width     = (int)g_FbWidth;
     pMode->height    = (int)g_FbHeight;
     pMode->Bpp       = (int)g_FbBpp;
-    pMode->frequency = 60;
+    pMode->frequency = (int)g_FbRefreshRate;
     pMode->format    = (g_FbBpp == 16) ? gpe16Bpp
                      : (g_FbBpp == 24) ? gpe24Bpp
                      : (g_FbBpp == 32) ? gpe32Bpp : gpe8Bpp;

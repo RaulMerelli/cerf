@@ -270,6 +270,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
         <p><b>💾 CE Apps</b><br/>
           ✅ CerfDemo: UI and performance improvements</p>
         <p><b>✨ Guest Additions</b><br/>
+          🆕 High refresh rate support: the guest video mode and host window scanout follow the host monitor&#x27;s refresh rate<br/>
+          🆕 --screen-refresh-rate flag to set the refresh rate manually<br/>
           ✅ Input devices now run at the proper priority, staying responsive under heavy guest CPU load</p>
       </td>
     </tr>
