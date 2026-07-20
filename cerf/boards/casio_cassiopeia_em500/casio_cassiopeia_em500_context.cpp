@@ -16,7 +16,7 @@ public:
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 240, 320 };
     }
-
+    uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }
     /* VR4131 UM Fig 3-1: PA 0x20000000-0xFFFFFFFF mirrors 0x00000000-0x1FFFFFFF. */
     uint32_t GuestAdditionsWindowBase() const override { return 0x04000000u; }
 };
