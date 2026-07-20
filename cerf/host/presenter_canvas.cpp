@@ -77,16 +77,6 @@ void CALLBACK PresenterCanvas::PresentTimerProc(UINT, UINT, DWORD_PTR user,
         PostMessageW(self->hwnd_, kPresentMsg, 0, 0);
 }
 
-void PresenterCanvas::PresentDirect() {
-    TickAndPresent();
-    if (!present_dc_) return;
-    HDC dc = GetDC(hwnd_);
-    if (dc) {
-        BitBlt(dc, 0, 0, canvas_w_, canvas_h_, present_dc_, 0, 0, SRCCOPY);
-        ReleaseDC(hwnd_, dc);
-    }
-}
-
 void PresenterCanvas::Reposition(const RECT& r) {
     if (hwnd_) MoveWindow(hwnd_, r.left, r.top,
                           r.right - r.left, r.bottom - r.top, TRUE);
@@ -157,7 +147,10 @@ LRESULT PresenterCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case kPresentMsg:
             present_pending_.store(false, std::memory_order_release);
-            PresentDirect();
+            /* WM_PAINT is delivered only when the queue holds no other messages,
+               input included: MSDN "About Messages and Message Queues" > Queued
+               Messages (learn.microsoft.com/windows/win32/winmsg/about-messages-and-message-queues). */
+            if (hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             return 0;
 
         case WM_SIZE: {
@@ -176,6 +169,7 @@ LRESULT PresenterCanvas::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC dc = BeginPaint(hwnd, &ps);
+            TickAndPresent();
             if (present_dc_)
                 BitBlt(dc, 0, 0, canvas_w_, canvas_h_, present_dc_, 0, 0, SRCCOPY);
             EndPaint(hwnd, &ps);

@@ -48,6 +48,8 @@ private:
     enum class LabelMode { Starting, Restarting };
 
     void         Advance(uint64_t now_ms);
+    void         RebuildBgDib(int w, int h);
+    uint64_t     BgSignature(uint32_t width, uint32_t height);
     void         EnsureLogosLoaded();
     void         EnsureFonts();
     std::wstring CurrentLabelText() const;
@@ -62,6 +64,14 @@ private:
     Gdiplus::Bitmap* cerf_logo_     = nullptr;
     bool             logos_loaded_  = false;
     std::wstring     short_name_;               /* board short name, widened */
+
+    HDC       bg_dc_    = nullptr;
+    HBITMAP   bg_dib_   = nullptr;
+    uint32_t* bg_bits_  = nullptr;
+    int       bg_w_     = 0;
+    int       bg_h_     = 0;
+    uint64_t  bg_sig_   = ~0ull;
+    bool      bg_valid_ = false;
 
     HFONT label_font_      = nullptr;
     HFONT disclaimer_font_ = nullptr;

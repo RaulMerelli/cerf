@@ -101,7 +101,6 @@ private:
 
     void RebuildPresentDib(int w, int h);
     void TickAndPresent();
-    void PresentDirect();
     static void CALLBACK PresentTimerProc(UINT, UINT, DWORD_PTR, DWORD_PTR,
                                           DWORD_PTR);
 

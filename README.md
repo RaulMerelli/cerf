@@ -264,7 +264,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Sharp Mobilon HC-4100: fixed suspend crash</p>
         <p><b>💿 Emulator</b><br/>
           🆕 Discord Rich Presence - shows the current device and OS in your Discord profile<br/>
-          ✅ Fixed framebuffer not relatching on suspend/resume</p>
+          ✅ Fixed framebuffer not relatching on suspend/resume<br/>
+          ✅ Fixed 100% CPU usage and UI deadlocks on Windows XP on non-framebuffer tabs</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 UI refresh</p>
         <p><b>💾 CE Apps</b><br/>

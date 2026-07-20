@@ -8,6 +8,7 @@
       Discord Rich Presence - shows the current device and OS in your Discord profile
     fixed: |
       Fixed framebuffer not relatching on suspend/resume
+      Fixed 100% CPU usage and UI deadlocks on Windows XP on non-framebuffer tabs
   launcher:
     new: |
       UI refresh

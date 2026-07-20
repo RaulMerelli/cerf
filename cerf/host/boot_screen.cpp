@@ -40,6 +40,8 @@ constexpr int      kHwLineHeightPx   = kDisclaimerFontPx + 4;
 BootScreen::~BootScreen() {
     if (label_font_)      DeleteObject(label_font_);
     if (disclaimer_font_) DeleteObject(disclaimer_font_);
+    if (bg_dc_)           DeleteDC(bg_dc_);
+    if (bg_dib_)          DeleteObject(bg_dib_);
 }
 
 void BootScreen::OnShutdown() {
@@ -53,14 +55,66 @@ void BootScreen::OnReady() {
     short_name_ = Utf8ToWide(emu_.Get<BoardContext>().GetShortBoardName());
 }
 
-void BootScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
+void BootScreen::RenderInto(HDC, uint32_t* dib_bgra32,
                             uint32_t width, uint32_t height) {
-    std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
     Advance(emu_.Get<EmulationPause>().AnimationTickMs());
-    if (!Finished()) DrawAnimation(dc, width, height);
-    else             DrawHeldFinal(dc, width, height);
-    DrawHwStatusLine(dc, width, height);
+
+    if ((int)width != bg_w_ || (int)height != bg_h_) RebuildBgDib((int)width, (int)height);
+
+    const uint64_t sig = BgSignature(width, height);
+    if (bg_bits_ && (!bg_valid_ || sig != bg_sig_)) {
+        std::memset(bg_bits_, 0, (size_t)bg_w_ * bg_h_ * 4u);
+        if (!Finished()) DrawAnimation(bg_dc_, width, height);
+        else             DrawHeldFinal(bg_dc_, width, height);
+        DrawHwStatusLine(bg_dc_, width, height);
+        GdiFlush();
+        bg_sig_   = sig;
+        bg_valid_ = true;
+    }
+
+    if (bg_bits_) std::memcpy(dib_bgra32, bg_bits_, (size_t)width * height * 4u);
+    else          std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
     emu_.Get<BootBar>().RenderInto(dib_bgra32, width, height);
+}
+
+void BootScreen::RebuildBgDib(int w, int h) {
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize        = sizeof(bmi.bmiHeader);
+    bmi.bmiHeader.biWidth       = w;
+    bmi.bmiHeader.biHeight      = -h;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HBITMAP nd = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!nd || !bits) { if (nd) DeleteObject(nd); return; }
+    if (!bg_dc_) bg_dc_ = CreateCompatibleDC(nullptr);
+    SelectObject(bg_dc_, nd);
+    if (bg_dib_) DeleteObject(bg_dib_);
+    bg_dib_   = nd;
+    bg_bits_  = static_cast<uint32_t*>(bits);
+    bg_w_     = w;
+    bg_h_     = h;
+    bg_valid_ = false;
+}
+
+uint64_t BootScreen::BgSignature(uint32_t width, uint32_t height) {
+    uint64_t s = 1469598103934665603ull;
+    auto mix = [&](uint64_t v) { s = (s ^ v) * 1099511628211ull; };
+    mix((uint64_t)phase_);
+    mix((uint64_t)(int)(cur_op_ * 256.0f));
+    mix((uint64_t)label_mode_);
+    mix(fb_latched_ ? 1u : 0u);
+    mix(width);
+    mix(height);
+    const std::string last = emu_.Get<HwScreen>().LastLine();
+    for (unsigned char c : last) mix(c);
+    mix(last.size());
+    return s;
 }
 
 void BootScreen::EnsureLogosLoaded() {

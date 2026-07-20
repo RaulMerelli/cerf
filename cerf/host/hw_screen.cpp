@@ -54,12 +54,15 @@ HwScreen::~HwScreen() {
     for (HFONT& f : font_cache_) {
         if (f) { DeleteObject(f); f = nullptr; }
     }
+    if (bg_dc_)  DeleteDC(bg_dc_);
+    if (bg_dib_) DeleteObject(bg_dib_);
 }
 
 void HwScreen::AddLine(std::string_view line) {
     std::lock_guard<std::mutex> lk(mtx_);
     if (lines_.size() >= kMaxLines) lines_.pop_front();
     lines_.emplace_back(line);
+    ++gen_;
 }
 
 std::string HwScreen::LastLine() const {
@@ -67,19 +70,55 @@ std::string HwScreen::LastLine() const {
     return lines_.empty() ? std::string() : lines_.back();
 }
 
-void HwScreen::RenderInto(HDC dc, uint32_t* dib_bgra32,
+void HwScreen::RenderInto(HDC, uint32_t* dib_bgra32,
                           uint32_t width, uint32_t height) {
-    std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
-
     std::vector<std::string> snapshot;
+    uint64_t gen;
     {
         std::lock_guard<std::mutex> lk(mtx_);
         snapshot.assign(lines_.begin(), lines_.end());
+        gen = gen_;
     }
 
-    emu_.Get<BootScreen>().DrawWatermark(dc, width, height);
-    DrawLog(dc, width, height, snapshot);
+    if ((int)width != bg_w_ || (int)height != bg_h_) RebuildBgDib((int)width, (int)height);
+
+    if (bg_bits_ && (!bg_valid_ || gen != bg_gen_)) {
+        std::memset(bg_bits_, 0, (size_t)bg_w_ * bg_h_ * 4u);
+        emu_.Get<BootScreen>().DrawWatermark(bg_dc_, width, height);
+        DrawLog(bg_dc_, width, height, snapshot);
+        GdiFlush();
+        bg_gen_   = gen;
+        bg_valid_ = true;
+    }
+
+    if (bg_bits_) std::memcpy(dib_bgra32, bg_bits_, (size_t)width * height * 4u);
+    else          std::memset(dib_bgra32, 0, (size_t)width * height * 4u);
     emu_.Get<BootBar>().RenderInto(dib_bgra32, width, height);
+}
+
+void HwScreen::RebuildBgDib(int w, int h) {
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize        = sizeof(bmi.bmiHeader);
+    bmi.bmiHeader.biWidth       = w;
+    bmi.bmiHeader.biHeight      = -h;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HBITMAP nd = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!nd || !bits) { if (nd) DeleteObject(nd); return; }
+    if (!bg_dc_) bg_dc_ = CreateCompatibleDC(nullptr);
+    SelectObject(bg_dc_, nd);
+    if (bg_dib_) DeleteObject(bg_dib_);
+    bg_dib_   = nd;
+    bg_bits_  = static_cast<uint32_t*>(bits);
+    bg_w_     = w;
+    bg_h_     = h;
+    bg_valid_ = false;
 }
 
 void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
