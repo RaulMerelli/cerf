@@ -3,12 +3,8 @@
 #include "../board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/host_window.h"
-#include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
-
-#include <cstring>
 
 REGISTER_SERVICE(CasioCassiopeiaEm500Companion);
 
@@ -65,6 +61,12 @@ constexpr uint32_t kOffStatus234 = 0x0234u;
    @0x9F038994 (sw 0). */
 constexpr uint32_t kOffLatch1110 = 0x1110u;
 
+/* nk_main_kernel.exe sub_9F08EE0C @0x9F08EF7C (sw 3), @0x9F03C330 (sw 0x30)/
+   @0x9F03C338 (sw 2), + @0x9F0354C4/@0x9F08F21C/@0x9F08F48C. Write accepted
+   (guarded downgrade); the read side sub_9F03C304 @0x9F03C308 (& 0x40 bit6) is
+   born-FATAL until hit, so bit6 is grounded at its own halt. */
+constexpr uint32_t kOffReg1054 = 0x1054u;
+
 /* pcmcia.dll (MIPS16) per-socket table unk_F88288: RMW @0xF81878 (lw) + @0xF81880
    (sw |0x30); getters @0xF81840-46 (&4), @0xF8185A-62 (&0x30). */
 constexpr uint32_t kOffSocketCtrlAC8 = 0x0AC8u;
@@ -104,6 +106,12 @@ constexpr uint32_t kOffLatch130C  = 0x130Cu;
 /* remocon.dll mapper @0xED181C-0xED1820; init RMW @0xED158C. */
 constexpr uint32_t kOffAdcCtrl89C = 0x089Cu;
 
+/* eeprom.dll sub_F2198C @0xF2198C / @0xF219A4 / @0xF219BC RMW read-back
+   (companion 0xA118, block base 0x0A00A100). */
+constexpr uint32_t kOffEepromCtrlA118 = 0xA118u;
+/* eeprom.dll @0xF219FC sw 0, base+0x1C (companion 0xA11C). */
+constexpr uint32_t kOffEepromA11C = 0xA11Cu;
+
 /* socket.dll init @0xF41966-0xF419A0 (sub_F42258 halfword stores; register
    table @0xF421BC-0xF421D6, descriptor 0xAA008000 @0xF421F8). */
 constexpr uint32_t kOffStrap8000  = 0x8000u;
@@ -124,6 +132,11 @@ constexpr uint32_t kOffIntCfg8404 = 0x8404u;
    0xA0002520). */
 constexpr uint32_t kOffCause8800 = 0x8800u;
 
+/* nk_main_kernel.exe sub_9F08F334 case17 @0x9F08F388 / case24 @0x9F08F3A4
+   (RMW enable config: (x & mask) | enable), @0x9F033A84 (sw 0); consumed
+   @0x9F036608 (lw 0x304; raw & (raw>>8) = pending[7:0] & enable[15:8]). */
+constexpr uint32_t kOffIntCause0304 = 0x0304u;
+
 constexpr uint32_t kOffSibRegsLo = 0x0900u;
 constexpr uint32_t kOffSibRegsHi = 0x0910u;
 
@@ -134,24 +147,6 @@ constexpr uint32_t kOffPanelState904 = 0x0904u;
 constexpr uint32_t kOffEdgeCfgLo = 0xA060u;
 constexpr uint32_t kOffEdgeCfgHi = 0xA07Eu;
 
-constexpr uint32_t kOffPanelEnable = 0x0980u;
-constexpr uint32_t kOffPanel0984   = 0x0984u;
-constexpr uint32_t kOffPanel0988   = 0x0988u;
-constexpr uint32_t kOffBrightness  = 0x098Cu;
-constexpr uint32_t kOffPanel0994   = 0x0994u;
-constexpr uint32_t kOffContrast    = 0x099Cu;
-
-constexpr uint32_t kOffBlitGo  = 0x0A00u;
-constexpr uint32_t kOffBlitOp  = 0x0A04u;
-constexpr uint32_t kOffBlitLen = 0x0A08u;
-constexpr uint32_t kOffBlitSrc = 0x0A10u;
-constexpr uint32_t kOffBlitDst = 0x0A14u;
-
-/* ddi.dll sub_FC4E38 @0xFC4F30 (v10[1] = 129). */
-constexpr uint32_t kBlitOpCopy = 0x81u;
-
-constexpr uint32_t kPaMask = 0x1FFFFFFFu;   /* VR4131 UM Fig 3-1 kseg fold */
-
 }  /* namespace */
 
 bool CasioCassiopeiaEm500Companion::ShouldRegister() {
@@ -160,28 +155,38 @@ bool CasioCassiopeiaEm500Companion::ShouldRegister() {
 }
 
 void CasioCassiopeiaEm500Companion::OnReady() {
-    fb_.assign(kFbSize, 0u);
+    display_.Init(emu_);
+    modem_.Init();
     emu_.Get<PeripheralDispatcher>().Register(this);
 }
 
 uint8_t CasioCassiopeiaEm500Companion::ReadByte(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) return fb_[off - kFbOffset];
+    if (uint8_t v; display_.TryReadByte(off, v)) return v;
+    if (uint8_t v; modem_.TryReadByte(off, v)) return v;
     HaltUnsupportedAccess("EM-500 companion ReadByte", addr, 0);
 }
 
 uint16_t CasioCassiopeiaEm500Companion::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) {
-        uint16_t v;
-        std::memcpy(&v, &fb_[off - kFbOffset], sizeof(v));
-        return v;
-    }
+    if (uint16_t v; display_.TryReadHalf(off, v)) return v;
     if (off == kOffWakeStatus1 || off == kOffWakeStatus2) return 0u;
+    /* mailbox cmd 0x8900 bit9 (0x200) = busy; cdm.dll sub_EE15EC @0xEE1624
+       busy-waits `while (*0x8900 & 0x200)`. Not-busy: command completes instantly
+       (no sub-CPU), matching ReadWord 0x8900 = 0. */
+    if (off == kOffMboxCmd) return 0u;
+    /* mailbox response 0x8910: cdm.dll sub_EE15EC @0xEE1636 folds `~v1 & *0x8910`
+       into the next 0x8900 command, never validates it (S13 closure); return 0,
+       matching ReadWord 0x8910 = 0. */
+    if (off == kOffMboxResp) return 0u;
     if (off == kOffIntCfg8404) return intcfg8404_;
     /* socket.dll sub_F42258 @0xF42284 (lhu) / @0xF42292 (sh), mask 0x1010
        call @0xF41986-0xF41990, table[5]=+4 @0xF421D6. */
     if (off == kOffClk8004) return static_cast<uint16_t>(clk8004_);
+    /* socket.dll table[4]=+0 (0x8000): sub_F42258 RMW read-back only; the sole
+       consuming read sub_F422A8 @0xF416A0 targets table[2]=0x8010, never 0x8000. */
+    if (off == kOffStrap8000) return static_cast<uint16_t>(strap8000_);
+    if (uint16_t mv; modem_.TryReadHalf(off, mv)) return mv;
     if (off == kOffSocketId8010) return kSocketIdEmpty;
     /* nk_main_kernel.exe @0x9F038904/@0x9F03890C/@0x9F038914 (lh x3, $t1
        overwritten untested, before cop0 0x22); xref-complete, no writer. */
@@ -190,16 +195,16 @@ uint16_t CasioCassiopeiaEm500Companion::ReadHalf(uint32_t addr) {
     if (off == kOffCodec884) return static_cast<uint16_t>(codec884_);
     if (off == kOffCodec888) return static_cast<uint16_t>(codec888_);
     if (off == kOffCodec8A0) return static_cast<uint16_t>(codec8A0_);
+    /* keybddr.dll sub_FB2AB8 @0xFB2ACC RMW read-back (companion 0xA060-0xA07E). */
+    if (off >= kOffEdgeCfgLo && off <= kOffEdgeCfgHi && (off & 1u) == 0u)
+        return edge_cfg_[(off - kOffEdgeCfgLo) / 2u];
     HaltUnsupportedAccess("EM-500 companion ReadHalf", addr, 0);
 }
 
 uint32_t CasioCassiopeiaEm500Companion::ReadWord(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) {
-        uint32_t v;
-        std::memcpy(&v, &fb_[off - kFbOffset], sizeof(v));
-        return v;
-    }
+    if (uint32_t v; display_.TryReadWord(off, v)) return v;
+    if (uint32_t mv; modem_.TryReadWord(off, mv)) return mv;
     if (off == kOffCtrl8904) return ctrl8904_;
     if (off == kOffMboxCmd) return 0u;
     if (off == kOffMboxResp) return 0u;
@@ -220,39 +225,45 @@ uint32_t CasioCassiopeiaEm500Companion::ReadWord(uint32_t addr) {
     if (off == kOffLatch1118) return latch1118_;
     if (off == kOffLatch130C) return latch130C_;
     if (off == kOffAdcCtrl89C) return adc_ctrl_89C_;
+    if (off == kOffEepromCtrlA118) return eeprom_ctrl_a118_;
     /* wavedev.dll 0x3C4 ready polls (lw+beqz, e.g. @0xF6255E-0xF62578). */
     if (off == kOffCodecReady) return 1u;
     if (off == kOffCtrlA0D4) return ctrl_a0d4_;
     if (off == kOffClk8004) return clk8004_;
     if (off == kOffCause8800) return 0u;
+    if (off == kOffIntCause0304) return reg_0304_;
     if (off == kOffPanelState904) return sib_regs_[1];
+    /* ddi.dll sub_FC838C @0xFC8394 RMW read-back (companion 0x0900). */
+    if (off == kOffSibRegsLo) return sib_regs_[0];
     /* nk_main_kernel.exe @0x9F03C1C4 (lw 0x1C; &~8 after the 0x30 write @0x9F03C1C0). */
     if (off == 0x001Cu) return bus_timing_[(0x001Cu - kOffBusTimingLo) / 4u];
-    /* ddi.dll sub_FC4E38 @0xFC4F44: busy poll until 0; the copy completes at GO. */
-    if (off == kOffBlitGo) return 0u;
+    /* nk_main_kernel.exe sub_9F08EE0C case 30 @0x9F08F0C0/@0x9F08F0CC (lw 0x20; |=; sw). */
+    if (off == 0x0020u) return bus_timing_[(0x0020u - kOffBusTimingLo) / 4u];
     HaltUnsupportedAccess("EM-500 companion ReadWord", addr, 0);
 }
 
 void CasioCassiopeiaEm500Companion::WriteByte(uint32_t addr, uint8_t value) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) { fb_[off - kFbOffset] = value; return; }
+    if (display_.TryWriteByte(off, value)) return;
+    if (modem_.TryWriteByte(off, value)) return;
     HaltUnsupportedAccess("EM-500 companion WriteByte", addr, value);
 }
 
 void CasioCassiopeiaEm500Companion::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) {
-        std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value));
-        return;
-    }
+    if (display_.TryWriteHalf(off, value)) return;
     if (off == kOffDataA040) { data_a040_ = value; return; }
     /* nk_main_kernel.exe sub_9F032B60 @0x9F032C44 */
     if (off == kOffCtrl8904) { ctrl8904_ = value; return; }
+    /* mailbox cmd 0x8900 write (cdm.dll sub_EE15EC @0xEE1648, bit9 busy set);
+       stored, not processed (no sub-CPU, S13), as WriteReg 0x8900. */
+    if (off == kOffMboxCmd) { mbox_cmd_ = value; return; }
     /* nk_main_kernel.exe @0x9F03C194 (sh of the |1 write-back). */
     if (off == kOffClk8004) { clk8004_ = value; return; }
     if (off == kOffIntCfg8404) { intcfg8404_ = value; return; }
     if (off == kOffStrap8000) { strap8000_ = value; return; }
     if (off == kOffCfg8018) return;
+    if (modem_.TryWriteHalf(off, value)) return;
     if (off == kOffCodec880) { codec880_ = value; return; }
     if (off == kOffCodec884) { codec884_ = value; return; }
     if (off == kOffCodec888) { codec888_ = value; return; }
@@ -267,10 +278,8 @@ void CasioCassiopeiaEm500Companion::WriteHalf(uint32_t addr, uint16_t value) {
 
 void CasioCassiopeiaEm500Companion::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) {
-        std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value));
-        return;
-    }
+    if (display_.TryWriteWord(off, value)) return;
+    if (modem_.TryWriteWord(off, value)) return;
     WriteReg(off, value);
 }
 
@@ -278,6 +287,7 @@ void CasioCassiopeiaEm500Companion::WriteReg(uint32_t off, uint32_t value) {
     switch (off) {
         case kOffCtrl8904: ctrl8904_ = value; return;
         case kOffLatch1110: reg_1110_ = value; return;
+        case kOffReg1054: reg_1054_ = value; return;
         case kOffSocketCtrlAC8: socket_ctrl_ac8_ = value; return;
         case kOffSocketA038: socket_a038_ = value; return;
         case kOffCodec880: codec880_ = value; return;
@@ -289,6 +299,10 @@ void CasioCassiopeiaEm500Companion::WriteReg(uint32_t off, uint32_t value) {
         case kOffLatch1118: latch1118_ = value; return;
         case kOffLatch130C: latch130C_ = value; return;
         case kOffAdcCtrl89C: adc_ctrl_89C_ = value; return;
+        case kOffEepromCtrlA118: eeprom_ctrl_a118_ = value; return;
+        case kOffEepromA11C: return;
+        /* nk_main_kernel.exe sub_9F08EE0C cases 19/28/30/31 @0x9F08F0AC (lw 0x8004; |=; sw). */
+        case kOffClk8004: clk8004_ = value; return;
         case kOffStrap8000: strap8000_ = value; return;
         case kOffCfg8018: return;
         case kOffCodecCmd: return;
@@ -300,39 +314,18 @@ void CasioCassiopeiaEm500Companion::WriteReg(uint32_t off, uint32_t value) {
         case kOffMboxCmd: mbox_cmd_ = value; return;
         case kOffCtrlA0D4: ctrl_a0d4_ = value; return;
         case kOffCause8800: return;
+        case kOffIntCause0304: reg_0304_ = value; return;
         case 0x0900u: case 0x0904u: case 0x0908u: case 0x090Cu: case 0x0910u:
             sib_regs_[(off - kOffSibRegsLo) / 4u] = value;
-            return;
-        /* nk_main_kernel.exe sub_9F034498 @0x9F0344EC (sw 0). */
-        case 0x0998u: return;
-        case kOffPanelEnable:
-            reg_0980_ = value;
-            MaybePublishDisplaySize();
-            return;
-        case kOffPanel0984:  reg_0984_ = value; return;
-        case kOffPanel0988:  reg_0988_ = value; return;
-        case kOffBrightness: reg_098C_ = value; return;
-        case kOffPanel0994:  reg_0994_ = value; return;
-        case kOffContrast:   reg_099C_ = value; return;
-        case kOffBlitOp:  blit_op_        = value; return;
-        case kOffBlitLen: blit_len_words_ = value; return;
-        case kOffBlitSrc: blit_src_       = value; return;
-        case kOffBlitDst: blit_dst_       = value; return;
-        case kOffBlitGo:
-            /* ddi.dll sub_FC4E38 @0xFC4F38: only 1 is written to GO. */
-            if (value != 1u)
-                HaltUnsupportedAccess("EM-500 companion blit GO", kBase + off, value);
-            RunBlit();
             return;
         default: break;
     }
     /* nk_main_kernel.exe sub_9F032B60: 0xA0C4/0xA0CC @0x9F032C84, 0xA0DC @0x9F032CEC,
        0x1100-0x1130 @0x9F032C98, 0x0008 @0x9F032D24, 0x03C8 @0x9F032D30; 0x1300
-       @0x9F033828/@0x9F033854/@0x9F038970, 0x1338 @0x9F03383C/@0x9F03384C;
-       0x0304 sw 0 @0x9F033A84 (sub_9F033A5C). */
+       @0x9F033828/@0x9F033854/@0x9F038970, 0x1338 @0x9F03383C/@0x9F03384C. */
     if (off == 0x0008u || off == 0x03C8u ||
         off == 0xA0C4u || off == 0xA0CCu || off == 0xA0DCu ||
-        off == 0x0304u || off == 0x1300u || off == 0x1338u ||
+        off == 0x1300u || off == 0x1338u ||
         (off >= 0x1100u && off <= 0x1130u && (off & 3u) == 0u)) {
         return;
     }
@@ -344,34 +337,7 @@ void CasioCassiopeiaEm500Companion::WriteReg(uint32_t off, uint32_t value) {
     HaltUnsupportedAccess("EM-500 companion WriteWord", kBase + off, value);
 }
 
-void CasioCassiopeiaEm500Companion::RunBlit() {
-    if (blit_op_ != kBlitOpCopy)
-        HaltUnsupportedAccess("EM-500 companion blit opcode", kBase + kOffBlitOp, blit_op_);
-    const uint32_t bytes  = blit_len_words_ * 4u;
-    if (bytes == 0u) return;
-    const uint32_t src_pa = blit_src_ & kPaMask;
-    if (static_cast<uint64_t>(blit_dst_) + bytes > kFbSize) {
-        LOG(Caution, "EM-500 companion blit dst=0x%X len=%u exceeds framebuffer\n",
-            blit_dst_, bytes);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    uint8_t* host_src = emu_.Get<EmulatedMemory>().TryTranslate(src_pa);
-    if (!host_src) {
-        LOG(Caution, "EM-500 companion blit src_pa=0x%X unbacked\n", src_pa);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    std::memcpy(fb_.data() + blit_dst_, host_src, bytes);
-}
-
-void CasioCassiopeiaEm500Companion::MaybePublishDisplaySize() {
-    if (size_published_ || !IsDisplayEnabled()) return;
-    size_published_ = true;
-    emu_.Get<HostWindow>().OnLcdEnabled(GuestW(), GuestH());
-}
-
 void CasioCassiopeiaEm500Companion::SaveState(StateWriter& w) {
-    w.Write<uint64_t>(fb_.size());
-    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
     w.Write(mbox_cmd_);
     w.Write(ctrl8904_);
     w.Write(ctrl_a0d4_);
@@ -380,11 +346,8 @@ void CasioCassiopeiaEm500Companion::SaveState(StateWriter& w) {
     for (uint32_t v : sib_regs_) w.Write(v);
     for (uint32_t v : bus_timing_) w.Write(v);
     for (uint16_t v : edge_cfg_) w.Write(v);
-    w.Write(reg_0980_); w.Write(reg_0984_); w.Write(reg_0988_);
-    w.Write(reg_098C_); w.Write(reg_0994_); w.Write(reg_099C_);
-    w.Write(blit_op_); w.Write(blit_len_words_);
-    w.Write(blit_src_); w.Write(blit_dst_);
     w.Write(reg_1110_);
+    w.Write(reg_1054_);
     w.Write(socket_ctrl_ac8_);
     w.Write(socket_a038_);
     w.Write(intcfg8404_);
@@ -398,14 +361,13 @@ void CasioCassiopeiaEm500Companion::SaveState(StateWriter& w) {
     w.Write(latch130C_);
     w.Write(strap8000_);
     w.Write(adc_ctrl_89C_);
-    w.Write<uint8_t>(size_published_ ? 1u : 0u);
+    w.Write(eeprom_ctrl_a118_);
+    w.Write(reg_0304_);
+    display_.SaveState(w);
+    modem_.SaveState(w);
 }
 
 void CasioCassiopeiaEm500Companion::RestoreState(StateReader& r) {
-    uint64_t n = 0;
-    r.Read(n);
-    fb_.assign(static_cast<size_t>(n), 0u);
-    if (n) r.ReadBytes(fb_.data(), static_cast<size_t>(n));
     r.Read(mbox_cmd_);
     r.Read(ctrl8904_);
     r.Read(ctrl_a0d4_);
@@ -414,11 +376,8 @@ void CasioCassiopeiaEm500Companion::RestoreState(StateReader& r) {
     for (uint32_t& v : sib_regs_) r.Read(v);
     for (uint32_t& v : bus_timing_) r.Read(v);
     for (uint16_t& v : edge_cfg_) r.Read(v);
-    r.Read(reg_0980_); r.Read(reg_0984_); r.Read(reg_0988_);
-    r.Read(reg_098C_); r.Read(reg_0994_); r.Read(reg_099C_);
-    r.Read(blit_op_); r.Read(blit_len_words_);
-    r.Read(blit_src_); r.Read(blit_dst_);
     r.Read(reg_1110_);
+    r.Read(reg_1054_);
     r.Read(socket_ctrl_ac8_);
     r.Read(socket_a038_);
     r.Read(intcfg8404_);
@@ -432,7 +391,12 @@ void CasioCassiopeiaEm500Companion::RestoreState(StateReader& r) {
     r.Read(latch130C_);
     r.Read(strap8000_);
     r.Read(adc_ctrl_89C_);
-    uint8_t pub = 0;
-    r.Read(pub);
-    size_published_ = pub != 0;
+    r.Read(eeprom_ctrl_a118_);
+    r.Read(reg_0304_);
+    display_.RestoreState(r);
+    modem_.RestoreState(r);
+}
+
+void CasioCassiopeiaEm500Companion::PostRestore() {
+    modem_.PostRestore();
 }

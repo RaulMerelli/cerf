@@ -2,8 +2,10 @@
 
 #include "../../peripherals/peripheral_base.h"
 
+#include "casio_cassiopeia_em500_display.h"
+#include "casio_cassiopeia_em500_modem.h"
+
 #include <cstdint>
-#include <vector>
 
 /* Casio companion ASIC in External I/O area 2 (IOCS0#), PA 0x0A000000 (kseg1
    0xAA000000; VR4131 UM U15350EJ2V0UM Fig 3-1 p75); registers from
@@ -28,34 +30,24 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
-    /* nk_main_kernel.exe sub_9F03445C @0x9F034484 (1 -> 0x980), power-down
-       @0x9F038B50 (0 -> 0x980); ddi.dll sub_FC3E00 @0xFC3E00. */
-    bool IsDisplayEnabled() const { return reg_0980_ == 1u; }
-
-    /* nk_main_kernel.exe fill sub_9F0346B0: 0x1E0 bytes/row, row advance 0x200,
-       extent 0x28000 from 0xAA200000; boot-logo draw @0x9F034408-0x9F034410
-       (dst 0xAA200000, w=0xF0, h=0x140); ddi.dll sub_FC5538 VirtualCopy
-       0xAA200000 size 0x40000. */
-    uint32_t GuestW()      const { return 240u; }
-    uint32_t GuestH()      const { return 320u; }
-    uint32_t StrideBytes() const { return 512u; }
-    uint32_t FbPa()        const { return kBase + kFbOffset; }
-    uint32_t FbSize()      const { return kFbSize; }
-    const uint8_t* FbBytes() const { return fb_.data(); }
+    bool IsDisplayEnabled() const { return display_.IsDisplayEnabled(); }
+    uint32_t GuestW()      const { return display_.GuestW(); }
+    uint32_t GuestH()      const { return display_.GuestH(); }
+    uint32_t StrideBytes() const { return display_.StrideBytes(); }
+    uint32_t FbPa()        const { return display_.FbPa(); }
+    uint32_t FbSize()      const { return display_.FbSize(); }
+    const uint8_t* FbBytes() const { return display_.FbBytes(); }
 
 private:
     static constexpr uint32_t kBase       = 0x0A000000u;
     static constexpr uint32_t kWindowSize = 0x00240000u;
-    static constexpr uint32_t kFbOffset   = 0x00200000u;
-    static constexpr uint32_t kFbSize     = 0x00040000u;
 
-    bool InFb(uint32_t off) const { return off >= kFbOffset && off < kFbOffset + kFbSize; }
     void WriteReg(uint32_t off, uint32_t value);
-    void RunBlit();
-    void MaybePublishDisplaySize();
 
-    std::vector<uint8_t> fb_;
+    CasioCassiopeiaEm500Display display_;
+    CasioCassiopeiaEm500Modem modem_;
 
     /* nk_main_kernel.exe sub_9F03C104 @0x9F03C120, sub_9F03C140 @0x9F03C160,
        @0x9F033174/@0x9F0331B8. */
@@ -70,6 +62,9 @@ private:
     uint16_t data_a040_ = 0;
     /* nk_main_kernel.exe @0x9F032CDC, sub_9F03473C @0x9F034834/@0x9F034844. */
     uint32_t reg_1110_ = 0;
+    /* nk_main_kernel.exe writes @0x9F08EF7C/@0x9F03C330/@0x9F03C338; store-only,
+       read side sub_9F03C304 @0x9F03C308 born-FATAL until hit. */
+    uint32_t reg_1054_ = 0;
     /* pcmcia.dll @0xF81878/@0xF81880 (RMW |0x30). */
     uint32_t socket_ctrl_ac8_ = 0;
     /* pcmcia.dll @0xF81D76/@0xF81D80 (RMW &~0xC). */
@@ -94,6 +89,11 @@ private:
        (&~0x38); IST @0xED15D6-0xED15E4 (&~0x30|8), @0xED1682-0xED168C (&~0x38);
        gate sub_ED19A0 (&0x40). */
     uint32_t adc_ctrl_89C_ = 0;
+    uint32_t eeprom_ctrl_a118_ = 0;   /* eeprom.dll @0xF2198C (companion 0xA118) */
+    /* nk_main_kernel.exe sub_9F08F334 case17 @0x9F08F388 / case24 @0x9F08F3A4
+       (RMW enable config), @0x9F033A84 (sw 0); consumed @0x9F036608 (lw 0x304;
+       raw & (raw>>8) = pending[7:0] & enable[15:8] cascade demux). */
+    uint32_t reg_0304_ = 0;
     /* nk_main_kernel.exe @0x9F033118/@0x9F033130 (0x0910), @0x9F0331D8-0x9F0331F0
        (0x0900/0x0908/0x090C). */
     uint32_t sib_regs_[5] = {};
@@ -103,23 +103,4 @@ private:
        base+(0x30+i)*2, i=0..15. */
     uint16_t edge_cfg_[16] = {};
 
-    /* nk_main_kernel.exe sub_9F03445C @0x9F03446C-0x9F034484 (0x984=1, 0x988=0x1B7,
-       0x98C=0x1B7, 0x980=1), power-down @0x9F038B48-0x9F038B58 (0x980=0, 0x994=0);
-       ddi.dll sub_FC2374 @0xFC2374 (0x98C brightness) / @0xFC276C (0x99C contrast). */
-    uint32_t reg_0980_ = 0;
-    uint32_t reg_0984_ = 0;
-    uint32_t reg_0988_ = 0;
-    uint32_t reg_098C_ = 0;
-    uint32_t reg_0994_ = 0;
-    uint32_t reg_099C_ = 0;
-
-    /* ddi.dll sub_FC4E38 @0xFC4E38: [0xA00] go/busy (poll 0, write 1; cleared on
-       done), [0xA04] opcode 0x81, [0xA08] length in words, [0xA10] source kseg1
-       address (0xA000D000 + offset), [0xA14] destination framebuffer byte offset. */
-    uint32_t blit_op_        = 0;
-    uint32_t blit_len_words_ = 0;
-    uint32_t blit_src_       = 0;
-    uint32_t blit_dst_       = 0;
-
-    bool size_published_ = false;
 };
