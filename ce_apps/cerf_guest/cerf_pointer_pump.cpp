@@ -21,6 +21,7 @@ static BOOL CerfMapPtrRegs(void) {
 }
 
 static DWORD WINAPI CerfPointerPumpThread(LPVOID) {
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
     HMODULE h = LoadLibraryW(L"coredll.dll");
     PFN_mouse_event me = h ? (PFN_mouse_event)GetProcAddressW(h, L"mouse_event") : NULL;
     CERF_LOG_X_DEV("cerf_guest: ptrpump mouse_event", (DWORD)me);

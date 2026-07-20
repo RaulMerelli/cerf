@@ -21,6 +21,8 @@
 #define DLG_EXP_H  (BANNER_H + 340)
 #define STARTUP_MS 650    /* hero reveal: clipped band -> full collapsed */
 #define TOGGLE_MS  220    /* details expand / collapse, near-native feel */
+#define FOCUSED_FRAME_MS    16
+#define UNFOCUSED_SLEEP_MS 100
 
 /* IOCTL_HAL_REBOOT = CTL_CODE(FILE_DEVICE_HAL 0x101, 15, METHOD_BUFFERED,
    FILE_ANY_ACCESS) = 0x0101003C (pkfuncs.h); KernelIoControl: coredll export. */
@@ -418,7 +420,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
     {
     DWORD prev = GetTickCount();
     for (;;) {
-        DWORD now, dt;
+        DWORD frame_start = GetTickCount();
+        DWORD now, dt, spent;
         HWND  fg;
         int   ours;
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -437,10 +440,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
         fg   = GetForegroundWindow();
         ours = (fg == bg || fg == g_dlg);
         TickDlgAnim(g_dlg);
-        if (ours) {
-            g_anim_clock += dt;
-            PresentBg(bg);
+        if (!ours) {
+            Sleep(UNFOCUSED_SLEEP_MS);
+            continue;
         }
+        g_anim_clock += dt;
+        PresentBg(bg);
+        spent = GetTickCount() - frame_start;
+        if (spent < FOCUSED_FRAME_MS) Sleep(FOCUSED_FRAME_MS - spent);
     }
     }
 done:

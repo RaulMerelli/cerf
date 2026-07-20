@@ -267,6 +267,10 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Fixed framebuffer not relatching on suspend/resume</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 UI refresh</p>
+        <p><b>💾 CE Apps</b><br/>
+          ✅ CerfDemo: UI and performance improvements</p>
+        <p><b>✨ Guest Additions</b><br/>
+          ✅ Input devices now run at the proper priority, staying responsive under heavy guest CPU load</p>
       </td>
     </tr>
     <tr>

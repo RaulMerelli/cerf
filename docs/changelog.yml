@@ -11,6 +11,12 @@
   launcher:
     new: |
       UI refresh
+  guest_additions:
+    fixed: |
+      Input devices now run at the proper priority, staying responsive under heavy guest CPU load
+  ce_apps:
+    fixed: |
+      CerfDemo: UI and performance improvements
 
 - version: v6.6
   date: 18 Jul 2026

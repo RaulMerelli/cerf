@@ -22,6 +22,7 @@ static BOOL CerfMapKbRegs(void) {
 }
 
 static DWORD WINAPI CerfKeyboardPumpThread(LPVOID) {
+    CeSetThreadPriority(GetCurrentThread(), 145);
     HMODULE h = LoadLibraryW(L"coredll.dll");
     PFN_keybd_event ke = h ? (PFN_keybd_event)GetProcAddressW(h, L"keybd_event") : NULL;
     CERF_LOG_X("cerf_guest: kbpump keybd_event", (DWORD)ke);
