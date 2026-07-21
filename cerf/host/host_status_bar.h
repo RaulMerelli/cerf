@@ -27,8 +27,7 @@ public:
 
     HWND Hwnd() const { return hwnd_; }
 
-    /* Screen rect of the input-capture (lock) widget, for callers anchoring UI
-       to it (e.g. the click-to-lock hint balloon). False if not laid out. */
+    bool WidgetScreenRect(const HostWidget* w, RECT& out) const;
     bool CaptureWidgetScreenRect(RECT& out) const;
 
 private:

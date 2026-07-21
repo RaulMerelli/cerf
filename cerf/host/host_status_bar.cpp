@@ -162,14 +162,21 @@ void HostStatusBar::UpdateTipText(size_t idx, std::wstring text) {
     SendMessageW(tip_hwnd_, TTM_UPDATETIPTEXTW, 0, (LPARAM)&ti);
 }
 
-bool HostStatusBar::CaptureWidgetScreenRect(RECT& out) const {
+bool HostStatusBar::WidgetScreenRect(const HostWidget* w, RECT& out) const {
     for (auto& e : layout_) {
-        if (e.first->Group() == WidgetGroup::InputCapture) {
+        if (e.first == w) {
             out = e.second;   /* client coords */
             MapWindowPoints(hwnd_, nullptr, reinterpret_cast<POINT*>(&out), 2);
             return true;
         }
     }
+    return false;
+}
+
+bool HostStatusBar::CaptureWidgetScreenRect(RECT& out) const {
+    for (auto& e : layout_)
+        if (e.first->Group() == WidgetGroup::InputCapture)
+            return WidgetScreenRect(e.first, out);
     return false;
 }
 

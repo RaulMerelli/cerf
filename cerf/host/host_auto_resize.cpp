@@ -11,6 +11,7 @@
 #include "guest_additions_ui_policy.h"
 #include "host_icon_cache.h"
 #include "host_widget_registry.h"
+#include "host_window.h"
 #include "task_manager_window.h"
 
 #include <string>
@@ -71,7 +72,10 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
 
     WidgetMenuItem chres;
     chres.label    = L"Change resolution…";
-    chres.on_click = [this] { emu_.Get<ChangeResolutionDialog>().Show(); };
+    chres.on_click = [this] {
+        emu_.Get<ChangeResolutionDialog>().Show(emu_.Get<HostWindow>().Hwnd(),
+                                                false);
+    };
     items.push_back(std::move(chres));
 
     if (emu_.Get<GuestAdditionsUiPolicy>().LiveResizeAvailable()) {

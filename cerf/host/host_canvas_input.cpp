@@ -4,10 +4,10 @@
 
 #include "../core/cerf_emulator.h"
 #include "boot_screen.h"
+#include "host_balloon_hint.h"
 #include "host_canvas.h"
 #include "host_guest_cursor.h"
 #include "host_input_capture.h"
-#include "host_status_bar.h"
 #include "keyboard_router.h"
 #include "memory_visualizer.h"
 #include "pointer_input.h"
@@ -16,11 +16,9 @@
 #include "relative_mouse_input.h"
 #include "touch_input.h"
 
-#include <commctrl.h>
-
 REGISTER_SERVICE(HostCanvasInput);
 
-namespace { constexpr UINT_PTR kLockHintTimer = 0xC1; }
+namespace { constexpr UINT kLockHintHoldMs = 4500; }
 
 void HostCanvasInput::ReleasePenIfDown() {
     if (!pen_down_) return;
@@ -74,45 +72,11 @@ void HostCanvasInput::WarpToCentre(HWND hwnd) {
     SetCursorPos(c.x, c.y);
 }
 
-void HostCanvasInput::ShowLockHintOnce(HWND owner) {
+void HostCanvasInput::ShowLockHintOnce() {
     if (lock_hint_shown_) return;
     lock_hint_shown_ = true;
-
-    lock_hint_tip_ = CreateWindowExW(
-        WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr,
-        WS_POPUP | TTS_NOPREFIX | TTS_BALLOON | TTS_ALWAYSTIP,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        owner, nullptr, GetModuleHandleW(nullptr), nullptr);
-    if (!lock_hint_tip_) return;
-
-    wchar_t text[] = L"Mouse locked - press Right Ctrl to release";
-    /* cbSize is the backward-compatible TTTOOLINFOW_V1_SIZE - accepted by every
-       comctl32 (v5 and the manifest's v6); the larger modern sizeof(TTTOOLINFOW)
-       is rejected by older comctl32 from TTM_ADDTOOL (see HostStatusBar). */
-    TTTOOLINFOW ti = { TTTOOLINFOW_V1_SIZE };
-    ti.uFlags   = TTF_TRACK | TTF_IDISHWND;
-    ti.hwnd     = owner;
-    ti.uId      = reinterpret_cast<UINT_PTR>(owner);
-    ti.lpszText = text;
-    SendMessageW(lock_hint_tip_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&ti));
-
-    /* Anchor the balloon stem at the bottom edge of the status-bar lock icon so
-       it hangs below, pointing up at the icon; fall back to the canvas
-       bottom-centre if the bar isn't laid out. */
-    POINT p;
-    RECT lockrc;
-    if (emu_.Get<HostStatusBar>().CaptureWidgetScreenRect(lockrc)) {
-        p.x = (lockrc.left + lockrc.right) / 2;
-        p.y = lockrc.bottom;
-    } else {
-        RECT rc;
-        GetClientRect(owner, &rc);
-        p = { (rc.right - rc.left) / 2, rc.bottom - 20 };
-        ClientToScreen(owner, &p);
-    }
-    SendMessageW(lock_hint_tip_, TTM_TRACKPOSITION, 0, MAKELPARAM(p.x, p.y));
-    SendMessageW(lock_hint_tip_, TTM_TRACKACTIVATE, TRUE, reinterpret_cast<LPARAM>(&ti));
-    SetTimer(owner, kLockHintTimer, 4500, nullptr);
+    emu_.Get<HostBalloonHint>().ShowUnderCaptureWidget(
+        L"Mouse locked - press Right Ctrl to release", kLockHintHoldMs);
 }
 
 bool HostCanvasInput::RouteCapturedMouse(HWND hwnd, UINT msg, WPARAM wp,
@@ -160,12 +124,6 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
     auto& hc = emu_.Get<HostCanvas>();
     out = 0;
 
-    if (msg == WM_TIMER && wp == kLockHintTimer) {
-        KillTimer(hwnd, kLockHintTimer);
-        if (lock_hint_tip_) { DestroyWindow(lock_hint_tip_); lock_hint_tip_ = nullptr; }
-        return true;
-    }
-
     const bool framebuffer = hc.CurrentTab() == HostCanvas::Tab::Framebuffer;
 
     if (hc.CurrentTab() == HostCanvas::Tab::Boot) {
@@ -208,7 +166,7 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
         const bool click = msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN;
         if (relative_active && click && cap && framebuffer) {
             cap->SetCaptured(true);
-            ShowLockHintOnce(hwnd);
+            ShowLockHintOnce();
             return true;
         }
     }

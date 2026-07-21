@@ -58,6 +58,9 @@ const uint32_t kArenaCtlOffset = 0xD000u;
 const uint32_t kArenaCtlSize   = 0x1000u;
 const uint32_t kArenaCtlClaimPid  = 0x000u;
 
+const uint32_t kCalibSignalOffset = 0xE000u;
+const uint32_t kCalibSignalSize   = 0x1000u;
+
 const uint32_t kFramebufferMemOffset = 0x00100000u;
 const uint32_t kFramebufferMemSize   = 0x02000000u;
 

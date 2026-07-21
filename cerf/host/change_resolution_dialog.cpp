@@ -48,18 +48,6 @@ bool ChangeResolutionDialog::ShouldRegister() {
     return emu_.Get<DeviceConfig>().guest_additions;
 }
 
-void ChangeResolutionDialog::OnReady() {
-    WNDCLASSEXW wc = {};
-    wc.cbSize        = sizeof(wc);
-    wc.lpfnWndProc   = &ChangeResolutionDialog::WndProcStatic;
-    wc.hInstance     = GetModuleHandleW(nullptr);
-    wc.hIcon         = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1));
-    wc.hCursor       = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    wc.lpszClassName = kClass;
-    RegisterClassExW(&wc);   /* ERROR_CLASS_ALREADY_EXISTS is benign */
-}
-
 void ChangeResolutionDialog::BuildControls(HWND hwnd) {
     HINSTANCE inst = GetModuleHandleW(nullptr);
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
@@ -112,18 +100,25 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
                  devcfg.screen_dpi ? devcfg.screen_dpi : 96u);
     SetWindowTextW(de, buf);
 
+    if (reset_locked_) {
+        reset_choice_ = 1;
+        for (int r = IDC_RB_NONE; r <= IDC_RB_HARD; ++r)
+            EnableWindow(GetDlgItem(hwnd, r), FALSE);
+        return;
+    }
     reset_choice_ = emu_.Get<GuestAdditionsUiPolicy>().DefaultResetIsSoft() ? 1 : 0;
 }
 
 void ChangeResolutionDialog::PaintGroups(HDC dc) {
     const bool dark = emu_.Get<HostDarkMode>().IsDark();
-    PaintGroup(dc, kGroupRes,   L"Resolution",   dark);
-    PaintGroup(dc, kGroupDpi,   L"Display DPI",  dark);
-    PaintGroup(dc, kGroupReset, L"Reset device", dark);
+    PaintGroup(dc, kGroupRes,   L"Resolution",   dark, true);
+    PaintGroup(dc, kGroupDpi,   L"Display DPI",  dark, true);
+    PaintGroup(dc, kGroupReset, L"Reset device", dark, !reset_locked_);
 }
 
 void ChangeResolutionDialog::PaintGroup(HDC dc, const RECT& f,
-                                        const wchar_t* cap, bool dark) {
+                                        const wchar_t* cap, bool dark,
+                                        bool enabled) {
     HPEN pen = CreatePen(PS_SOLID, 1, dark ? RGB(80, 80, 80) : RGB(160, 160, 160));
     HGDIOBJ op = SelectObject(dc, pen);
     HGDIOBJ ob = SelectObject(dc, GetStockObject(NULL_BRUSH));
@@ -142,8 +137,9 @@ void ChangeResolutionDialog::PaintGroup(HDC dc, const RECT& f,
                      : GetSysColorBrush(COLOR_BTNFACE);
     FillRect(dc, &cr, bg);
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, dark ? emu_.Get<HostDarkMode>().TextColor()
-                          : GetSysColor(COLOR_BTNTEXT));
+    SetTextColor(dc, !enabled ? GetSysColor(COLOR_GRAYTEXT)
+                              : (dark ? emu_.Get<HostDarkMode>().TextColor()
+                                      : GetSysColor(COLOR_BTNTEXT)));
     RECT tr = { f.left + 14, cr.top, cr.right, cr.bottom };
     DrawTextW(dc, cap, -1, &tr, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
     SelectObject(dc, of);
@@ -160,10 +156,12 @@ void ChangeResolutionDialog::DrawRadio(const DRAWITEMSTRUCT* di) {
                      : GetSysColorBrush(COLOR_BTNFACE);
     FillRect(dc, &rc, bg);
 
-    const int gh    = rc.bottom - rc.top;
-    const int state = checked ? RBS_CHECKEDNORMAL : RBS_UNCHECKEDNORMAL;
+    const bool disabled = (di->itemState & ODS_DISABLED) != 0;
+    const int  gh       = rc.bottom - rc.top;
+    const int  state    = checked ? (disabled ? RBS_CHECKEDDISABLED : RBS_CHECKEDNORMAL)
+                                  : (disabled ? RBS_UNCHECKEDDISABLED : RBS_UNCHECKEDNORMAL);
     SIZE gsz = { 13, 13 };
-    if (HTHEME th = OpenThemeData(hwnd_, L"Button")) {
+    if (HTHEME th = OpenThemeData(Hwnd(), L"Button")) {
         SIZE s;
         if (SUCCEEDED(GetThemePartSize(th, dc, BP_RADIOBUTTON, state, nullptr,
                                        TS_DRAW, &s)))
@@ -176,15 +174,17 @@ void ChangeResolutionDialog::DrawRadio(const DRAWITEMSTRUCT* di) {
         RECT gr = { rc.left, rc.top + (gh - gsz.cy) / 2,
                     rc.left + gsz.cx, rc.top + (gh - gsz.cy) / 2 + gsz.cy };
         DrawFrameControl(dc, &gr, DFC_BUTTON,
-                         DFCS_BUTTONRADIO | (checked ? DFCS_CHECKED : 0));
+                         DFCS_BUTTONRADIO | (checked ? DFCS_CHECKED : 0) |
+                         (disabled ? DFCS_INACTIVE : 0));
     }
 
     wchar_t txt[32];
     GetWindowTextW(di->hwndItem, txt, 32);
     RECT tr = { rc.left + gsz.cx + 8, rc.top, rc.right, rc.bottom };
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, dark ? emu_.Get<HostDarkMode>().TextColor()
-                          : GetSysColor(COLOR_BTNTEXT));
+    SetTextColor(dc, disabled ? GetSysColor(COLOR_GRAYTEXT)
+                              : (dark ? emu_.Get<HostDarkMode>().TextColor()
+                                      : GetSysColor(COLOR_BTNTEXT)));
     HFONT f  = (HFONT)SendMessageW(di->hwndItem, WM_GETFONT, 0, 0);
     HGDIOBJ ofn = f ? SelectObject(dc, f) : nullptr;
     DrawTextW(dc, txt, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -243,117 +243,31 @@ bool ChangeResolutionDialog::Apply(HWND hwnd) {
     return true;
 }
 
-void ChangeResolutionDialog::Show() {
-    if (hwnd_) { SetForegroundWindow(hwnd_); return; }
-
-    HWND owner = emu_.Get<HostWindow>().Hwnd();
-    done_ = false;
-
-    const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
-    RECT wr = { 0, 0, kClientW, kClientH };
-    AdjustWindowRect(&wr, style, FALSE);
-    const int ww = wr.right - wr.left;
-    const int wh = wr.bottom - wr.top;
-    RECT orc = { 0, 0, 0, 0 };
-    GetWindowRect(owner, &orc);
-    const int x = orc.left + ((orc.right - orc.left) - ww) / 2;
-    const int y = orc.top  + ((orc.bottom - orc.top) - wh) / 2;
-
-    EnableWindow(owner, FALSE);
-    hwnd_ = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass, L"Change resolution",
-                            style, x, y, ww, wh, owner, nullptr,
-                            GetModuleHandleW(nullptr), this);
-    if (!hwnd_) {
-        EnableWindow(owner, TRUE);
-        return;
-    }
-
-    BuildControls(hwnd_);
-    emu_.Get<HostDarkMode>().ApplyToDialog(hwnd_);
-    ShowWindow(hwnd_, SW_SHOW);
-    SetForegroundWindow(hwnd_);
-
-    MSG msg;
-    while (!done_ && GetMessageW(&msg, nullptr, 0, 0)) {
-        if (!IsDialogMessageW(hwnd_, &msg)) {
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-    }
-
-    DestroyWindow(hwnd_);
-    hwnd_ = nullptr;
-    EnableWindow(owner, TRUE);
-    SetForegroundWindow(owner);
+bool ChangeResolutionDialog::Show(HWND owner, bool force_soft_reset) {
+    if (IsOpen()) return false;
+    accepted_     = false;
+    reset_locked_ = force_soft_reset;
+    RunModal(owner, kClass, L"Change resolution", kClientW, kClientH);
+    return accepted_;
 }
 
-LRESULT ChangeResolutionDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp,
-                                        LPARAM lp) {
-    switch (msg) {
-        case WM_PAINT: {
-            PAINTSTRUCT ps;
-            HDC dc = BeginPaint(hwnd, &ps);
-            PaintGroups(dc);
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
+void ChangeResolutionDialog::OnPaint(HDC dc) { PaintGroups(dc); }
 
-        case WM_DRAWITEM: {
-            auto* di = reinterpret_cast<DRAWITEMSTRUCT*>(lp);
-            if (di->CtlType == ODT_BUTTON && di->CtlID >= IDC_RB_NONE &&
-                di->CtlID <= IDC_RB_HARD) {
-                DrawRadio(di);
-                return TRUE;
-            }
-            break;
-        }
-
-        case WM_COMMAND: {
-            const int id = LOWORD(wp);
-            if (id == IDOK) {
-                if (Apply(hwnd)) done_ = true;
-            } else if (id == IDCANCEL) {
-                done_ = true;
-            } else if (id >= IDC_RB_NONE && id <= IDC_RB_HARD &&
-                       HIWORD(wp) == BN_CLICKED) {
-                reset_choice_ = id - IDC_RB_NONE;
-                for (int r = IDC_RB_NONE; r <= IDC_RB_HARD; ++r)
-                    InvalidateRect(GetDlgItem(hwnd, r), nullptr, FALSE);
-            }
-            return 0;
-        }
-
-        case WM_CLOSE:
-            done_ = true;
-            return 0;
-
-        case WM_ERASEBKGND:
-            if (emu_.Get<HostDarkMode>().EraseBackground((HDC)wp, hwnd))
-                return 1;
-            break;
-
-        case WM_CTLCOLORDLG:
-        case WM_CTLCOLORSTATIC:
-        case WM_CTLCOLORBTN:
-        case WM_CTLCOLOREDIT: {
-            LRESULT br;
-            if (emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br))
-                return br;
-            break;
-        }
-    }
-    return DefWindowProcW(hwnd, msg, wp, lp);
+bool ChangeResolutionDialog::OnDrawItem(const DRAWITEMSTRUCT* di) {
+    if (di->CtlType != ODT_BUTTON) return false;
+    if (di->CtlID < IDC_RB_NONE || di->CtlID > IDC_RB_HARD) return false;
+    DrawRadio(di);
+    return true;
 }
 
-LRESULT CALLBACK ChangeResolutionDialog::WndProcStatic(HWND hwnd, UINT msg,
-                                                       WPARAM wp, LPARAM lp) {
-    if (msg == WM_NCCREATE) {
-        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
-                          reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
+void ChangeResolutionDialog::OnCommand(int id, int notify) {
+    if (id == IDOK) {
+        if (Apply(Hwnd())) { accepted_ = true; Finish(); }
+    } else if (id == IDCANCEL) {
+        Finish();
+    } else if (id >= IDC_RB_NONE && id <= IDC_RB_HARD && notify == BN_CLICKED) {
+        reset_choice_ = id - IDC_RB_NONE;
+        for (int r = IDC_RB_NONE; r <= IDC_RB_HARD; ++r)
+            InvalidateRect(GetDlgItem(Hwnd(), r), nullptr, FALSE);
     }
-    auto* self = reinterpret_cast<ChangeResolutionDialog*>(
-        GetWindowLongPtrW(hwnd, GWLP_USERDATA));
-    if (self) return self->WndProc(hwnd, msg, wp, lp);
-    return DefWindowProcW(hwnd, msg, wp, lp);
 }

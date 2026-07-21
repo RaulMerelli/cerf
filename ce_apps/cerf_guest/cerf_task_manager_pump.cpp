@@ -190,6 +190,58 @@ static void CerfTmDoSwitchTo(DWORD gen, DWORD pid) {
     CerfTmRespond(gen, 1, 0, 0, 0);
 }
 
+#define CERF_TM_EVENT_RESET  2u
+#define CERF_TM_EVENT_SET    3u
+#define CERF_TM_TITLE_TIMEOUT_MS 250u
+
+static HANDLE        s_wt_req  = NULL;
+static HANDLE        s_wt_done = NULL;
+static volatile HWND s_wt_hwnd = NULL;
+static WCHAR         s_wt_text[CERF_TM_WIN_TITLE_WCHARS];
+static volatile LONG s_wt_busy = 0;
+
+static DWORD WINAPI CerfTmTitleWorker(LPVOID) {
+    for (;;) {
+        HWND  h;
+        WCHAR local[CERF_TM_WIN_TITLE_WCHARS];
+        DWORD i;
+        WaitForSingleObject(s_wt_req, INFINITE);
+        h = s_wt_hwnd;
+        for (i = 0; i < CERF_TM_WIN_TITLE_WCHARS; ++i) local[i] = 0;
+        GetWindowTextW(h, local, CERF_TM_WIN_TITLE_WCHARS);
+        for (i = 0; i < CERF_TM_WIN_TITLE_WCHARS; ++i) s_wt_text[i] = local[i];
+        EventModify(s_wt_done, CERF_TM_EVENT_SET);
+    }
+}
+
+static void CerfTmStartTitleWorker(void) {
+    HANDLE t;
+    s_wt_req  = CreateEventW(NULL, FALSE, FALSE, NULL);
+    s_wt_done = CreateEventW(NULL, TRUE,  FALSE, NULL);
+    if (!s_wt_req || !s_wt_done) { s_wt_req = NULL; s_wt_done = NULL; return; }
+    t = CreateThread(NULL, 0, CerfTmTitleWorker, NULL, 0, NULL);
+    if (t) CloseHandle(t);
+}
+
+static void CerfTmFetchTitle(HWND h, WCHAR* out, DWORD cch) {
+    DWORD i;
+    if (cch) out[0] = 0;
+    if (!s_wt_req || !s_wt_done) return;
+    if (s_wt_busy) {
+        if (WaitForSingleObject(s_wt_done, 0) != WAIT_OBJECT_0) return;
+        s_wt_busy = 0;
+    }
+    s_wt_hwnd = h;
+    s_wt_busy = 1;
+    EventModify(s_wt_done, CERF_TM_EVENT_RESET);
+    EventModify(s_wt_req,  CERF_TM_EVENT_SET);
+    if (WaitForSingleObject(s_wt_done, CERF_TM_TITLE_TIMEOUT_MS) == WAIT_OBJECT_0) {
+        for (i = 0; i + 1 < cch && i < CERF_TM_WIN_TITLE_WCHARS; ++i) out[i] = s_wt_text[i];
+        out[i] = 0;
+        s_wt_busy = 0;
+    }
+}
+
 static void CerfTmDoListWindows(DWORD gen) {
     CerfTmWindowRecord rec;
     HWND  w = GetForegroundWindow();
@@ -205,7 +257,7 @@ static void CerfTmDoListWindows(DWORD gen) {
         rec.thread_id = tid;
         rec.flags     = IsWindowVisible(w) ? CERF_TM_WINFLAG_VISIBLE : 0;
         for (i = 0; i < CERF_TM_WIN_TITLE_WCHARS; ++i) rec.title[i] = 0;
-        GetWindowTextW(w, rec.title, CERF_TM_WIN_TITLE_WCHARS);
+        CerfTmFetchTitle(w, rec.title, CERF_TM_WIN_TITLE_WCHARS);
         CerfTmSendRecord((const ULONG*)&rec, sizeof(rec) / 4, count);
         count++;
     }
@@ -292,6 +344,8 @@ static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
         CERF_LOG("cerf_guest: tmpump map FAILED");
         return 0;
     }
+
+    CerfTmStartTitleWorker();
 
     last_gen = s_tm_regs[CERF_TM_CMD_GEN / 4];
     for (;;) {

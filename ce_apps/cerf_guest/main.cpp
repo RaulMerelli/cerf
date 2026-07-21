@@ -64,10 +64,6 @@ void CerfReadFbRegs(void) {
     if (s_fb_regs[10]) g_FbRefreshRate = s_fb_regs[10];
 }
 
-extern "C" void CerfFbPresent(void) {
-    if (s_fb_regs) s_fb_regs[CerfVirt::kFbRegPresent / 4] = 1u;
-}
-
 BOOL CerfMapGpeCmd(void) {
     CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (s_gpe_cmd) return TRUE;
@@ -230,6 +226,7 @@ extern "C" void CerfStartPointerPump(void);
 extern "C" void CerfStartKeyboardPump(void);
 extern "C" void CerfStartResizePump(void);
 extern "C" void CerfStartTaskManagerPump(void);
+extern "C" void CerfStartCalibWarningPump(void);
 extern "C" void CerfStartDriverInDriver(void);
 extern "C" void CerfAdvertiseDisplayPower(void);
 
@@ -244,6 +241,7 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
     if (result) CerfStartKeyboardPump();
     if (result) CerfStartResizePump();
     if (result) CerfStartTaskManagerPump();
+    if (result) CerfStartCalibWarningPump();
     if (result) CerfStartDriverInDriver();
     if (result) CerfAdvertiseDisplayPower();
     return result;
