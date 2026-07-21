@@ -38,8 +38,8 @@ constexpr wchar_t kFooter[] =
     L"did not make it into this list!";
 
 constexpr int kScrollbarGutterDip = 20;
-constexpr int kEntryGapDip        = 8;
-constexpr int kBlockGapDip        = 14;
+constexpr int kEntryGapDip        = 2;
+constexpr int kBlockGapDip        = 10;
 constexpr int kFallbackLineDip    = 18;
 constexpr int kScrollStepDip      = 16;
 

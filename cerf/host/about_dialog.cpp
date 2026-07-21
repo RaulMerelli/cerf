@@ -31,21 +31,19 @@ constexpr int kBandDipW = 400;
 constexpr int kBandDipH = 112;
 
 constexpr int kTitleDy   = 16;
-constexpr int kSubDy     = 46;
-constexpr int kTagDy     = 68;
-constexpr int kDevDy     = 94;
-constexpr int kMadeByDy  = 120;
-constexpr int kCreditsDy = 150;
-constexpr int kCreditsH  = 96;
-constexpr int kLinksDy   = 262;
-constexpr int kContentH  = 338;
+constexpr int kTitleH    = 28;
+constexpr int kLinksDy   = 48;
+constexpr int kDevDy     = 78;
+constexpr int kMadeByDy  = 102;
+constexpr int kCreditsDy = 132;
+constexpr int kCreditsH  = 130;
+constexpr int kContentH  = 318;
 constexpr int kCloseGap  = 42;
 constexpr int kNoDeviceDrop = kMadeByDy - kDevDy;
 
 enum : int {
     IDC_TITLE   = 5001,
-    IDC_SUBTITLE,
-    IDC_TAGLINE,
+    IDC_VERSION,
     IDC_DEVICE,
     IDC_MADEBY_PREFIX,
     IDC_MADEBY,
@@ -101,14 +99,42 @@ void AboutDialog::BuildControls(HWND hwnd, bool with_device) {
     const int clientH = cb + S(kContentH - layout_drop_);
     const int tx = S(20), tw = band_px_w_ - S(40);
 
-    title_ = mk(L"STATIC", L"CE Runtime Foundation", SS_LEFT,
-                tx, cb + S(kTitleDy), tw, S(28), IDC_TITLE);
+    constexpr wchar_t kTitleText[] = L"CE Runtime Foundation";
+    SIZE title_size = { 0, 0 };
+    {
+        HDC     dc  = GetDC(hwnd);
+        HGDIOBJ old = SelectObject(dc, title_font_);
+        GetTextExtentPoint32W(dc, kTitleText, ARRAYSIZE(kTitleText) - 1,
+                              &title_size);
+        SelectObject(dc, old);
+        ReleaseDC(hwnd, dc);
+    }
 
-    mk(L"STATIC", L"Version " CERF_VERSION_DISPLAY_WSTR, SS_LEFT,
-       tx, cb + S(kSubDy), tw, S(18), IDC_SUBTITLE);
+    title_ = mk(L"STATIC", kTitleText, SS_LEFT | SS_CENTERIMAGE,
+                tx, cb + S(kTitleDy), title_size.cx, S(kTitleH), IDC_TITLE);
 
-    mk(L"STATIC", L"A universal Windows CE emulator", SS_LEFT,
-       tx, cb + S(kTagDy), tw, S(18), IDC_TAGLINE);
+    mk(L"STATIC",
+       L"v" CERF_WSTR(CERF_VERSION_MAJOR) L"." CERF_WSTR(CERF_VERSION_MINOR),
+       SS_LEFT | SS_CENTERIMAGE, tx + title_size.cx + S(8),
+       cb + S(kTitleDy), tw - title_size.cx - S(8), S(kTitleH), IDC_VERSION);
+
+    const int links_y = cb + S(kLinksDy);
+    HWND links = mk(
+        L"SysLink",
+        L"<a href=\"https://cerf.cx\">Website</a>"
+        L"  ·  "
+        L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>"
+        L"  ·  "
+        L"<a href=\"https://www.patreon.com/dz3n\">Patreon</a>",
+        LWS_TRANSPARENT, tx, links_y, tw, S(22), IDC_LINKS);
+    if (links) {
+        SIZE ideal = { 0, 0 };
+        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)tw, (LPARAM)&ideal) &&
+            ideal.cx > 0)
+            SetWindowPos(links, nullptr, tx, links_y,
+                         ideal.cx, ideal.cy > 0 ? ideal.cy : S(22),
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     if (with_device) {
         auto& bd = emu_.Get<BoardContext>();
@@ -142,22 +168,6 @@ void AboutDialog::BuildControls(HWND hwnd, bool with_device) {
     emu_.Get<AboutCredits>().Create(hwnd, ui_font_, tx,
                                     cb + S(kCreditsDy - layout_drop_),
                                     tw, S(kCreditsH), dpi_);
-
-    const int links_y = cb + S(kLinksDy - layout_drop_);
-    HWND links = mk(
-        L"SysLink",
-        L"<a href=\"https://cerf.cx\">Website</a>"
-        L"      ·      "
-        L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>",
-        LWS_TRANSPARENT, tx, links_y, tw, S(22), IDC_LINKS);
-    if (links) {
-        SIZE ideal = { 0, 0 };
-        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)tw, (LPARAM)&ideal) &&
-            ideal.cx > 0)
-            SetWindowPos(links, nullptr, tx, links_y,
-                         ideal.cx, ideal.cy > 0 ? ideal.cy : S(22),
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-    }
 
     mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
        band_px_w_ - tx - S(100), clientH - S(kCloseGap), S(100), S(30), IDOK);
