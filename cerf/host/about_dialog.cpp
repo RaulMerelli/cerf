@@ -233,7 +233,7 @@ void AboutDialog::Run(HWND owner, bool with_device) {
     const int y = orc.top  + ((orc.bottom - orc.top) - wh) / 2;
 
     EnableWindow(owner, FALSE);
-    hwnd_ = CreateWindowExW(ex, kClass, L"About CERF", style,
+    hwnd_ = CreateWindowExW(ex, kClass, L"About CE Runtime Foundation", style,
                             x, y, ww, wh, owner, nullptr,
                             GetModuleHandleW(nullptr), this);
     if (!hwnd_) {
