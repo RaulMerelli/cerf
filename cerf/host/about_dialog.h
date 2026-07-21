@@ -36,7 +36,8 @@ private:
     UINT dpi_ = USER_DEFAULT_SCREEN_DPI;
 
     Gdiplus::Bitmap* band_ = nullptr;
-    int  band_h_dip_ = 0;
+    int  band_px_w_ = 0;
+    int  band_px_h_ = 0;
 
     HFONT title_font_ = nullptr;
     HFONT ui_font_    = nullptr;

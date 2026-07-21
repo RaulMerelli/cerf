@@ -35,6 +35,7 @@ CERF_LOGO        RCDATA "../gweslab.png"
 /* about_band_*.png built from assets/icons_sources/about_band.svg by
    tools/make_icons.py --targets band; picked per-DPI at runtime. */
 ABOUT_BAND_100   RCDATA "assets/about_band_100.png"
+ABOUT_BAND_125   RCDATA "assets/about_band_125.png"
 ABOUT_BAND_150   RCDATA "assets/about_band_150.png"
 ABOUT_BAND_200   RCDATA "assets/about_band_200.png"
 ABOUT_BAND_300   RCDATA "assets/about_band_300.png"

@@ -51,7 +51,7 @@ ICO_DIR = REPO / "cerf" / "assets"
 LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 
 BAND_STEM = "about_band"
-BAND_SCALES = (100, 150, 200, 300)
+BAND_SCALES = (100, 125, 150, 200, 300)
 
 TARGETS = ("ico", "launcher", "wizard", "toolbar", "badges", "band")
 

@@ -25,7 +25,9 @@ namespace {
 
 constexpr wchar_t kClass[] = L"CerfAboutDlg";
 
-constexpr int kClientW = 470;
+/* cerf/assets/icons_sources/about_band.svg */
+constexpr int kBandDipW = 400;
+constexpr int kBandDipH = 112;
 
 constexpr int kTitleDy   = 16;
 constexpr int kSubDy     = 46;
@@ -50,6 +52,7 @@ constexpr COLORREF kDarkLink = RGB(96, 170, 255);
 const wchar_t* BandResourceForDpi(UINT dpi) {
     const int pct = MulDiv(100, (int)dpi, USER_DEFAULT_SCREEN_DPI);
     if (pct <= 100) return L"ABOUT_BAND_100";
+    if (pct <= 125) return L"ABOUT_BAND_125";
     if (pct <= 150) return L"ABOUT_BAND_150";
     if (pct <= 200) return L"ABOUT_BAND_200";
     return L"ABOUT_BAND_300";
@@ -91,25 +94,25 @@ void AboutDialog::BuildControls(HWND hwnd) {
                                nullptr);
     };
 
-    const int cb = band_h_dip_;
-    const int clientH = cb + kContentH;
-    const int tx = 20, tw = kClientW - 40;
+    const int cb = band_px_h_;
+    const int clientH = cb + S(kContentH);
+    const int tx = S(20), tw = band_px_w_ - S(40);
 
     title_ = mk(L"STATIC", L"CE Runtime Foundation", SS_LEFT,
-                S(tx), S(cb + kTitleDy), S(tw), S(28), IDC_TITLE);
+                tx, cb + S(kTitleDy), tw, S(28), IDC_TITLE);
 
     mk(L"STATIC", L"Version " CERF_VERSION_DISPLAY_WSTR, SS_LEFT,
-       S(tx), S(cb + kSubDy), S(tw), S(18), IDC_SUBTITLE);
+       tx, cb + S(kSubDy), tw, S(18), IDC_SUBTITLE);
 
     mk(L"STATIC", L"A universal Windows CE emulator", SS_LEFT,
-       S(tx), S(cb + kTagDy), S(tw), S(18), IDC_TAGLINE);
+       tx, cb + S(kTagDy), tw, S(18), IDC_TAGLINE);
 
     auto& bd = emu_.Get<BoardContext>();
     std::wstring dev = L"Emulating:  " + Utf8ToWide(BoardContext::BoardName(bd.GetBoard()));
     const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
     if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
         dev += L"  ·  " + Utf8ToWide(soc);
-    mk(L"STATIC", dev.c_str(), SS_LEFT, S(tx), S(cb + kDevDy), S(tw), S(18),
+    mk(L"STATIC", dev.c_str(), SS_LEFT, tx, cb + S(kDevDy), tw, S(18),
        IDC_DEVICE);
 
     HWND links = mk(
@@ -117,18 +120,18 @@ void AboutDialog::BuildControls(HWND hwnd) {
         L"<a href=\"https://cerf.cx\">Website</a>"
         L"      ·      "
         L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>",
-        LWS_TRANSPARENT, S(tx), S(cb + kLinksDy), S(tw), S(22), IDC_LINKS);
+        LWS_TRANSPARENT, tx, cb + S(kLinksDy), tw, S(22), IDC_LINKS);
     if (links) {
         SIZE ideal = { 0, 0 };
-        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)S(tw), (LPARAM)&ideal) &&
+        if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)tw, (LPARAM)&ideal) &&
             ideal.cx > 0)
-            SetWindowPos(links, nullptr, S(tx), S(cb + kLinksDy),
+            SetWindowPos(links, nullptr, tx, cb + S(kLinksDy),
                          ideal.cx, ideal.cy > 0 ? ideal.cy : S(22),
                          SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
     mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
-       S(kClientW - tx - 100), S(clientH - kCloseGap), S(100), S(30), IDOK);
+       band_px_w_ - tx - S(100), clientH - S(kCloseGap), S(100), S(30), IDOK);
 }
 
 void AboutDialog::ApplyCustomFonts() {
@@ -151,10 +154,10 @@ void AboutDialog::PaintBand(HDC dc, int origin_x, int origin_y) {
     if (bw == 0 || bh == 0) return;
 
     Gdiplus::Graphics g(dc);
-    g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    g.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
     g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
 
-    Gdiplus::Rect dst(-origin_x, -origin_y, S(kClientW), S(band_h_dip_));
+    Gdiplus::Rect dst(-origin_x, -origin_y, (int)bw, (int)bh);
     g.DrawImage(band_, dst, 0, 0, (int)bw, (int)bh, Gdiplus::UnitPixel);
 }
 
@@ -176,15 +179,17 @@ void AboutDialog::Show() {
     dpi_  = emu_.Get<HostDpi>().ForWindow(owner);
 
     band_ = emu_.Get<HostGdiPlus>().DecodeResourcePng(BandResourceForDpi(dpi_));
-    band_h_dip_ = 0;
-    if (band_ && band_->GetWidth() > 0)
-        band_h_dip_ = MulDiv(kClientW, (int)band_->GetHeight(),
-                             (int)band_->GetWidth());
-    const int clientH = band_h_dip_ + kContentH;
+    band_px_w_ = band_ ? (int)band_->GetWidth()  : 0;
+    band_px_h_ = band_ ? (int)band_->GetHeight() : 0;
+    if (band_px_w_ <= 0 || band_px_h_ <= 0) {
+        band_px_w_ = S(kBandDipW);
+        band_px_h_ = S(kBandDipH);
+    }
+    const int clientH = band_px_h_ + S(kContentH);
 
     const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
     const DWORD ex    = WS_EX_DLGMODALFRAME;
-    RECT wr = { 0, 0, S(kClientW), S(clientH) };
+    RECT wr = { 0, 0, band_px_w_, clientH };
     emu_.Get<HostDpi>().AdjustForDpi(wr, style, FALSE, ex, dpi_);
     const int ww = wr.right - wr.left;
     const int wh = wr.bottom - wr.top;
