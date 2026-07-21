@@ -50,6 +50,9 @@ RES_PRESETS = [
 DPI_SLIDER_MIN = 48
 DPI_SLIDER_MAX = 480
 
+DEFAULT_SCREEN_WIDTH = 800
+DEFAULT_SCREEN_HEIGHT = 600
+
 
 class LaunchOptionsPanel:
     def __init__(self, inner: ttk.Frame, parent_window: tk.Misc,
@@ -92,8 +95,8 @@ class LaunchOptionsPanel:
 
         self.res_note = ttk.Label(cfg, text="Resolution override:")
         self.res_note.grid(row=2, column=0, sticky="w")
-        self.var_width  = tk.StringVar(value="240")
-        self.var_height = tk.StringVar(value="320")
+        self.var_width  = tk.StringVar(value=str(DEFAULT_SCREEN_WIDTH))
+        self.var_height = tk.StringVar(value=str(DEFAULT_SCREEN_HEIGHT))
         numeric_vcmd = (parent_window.register(self._is_optional_uint), "%P")
         res_fields = self.res_fields = ttk.Frame(cfg)
         res_fields.grid(row=3, column=0, sticky="ew", pady=(2, 0))
@@ -210,13 +213,13 @@ class LaunchOptionsPanel:
         elif device is not None and device.default_screen_width:
             b["width"] = device.default_screen_width
         else:
-            b["width"] = 240
+            b["width"] = DEFAULT_SCREEN_WIDTH
         if "height" in base:
             b["height"] = base["height"]
         elif device is not None and device.default_screen_height:
             b["height"] = device.default_screen_height
         else:
-            b["height"] = 320
+            b["height"] = DEFAULT_SCREEN_HEIGHT
         if "dpi" in base:
             b["dpi"] = base["dpi"]
         return b
