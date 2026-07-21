@@ -9,6 +9,8 @@ class BootMode : public Service {
 public:
     using Service::Service;
 
+    void OnReady() override;
+
     /* Initial PC at cold reset, PHYSICAL (MMU off at reset → PC consumed as PA). */
     virtual uint32_t ColdEntryPa() = 0;
 

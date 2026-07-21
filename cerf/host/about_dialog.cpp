@@ -3,15 +3,16 @@
 
 #include <commctrl.h>
 #include <gdiplus.h>
-#include <shellapi.h>
 
 #include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/string_utils.h"
 #include "../version.h"
+#include "about_credits.h"
 #include "host_dark_mode.h"
 #include "host_dpi.h"
 #include "host_gdiplus.h"
+#include "host_link_opener.h"
 #include "host_window.h"
 
 REGISTER_SERVICE(AboutDialog);
@@ -33,21 +34,23 @@ constexpr int kTitleDy   = 16;
 constexpr int kSubDy     = 46;
 constexpr int kTagDy     = 68;
 constexpr int kDevDy     = 94;
-constexpr int kLinksDy   = 126;
-constexpr int kContentH  = 210;
+constexpr int kMadeByDy  = 120;
+constexpr int kCreditsDy = 150;
+constexpr int kCreditsH  = 96;
+constexpr int kLinksDy   = 262;
+constexpr int kContentH  = 338;
 constexpr int kCloseGap  = 42;
+constexpr int kNoDeviceDrop = kMadeByDy - kDevDy;
 
 enum : int {
     IDC_TITLE   = 5001,
     IDC_SUBTITLE,
     IDC_TAGLINE,
     IDC_DEVICE,
+    IDC_MADEBY_PREFIX,
+    IDC_MADEBY,
     IDC_LINKS,
 };
-
-/* Hyperlink colour with enough contrast on the dark dialog background; the
-   system COLOR_HOTLIGHT blue is too dim against ~RGB(32,32,32). */
-constexpr COLORREF kDarkLink = RGB(96, 170, 255);
 
 const wchar_t* BandResourceForDpi(UINT dpi) {
     const int pct = MulDiv(100, (int)dpi, USER_DEFAULT_SCREEN_DPI);
@@ -85,7 +88,7 @@ BOOL CALLBACK AboutDialog::SetChildFontProc(HWND child, LPARAM font) {
     return TRUE;
 }
 
-void AboutDialog::BuildControls(HWND hwnd) {
+void AboutDialog::BuildControls(HWND hwnd, bool with_device) {
     HINSTANCE inst = GetModuleHandleW(nullptr);
     auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
                   int x, int y, int w, int h, int id) {
@@ -95,7 +98,7 @@ void AboutDialog::BuildControls(HWND hwnd) {
     };
 
     const int cb = band_px_h_;
-    const int clientH = cb + S(kContentH);
+    const int clientH = cb + S(kContentH - layout_drop_);
     const int tx = S(20), tw = band_px_w_ - S(40);
 
     title_ = mk(L"STATIC", L"CE Runtime Foundation", SS_LEFT,
@@ -107,25 +110,51 @@ void AboutDialog::BuildControls(HWND hwnd) {
     mk(L"STATIC", L"A universal Windows CE emulator", SS_LEFT,
        tx, cb + S(kTagDy), tw, S(18), IDC_TAGLINE);
 
-    auto& bd = emu_.Get<BoardContext>();
-    std::wstring dev = L"Emulating:  " + Utf8ToWide(BoardContext::BoardName(bd.GetBoard()));
-    const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
-    if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
-        dev += L"  ·  " + Utf8ToWide(soc);
-    mk(L"STATIC", dev.c_str(), SS_LEFT, tx, cb + S(kDevDy), tw, S(18),
-       IDC_DEVICE);
+    if (with_device) {
+        auto& bd = emu_.Get<BoardContext>();
+        std::wstring dev = L"Emulating:  " + Utf8ToWide(BoardContext::BoardName(bd.GetBoard()));
+        const char* soc = BoardContext::SocFamilyName(bd.GetSoc());
+        if (soc && *soc && bd.GetSoc() != SocFamily::Unknown)
+            dev += L"  ·  " + Utf8ToWide(soc);
+        mk(L"STATIC", dev.c_str(), SS_LEFT, tx, cb + S(kDevDy), tw, S(18),
+           IDC_DEVICE);
+    }
 
+    constexpr wchar_t kMadeBy[] = L"Made by ";
+    const int made_by_y = cb + S(kMadeByDy - layout_drop_);
+    SIZE prefix = { 0, 0 };
+    {
+        HDC     dc  = GetDC(hwnd);
+        HGDIOBJ old = SelectObject(dc, ui_font_);
+        GetTextExtentPoint32W(dc, kMadeBy, ARRAYSIZE(kMadeBy) - 1, &prefix);
+        SelectObject(dc, old);
+        ReleaseDC(hwnd, dc);
+    }
+
+    mk(L"STATIC", kMadeBy, SS_LEFT, tx, made_by_y, prefix.cx, S(22),
+       IDC_MADEBY_PREFIX);
+
+    mk(L"SysLink",
+       L"<a href=\"https://yaroslavkibysh.com\">Yaroslav Kibysh</a>",
+       LWS_TRANSPARENT, tx + prefix.cx, made_by_y, tw - prefix.cx, S(22),
+       IDC_MADEBY);
+
+    emu_.Get<AboutCredits>().Create(hwnd, ui_font_, tx,
+                                    cb + S(kCreditsDy - layout_drop_),
+                                    tw, S(kCreditsH), dpi_);
+
+    const int links_y = cb + S(kLinksDy - layout_drop_);
     HWND links = mk(
         L"SysLink",
         L"<a href=\"https://cerf.cx\">Website</a>"
         L"      ·      "
         L"<a href=\"https://discord.gg/QREE9Y2v2d\">Discord</a>",
-        LWS_TRANSPARENT, tx, cb + S(kLinksDy), tw, S(22), IDC_LINKS);
+        LWS_TRANSPARENT, tx, links_y, tw, S(22), IDC_LINKS);
     if (links) {
         SIZE ideal = { 0, 0 };
         if (SendMessageW(links, LM_GETIDEALSIZE, (WPARAM)tw, (LPARAM)&ideal) &&
             ideal.cx > 0)
-            SetWindowPos(links, nullptr, tx, cb + S(kLinksDy),
+            SetWindowPos(links, nullptr, tx, links_y,
                          ideal.cx, ideal.cy > 0 ? ideal.cy : S(22),
                          SWP_NOZORDER | SWP_NOACTIVATE);
     }
@@ -134,17 +163,20 @@ void AboutDialog::BuildControls(HWND hwnd) {
        band_px_w_ - tx - S(100), clientH - S(kCloseGap), S(100), S(30), IDOK);
 }
 
-void AboutDialog::ApplyCustomFonts() {
+void AboutDialog::CreateFonts() {
     NONCLIENTMETRICSW ncm = { sizeof(ncm) };
     if (emu_.Get<HostDpi>().NonClientMetricsForDpi(ncm, dpi_))
         ui_font_ = CreateFontIndirectW(&ncm.lfMessageFont);
-    if (ui_font_)
-        EnumChildWindows(hwnd_, &AboutDialog::SetChildFontProc, (LPARAM)ui_font_);
 
     title_font_ = CreateFontW(-S(19), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                               CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                               VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
+}
+
+void AboutDialog::ApplyCustomFonts() {
+    if (ui_font_)
+        EnumChildWindows(hwnd_, &AboutDialog::SetChildFontProc, (LPARAM)ui_font_);
     if (title_) SendMessageW(title_, WM_SETFONT, (WPARAM)title_font_, TRUE);
 }
 
@@ -161,22 +193,23 @@ void AboutDialog::PaintBand(HDC dc, int origin_x, int origin_y) {
     g.DrawImage(band_, dst, 0, 0, (int)bw, (int)bh, Gdiplus::UnitPixel);
 }
 
-bool AboutDialog::OpenLink(LPARAM lp) {
-    auto* link = reinterpret_cast<NMLINK*>(lp);
-    const wchar_t* url = link->item.szUrl;
-    if (url[0]) {
-        ShellExecuteW(hwnd_, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
-        return true;
-    }
-    return false;
+void AboutDialog::Show() {
+    Run(emu_.Get<HostWindow>().Hwnd(), true);
 }
 
-void AboutDialog::Show() {
+void AboutDialog::ShowStandalone() {
+    Run(nullptr, false);
+}
+
+void AboutDialog::Run(HWND owner, bool with_device) {
     if (hwnd_) { SetForegroundWindow(hwnd_); return; }
 
-    HWND owner = emu_.Get<HostWindow>().Hwnd();
     done_ = false;
     dpi_  = emu_.Get<HostDpi>().ForWindow(owner);
+
+    const bool show_device =
+        with_device && emu_.Get<BoardContext>().GetBoard() != Board::Unknown;
+    layout_drop_ = show_device ? 0 : kNoDeviceDrop;
 
     band_ = emu_.Get<HostGdiPlus>().DecodeResourcePng(BandResourceForDpi(dpi_));
     band_px_w_ = band_ ? (int)band_->GetWidth()  : 0;
@@ -185,7 +218,7 @@ void AboutDialog::Show() {
         band_px_w_ = S(kBandDipW);
         band_px_h_ = S(kBandDipH);
     }
-    const int clientH = band_px_h_ + S(kContentH);
+    const int clientH = band_px_h_ + S(kContentH - layout_drop_);
 
     const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
     const DWORD ex    = WS_EX_DLGMODALFRAME;
@@ -194,7 +227,8 @@ void AboutDialog::Show() {
     const int ww = wr.right - wr.left;
     const int wh = wr.bottom - wr.top;
     RECT orc = { 0, 0, 0, 0 };
-    GetWindowRect(owner, &orc);
+    if (owner) GetWindowRect(owner, &orc);
+    else       SystemParametersInfoW(SPI_GETWORKAREA, 0, &orc, 0);
     const int x = orc.left + ((orc.right - orc.left) - ww) / 2;
     const int y = orc.top  + ((orc.bottom - orc.top) - wh) / 2;
 
@@ -208,7 +242,8 @@ void AboutDialog::Show() {
         return;
     }
 
-    BuildControls(hwnd_);
+    CreateFonts();
+    BuildControls(hwnd_, show_device);
     emu_.Get<HostDarkMode>().ApplyToDialog(hwnd_);
     ApplyCustomFonts();
     ShowWindow(hwnd_, SW_SHOW);
@@ -259,20 +294,15 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_NOTIFY: {
             auto* nh = reinterpret_cast<NMHDR*>(lp);
-            if (nh->idFrom == IDC_LINKS) {
+            if (nh->idFrom == IDC_LINKS || nh->idFrom == IDC_MADEBY) {
                 if (nh->code == NM_CLICK || nh->code == NM_RETURN) {
-                    OpenLink(lp);
+                    emu_.Get<HostLinkOpener>().OpenNotified(hwnd_, lp);
                     return 0;
                 }
-                if (nh->code == NM_CUSTOMDRAW &&
-                    emu_.Get<HostDarkMode>().IsDark()) {
-                    auto* cd = reinterpret_cast<NMCUSTOMDRAW*>(lp);
-                    if (cd->dwDrawStage == CDDS_PREPAINT)
-                        return CDRF_NOTIFYITEMDRAW;
-                    if (cd->dwDrawStage == CDDS_ITEMPREPAINT) {
-                        SetTextColor(cd->hdc, kDarkLink);
-                        return CDRF_NEWFONT;
-                    }
+                if (nh->code == NM_CUSTOMDRAW) {
+                    LRESULT out = 0;
+                    if (emu_.Get<HostDarkMode>().HandleLinkCustomDraw(lp, out))
+                        return out;
                 }
             }
             break;

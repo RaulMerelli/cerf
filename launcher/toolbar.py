@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import tkinter as tk
-import webbrowser
 from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Dict, Optional
 
 from launch_button import LaunchSplitButton
 
-
-ARTICLES_URL = "https://cerf.cx/articles/"
 
 UPDATE_TEXT_ALL = "Update bundles"
 UPDATE_TEXT_ONE = "Update bundle"
@@ -24,17 +21,17 @@ class Toolbar:
                  on_remove_selected: Callable[[], None],
                  on_discard_selected: Callable[[], None],
                  on_launch: Callable[[Optional[str]], None],
-                 on_settings: Callable[[], None]) -> None:
+                 on_settings: Callable[[], None],
+                 on_about: Callable[[], None]) -> None:
         self._icons_dir = icons_dir
         self._icons: Dict[str, object] = {}
 
         bar = ttk.Frame(parent, padding=(8, 6))
         self.frame = bar
 
-        self.btn_help = ttk.Button(bar, text="Help", image=self._icon("help"),
-                                   compound="top",
-                                   command=lambda: webbrowser.open(ARTICLES_URL))
-        self.btn_help.pack(side="right")
+        self.btn_about = ttk.Button(bar, text="About", image=self._icon("help"),
+                                    compound="top", command=on_about)
+        self.btn_about.pack(side="right")
         self.btn_settings = ttk.Button(bar, text="Settings",
                                        image=self._icon("settings"),
                                        compound="top", command=on_settings)

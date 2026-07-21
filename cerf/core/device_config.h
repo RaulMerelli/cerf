@@ -122,6 +122,8 @@ struct DeviceConfig : public Service {
        after the host window is shown. CLI-only launch preference, default off. */
     bool start_fullscreen = false;
 
+    bool show_about_instead_of_run = false;
+
     /* Guest-additions victim display-driver module names from the GLOBAL
        cerf.json ("video_driver_names_for_guest_additions"): the ROM modules to
        replace with the injected cerf_guest stub. The cerf_guest / cerf_guest_stub

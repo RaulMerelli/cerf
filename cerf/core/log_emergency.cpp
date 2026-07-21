@@ -276,9 +276,12 @@ void CerfFatalExit(int code) {
     char recent_cautions[1024];
     Log::CopyRecentCautionsBeforeEmergencyStart(recent_cautions, sizeof(recent_cautions));
 
-    LOG(Caution, "CERF is halting (fatal code = %d)\n", code);
+    if (code == CERF_FATAL_NORMAL_EXIT)
+        LOG(Cerf, "CERF is exiting (code = %d)\n", code);
+    else
+        LOG(Caution, "CERF is halting (fatal code = %d)\n", code);
 
-    if (code == CERF_FATAL_USER_ERROR) {
+    if (code == CERF_FATAL_USER_ERROR || code == CERF_FATAL_NORMAL_EXIT) {
         /* Not a crash - skip the thread-freeze + crash.log + native-stack
            dump so a missing ROM / unsupported board doesn't read as a bug. */
         Log::Close();

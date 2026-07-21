@@ -17,7 +17,7 @@ void HostDpi::OnReady() {
 }
 
 UINT HostDpi::ForWindow(HWND h) const {
-    if (get_dpi_for_window_) return get_dpi_for_window_(h);
+    if (h && get_dpi_for_window_) return get_dpi_for_window_(h);
     HDC dc = GetDC(h);
     if (!dc) return USER_DEFAULT_SCREEN_DPI;
     const UINT dpi = (UINT)GetDeviceCaps(dc, LOGPIXELSX);

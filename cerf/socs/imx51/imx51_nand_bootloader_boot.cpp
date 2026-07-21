@@ -50,6 +50,8 @@ public:
     }
 
     void OnReady() override {
+        BootMode::OnReady();
+
         auto& store = emu_.Get<Imx51NandStore>();
 
         uint64_t      hdr_off = 0;

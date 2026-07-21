@@ -8,6 +8,7 @@
 #include "about_dialog.h"
 #include "host_canvas.h"
 #include "host_input_capture.h"
+#include "host_link_opener.h"
 #include "host_screenshot.h"
 #include "host_widget_registry.h"
 #include "host_window.h"
@@ -214,7 +215,7 @@ void HostMenu::HandleCommand(int id) {
         case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
         case kIdAbout:      emu_.Get<AboutDialog>().Show(); break;
         case kIdArticles:
-            ShellExecuteW(nullptr, L"open", kArticlesUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            emu_.Get<HostLinkOpener>().Open(nullptr, kArticlesUrl);
             break;
     }
 }

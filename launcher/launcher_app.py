@@ -3,7 +3,6 @@ from __future__ import annotations
 import ctypes
 import os
 import queue
-import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -19,10 +18,10 @@ from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
 from device_model import TreeSelection
 from download_window import DownloadWindow
-from running_state import show_running_window
 from toolbar import Toolbar
 from details_panel import DetailsPanel
 from launch_options import LaunchOptionsPanel
+from launcher_spawn import SpawnMixin
 from launcher_operations import OperationsMixin
 from launcher_refresh import RefreshMixin
 from new_device_wizard import NewDeviceWizard
@@ -45,7 +44,7 @@ _WM_SETTINGCHANGE = 0x001A
 _GWLP_WNDPROC = -4
 
 
-class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
+class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
     def __init__(self, manager: BundleManager, cerf_exe: Optional[Path],
                  upgraded: bool = False):
         super().__init__()
@@ -104,7 +103,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
                                on_remove_selected=self._delete_selected,
                                on_discard_selected=self._discard_state,
                                on_launch=self._launch,
-                               on_settings=self._open_settings)
+                               on_settings=self._open_settings,
+                               on_about=self._open_about)
         self.toolbar.frame.pack(fill="x", side="top")
         self.split = self.toolbar.start
 
@@ -439,37 +439,6 @@ class LauncherApp(OperationsMixin, RefreshMixin, tk.Tk):
             self.toolbar.set_selection_enabled(False, any_updateable,
                                                False, False)
         self.split.set_enabled(d is not None and self.cerf_exe is not None)
-
-    def _launch(self, boot: Optional[str] = None) -> None:
-        sel = self.tree_panel.selection()
-        d = sel.device
-        if d is None or self.busy:
-            return
-        if self.cerf_exe is None:
-            show_error(self, "Cannot launch", "cerf.exe not found next to launcher.exe.")
-            return
-        if not d.is_installed:
-            return
-        status = self._running_status_for(d)
-        if status is not None:
-            if not show_running_window(status):
-                show_error(self, "Show CERF",
-                           f"{d.name} is running but its window could not be focused.")
-            return
-        self._spawn_cerf(d, boot)
-
-    def _spawn_cerf(self, d: DeviceBundle, boot: Optional[str] = None) -> None:
-        tail = self.launch_options.collect_args(d)
-        if tail is None:
-            return
-        tail.append(f"--boot={boot or 'resume'}")
-        argv: List[str] = [str(self.cerf_exe)] + tail
-        try:
-            subprocess.Popen(argv, cwd=str(self.cerf_exe.parent),
-                             creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
-            self.status_bar.set_status(f"Launched cerf.exe for {d.name}.")
-        except OSError as exc:
-            show_error(self, "Launch failed", str(exc))
 
     def _on_close(self) -> None:
         old = getattr(self, "_old_wndproc", None)

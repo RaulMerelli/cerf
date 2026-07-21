@@ -129,5 +129,6 @@ inline constexpr int CERF_FATAL_RUNTIME_ERROR = 1;
 /* User/environment condition (unsupported board, no ROM installed), not a
    CERF bug: CerfFatalExit skips the crash-dump path for this code. */
 inline constexpr int CERF_FATAL_USER_ERROR    = 2;
+inline constexpr int CERF_FATAL_NORMAL_EXIT   = 0;
 
 [[noreturn]] void CerfFatalExit(int code = CERF_FATAL_RUNTIME_ERROR);

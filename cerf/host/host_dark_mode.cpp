@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 
+#include <commctrl.h>
 #include <dwmapi.h>
 #include <uxtheme.h>
 
@@ -31,6 +32,7 @@ constexpr COLORREF kClrText     = RGB(230, 230, 230);
 constexpr COLORREF kClrDisabled = RGB(120, 120, 120);
 constexpr COLORREF kClrDlg      = RGB(32, 32, 32);   /* dialog client background */
 constexpr COLORREF kClrEdit     = RGB(45, 45, 45);   /* edit/list field background */
+constexpr COLORREF kClrLink     = RGB(96, 170, 255);
 
 using RtlGetNtVersionNumbers_t        = void (WINAPI*)(LPDWORD, LPDWORD, LPDWORD);
 using SetPreferredAppMode_t           = int  (WINAPI*)(int);
@@ -191,6 +193,21 @@ bool HostDarkMode::HandleCtlColor(UINT msg, WPARAM wp, LRESULT& out) {
             SetBkColor(hdc, kClrDlg);
             out = reinterpret_cast<LRESULT>(dlg_brush_);
             return true;
+    }
+    return false;
+}
+
+bool HostDarkMode::HandleLinkCustomDraw(LPARAM syslink_notify, LRESULT& out) {
+    if (!inited_) return false;
+    auto* cd = reinterpret_cast<NMCUSTOMDRAW*>(syslink_notify);
+    if (cd->dwDrawStage == CDDS_PREPAINT) {
+        out = CDRF_NOTIFYITEMDRAW;
+        return true;
+    }
+    if (cd->dwDrawStage == CDDS_ITEMPREPAINT) {
+        SetTextColor(cd->hdc, kClrLink);
+        out = CDRF_NEWFONT;
+        return true;
     }
     return false;
 }

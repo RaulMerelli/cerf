@@ -27,6 +27,8 @@ public:
        (caller falls back to default light) when the OS has no dark support. */
     bool HandleCtlColor(UINT msg, WPARAM wp, LRESULT& out);
 
+    bool HandleLinkCustomDraw(LPARAM syslink_notify, LRESULT& out);
+
     /* Fills the window's client area with the dark dialog brush, for a
        WM_ERASEBKGND handler. Returns false in light mode (use the class brush). */
     bool EraseBackground(HDC hdc, HWND hwnd);
