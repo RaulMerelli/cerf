@@ -49,7 +49,6 @@ the README table (and available to the launcher):
                              boots in this cerf version.
 """
 
-
 from __future__ import annotations
 
 from board_catalog_schema import (
@@ -90,7 +89,6 @@ from board_catalog_schema import (
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
 GUEST_ADDITIONS_BREAK_ROM = "Do NOT use guest additions - they break the ROM"
-GUEST_ADDITIONS_POINTER_WARN = "Guest additions mouse does not work in some apps (e.g. calibration) - switch to stock input"
 
 BOARDS_INFORMATION = [
     {
@@ -164,7 +162,6 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
             "mic": True,
         },
-        "notes": [GUEST_ADDITIONS_POINTER_WARN],
     },
     {
         "name": "HP Jornada 820",
@@ -205,9 +202,6 @@ BOARDS_INFORMATION = [
             "mic": False,
             "serial": False,
         },
-        "notes": [
-            GUEST_ADDITIONS_POINTER_WARN,
-        ],
     },
     {
         "name": "Microsoft Windows CE Hardware Reference Platform",
@@ -282,9 +276,6 @@ BOARDS_INFORMATION = [
             "battery": True,
             "mic": False,
         },
-        "notes": [
-            GUEST_ADDITIONS_POINTER_WARN,
-        ],
     },
     {
         "name": "NEC MobilePro 900",
@@ -305,7 +296,6 @@ BOARDS_INFORMATION = [
             "suspend": False,
         },
         "notes": [
-            GUEST_ADDITIONS_POINTER_WARN,
             "Emulated with serious lags / audio / visual issues",
         ],
     },
