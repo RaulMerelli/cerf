@@ -7,11 +7,15 @@
    mips, ARM/_ARM_ for -Arch arm). Custom (base/size by hand) is common. */
 const Preset kPresets[] = {
 #if defined(MIPS)
+    /* MP790 ROM, ROMHDR VA 0x9F6FC504: physfirst 0x9E000000, physlast 0x9F70017C. */
+    { L"VR41xx (bigger roms like HPC2000)",
+      L"NEC MP790",
+      0x1E000000u, 24, 0 },
     /* Universal MIPS boot-ROM band PA 0x1F000000-0x1FFFFFFF, 16 MB, contains
        reset vector 0x1FC00000. Covers VR41xx (Vr4102-um.pdf Table 5-6/5-8:
        ROMCS0+ROMCS1) and TX3912/PR31xxx kseg0 (PA = VA & 0x1FFFFFFF). */
     { L"VR41xx/TX3912",
-      L"NEC MP 700, Casio Toricomail, Philips Velo 1/Nino 300/Sharp HC-4100",
+      L"NEC MP700, Toricomail/Cassiopeia EM500, Velo1/Nino300, Sharp HC-4100",
       0x1F000000u, 16, 0 },
     /* Velo 1 physfirst = PA 0x1F400000 (its ROMHDR); tighter 8 MB read. */
     { L"TX3912 Philips Velo 1", L"", 0x1F400000u, 8, 0 },
