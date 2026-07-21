@@ -113,9 +113,6 @@ struct DeviceConfig : public Service {
         StateBootMode::Resume;
 #endif
 
-    /* --share-folder=<host path>: pre-enables the guest-additions folder share
-       on a host directory at boot (the widget still toggles it live). Empty when
-       not given on the command line. */
     std::string share_folder;
 
     /* --full-screen: enter borderless fullscreen (the Right Ctrl+F toggle) right

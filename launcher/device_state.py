@@ -68,6 +68,7 @@ class DeviceMeta:
     description: str = ""
     notes: List[str] = field(default_factory=list)
     source: Optional[DeviceSource] = None
+    forbid_guest_additions: bool = False
 
     @property
     def os_version(self) -> str:
@@ -275,6 +276,10 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[int], Optional[int
             meta.os_language = _str_or_empty(os_block.get("language"))
             meta.os_year = _int_or_zero(os_block.get("year"))
             meta.os_notes = _str_list(os_block.get("notes"))
+
+    launcher = obj.get("launcher")
+    if isinstance(launcher, dict):
+        meta.forbid_guest_additions = launcher.get("forbid_guest_additions") is True
 
     board = obj.get("board")
     if isinstance(board, dict):

@@ -1,4 +1,5 @@
 #include "folder_share_config.h"
+#include "cerf_paths.h"
 
 #define NOMINMAX
 #include <windows.h>
@@ -13,6 +14,9 @@ void FolderShareConfig::OnReady() {
     if (n <= 1) return;
     std::wstring wp(n - 1, L'\0');
     MultiByteToWideChar(CP_ACP, 0, p.c_str(), -1, &wp[0], n);
+
+    if (!IsAbsoluteHostPath(p))
+        wp = Utf8ToWide(GetCerfDir().c_str()) + wp;
 
     Set(true, std::move(wp), L"");
 }

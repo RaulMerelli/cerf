@@ -23,10 +23,29 @@ extern DWORD g_start;
 extern DWORD g_anim_clock;
 extern int   g_fps;
 
+extern HINSTANCE g_inst;
+extern HFONT     g_ui;
+
 /* 32bpp top-down DIB section helper (main.c). */
 HBITMAP MakeDib32(int w, int h, unsigned int** bits);
 
 int CountProcesses(void);
+int CountThreads(void);
+int EnsureCommonControls(void);
+
+void BuildStats(TCHAR* buf);
+int  GuestRefreshHz(void);
+
+HBITMAP MakeGenericAppIconDdb(int w, int h, COLORREF bg);
+
+void    ToolsListCreate(HWND parent);
+void    ToolsListLayout(HWND parent, int expanded);
+int     ToolsListNotify(HWND parent, LPARAM lp);
+
+void    DrawRomsLink(HDC dc, int x, int y, HFONT link_font);
+int     RomsLinkHitTest(POINT pt);
+HCURSOR RomsHandCursor(void);
+void    ShowRomsDialog(HWND parent, int screen_w, int screen_h);
 
 /* Animated bokeh desktop background compositor (desktop.c). */
 void InitDiscs(void);

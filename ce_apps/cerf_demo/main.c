@@ -5,44 +5,39 @@
 
 #include "cerf_demo.h"
 #include "band_data.h"
-#include "cmdicon_data.h"
 
 #ifndef ANTIALIASED_QUALITY
 #define ANTIALIASED_QUALITY 4
 #endif
 
-#ifndef ENUM_CURRENT_SETTINGS
-#define ENUM_CURRENT_SETTINGS ((DWORD)-1)
-#endif
-
-extern BOOL WINAPI EnumDisplaySettings(LPCTSTR, DWORD, LPDEVMODE);
-
 #define BG_CLASS   TEXT("CerfBg")
 #define DLG_CLASS  TEXT("CerfDlg")
 #define ID_DETAILS 1001
 #define ID_EDIT    1002
+#define ID_STATS_TIMER 1
+#define STATS_TICK_MS  1000
 #define BANNER_H   CERF_BAND_RGB_H
 #define DLG_W      412
-#define DLG_COL_H  (BANNER_H + 132)
+#define DLG_COL_H  (BANNER_H + 160)
 #define DLG_EXP_H  (BANNER_H + 340)
 #define STARTUP_MS 650    /* hero reveal: clipped band -> full collapsed */
 #define TOGGLE_MS  220    /* details expand / collapse, near-native feel */
 #define FOCUSED_FRAME_MS    16
 #define UNFOCUSED_SLEEP_MS 100
 
-static const TCHAR* DLG_TITLE = TEXT("CE Runtime Foundation - Demo");
-static const TCHAR* LINK_TEXT = TEXT("Run command line prompt");
 
-static HINSTANCE g_inst;
+static const TCHAR* DLG_TITLE = TEXT("CE Runtime Foundation - Demo");
+
+HINSTANCE       g_inst;
 static int      g_sw, g_sh, g_dlgw = DLG_W;
 HWND            g_dlg;     /* non-static on purpose: desktop.c links to it */
 static HWND     g_bg;
 static HWND     g_btn, g_edit;
 static int      g_expanded;
-static RECT     g_linkrect;
-static HFONT    g_ui, g_ui_bold, g_link;
-static HDC      g_banddc, g_cmddc;
-static HBITMAP  g_bandbmp, g_cmdbmp;
+HFONT           g_ui;
+static HFONT    g_ui_bold, g_link;
+static HDC      g_banddc;
+static HBITMAP  g_bandbmp;
 DWORD           g_start;   /* non-static on purpose: desktop.c links to it */
 DWORD           g_anim_clock;
 static int      g_anim_active, g_anim_centered, g_anim_target_exp;
@@ -82,66 +77,15 @@ static void BuildAssets(void) {
         bits[i] = ((unsigned)s[0] << 16) | ((unsigned)s[1] << 8) | s[2];
     }
 
-    g_cmddc  = CreateCompatibleDC(mem);
-    g_cmdbmp = MakeDib32(CERF_CMD_RGBA_W, CERF_CMD_RGBA_H, &bits);
-    SelectObject(g_cmddc, g_cmdbmp);
-    n = CERF_CMD_RGBA_W * CERF_CMD_RGBA_H;
-    for (i = 0; i < n; i++) {
-        const unsigned char* s = &cerf_cmd_rgba[i * 4];
-        int a = s[3];
-        int r = (s[0] * a + fr * (255 - a)) / 255;
-        int g = (s[1] * a + fg * (255 - a)) / 255;
-        int b = (s[2] * a + fb * (255 - a)) / 255;
-        bits[i] = ((unsigned)r << 16) | ((unsigned)g << 8) | (unsigned)b;
-    }
     ReleaseDC(NULL, mem);
 }
 
 /* --- dialog ----------------------------------------------------------- */
-static void LaunchCmd(HWND h) {
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&pi, sizeof(pi));
-    if (CreateProcess(TEXT("cmd.exe"), NULL, NULL, NULL, FALSE, 0,
-                      NULL, NULL, NULL, &pi)) {
-        if (pi.hThread)  CloseHandle(pi.hThread);
-        if (pi.hProcess) CloseHandle(pi.hProcess);
-    } else {
-        MessageBox(h, TEXT("cmd.exe is not present in this ROM. Add the ")
-                      TEXT("Console / Command Shell component and rebuild."),
-                   TEXT("CERF"), MB_OK | MB_ICONINFORMATION);
-    }
-}
-
-static int GuestRefreshHz(void) {
-    DEVMODE dm;
-    ZeroMemory(&dm, sizeof(dm));
-    dm.dmSize = sizeof(dm);
-    if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm) &&
-        (dm.dmFields & DM_DISPLAYFREQUENCY))
-        return (int)dm.dmDisplayFrequency;
-    return 0;
-}
-
-static void BuildStats(TCHAR* buf) {
-    OSVERSIONINFO osv;
-    MEMORYSTATUS ms;
-    SYSTEM_INFO si;
-    int hz = GuestRefreshHz();
-    osv.dwOSVersionInfoSize = sizeof(osv); GetVersionEx(&osv);
-    ms.dwLength = sizeof(ms); GlobalMemoryStatus(&ms);
-    GetSystemInfo(&si);
-    wsprintf(buf,
-        TEXT("CE Runtime Foundation - guest diagnostics\r\n\r\n")
-        TEXT("OS: Windows CE %u.%u (build %u)\r\n")
-        TEXT("Screen: %d x %d px (%d Hz)\r\n")
-        TEXT("Memory: %u KB total / %u KB free\r\n")
-        TEXT("CPUs: %u\r\n")
-        TEXT("Page size: %u bytes\r\n")
-        TEXT("Platform: CERF virtual ARM"),
-        osv.dwMajorVersion, osv.dwMinorVersion, osv.dwBuildNumber,
-        GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), hz,
-        (unsigned)(ms.dwTotalPhys / 1024), (unsigned)(ms.dwAvailPhys / 1024),
-        si.dwNumberOfProcessors, si.dwPageSize);
+static void RefreshStats(void) {
+    TCHAR stats[512];
+    if (!g_edit) return;
+    BuildStats(stats);
+    SetWindowText(g_edit, stats);
 }
 
 /* Position children + repaint against the window's CURRENT client size.
@@ -153,9 +97,12 @@ static void LayoutDlg(HWND h, int exp) {
     if (g_edit) {
         if (exp) {
             MoveWindow(g_edit, 16, BANNER_H + 14, rc.right - 32,
-                       rc.bottom - (BANNER_H + 14) - 104, TRUE);
+                       rc.bottom - (BANNER_H + 14) - 130, TRUE);
+            RefreshStats();
             ShowWindow(g_edit, SW_SHOW);
+            SetTimer(h, ID_STATS_TIMER, STATS_TICK_MS, NULL);
         } else {
+            KillTimer(h, ID_STATS_TIMER);
             ShowWindow(g_edit, SW_HIDE);
         }
     }
@@ -163,6 +110,7 @@ static void LayoutDlg(HWND h, int exp) {
         MoveWindow(g_btn, 22, rc.bottom - 42, 116, 30, TRUE);
         ShowWindow(g_btn, SW_SHOW);
     }
+    ToolsListLayout(h, exp);
     InvalidateRect(h, NULL, TRUE);
 }
 
@@ -186,6 +134,7 @@ static void StartDlgAnim(int h0, int h1, int centered, int top,
     g_anim_active = 1;
     if (g_btn)  ShowWindow(g_btn, SW_HIDE);
     if (g_edit) ShowWindow(g_edit, SW_HIDE);
+    ToolsListLayout(NULL, 0);
 }
 
 static void TickDlgAnim(HWND h) {
@@ -240,9 +189,10 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             0, 0, 10, 10, h, (HMENU)ID_EDIT, g_inst, NULL);
         if (g_edit && g_ui)
             SendMessage(g_edit, WM_SETFONT, (WPARAM)g_ui, TRUE);
-        g_btn = CreateWindow(TEXT("BUTTON"), TEXT("Details"),
+        g_btn = CreateWindow(TEXT("BUTTON"), TEXT("More"),
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             22, rc.bottom - 42, 116, 30, h, (HMENU)ID_DETAILS, g_inst, NULL);
+        ToolsListCreate(h);
         return 0;
     }
     case WM_DRAWITEM: {
@@ -260,7 +210,7 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             SetBkMode(d->hDC, TRANSPARENT);
             SelectObject(d->hDC, g_ui);
             SetTextColor(d->hDC, GetSysColor(COLOR_BTNTEXT));
-            DrawText(d->hDC, TEXT("Details"), -1, &tr,
+            DrawText(d->hDC, TEXT("More"), -1, &tr,
                      DT_LEFT | DT_VCENTER | DT_SINGLELINE);
             return TRUE;
         }
@@ -278,6 +228,9 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
                 StartDlgAnim(cur, DLG_COL_H, 1, 0, TOGGLE_MS, 0);
         }
         return 0;
+    case WM_NOTIFY:
+        if (ToolsListNotify(h, lp)) return 0;
+        break;
     case WM_CTLCOLORSTATIC:
     case WM_CTLCOLOREDIT: {
         HDC edc = (HDC)wp;
@@ -287,8 +240,20 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     }
     case WM_LBUTTONDOWN: {
         POINT pt; pt.x = LOWORD(lp); pt.y = HIWORD(lp);
-        if (g_expanded && PtInRect(&g_linkrect, pt)) LaunchCmd(h);
+        if (!g_expanded && RomsLinkHitTest(pt)) ShowRomsDialog(h, g_sw, g_sh);
         return 0;
+    }
+    case WM_SETCURSOR: {
+        POINT pt;
+        HCURSOR hand;
+        if (LOWORD(lp) != HTCLIENT || g_anim_active) break;
+        GetCursorPos(&pt);
+        ScreenToClient(h, &pt);
+        if (!g_expanded && RomsLinkHitTest(pt)) {
+            hand = RomsHandCursor();
+            if (hand) { SetCursor(hand); return TRUE; }
+        }
+        break;
     }
     case WM_PAINT: {
         PAINTSTRUCT ps;
@@ -303,21 +268,7 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             /* mid-animation: band only; children hidden, content not yet laid out */
         } else if (!g_expanded) {
             DrawWelcome(dc, 22, BANNER_H + 24);
-        } else {
-            int iy = rc.bottom - 90;
-            SIZE sz;
-            if (g_cmddc)
-                BitBlt(dc, 22, iy, CERF_CMD_RGBA_W, CERF_CMD_RGBA_H,
-                       g_cmddc, 0, 0, SRCCOPY);
-            SelectObject(dc, g_link);
-            SetTextColor(dc, RGB(20, 60, 180));
-            ExtTextOut(dc, 22 + CERF_CMD_RGBA_W + 12, iy + 8, 0, NULL,
-                       LINK_TEXT, lstrlen(LINK_TEXT), NULL);
-            GetTextExtentPoint32(dc, LINK_TEXT, lstrlen(LINK_TEXT), &sz);
-            g_linkrect.left   = 22 + CERF_CMD_RGBA_W + 12;
-            g_linkrect.top    = iy + 8;
-            g_linkrect.right  = g_linkrect.left + sz.cx;
-            g_linkrect.bottom = g_linkrect.top + sz.cy;
+            DrawRomsLink(dc, 22, BANNER_H + 52, g_link);
         }
         EndPaint(h, &ps);
         return 0;
@@ -327,11 +278,7 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         int hh, x, y;
         g_sw = GetSystemMetrics(SM_CXSCREEN);
         g_sh = GetSystemMetrics(SM_CYSCREEN);
-        if (g_edit) {
-            TCHAR stats[512];
-            BuildStats(stats);
-            SetWindowText(g_edit, stats);
-        }
+        RefreshStats();
         if (!g_anim_active) {
             GetWindowRect(h, &wr);
             hh = wr.bottom - wr.top;
@@ -343,12 +290,31 @@ static LRESULT CALLBACK DlgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
-    case WM_CLOSE:
-        if (CountProcesses() > 2) {
-            PostQuitMessage(0);
-        } else {
+    case WM_TIMER:
+        if (wp == ID_STATS_TIMER && g_expanded && !g_anim_active)
+            RefreshStats();
+        return 0;
+    case WM_SIZE:
+        if (wp == SIZE_MINIMIZED) {
             ShowWindow(h, SW_HIDE);
             if (g_bg) SetForegroundWindow(g_bg);
+            return 0;
+        }
+        break;
+    case WM_CLOSE:
+        if (CountProcesses() > 2) {
+            if (MessageBox(h,
+                    TEXT("You sure you want to exit Demo App?\r\n\r\n")
+                    TEXT("If you manage to quit all the foreground apps, you ")
+                    TEXT("will lock yourself out of this operating system ")
+                    TEXT("until reboot."),
+                    TEXT("CE Runtime Foundation"),
+                    MB_YESNO | MB_ICONQUESTION) == IDYES)
+                PostQuitMessage(0);
+        } else {
+            MessageBox(h,
+                TEXT("No other app/shell is running - refusing to exit."),
+                TEXT("CE Runtime Foundation"), MB_OK | MB_ICONINFORMATION);
         }
         return 0;
     }
@@ -380,9 +346,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
 
     InitDiscs();
     BuildAssets();
-    g_ui      = MakeFont(17, FW_NORMAL, 0);
-    g_ui_bold = MakeFont(17, FW_BOLD,   0);
-    g_link    = MakeFont(16, FW_NORMAL, 1);
+    g_ui      = MakeFont(14, FW_NORMAL, 0);
+    g_ui_bold = MakeFont(14, FW_BOLD,   0);
+    g_link    = MakeFont(14, FW_NORMAL, 1);
 
     ZeroMemory(&bc, sizeof(bc));
     bc.lpfnWndProc   = BgProc;
@@ -408,7 +374,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPTSTR cmd, int show) {
        and shown, and the main loop animates the reveal back up to DLG_COL_H. */
     g_dlg = CreateWindowEx(WS_EX_TOPMOST | WS_EX_DLGMODALFRAME,
                            DLG_CLASS, DLG_TITLE,
-                           WS_POPUP | WS_CAPTION | WS_SYSMENU,
+                           WS_POPUP | WS_CAPTION | WS_SYSMENU |
+                           WS_MINIMIZEBOX,
                            (g_sw - DLG_W) / 2, (g_sh - DLG_COL_H) / 2,
                            DLG_W, DLG_COL_H, NULL, NULL, hInst, NULL);
 
@@ -482,8 +449,6 @@ done:
     if (g_ui_bold) DeleteObject(g_ui_bold);
     if (g_link)    DeleteObject(g_link);
     if (g_banddc)  DeleteDC(g_banddc);
-    if (g_cmddc)   DeleteDC(g_cmddc);
     if (g_bandbmp) DeleteObject(g_bandbmp);
-    if (g_cmdbmp)  DeleteObject(g_cmdbmp);
     return (int)msg.wParam;
 }

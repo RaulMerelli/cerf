@@ -64,6 +64,7 @@ class LaunchOptionsPanel:
         self._baseline: dict = {}
         self._restoring = False
         self._guest_additions_available = True
+        self._guest_additions_locked = False
 
         container = ttk.Frame(inner)
         container.grid(row=row, column=0, sticky="ew", pady=(0, 8))
@@ -181,8 +182,16 @@ class LaunchOptionsPanel:
             base, override = read_persist_fields(self._device_dir)
         self._baseline = self._resolve_baseline(base, device)
         self._guest_additions_available = self._resolve_guest_additions_available(device)
+        self._guest_additions_locked = bool(device is not None
+                                            and device.meta.forbid_guest_additions)
         eff = dict(self._baseline)
         eff.update(override)
+        if self._guest_additions_locked:
+            for k in ("guest_additions", "width", "height", "dpi"):
+                if k in self._baseline:
+                    eff[k] = self._baseline[k]
+                else:
+                    eff.pop(k, None)
         self._restoring = True
         try:
             self.var_no_net.set(not eff["network_enabled"])
@@ -288,6 +297,8 @@ class LaunchOptionsPanel:
         guest_additions = self.var_guest_additions.get()
         if guest_additions:
             argv.append("--guest-additions")
+        if self._guest_additions_locked:
+            return argv
         if guest_additions or board_configurable_screen(device.meta.board_id):
             w = self._resolution_value(self.var_width, self.width_entry, "Width")
             if w is None:
@@ -340,24 +351,26 @@ class LaunchOptionsPanel:
         """Show only the blocks the selected device can actually use: a board
         whose resolution is fixed hides the resolution block, and DPI - which
         only the CERF display driver honours - is shown with guest additions
-        on. A block that cannot apply is hidden, never shown disabled."""
+        on. A ROM whose cerf.json forbids guest-additions overrides hides all
+        three. A block that cannot apply is hidden, never shown disabled."""
         device = self._device
+        locked = self._guest_additions_locked
         guest_additions = self.var_guest_additions.get()
 
-        self._set_block_visible(self._guest_additions_available,
+        self._set_block_visible(self._guest_additions_available and not locked,
                                 self.guest_block, self.guest_sep)
 
-        res_visible = guest_additions or (
+        res_visible = not locked and (guest_additions or (
             device is not None
-            and board_configurable_screen(device.meta.board_id))
+            and board_configurable_screen(device.meta.board_id)))
         self._set_block_visible(res_visible, self.res_note, self.res_fields,
                                 self.res_sep)
         self.res_note.config(text="CERF display driver resolution:"
                              if guest_additions else "Resolution override:")
         self.res_preset_label.config(foreground=theme.FG_DIM)
 
-        self._set_block_visible(guest_additions, self.dpi_head, self.dpi_fields,
-                                self.dpi_sep)
+        self._set_block_visible(guest_additions and not locked,
+                                self.dpi_head, self.dpi_fields, self.dpi_sep)
         self._refresh_dpi_state()
 
     def _on_res_slider(self, value: str) -> None:

@@ -120,9 +120,14 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
     }
 }
 
-/* Top-level device-feature flags (not board hardware): guest additions and
-   whether to size the guest-additions display to the host screen. */
 void LoadFeatures(const json& root, DeviceConfig& config, const std::string& path) {
+    if (root.contains("share_folder")) {
+        const auto& v = root["share_folder"];
+        if (v.is_string())
+            config.share_folder = v.get<std::string>();
+        else if (!v.is_null())
+            Fatal(path, "'share_folder' must be a string (or null)");
+    }
     if (root.contains("guest_additions")) {
         if (!root["guest_additions"].is_boolean())
             Fatal(path, "'guest_additions' must be a boolean");

@@ -1,0 +1,3 @@
+#include "resource.h"
+
+IDI_LAUNCHER ICON "..\\..\\cerf\\assets\\launcher_ce.ico"

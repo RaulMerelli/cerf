@@ -132,8 +132,12 @@ LRESULT CALLBACK BgProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
                    GetSystemMetrics(SM_CYSCREEN), TRUE);
         return 0;
     case WM_LBUTTONDOWN:
-        if (g_dlg && !IsWindowVisible(g_dlg)) {
-            ShowWindow(g_dlg, SW_SHOW);
+    case WM_RBUTTONDOWN:
+        if (g_dlg) {
+            if (!IsWindowVisible(g_dlg))
+                ShowWindow(g_dlg, SW_RESTORE);
+            SetWindowPos(g_dlg, HWND_TOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             SetForegroundWindow(g_dlg);
         }
         return 0;

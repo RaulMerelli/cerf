@@ -4,6 +4,7 @@
   sources : cerf/assets/icons_sources/*.svg   (authored 16x16, vector-scalable)
   targets :
     ico       cerf/assets/<name>.ico               16/20/24/32/48/64/256, 32-bit alpha
+    ce_ico    cerf/assets/<stem>_ce.ico            32 only, single BMP frame
     launcher  launcher/assets/icons/<stem>.png     32x32 RGBA
     wizard    launcher/assets/icons/<stem>.png     64x64 RGBA (New-device wizard pivots)
     toolbar   launcher/assets/icons/<stem>.png     48x48 RGBA (main-window toolbar buttons)
@@ -50,10 +51,13 @@ SRC_DIR = REPO / "cerf" / "assets" / "icons_sources"
 ICO_DIR = REPO / "cerf" / "assets"
 LAUNCHER_DIR = REPO / "launcher" / "assets" / "icons"
 
+CE_ICO_STEMS = ("launcher",)
+CE_ICO_SIZE = 32
+
 BAND_STEM = "about_band"
 BAND_SCALES = (100, 125, 150, 200, 300)
 
-TARGETS = ("ico", "launcher", "wizard", "toolbar", "badges", "band")
+TARGETS = ("ico", "ce_ico", "launcher", "wizard", "toolbar", "badges", "band")
 
 
 def render_image(svg_path, size):
@@ -105,7 +109,7 @@ def make_unsupported_variant(base):
     return out
 
 
-def render_dib(svg_path, size):
+def render_dib(svg_path, size, ce_mask=False):
     """resvg-render svg_path at size*size as an ICO BMP frame (BITMAPINFOHEADER
     + bottom-up 32bpp BGRA XOR bitmap + AND mask).
 
@@ -113,7 +117,12 @@ def render_dib(svg_path, size):
     parses a frame only as a DIB, so LoadImage returns NULL for a PNG-only .ico
     and every CERF icon disappears. Alpha comes from the 32bpp XOR bitmap, so the
     AND mask is all-zero (fully opaque) - it exists only because the format
-    requires it."""
+    requires it.
+
+    ce_mask instead builds a real 1bpp AND mask from alpha and zeroes the colour
+    under transparent pixels: Windows CE composites an icon through the AND mask
+    rather than per-pixel alpha, so an all-zero mask paints the transparent
+    background opaque black."""
     import resvg_py
     from PIL import Image
     raw = resvg_py.svg_to_bytes(svg_path=str(svg_path), width=size, height=size)
@@ -123,10 +132,27 @@ def render_dib(svg_path, size):
 
     r, g, b, a = im.split()
     bgra = Image.merge("RGBA", (b, g, r, a))
-    xor = bgra.transpose(Image.FLIP_TOP_BOTTOM).tobytes()
 
     and_stride = ((size + 31) // 32) * 4
-    and_mask = b"\x00" * (and_stride * size)
+    if ce_mask:
+        px = bytearray(bgra.tobytes())
+        for i in range(0, len(px), 4):
+            if px[i + 3] < 128:
+                px[i] = px[i + 1] = px[i + 2] = 0
+        bgra = Image.frombytes("RGBA", (size, size), bytes(px))
+        alpha = a.transpose(Image.FLIP_TOP_BOTTOM).tobytes()
+        mask = bytearray()
+        for y in range(size):
+            row = bytearray(and_stride)
+            for x in range(size):
+                if alpha[y * size + x] < 128:
+                    row[x >> 3] |= 0x80 >> (x & 7)
+            mask += row
+        and_mask = bytes(mask)
+    else:
+        and_mask = b"\x00" * (and_stride * size)
+
+    xor = bgra.transpose(Image.FLIP_TOP_BOTTOM).tobytes()
 
     header = struct.pack("<IiiHHIIiiII",
                          40,                        # biSize
@@ -202,6 +228,25 @@ def build_icos(names, sizes):
         out = convert_ico(svg, sizes, ICO_DIR)
         print(f"{svg.name} -> {out.relative_to(REPO)}  "
               f"({len(sizes)} sizes: {','.join(map(str, sizes))})")
+
+
+def build_ce_icos(names):
+    """Windows CE resource icons: one 32x32 BMP frame.
+
+    eVC4's rc.exe rejects a PNG-compressed frame (RC2176 "old DIB"), and CE's
+    LoadIcon requests SM_CXICON, so the shell-oriented 256 frame in the regular
+    .ico is both unusable and 264 KB of dead weight in a guest EXE."""
+    stems = [n for n in names] if names else list(CE_ICO_STEMS)
+    ICO_DIR.mkdir(parents=True, exist_ok=True)
+    for stem in stems:
+        svg = SRC_DIR / f"{stem}.svg"
+        if not svg.exists():
+            sys.exit(f"source not found: {svg}")
+        blob = build_ico([(CE_ICO_SIZE,
+                           render_dib(svg, CE_ICO_SIZE, ce_mask=True))])
+        out = ICO_DIR / f"{stem}_ce.ico"
+        write_if_changed(out, blob)
+        print(f"{svg.name} -> {out.relative_to(REPO)}  ({CE_ICO_SIZE} only)")
 
 
 def svg_intrinsic(svg_path):
@@ -397,6 +442,9 @@ def main():
 
     if "ico" in args.targets:
         build_icos(args.names, sizes)
+    if "ce_ico" in args.targets:
+        build_ce_icos([n for n in args.names if n in CE_ICO_STEMS]
+                      if args.names else [])
     if "launcher" in args.targets:
         build_launcher_pngs(args.names)
     if "wizard" in args.targets:

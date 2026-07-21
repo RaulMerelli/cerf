@@ -175,7 +175,8 @@ class BundleManager:
                         remote_h: Optional[int]) -> None:
         for f in ("device_name", "board_name", "board_id", "soc_family",
                   "os_name", "os_ver_major", "os_ver_minor", "os_ver_build",
-                  "os_language", "device_year", "os_year", "os_notes"):
+                  "os_language", "device_year", "os_year", "os_notes",
+                  "forbid_guest_additions"):
             if not getattr(existing.meta, f):
                 setattr(existing.meta, f, getattr(remote_meta, f))
         if existing.meta.source is None:
