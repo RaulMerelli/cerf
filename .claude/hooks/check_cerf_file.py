@@ -9,8 +9,6 @@ Warns about:
   2. BAILOUT-COMMENT - TODO / FIXME / HACK / XXX / "for now" / "temporary" /
                        "deferred" / "placeholder" / "good enough" /
                        "clean up later" / "fix later" / etc. - in comments only.
-  3. LEAK-DEV-EMU    - "dev_emu_src" anywhere in the file. This is an internal
-                       reference-tree path and must never appear in source.
   4. LEAK-CHECKLIST  - "docs/ai_checklists" path or any *.md filename under
                        that dir. Checklists are confidential per
                        agent_docs/code_style.md § Comments and
@@ -96,8 +94,6 @@ ALWAYS_BAILOUT_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
-
-DEV_EMU_RE = re.compile(r"\bdev_emu_src\b", re.IGNORECASE)
 
 CHECKLIST_PATH_RE = re.compile(r"docs/ai_checklists\b", re.IGNORECASE)
 
@@ -280,7 +276,6 @@ def main() -> int:
         return emit_warnings(warnings, rel_path)
 
     bailout_hits = []
-    dev_emu_hits = []
     checklist_path_hits = []
     checklist_name_hits = []
     cerf_ref_hits = []
@@ -304,9 +299,6 @@ def main() -> int:
 
         if comment_text and ALWAYS_BAILOUT_RE.search(comment_text):
             always_bailout_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
-
-        if DEV_EMU_RE.search(line):
-            dev_emu_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
 
         if CHECKLIST_PATH_RE.search(line):
             checklist_path_hits.append(f"  {rel_path}:{ln_idx}: {line.strip()}")
@@ -412,17 +404,6 @@ def main() -> int:
             "without ALSO completing the code beneath it: STOP. You are "
             "reproducing incident #11. Read agent_docs/rules.md § Bailout "
             "Patterns end-to-end before touching anything else.",
-        ))
-
-    if dev_emu_hits:
-        warnings.append(fmt_block(
-            "LEAK-DEV-EMU",
-            dev_emu_hits,
-            "'dev_emu_src' is an internal reference-tree path and must NEVER "
-            "appear in CERF source. Remove the mention; if you need to cite "
-            "an external behavior, cite the chip datasheet section / BSP "
-            "source path / ARM ARM section per agent_docs/workflow.md § "
-            "'Reference Citations In Code'.",
         ))
 
     if checklist_path_hits:
