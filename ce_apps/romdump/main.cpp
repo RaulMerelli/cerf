@@ -8,7 +8,7 @@
 const Preset kPresets[] = {
 #if defined(MIPS)
     /* MP790 ROM, ROMHDR VA 0x9F6FC504: physfirst 0x9E000000, physlast 0x9F70017C. */
-    { L"VR41xx (bigger roms like HPC2000)",
+    { L"VR41xx",
       L"NEC MP790",
       0x1E000000u, 24, 0 },
     /* Universal MIPS boot-ROM band PA 0x1F000000-0x1FFFFFFF, 16 MB, contains
