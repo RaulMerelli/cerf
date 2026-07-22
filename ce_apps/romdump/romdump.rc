@@ -1,4 +1,1 @@
-/* Shell / title-bar icon. id 1 matches LoadIconW(hInstance,
-   MAKEINTRESOURCEW(1)) in main.cpp. 1bpp + 4bpp BMP frames for CE's icon
-   loader (no PNG/32bpp entries). */
-1 ICON "cerf_lowres.ico"
+1 ICON "..\\..\\cerf\\assets\\cerf_ce2.ico"
