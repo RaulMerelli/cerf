@@ -306,7 +306,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         if self.busy:
             return
         DownloadWindow(self, self.tree_panel.devices, self._download_queue,
-                       resolve_icons_dir(), reload_fn=self._reload_download_sources,
+                       reload_fn=self._reload_download_sources,
                        download_places=self.manager.download_places)
 
     def _download_queue(self, keys: List[str]) -> None:
@@ -357,8 +357,10 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
                          f"This cannot be undone."):
             return
         try:
-            (device_dir / STATE_IMAGE_FILENAME).unlink(missing_ok=True)
-            (device_dir / SAVED_STATE_SCREENSHOT_FILENAME).unlink(missing_ok=True)
+            for fn in (STATE_IMAGE_FILENAME, SAVED_STATE_SCREENSHOT_FILENAME):
+                p = device_dir / fn
+                if p.exists():
+                    p.unlink()
         except OSError as exc:
             show_error(self, "Delete failed",
                        f"Could not delete the saved state:\n{exc}")

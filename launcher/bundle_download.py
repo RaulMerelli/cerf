@@ -46,7 +46,7 @@ def stream_download(url: str, destination: Path, label: str,
                     progress(label, done, total)
         except BaseException:
             try:
-                destination.unlink(missing_ok=True)
+                destination.unlink()
             except OSError:
                 pass
             raise

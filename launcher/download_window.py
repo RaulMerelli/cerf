@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import tkinter as tk
-from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Dict, List, Optional
 
@@ -10,7 +9,7 @@ from device_model import (GROUP_IID_PREFIX, _device_group_key,
                           _device_group_name, _device_sort_key,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
-from board_info import board_soc_cpu, board_soc_label, board_support_state
+from board_info import board_soc_label, board_support_state
 from screen_geometry import fit_geometry
 from sources_dialog import SourcesDialog
 import ui_theme as theme
@@ -27,16 +26,11 @@ ReloadFn = Callable[
 class DownloadWindow:
     def __init__(self, parent: tk.Misc, devices: List[DeviceBundle],
                  on_download: Callable[[List[str]], None],
-                 icons_dir: Optional[Path] = None,
                  reload_fn: Optional[ReloadFn] = None,
                  download_places: Optional[dict] = None) -> None:
         self._on_download = on_download
-        self._icons_dir = icons_dir
         self._reload_fn = reload_fn
         self._places = download_places
-        self._badge_cache: Dict[str, Optional[tk.PhotoImage]] = {}
-        self._badge_tags: set[str] = set()
-        self._cell_badges = True
         self._checked: set[str] = set()
         self._sizes: Dict[str, int] = {}
         self._payload: Dict[str, DeviceBundle] = {}
@@ -233,34 +227,12 @@ class DownloadWindow:
         tree.insert(parent, "end", iid=d.key, open=bool(d.meta.os_notes),
                     text=self._check_glyph(d.key) + _table_os_label(d),
                     values=(soc, format_size(d.remote.archive_size) or ""))
-        cpu = board_soc_cpu(d.meta.board_id) if soc else ""
-        if cpu:
-            badge = theme.load_badge(self._icons_dir, cpu, self._badge_cache)
-            if badge is not None:
-                self._set_soc_badge(d.key, cpu, badge)
         self._payload[d.key] = d
         for i, note in enumerate(d.meta.os_notes):
             tree.insert(d.key, "end",
                         iid=f"{_OSNOTE_PREFIX}{d.key}::{i}",
                         text=f"↳ {note}", values=("", ""),
                         tags=("osnote",))
-
-    def _set_soc_badge(self, iid: str, cpu: str, badge: tk.PhotoImage) -> None:
-        # A per-cell image is a ttk::treeview cell tag (TIP 552), which exists
-        # only from Tk 9; Tk 8.6 has no "tag cell" subcommand, so the SoC column
-        # there stays text-only. launcher_vista.exe is built on CPython 3.7,
-        # which is the newest that loads on Vista and carries Tk 8.6.
-        if not self._cell_badges:
-            return
-        tag = f"archbadge-{cpu.lower()}"
-        w = str(self.tree)
-        try:
-            if tag not in self._badge_tags:
-                self.tree.tk.call(w, "tag", "configure", tag, "-image", badge)
-                self._badge_tags.add(tag)
-            self.tree.tk.call(w, "tag", "cell", "add", tag, [[iid, "soc"]])
-        except tk.TclError:
-            self._cell_badges = False
 
     def _on_click(self, event: tk.Event) -> None:
         if self.tree.identify("region", event.x, event.y) not in ("tree", "cell"):

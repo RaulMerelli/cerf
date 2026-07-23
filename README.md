@@ -282,6 +282,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Fixed the command-line interface producing no output<br/>
           ✅ Configuration, updates and removal are now blocked while a device is running<br/>
           ✅ Single click on a device preview now launches it everywhere<br/>
+          ✅ Merged the two launcher builds into a single Windows Vista+ executable<br/>
           ❌ Removed the redundant soc_family and board_name fields from cerf.json</p>
         <p><b>💾 CE Apps</b><br/>
           ✅ CerfDemo: UI and performance improvements</p>

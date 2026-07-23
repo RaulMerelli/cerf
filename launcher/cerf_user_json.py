@@ -32,7 +32,7 @@ def update_user_json(device_dir: Path, mutate) -> None:
     mutate(obj)
     if not obj:
         try:
-            path.unlink(missing_ok=True)
+            path.unlink()
         except OSError:
             pass
         return

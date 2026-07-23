@@ -15,8 +15,7 @@ executables in the archive do not have the same floor:
 | Program | Runs on |
 | --- | --- |
 | `cerf.exe` - the emulator | **Windows XP** and newer |
-| `launcher.exe` - device picker / ROM downloader | **Windows 10** and newer |
-| `launcher_vista.exe` - the same launcher, older floor | **Windows Vista** and newer |
+| `launcher.exe` - device picker / ROM downloader | **Windows Vista** and newer |
 
 On Windows XP there is no launcher: run `cerf.exe` directly from the
 [command line](/articles/command-line/), pointing it at a device folder you copied

@@ -1,70 +1,25 @@
 param(
-    [string]$Config = "Release",
-    [switch]$Vista
+    [string]$Config = "Release"
 )
 
 Set-Location $PSScriptRoot
 
-# The launcher table renders per-cell images (CPU-arch badges in the SoC
-# column), which needs Tk 9 (TIP 552). No Windows CPython ships Tk 9 until 3.15,
-# so the launcher build uses a portable python-build-standalone CPython 3.15
-# (Tk 9.0.3) -- a relocatable tarball extracted with the built-in `tar`, NO
-# installer and NO registry, cached under the gitignored references/python (a
-# first-build download, same pattern as vcpkg). cerf.exe is unaffected;
-# PyInstaller bakes Tk 9 into launcher.exe, so end users need nothing installed.
-$PBS_VERSION = "3.15.0b3"
-$PBS_TAG     = "20260623"
-$PBS_SHA256  = "a32eb39b3ab3c3dbc5d04c5c4dddda3966f8b0e91b6be979350baac0603cec34"
-$PBS_URL     = "https://github.com/astral-sh/python-build-standalone/releases/download/$PBS_TAG/cpython-$PBS_VERSION%2B$PBS_TAG-x86_64-pc-windows-msvc-install_only.tar.gz"
-
-function Get-LauncherPython {
-    $repoRoot  = Split-Path $PSScriptRoot -Parent
-    $cacheRoot = Join-Path $repoRoot "references\python"
-    $target    = Join-Path $cacheRoot "cpython-$PBS_VERSION"
-    $py        = Join-Path $target "python\python.exe"   # tarball extracts to python\
-    if (Test-Path $py) { return $py }
-
-    New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
-    $tgz = Join-Path $cacheRoot "cpython-$PBS_VERSION-windows-x64.tar.gz"
-    $haveGood = (Test-Path $tgz) -and
-                ((Get-FileHash -Algorithm SHA256 -Path $tgz).Hash.ToLower() -eq $PBS_SHA256)
-    if (-not $haveGood) {
-        Write-Host "[LAUNCHER] Downloading portable Python $PBS_VERSION (Tk 9) ..."
-        $pp = $ProgressPreference; $ProgressPreference = "SilentlyContinue"
-        Invoke-WebRequest -Uri $PBS_URL -OutFile $tgz
-        $ProgressPreference = $pp
-        $got = (Get-FileHash -Algorithm SHA256 -Path $tgz).Hash.ToLower()
-        if ($got -ne $PBS_SHA256) {
-            Write-Host "[LAUNCHER] FAILED! Python archive SHA256 mismatch (got $got, want $PBS_SHA256)."
-            return $null
-        }
-    }
-    Write-Host "[LAUNCHER] Extracting portable Python into references/python (no install, no registry) ..."
-    New-Item -ItemType Directory -Force -Path $target | Out-Null
-    tar -xf $tgz -C $target
-    if (-not (Test-Path $py)) {
-        Write-Host "[LAUNCHER] FAILED! python.exe not present at $py after extract."
-        return $null
-    }
-    return $py
-}
-
-# launcher_vista.exe, for hosts older than the primary launcher's Windows 10
-# floor. Both floors are properties of the shipped binaries, measured against the
-# per-OS export tables in YY-Thunks' Config/x86 (see cerf/cerf.vcxproj):
+# CPython 3.7.9 (x86) + PyInstaller 5.13.2 is the newest pair whose binaries load
+# on Windows Vista, the launcher's OS floor (measured against YY-Thunks' per-OS
+# export tables, see cerf/cerf.vcxproj):
 #   - CPython 3.8+ (python3x.dll) imports kernel32!GetActiveProcessorCount, which
 #     Windows 7 introduced -- so 3.7.9 is the newest CPython that loads on Vista.
 #   - PyInstaller 6.x's bootloader imports kernel32!K32EnumProcessModules and
 #     K32GetModuleFileNameExW (Windows 7); 5.13.2's bootloader is Vista-clean.
 # python.org ships no portable 3.7 carrying tkinter (neither the embeddable zip
 # nor the nuget package has it), so the installer is run in its quiet per-user
-# mode into the same gitignored cache: files only, nothing on PATH.
+# mode into the gitignored cache: files only, nothing on PATH.
 $PY37_VERSION = "3.7.9"
 $PY37_SHA256  = "769bb7c74ad1df6d7d74071cc16a984ff6182e4016e11b8949b93db487977220"
 $PY37_URL     = "https://www.python.org/ftp/python/$PY37_VERSION/python-$PY37_VERSION.exe"
-$PYINSTALLER_VISTA = "5.13.2"
+$PYINSTALLER  = "5.13.2"
 
-function Get-VistaPython {
+function Get-LauncherPython {
     $repoRoot  = Split-Path $PSScriptRoot -Parent
     $cacheRoot = Join-Path $repoRoot "references\python"
     $target    = Join-Path $cacheRoot "cpython-$PY37_VERSION-x86"
@@ -109,31 +64,27 @@ function Get-UcrtRedistDir {
     return $null
 }
 
-if ($Vista) {
-    $python  = Get-VistaPython
-    $pyiSpec = "pyinstaller==$PYINSTALLER_VISTA"
-    $name    = "launcher_vista"
-    $ucrt    = Get-UcrtRedistDir
-    if (-not $ucrt) {
-        Write-Host "[LAUNCHER] FAILED! UCRT redist (Windows Kits\10\Redist\<ver>\ucrt\DLLs\x86) not found; launcher_vista.exe would not run on a Vista box without KB2999226."
-        [Environment]::Exit(1)
-    }
-    $env:CERF_LAUNCHER_UCRT = $ucrt
-} else {
-    $python  = Get-LauncherPython
-    $pyiSpec = "pyinstaller"
-    $name    = "launcher"
-    $env:CERF_LAUNCHER_UCRT = ""
-}
+$python = Get-LauncherPython
 if (-not $python) { [Environment]::Exit(1) }
+$name = "launcher"
+
+# Windows carries the Universal CRT in-box only from Windows 10; on Vista it is
+# an update (KB2999226). Microsoft supports app-local UCRT deployment, so the
+# build ships the redistributable inside the exe and needs no update.
+$ucrt = Get-UcrtRedistDir
+if (-not $ucrt) {
+    Write-Host "[LAUNCHER] FAILED! UCRT redist (Windows Kits\10\Redist\<ver>\ucrt\DLLs\x86) not found; launcher.exe would not run on a Vista box without KB2999226."
+    [Environment]::Exit(1)
+}
+$env:CERF_LAUNCHER_UCRT = $ucrt
 $env:CERF_LAUNCHER_NAME = $name
 
 $null = & $python -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[LAUNCHER] PyInstaller not found in cached Python; installing $pyiSpec..."
-    & $python -m pip install --quiet --disable-pip-version-check $pyiSpec
+    Write-Host "[LAUNCHER] PyInstaller not found in cached Python; installing pyinstaller==$PYINSTALLER..."
+    & $python -m pip install --quiet --disable-pip-version-check "pyinstaller==$PYINSTALLER"
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[LAUNCHER] FAILED! pip install $pyiSpec returned $LASTEXITCODE"
+        Write-Host "[LAUNCHER] FAILED! pip install pyinstaller==$PYINSTALLER returned $LASTEXITCODE"
         [Environment]::Exit(1)
     }
 }

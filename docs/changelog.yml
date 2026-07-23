@@ -20,6 +20,7 @@
       Fixed the command-line interface producing no output
       Configuration, updates and removal are now blocked while a device is running
       Single click on a device preview now launches it everywhere
+      Merged the two launcher builds into a single Windows Vista+ executable
     deleted: |
       Removed the redundant soc_family and board_name fields from cerf.json
   guest_additions:
