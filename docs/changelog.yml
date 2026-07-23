@@ -2,7 +2,7 @@
   date: TBA
   devices:
     new: |
-      **Casio Cassiopeia EM-500** (Pocket PC 2000, NEC VR4122) - display and touch
+      Casio Cassiopeia EM-500 support (bare bones)
     fixed: |
       Sharp Mobilon HC-4100: fixed suspend crash
   emulator:

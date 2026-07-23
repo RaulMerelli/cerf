@@ -269,7 +269,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>TBA</td>
       <td>
         <p><b>📱 Devices</b><br/>
-          🆕 <b>Casio Cassiopeia EM-500</b> (Pocket PC 2000, NEC VR4122) - display and touch<br/>
+          🆕 Casio Cassiopeia EM-500 support (bare bones)<br/>
           ✅ Sharp Mobilon HC-4100: fixed suspend crash</p>
         <p><b>💿 Emulator</b><br/>
           🆕 Discord Rich Presence - shows the current device and OS in your Discord profile<br/>
