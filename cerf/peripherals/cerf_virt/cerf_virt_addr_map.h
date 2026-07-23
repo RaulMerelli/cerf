@@ -61,6 +61,10 @@ const uint32_t kArenaCtlClaimPid  = 0x000u;
 const uint32_t kCalibSignalOffset = 0xE000u;
 const uint32_t kCalibSignalSize   = 0x1000u;
 
+const uint32_t kColorSchemeOffset = 0xF000u;
+const uint32_t kColorSchemeSize   = 0x1000u;
+const uint32_t kColorSchemeMax    = 30u;
+
 const uint32_t kFramebufferMemOffset = 0x00100000u;
 const uint32_t kFramebufferMemSize   = 0x02000000u;
 

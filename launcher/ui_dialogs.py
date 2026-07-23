@@ -143,8 +143,19 @@ def show_dpi_help(parent: tk.Misc) -> None:
         "• Restores VGA (2×) mode on Device Emulator ROMs.\n"
         "• Scales readable / printable text (documents, web pages) on older "
         "CE versions.\n"
-        "• Works best on Alt-Controls (touch-style) ROMs.\n\n"
-        "Takes effect on the next guest reset. Requires guest additions."
+        "• Works best on Alt-Controls (touch-style) ROMs."
+    )
+
+
+def show_color_scheme_help(parent: tk.Misc) -> None:
+    show_info(
+        parent,
+        "Color scheme override",
+        "Forces a fixed system color scheme onto the guest. Handy to colorize "
+        "grayscale devices (which render everything in black and white) with a "
+        "proper colored theme, or to restyle any CE desktop.\n\n"
+        "It is applied by force and may refuse to work on some ROMs, because "
+        "the approach is hacky rather than a supported OS feature."
     )
 
 

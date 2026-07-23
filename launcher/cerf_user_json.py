@@ -112,8 +112,15 @@ def _extract_persist_fields(obj) -> dict:
     net = obj.get("network")
     if isinstance(net, dict) and isinstance(net.get("enabled"), bool):
         out["network_enabled"] = net["enabled"]
-    if isinstance(obj.get("guest_additions"), bool):
-        out["guest_additions"] = obj["guest_additions"]
+    ga = obj.get("guest_additions")
+    if isinstance(ga, bool):
+        out["guest_additions"] = ga
+    elif isinstance(ga, dict):
+        if isinstance(ga.get("enabled"), bool):
+            out["guest_additions"] = ga["enabled"]
+        cs = ga.get("override_color_scheme")
+        if isinstance(cs, str) and cs:
+            out["color_scheme"] = cs
     if isinstance(obj.get("full_screen"), bool):
         out["full_screen"] = obj["full_screen"]
     board = obj.get("board")
@@ -157,11 +164,21 @@ def write_persist_overrides(device_dir: Path, fields: dict) -> None:
             obj["network"] = net
         else:
             obj.pop("network", None)
-        for key in ("guest_additions", "full_screen"):
-            if key in fields:
-                obj[key] = fields[key]
-            else:
-                obj.pop(key, None)
+        cs = fields.get("color_scheme")
+        if cs:
+            ga_obj: dict = {}
+            if "guest_additions" in fields:
+                ga_obj["enabled"] = fields["guest_additions"]
+            ga_obj["override_color_scheme"] = cs
+            obj["guest_additions"] = ga_obj
+        elif "guest_additions" in fields:
+            obj["guest_additions"] = fields["guest_additions"]
+        else:
+            obj.pop("guest_additions", None)
+        if "full_screen" in fields:
+            obj["full_screen"] = fields["full_screen"]
+        else:
+            obj.pop("full_screen", None)
         board = obj.get("board") if isinstance(obj.get("board"), dict) else {}
         for field, json_key in _PERSIST_BOARD_KEYS.items():
             if field in fields:

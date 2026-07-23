@@ -43,6 +43,21 @@ static const ColorSlot kSlots[] = {
     { L"COLOR_3DLIGHT",            COLOR_3DLIGHT },
     { L"COLOR_INFOTEXT",           COLOR_INFOTEXT },
     { L"COLOR_INFOBK",             COLOR_INFOBK },
+    { L"index 25",                 25 },
+    { L"index 26",                 26 },
+    { L"index 27",                 27 },
+    { L"index 28",                 28 },
+    { L"index 29",                 29 },
+    { L"index 30",                 30 },
+    { L"index 31",                 31 },
+    { L"index 32",                 32 },
+    { L"index 33",                 33 },
+    { L"index 34",                 34 },
+    { L"index 35",                 35 },
+    { L"index 36",                 36 },
+    { L"index 37",                 37 },
+    { L"index 38",                 38 },
+    { L"index 39",                 39 },
 };
 static const int kNumSlots = (int)(sizeof(kSlots) / sizeof(kSlots[0]));
 
@@ -99,18 +114,57 @@ static void PreviewSwatch(AppState* st) {
     InvalidateRect(st->hwnd, &st->swatch_rc, TRUE);
 }
 
+static void DumpAllToFile(AppState* st) {
+    char buf[16];
+    int  i, j;
+    DWORD wr;
+    COLORREF c;
+    static const char hx[] = "0123456789ABCDEF";
+    WCHAR path[MAX_PATH];
+    WCHAR* p;
+    const WCHAR* name;
+    HANDLE f;
+    DWORD n = GetModuleFileNameW(NULL, path, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) {
+        SetStatus(st, L"Dump FAILED: cannot resolve module path");
+        return;
+    }
+    for (p = path + n; p > path && p[-1] != L'\\' && p[-1] != L'/'; --p) {}
+    for (name = L"syscolor.out"; *name && (DWORD)(p - path) < MAX_PATH - 1; ) *p++ = *name++;
+    *p = 0;
+    f = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) {
+        SetStatus(st, L"Dump FAILED: cannot open syscolor.out");
+        return;
+    }
+    for (i = 0; i < kNumSlots; ++i) {
+        st->sel = i;
+        LoadSelected(st);
+        c = st->swatch;
+        buf[0] = '0'; buf[1] = 'x';
+        for (j = 0; j < 8; ++j) buf[2 + j] = hx[((DWORD)c >> ((7 - j) * 4)) & 0xF];
+        buf[10] = '\r'; buf[11] = '\n';
+        WriteFile(f, buf, 12, &wr, NULL);
+    }
+    CloseHandle(f);
+    SetStatus(st, L"Dumped colours -> syscolor.out");
+}
+
 static void OnPick(AppState* st) {
     HMENU menu = CreatePopupMenu();
     RECT  rc;
     int   i, cmd;
     if (!menu) return;
+    AppendMenuW(menu, MF_STRING, (UINT)(MENU_BASE + kNumSlots), L"** DUMP ALL 0..29 TO FILE **");
     for (i = 0; i < kNumSlots; ++i)
         AppendMenuW(menu, MF_STRING, (UINT)(MENU_BASE + i), kSlots[i].name);
     GetWindowRect(GetDlgItem(st->hwnd, ID_PICK), &rc);
     cmd = (int)TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD,
                               rc.left, rc.bottom, 0, st->hwnd, NULL);
     DestroyMenu(menu);
-    if (cmd >= MENU_BASE && cmd < MENU_BASE + kNumSlots) {
+    if (cmd == MENU_BASE + kNumSlots) {
+        DumpAllToFile(st);
+    } else if (cmd >= MENU_BASE && cmd < MENU_BASE + kNumSlots) {
         st->sel = cmd - MENU_BASE;
         LoadSelected(st);
     }

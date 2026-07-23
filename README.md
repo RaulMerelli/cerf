@@ -266,7 +266,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   <tbody>
     <tr>
       <td>v6.7</td>
-      <td>TBA</td>
+      <td>23 Jul 2026</td>
       <td>
         <p><b>📱 Devices</b><br/>
           🆕 Casio Cassiopeia EM-500 support (bare bones)<br/>
@@ -287,6 +287,7 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           🆕 High refresh rate support - use Windows CE with 240 hz display! (Or whatever Hz you have). Yes, this should be taken LITERALLY. WinCE WILL render 240 fps on your 240 hz monitor. The guest video mode and host window scanout follow the host monitor&#x27;s refresh rate<br/>
           🆕 --screen-refresh-rate flag to set the refresh rate manually<br/>
           🆕 Touch-calibration helper - offers to switch to the stock input device when the guest opens a calibration screen, and switches back afterwards<br/>
+          🆕 Color scheme overrides - colorize grayscale devices with a forced system color scheme<br/>
           ✅ Input devices now run at the proper priority, staying responsive under heavy guest CPU load</p>
       </td>
     </tr>

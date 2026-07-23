@@ -92,6 +92,7 @@ struct DeviceConfig : public Service {
 
     bool boot_in_recovery = false;
     bool guest_additions = false;
+    std::string guest_additions_color_scheme;
 
     /* Startup tab. Dev builds default to the hardware console so debug output
        shows instantly; production defaults to the boot screen. --tab overrides. */

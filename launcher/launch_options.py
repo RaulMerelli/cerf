@@ -11,7 +11,10 @@ from pathlib import Path
 from cerf_user_json import read_persist_fields, write_persist_overrides
 from device_state import DeviceBundle
 from board_info import board_configurable_screen, board_features
-from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help
+from color_schemes import (COLOR_SCHEMES, CS_KEY_TO_LABEL as _CS_KEY_TO_LABEL,
+                           CS_LABEL_TO_KEY as _CS_LABEL_TO_KEY,
+                           color_scheme_supported_for_os)
+from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help, show_color_scheme_help
 import ui_theme as theme
 
 
@@ -65,6 +68,7 @@ class LaunchOptionsPanel:
         self._restoring = False
         self._guest_additions_available = True
         self._guest_additions_locked = False
+        self._color_scheme_available = True
 
         container = ttk.Frame(inner)
         container.grid(row=row, column=0, sticky="ew", pady=(0, 8))
@@ -74,6 +78,7 @@ class LaunchOptionsPanel:
         self.var_no_net    = tk.BooleanVar(value=False)
         self.var_full_screen = tk.BooleanVar(value=False)
         self.var_guest_additions = tk.BooleanVar(value=False)
+        self.var_color_scheme = tk.StringVar(value=COLOR_SCHEMES[0][1])
 
         cfg = ttk.LabelFrame(container, text="Configuration", padding=8)
         cfg.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -90,6 +95,19 @@ class LaunchOptionsPanel:
                    command=lambda: show_guest_additions_help(self._window)).grid(row=0, column=1, sticky="e")
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
+
+        cs_row = self.cs_row = ttk.Frame(guest)
+        cs_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        cs_row.columnconfigure(1, weight=1)
+        ttk.Label(cs_row, text="Color scheme:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.color_scheme_combo = ttk.Combobox(
+            cs_row, state="readonly", textvariable=self.var_color_scheme,
+            values=[label for (_key, label) in COLOR_SCHEMES])
+        self.color_scheme_combo.grid(row=0, column=1, sticky="ew")
+        ttk.Button(cs_row, text="?", width=2, style="Help.TButton",
+                   command=lambda: show_color_scheme_help(self._window)).grid(row=0, column=2, sticky="e", padx=(4, 0))
+        self.color_scheme_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._on_color_scheme_changed())
 
         self.guest_sep = ttk.Separator(cfg, orient="horizontal")
         self.guest_sep.grid(row=1, column=0, sticky="ew", pady=8)
@@ -184,10 +202,12 @@ class LaunchOptionsPanel:
         self._guest_additions_available = self._resolve_guest_additions_available(device)
         self._guest_additions_locked = bool(device is not None
                                             and device.meta.forbid_guest_additions)
+        self._color_scheme_available = (
+            device is None or color_scheme_supported_for_os(device.meta.os_name))
         eff = dict(self._baseline)
         eff.update(override)
         if self._guest_additions_locked:
-            for k in ("guest_additions", "width", "height", "dpi"):
+            for k in ("guest_additions", "color_scheme", "width", "height", "dpi"):
                 if k in self._baseline:
                     eff[k] = self._baseline[k]
                 else:
@@ -197,6 +217,8 @@ class LaunchOptionsPanel:
             self.var_no_net.set(not eff["network_enabled"])
             self.var_guest_additions.set(eff["guest_additions"]
                                          and self._guest_additions_available)
+            self.var_color_scheme.set(
+                _CS_KEY_TO_LABEL.get(eff.get("color_scheme", ""), COLOR_SCHEMES[0][1]))
             self.var_full_screen.set(eff["full_screen"])
             self.var_width.set(str(eff["width"]))
             self.var_height.set(str(eff["height"]))
@@ -216,6 +238,7 @@ class LaunchOptionsPanel:
         b: dict = {}
         b["network_enabled"] = base.get("network_enabled", True)
         b["guest_additions"] = base.get("guest_additions", False)
+        b["color_scheme"] = base.get("color_scheme", "")
         b["full_screen"] = base.get("full_screen", False)
         if "width" in base:
             b["width"] = base["width"]
@@ -248,6 +271,7 @@ class LaunchOptionsPanel:
         f: dict = {}
         f["network_enabled"] = not self.var_no_net.get()
         f["guest_additions"] = self.var_guest_additions.get()
+        f["color_scheme"] = _CS_LABEL_TO_KEY.get(self.var_color_scheme.get(), "")
         f["full_screen"] = self.var_full_screen.get()
         w = self._optional_uint(self.var_width)
         if w is not None:
@@ -273,14 +297,17 @@ class LaunchOptionsPanel:
             return
         cur = self._current_fields()
         override: dict = {}
-        for k in ("network_enabled", "guest_additions", "full_screen",
-                  "width", "height", "dpi"):
+        for k in ("network_enabled", "guest_additions", "color_scheme",
+                  "full_screen", "width", "height", "dpi"):
             if k in cur and cur[k] != self._baseline.get(k):
                 override[k] = cur[k]
         write_persist_overrides(self._device_dir, override)
 
     def _on_guest_additions_changed(self) -> None:
         self.refresh_resolution_state()
+        self._persist()
+
+    def _on_color_scheme_changed(self) -> None:
         self._persist()
 
     def _on_override_dpi_changed(self) -> None:
@@ -297,6 +324,9 @@ class LaunchOptionsPanel:
         guest_additions = self.var_guest_additions.get()
         if guest_additions:
             argv.append("--guest-additions")
+            key = _CS_LABEL_TO_KEY.get(self.var_color_scheme.get(), "")
+            if key:
+                argv.append(f"--ga-color-scheme={key}")
         if self._guest_additions_locked:
             return argv
         if guest_additions or board_configurable_screen(device.meta.board_id):
@@ -359,6 +389,10 @@ class LaunchOptionsPanel:
 
         self._set_block_visible(self._guest_additions_available and not locked,
                                 self.guest_block, self.guest_sep)
+        self._set_block_visible(
+            guest_additions and not locked and self._color_scheme_available,
+            self.cs_row)
+        self.color_scheme_combo.config(state="readonly")
 
         res_visible = not locked and (guest_additions or (
             device is not None

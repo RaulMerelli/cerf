@@ -127,9 +127,25 @@ void LoadFeatures(const json& root, DeviceConfig& config, const std::string& pat
             Fatal(path, "'share_folder' must be a string (or null)");
     }
     if (root.contains("guest_additions")) {
-        if (!root["guest_additions"].is_boolean())
-            Fatal(path, "'guest_additions' must be a boolean");
-        config.guest_additions = root["guest_additions"].get<bool>();
+        const auto& ga = root["guest_additions"];
+        if (ga.is_boolean()) {
+            config.guest_additions = ga.get<bool>();
+        } else if (ga.is_object()) {
+            if (ga.contains("enabled")) {
+                if (!ga["enabled"].is_boolean())
+                    Fatal(path, "'guest_additions.enabled' must be a boolean");
+                config.guest_additions = ga["enabled"].get<bool>();
+            }
+            if (ga.contains("override_color_scheme")) {
+                const auto& cs = ga["override_color_scheme"];
+                if (cs.is_string())
+                    config.guest_additions_color_scheme = cs.get<std::string>();
+                else if (!cs.is_null())
+                    Fatal(path, "'guest_additions.override_color_scheme' must be a string (or null)");
+            }
+        } else {
+            Fatal(path, "'guest_additions' must be a boolean or an object");
+        }
     }
     if (root.contains("full_screen")) {
         if (!root["full_screen"].is_boolean())
@@ -343,6 +359,8 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             config.rom_primary = a + sizeof(kArgRomPrimary) - 1;
         } else if (strcmp(a, kArgGuestAdditions) == 0) {
             config.guest_additions = true;
+        } else if (strncmp(a, kArgGaColorScheme, sizeof(kArgGaColorScheme) - 1) == 0) {
+            config.guest_additions_color_scheme = a + sizeof(kArgGaColorScheme) - 1;
         } else if (strcmp(a, kArgRecovery) == 0) {
             config.boot_in_recovery = true;
         } else if (strncmp(a, kArgScreenWidth, sizeof(kArgScreenWidth) - 1) == 0) {
