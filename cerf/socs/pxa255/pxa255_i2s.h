@@ -11,9 +11,7 @@
 
 #include <cstdint>
 
-/* PXA255 I2S controller (base 0x40400000; Developer's Manual 278693 ch.14).
-   Register-only stub: the guest audio driver configures clocks/format and feeds
-   the Tx FIFO, but CERF produces no I2S audio. No Rx, no interrupts. */
+/* PXA255 I2S controller (base 0x40400000; Developer's Manual 278693 ch.14). */
 class Pxa255I2s : public Peripheral, public AudioOutSink {
 public:
     using Peripheral::Peripheral;

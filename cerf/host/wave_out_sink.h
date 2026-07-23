@@ -5,8 +5,10 @@
 #include <mmsystem.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <thread>
 
 /* Host waveOut output sink shared by the sound paths. EnsureFormat (waveOutOpen)
@@ -40,16 +42,46 @@ public:
     bool EnsureFormat(uint32_t sample_rate_hz, uint16_t channels,
                       uint16_t bits, bool allow_resampler, bool busy);
     bool     IsOpen() const { return out_device_ != nullptr; }
+    bool     FormatMatches(uint32_t sample_rate_hz, uint16_t channels, uint16_t bits) const {
+        return out_device_ != nullptr && open_rate_ == sample_rate_hz &&
+               open_channels_ == channels && open_bits_ == bits;
+    }
     HWAVEOUT Device() const { return out_device_; }
 
-    /* prepare + write `hdr`; on failure unprepare and return false. On-thread. */
     bool Play(WAVEHDR* hdr);
-    void Unprepare(WAVEHDR* hdr);   /* unprepare a finished/failed header. */
-    void Reset();                   /* waveOutReset - flush queued buffers. */
+    void Unprepare(WAVEHDR* hdr);
+    void Reset();
+
+    static constexpr UINT kMsgPaceDue = WM_USER + 909;
+    void ArmPaceDeadline(std::chrono::steady_clock::duration delay);
+
+    std::chrono::steady_clock::duration PeriodFor(uint32_t length) const;
 
 private:
     void ThreadMain(ThreadCallback on_start, MessageHandler on_message);
     void CloseDevice();
+    void ArmSilentTimer(WAVEHDR* hdr);
+    void ArmSilentHead();
+    void CancelSilentTimers();
+    WAVEHDR* TakeSilentTimer(UINT_PTR id);
+
+    static constexpr UINT     kMsgArmSilent    = WM_USER + 907;
+    static constexpr UINT     kMsgCancelSilent = WM_USER + 908;
+    static constexpr uint32_t kSilentQueue     = 8;
+
+public:
+    static constexpr WPARAM   kSilentDone   = 1;
+
+private:
+
+    std::mutex  silent_mtx_;
+    WAVEHDR*    silent_queue_[kSilentQueue] = {};
+    uint32_t    silent_count_ = 0;
+    UINT_PTR    silent_id_    = 0;
+    HANDLE      pace_timer_   = nullptr;
+    uint32_t    req_rate_     = 0;
+    uint16_t    req_channels_ = 0;
+    uint16_t    req_bits_     = 0;
 
     DWORD             thread_id_   = 0;
     HANDLE            ready_event_ = nullptr;

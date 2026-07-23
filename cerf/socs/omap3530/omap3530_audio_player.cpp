@@ -7,6 +7,7 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/audio_activity_widget.h"
+#include "../../state/emulation_freeze.h"
 #include "twl4030.h"
 
 #include <cstring>
@@ -98,7 +99,7 @@ void Omap3530AudioPlayer::StartStream() {
 }
 
 void Omap3530AudioPlayer::StopStream() {
-    if (sink_.IsOpen()) sink_.Reset();
+    sink_.Reset();
     for (auto& s : slots_) s.in_flight = false;
 }
 
@@ -122,12 +123,23 @@ bool Omap3530AudioPlayer::QueuePage() {
 
     const uint32_t phys_page = seq % pc;
     const uint32_t page_pa   = src + phys_page * pb;
+    const bool     block     = (phys_page == pc - 1u);
+    const uint32_t csac      = src + ((phys_page + 1u) % pc) * pb;
     slot->bytes.resize(pb);
-    auto& mem = emu_.Get<EmulatedMemory>();
-    if (uint8_t* host = mem.TryTranslate(page_pa)) {
-        std::memcpy(slot->bytes.data(), host, pb);
-    } else {
-        for (uint32_t i = 0; i < pb; ++i) slot->bytes[i] = mem.ReadByte(page_pa + i);
+
+    {
+        auto  frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+        auto& mem    = emu_.Get<EmulatedMemory>();
+        if (uint8_t* host = mem.TryTranslate(page_pa)) {
+            std::memcpy(slot->bytes.data(), host, pb);
+        } else {
+            for (uint32_t i = 0; i < pb; ++i) slot->bytes[i] = mem.ReadByte(page_pa + i);
+        }
+        /* The DMA reads this frame into the McBSP FIFO now: advance CSAC past it to
+           the next page and raise the frame interrupt (BLOCK|LAST at the last page
+           of the circular block). The driver then refills this page for the round
+           after next, which is why the snapshot above is already up to date. */
+        emu_.Get<Omap3530Sdma>().SignalChannelFrame(ch, block, csac);
     }
 
     slot->seq = seq;
@@ -137,18 +149,6 @@ bool Omap3530AudioPlayer::QueuePage() {
     slot->hdr.dwUser         = reinterpret_cast<DWORD_PTR>(slot);
     slot->in_flight          = true;
 
-    /* The DMA reads this frame into the McBSP FIFO now: advance CSAC past it to
-       the next page and raise the frame interrupt (BLOCK|LAST at the last page
-       of the circular block). The driver then refills this page for the round
-       after next, which is why the snapshot above is already up to date. */
-    const bool     block = (phys_page == pc - 1u);
-    const uint32_t csac  = src + ((phys_page + 1u) % pc) * pb;
-    emu_.Get<Omap3530Sdma>().SignalChannelFrame(ch, block, csac);
-
-    if (!sink_.IsOpen()) {
-        sink_.Post(MM_WOM_DONE, 0, reinterpret_cast<LPARAM>(&slot->hdr));
-        return true;
-    }
     if (!sink_.Play(&slot->hdr)) {
         slot->in_flight = false;
         return false;
@@ -160,7 +160,7 @@ bool Omap3530AudioPlayer::QueuePage() {
 void Omap3530AudioPlayer::OnPageDone(WAVEHDR* hdr) {
     if (!hdr) return;
     Slot* slot = reinterpret_cast<Slot*>(hdr->dwUser);
-    if (sink_.IsOpen()) sink_.Unprepare(&slot->hdr);
+    sink_.Unprepare(&slot->hdr);
     slot->in_flight = false;
 
     bool active;

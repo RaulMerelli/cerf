@@ -26,6 +26,8 @@ void Sa11xxDmaAudioPlayer::OnReady() {
     emu_.Get<AudioActivityWidget>().NotePresent();
 }
 
+void Sa11xxDmaAudioPlayer::OnShutdown() { sink_.Stop(); }
+
 bool Sa11xxDmaAudioPlayer::OnDmaStart(const Sa11xxDma::ChannelState& st) {
     if ((st.ddar & cfg_.ddar_mask) != cfg_.ddar_value) return false;
     const uint32_t src_pa = st.buffer_b ? st.dbsb : st.dbsa;
@@ -66,11 +68,6 @@ Sa11xxDmaAudioPlayer::Slot* Sa11xxDmaAudioPlayer::AllocSlotLocked() {
 void Sa11xxDmaAudioPlayer::SubmitPage(const PendingPage& p) {
     sink_.EnsureFormat(p.rate_hz, cfg_.channels, cfg_.bits_per_sample,
                        cfg_.allow_resampler, /*busy=*/false);
-    if (!sink_.IsOpen()) {
-        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
-        emu_.Get<Sa11xxDma>().CompleteTransfer(p.dma_channel, p.buffer_b);
-        return;
-    }
     Slot* slot;
     {
         std::lock_guard<std::mutex> lk(slots_mtx_);
@@ -116,7 +113,7 @@ void Sa11xxDmaAudioPlayer::LoadIntoSlot(Slot& slot, const PendingPage& p) {
 }
 
 void Sa11xxDmaAudioPlayer::OnPageDone(LPWAVEHDR hdr) {
-    if (!hdr || !sink_.IsOpen()) return;
+    if (!hdr) return;
     auto* slot = reinterpret_cast<Slot*>(hdr->dwUser);
     sink_.Unprepare(&slot->hdr);
 

@@ -6,6 +6,7 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../host/wave_out_sink.h"
 #include "../../peripherals/intel_sa1111/sa1111_sac.h"
+#include "../../state/emulation_freeze.h"
 
 #include <cstdint>
 #include <cstring>
@@ -41,6 +42,8 @@ public:
         emu_.Get<Sa1111Sac>().RegisterTransmitSink(
             [this](const Sa1111Sac::TransmitPage& page) { return OnPage(page); });
     }
+
+    void OnShutdown() override { sink_.Stop(); }
 
 private:
     struct Slot {
@@ -94,15 +97,6 @@ private:
         sink_.EnsureFormat(p.sample_rate_hz, kChannels, kBitsPerSample,
                            /*allow_resampler=*/true, busy);
 
-        if (!sink_.IsOpen()) {
-            /* No host device: pace done IRQs at the real buffer cadence
-               (bytes / 4 frames at fs) or the ping-pong storms at host speed. */
-            const uint32_t ms = (uint32_t)((uint64_t)p.byte_count * 1000u /
-                                           ((uint64_t)p.sample_rate_hz * 4u));
-            Sleep(ms ? ms : 1u);
-            emu_.Get<Sa1111Sac>().CompleteTransmit(p.buffer_b);
-            return;
-        }
         Slot* slot;
         {
             std::lock_guard<std::mutex> lk(slots_mtx_);
@@ -116,9 +110,12 @@ private:
     }
 
     void LoadIntoSlot(Slot& slot, const Sa1111Sac::TransmitPage& p) {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        for (uint32_t i = 0; i < p.byte_count; ++i) {
-            slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+        {
+            auto  frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+            auto& mem    = emu_.Get<EmulatedMemory>();
+            for (uint32_t i = 0; i < p.byte_count; ++i) {
+                slot.bytes[i] = mem.ReadByte(p.src_pa + i);
+            }
         }
         slot.buffer_b = p.buffer_b;
 
@@ -136,12 +133,13 @@ private:
                 std::lock_guard<std::mutex> lk(slots_mtx_);
                 slot.in_flight = false;
             }
+            auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
             emu_.Get<Sa1111Sac>().CompleteTransmit(p.buffer_b);
         }
     }
 
     void OnPageDone(LPWAVEHDR hdr) {
-        if (!hdr || !sink_.IsOpen()) return;
+        if (!hdr) return;
         auto* slot = reinterpret_cast<Slot*>(hdr->dwUser);
         sink_.Unprepare(&slot->hdr);
 
@@ -158,7 +156,10 @@ private:
             }
         }
 
-        emu_.Get<Sa1111Sac>().CompleteTransmit(completed_buf);
+        {
+            auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+            emu_.Get<Sa1111Sac>().CompleteTransmit(completed_buf);
+        }
         if (have_next) LoadIntoSlot(*slot, next_page);
     }
 };

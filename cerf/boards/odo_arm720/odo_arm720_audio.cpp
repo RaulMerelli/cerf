@@ -12,6 +12,7 @@
 #include "../../cpu/emulated_memory.h"
 #include "../../host/audio_activity_widget.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 #include "../../socs/irq_controller.h"
 
@@ -178,19 +179,24 @@ void OdoArm720AudioPlayer::OnThreadMessage(const MSG& msg) {
         if (done_page == kPagesPerBuffer - 1) {
             bits |= kIoSoundStrPlaybackEndIntr;
         }
-        const bool already_set =
-            emu_.Get<OdoArm720TouchSound>().RaiseSoundStrBits(bits);
+        bool already_set;
+        {
+            auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+            already_set = emu_.Get<OdoArm720TouchSound>().RaiseSoundStrBits(bits);
+
+            if (already_set) {
+                emu_.Get<IrqController>().DeAssertIrq(kSourceTouchAudioAdcIntr);
+
+            } else if (emu_.Get<OdoArm720TouchSound>().SoundIntrEnabled()) {
+                emu_.Get<IrqController>().AssertIrq(kSourceTouchAudioAdcIntr);
+            }
+        }
 
         if (already_set) {
             playback_enabled_.store(false, std::memory_order_release);
-            emu_.Get<IrqController>().DeAssertIrq(kSourceTouchAudioAdcIntr);
             std::lock_guard<std::mutex> lk(state_mutex_);
             if (submitted_pages_ > 0) --submitted_pages_;
             return;
-        }
-
-        if (emu_.Get<OdoArm720TouchSound>().SoundIntrEnabled()) {
-            emu_.Get<IrqController>().AssertIrq(kSourceTouchAudioAdcIntr);
         }
 
         {
@@ -204,8 +210,6 @@ void OdoArm720AudioPlayer::OnThreadMessage(const MSG& msg) {
 }
 
 void OdoArm720AudioPlayer::SubmitNextPage() {
-    if (!sink_.IsOpen()) return;
-
     auto&          dma     = emu_.Get<OdoArm720AudioPlaybackDma>();
     auto&          mem     = emu_.Get<EmulatedMemory>();
     const uint32_t base_pa = dma.GetEffectivePa();
@@ -222,8 +226,11 @@ void OdoArm720AudioPlayer::SubmitNextPage() {
     }
 
     const uint32_t pa = base_pa + page_index * kPageSize;
-    for (uint32_t i = 0; i < kPageSize; ++i) {
-        slot->bytes[i] = mem.ReadByte(pa + i);
+    {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+        for (uint32_t i = 0; i < kPageSize; ++i) {
+            slot->bytes[i] = mem.ReadByte(pa + i);
+        }
     }
 
     std::memset(&slot->hdr, 0, sizeof(slot->hdr));

@@ -5,6 +5,7 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 #include "audio_out_sink.h"
 #include "pxa255_ac97.h"
@@ -76,14 +77,18 @@ public:
         r.ReadBytes(drcmr_, sizeof(drcmr_));
         r.ReadBytes(audio_active_, sizeof(audio_active_));
         r.ReadBytes(touch_active_, sizeof(touch_active_));
-        /* The AC'97 host coupling these flags track is gone after a snapshot; a
-           channel left audio/touch-active would never get its AudioTick/TouchTick,
-           so clear them and let a RUN channel re-arm on the guest's next DCSR. */
         for (uint32_t ch = 0; ch < kNumChannels; ++ch) {
             audio_active_[ch] = false;
             touch_active_[ch] = false;
             audio_sink_[ch]   = nullptr;
         }
+    }
+
+    void PostRestore() override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        for (uint32_t ch = 0; ch < kNumChannels; ++ch)
+            if (dcsr_[ch] & RUN) StartChannelLocked(ch);
+        UpdateIrqLocked();
     }
 
 private:
@@ -255,6 +260,7 @@ private:
     /* Invoked by the AC'97 audio thread when a played buffer completes: raise
        the buffer-complete IRQ and pump the next block (paces the ring). */
     void AudioTick(uint32_t ch) {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (!audio_active_[ch]) return;
         if (!(dcsr_[ch] & RUN)) { StopAudioLocked(ch); UpdateIrqLocked(); return; }
@@ -278,6 +284,7 @@ private:
        and filling only one leaves the other half stale, so the filter rejects a
        moving coordinate as an outlier and sticks touch at the old position. */
     void TouchTick(uint32_t ch) {
+        auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
         std::lock_guard<std::mutex> lk(state_mutex_);
         if (!touch_active_[ch]) return;
         if (!(dcsr_[ch] & RUN)) { StopTouchLocked(ch); UpdateIrqLocked(); return; }

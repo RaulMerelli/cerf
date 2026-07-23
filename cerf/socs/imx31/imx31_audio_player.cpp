@@ -127,7 +127,7 @@ void Imx31AudioPlayer::StartStream() {
 }
 
 void Imx31AudioPlayer::StopStream() {
-    if (sink_.IsOpen()) sink_.Reset();
+    sink_.Reset();
     for (auto& s : slots_) s.in_flight = false;
 }
 
@@ -184,10 +184,6 @@ bool Imx31AudioPlayer::QueuePage() {
     slot->hdr.dwUser         = reinterpret_cast<DWORD_PTR>(slot);
     slot->in_flight          = true;
 
-    if (!sink_.IsOpen()) {
-        sink_.Post(MM_WOM_DONE, 0, reinterpret_cast<LPARAM>(&slot->hdr));
-        return true;
-    }
     if (!sink_.Play(&slot->hdr)) {
         slot->in_flight = false;
         return false;
@@ -199,7 +195,7 @@ bool Imx31AudioPlayer::QueuePage() {
 void Imx31AudioPlayer::OnPageDone(WAVEHDR* hdr) {
     if (!hdr) return;
     Slot* slot = reinterpret_cast<Slot*>(hdr->dwUser);
-    if (sink_.IsOpen()) sink_.Unprepare(&slot->hdr);
+    sink_.Unprepare(&slot->hdr);
     slot->in_flight = false;
 
     uint32_t ch;

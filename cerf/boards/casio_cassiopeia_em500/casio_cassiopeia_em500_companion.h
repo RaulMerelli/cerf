@@ -2,9 +2,13 @@
 
 #include "../../peripherals/peripheral_base.h"
 
+#include "casio_cassiopeia_em500_audio.h"
 #include "casio_cassiopeia_em500_display.h"
+#include "casio_cassiopeia_em500_eeprom.h"
 #include "casio_cassiopeia_em500_modem.h"
+#include "casio_cassiopeia_em500_touch.h"
 
+#include <atomic>
 #include <cstdint>
 
 /* Casio companion ASIC in External I/O area 2 (IOCS0#), PA 0x0A000000 (kseg1
@@ -17,6 +21,7 @@ public:
 
     bool ShouldRegister() override;
     void OnReady() override;
+    void OnShutdown() override;
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return kWindowSize; }
@@ -32,6 +37,9 @@ public:
     void RestoreState(StateReader& r) override;
     void PostRestore() override;
 
+    void SetTouchPen(bool down, int x, int y) { touch_.SetPen(down, x, y); }
+    void TouchCaptureLost() { touch_.OnCaptureLost(); }
+
     bool IsDisplayEnabled() const { return display_.IsDisplayEnabled(); }
     uint32_t GuestW()      const { return display_.GuestW(); }
     uint32_t GuestH()      const { return display_.GuestH(); }
@@ -45,9 +53,15 @@ private:
     static constexpr uint32_t kWindowSize = 0x00240000u;
 
     void WriteReg(uint32_t off, uint32_t value);
+    void WriteCodecCommand(uint32_t value);
+    void WriteSysCtrl(uint32_t off, uint32_t value, uint32_t keep_mask);
+    void UpdateAudioIrqLine();
 
+    CasioCassiopeiaEm500Audio audio_;
     CasioCassiopeiaEm500Display display_;
+    CasioCassiopeiaEm500Eeprom eeprom_;
     CasioCassiopeiaEm500Modem modem_;
+    CasioCassiopeiaEm500Touch touch_;
 
     /* nk_main_kernel.exe sub_9F03C104 @0x9F03C120, sub_9F03C140 @0x9F03C160,
        @0x9F033174/@0x9F0331B8. */
@@ -71,14 +85,12 @@ private:
     uint32_t socket_a038_ = 0;
     /* nk_main_kernel.exe sub_9F08EE0C @0x9F08EE28/@0x9F08EE34. */
     uint16_t intcfg8404_ = 0;
-    /* wavedev.dll sub_F616F4 @0xF61708, loc_F61EAC @0xF61EC8-0xF61F4C,
-       sub_F62520 @0xF62550-0xF62596; 0x1118 read @0xF61822-0xF6182E. */
-    uint32_t codec880_  = 0;
-    uint32_t codec884_  = 0;
-    uint32_t codec888_  = 0;
-    uint32_t codec890_  = 0;
-    uint32_t codec898_  = 0;
-    uint32_t codec8A0_  = 0;
+    /* wavedev.dll 0x03C0 register file; 0x03F4 data port latched by the 0x5000
+       read command @0xF629F6 and read at @0xF62A04. */
+    uint16_t codec_regs_[6] = {};
+    uint8_t  codec_written_ = 0;
+    uint32_t codec_data_ = 0;
+    bool     codec_data_valid_ = false;
     uint32_t latch1118_ = 0;
     /* nk_main_kernel.exe @0x9F035930 (sw 0x10), idle @0x9F0388F4 (lw; andi 1). */
     uint32_t latch130C_ = 0;
@@ -89,7 +101,6 @@ private:
        (&~0x38); IST @0xED15D6-0xED15E4 (&~0x30|8), @0xED1682-0xED168C (&~0x38);
        gate sub_ED19A0 (&0x40). */
     uint32_t adc_ctrl_89C_ = 0;
-    uint32_t eeprom_ctrl_a118_ = 0;   /* eeprom.dll @0xF2198C (companion 0xA118) */
     /* nk_main_kernel.exe sub_9F08F334 case17 @0x9F08F388 / case24 @0x9F08F3A4
        (RMW enable config), @0x9F033A84 (sw 0); consumed @0x9F036608 (lw 0x304;
        raw & (raw>>8) = pending[7:0] & enable[15:8] cascade demux). */
@@ -98,7 +109,7 @@ private:
        (0x0900/0x0908/0x090C). */
     uint32_t sib_regs_[5] = {};
     /* nk_main_kernel.exe sub_9F038AF0 @0x9F038AF8 */
-    uint32_t bus_timing_[16] = {};
+    std::atomic<uint32_t> sys_ctrl_[16] = {};
     /* nk_main_kernel.exe @0x9F0330DC-0x9F0330F0; keybddr.dll sub_FB1F80
        base+(0x30+i)*2, i=0..15. */
     uint16_t edge_cfg_[16] = {};

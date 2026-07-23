@@ -19,6 +19,7 @@ public:
     using Service::Service;
 
     void OnReady() override;
+    void OnShutdown() override;
 
 protected:
     virtual Sa11xxAudioConfig AudioConfig() const = 0;

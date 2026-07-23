@@ -39,6 +39,7 @@ private:
 
     bool InFb(uint32_t off) const { return off >= kFbOffset && off < kFbOffset + kFbSize; }
     void RunBlit();
+    void RunFill();
     void MaybePublishDisplaySize();
 
     CerfEmulator* emu_ = nullptr;
@@ -50,6 +51,15 @@ private:
     uint32_t blit_len_words_ = 0;
     uint32_t blit_src_       = 0;
     uint32_t blit_dst_       = 0;
+
+    /* ddi.dll sub_FC48A0 @0xFC48A0 (companion 0x200 window:
+       0x210/0x214/0x208/0x20C/0x204/0x200). */
+    uint32_t fill_dst_lo_ = 0;
+    uint32_t fill_dst_hi_ = 0;
+    uint32_t fill_w_      = 0;
+    uint32_t fill_h_      = 0;
+    uint32_t fill_color_  = 0;
+    uint32_t fill_cmd_    = 0;
 
     /* nk_main_kernel.exe sub_9F03445C @0x9F03446C-0x9F034484 (0x984=1, 0x988=0x1B7,
        0x98C=0x1B7, 0x980=1), power-down @0x9F038B48-0x9F038B58 (0x980=0, 0x994=0);

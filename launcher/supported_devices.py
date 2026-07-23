@@ -328,7 +328,7 @@ BOARDS_INFORMATION = [
         "features": {
             "display": True,
             "touch": True,
-            "sound": False,
+            "sound": True,
             "guest_additions": True,
             "suspend": False,
             "keyboard": False,
