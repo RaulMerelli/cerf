@@ -400,7 +400,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
                          command=lambda: self._rename_device(d))
         menu.add_command(label="Open device folder",
                          command=lambda: self._open_device_folder(d))
-        if d.has_update:
+        if d.has_update or d.has_cerf_json_update:
             menu.add_command(label="Update", command=self._update_selected)
         menu.add_separator()
         menu.add_command(label="Remove", command=self._delete_selected)
@@ -428,13 +428,15 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         if self.busy:
             return
         d = sel.device
-        any_updateable = any(x.has_update or x.has_package_updates
+        any_updateable = any(x.has_update or x.has_cerf_json_update
+                             or x.has_package_updates
                              for x in self.tree_panel.devices)
         if sel.kind == "device" and d is not None:
             can_discard = saved_state_info(
                 self.manager.devices_dir / d.name) is not None
-            self.toolbar.set_selection_enabled(d.has_update, any_updateable,
-                                               d.is_installed, can_discard)
+            self.toolbar.set_selection_enabled(
+                d.has_update or d.has_cerf_json_update, any_updateable,
+                d.is_installed, can_discard)
         else:
             self.toolbar.set_selection_enabled(False, any_updateable,
                                                False, False)

@@ -44,22 +44,42 @@ class OperationsMixin:
             exc, f"Installed {ps.remote.name} for {d.name}"))
 
     def _update_selected(self) -> None:
-        self._download_selected()
+        sel = self.tree_panel.selection()
+        if sel.kind == "device" and sel.device is not None:
+            self._apply_device_update(sel.device)
+
+    def _apply_device_update(self, d: DeviceBundle) -> None:
+        if self.busy:
+            return
+        if d.has_update:
+            self._download_selected()
+        elif d.has_cerf_json_update:
+            self._refresh_cerf_json(d)
+
+    def _refresh_cerf_json(self, d: DeviceBundle) -> None:
+        if self.busy or d.remote is None:
+            return
+        self._set_busy(True, f"Updating {d.name} config…")
+        f = self.manager.submit_refresh_cerf_json(d.name)
+        self._await_future(f, lambda exc: self._after_op(
+            exc, f"Updated {d.name} config"))
 
     def _update(self) -> None:
         if self.busy:
             return
         sel = self.tree_panel.selection()
         d = sel.device
-        rom_update_devices = [x for x in self.tree_panel.devices if x.has_update]
-        if not (sel.kind == "device" and d is not None and d.has_update):
+        update_devices = [x for x in self.tree_panel.devices
+                          if x.has_update or x.has_cerf_json_update]
+        if not (sel.kind == "device" and d is not None
+                and (d.has_update or d.has_cerf_json_update)):
             self._update_all()
             return
-        others = [x for x in rom_update_devices if x is not d]
+        others = [x for x in update_devices if x is not d]
         if not others:
-            self._download_selected()
+            self._apply_device_update(d)
             return
-        n = len(rom_update_devices)
+        n = len(update_devices)
         more = len(others)
         all_label = f"Update {n} devices"
         one_label = "Update only this device"
@@ -70,7 +90,7 @@ class OperationsMixin:
             f"Would you like to update all or only this one?",
             (all_label, one_label, "Cancel"), default="Cancel")
         if choice == one_label:
-            self._download_selected()
+            self._apply_device_update(d)
         elif choice == all_label:
             self._update_all()
 
@@ -118,9 +138,10 @@ class OperationsMixin:
             return
         devices = self.tree_panel.devices
         rom_targets = [d for d in devices if d.has_update]
+        cfg_targets = [d for d in devices if d.has_cerf_json_update]
         pkg_targets: List[Tuple[DeviceBundle, PackageStatus]] = [
             (d, ps) for d in devices for ps in d.packages if ps.has_update]
-        if not rom_targets and not pkg_targets:
+        if not rom_targets and not cfg_targets and not pkg_targets:
             show_info(self, "Update all",
                       "All installed bundles and packages are up to date.")
             return
@@ -128,13 +149,14 @@ class OperationsMixin:
         if filtered is None:
             return
         rom_targets, pkg_targets = filtered
-        total = len(rom_targets) + len(pkg_targets)
+        total = len(rom_targets) + len(pkg_targets) + len(cfg_targets)
         if not total:
             show_info(self, "Update all",
                       "Only large bundles need updating - update each from the "
                       "table individually.")
             return
-        if not confirm_rom_license(self, f"{total} item(s)"):
+        if (rom_targets or pkg_targets) and not confirm_rom_license(
+                self, f"{total} item(s)"):
             return
         self._set_busy(True, f"Updating {total} item(s)…")
         work: List[Tuple[str, Callable[[], Future]]] = []
@@ -147,6 +169,10 @@ class OperationsMixin:
                          self.manager.submit_install_package(
                              name, c, k, progress=self._progress_cb,
                              cancel_event=self.cancel_event)))
+        for d in cfg_targets:
+            work.append((f"{d.name} config",
+                         lambda name=d.name:
+                         self.manager.submit_refresh_cerf_json(name)))
         self._run_sequence(work)
 
     def _run_sequence(self, work: List[Tuple[str, Callable[[], Future]]]) -> None:

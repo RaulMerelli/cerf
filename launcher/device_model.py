@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from device_state import DeviceBundle, PackageStatus
 from board_catalog_schema import sort_text
-from board_info import board_display_name, board_sort_key
+from board_info import board_display_name, board_soc_label, board_sort_key
 
 
 # Board-group row iids contain ':' which is invalid in Windows directory
@@ -36,14 +36,8 @@ def _sort_optional_int(value: object, *, missing_when_zero: bool = True) -> tupl
     return (missing, number)
 
 
-def _effective_board_name(d: DeviceBundle) -> str:
-    """meta.board_name, falling back to the supported_devices.py board name
-    for devices whose cerf.json carries none (wizard-created user devices)."""
-    return d.meta.board_name or board_display_name(d.meta.board_id)
-
-
 def _board_group_key(d: DeviceBundle) -> tuple[int, str]:
-    return board_sort_key(_effective_board_name(d))
+    return board_sort_key(board_display_name(d.meta.board_id))
 
 
 def _device_group_name(d: DeviceBundle) -> str:
@@ -55,7 +49,7 @@ def _device_group_key(d: DeviceBundle) -> tuple[int, str]:
     """Device-name group order: alphabetical within the board tiers of
     board_sort_key, so the Device Emulator board's device groups stay pinned
     last regardless of what its ROMs' device names are."""
-    tier, _ = board_sort_key(_effective_board_name(d))
+    tier, _ = board_sort_key(board_display_name(d.meta.board_id))
     return (tier, sort_text(_device_group_name(d)))
 
 
@@ -131,8 +125,8 @@ def _device_search_haystack(d: DeviceBundle) -> str:
         d.meta.name,
         _table_device_label(d),
         _table_os_label(d),
-        d.meta.board_name or "",
-        d.meta.soc_family or "",
+        board_display_name(d.meta.board_id),
+        board_soc_label(d.meta.board_id),
         d.state_label,
         d.name,
     ]

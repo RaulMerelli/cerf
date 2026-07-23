@@ -75,8 +75,6 @@ void LoadMeta(const json& root, DeviceMeta& meta, const std::string& path) {
 
     SetMetaString(meta.name,        m, "name",        path, "meta");
     SetMetaString(meta.device_name, m, "device_name", path, "meta");
-    SetMetaString(meta.board_name,  m, "board_name",  path, "meta");
-    SetMetaString(meta.soc_family,  m, "soc_family",  path, "meta");
     SetMetaInt   (meta.device_year, m, "device_year", path, "meta");
 
     if (m.contains("os")) {

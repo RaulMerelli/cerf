@@ -34,6 +34,14 @@ Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots
   </thead>
   <tbody>
     <tr>
+      <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>NEC VR4122</b><br/><sub>MIPS III</sub></td>
+      <td>
+        <img src="cerf/assets/icons_sources/board.svg" width="16" height="16" title="PDA" alt="PDA"/> <b>Casio Cassiopeia EM-500</b> <code>casio_cassiopeia_em500</code><br/>
+        Pocket PC 2000
+      </td>
+      <td><img src="cerf/assets/icons_sources/display.svg" width="32" height="32" title="Display" alt="Display"/> <img src="cerf/assets/icons_sources/stylus.svg" width="32" height="32" title="Touch" alt="Touch"/> <img src="cerf/assets/icons_sources/ga_autoresize.svg" width="32" height="32" title="Guest Additions" alt="Guest Additions"/></td>
+    </tr>
+    <tr>
       <td align="center"><img src="launcher/assets/icons/badge_mips.png" align="middle" title="MIPS" alt="MIPS"/><br/><b>NEC VR4121</b><br/><sub>MIPS III</sub></td>
       <td>
         <img src="cerf/assets/icons_sources/board.svg" width="16" height="16" title="PDA" alt="PDA"/> <b>Casio Toricomail</b> <code>casio_toricomail</code><br/>
@@ -261,20 +269,22 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>TBA</td>
       <td>
         <p><b>📱 Devices</b><br/>
+          🆕 <b>Casio Cassiopeia EM-500</b> (Pocket PC 2000, NEC VR4122) - display and touch<br/>
           ✅ Sharp Mobilon HC-4100: fixed suspend crash</p>
         <p><b>💿 Emulator</b><br/>
           🆕 Discord Rich Presence - shows the current device and OS in your Discord profile<br/>
+          🆕 UI updates<br/>
           ✅ Fixed framebuffer not relatching on suspend/resume<br/>
           ✅ Fixed 100% CPU usage and UI deadlocks on Windows XP on non-framebuffer tabs</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 UI refresh<br/>
-          ✅ Remote metadata-only updates no longer mark installed bundles as pending an update</p>
+          ✅ Metadata-only remote updates no longer re-download the entire ROM<br/>
+          ✅ Fixed the command-line interface producing no output<br/>
+          ❌ Removed the redundant soc_family and board_name fields from cerf.json</p>
         <p><b>💾 CE Apps</b><br/>
           ✅ CerfDemo: UI and performance improvements</p>
         <p><b>✨ Guest Additions</b><br/>
-          🆕 High refresh rate support - use Windows CE with 240 hz display! (Or whatever Hz you have).<br/>
-          🆕 Yes, this should be taken LITERALLY. WinCE WILL render 240 fps on your 240 hz monitor.<br/>
-          🆕 The guest video mode and host window scanout follow the host monitor&#x27;s refresh rate<br/>
+          🆕 High refresh rate support - use Windows CE with 240 hz display! (Or whatever Hz you have). Yes, this should be taken LITERALLY. WinCE WILL render 240 fps on your 240 hz monitor. The guest video mode and host window scanout follow the host monitor&#x27;s refresh rate<br/>
           🆕 --screen-refresh-rate flag to set the refresh rate manually<br/>
           🆕 Touch-calibration helper - offers to switch to the stock input device when the guest opens a calibration screen, and switches back afterwards<br/>
           ✅ Input devices now run at the proper priority, staying responsive under heavy guest CPU load</p>

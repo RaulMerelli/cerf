@@ -141,16 +141,19 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
         if args.command == "list":
             for d in manager.list_devices():
                 state = "installed"
-                if d.has_update:    state = "update available"
-                elif not d.is_installed: state = "available"
-                elif d.is_user_device:   state = "user device"
+                if d.has_update:             state = "update available"
+                elif d.has_cerf_json_update: state = "device pending update"
+                elif not d.is_installed:     state = "available"
+                elif d.is_user_device:       state = "user device"
                 line = f"{d.name:32} {state:18}"
                 if d.remote:
                     line += f" {d.remote.updated_at}"
                 print(line)
             return 0
         if args.command == "update-all":
-            targets = [d for d in manager.list_devices() if d.has_update]
+            devices = manager.list_devices()
+            targets = [d for d in devices if d.has_update]
+            cfg_targets = [d for d in devices if d.has_cerf_json_update]
             if targets:
                 _print_rom_license_notice(f"{len(targets)} bundle(s)")
             for d in targets:
@@ -158,6 +161,9 @@ def run_cli(devices_dir: Path, argv: List[str]) -> int:
                 print(f"Updating {d.name}...")
                 _install_device(manager, d, cancel)
                 print()
+            for d in cfg_targets:
+                print(f"Updating {d.name} config...")
+                manager.submit_refresh_cerf_json(d.name).result()
             return 0
         if args.command == "download-packages-all":
             _download_packages_all(manager, cancel)

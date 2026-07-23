@@ -14,7 +14,6 @@ public:
     SocFamily   GetSoc()     const override { return SocFamily::VR5500; }
     CpuArch     GetCpuArch() const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "Rockhopper"; }
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{640u, 480u};
     }

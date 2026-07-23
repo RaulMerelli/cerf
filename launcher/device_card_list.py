@@ -242,7 +242,7 @@ class DeviceCardList:
                 parts.append(ce)
         if d.meta.os_year:
             parts.append(str(d.meta.os_year))
-        soc = d.meta.soc_family or board_soc_label(d.meta.board_id)
+        soc = board_soc_label(d.meta.board_id)
         size = (format_size(d.remote.unpacked_size) if d.remote
                 else format_size(d.rom_size))
         prefix = "  ·  ".join(parts)
@@ -350,7 +350,7 @@ class DeviceCardList:
     def _card_colors(self, d: DeviceBundle) -> Tuple[str, str]:
         if running_status(self._devices_dir / d.name) is not None:
             return theme.CARD_RUNNING_BG, theme.CARD_RUNNING_SEL
-        if d.has_update:
+        if d.has_update or d.has_cerf_json_update:
             return theme.CARD_UPDATE_BG, theme.CARD_UPDATE_SEL
         return theme.BG_LIGHTER, theme.BG_HOVER
 

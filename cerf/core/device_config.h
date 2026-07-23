@@ -8,8 +8,6 @@
 struct DeviceMeta {
     std::string name;
     std::string device_name;
-    std::string board_name;
-    std::string soc_family;
     std::string os_name;
     int         os_ver_major = 0;
     int         os_ver_minor = 0;

@@ -52,7 +52,8 @@ void BootScreen::OnShutdown() {
 }
 
 void BootScreen::OnReady() {
-    short_name_ = Utf8ToWide(emu_.Get<BoardContext>().GetShortBoardName());
+    auto& bc = emu_.Get<BoardContext>();
+    short_name_ = Utf8ToWide(BoardContext::ShortBoardName(bc.GetBoard()));
 }
 
 void BootScreen::RenderInto(HDC, uint32_t* dib_bgra32,

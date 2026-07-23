@@ -89,9 +89,8 @@ def board_display_name(board_id: str) -> str:
 
 
 def board_soc_label(board_id: str) -> str:
-    """Display label of the board's SoC ("Samsung S3C2410 (ARM920T)"), the
-    same shape a remote bundle's meta.soc_family carries; "" when the launcher
-    has no SoC data for the board_id."""
+    """Display label of the board's SoC ("Samsung S3C2410 (ARM920T)"); "" when
+    the launcher has no SoC data for the board_id."""
     entry = _board_entry(board_id)
     if entry is None:
         return ""

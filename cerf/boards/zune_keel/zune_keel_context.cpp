@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::iMX31; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "Zune 30"; }
 
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 240, 320 };

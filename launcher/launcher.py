@@ -11,6 +11,7 @@ if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
 from app_paths import resolve_cerf_exe, resolve_devices_dir
+from cli_console import attach_parent_console
 from launcher_cli import run_cli
 from operations import BundleManager
 from ui_theme import enable_dpi_awareness
@@ -29,6 +30,10 @@ def main(argv: List[str]) -> int:
         enable_dpi_awareness()
         run_post_upgrade(wait_pid)
 
+    cli = bool(argv) and argv[0] == "sync"
+    if cli:
+        attach_parent_console()
+
     devices_dir = resolve_devices_dir()
     if not devices_dir.exists():
         try:
@@ -37,7 +42,7 @@ def main(argv: List[str]) -> int:
             print(f"ERROR: cannot create {devices_dir}: {exc}", file=sys.stderr)
             return 1
 
-    if argv and argv[0] == "sync":
+    if cli:
         return run_cli(devices_dir, argv[1:])
 
     enable_dpi_awareness()

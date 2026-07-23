@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::SA1110; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char* GetShortBoardName() const override { return "SmartBook G138"; }
     /* 800x480 LCD (registry Drivers\Display\MQ200 CxScreen=0x320, CyScreen=0x1E0).
        Cosmetic pre-boot hint only; the live size comes from MQ200 OnLcdEnabled. */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {

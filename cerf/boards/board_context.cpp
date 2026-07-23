@@ -78,6 +78,33 @@ const char* BoardContext::BoardName(Board b) {
     return "Unknown / unsupported";
 }
 
+const char* BoardContext::ShortBoardName(Board b) {
+    switch (b) {
+        case Board::Unknown:          return "Unknown / unsupported";
+        case Board::Smdk2410DevEmu:   return "Device Emulator";
+        case Board::OdoArm720:        return "Reference Platform";
+        case Board::OmapEvm3530:      return "OMAP3530 EVM";
+        case Board::IpaqGen1:         return "iPAQ";
+        case Board::ZuneKeel:         return "Zune 30";
+        case Board::FalconPC3xx:      return "Falcon 4220";
+        case Board::Jornada720:       return "Jornada 720";
+        case Board::Jornada820:       return "Jornada 820";
+        case Board::SimpadSl4:        return "SIMpad SL4";
+        case Board::NecMobilePro900:  return "MobilePro 900";
+        case Board::FordSyncGen2:     return "Ford SYNC 2";
+        case Board::SiemensP177:      return "SIMATIC TP177B";
+        case Board::SmartBookG138:    return "SmartBook G138";
+        case Board::NecRockhopper:    return "Rockhopper";
+        case Board::NecMobilePro700:  return "MobilePro 700";
+        case Board::CasioToricomail:  return "Toricomail";
+        case Board::PhilipsNino300:   return "Nino 300";
+        case Board::PhilipsVelo1:     return "Velo 1";
+        case Board::SharpMobilonHc4100: return "Mobilon HC-4100";
+        case Board::CasioCassiopeiaEm500: return "EM-500";
+    }
+    return "Unknown / unsupported";
+}
+
 const char* BoardContext::SocFamilyName(SocFamily f) {
     switch (f) {
         case SocFamily::Unknown:   return "Unknown";

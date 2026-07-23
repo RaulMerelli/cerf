@@ -19,6 +19,7 @@ from bundles import (
 
 STATE_INSTALLED = "Installed"
 STATE_UPDATE    = "Update available"
+STATE_CONFIG    = "Device pending update"
 STATE_AVAILABLE = "Available"
 STATE_USER      = "User device"
 
@@ -54,9 +55,7 @@ class DeviceSource:
 class DeviceMeta:
     name: str = ""
     device_name: str = ""
-    board_name: str = ""
     board_id: str = ""
-    soc_family: str = ""
     os_name: str = ""
     os_ver_major: int = 0
     os_ver_minor: int = 0
@@ -132,6 +131,9 @@ class DeviceBundle:
     # Size of the local rom.primary file; the card's size fallback for
     # devices with no remote (a remote bundle shows its unpacked_size).
     rom_size: Optional[int] = None
+    # Set only when on-disk cerf.json differs from the remote and no ROM
+    # update is pending.
+    cerf_json_pending: bool = False
 
     def __post_init__(self) -> None:
         if not self.key:
@@ -154,11 +156,17 @@ class DeviceBundle:
                 and self.installed_sha256.lower() != self.remote.archive_sha256.lower())
 
     @property
+    def has_cerf_json_update(self) -> bool:
+        return self.cerf_json_pending
+
+    @property
     def state_label(self) -> str:
         if self.is_user_device:
             return STATE_USER
         if self.has_update:
             return STATE_UPDATE
+        if self.has_cerf_json_update:
+            return STATE_CONFIG
         if self.is_installed:
             return STATE_INSTALLED
         return STATE_AVAILABLE
@@ -250,8 +258,6 @@ def parse_cerf_json_object(obj) -> tuple[DeviceMeta, Optional[int], Optional[int
     if isinstance(m, dict):
         meta.name = _str_or_empty(m.get("name"))
         meta.device_name = _str_or_empty(m.get("device_name"))
-        meta.board_name = _str_or_empty(m.get("board_name"))
-        meta.soc_family = _str_or_empty(m.get("soc_family"))
         meta.device_year = _int_or_zero(m.get("device_year"))
         meta.description = _str_or_empty(m.get("description"))
         meta.notes = _str_list(m.get("notes"))
@@ -334,19 +340,16 @@ def _load_json_object(path: Path):
     return obj if isinstance(obj, dict) else None
 
 
-def write_cerf_json_if_changed(path: Path, obj: dict) -> bool:
-    """Rewrite cerf.json only when its parsed content differs from obj.
-    Comparison is semantic (parsed JSON), so reformatting / key reordering
-    on disk never triggers a spurious rewrite. Returns True if written."""
+def cerf_json_differs(path: Path, obj: dict) -> bool:
+    """True when the on-disk cerf.json parses to something other than obj.
+    Comparison is semantic (parsed JSON): reformatting / key reordering never
+    counts; a missing or corrupt file counts as differing."""
     try:
         with path.open("r", encoding="utf-8") as f:
             existing = json.load(f)
     except (OSError, json.JSONDecodeError):
         existing = None
-    if existing == obj:
-        return False
-    write_cerf_json(path, obj)
-    return True
+    return existing != obj
 
 
 @dataclass

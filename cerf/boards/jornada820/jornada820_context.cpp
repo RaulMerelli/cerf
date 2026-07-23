@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::SA1100; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "Jornada 820"; }
     /* Fixed 640x480 VGA dual-panel STN; size the window to it pre-boot. */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 640, 480 };

@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::Poseidon; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "Reference Platform"; }
 
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{ 480, 240 };

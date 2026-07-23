@@ -12,7 +12,6 @@ public:
     SocFamily      GetSoc()            const override { return SocFamily::PR31700; }
     CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName() const override { return "Nino 300"; }
     /* 240x320 portrait: VIDEO_CTL2 HORZVAL=59, LINEVAL=319 (nk.exe sub_9F434078). */
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{240, 320};

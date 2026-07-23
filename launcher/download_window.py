@@ -10,7 +10,7 @@ from device_model import (GROUP_IID_PREFIX, _device_group_key,
                           _device_group_name, _device_sort_key,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
-from board_info import board_soc_cpu, board_support_state
+from board_info import board_soc_cpu, board_soc_label, board_support_state
 from screen_geometry import fit_geometry
 from sources_dialog import SourcesDialog
 import ui_theme as theme
@@ -229,7 +229,7 @@ class DownloadWindow:
     def _insert_device_row(self, parent: str, d: DeviceBundle) -> None:
         tree = self.tree
         self._sizes[d.key] = d.remote.archive_size or 0
-        soc = d.meta.soc_family or ""
+        soc = board_soc_label(d.meta.board_id)
         tree.insert(parent, "end", iid=d.key, open=bool(d.meta.os_notes),
                     text=self._check_glyph(d.key) + _table_os_label(d),
                     values=(soc, format_size(d.remote.archive_size) or ""))

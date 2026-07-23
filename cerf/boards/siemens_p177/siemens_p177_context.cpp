@@ -12,7 +12,6 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::S3C2410; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "SIMATIC TP177B"; }
 
     std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
         return PreferredWindowSize{480u, 272u};

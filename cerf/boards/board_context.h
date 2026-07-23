@@ -73,11 +73,6 @@ public:
     virtual CpuArch        GetCpuArch()         const = 0;
     virtual RomPlacingMode GetRomPlacingMode()  const = 0;
 
-    /* Short consumer name shown on the boot screen beneath the OEM logo
-       ("Starting <name>..."). Defaults to the full board name; boards
-       override with a brief device name. */
-    virtual const char* GetShortBoardName() const { return BoardName(GetBoard()); }
-
     /* Cosmetic pre-boot window-size hint for boards with a single fixed LCD.
        Never route actual sizing through this - the real resolution comes
        solely from OnLcdEnabled, and overriding that here would ignore what
@@ -95,6 +90,7 @@ public:
     virtual uint32_t GuestAdditionsWindowBase() const { return 0xF0000000u; }
 
     static const char* BoardName(Board b);
+    static const char* ShortBoardName(Board b);
     static const char* SocFamilyName(SocFamily f);
 
     static std::span<const BoardIdEntry> BoardIds();

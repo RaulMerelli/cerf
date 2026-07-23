@@ -12,7 +12,7 @@ public:
     SocFamily   GetSoc()    const override { return SocFamily::OMAP3530; }
     CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
     RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    const char*    GetShortBoardName()  const override { return "OMAP3530 EVM"; }};
+};
 
 }  /* namespace */
 

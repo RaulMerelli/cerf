@@ -43,11 +43,11 @@ from device_state import (
     PackageStatus,
     load_local_manifest,
     package_artifact_present,
+    cerf_json_differs,
     parse_cerf_json,
     parse_cerf_json_object,
     save_local_manifest,
     write_cerf_json,
-    write_cerf_json_if_changed,
 )
 
 
@@ -93,7 +93,6 @@ class BundleManager:
         self._remote_index = {(rb.repo_url, rb.name): rb
                               for rb in self.remote_bundles}
         self.download_places = load_analytics(repositories)
-        self._reconcile_cerf_json()
         self._backfill_installed_sha256()
 
     def _local_device_dirs(self) -> List[Path]:
@@ -121,20 +120,6 @@ class BundleManager:
             return None
         return self._remote_index.get(
             (link.repository_url, link.name_on_repository))
-
-    def _reconcile_cerf_json(self) -> None:
-        """Manifest v2 no longer ships cerf.json inside the ROM zip; the
-        launcher owns it. Whenever the remote cerf_json for an installed
-        device differs from the on-disk copy, silently rewrite it."""
-        for device_dir in self._local_device_dirs():
-            rb = self._remote_for_dir(device_dir)
-            if rb is None or rb.cerf_json is None:
-                continue
-            try:
-                write_cerf_json_if_changed(device_dir / "cerf.json",
-                                           rb.cerf_json)
-            except OSError:
-                pass
 
     def _backfill_installed_sha256(self) -> None:
         changed = False
@@ -173,7 +158,7 @@ class BundleManager:
     def _fill_meta_gaps(self, existing: DeviceBundle, remote_meta: DeviceMeta,
                         remote_w: Optional[int],
                         remote_h: Optional[int]) -> None:
-        for f in ("device_name", "board_name", "board_id", "soc_family",
+        for f in ("device_name", "board_id",
                   "os_name", "os_ver_major", "os_ver_minor", "os_ver_build",
                   "os_language", "device_year", "os_year", "os_notes",
                   "forbid_guest_additions"):
@@ -212,6 +197,9 @@ class BundleManager:
                 d.remote = rb
                 d.packages = self._package_statuses(rb, entry.name, entry)
                 self._fill_meta_gaps(d, *self._remote_meta_of(rb))
+                if (not d.has_update and rb.cerf_json is not None
+                        and cerf_json_differs(entry / "cerf.json", rb.cerf_json)):
+                    d.cerf_json_pending = True
             result[d.key] = d
 
         for rb in self.remote_bundles:
@@ -253,6 +241,19 @@ class BundleManager:
         dir_name = device.name if device.local_dir_exists else None
         return self._pool.submit(self._do_install, rb.repo_url, rb.name,
                                  dir_name, progress, cancel_event)
+
+    def submit_refresh_cerf_json(self, dir_name: str) -> Future:
+        """Write the remote manifest's cerf_json to an installed device without
+        a ROM download."""
+        return self._pool.submit(self._do_refresh_cerf_json, dir_name)
+
+    def _do_refresh_cerf_json(self, dir_name: str) -> str:
+        device_dir = self._bundle_dir(dir_name)
+        rb = self._remote_for_dir(device_dir)
+        if rb is None or rb.cerf_json is None:
+            raise BundleError(f"{dir_name}: no remote cerf.json to apply")
+        write_cerf_json(device_dir / "cerf.json", rb.cerf_json)
+        return dir_name
 
     def _do_install(self, repo_url: str, remote_name: str,
                     dir_name: Optional[str], progress: ProgressFn,
