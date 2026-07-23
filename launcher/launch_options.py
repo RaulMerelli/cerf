@@ -358,7 +358,11 @@ class LaunchOptionsPanel:
                        f"{label} must be at least 1 px.")
             entry.focus_set()
             return None
-        var.set(str(value))
+        self._res_sync_guard = True
+        try:
+            var.set(str(value))
+        finally:
+            self._res_sync_guard = False
         return value
 
     def _set_block_visible(self, visible: bool, *widgets: tk.Widget) -> None:
