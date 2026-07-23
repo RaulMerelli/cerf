@@ -494,6 +494,14 @@ against the repo-root `.last-release-version`. It owns the developer-editable
 supported-boards / board-quirk list (`supported_devices.py`), whose per-board
 `notes` surface in the side panel and extend a ROM's own `cerf.json` notes.
 
+**The launcher ships on CPython 3.7.9** (the newest that loads on its Windows
+Vista floor - see `launcher/build.ps1`), so every `launcher/*.py` must stay
+3.7-compatible: no 3.8+ stdlib/syntax (`Path.unlink(missing_ok=)`,
+`str.removeprefix`/`removesuffix`, `math.isqrt`, the walrus `:=`, …). A 3.8+ call
+passes on a dev's modern Python but crashes the shipped exe at runtime; the
+repo's cached 3.7 interpreter (`references/python/cpython-3.7.9-x86/python.exe`)
+is the check to run.
+
 - `launcher/` (`launcher.py`, `bundles.py`, `operations.py`,
 `supported_devices.py`)
 
