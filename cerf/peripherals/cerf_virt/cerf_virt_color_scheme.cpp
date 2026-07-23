@@ -50,6 +50,15 @@ const uint32_t kCe4[27] = {
     0x00C0C0C0, 0x00000000,
 };
 
+const uint32_t kWin2k[27] = {
+    0x00C8D0D4, 0x00A56E3A, 0x006A240A, 0x00808080, 0x00C8D0D4,
+    0x00FFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00FFFFFF,
+    0x00C8D0D4, 0x00C8D0D4, 0x00808080, 0x006A240A, 0x00FFFFFF,
+    0x00C8D0D4, 0x00808080, 0x00808080, 0x00000000, 0x00C8D0D4,
+    0x00FFFFFF, 0x00404040, 0x00C8D0D4, 0x00000000, 0x00E1FFFF,
+    0x00C8D0D4, 0x00800000,
+};
+
 const uint32_t kXp[27] = {
     0x00C8D0D4, 0x00A56E3A, 0x00E35400, 0x00DF967A, 0x00DEEBEF,
     0x00FFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00FFFFFF,
@@ -120,6 +129,7 @@ SchemeTable ResolveTable(const std::string& key) {
     if (key == "ce2_grayscale") return { kCe2Grayscale, 27 };
     if (key == "hpc2000")       return { kHpc2000,      27 };
     if (key == "ce4")           return { kCe4,          27 };
+    if (key == "win2k")         return { kWin2k,        27 };
     if (key == "xp")            return { kXp,           27 };
     if (key == "vista")         return { kVista,        27 };
     if (key == "wm5")           return { kWm5,          29 };

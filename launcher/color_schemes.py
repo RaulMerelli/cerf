@@ -13,6 +13,7 @@ COLOR_SCHEMES = [
     ("hpc3",          HANDHELD_PC_PRO.name),
     ("hpc2000",       HANDHELD_PC_2000.name),
     ("ce4",           WINDOWS_CE_NET.name),
+    ("win2k",         "Windows 2000"),
     ("xp",            "Windows XP Luna"),
     ("vista",         "Windows Vista"),
     ("wm5",           WINDOWS_MOBILE_5.name),
