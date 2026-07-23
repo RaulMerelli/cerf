@@ -14,7 +14,7 @@
 #if CERF_DEV_MODE
 std::atomic<uint64_t> Log::detail::enabled_mask{Log::MASK_ALL};
 #else
-std::atomic<uint64_t> Log::detail::enabled_mask{Log::MASK_NONE};
+std::atomic<uint64_t> Log::detail::enabled_mask{Log::MASK_PRODUCTION_DEFAULT};
 #endif
 static FILE* g_logfile = nullptr;
 static std::atomic<bool> g_flush{false};

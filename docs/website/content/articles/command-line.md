@@ -17,8 +17,9 @@ below is for running `cerf.exe` directly.
 
 ## Logs
 
-CERF writes `cerf.log` next to the executable. It is **quiet by default**: only critical lines are
-written. Turn channels on with `--log=ALL`, or name the ones you want:
+CERF writes `cerf.log` next to the executable. By default it carries a **limited set of channels** -
+enough to see a boot fail or a device misbehave, without spam. For full detail use `--log=ALL`, or
+name the ones you want:
 
 ```
 cerf.exe --log=BOOT,JIT,MMU

@@ -4,8 +4,8 @@ CERF crashed, or a device misbehaves. Here is what makes a report worth filing.
 
 ## Reproduce it with the logs on
 
-CERF's log is nearly empty by default. A report built on a quiet log usually cannot be acted on at
-all - the interesting lines were never written.
+CERF's log carries only a limited default set of channels. A report built on it usually cannot be
+acted on at all - the interesting lines were never written.
 
 So the first step is to **find a reproducible state**: the shortest sequence of steps that brings
 the fault back. Then run it again with every log channel enabled:
@@ -26,7 +26,7 @@ Both sit next to `cerf.exe`:
 
 !!! warning "Reproduce first, then report"
 
-    A crash log from a run with no log channels enabled says *that* CERF died, not *why*. If the
+    A crash log from a run with only the default channels says *that* CERF died, not *why*. If the
     fault is reproducible, always send the second run's files.
 
 ## File it

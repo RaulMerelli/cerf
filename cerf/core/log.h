@@ -70,6 +70,23 @@ namespace Log {
         ((int)Cat::COUNT >= 64) ? ~0ULL : ((1ULL << (int)Cat::COUNT) - 1);
     inline constexpr uint64_t MASK_NONE = 0;
 
+    inline constexpr uint64_t CatBit(Cat c) { return 1ULL << (int)c; }
+
+    inline constexpr uint64_t MASK_PRODUCTION_DEFAULT =
+          CatBit(Cat::Boot)
+        | CatBit(Cat::Lcd)
+        | CatBit(Cat::Mem)
+        | CatBit(Cat::Net)
+        | CatBit(Cat::GuestDriver)
+        | CatBit(Cat::Mmu)
+        | CatBit(Cat::Tlb)
+        | CatBit(Cat::Jit)
+        | CatBit(Cat::Cfg)
+        | CatBit(Cat::SocReset)
+        | CatBit(Cat::Discord)
+        | CatBit(Cat::GuestAdditions)
+        | CatBit(Cat::Nkdbg);
+
     void InitDefaultLogFile();
 
     namespace detail {
