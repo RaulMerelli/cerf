@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.7 pre-alpha
+# **CE Runtime Foundation** v6.8 pre-alpha
 
 <p align="center">
   <a href="https://cerf.cx">
@@ -18,7 +18,7 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 ## Downloads
 
-Download the WIP build (6.7) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+Download the WIP build (6.8) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
 
@@ -265,6 +265,14 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
   </thead>
   <tbody>
     <tr>
+      <td>v6.8</td>
+      <td>TBA</td>
+      <td>
+        <p><b>📝 Changes</b><br/>
+          ...</p>
+      </td>
+    </tr>
+    <tr>
       <td>v6.7</td>
       <td>23 Jul 2026</td>
       <td>
@@ -348,17 +356,6 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           ✅ Fixed IMGFS ROMs regression introduced in v6.0<br/>
           ✅ Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencies dropped.<br/>
           ✅ Fixed incorrect hardware communication approach for display and shared storage. Now rendering and shared storage is stable.</p>
-      </td>
-    </tr>
-    <tr>
-      <td>v6.2</td>
-      <td>12 Jul 2026</td>
-      <td>
-        <p><b>💿 Emulator</b><br/>
-          🆕 cerf.exe now runs on Windows XP and newer - one binary, XP through 11<br/>
-          ✅ Fixed a crash on startup on every Windows older than 10 1809 (dark-mode init)</p>
-        <p><b>🚀 Launcher</b><br/>
-          🆕 launcher_vista.exe: the launcher for Windows Vista and newer</p>
       </td>
     </tr>
     <tr>

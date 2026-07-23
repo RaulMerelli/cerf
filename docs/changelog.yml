@@ -1,3 +1,8 @@
+- version: v6.8
+  date: TBA
+  changes: |
+    ...
+
 - version: v6.7
   date: 23 Jul 2026
   devices:
