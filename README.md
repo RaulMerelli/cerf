@@ -280,6 +280,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
           🆕 UI refresh<br/>
           ✅ Metadata-only remote updates no longer re-download the entire ROM<br/>
           ✅ Fixed the command-line interface producing no output<br/>
+          ✅ Configuration, updates and removal are now blocked while a device is running<br/>
+          ✅ Single click on a device preview now launches it everywhere<br/>
           ❌ Removed the redundant soc_family and board_name fields from cerf.json</p>
         <p><b>💾 CE Apps</b><br/>
           ✅ CerfDemo: UI and performance improvements</p>

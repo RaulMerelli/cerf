@@ -51,6 +51,11 @@ class OperationsMixin:
     def _apply_device_update(self, d: DeviceBundle) -> None:
         if self.busy:
             return
+        if self._running_status_for(d) is not None:
+            show_error(self, "Device is running",
+                       f"{d.meta.device_name or d.name} was not updated because "
+                       f"its ROM is running. Close it and try again.")
+            return
         if d.has_update:
             self._download_selected()
         elif d.has_cerf_json_update:
@@ -113,6 +118,8 @@ class OperationsMixin:
         if self.busy or sel.device is None:
             return
         d = sel.device
+        if self._running_status_for(d) is not None:
+            return
         if sel.kind == "package" and sel.package is not None:
             ps = sel.package
             if not ask_yesno(self, "Delete package",
@@ -137,13 +144,27 @@ class OperationsMixin:
         if self.busy:
             return
         devices = self.tree_panel.devices
-        rom_targets = [d for d in devices if d.has_update]
-        cfg_targets = [d for d in devices if d.has_cerf_json_update]
+        running = {d.name for d in devices
+                   if self._running_status_for(d) is not None}
+        skipped = [d for d in devices if d.name in running
+                   and (d.has_update or d.has_cerf_json_update
+                        or d.has_package_updates)]
+        rom_targets = [d for d in devices
+                       if d.has_update and d.name not in running]
+        cfg_targets = [d for d in devices
+                       if d.has_cerf_json_update and d.name not in running]
         pkg_targets: List[Tuple[DeviceBundle, PackageStatus]] = [
-            (d, ps) for d in devices for ps in d.packages if ps.has_update]
+            (d, ps) for d in devices for ps in d.packages
+            if ps.has_update and d.name not in running]
+        if skipped:
+            show_error(self, "Devices are running",
+                       "These devices were not updated because their ROM is "
+                       "running:\n" + "\n".join(
+                           f"• {d.meta.device_name or d.name}" for d in skipped))
         if not rom_targets and not cfg_targets and not pkg_targets:
-            show_info(self, "Update all",
-                      "All installed bundles and packages are up to date.")
+            if not skipped:
+                show_info(self, "Update all",
+                          "All installed bundles and packages are up to date.")
             return
         filtered = filter_update_all_targets(self, rom_targets, pkg_targets)
         if filtered is None:

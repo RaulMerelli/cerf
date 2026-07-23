@@ -15,46 +15,10 @@ from color_schemes import (COLOR_SCHEMES, CS_KEY_TO_LABEL as _CS_KEY_TO_LABEL,
                            CS_LABEL_TO_KEY as _CS_LABEL_TO_KEY,
                            color_scheme_supported_for_os)
 from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help, show_color_scheme_help
+from launch_options_presets import (RES_PRESETS, DPI_SLIDER_MIN, DPI_SLIDER_MAX,
+                                    DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT)
+from saved_state_warning import SavedStateEditWarning
 import ui_theme as theme
-
-
-# Common display resolutions the override slider snaps through, ordered by
-# pixel area (ascending) so the thumb moves monotonically small -> large,
-# spanning PDA sizes up to 4K UHD. Both orientations of the everyday small
-# sizes are included; the boxes stay free-form so any value off this list
-# is still typable.
-RES_PRESETS = [
-    (240, 320),  (320, 240),    #  QVGA
-    (320, 480),  (480, 320),    #  HVGA
-    (640, 480),  (480, 640),    #  VGA
-    (800, 480),  (480, 800),    #  WVGA
-    (854, 480),                 #  FWVGA
-    (800, 600),  (600, 800),    #  SVGA
-    (1024, 600),                #  WSVGA
-    (1024, 768), (768, 1024),   #  XGA
-    (1280, 720),                #  HD 720p
-    (1280, 800),                #  WXGA
-    (1366, 768),                #  HD
-    (1280, 1024),               #  SXGA
-    (1440, 900),                #  WXGA+
-    (1600, 900),                #  HD+
-    (1680, 1050),               #  WSXGA+
-    (1600, 1200),               #  UXGA
-    (1920, 1080),               #  FHD 1080p
-    (1920, 1200),               #  WUXGA
-    (2560, 1440),               #  QHD 1440p
-    (2560, 1600),               #  WQXGA
-    (3440, 1440),               #  UW-QHD
-    (3840, 2160),               #  4K UHD
-]
-
-# DPI override slider bounds. The entry stays free-form so any value (including
-# extreme ones) is typable past the slider's range.
-DPI_SLIDER_MIN = 48
-DPI_SLIDER_MAX = 480
-
-DEFAULT_SCREEN_WIDTH = 800
-DEFAULT_SCREEN_HEIGHT = 600
 
 
 class LaunchOptionsPanel:
@@ -69,6 +33,8 @@ class LaunchOptionsPanel:
         self._guest_additions_available = True
         self._guest_additions_locked = False
         self._color_scheme_available = True
+        self._locked = False
+        self._saved_state_warning = SavedStateEditWarning(parent_window)
 
         container = ttk.Frame(inner)
         container.grid(row=row, column=0, sticky="ew", pady=(0, 8))
@@ -87,12 +53,14 @@ class LaunchOptionsPanel:
         guest = self.guest_block = ttk.Frame(cfg)
         guest.grid(row=0, column=0, sticky="ew")
         guest.columnconfigure(0, weight=1)
-        ttk.Checkbutton(guest, text="Enable guest additions",
-                        variable=self.var_guest_additions,
-                        command=self._on_guest_additions_changed,
-                        style="Guest.TCheckbutton").grid(row=0, column=0, sticky="w")
-        ttk.Button(guest, text="?", width=2, style="Help.TButton",
-                   command=lambda: show_guest_additions_help(self._window)).grid(row=0, column=1, sticky="e")
+        self.ga_check = ttk.Checkbutton(guest, text="Enable guest additions",
+                                        variable=self.var_guest_additions,
+                                        command=self._on_guest_additions_changed,
+                                        style="Guest.TCheckbutton")
+        self.ga_check.grid(row=0, column=0, sticky="w")
+        self.ga_help = ttk.Button(guest, text="?", width=2, style="Help.TButton",
+                                  command=lambda: show_guest_additions_help(self._window))
+        self.ga_help.grid(row=0, column=1, sticky="e")
         ttk.Label(guest, text="(might be unstable)",
                   style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w")
 
@@ -152,11 +120,13 @@ class LaunchOptionsPanel:
         dpi_head = self.dpi_head = ttk.Frame(cfg)
         dpi_head.grid(row=5, column=0, sticky="ew")
         dpi_head.columnconfigure(0, weight=1)
-        ttk.Checkbutton(dpi_head, text="Override DPI",
-                        variable=self.var_override_dpi,
-                        command=self._on_override_dpi_changed).grid(row=0, column=0, sticky="w")
-        ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
-                   command=lambda: show_dpi_help(self._window)).grid(row=0, column=1, sticky="e")
+        self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
+                                         variable=self.var_override_dpi,
+                                         command=self._on_override_dpi_changed)
+        self.dpi_check.grid(row=0, column=0, sticky="w")
+        self.dpi_help = ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
+                                   command=lambda: show_dpi_help(self._window))
+        self.dpi_help.grid(row=0, column=1, sticky="e")
 
         dpi_fields = self.dpi_fields = ttk.Frame(cfg)
         dpi_fields.grid(row=6, column=0, sticky="ew", pady=(2, 0))
@@ -176,18 +146,38 @@ class LaunchOptionsPanel:
         self.dpi_sep = ttk.Separator(cfg, orient="horizontal")
         self.dpi_sep.grid(row=7, column=0, sticky="ew", pady=8)
 
-        ttk.Checkbutton(cfg, text="Borderless full screen",
-                        variable=self.var_full_screen,
-                        command=self._persist).grid(row=8, column=0, sticky="w")
+        self.fullscreen_check = ttk.Checkbutton(cfg, text="Borderless full screen",
+                                                variable=self.var_full_screen,
+                                                command=self._persist)
+        self.fullscreen_check.grid(row=8, column=0, sticky="w")
 
         ttk.Separator(cfg, orient="horizontal").grid(row=9, column=0,
                                                      sticky="ew", pady=8)
 
-        ttk.Checkbutton(cfg, text="Enable all log channels",
-                        variable=self.var_log_all).grid(row=10, column=0, sticky="w")
-        ttk.Checkbutton(cfg, text="Disable network backend",
-                        variable=self.var_no_net,
-                        command=self._persist).grid(row=11, column=0, sticky="w")
+        self.logall_check = ttk.Checkbutton(cfg, text="Enable all log channels",
+                                            variable=self.var_log_all)
+        self.logall_check.grid(row=10, column=0, sticky="w")
+        self.nonet_check = ttk.Checkbutton(cfg, text="Disable network backend",
+                                           variable=self.var_no_net,
+                                           command=self._persist)
+        self.nonet_check.grid(row=11, column=0, sticky="w")
+
+        self._lockable = [self.ga_check, self.ga_help, self.color_scheme_combo,
+                          self.width_entry, self.height_entry, self.res_slider,
+                          self.dpi_check, self.dpi_help, self.dpi_entry,
+                          self.dpi_slider, self.fullscreen_check,
+                          self.logall_check, self.nonet_check]
+        self.refresh_resolution_state()
+
+    def set_locked(self, locked: bool) -> None:
+        if self._locked == locked:
+            return
+        self._locked = locked
+        for w in self._lockable:
+            try:
+                w.config(state="disabled" if locked else "normal")
+            except tk.TclError:
+                pass
         self.refresh_resolution_state()
 
     def set_device(self, device: Optional[DeviceBundle]) -> None:
@@ -302,6 +292,7 @@ class LaunchOptionsPanel:
             if k in cur and cur[k] != self._baseline.get(k):
                 override[k] = cur[k]
         write_persist_overrides(self._device_dir, override)
+        self._saved_state_warning.maybe_warn(self._device_dir)
 
     def _on_guest_additions_changed(self) -> None:
         self.refresh_resolution_state()
@@ -392,7 +383,8 @@ class LaunchOptionsPanel:
         self._set_block_visible(
             guest_additions and not locked and self._color_scheme_available,
             self.cs_row)
-        self.color_scheme_combo.config(state="readonly")
+        self.color_scheme_combo.config(
+            state="disabled" if self._locked else "readonly")
 
         res_visible = not locked and (guest_additions or (
             device is not None
@@ -455,6 +447,10 @@ class LaunchOptionsPanel:
             self._res_sync_guard = False
 
     def _refresh_dpi_state(self) -> None:
+        if self._locked:
+            self.dpi_entry.config(state="disabled")
+            self.dpi_slider.config(state="disabled")
+            return
         fields = "normal" if self.var_override_dpi.get() else "disabled"
         self.dpi_entry.config(state=fields)
         self.dpi_slider.config(state=fields)

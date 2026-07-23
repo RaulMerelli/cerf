@@ -35,6 +35,8 @@ class DetailsPanel:
         self._bind_wheel = bind_wheel
         self._on_package_action = on_package_action
         self._icon_cache: Dict[tuple[str, bool], Optional[tk.PhotoImage]] = {}
+        self._addon_buttons: List[ttk.Button] = []
+        self._addons_enabled = True
 
         meta = ttk.LabelFrame(inner, text="Description", padding=8)
         meta.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -119,6 +121,7 @@ class DetailsPanel:
     def _update_packages(self, device: DeviceBundle) -> None:
         for child in self.addons_body.winfo_children():
             child.destroy()
+        self._addon_buttons = []
         if not device.packages:
             self.addons_frame.grid_remove()
             return
@@ -138,16 +141,30 @@ class DetailsPanel:
             ttk.Label(row, text=ps.remote.name, wraplength=170,
                       justify="left").grid(row=0, column=0, sticky="w")
             if ps.has_update or not ps.installed:
-                ttk.Button(row, text="Update" if ps.has_update else "Get",
-                           width=7,
-                           command=lambda p=ps: self._package_action(device, p, "install")
-                           ).grid(row=0, column=1, sticky="e", padx=(4, 0))
+                btn = ttk.Button(row, text="Update" if ps.has_update else "Get",
+                                 width=7,
+                                 command=lambda p=ps: self._package_action(device, p, "install"))
+                btn.grid(row=0, column=1, sticky="e", padx=(4, 0))
+                self._addon_buttons.append(btn)
             elif ps.installed:
-                ttk.Button(row, text="Delete", width=7, style="Danger.TButton",
-                           command=lambda p=ps: self._package_action(device, p, "delete")
-                           ).grid(row=0, column=1, sticky="e", padx=(4, 0))
+                btn = ttk.Button(row, text="Delete", width=7, style="Danger.TButton",
+                                 command=lambda p=ps: self._package_action(device, p, "delete"))
+                btn.grid(row=0, column=1, sticky="e", padx=(4, 0))
+                self._addon_buttons.append(btn)
             r += 1
         self._bind_wheel(self.addons_body)
+        if not self._addons_enabled:
+            for b in self._addon_buttons:
+                b.config(state="disabled")
+
+    def set_addons_enabled(self, enabled: bool) -> None:
+        self._addons_enabled = enabled
+        state = "normal" if enabled else "disabled"
+        for b in self._addon_buttons:
+            try:
+                b.config(state=state)
+            except tk.TclError:
+                pass
 
     def _package_action(self, device: DeviceBundle, ps, action: str) -> None:
         if self._on_package_action is not None:

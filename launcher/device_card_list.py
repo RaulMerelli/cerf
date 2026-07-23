@@ -302,11 +302,19 @@ class DeviceCardList:
 
         bg_children = [card, textcol, detail, name, prefix_lbl, soc_lbl,
                        suffix_lbl, status]
-        for w in bg_children + [tile.canvas]:
+        for w in bg_children:
             w.bind("<Button-1>", lambda _e, n=d.name: self._set_selected(n))
             w.bind("<Double-1>", lambda _e, n=d.name: self._activate(n))
             w.bind("<Button-3>", lambda e, n=d.name: self._context(n, e))
             self._bind_wheel(w)
+        # The preview tile shows a hand cursor: single click activates (like the
+        # sidebar preview). The Double-1 binding must exist so Tk reports the
+        # second click of a double as Double-1 (swallowed) rather than a second
+        # Button-1, which would launch a non-running device twice.
+        tile.canvas.bind("<Button-1>", lambda _e, n=d.name: self._activate(n))
+        tile.canvas.bind("<Double-1>", lambda _e: "break")
+        tile.canvas.bind("<Button-3>", lambda e, n=d.name: self._context(n, e))
+        self._bind_wheel(tile.canvas)
         c = _Card(d, card, bg_children, status, name, prefix_lbl, soc_lbl,
                   suffix_lbl, tile)
         self._cards[d.name] = c

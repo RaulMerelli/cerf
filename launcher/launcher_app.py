@@ -346,6 +346,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         d = sel.device
         if self.busy or d is None or not d.is_installed:
             return
+        if self._running_status_for(d) is not None:
+            return
         device_dir = self.manager.devices_dir / d.name
         if saved_state_info(device_dir) is None:
             return
@@ -395,7 +397,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         menu.add_command(label="Show CERF" if running else "Start", command=self._launch)
         if saved_state_info(self.manager.devices_dir / d.name) is not None:
             menu.add_command(label="Discard saved state",
-                             command=self._discard_state)
+                             command=self._discard_state,
+                             state="disabled" if running else "normal")
         menu.add_command(label="Rename…",
                          command=lambda: self._rename_device(d))
         menu.add_command(label="Open device folder",
@@ -403,7 +406,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         if d.has_update or d.has_cerf_json_update:
             menu.add_command(label="Update", command=self._update_selected)
         menu.add_separator()
-        menu.add_command(label="Remove", command=self._delete_selected)
+        menu.add_command(label="Remove", command=self._delete_selected,
+                         state="disabled" if running else "normal")
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -428,18 +432,21 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         if self.busy:
             return
         d = sel.device
+        running = self._running_status_for(d) is not None
         any_updateable = any(x.has_update or x.has_cerf_json_update
                              or x.has_package_updates
                              for x in self.tree_panel.devices)
         if sel.kind == "device" and d is not None:
-            can_discard = saved_state_info(
-                self.manager.devices_dir / d.name) is not None
+            can_discard = (saved_state_info(self.manager.devices_dir / d.name)
+                           is not None and not running)
             self.toolbar.set_selection_enabled(
                 d.has_update or d.has_cerf_json_update, any_updateable,
-                d.is_installed, can_discard)
+                d.is_installed and not running, can_discard)
         else:
             self.toolbar.set_selection_enabled(False, any_updateable,
                                                False, False)
+        self.launch_options.set_locked(running)
+        self.details.set_addons_enabled(not running)
         self.split.set_enabled(d is not None and self.cerf_exe is not None)
 
     def _on_close(self) -> None:
