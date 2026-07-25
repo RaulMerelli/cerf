@@ -66,47 +66,33 @@ protected:
 inline uint32_t Omap3530PrcmStubBlock::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (off & 3u) HaltUnsupportedAccess("ReadWord (misaligned)", addr, 0);
-    const char* name = RegisterName(off);
     std::lock_guard<std::mutex> lk(mu_);
-    const uint32_t value = regs_[off / 4u];
-    LOG(Periph, "[%s] R %s (0x%02X) -> 0x%08X\n",
-        Label(), name ? name : "?", off, value);
-    return value;
+    return regs_[off / 4u];
 }
 
 inline void Omap3530PrcmStubBlock::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (off & 3u) HaltUnsupportedAccess("WriteWord (misaligned)", addr, value);
-    const char* name = RegisterName(off);
     std::lock_guard<std::mutex> lk(mu_);
-    LOG(Periph, "[%s] W %s (0x%02X) <- 0x%08X\n",
-        Label(), name ? name : "?", off, value);
     regs_[off / 4u] = value;
 }
 
 inline uint16_t Omap3530PrcmStubBlock::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (off & 1u) HaltUnsupportedAccess("ReadHalf (misaligned)", addr, 0);
-    const char* name = RegisterName(off & ~3u);
     std::lock_guard<std::mutex> lk(mu_);
     const uint32_t word = regs_[off / 4u];
-    const uint16_t value = static_cast<uint16_t>(word >> ((off & 2u) ? 16u : 0u));
-    LOG(Periph, "[%s] R16 %s (0x%02X) -> 0x%04X\n",
-        Label(), name ? name : "?", off, value);
-    return value;
+    return static_cast<uint16_t>(word >> ((off & 2u) ? 16u : 0u));
 }
 
 inline void Omap3530PrcmStubBlock::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - MmioBase();
     if (off & 1u) HaltUnsupportedAccess("WriteHalf (misaligned)", addr, value);
-    const char* name = RegisterName(off & ~3u);
     std::lock_guard<std::mutex> lk(mu_);
     const uint32_t shift = (off & 2u) ? 16u : 0u;
     const uint32_t mask  = static_cast<uint32_t>(0xFFFFu) << shift;
     regs_[off / 4u] = (regs_[off / 4u] & ~mask) |
                       (static_cast<uint32_t>(value) << shift);
-    LOG(Periph, "[%s] W16 %s (0x%02X) <- 0x%04X\n",
-        Label(), name ? name : "?", off, value);
 }
 
 class Omap3530PrmDomainBlock : public Omap3530PrcmStubBlock {
@@ -182,7 +168,6 @@ public:
         const uint32_t off = addr - MmioBase();
         if (off & 3u) HaltUnsupportedAccess("WriteWord (misaligned)",
                                             addr, value);
-        const char* name = RegisterName(off);
         std::lock_guard<std::mutex> lk(mu_);
         bool need_recompute = false;
         switch (off) {
@@ -210,8 +195,6 @@ public:
             regs_[off / 4u] = value;
             break;
         }
-        LOG(Periph, "[%s] W %s (0x%02X) <- 0x%08X\n",
-            Label(), name ? name : "?", off, value);
         if (need_recompute) RecomputeIrqLineLocked();
     }
 

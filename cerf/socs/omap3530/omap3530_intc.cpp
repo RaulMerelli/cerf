@@ -308,14 +308,11 @@ public:
     uint32_t ReadWord(uint32_t addr) override {
         auto& concrete = static_cast<Omap3530Intc&>(emu_.Get<IrqController>());
         const uint32_t off = addr - MmioBase();
-        const uint32_t v = concrete.ReadReg(off);
-        LOG(Periph, "[INTC] R off=0x%03X -> 0x%08X\n", off, v);
-        return v;
+        return concrete.ReadReg(off);
     }
     void WriteWord(uint32_t addr, uint32_t value) override {
         auto& concrete = static_cast<Omap3530Intc&>(emu_.Get<IrqController>());
         const uint32_t off = addr - MmioBase();
-        LOG(Periph, "[INTC] W off=0x%03X <- 0x%08X\n", off, value);
         concrete.WriteReg(off, value);
     }
 

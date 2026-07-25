@@ -274,16 +274,6 @@ uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     const uint32_t cycles_now = GuestCycles();
     AdvanceStateLocked(cycles_now);
-    /* Log only TCRR reads with their values - that's what matters. */
-    if (off == kOffTcrr) {
-        static uint32_t last_tcrr = 0;
-        const uint32_t v = ComputeTcrrLocked(cycles_now);
-        if (v != last_tcrr) {
-            LOG(Periph, "[GPTIMER1] TCRR=0x%08X (delta=%d) tclr=0x%02X\n",
-                v, (int32_t)(v - last_tcrr), tclr_);
-            last_tcrr = v;
-        }
-    }
 
     switch (off) {
     case kOffTidr:    return 0u;                                  /* module ID */
@@ -317,7 +307,6 @@ void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
     std::lock_guard<std::mutex> lk(state_mutex_);
     const uint32_t cycles_now = GuestCycles();
     AdvanceStateLocked(cycles_now);
-    LOG(Periph, "[GPTIMER1] W off=0x%02X <- 0x%08X\n", off, value);
 
     switch (off) {
     case kOffTidr:
