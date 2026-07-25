@@ -10,9 +10,10 @@ Then, if bundled/devices/<dev>/pdbs/ exists and contains files, copies all
 of its contents into references/extracted-roms/<dev>/fs/Windows/.
 
 Usage:
-  python tools/extract_bundles.py [device_name ...]
+  python tools/extract_bundles.py [--machine=ARCH] <device_name> [device_name ...]
 
-With no arguments, processes every directory under bundled/devices/.
+At least one device name is required. --machine is forwarded to the
+extractor and applies to every named device.
 """
 
 from __future__ import annotations
@@ -40,9 +41,12 @@ def find_rom_files(device_dir: Path) -> list[Path]:
     )
 
 
-def run_extractor(rom_path: Path, out_dir: Path) -> tuple[Path, int, str]:
+def run_extractor(rom_path: Path, out_dir: Path,
+                  machine: str | None) -> tuple[Path, int, str]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, str(EXTRACTOR), str(rom_path), "-o", str(out_dir)]
+    if machine is not None:
+        cmd += ["--machine", machine]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     output = proc.stdout + proc.stderr
     return rom_path, proc.returncode, output
@@ -98,24 +102,38 @@ def main() -> int:
         print("       Run: git submodule update --init references/extract-wince-rom")
         return 1
 
+    machine: str | None = None
+    devices: list[str] = []
     argv = sys.argv[1:]
-    if argv:
-        devices = argv
-    else:
-        devices = sorted(
-            p.name for p in BUNDLED.iterdir()
-            if p.is_dir() and not p.name.startswith("__")
-        )
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith("--machine="):
+            machine = a.split("=", 1)[1]
+        elif a == "--machine":
+            i += 1
+            if i >= len(argv):
+                print("ERROR: --machine requires an architecture argument")
+                return 1
+            machine = argv[i]
+        else:
+            devices.append(a)
+        i += 1
+
+    if not devices:
+        print(__doc__.strip())
+        print("\nERROR: name at least one device under bundled/devices/")
+        return 1
 
     jobs = collect_jobs(devices)
+    failures = 0
     if not jobs:
         print("no ROM files to extract")
     else:
         workers = os.cpu_count() or 1
         print(f"extracting {len(jobs)} ROM(s) across {workers} worker(s)")
-        failures = 0
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futs = {pool.submit(run_extractor, rom, out): (dev, rom)
+            futs = {pool.submit(run_extractor, rom, out, machine): (dev, rom)
                     for dev, rom, out in jobs}
             for fut in as_completed(futs):
                 dev, rom = futs[fut]
@@ -148,7 +166,7 @@ def main() -> int:
             print(f"[{dev}] copied {copied} PDB entr(y/ies) into "
                   f"references/extracted-roms/{dev}/{rom_name}/fs/Windows/")
 
-    return 1 if pdb_errors else 0
+    return 1 if (failures or pdb_errors) else 0
 
 
 if __name__ == "__main__":
