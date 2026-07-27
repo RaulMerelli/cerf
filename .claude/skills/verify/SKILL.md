@@ -88,6 +88,12 @@ That is the whole prompt. No role explainer (the operating manual has one). No c
 
 Without an explicit `AUDIT MODE:` on a checklist target, the reviewer returns `CRITICAL PROBLEM FOUND. [UNVERIFIABLE]` because it cannot tell which audit shape applies. This rule exists because reviewers historically wasted entire verdicts accusing the main agent of "lying" about completion when the main agent had only sent a planning document for design review. The mode declaration removes the guess.
 
+**Special case - a model taken from another project MUST declare that project's LOCAL source path.** If any part of the target implements a model studied from another codebase (QEMU, Linux, U-Boot, a vendor BSP, another emulator, a reference driver), the spawn prompt MUST name where that source sits on this machine - the path under `references/`, plus the file and function the model came from - directly above the target material:
+
+- `PORTED MODEL: <what> <- references/<path>/<file>:<function>`
+
+Studying another project's model is legitimate and expected. Copying its code into CERF is a licensing breach that no later verdict can undo. From a prompt alone those two are indistinguishable, and the reviewer cannot diff against a source it does not have - so a disclosed port with no local path makes the reviewer HALT with `CRITICAL PROBLEM FOUND. [LICENSE VIOLATION]` and no audit is performed. If the source is not on disk yet, fetch it into `references/` before spawning. Concealing the provenance to dodge the declaration is worse than the missing path: it puts the breach past review entirely.
+
 ### 3. What the main agent MUST NOT do when writing the subagent prompt
 
 - Do NOT presuppose the answer. No "please confirm this is fine", no "I think this is legit, just double-check", no "this should pass".
