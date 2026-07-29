@@ -339,7 +339,7 @@ BOARDS_INFORMATION = [
         },
     },
     {
-        "name": "Casio Toricomail",
+        "name": "Casio Toricomail / Message-Cam / Pocket PostPet",
         "board_id": "casio_toricomail",
         "supported": True,
         "soc": SOC_VR4121,
