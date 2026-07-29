@@ -27,4 +27,6 @@ public:
        TPY0/TPY1, 4-6 ADIN(2:0), 7 AUDIOIN; VR4121 UM Table 20-5, VR4102 UM Table 19-5).
        std::nullopt leaves PIUABnREG's D15 VALID clear (VR4121 UM 20.3.10, VR4102 UM 19.3.10). */
     virtual std::optional<uint16_t> AdPortScanSample(uint16_t port) = 0;
+
+    virtual uint16_t ScreenRawXMax() const { return 1023u; }
 };

@@ -268,8 +268,8 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>v6.8</td>
       <td>TBA</td>
       <td>
-        <p><b>📝 Changes</b><br/>
-          ...</p>
+        <p><b>📱 Devices</b><br/>
+          🆕 Casio Toricomail: bezel touch buttons</p>
       </td>
     </tr>
     <tr>

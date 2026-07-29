@@ -5,6 +5,7 @@
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
 #include "vr41xx_piu.h"
+#include "vr41xx_piu_panel.h"
 
 #include <cstdint>
 
@@ -14,10 +15,10 @@ namespace {
    VR4102 UM 19.3.9). */
 constexpr uint16_t kAdcMax = 1023u;
 
-uint16_t MapAxis(int v, int v_max) {
+uint16_t MapAxis(int v, int v_max, uint16_t adc_max) {
     if (v_max <= 0 || v <= 0) return 0;
-    if (v >= v_max) return kAdcMax;
-    return static_cast<uint16_t>(static_cast<uint32_t>(v) * kAdcMax /
+    if (v >= v_max) return adc_max;
+    return static_cast<uint16_t>(static_cast<uint32_t>(v) * adc_max /
                                  static_cast<uint32_t>(v_max));
 }
 
@@ -42,8 +43,9 @@ public:
 private:
     void Drive(bool down, int hx, int hy) {
         auto& hc = emu_.Get<HostCanvas>();
-        last_x_ = MapAxis(hx, static_cast<int>(hc.GuestSurfaceWidth())  - 1);
-        last_y_ = MapAxis(hy, static_cast<int>(hc.GuestSurfaceHeight()) - 1);
+        const uint16_t x_max = emu_.Get<Vr41xxPiuPanel>().ScreenRawXMax();
+        last_x_ = MapAxis(hx, static_cast<int>(hc.GuestSurfaceWidth())  - 1, x_max);
+        last_y_ = MapAxis(hy, static_cast<int>(hc.GuestSurfaceHeight()) - 1, kAdcMax);
         emu_.Get<Vr41xxPiu>().SetPen(down, last_x_, last_y_);
     }
 

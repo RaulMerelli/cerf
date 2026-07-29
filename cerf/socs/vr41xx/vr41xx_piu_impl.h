@@ -40,8 +40,7 @@ public:
     }
 
     /* Every PIU register's RTCRST column equals its other-resets column (VR4121 UM
-       20.3.1-20.3.10, VR4102 UM 19.3.1-19.3.10), so the PIU takes the same values on
-       every reset line. */
+       20.3.1-20.3.10, VR4102 UM 19.3.1-19.3.10). */
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
         worker_ = std::thread([this] { WorkerLoop(); });
@@ -134,22 +133,22 @@ public:
             std::lock_guard<std::mutex> lk(mtx_);
             pos_x_ = pos_x & 0x3FFu;
             pos_y_ = pos_y & 0x3FFu;
-            if (down != pen_cur_) {
-                pen_prev_ = pen_cur_;
-                pen_cur_  = down;
-                LatchPenstcLocked();
-                intreg_ |= kPenChgIntr;
-                if (down) {
-                    if ((cnt_cfg_ & kSeqEn) && (cnt_cfg_ & kAtStart) &&
-                        state_ == kStWaitPenTouch) {
-                        state_ = kStPenDataScan;
-                    }
-                    if (state_ == kStPenDataScan) SampleOnceLocked();
-                } else if (state_ == kStPenDataScan && (cnt_cfg_ & kAtStop)) {
-                    state_ = kStWaitPenTouch;
-                }
-                DriveIcuLocked();
-            }
+            synthetic_hold_ = 0;
+            if (down != pen_cur_) PenEdgeLocked(down);
+        }
+        wake_.store(true, std::memory_order_release);
+        cv_.notify_all();
+    }
+
+    void SyntheticTap(uint16_t pos_x, uint16_t pos_y) override {
+        {
+            auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
+            std::lock_guard<std::mutex> lk(mtx_);
+            if (pen_cur_) return;
+            pos_x_ = pos_x & 0x3FFu;
+            pos_y_ = pos_y & 0x3FFu;
+            synthetic_hold_ = kSyntheticHoldScans;
+            PenEdgeLocked(true);
         }
         wake_.store(true, std::memory_order_release);
         cv_.notify_all();
@@ -198,6 +197,24 @@ public:
 
 private:
     uint16_t PiuMode() const { return (cnt_cfg_ >> 3) & 0x3u; }
+
+    /* PADATSTART / PADATSTOP (VR4121 UM 20.3.1, VR4102 UM 19.3.1). */
+    void PenEdgeLocked(bool down) {
+        pen_prev_ = pen_cur_;
+        pen_cur_  = down;
+        LatchPenstcLocked();
+        intreg_ |= kPenChgIntr;
+        if (down) {
+            if ((cnt_cfg_ & kSeqEn) && (cnt_cfg_ & kAtStart) &&
+                state_ == kStWaitPenTouch) {
+                state_ = kStPenDataScan;
+            }
+            if (state_ == kStPenDataScan) SampleOnceLocked();
+        } else if (state_ == kStPenDataScan && (cnt_cfg_ & kAtStop)) {
+            state_ = kStWaitPenTouch;
+        }
+        DriveIcuLocked();
+    }
 
     /* "The PENSTC bit indicates the touch panel contact state at the time when the
        PENCHGINTR bit of PIUINTREG is set to 1 ... PENSTC does not change while PENCHGINTR
@@ -430,6 +447,7 @@ private:
                     DriveIcuLocked();
                     interval = IntervalMsLocked();
                     sampled = true;
+                    if (synthetic_hold_ != 0 && --synthetic_hold_ == 0) PenEdgeLocked(false);
                 } else if (pen_cur_ && state_ == kStCmdScan) {
                     CmdScanOnceLocked();
                     DriveIcuLocked();
@@ -464,6 +482,7 @@ private:
     bool     penstc_   = false;
     uint16_t pos_x_    = 0;
     uint16_t pos_y_    = 0;
+    uint16_t synthetic_hold_ = 0;
 
     uint16_t page_buf_[2][5] = {};
     uint16_t next_page_      = 0;

@@ -61,6 +61,8 @@ enum : uint16_t {
 constexpr uint16_t kValid  = 0x8000u;
 constexpr uint16_t kAdcMax = 1023u;
 
+constexpr uint16_t kSyntheticHoldScans = 6u;
+
 /* PIUSTBLREG D5:0 STABLE, both reset rows 0x0007 (VR4121 UM 20.3.4, VR4102 UM 19.3.4);
    PIUCMDREG D3:0 ADCMD, both reset rows 0x000F = "A/D converter standby mode request"
    (VR4121 UM 20.3.5, VR4102 UM 19.3.5). */
