@@ -16,6 +16,12 @@ A universal Windows CE emulator: a virtual hardware platform that boots real CE 
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) [![Patreon](https://img.shields.io/badge/Patreon-support-FF424D?logo=patreon&logoColor=white)](https://www.patreon.com/dz3n)
 
+> [!IMPORTANT]
+> Parts of `cerf/jit/` and some SMDK2410 board/peripheral files are under third-party
+> licensing review and are being reimplemented. The MIT license does not currently
+> extend to them - please don't reuse or redistribute those files. See
+> [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Downloads
 
 Download the WIP build (6.8) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
