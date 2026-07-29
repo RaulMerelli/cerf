@@ -1,21 +1,21 @@
 #include "serial_modem_card_menu.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../host/host_link_opener.h"
 
 #include <utility>
+
+namespace {
+
+constexpr const wchar_t* kGettingOnlineUrl = L"https://cerf.cx/getting-online";
+
+}
 
 REGISTER_SERVICE(SerialModemCardMenu);
 
 std::vector<WidgetMenuItem> SerialModemCardMenu::BuildInsertMenu(
     std::function<void()> on_insert) {
     std::vector<WidgetMenuItem> items;
-
-    auto note = [&items](const wchar_t* text) {
-        WidgetMenuItem it;
-        it.label   = text;
-        it.enabled = false;
-        items.push_back(std::move(it));
-    };
 
     WidgetMenuItem insert;
     insert.label    = L"Insert";
@@ -24,11 +24,12 @@ std::vector<WidgetMenuItem> SerialModemCardMenu::BuildInsertMenu(
 
     items.push_back({});
 
-    note(L"After inserting, to get online:");
-    note(L"   1.  Open the dial-up / network connections app");
-    note(L"   2.  Create a new dial-up connection on this modem");
-    note(L"   3.  Dial any phone number (for example 555)");
-    note(L"   4.  User name and password can be left blank");
+    WidgetMenuItem tutorial;
+    tutorial.label    = L"Getting online tutorial";
+    tutorial.on_click = [this] {
+        emu_.Get<HostLinkOpener>().Open(nullptr, kGettingOnlineUrl);
+    };
+    items.push_back(std::move(tutorial));
 
     return items;
 }

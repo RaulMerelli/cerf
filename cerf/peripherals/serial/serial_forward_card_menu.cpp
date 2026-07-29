@@ -3,8 +3,15 @@
 #include "host_serial_ports.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../host/host_link_opener.h"
 
 #include <utility>
+
+namespace {
+
+constexpr const wchar_t* kActiveSyncUrl = L"https://cerf.cx/activesync";
+
+}
 
 REGISTER_SERVICE(SerialForwardCardMenu);
 
@@ -12,16 +19,12 @@ std::vector<WidgetMenuItem> SerialForwardCardMenu::BuildInsertMenu(
     std::function<void(std::wstring host_port)> on_insert) {
     std::vector<WidgetMenuItem> items;
 
-    auto note = [&items](const wchar_t* text) {
-        WidgetMenuItem it;
-        it.label   = text;
-        it.enabled = false;
-        items.push_back(std::move(it));
-    };
-
     const std::vector<std::wstring> ports = emu_.Get<HostSerialPorts>().Enumerate();
     if (ports.empty()) {
-        note(L"   (no host serial ports found)");
+        WidgetMenuItem none;
+        none.label   = L"   (no host serial ports found)";
+        none.enabled = false;
+        items.push_back(std::move(none));
     } else {
         for (const std::wstring& p : ports) {
             WidgetMenuItem it;
@@ -33,11 +36,12 @@ std::vector<WidgetMenuItem> SerialForwardCardMenu::BuildInsertMenu(
 
     items.push_back({});
 
-    note(L"Bridges the guest serial port to a real host COM port.");
-    note(L"Pick a host port above to forward the guest serial port to.");
-    note(L"Open the guest COMx with a raw terminal (e.g. CE PuTTY).");
-    note(L"Hint: If you want to emulate COM pair on your computer/VM");
-    note(L"so you can attach e.g. ActiveSync - learn how to use com0com.");
+    WidgetMenuItem tutorial;
+    tutorial.label    = L"Connecting to ActiveSync tutorial";
+    tutorial.on_click = [this] {
+        emu_.Get<HostLinkOpener>().Open(nullptr, kActiveSyncUrl);
+    };
+    items.push_back(std::move(tutorial));
 
     return items;
 }
