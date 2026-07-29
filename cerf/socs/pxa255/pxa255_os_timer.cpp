@@ -25,6 +25,13 @@ protected:
         emu_.Get<Pxa255Intc>().SetSourceLevel(0xFu << kIntcOst0Bit,
                                               (level4 & 0xFu) << kIntcOst0Bit);
     }
+
+    /* PXA255 Tables 4-41 / 4-44 / 4-45: OSMR, OSCR and the OSSR M-bits carry
+       all-zero reset rows (on SA-1110 §9.4 leaves them unknown at reset). */
+    void OnResetLine() override {
+        OsTimer::OnResetLine();
+        ResetCountersToZero();
+    }
 };
 
 REGISTER_SERVICE(Pxa255OsTimer);

@@ -71,7 +71,8 @@ simply refused by `ValidateHeader`, exactly as intended.
 
 ## Sections - what each captures
 
-Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Presentation**.
+Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Presentation →
+Widget → Reset**.
 
 - **Cpu** - the engine's flat CPU-state POD via the ISA-neutral
   `GuestEngine::SaveCpuState` / `RestoreCpuState` seam: the ARM engine
@@ -89,6 +90,12 @@ Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Pre
   registration order, each tagged by `MmioBase()` and tag-checked on restore.
 - **Presentation** - `HostCanvas` guest-surface dimensions, so a custom resolution
   restores its window size.
+- **Widget** - `HostWidgetRegistry` state that drives guest-visible hardware
+  (e.g. the battery widget's charge level / AC, which a board service feeds into
+  GPIO/MCU lines). Full restore only - a warm boot re-asserts it when the board
+  service re-drives at startup.
+- **Reset** - `GuestCpuReset` + `GuestColdBoot` state (reset cause, registered
+  boot-time guest-RAM write replays).
 
 The JIT translation cache is **flushed**, never saved
 (`FlushTranslationCache(0, 0xFFFFFFFF)`). After a full restore,
@@ -105,7 +112,7 @@ state, and pausing one does NOT pause the other:
    blocks; `Resume()` releases it. `Pause()` is **host-thread only** - calling it
    from the JIT thread self-deadlocks. Hibernation does `Pause() → work → Resume()`.
 
-2. **Peripheral worker threads.** OST match loops, ADC/battery samplers, PMIC,
+2. **Peripheral worker threads.** GPT/EPIT match loops, ADC/battery samplers, PMIC,
    keypad, network, serial - these are `std::thread`s that keep mutating
    guest-visible state regardless of the JIT pause. They are frozen by
    **`EmulationFreeze`** (`cerf/state/emulation_freeze.h`):
@@ -118,9 +125,11 @@ state, and pausing one does NOT pause the other:
      across a cv wait / sleep / thread join. Acquire it, do the state touch,
      release it, then wait.
 
-Reference worker: `OsTimer::MatchLoop` in `cerf/socs/os_timer.h` -
+Reference worker: `FreescaleGptBase::MatchLoop` in `cerf/socs/freescale_gpt_impl.h` -
 `{ auto frozen = freeze.WorkerSection(); RebaseToCurrent(); CheckAndFire(); }`
-then re-locks the cv mutex and waits OUTSIDE the worker section.
+then re-locks the cv mutex and waits OUTSIDE the worker section. A peripheral
+whose state advances only on the JIT thread (e.g. a `VirtualTimerList`-driven
+timer) has no worker and needs no `WorkerSection`.
 
 ## The peripheral contract - MANDATORY when you create or modify a peripheral
 
@@ -150,9 +159,8 @@ cannot establish, above all the interrupt line `source → INTC → JIT`:
   only reloads its registers never re-arms the JIT → missed or stale IRQ → hang.
 - A **level-driving source** (GPIO edge/level lines, OST match level, an SA-1111
   cascade) re-drives its INTC source level. See `sa11xx_intc` (`NotifyLocked`),
-  `os_timer` (`PushMatchLevelLocked`, moved OUT of `RestoreState` into
-  `PostRestore`), `sa11xx_gpio` (`PublishEdgeSourcesLocked`), `sa1111_intc`
-  (`DriveCascadeOutput`).
+  `os_timer` (`PushMatchLevel` from `PostRestore`), `sa11xx_gpio`
+  (`PublishEdgeSourcesLocked`), `sa1111_intc` (`DriveCascadeOutput`).
 
 `PostRestore` is a no-op default in `peripheral_base.h`; override it only when you
 own a computed line. **Fix the whole bug class, not one instance** - if one INTC
@@ -182,16 +190,19 @@ above.
   sub-devices like a companion-ASIC `Ps2Mouse`) are not auto-enumerated → they need
   an explicit serialization walk + card-presence recreation
   (`PcmciaCardCatalog::Create(id, binding)`).
-- **Rebase timers** (guest-cycle: OST/synctimer/gptimer/epit/gpt; wall-clock:
-  `odo_cpu_timer`) - **never raw-serialize a `std::chrono::time_point` or a
-  guest-cycle baseline.** Save the live counter; on restore re-anchor the baseline
-  so the counter resumes continuously: guest-cycle → `baseline = (saved_count,
-  GuestCycles())`; wall-clock → `period_start_ = Clock::now()`. Per-channel match
-  anchors stay valid (same counter domain).
+- **Rebase timers** (guest-cycle: synctimer/gptimer/epit/gpt; VirtualClock-ns:
+  the OS timer; wall-clock: `odo_arm720_cpu_timer`) - **never raw-serialize a
+  `std::chrono::time_point`, a guest-cycle baseline, or a VirtualClock-ns
+  anchor.** Save the live counter; on restore re-anchor the baseline so the
+  counter resumes continuously: guest-cycle → `baseline = (saved_count,
+  GuestCycles())`; VirtualClock-ns → the OS timer saves a computed live OSCR and
+  restores it as `(oscr_anchor_ = saved, anchor_ns_ = NowNs())` because
+  `VirtualClock` itself is not serialized; wall-clock → `period_start_ =
+  Clock::now()`. Per-channel match anchors stay valid (same counter domain).
 - **In-flight host coupling** resets on restore (no host sink / pen / socket exists
   post-restore): clear audio-DMA `in_flight`/`tx_running`, touch `pen_down`/
   `pen_timer_enabled`, etc. in RestoreState or PostRestore. See `sa11xx_dma`,
-  `sa1111_sac`, `odo_touch_sound`.
+  `sa1111_sac`, `odo_arm720_touch_sound`.
 
 ## What NOT to serialize (host-side members)
 

@@ -14,6 +14,8 @@ public:
     using Service::Service;
     ~JitRunner() override;
 
+    void OnShutdown() override;
+
     /* Spawn the JIT thread. Idempotent: subsequent calls are no-ops. */
     void Start();
 

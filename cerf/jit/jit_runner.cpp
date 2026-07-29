@@ -3,6 +3,8 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
+#include "../core/virtual_clock.h"
+#include "../core/virtual_timer_list.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "guest_engine.h"
 
@@ -10,6 +12,11 @@
 #include <intrin.h>
 
 REGISTER_SERVICE(JitRunner);
+
+void JitRunner::OnShutdown() {
+    RequestStop();
+    Join();
+}
 
 JitRunner::~JitRunner() {
     /* If the owner forgot to RequestStop+Join, do it here so the
@@ -77,6 +84,9 @@ void JitRunner::RunLoop() {
        before a single guest access silently aliases into it. */
     emu_.Get<PeripheralDispatcher>().ValidatePhysReachable(engine.PhysAddrMask());
 
+    auto& vclock = emu_.Get<VirtualClock>();
+    auto& timers = emu_.Get<VirtualTimerList>();
+
 #if CERF_DEV_MODE
     auto& probe = emu_.Get<RateProbe>();
 #endif
@@ -92,6 +102,7 @@ void JitRunner::RunLoop() {
 #else
         engine.Run();
 #endif
+        timers.RunExpired(VirtualTimerList::Site::RunLoop);
         const bool ds = engine.DeepSleep();
         if (ds != prev_deep_sleep) {
             LOG(SocReset, "[DEEPSLEEP] RunLoop: deep_sleep %d->%d reset_pending=%d pause=%d\n",
@@ -102,6 +113,7 @@ void JitRunner::RunLoop() {
         if (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep()) {
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
+            vclock.Pause();
             pause_cv_.notify_all();
             LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
                 static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),
@@ -115,6 +127,7 @@ void JitRunner::RunLoop() {
                    (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep())) {
                 pause_cv_.wait_for(lk, std::chrono::milliseconds(20));
             }
+            vclock.Resume();
             paused_ = false;
             LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
                 static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),

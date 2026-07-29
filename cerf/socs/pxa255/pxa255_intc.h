@@ -28,7 +28,8 @@ public:
     void DeassertSource(uint32_t bit_index);
 
     /* Level source: set ICPR bits within `mask` to `level` in one atomic update
-       (used by the OS timer, whose §4.4 interrupt follows OSSR&OIER as a level). */
+       (used by the OS timer; §4.4.2.2: OIER gates only the set of an OSSR bit,
+       so the OSSR bits themselves are the source levels). */
     void SetSourceLevel(uint32_t mask, uint32_t level);
 
     void SaveState(StateWriter& w) override;

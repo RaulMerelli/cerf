@@ -89,8 +89,10 @@ No source from these projects is present in CE Runtime Foundation; they were rea
 documentation of correct hardware behavior.
 
 - **[QEMU](https://www.qemu.org/)** and **[the Linux kernel](https://www.kernel.org/)** -
-  TLB semantics, the MIPS CP0 exception model, block-cache invalidation.
-- **Microsoft Device Emulator (2006)** - early JIT research.
+  TLB semantics, the MIPS CP0 exception model, block-cache invalidation, the
+  virtual-clock and timer model (pause-aware guest clock, deadline-list expiry,
+  idle-phase clock warp), and per-SoC timer behavior (SA-1110/PXA OS timer,
+  i.MX GPT/EPIT, MIPS Count/Compare).
 
 ## Under review
 
