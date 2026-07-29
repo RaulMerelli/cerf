@@ -94,15 +94,6 @@ documentation of correct hardware behavior.
   idle-phase clock warp), and per-SoC timer behavior (SA-1110/PXA OS timer,
   i.MX GPT/EPIT, MIPS Count/Compare).
 
-## Under review
-
-**Microsoft Device Emulator (2006)** - portions of CERF's ARM JIT engine
-(`cerf/jit/`), and smaller portions of its SMDK2410 board and peripheral code,
-derive from this source. It is licensed under the Microsoft Shared Source Academic
-License for the Device Emulator v1.0, which is not compatible with MIT, so the
-license in `LICENSE` does not extend to those files. They are being reimplemented;
-no new releases until that is done.
-
 ## Trademarks
 
 Windows and Windows CE are trademarks of Microsoft Corporation. CE Runtime Foundation is an
