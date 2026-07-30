@@ -40,11 +40,21 @@ import _hookpath
 SOURCE_EXTS = (".cpp", ".h", ".hpp", ".cc", ".c")
 
 CITATION_TRIGGER_RE = re.compile(
-    r"\bARM ARM\b|§|\bTable\s+\d|\bFig(?:ure)?\.?\s+\d"
+    r"\bARM ARM\b|§"
+    # Table / Figure references. The identifier may be letter-prefixed
+    # ("Table D15-10", "Figure B3-8") or plain ("Table 45-26").
+    r"|\bTable\s+[A-Z]?\d|\bFig(?:ure)?\.?\s+[A-Z]?\d"
     # Manual chapter / page references ("ch.27", "chapter 27", "p643",
     # "p.643", "page 643", "pg 12"). Case-insensitive. Page form needs
     # 3+ bare digits so 1-2 digit GPIO pin names ("p12") do not fire.
     r"|(?i:\bch\.\s*\d|\bchapter\s+\d|\bpage\s+\d|\bpg\.?\s*\d|\bp\.?\s*\d{3,})"
+    # Document IDs: ARM DDI/IHI/DEN/PRD ("DDI 0406C", "ddi0406c"),
+    # JEDEC/JESD, and generic vendor doc numbers.
+    r"|(?i:\b(?:ddi|ihi|den|prd|arm)\s*0*\d{3,}|\bjesd\s*\d)"
+    # Manual section identifiers: letter + dotted numbers, 2+ groups
+    # ("A8.8.44", "B3.5.1", "D15-10"). Requires the leading capital
+    # letter so version strings and decimals do not fire.
+    r"|\b[A-Z]\d+\.\d+(?:\.\d+)+\b"
 )
 
 
