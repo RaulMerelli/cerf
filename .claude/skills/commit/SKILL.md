@@ -1,54 +1,60 @@
 ---
 name: commit
-description: The user invokes `/commit` to create a git commit. The skill exists as the rule-respect boundary for commit text - agents reflexively narrate the session, leak conversation context, and yap into the commit body. This skill forces a concise, self-contained message that describes the DIFF and nothing else: no narration, no conversation leaks, no model/agent references, no incident history, no "as you asked". Shorter is better. Invoke when the user types `/commit` or asks to commit changes.
+description: The user invokes `/commit` to create a git commit. Agents reflexively narrate the session into the commit body - conversation echoes, incident history, essays about a one-line edit. This skill forces a short, self-contained message that describes the DIFF and nothing else. Fewer words is better. A one-line title is the target. Invoke when the user types `/commit` or asks to commit changes.
 ---
 
-# Commit - concise, leak-free git commit
+# Commit - short, leak-free git commit
 
-The user invoked `/commit`. Create a git commit whose message describes the diff and nothing else.
+Someone reads this message years from now, with no knowledge of this conversation. They want one thing: what changed. Every other sentence is noise you are asking that reader to skip.
+
+Fewer words is better. A one-line title is the target, not a minimum.
 
 ## Procedure
 
-1. **`git status` first**, then `git diff` (staged + unstaged) - read what actually changed. Per `agent_docs/rules.md`: never blindly stage; verify the changeset is exactly what you expect.
-2. Stage the intended files (`git add <paths>`). If files are already staged and match intent, skip.
-3. Commit with a message authored under the rules below.
+1. Run `git status`, then `git diff` (staged and unstaged). Read what actually changed.
+2. Stage only the paths this work touched.
+3. Commit with a message written under the rules below.
 
-## The message rules
+## The message
 
-- **Describe the diff, not the discussion.** Title + optional body cover what the change does to the project - never the conversation that produced it.
-- **Shorter is better.** A one-line title is the default. Add body lines only when the *what* genuinely needs them. No padding.
-- **Imperative title**, lowercase scope prefix matching repo convention (e.g. `jornada820: keyboard`, `host: compose window title from cerf.json device meta`). Match the style of recent commits.
-- **End with the required trailer** from CLAUDE.md:
+- **Describe the diff, not the discussion.** The message covers what the change does to the project. It never covers the conversation that produced it.
+- **Write a one-line title, then stop.** Add body lines only when the title cannot carry the *what*. An empty body is a good commit.
+- **Use the imperative, with a lowercase scope prefix that matches recent commits** (`jornada820: keyboard`, `host: compose window title from cerf.json device meta`). Read `git log` first.
+- **End with the `Co-Authored-By:` trailer for the model that runs this session.** Claude Code supplies it.
 
-  ```
-  Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-  ```
+## Example
+
+One diff, two messages:
+
+> **Slop:** `fix: resolve the LCD issue`
+>
+> As you asked, this commit fixes the display bug we found. I first tried
+> changing the palette, but you were right that the real problem was
+> elsewhere. This took several attempts to get correct.
+
+> **Clean:** `s3c2410: latch LCD palette at frame start`
+
+The clean message tells the reader what changed. The slop message tells them about a Tuesday afternoon.
+
+## Forbidden
+
+Each of these describes the session instead of the diff:
+
+- **Conversation echoes** - "as you asked", "per your feedback", "you were right", "reverted per discussion".
+- **Narration** - "this commit", "in this change we", an essay about a one-line edit, "renamed the section", the name of a section you deleted.
+- **Incident history** - "this broke 3 times", "after the regression".
+- **Alternatives** - "we chose X over Y", "originally tried Z".
+- **Agent or session references** - "the previous agent", "a prior session". The trailer is the only sanctioned model mention.
+- **Private design leaks** - section numbers (`§3.1`), phase names, `docs/ai_checklists/` paths, any vocabulary from a checklist. Those files are confidential and never enter git history.
+
+The test for a line: a developer at a fresh clone, who never saw this session, understands it. If a line makes sense only to someone who watched the conversation, delete it.
 
 ## GitHub issues
 
-If the work of this commit addresses a GitHub issue, reference it - this is diff metadata (what the change does to the project), not session narration, so it's allowed and encouraged.
-
-- **When the commit fully resolves the issue**, add a closing keyword on its own line above the trailer so GitHub auto-closes it: `Fixes #123` (or `Closes #123`).
-- **When the commit is related but doesn't fully resolve it**, reference without closing: `Refs #123`.
-- Reference an issue only when the diff actually corresponds to it - don't attach an issue number to an unrelated change, and don't invent one. If no issue was in play this session, this section does not apply.
-- Keep it to the reference line itself. The *discussion* in the issue thread is still conversation - do not paste or summarize it into the body (the diff rules above still hold).
-
-## Forbidden in the message (this is the whole point of the skill)
-
-Per `agent_docs/code_style.md` § Comments and `agent_docs/rules.md` "Commit messages describe the diff, not the discussion":
-
-- **Narration / yapping** - "this commit", "in this change we", multi-paragraph essays about a one-line edit.
-- **Conversation echoes** - "as you asked", "per your feedback", "reverted per discussion", "you were right".
-- **Model / agent references** in the body - "the previous agent", "a prior session" (the trailer is the only sanctioned model mention).
-- **Incident history** - "this broke N times", "after the regression", "the cautionary tale".
-- **Alternatives narrative** - "we chose X over Y", "originally tried Z".
-- **Checklist / private-design leaks** - section numbers (`§3.1`), phase names, `docs/ai_checklists/` paths, any vocabulary from a confidential checklist.
-- **Edit-process narration** - "reframed", "renamed section", removed-section names.
-
-Test each line against the fresh-clone bar: a developer reading `git log` with zero knowledge of this session must understand the *what* from the message alone. If a line only makes sense to someone who watched this conversation, delete it.
+An issue reference is diff metadata, so it is welcome. When the commit fully resolves the issue, put `Fixes #123` on its own line above the trailer. When the commit is related but does not resolve it, use `Refs #123`. Reference an issue only when the diff corresponds to it. The issue thread is still conversation, so do not summarize it into the body.
 
 ## Hard stops
 
-- **Never run git unless the user asked** - `/commit` IS that ask, scoped to this commit only. Do not `git push` (that needs separate explicit approval).
-- **Never force past `.gitignore`** (`git add -f`). The ignore is a STOP signal.
-- **If `git status` shows files you don't recognize or didn't intend**, stop and surface them - don't sweep them into the commit.
+- **Never run git unless the user asked.** `/commit` is that ask, and it covers this one commit. Do not `git push`, which needs separate approval.
+- **Never force past `.gitignore`** with `git add -f`. The ignore is a STOP signal.
+- **Stage only what this session changed.** Other agents and the user work in this tree at the same time, so `git status` often lists edits that are not yours. If you did not make a change, leave it unstaged and say it is there.
