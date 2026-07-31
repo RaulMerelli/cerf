@@ -1,0 +1,117 @@
+#pragma once
+
+#include <cstdint>
+#include <optional>
+#include <vector>
+
+#include "../../core/service.h"
+#include "arm_mmu_state.h"
+#include "cpu_state.h"
+
+class ArmJit;
+class ArmProcessorConfig;
+class EmulatedMemory;
+class StateWriter;
+class StateReader;
+
+class ArmMmu : public Service {
+public:
+    using Service::Service;
+    ~ArmMmu() override;
+
+    void OnReady() override;
+    bool ShouldRegister() override;
+
+    ArmMmuState* State() { return &state_; }
+
+    /* Persistent cp15 registers only. TLBs + SMC bitmaps are derived;
+       RestoreState flushes the TLBs, the JIT TC flush clears the rest. */
+    void SaveState(StateWriter& w);
+    void RestoreState(StateReader& r);
+
+    /* On nullptr return, check io_pending_address(): zero ⇒ genuine
+       fault (FAR/FSR set, caller raises abort); non-zero ⇒ PA lies
+       in peripheral space, caller routes to PeripheralDispatcher. */
+    uint8_t* TranslateRead    (ArmCpuState* cpu_state, uint32_t va);
+    uint8_t* TranslateWrite   (ArmCpuState* cpu_state, uint32_t va);
+    uint8_t* TranslateReadWrite(ArmCpuState* cpu_state, uint32_t va);
+    uint8_t* TranslateExecute (ArmCpuState* cpu_state, uint32_t va);
+
+    /* Word-aligned VFP/NEON multi-byte loads may page-cross (ARM ARM DDI0406C A3.2 Table A3-1). */
+    bool AccessPaged(ArmCpuState* cpu_state, uint32_t va,
+                     uint8_t* host_buf, uint32_t n, bool is_load);
+
+    /* No walk, no TLB fill, no abort raise - diagnostic-only. */
+    std::optional<uint8_t*> PeekDataTlb(uint32_t va) const;
+
+
+    uint8_t* PeekVaToHost(uint32_t va);
+
+    bool PeekVaToPa(uint32_t va, uint32_t* pa);
+
+    /* I-TLB nG/global flag for va's page; slot absent ⇒ false. */
+    bool ExecPageGlobal(uint32_t va) const;
+
+    uint32_t io_pending_address() const { return io_pending_address_; }
+
+    uint32_t LastExecPa() const { return last_exec_pa_; }
+
+    uint32_t LastDataPa() const { return last_data_pa_; }
+
+    /* True iff `pa` is backed by genuine ROM/flash (host PAGE_READONLY /
+       PAGE_EXECUTE_READ) - storage the guest cannot rewrite, distinct from
+       DRAM the MMU's AP bits merely mark read-only for one regime. */
+    bool IsReadOnlyBacked(uint32_t pa);
+
+    uint32_t* IoPendingAddressPtr() { return &io_pending_address_; }
+
+    /* cp15 c0 op1=1 CRm=0 op2=0 (CCSIDR), indexed by CSSELR.
+       Called from JIT only when HasCp15V7() is true.
+       __fastcall: ECX = mmu pointer; return in EAX. */
+    static uint32_t __fastcall CcsidrLookupHelper(ArmMmu* mmu);
+
+    /* Set FAR + FSR.status = kAlignment for an alignment data abort;
+       caller signals the abort via ArmCpu::RaiseAbortDataException. */
+    void RaiseAlignmentFault(uint32_t va, bool is_write);
+
+    /* Guest-additions injection band: a CERF-owned PA region the walker serves
+       at a guest-unmapped static-window VA, so the injected stub's bytes live
+       in CERF memory and the victim's TOC is only repointed at this VA. size 0
+       disables it. */
+    void SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size);
+
+private:
+    template <ArmMmuAccess kAccess>
+    uint8_t* MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p);
+
+    std::optional<uint32_t> WalkVaToPa(uint32_t va);
+
+    const ArmTlbEntry* MatchDataTlb(uint32_t va, uint32_t* folded) const;
+
+    /* On a walk fault, serve va from the injection band if it lies inside it;
+       nullptr otherwise (caller raises the abort). */
+    uint8_t* ServeInjectionBand(uint32_t va, ArmMmuAccess access);
+
+    void RaiseAbort(uint32_t va, uint32_t fault_status, uint32_t domain,
+                    ArmMmuAccess access);
+
+    void SetIoPending(uint32_t pa);
+
+    ArmMmuState         state_{};
+    EmulatedMemory*     memory_           = nullptr;
+    ArmProcessorConfig* processor_config_ = nullptr;
+
+    uint32_t io_pending_address_ = 0;
+    uint32_t last_exec_pa_       = 0;
+    uint32_t last_data_pa_       = 0;
+
+    uint32_t injection_band_va_   = 0;
+    uint32_t injection_band_pa_   = 0;
+    uint32_t injection_band_size_ = 0;
+
+    /* Backing stores for the SMC bitmaps (code_xlat_bitmap word-marks +
+       code_page_dirty page set). Sized once in OnReady, never resized, so
+       the data() pointers stay stable for the JIT/MMU bitmap accesses. */
+    std::vector<uint8_t> code_xlat_bitmap_storage_;
+    std::vector<uint8_t> code_page_dirty_storage_;
+};

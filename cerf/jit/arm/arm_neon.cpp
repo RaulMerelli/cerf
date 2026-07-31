@@ -59,7 +59,7 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
 
     const uint32_t base = state->gprs[rn_idx];
     if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base);
+        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
@@ -111,7 +111,7 @@ uint32_t ArmNeon::HandleLoadStoreInterleaved(uint32_t pc, uint32_t d_idx, uint32
 
     const uint32_t base = state->gprs[rn_idx];
     if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base);
+        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
@@ -168,7 +168,7 @@ uint32_t ArmNeon::HandleLoadStoreSingleLane(uint32_t pc, uint32_t d_idx, uint32_
 
     const uint32_t base = state->gprs[rn_idx];
     if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base);
+        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
