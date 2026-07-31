@@ -102,7 +102,7 @@ For the issues of each board, see the [board database of the launcher](launcher/
 > [!CAUTION]
 > **DO NOT USE THE CERF CODEBASE AS A REFERENCE FOR SoCs, BOARDS OR PERIPHERALS.** AI written code might include mistakes a developer did not notice.
 
-built CERF with [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Built with help of [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ---
 
