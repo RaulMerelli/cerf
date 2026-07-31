@@ -3,7 +3,6 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "arm_cpu.h"
-#include "arm_cpu_ops.h"
 #include "arm_jit_runtime.h"
 #include "arm_mmu.h"
 #include "cpu_state.h"
@@ -25,6 +24,16 @@ uint32_t __fastcall ArmJit::RfeHelper(uint32_t rn_value,
     }
 
     ArmCpuState* state = jit->CpuState();
+
+    /* ddi0406c B9.3.13 Operation: "if CurrentModeIsHyp() then UNDEFINED;
+       elsif (!CurrentModeIsNotUser() ...) then UNPREDICTABLE". System mode
+       is explicitly permitted. */
+    const uint32_t current_mode = state->cpsr.bits.mode;
+    if (current_mode == ArmMode::kUser || current_mode == ArmMode::kHyp) {
+        LOG(Caution, "RfeHelper: executed in CPSR.M=0x%02X - UNDEFINED/"
+                     "UNPREDICTABLE per ddi0406c B9.3.13\n", current_mode);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
 
     uint8_t* host_pc_ptr = jit->mmu_->TranslateRead(state, address);
     if (!host_pc_ptr) {
@@ -49,12 +58,9 @@ uint32_t __fastcall ArmJit::RfeHelper(uint32_t rn_value,
         state->gprs[rn] = u_bit ? (rn_value + 8u) : (rn_value - 8u);
     }
 
-    /* CPSRWriteByInstr(spsr_value, '1111', TRUE) - full CPSR overwrite
-       including mode + flags + T. UpdateCpsrWithFlags handles the bank
-       swap + IRQ-poll. */
     ArmPsrFull new_psr;
     new_psr.word = new_cpsr;
-    ArmCpuUpdateCpsrWithFlags(jit, state, new_psr);
+    jit->emu_.Get<ArmCpu>().UpdateCpsrWithFlags(new_psr);
 
     /* BranchWritePC - bits[1:0] masked per the new ISA. */
     if (state->cpsr.bits.thumb_mode) {

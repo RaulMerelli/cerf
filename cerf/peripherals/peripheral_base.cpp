@@ -2,7 +2,6 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
-#include "../jit/arm/arm_cpu_ops.h"
 #include "../jit/arm/arm_jit.h"
 #include "../jit/arm/cpu_state.h"
 #include "../jit/guest_engine.h"
@@ -50,7 +49,7 @@ void Peripheral::HaltUnsupportedAccess(const char* op,
     if (auto* arm = emu_.TryGet<ArmJit>()) {
         auto* state      = arm->CpuState();
         const auto& r    = state->gprs;
-        const uint32_t c = ArmCpuGetCpsrWithFlags(state);
+        const uint32_t c = state->cpsr.word;
         LOG(Caution, "      CPSR=0x%08X\n", c);
         LOG(Caution, "      R0=0x%08X  R1=0x%08X  R2=0x%08X  R3=0x%08X "
                      "R4=0x%08X  R5=0x%08X  R6=0x%08X  R7=0x%08X\n",
