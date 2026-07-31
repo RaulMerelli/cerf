@@ -83,6 +83,15 @@ library. This is satisfied as follows:
 - **Relinkable form of the work.** CE Runtime Foundation's complete source is public,
   so a recipient can rebuild the work against a modified library from source.
 
+## Development environment
+
+The development environment under `.claude/` includes the components below. They are not
+part of `cerf.exe` and exist only in the source tree. The MIT text above applies to each
+MIT component.
+
+- **[SimpleEnglish](https://github.com/AminBlg/SimpleEnglish)** - MIT, (c) 2026 AminBlg.
+  Commit `379728b` (2026-07-21), copied without changes to `.claude/skills/simple-english/`.
+
 ## Studied references
 
 No source from these projects is present in CE Runtime Foundation; they were read as
@@ -98,3 +107,6 @@ documentation of correct hardware behavior.
 
 Windows and Windows CE are trademarks of Microsoft Corporation. CE Runtime Foundation is an
 independent project, not affiliated with, endorsed by, or sponsored by Microsoft.
+
+ASD-STE100 is a registered trademark of ASD. The SimpleEnglish skill is unofficial, and ASD
+and STEMG do not endorse it.
