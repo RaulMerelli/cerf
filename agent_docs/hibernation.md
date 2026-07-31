@@ -2,11 +2,11 @@
 
 CERF can snapshot a running guest to a `.img` file and later resume it bit-for-bit
 ("hibernation" / "state saver"). This page is the **contract every peripheral
-author must follow** so a restore comes back to a live, correct machine instead of
+author must obey**, so a restore returns a live, correct machine instead of
 a half-reset one. If you create or modify ANY peripheral, SoC block, board device,
-codec, or worker thread, the § "Peripheral contract" rules below are mandatory -
-skipping them does not produce a smaller feature, it produces a broken restore
-(dead display, frozen scheduler, missed interrupts) that surfaces hours later on a
+codec, or worker thread, the § "Peripheral contract" rules below are mandatory.
+A skipped rule does not produce a smaller feature. It produces a broken restore
+(dead display, frozen scheduler, missed interrupts) that appears hours later on a
 different device.
 
 Host-side implementation: `cerf/state/` (`hibernation.{h,cpp}`,
@@ -20,139 +20,142 @@ Three outcomes from a saved `.img`:
 
 - **Full restore** - resume the exact desktop (every register, all RAM, all
   peripheral state) as if the machine never stopped.
-- **Warm boot** - keep RAM + flash, re-init CPU / cp15 / peripherals cold; the OS
-  reboots but the filesystem-in-RAM and any flash writes survive.
+- **Warm boot** - keep RAM + flash, re-init CPU / cp15 / peripherals cold. The OS
+  reboots, but the filesystem-in-RAM and any flash writes survive.
 - **Cold boot** - ignore the image, boot from scratch.
 
 **Why it exists:** real vintage HPC devices (Jornada 720, …) are battery-backed and
-keep DRAM alive across suspend - only a battery pull wipes it - so the running OS
-and its RAM-backed object store (the CE in-memory filesystem) persist across power
-cycles. CERF instead wipes all guest RAM on close: every exit is effectively a cold
-boot and any guest state accumulated since boot is lost. Hibernation preserves the
-full running machine across an exit.
+keep DRAM alive across suspend. Only a battery pull wipes it. The running OS
+and its RAM-backed object store (the CE in-memory filesystem) therefore persist
+across power cycles. CERF instead wipes all guest RAM on close. Every exit is
+effectively a cold boot, and all guest state from since boot is lost. Hibernation
+preserves the full running machine across an exit.
 
-**Triggers:** Actions-menu Save/Load state; a Shutdown dialog on window close
-(save-on-exit); and a boot-time prompt when a default `state.img` exists in the
+**Triggers:** the Actions-menu Save/Load state, a Shutdown dialog on window close
+(save-on-exit), and a boot-time prompt when a default `state.img` exists in the
 device directory.
 
 ## The `.img` format
 
 `StateImageHeader` (magic `CERFIMG1`, `format_version`, ROM fingerprint =
 `rom_entry_va` + `rom_total_bytes` + `periph_layout_sig` + a `guest_additions`
-byte) followed by a section count and length-framed sections
+byte), followed by a section count and length-framed sections
 (`StateSectionHeader{ id, length }`). The length frame lets restore **skip** a
-section it doesn't apply (warm boot) or tolerate a peripheral whose Save/Restore
-are asymmetric without desyncing the whole stream - `SeekTo(body_start + length)`
-re-aligns after every section.
+section that it does not apply (warm boot). It also lets restore tolerate a
+peripheral whose Save/Restore are asymmetric, with no desync of the whole stream.
+`SeekTo(body_start + length)` re-aligns after every section.
 
-Identity is validated **before** any live state is mutated (`ValidateHeader`):
-wrong ROM, wrong peripheral layout signature, or a guest-additions mismatch is
-refused up front. `periph_layout_sig` is a hash over the registered peripheral set
-(count + each `MmioBase()`), so a cross-build-incompatible image is rejected rather
-than mis-applied. Identity comes from `RomParserService`.
+`ValidateHeader` verifies identity **before** CERF mutates any live state. A wrong
+ROM, a wrong peripheral layout signature, or a guest-additions mismatch is refused
+at that point. `periph_layout_sig` is a hash over the registered peripheral set
+(count + each `MmioBase()`). CERF therefore rejects a cross-build-incompatible
+image instead of a mis-apply. Identity comes from `RomParserService`.
 
 ## Build-specific by design
 
-CERF state images are **build-specific**: an `.img` is only
-ever restored by the exact binary that wrote it. `ValidateHeader` enforces this up
-front - `periph_layout_sig` (above) plus the ROM fingerprint and `format_version`
-cause any image not aligned with the running build's peripheral set to be
-**refused, never mis-applied**. There is deliberately no per-peripheral image
-versioning; it would be intractable at CERF's chip/board count.
+CERF state images are **build-specific**. Only the exact binary that wrote an
+`.img` ever restores it. `ValidateHeader` enforces this at load.
+`periph_layout_sig` (named above), the ROM fingerprint, and `format_version`
+work together. They cause CERF to **refuse, never mis-apply**, any image that
+does not align with the peripheral set of the running build. There is deliberately no
+per-peripheral image versioning. At the chip/board count of CERF, such versioning
+is intractable.
 
 The consequence for the peripheral contract: the ONLY serialization requirement is
-that a peripheral's own `SaveState` and `RestoreState` are **exact mirrors of each
+that the `SaveState` and `RestoreState` of a peripheral are **exact mirrors of each
 other in the same build** (a clean round-trip). Cross-build `.img` compatibility is
-**not** a requirement and must not be engineered for. A peripheral that, during
-bring-up, grows its `SaveState` (new registers), reorders fields, drops a field it
-no longer has, or is re-homed onto a shared core that serializes in a different
-order is doing nothing wrong - the older images that used the previous format are
-simply refused by `ValidateHeader`, exactly as intended.
+**not** a requirement. Never engineer for it. During bring-up a peripheral can grow
+its `SaveState` (new registers), reorder fields, or drop a field that it no longer
+has. It can also move onto a shared core that serializes in a different order.
+Such a peripheral does nothing wrong. `ValidateHeader` refuses the older images that used
+the previous format, exactly as intended.
 
 ## Sections - what each captures
 
-Saved/restored in file order: **Cpu → Mmu → Ram → Flash → Periph → Presentation →
-Widget → Reset**.
+CERF saves and restores in file order: **Cpu → Mmu → Ram → Flash → Periph →
+Presentation → Widget → Reset**.
 
-- **Cpu** - the engine's flat CPU-state POD via the ISA-neutral
-  `GuestEngine::SaveCpuState` / `RestoreCpuState` seam: the ARM engine
+- **Cpu** - the flat CPU-state POD of the engine, through the ISA-neutral
+  `GuestEngine::SaveCpuState` / `RestoreCpuState` seam. The ARM engine
   serializes `ArmCpuState` (GPRs, `guest_cycle_counter`, CPSR, banked regs,
-  `irq_interrupt_pending`), the MIPS engine `MipsCpuState`.
-- **Mmu** - the engine's persistent MMU state via `GuestEngine::SaveMmuState` /
-  `RestoreMmuState`. ARM: cp15 persistent register fields only - the TLBs + SMC
-  bitmaps are derived state → flushed on restore (`ArmTlbFlushAll`), never
-  serialized. MIPS: the `MipsMmu` residual state.
+  `irq_interrupt_pending`). The MIPS engine serializes `MipsCpuState`.
+- **Mmu** - the persistent MMU state of the engine, through
+  `GuestEngine::SaveMmuState` / `RestoreMmuState`. ARM: cp15 persistent register
+  fields only. The TLBs and SMC bitmaps are derived state. Restore flushes them
+  (`ArmTlbFlushAll`) and never serializes them. MIPS: the `MipsMmu` residual state.
 - **Ram** - `EmulatedMemory` volatile (PAGE_READWRITE) regions.
 - **Flash** - `EmulatedMemory` backed PAGE_READONLY / PAGE_EXECUTE_READ regions
-  (flash writes-since-boot ARE machine state). Applied on warm boot too - flash
-  survives a reboot on real hardware.
+  (flash writes-since-boot ARE machine state). Restore applies this section on
+  warm boot too, because flash survives a reboot on real hardware.
 - **Periph** - every `PeripheralDispatcher::RegisteredPeripherals()` entry, in
-  registration order, each tagged by `MmioBase()` and tag-checked on restore.
+  registration order, each tagged by `MmioBase()`. Restore verifies the tag.
 - **Presentation** - `HostCanvas` guest-surface dimensions, so a custom resolution
   restores its window size.
 - **Widget** - `HostWidgetRegistry` state that drives guest-visible hardware
-  (e.g. the battery widget's charge level / AC, which a board service feeds into
-  GPIO/MCU lines). Full restore only - a warm boot re-asserts it when the board
-  service re-drives at startup.
+  (for example the charge level / AC of the battery widget, which a board service
+  feeds into GPIO/MCU lines). Full restore only. On a warm boot the board service
+  re-asserts it when it re-drives at startup.
 - **Reset** - `GuestCpuReset` + `GuestColdBoot` state (reset cause, registered
   boot-time guest-RAM write replays).
 
-The JIT translation cache is **flushed**, never saved
+CERF **flushes** the JIT translation cache and never saves it
 (`FlushTranslationCache(0, 0xFFFFFFFF)`). After a full restore,
 `GuestEngine::ResyncInterruptPoll()` re-arms interrupt delivery from the
-restored state - the ARM engine re-derives the interrupt-poll trampoline byte;
-miss it and a restored-pending IRQ is silently dropped.
+restored state. The ARM engine re-derives the interrupt-poll trampoline byte.
+If you miss that step, a restored-pending IRQ is silently dropped.
 
 ## The two-thread freeze model - read before touching ANY peripheral
 
-A safe snapshot requires the guest to be quiescent. Two things execute guest-visible
-state, and pausing one does NOT pause the other:
+A safe snapshot requires a quiescent guest. Two things execute guest-visible
+state, and a pause of one does NOT pause the other:
 
 1. **The JIT (guest CPU) thread.** `JitRunner::Pause()` parks it between translated
-   blocks; `Resume()` releases it. `Pause()` is **host-thread only** - calling it
-   from the JIT thread self-deadlocks. Hibernation does `Pause() → work → Resume()`.
+   blocks. `Resume()` releases it. `Pause()` is **host-thread only**. A call from
+   the JIT thread self-deadlocks. Hibernation runs `Pause() → work → Resume()`.
 
 2. **Peripheral worker threads.** GPT/EPIT match loops, ADC/battery samplers, PMIC,
-   keypad, network, serial - these are `std::thread`s that keep mutating
-   guest-visible state regardless of the JIT pause. They are frozen by
-   **`EmulationFreeze`** (`cerf/state/emulation_freeze.h`):
+   keypad, network, serial - these are `std::thread`s that continue to mutate
+   guest-visible state, whatever the JIT pause does. **`EmulationFreeze`**
+   (`cerf/state/emulation_freeze.h`) freezes them:
    - A worker holds `WorkerSection()` (a `shared_lock`) **around the part of each
      iteration that reads or writes guest state**.
    - Hibernation holds `SnapshotSection()` (a `unique_lock`) across the whole
      save or restore.
-   - **Lock-order invariant (deadlocks if violated):** the freeze lock is taken
-     BEFORE any peripheral mutex, and a worker **never** holds `WorkerSection`
+   - **Lock-order invariant (a violation deadlocks):** take the freeze lock
+     BEFORE any peripheral mutex. A worker **never** holds `WorkerSection`
      across a cv wait / sleep / thread join. Acquire it, do the state touch,
      release it, then wait.
 
-Reference worker: `FreescaleGptBase::MatchLoop` in `cerf/socs/freescale_gpt_impl.h` -
-`{ auto frozen = freeze.WorkerSection(); RebaseToCurrent(); CheckAndFire(); }`
-then re-locks the cv mutex and waits OUTSIDE the worker section. A peripheral
-whose state advances only on the JIT thread (e.g. a `VirtualTimerList`-driven
+Reference worker: `FreescaleGptBase::MatchLoop` in `cerf/socs/freescale_gpt_impl.h`.
+It runs `{ auto frozen = freeze.WorkerSection(); RebaseToCurrent(); CheckAndFire(); }`.
+It then re-locks the cv mutex and waits OUTSIDE the worker section. A peripheral
+whose state advances only on the JIT thread (for example a `VirtualTimerList`-driven
 timer) has no worker and needs no `WorkerSection`.
 
 ## The peripheral contract - MANDATORY when you create or modify a peripheral
 
-A `Peripheral` (or any object holding mutable guest-visible state) gets up to three
-methods. **Every peripheral with mutable state MUST implement the first two.**
+A `Peripheral` (or any object that holds mutable guest-visible state) gets a
+maximum of three methods. **Every peripheral with mutable state MUST implement the
+first two.**
 
 ### 1. `SaveState(StateWriter&)` / `RestoreState(StateReader&)`
 
-Serialize **every mutable register / latch / counter / FIFO**, not just an obvious
-`storage_[]` array - timer counters, DMA transfer registers, RTC base, LCD
-framebuffer config, blit-engine latched-op params, FIFO contents, mode/command FSM
-latches. Save and Restore must be **exact mirrors** (same field order). Use
-`#include "../../state/state_stream.h"`; `w.Write<T>()` / `r.Read<T>()`;
-length-prefix variable-size data (member-vector NAND/NOR, FIFOs) so forward-skip
-stays valid. `std::atomic<uintN>` → `.load(std::memory_order_acquire)` /
-`.store(v, std::memory_order_release)`.
+Serialize **every mutable register / latch / counter / FIFO**, not only an obvious
+`storage_[]` array: timer counters, DMA transfer registers, RTC base, LCD
+framebuffer configuration, blit-engine latched-op params, FIFO contents,
+mode/command FSM latches. Save and Restore must be **exact mirrors** (same field
+order). Use `#include "../../state/state_stream.h"` with `w.Write<T>()` /
+`r.Read<T>()`. Length-prefix variable-size data (member-vector NAND/NOR, FIFOs),
+so forward-skip stays valid. For `std::atomic<uintN>`, use
+`.load(std::memory_order_acquire)` / `.store(v, std::memory_order_release)`.
 
 ### 2. `PostRestore()`
 
-Runs in a **second pass after every peripheral's `RestoreState` has completed**
-(`Hibernation::RestorePeripherals`), so it is order-independent - all registers are
-already in place. Use it to re-assert **computed** state a single `RestoreState`
-cannot establish, above all the interrupt line `source → INTC → JIT`:
+It runs in a **second pass, after the `RestoreState` of every peripheral is
+complete** (`Hibernation::RestorePeripherals`). It is therefore order-independent,
+because all registers are already in place. Use it to re-assert **computed** state
+that a single `RestoreState` cannot establish. The interrupt line
+`source → INTC → JIT` is the most important case:
 
 - An **INTC** re-notifies the JIT of its restored pending/mask state
   (`SetInterruptPending` / re-derive `HasPendingUnmasked`). A restored INTC that
@@ -162,64 +165,66 @@ cannot establish, above all the interrupt line `source → INTC → JIT`:
   `os_timer` (`PushMatchLevel` from `PostRestore`), `sa11xx_gpio`
   (`PublishEdgeSourcesLocked`), `sa1111_intc` (`DriveCascadeOutput`).
 
-`PostRestore` is a no-op default in `peripheral_base.h`; override it only when you
-own a computed line. **Fix the whole bug class, not one instance** - if one INTC
+`PostRestore` is a no-op default in `peripheral_base.h`. Override it only when you
+own a computed line. **Fix the whole bug class, not one instance.** If one INTC
 needs `PostRestore`, audit every INTC.
 
 ### 3. Worker-thread wrapping
 
-If your peripheral spawns a worker thread that touches guest state, wrap the
-state-touch in `emu_.Get<EmulationFreeze>().WorkerSection()` per the freeze model
-above.
+If your peripheral starts a worker thread that touches guest state, wrap the
+state touch in `emu_.Get<EmulationFreeze>().WorkerSection()`, per § The two-thread
+freeze model.
 
 ## Patterns by peripheral shape
 
-- **Unified peripheral** (`class Foo : public Peripheral` holding its own regs) -
-  SaveState/RestoreState directly on the class.
-- **Split peripheral** (a stateless MMIO `Peripheral` delegating to a state-owner
-  registered `_AS` a base, e.g. S3C2410 INTC) - the **state-owner** implements
-  SaveState/RestoreState/PostRestore; the MMIO override delegates via
-  `static_cast<Owner&>(emu_.Get<Base>())`. **Check BOTH `.h` and `.cpp`** before
-  calling a peripheral a gap - Save/Restore is often inline in the header.
+- **Unified peripheral** (`class Foo : public Peripheral` that holds its own regs)
+  - SaveState/RestoreState directly on the class.
+- **Split peripheral** (a stateless MMIO `Peripheral` that delegates to a
+  state-owner registered `_AS` a base, for example the S3C2410 INTC) - the
+  **state-owner** implements SaveState/RestoreState/PostRestore. The MMIO override
+  delegates through `static_cast<Owner&>(emu_.Get<Base>())`. **Read BOTH `.h` and
+  `.cpp`** before you call a peripheral a gap. Save/Restore is often inline in the
+  header.
 - **Codec / PMIC parts are Services, NOT Peripherals** → they are not in the
   `RegisteredPeripherals()` walk. Add virtual `SaveState/RestoreState` to the codec
-  base (`Ac97Codec`, `Sa11xxMcpCodec`), override in the concrete (serialize its
-  `reg_`), and **forward from the owning peripheral's SaveState/RestoreState** via
-  `if (auto* c = emu_.TryGet<Base>()) c->SaveState(w);` (symmetric in Save+Restore).
+  base (`Ac97Codec`, `Sa11xxMcpCodec`). Override it in the concrete and serialize
+  its `reg_`. Then **forward from the SaveState/RestoreState of the owning
+  peripheral** with `if (auto* c = emu_.TryGet<Base>()) c->SaveState(w);`
+  (symmetric in Save+Restore).
 - **Non-`Peripheral` stateful objects** (PCMCIA `PcmciaSlot` / `PcmciaCard`,
   sub-devices like a companion-ASIC `Ps2Mouse`) are not auto-enumerated → they need
   an explicit serialization walk + card-presence recreation
   (`PcmciaCardCatalog::Create(id, binding)`).
-- **Rebase timers** (guest-cycle: synctimer/gptimer/epit/gpt; VirtualClock-ns:
-  the OS timer; wall-clock: `odo_arm720_cpu_timer`) - **never raw-serialize a
+- **Rebase timers** (guest-cycle: synctimer/gptimer/epit/gpt. VirtualClock-ns:
+  the OS timer. Wall-clock: `odo_arm720_cpu_timer`) - **never raw-serialize a
   `std::chrono::time_point`, a guest-cycle baseline, or a VirtualClock-ns
-  anchor.** Save the live counter; on restore re-anchor the baseline so the
-  counter resumes continuously: guest-cycle → `baseline = (saved_count,
-  GuestCycles())`; VirtualClock-ns → the OS timer saves a computed live OSCR and
-  restores it as `(oscr_anchor_ = saved, anchor_ns_ = NowNs())` because
-  `VirtualClock` itself is not serialized; wall-clock → `period_start_ =
+  anchor.** Save the live counter. On restore, re-anchor the baseline so the
+  counter resumes continuously. Guest-cycle → `baseline = (saved_count,
+  GuestCycles())`. VirtualClock-ns → the OS timer saves a computed live OSCR and
+  restores it as `(oscr_anchor_ = saved, anchor_ns_ = NowNs())`, because CERF does
+  not serialize `VirtualClock` itself. Wall-clock → `period_start_ =
   Clock::now()`. Per-channel match anchors stay valid (same counter domain).
-- **In-flight host coupling** resets on restore (no host sink / pen / socket exists
-  post-restore): clear audio-DMA `in_flight`/`tx_running`, touch `pen_down`/
-  `pen_timer_enabled`, etc. in RestoreState or PostRestore. See `sa11xx_dma`,
-  `sa1111_sac`, `odo_arm720_touch_sound`.
+- **In-flight host coupling** resets on restore, because no host sink / pen /
+  socket exists after a restore. In RestoreState or PostRestore, clear audio-DMA
+  `in_flight`/`tx_running`, touch `pen_down`/`pen_timer_enabled`, and the
+  equivalent flags. See `sa11xx_dma`, `sa1111_sac`, `odo_arm720_touch_sound`.
 
 ## What NOT to serialize (host-side members)
 
-Skip anything that is host machinery, not guest state - it is reconstructed, not
-restored: raw host pointers, `std::thread`, `HANDLE`, audio sinks, `std::function`,
-pointers into the object's own buffer, `std::string`/`std::vector` TX-line
-accumulators. A **file-backed `DiskImage`** (host `HANDLE`) is NOT serialized - it
-persists on host disk across the restart; only its in-flight transfer state
-(`AtaDrive`) is.
+Skip anything that is host machinery, not guest state. CERF reconstructs it and
+never restores it: raw host pointers, `std::thread`, `HANDLE`, audio sinks,
+`std::function`, pointers into the own buffer of the object,
+`std::string`/`std::vector` TX-line accumulators. A **file-backed `DiskImage`**
+(host `HANDLE`) is NOT serialized. It persists on host disk across the restart.
+Only its in-flight transfer state (`AtaDrive`) is serialized.
 
 ## Verifying a peripheral's serialization
 
-A peripheral compiling is not a peripheral serialized. The completeness check is to
-read every `public Peripheral` (both `.h` and `.cpp`) and confirm it has
-SaveState/RestoreState, then do a **save → restore round-trip on the actual
+A peripheral that compiles is not a peripheral that serializes. For completeness,
+read every `public Peripheral` (both `.h` and `.cpp`) and verify that it has
+SaveState/RestoreState. Then do a **save → restore round-trip on the actual
 device** and exercise it. A single clean round-trip on one OS does not prove
-restore correct - per-device runtime testing does.
+restore correct. Per-device runtime testing does.
 
 ## Common failure shapes
 

@@ -1,49 +1,55 @@
 # Agent Workflow - Mental Model Discipline
 
-This is the core operating method for every task. Not debugging-specific - this is HOW you work.
+This is the core operating method for each task. It is not only for debugging. This is HOW you work.
 
 ## Mental Model Discipline
 
-- **AFTER CHUNK OF WORK YOU SEND USER A "STATUS UPDATE"**. It contains next text:
-  - I violated CLAUDE.md: yes/no [violated rules enumeration]
-  - (if your work contains code edits:)
+- **AFTER EVERY CHUNK OF WORK, RUN THE SELF-CHECK. RUN IT SILENTLY.** The self-check is a gate on you. It is not a report for the user. Answer each row for yourself. A row that you skip is a row that you failed. If every row is clean, say nothing about the self-check. Write no status block, no table, no checkmarks, and no "self-check: passed" line. A clean self-check is invisible.
+  - I violated CLAUDE.md: yes/no [name the rules]
+  - (if your work contains code edits)
     - Confidence in my change: 0-100%
-    - How bad/good my change: -100% <-> 100% {❌|🟠|✅}
+    - How bad or good my change is: -100% <-> 100% {❌|🟠|✅}
     - My change is a BAIL OUT pattern: yes/no
     - My change contains FORBIDDEN code comments: yes/no
-    - My change is DAMAGING project: yes/no
-    - My change containts code smells, antipatterns: yes/no
-    - I deferred/out of scoped/TODOed/placeholdered something: yes/no
-  - (if your work contains work on checklist:)
-    - I deviated from CHECKLIST: yes/no [how, why] (only if you are working on checklist)
-  - (if you are working on anything related to emulation layer, e.g. SoC or BSP)
-    - I read related (NAME THE MODULE) files online/in references directory: yes/no [url/file path]
-- If you didnt read reference and have low confidence and it's obvious that you actually need to do this for whatever you are doing - STOP! Research/investigate first, then return.
-- If change is BAD then probably must be actually reverted and forbidden - the bad thing stays bad.
-- If you did BAIL OUT, PROJECT DAMAGE, OR ENTIRE DEFER SECTION - STOP!! REVERT!! Something went wrong on your side!! WE ARE NOT DEFERRING ANYTHONG, NOT OUT OF SCOPING ANYTHING. User most likely told you to do things properly - you are cheating and DAMAGING project. Also damaging user's wallet. At least if you feel an urge to destroy code in this way, then better to just stop and present this information to user.
-- If you wrote bad comments, code smells, etc - FIX THEM INSTANTLY.
-- If you deviated from checklist - STOP!!! SOMETHING WENT REALLY WRONG ON YOUR SIDE!!!
-- **Mental model discipline** - every edit must be grounded in a falsifiable mental model. Before touching code, state your understanding as a testable claim. Then verify it against a concrete reference (chip datasheet, BSP source, CPU architecture reference manual) or a runtime diagnostic (log, watchpoint). If confirmed, proceed. If disproved, your understanding is wrong - investigate further, don't code. This applies to every stage: (1) Before diagnosing: "I believe the crash is caused by..." → verify with a log line. (2) Before implementing: "I believe register X behaves like Y because..." → verify with a datasheet entry or BSP source line visible in this conversation. (3) After implementing: "I believe the fix works because..." → verify the runtime value changed. Never write code to fix a problem you can't state as a testable claim. **Verification requires a concrete artifact** pasted into the conversation: a datasheet section, a BSP source body, an architecture reference manual section, or a log line. General knowledge and "this is verifiable from X" without pasting it are not verification - they are guesses dressed in formal language.
+    - My change DAMAGES the project: yes/no
+    - My change contains code smells or antipatterns: yes/no
+    - I deferred, out-of-scoped, TODOed, or placeholdered something: yes/no
+  - (if your work touches a checklist)
+    - I deviated from the CHECKLIST: yes/no [how, why]
+  - (if your work touches the emulation layer, for example a SoC or a BSP)
+    - I read the related files of (NAME THE MODULE) online or in references/: yes/no [url or file path]
+- **A BAD ROW IS LOUD.** If a row is bad, stop. Surface that row only. Give what tripped it, and what you do about it. A row is bad if it reports a violation, a bail out, or project damage. It is also bad if it reports a defer, a checklist deviation, an unread reference, or low confidence. Never print the rows that passed next to it. The rows that passed are the token waste that this rule removes.
+- If you print the full block to look diligent, you violate this rule. The full block hides the one row that matters. It is the same "visible work" reflex that produces edits instead of hooks.
+- If you did not read the reference, and your confidence is low, and the work clearly needs that reference, STOP. Research first. Then return.
+- If a change is bad, revert it and forbid it. The bad thing stays bad.
+- If you bailed out, damaged the project, or deferred a whole section, STOP. REVERT. Something went wrong on your side. We defer nothing. We put nothing out of scope. The user told you to do the work correctly. If you do less, you cheat, and you damage the project. You also damage the wallet of the user. If you feel the urge to destroy code in this way, stop and give this information to the user.
+- If you wrote bad comments or code smells, correct them immediately.
+- If you deviated from the checklist, STOP. SOMETHING WENT WRONG ON YOUR SIDE.
+- **Mental model discipline** - a falsifiable mental model must support each change. Before you touch code, write your understanding as a testable claim. Then verify the claim against a concrete reference or a runtime diagnostic. A reference is a chip datasheet, a BSP source, or a CPU architecture reference manual. A runtime diagnostic is a log line or a watchpoint. If the claim is true, continue. If the claim is false, your understanding is wrong. Then investigate more, and write no code. This applies at each stage:
+  1. Before you diagnose: "I believe that the crash comes from ...". Verify it with a log line.
+  2. Before you implement: "I believe that register X behaves like Y because ...". Verify it with a datasheet entry or a BSP source line that is visible in this conversation.
+  3. After you implement: "I believe that the fix works because ...". Verify that the runtime value changed.
+  Never write code against an error that you cannot state as a testable claim. **Verification needs a concrete artifact in the conversation**: a datasheet section, a BSP source body, an architecture reference manual section, or a log line. General knowledge is not verification. The words "this is verifiable from X" without the text are not verification. They are guesses in formal language.
 
 ## Reference Citations In Code
 
-- **Non-trivial peripheral / BSP behavior carries a comment naming the reference source** (chip datasheet section, BSP source path, architecture reference manual section). The citation lives in the source file where the behavior is implemented, not in a commit message that scrolls off after one screen. Future readers - agents, you, the user - see the citation when they read the function and can verify the cited reference says what the code asserts.
+- **Each non-trivial peripheral or BSP behavior carries a comment that names its reference.** The reference is a chip datasheet section, a BSP source path, or an architecture reference manual section. Put the citation in the source file that implements the behavior. Do not put it in a commit message, because a commit message moves out of sight after one screen. Future readers are agents, you, and the user. They read the function, they see the citation, and they can verify that the reference agrees with the code.
 
 ## No Fix Without Diagnostic Evidence
 
-- **You may NOT write fix code until you have a log line identifying the exact problem.** "I think X causes Y" is not enough. "LOG shows X recurses to depth 999" is enough. "LOG shows value changes from A to B at this point" is enough. If you catch yourself writing a fix without citing a specific log line from a diagnostic you ran - STOP. Add a diagnostic instead. Every fix attempt without diagnostic evidence is a guess that creates new problems. The pattern "try fix → crash → try different fix → crash → try another fix" means you skipped the diagnostic step. Go back and add LOGs.
+- **Write no fix code until a log line identifies the exact error.** "I think that X causes Y" is not sufficient. "LOG shows that X recurses to depth 999" is sufficient. "LOG shows that the value changes from A to B at this point" is sufficient. If you write a fix, and you cannot cite a log line from a diagnostic that you ran, STOP. Add a diagnostic instead. Each fix attempt without diagnostic evidence is a guess, and it makes new errors. The pattern "try a fix, crash, try a different fix, crash, try another fix" shows that you skipped the diagnostic step. Go back and add LOGs.
 
 ## When Your Fix Crashes
 
-- **When your fix crashes: STOP editing, start investigating** - treat the new crash as a fresh investigation. Read the crash log. Decompile the crashing function. Trace the data. Do NOT treat it as "my fix needs a small tweak" - that's the cascading-hack trigger. If your fix caused a crash, your understanding was wrong. Go back to debugging, not coding.
+- **If your fix crashes, stop the edits and start an investigation.** Treat the new crash as a new investigation. Read the crash log. Decompile the function that crashed. Trace the data. Do not treat the crash as a small tweak to your fix. That reaction is the cascading-hack trigger. If your fix caused the crash, your understanding was wrong. Go back to debugging, not to code.
 
 ## Observability Gate
 
-- **Observability gate** - before implementing a checklist step, name in writing the runtime path that proves its deliverable is correct, and verify that path is currently wired; a step whose validating runtime path depends on components that are not yet present is dead code on landing and must wait until the prerequisite is in place.
+- **Observability gate** - before you implement a checklist step, write down the runtime path that proves that its deliverable is correct. Then verify that this path is wired now. If the path needs components that do not exist yet, the step lands as dead code. Then wait until the prerequisite is in place.
 
 ## Scope Rules
 
-- **Crash fixes / behavioral changes: one change per build-test cycle** - when fixing a specific crash or adding runtime behavior (slot switching, pointer translation, flag setting), make ONE behavioral change, build, test, read the log. Verify each change works before adding the next. If you batch 5 behavioral changes and it crashes, you can't tell which one broke it - you'll start guessing, which cascades into hacking. This is a different scope from architectural refactors: the code compiles at every step, and each step's effect must be verified independently.
-- **Architectural refactors: implement ALL checklist steps as a single body of work** - no pausing between steps to build/test. No partial wiring. The codebase is expected to be broken until all steps are complete. Write the architecture first, compile later. This applies to multi-step restructuring (service extraction, type renames, interface changes) where intermediate states don't compile.
-- **Architecture docs are the source of truth** - if implementation contradicts the architecture design, the design wins. If the design seems wrong, ask the user before writing code.
-- **If the checklist leaves a decision open - STOP and ask** - "or new service", "or alternative", parenthetical options mean the decision wasn't made. Don't assume. Ask the user.
+- **Crash fixes and behavioral changes: one change for each build-test cycle.** Examples of runtime behavior are slot switching, pointer translation, and flag setting. Make ONE behavioral change. Then build, test, and read the log. Verify that each change works before you add the next one. If you make 5 behavioral changes together, and CERF crashes, you cannot tell which change broke it. Then you start to guess, and guesses cascade into hacks. This scope is different from an architectural refactor. In a refactor the code compiles at each step, and you verify the effect of each step independently.
+- **Architectural refactors: implement all checklist steps as one body of work.** Do not stop between steps to build or test. Do not wire only a part of the work. The codebase stays broken until all steps are complete. Write the architecture first, and compile after. This applies to a multi-step restructure, for example a service extraction, a type rename, or an interface change. In these tasks the intermediate states do not compile.
+- **Architecture docs are the source of truth.** If the implementation contradicts the architecture design, the design wins. If the design looks wrong, ask the user before you write code.
+- **If the checklist leaves a decision open, STOP and ask the user.** Phrases such as "or new service" or "or alternative" show that nobody made the decision. Options in parentheses show the same. Do not assume. Ask the user.
