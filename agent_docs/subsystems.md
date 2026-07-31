@@ -1,121 +1,121 @@
 # CERF Subsystems
 
 The host-side subsystem set is small. CE-side binaries (kernel, OAL, drivers,
-userspace) run unmodified as guest code through the JIT - they
-are not host subsystems. This page lists what CERF itself owns.
+userspace) run unmodified as guest code through the JIT. They are not host
+subsystems. This page lists what CERF itself owns.
 
 ## CerfEmulator
 
 The composition root. One C++ class, owned by `main.cpp`, owns every service.
-Multi-instance by construction - two `CerfEmulator` instances inside the same
-host process share nothing and can boot different device profiles side by
-side. Services are resolved via `emu.Get<T>()`; statics and globals for
-service state are forbidden.
+It is multi-instance by construction. Two `CerfEmulator` instances inside the
+same host process share nothing. They can boot different device profiles side
+by side. `emu.Get<T>()` resolves a service. Statics and globals for service
+state are forbidden.
 
 ### Service locator mechanics
 
 - **Registration is one macro line per `.cpp`**: `REGISTER_SERVICE(Foo)`
-  (resolvable only as `Foo`), `REGISTER_SERVICE_AS(Foo, Base)` (candidate
-  for `Base`'s slot, also resolvable as `Foo` - the strategy pattern),
-  `REGISTER_SERVICE_AS_FALLBACK(Foo, Base)` (wins only if no non-fallback
-  candidate's `ShouldRegister` returned true). Boot then constructs every
-  candidate, runs each slot's `ShouldRegister` to pick the single winner,
-  then `EnsureReady`s **every** winner.
-- **Every winning service's `OnReady` runs exactly once**, at boot,
-  whether or not anything ever `Get<>`s it - the boot sweep `EnsureReady`s
-  all winners, so a service that only wires itself up (registers MMIO,
-  spawns a worker) still initializes with no external caller. `OnReady`
-  is also lazy: a first `Get<Dep>()` from inside your `OnReady` runs
-  `Dep::OnReady` before returning, so the graph self-orders on demand.
-  Both paths guard with a mutex, so `OnReady` never runs twice. No init
-  phase, no declared ordering, and no pre-warming - a bare
+  (resolvable only as `Foo`), `REGISTER_SERVICE_AS(Foo, Base)` (a candidate
+  for the `Base` slot, also resolvable as `Foo` - the strategy pattern),
+  `REGISTER_SERVICE_AS_FALLBACK(Foo, Base)` (wins only if `ShouldRegister`
+  returned true for no non-fallback candidate). Boot then constructs every
+  candidate. Boot runs the `ShouldRegister` of each slot to pick the single
+  winner. Boot then calls `EnsureReady` on **every** winner.
+- **The `OnReady` of every winning service runs exactly once**, at boot. It
+  runs whether or not anything ever calls `Get<>` for it. The boot sweep
+  calls `EnsureReady` on all winners. A service that only connects itself
+  (registers MMIO, starts a worker) still initializes with no external
+  caller. `OnReady` is also lazy. A first `Get<Dep>()` from inside your
+  `OnReady` runs `Dep::OnReady` before it returns, so the graph self-orders
+  on demand. Both paths guard with a mutex, so `OnReady` never runs twice.
+  There is no init phase, no declared order, and no pre-warm step. A bare
   `(void)emu_.Get<X>()` to force materialization is forbidden (`rules.md`).
-- **`Get<T>()` fatals** if no candidate won the slot; **`TryGet<T>()`**
-  returns `nullptr` for an optional dependency. Both lazily resolve +
+- **If no candidate won the slot, `Get<T>()` is fatal.** **`TryGet<T>()`**
+  returns `nullptr` for an optional dependency. Both resolve lazily and call
   `EnsureReady`.
-- **Misuse `CerfFatalExit`s with the types named** - two `ShouldRegister`
+- **Misuse calls `CerfFatalExit` with the types named**: two `ShouldRegister`
   true for one Base, a required slot with no winner, or a
-  `ShouldRegister`↔`Get` cycle. No defensive checks around `Get<>` needed.
-- **`ShouldRegister()`** may call `Get<>`/`TryGet<>` (same lazy path);
-  idiom is `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`.
+  `ShouldRegister`↔`Get` cycle. You need no defensive check around `Get<>`.
+- **`ShouldRegister()`** can call `Get<>`/`TryGet<>` through the same lazy
+  path. The idiom is `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`.
 
 - `cerf/core/cerf_emulator.h`, `cerf/core/service.h`
 
 ## Guest CPU JIT
 
-Guest code runs through a block JIT. Every ROM binary -
+Guest code runs through a block JIT. Every ROM binary is the original guest
+code, translated to host x86 on the fly. This covers
 `nk.exe` / `coredll.dll` / `gwes.exe` / `filesys.exe` / `device.exe` /
-userspace EXEs / driver DLLs - is the original guest code, translated
-to host x86 on the fly. `JitRunner` drives an abstract `GuestEngine`
-service; the concrete engine for the board's CPU architecture implements
-it, selected by `BoardContext::GetCpuArch()`. Per-SoC variation lives in
-per-core strategy services selected by `GetSoc()`, never as
-`if (soc == X)` branches in the JIT body.
+userspace EXEs / driver DLLs. `JitRunner` drives an abstract `GuestEngine`
+service. The concrete engine implements it for the CPU architecture of the
+board, and `BoardContext::GetCpuArch()` selects it. Per-SoC variation lives
+in per-core strategy services that `GetSoc()` selects. Per-SoC variation is
+never an `if (soc == X)` branch in the JIT body.
 
 - `cerf/jit/`, [agent_docs/jit.md](jit.md)
 
 ## Per-chip / per-board / per-part strategies
 
-CERF splits per-impl code across three orthogonal trees, picked by the
-nature of the thing being implemented.
+CERF splits per-impl code across three orthogonal trees. The nature of the
+implemented thing selects the tree.
 
 ### `cerf/socs/<chip>/` - on-die silicon
 
-One directory per SoC family (S3C2410 today; PXA27x, OMAP3530, SA-1110,
-Poseidon, … added when their boards land). Contains:
+One directory per SoC family (S3C2410 today. PXA27x, OMAP3530, SA-1110,
+Poseidon, … arrive with their boards). It contains:
 
 - per-peripheral `<chip>_*.cpp` - UART, INTC, GPIO, RTC, timer, watchdog,
   clock/power, memory controller, LCD controller, NAND controller, IIS,
-  etc.
+  and more.
 
-Concretes' `ShouldRegister` checks
+The `ShouldRegister` of a concrete returns
 `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`. Chip-layer code
-never knows which board it's on - only which chip.
+never knows its board. It knows only its chip.
 
-The VA→PA placement map (`PageTableBuilder`) is **not** here, and the core
+The VA→PA placement map (`PageTableBuilder`) is **not** here. The core
 CPU strategies (`ArmProcessorConfig`, `CoprocEmitter`) split on a different
-axis. VA→PA placement is a BSP/board choice (the OEMAddressTable differs per
-board), so its concretes live under `cerf/boards/<board>/` and are selected by
-`GetBoard()`. The core strategies are a CPU-arch property identical across every
-board on that core, so their concretes live under `cerf/cpu/<core>/` and are
-selected by `GetSoc()`. Gating a core strategy on
-`GetBoard()` leaves every additional board on that SoC with no winner (a
-second SA-1110 board re-stating the die's MIDR is the smell).
+axis. VA→PA placement is a BSP/board choice, because the OEMAddressTable
+differs per board. Its concretes live under `cerf/boards/<board>/`, and
+`GetBoard()` selects them. The core strategies are a CPU-arch property
+identical across every board on that core. Their concretes live under
+`cerf/cpu/<core>/`, and `GetSoc()` selects them. A core strategy gated on
+`GetBoard()` leaves every additional board on that SoC with no winner. A
+second SA-1110 board that re-states the MIDR of the die is the smell.
 
 ### `cerf/boards/<board>/` - one specific OEM board / BSP
 
-One directory per supported board. Contains:
+One directory per supported board. It contains:
 
-- `<board>_context.cpp` - the concrete `BoardContext` impl: reports the
+- `<board>_context.cpp` - the concrete `BoardContext` impl. It reports the
   `Board`, `SocFamily`, `CpuArch`, and `RomPlacingMode` constants for that
-  board, and registers when the configured `board_id` names it
-- `<board>_page_table_builder.cpp` - the board's `PageTableBuilder` impl:
-  the BSP OEMAddressTable VA→PA map, DRAM/flash backed regions, and the
-  bootloader-handoff SP, used for ROM placement and pre-MMU boot
+  board. It registers when the configured `board_id` names it
+- `<board>_page_table_builder.cpp` - the `PageTableBuilder` impl of the
+  board: the BSP OEMAddressTable VA→PA map, the DRAM/flash backed regions,
+  and the bootloader-handoff SP. ROM placement and pre-MMU boot use it
 - board-only virtual peripherals - host-emulator notification channels,
-  virtual DMA transports, folder-sharing helpers (peripherals that exist
-  only because the board's BSP expects the emulator to provide them)
-- BSP-specific config writers (e.g. `<board>_bsp_args.cpp` populating a
-  DRAM struct the BSP reads on boot)
+  virtual DMA transports, folder-sharing helpers. These peripherals exist
+  only because the BSP of the board expects the emulator to provide them
+- BSP-specific configuration writers (for example `<board>_bsp_args.cpp`,
+  which fills a DRAM struct that the BSP reads on boot)
 
-Concretes' `ShouldRegister` checks
-`emu_.Get<BoardContext>().GetBoard() == Board::X`. A board's BoardContext
-is the only thing that has to know its board name; everything else just
-asks "am I on board X".
+The `ShouldRegister` of a concrete returns
+`emu_.Get<BoardContext>().GetBoard() == Board::X`. The BoardContext of a
+board is the only thing that must know its board name. Everything else asks
+only "am I on board X".
 
 ### `cerf/peripherals/<vendor>_<part>/` - off-chip silicon shared across boards
 
 One directory per off-chip IC family. Today: `cirrus_pd6710/` (PCMCIA
-controller), `amd_am29lv800bb/` (NOR flash). Tomorrow's additions go in
-new sibling directories (e.g. `davicom_dm9000/` for the DM9000 NIC IC).
+controller), `amd_am29lv800bb/` (NOR flash). Future additions live in
+new sibling directories (for example `davicom_dm9000/` for the DM9000 NIC IC).
 
-Concretes' `ShouldRegister` checks a board-list:
+The `ShouldRegister` of a concrete compares against a board list:
 
     auto b = emu_.Get<BoardContext>().GetBoard();
     return b == Board::X || b == Board::Y;
 
-The list grows when a new board adopts the same part - the part file is
-never duplicated, and the part directory is the single source of truth
+The list grows when a new board adopts the same part. The part file is
+never duplicated. The part directory is the single source of truth
 for what the IC does.
 
 The `cerf/peripherals/` root (not under any vendor subdir) also holds
@@ -129,18 +129,19 @@ Abstract bases (`BoardContext`, `PageTableBuilder`,
 `Peripheral`) live next to their consumers (`cerf/boards/`, `cerf/core/`,
 `cerf/cpu/`, `cerf/peripherals/`), not under any per-impl tree.
 
-Adding or removing a chip / board / vendor-part touches exactly one
-directory. Splitting one impl's pieces across multiple trees (chip
-pieces in board dir, board pieces in chip dir) is the wrong axis and is
-itself the tech-debt shape this layout exists to prevent.
+To add or remove a chip / board / vendor-part, you touch exactly one
+directory. A split of the pieces of one impl across multiple trees (chip
+pieces in board dir, board pieces in chip dir) is the wrong axis. That split
+is itself the tech-debt shape that this layout prevents.
 
 **Place code by what the behavior IS, not by which file is safe to
 touch.** A property identical across every board on a core (instruction
 semantics, clock / power behavior, MMU / exception behavior) is a
-CPU-arch / SoC fact and belongs in the SoC / CPU / JIT layer even when
-that means editing the most fragile shared code; pushing it into a
-board-local carve-out to avoid the shared file - and calling that
-"faithful" or "minimal" - is architecture destruction, not faithfulness.
+CPU-arch / SoC fact. It belongs in the SoC / CPU / JIT layer, even when
+that means an edit to the most fragile shared code. A push of that property
+into a board-local carve-out to avoid the shared file is architecture
+destruction, not faithfulness. The words "faithful" and "minimal" on such a
+carve-out do not change that.
 
 - `cerf/socs/`, `cerf/boards/`, `cerf/peripherals/`
 
@@ -148,215 +149,228 @@ board-local carve-out to avoid the shared file - and calling that
 
 16-bit PC Card emulation, split framework/controller/card:
 
-- **`PcmciaCard`** (`cerf/peripherals/pcmcia/pcmcia_card.h`) - abstract
+- **`PcmciaCard`** (`cerf/peripherals/pcmcia/pcmcia_card.h`) - the abstract
   card: attribute/common/IO surface, PowerOn/Off, SocketReset, optional
-  `BuildCardMenu`. Cards are plain objects (NOT Services), created by
-  `PcmciaCardCatalog::Create()` and owned by their slot; one type may
-  occupy two slots at once. Concretes:
+  `BuildCardMenu`. Cards are plain objects (NOT Services).
+  `PcmciaCardCatalog::Create()` creates a card, and its slot owns it. One
+  type can occupy two slots at once. Concretes:
   `cerf/peripherals/realtek_rtl8019/` (NE2000 NIC),
   `cerf/peripherals/compactflash/` (PC Card ATA + FAT32 image builder +
   insert submenu), `cerf/peripherals/serial_pccard/` (16550 serial /
-  modem card - the PC-card consumer of the Serial stack below).
+  modem card - the PC-card consumer of the Serial stack on this page).
 
   **A card releases its pins in `PowerOff` / `OnShutdown`, NEVER in a
-  destructor.** Nothing ejects a card at shutdown - it dies inside its
-  controller's destructor, when that controller's own members are already
-  gone, so a line dropped from a card dtor reaches into freed state. And
-  **no Vcc means a card drives no pin, its interrupt included** (the
-  socket floats its data lines on the same rule): a card with its own
-  host or network thread gates its interrupt on power, or it strands a
-  line on a socket it has already left.
-- **`PcmciaSlot`** (`pcmcia_slot.{h,cpp}`) - one physical socket; owns
-  card lifetime + bus serialization, IS the HostWidget with the
-  universal Insert/Eject/Eject-and-insert menu. The owning controller
-  implements **`PcmciaSlotHost`** (card-detect / IRQ callbacks) and
-  routes guest accesses to the slot's Read/Write surface.
+  destructor.** Nothing ejects a card at shutdown. The card dies inside the
+  destructor of its controller, when the members of that controller are
+  already gone. A line dropped from a card dtor therefore reaches into freed
+  state. And **no Vcc means a card drives no pin, its interrupt included** (the
+  socket floats its data lines on the same rule). A card with its own
+  host or network thread gates its interrupt on power. If it does not, it
+  strands a line on a socket that it already left.
+- **`PcmciaSlot`** (`pcmcia_slot.{h,cpp}`) - one physical socket. It owns
+  card lifetime and bus serialization. It IS the HostWidget with the
+  universal Insert/Eject/Eject-and-insert menu. The controller that owns the
+  slot implements **`PcmciaSlotHost`** (card-detect / IRQ callbacks) and
+  routes guest accesses to the Read/Write surface of the slot.
   **Card-detect and Vcc (`HasCard` / `IsPowered`) are lock-free reads of
   an atomic pin word, published under the bus lock - keep them that way.**
-  A controller reads them from inside its own lock, while eject runs bus
-  lock -> card -> IRQ callback -> that same controller lock: a pin
+  A controller reads them from inside its own lock. At the same time, eject
+  runs bus lock -> card -> IRQ callback -> that same controller lock. A pin
   accessor that took the bus lock closes an AB-BA against the UI thread.
   Every other slot entry point is a bus transaction, and a host calls it
   with its own lock released.
 - **`PcmciaCardCatalog`** (`pcmcia_card_catalog.{h,cpp}`) - the
-  insert-menu card registry; a new card type = one `PcmciaCard`
-  subclass + one catalog entry.
+  insert-menu card registry. A new card type is one `PcmciaCard`
+  subclass plus one catalog entry.
 - **`PcmciaSpaceRouter`** (`pcmcia_space_router.{h,cpp}`) - the shared
-  SA-1110/PXA255 static-window PC Card space decode (PA 0x20000000;
-  socket/region bits). Controllers call `ProvideSockets`; never
+  SA-1110/PXA255 static-window PC Card space decode (PA 0x20000000,
+  socket/region bits). Controllers call `ProvideSockets`. Never
   re-implement this decode per SoC.
 
-Wiring a new board = a socket controller in the proper tree
-(chip/board/vendor-part) that owns `PcmciaSlot` instances, implements
-`PcmciaSlotHost`, registers the slots with `HostWidgetRegistry`, and
-drives `SetPowered` from its power register - see `cirrus_pd6710/`
-(DevEmu), `intel_sa1111/sa1111_pcmcia.cpp` (Jornada),
+To wire a new board, write a socket controller in the proper tree
+(chip/board/vendor-part). That controller owns `PcmciaSlot` instances,
+implements `PcmciaSlotHost`, registers the slots with `HostWidgetRegistry`,
+and drives `SetPowered` from its power register. For examples, see
+`cirrus_pd6710/` (DevEmu), `intel_sa1111/sa1111_pcmcia.cpp` (Jornada),
 `ipaq_gen1_pcmcia_sleeve.cpp`, `falcon_pcmcia.cpp`.
 
 - `cerf/peripherals/pcmcia/`
 
 ## Serial
 
-The serial stack any UART can sit behind - the same endpoints serve an
-on-SoC UART and a serial PC card, so a board gains ActiveSync / dial-up
-by implementing one interface. Split line/personality:
+The serial stack that any UART can use. The same endpoints serve an
+on-SoC UART and a serial PC card. A board therefore gains ActiveSync /
+dial-up through one interface. The stack splits into line and personality:
 
-- **`SerialLine`** (`cerf/peripherals/serial/serial_line.h`) - abstract
-  UART surface an endpoint drives: push RX, read the guest's line config
-  (baud/framing), raise modem-status inputs, drain callbacks. Concretes:
-  **`Serial16550`** (the PC16550D model the ROM's own `ser16550` MDD/PDD
-  drives unmodified) and any SoC UART peripheral that implements it.
+- **`SerialLine`** (`cerf/peripherals/serial/serial_line.h`) - the abstract
+  UART surface that an endpoint drives: push RX, read the line configuration
+  of the guest (baud/framing), raise modem-status inputs, drain callbacks.
+  Concretes: **`Serial16550`** (the PC16550D model that the `ser16550`
+  MDD/PDD of the ROM drives unmodified) and any SoC UART peripheral that
+  implements it.
 - **`SerialEndpoint`** (`serial_endpoint.h`) - the "personality" behind a
-  line: consumes guest TX, reacts to DTR/RTS, pushes RX + modem status
-  back. Concretes: **`HostSerialForward`** (bridges to a real host COM
-  port - overlapped I/O, baud-faithful TX pacing) and
+  line. It consumes guest TX, reacts to DTR/RTS, and pushes RX and modem
+  status back. Concretes: **`HostSerialForward`** (bridges to a real host
+  COM port - overlapped I/O, baud-faithful TX pacing) and
   **`ModemPersonality`** (AT command set -> **`PppTerminator`** ->
-  libslirp). One endpoint per attach point, owned by whatever holds the
-  line.
+  libslirp). There is one endpoint per attach point, owned by whatever
+  holds the line.
 - **`SerialCradle`** (`serial_cradle.{h,cpp}`) - the HostWidget for an
-  on-SoC UART, mirroring `PcmciaSlot`'s insert/eject flow and sharing its
-  card menus, so plugging a modem into a board's serial port looks like
-  inserting a card. Owned by the UART peripheral, not a Service.
-- `cerf/peripherals/serial_pccard/` holds ONLY the PC-card consumer; the
-  framework above is board-neutral and lives in `cerf/peripherals/serial/`.
+  on-SoC UART. It mirrors the insert/eject flow of `PcmciaSlot` and shares
+  its card menus. A modem attached to the serial port of a board therefore
+  looks like an inserted card. The UART peripheral owns it. It is not a
+  Service.
+- `cerf/peripherals/serial_pccard/` holds ONLY the PC-card consumer. The
+  framework named here is board-neutral and lives in
+  `cerf/peripherals/serial/`.
 
-Wiring a board's stock UART = implement `SerialLine` on the UART
+To wire the stock UART of a board, implement `SerialLine` on the UART
 peripheral (RX path + an RX interrupt + baud from its divisor + modem
-status on whatever pins the board wires), own a `SerialCradle`, and
-supply a per-board seam naming the modem pins. Take those pin numbers
-from the board's own serial driver, never a guess.
+status on whatever pins the board wires). Own a `SerialCradle`. Supply a
+per-board seam that names the modem pins. Take those pin numbers from the
+serial driver of the board. Never guess them.
 
 - `cerf/peripherals/serial/`
 
 ## CPU reset & cold boot
 
 **`GuestCpuReset`** is the funnel for every CERF-initiated CPU reset
-(host reset actions, watchdog expiry) - never call bare
-`ArmJit::SetResetPending`. The SoC peripheral owning the reset-cause
-register implements `ResetCauseLatch` (warm / cold / watchdog) so the
-re-entered guest boot path reads a true reset cause, and peripherals
-whose silicon resets with the system reset line (e.g. a drive
-re-presenting its power-on diagnostic signature) register reset
-listeners that run at reset delivery on the JIT thread. A board that
-skips this wiring boots fine but hangs on guest reboot: cause-checking
-startups take the sleep-resume path, and warm peripheral state fails
-driver re-probes.
+(host reset actions, watchdog expiry). Never call bare
+`ArmJit::SetResetPending`. The SoC peripheral that owns the reset-cause
+register implements `ResetCauseLatch` (warm / cold / watchdog), so the
+re-entered guest boot path reads a true reset cause. Peripherals whose
+silicon resets with the system reset line register reset listeners that run
+at reset delivery on the JIT thread. One such peripheral is a drive that
+re-presents its power-on diagnostic signature. A board without this wiring
+boots, but it hangs on guest reboot. A startup that reads the reset cause
+takes the sleep-resume path, and warm peripheral state fails driver
+re-probes.
 
 - `cerf/socs/guest_cpu_reset.{h,cpp}`
 
-**`GuestColdBoot`** implements hard reset (cold boot): at reset
+**`GuestColdBoot`** implements hard reset (cold boot). At reset
 delivery it wipes every volatile RAM region (flash survives), replays
 registered boot-time guest-RAM writes in registration order, and
 flushes the translation cache. Every service that writes guest RAM
 during `OnReady` (ROM placement, BSP_ARGS blocks, image injection)
-MUST register a replay - or a byte-exact `RecordPatch` when the
-producing computation allocates and must not re-run - otherwise its
-bytes are silently absent after every hard reset on that board.
+MUST register a replay. When the computation that produces the bytes
+allocates and must not run again, register a byte-exact `RecordPatch`
+instead. Without one of the two, the bytes of that service are silently
+absent after every hard reset on that board.
 
 - `cerf/boot/guest_cold_boot.{h,cpp}`
 
 ## Host window & presentation
 
 The Win32 window, its drawable area, and the render/input plumbing that
-connects the host UI to the guest. All are `Service`s; the renderer,
+connects the host UI to the guest. All are `Service`s. The renderer,
 touch, and keyboard pieces are abstract bases with per-SoC/per-board
 concretes (strategy pattern, selected by `BoardContext`).
 
-- **`HostWindow`** - the top-level window. Owns the dedicated UI thread
+- **`HostWindow`** - the top-level window. It owns the dedicated UI thread
   (window + message pump live there, not the main thread), the menu, and
   auto-resize-to-guest. The SoC LCD service calls `OnLcdEnabled` on the
   guest panel-enable edge to size the window to the guest surface.
   - `cerf/host/host_window.{h,cpp}`
 
-- **`HostCanvas`** - the child window for the drawable area. Owns the
+- **`HostCanvas`** - the child window for the drawable area. It owns the
   **tabs** (`Tab::Boot` = boot screen, `Tab::Hw` = hardware text console,
   `Tab::Framebuffer` = the live guest framebuffer, `Tab::MemoryVisualizer` =
   dev), the viewport mode (Original / Aspect / Stretch, optional antialias),
-  the scrollbars, and the single host-pixel↔guest-surface coordinate transform
-  (`HostToGuest`) so taps land on the rendered image. The startup tab is
-  `DeviceConfig.start_tab` (`--tab=boot|hw|fb`); on the first presented guest
-  frame it auto-switches to `Tab::Framebuffer` unless the user has picked a tab.
-  `Tab` is an alias of the core `CanvasTab` enum (so core config can name the
-  startup tab without depending on the host layer). Publishes the atomic
-  guest-surface dimensions the touch sampler reads. - `cerf/host/host_canvas.{h,cpp}`
+  and the scrollbars. It also owns the single host-pixel↔guest-surface
+  coordinate transform (`HostToGuest`), so taps land on the rendered image.
+  The startup tab is `DeviceConfig.start_tab` (`--tab=boot|hw|fb`). On the
+  first presented guest frame the canvas auto-switches to `Tab::Framebuffer`,
+  unless the user already picked a tab. `Tab` is an alias of the core
+  `CanvasTab` enum, so core configuration can name the startup tab with no
+  dependency on the host layer. The canvas publishes the atomic
+  guest-surface dimensions that the touch sampler reads.
+  - `cerf/host/host_canvas.{h,cpp}`
 
 - **`FrameRenderer`** (abstract) - `RenderInto(dib_bgra32, w, h)` fills a
-  BGRA32 guest-surface DIB; `HostSizeFor` lets a rotating renderer swap
-  width/height. Concretes live with the hardware that produces the frame:
-  per-SoC LCD/DSS/IPU renderers under `cerf/socs/<chip>/`, board renderers
-  under `cerf/boards/<board>/`, and the guest-additions virtual framebuffer
-  under `cerf/peripherals/cerf_virt/`. - `cerf/host/frame_renderer.h`
+  BGRA32 guest-surface DIB. `HostSizeFor` lets a renderer that rotates the
+  image swap width and height. Concretes live with the hardware that
+  produces the frame: per-SoC LCD/DSS/IPU renderers under
+  `cerf/socs/<chip>/`, board renderers under `cerf/boards/<board>/`, and the
+  guest-additions virtual framebuffer under `cerf/peripherals/cerf_virt/`.
+  - `cerf/host/frame_renderer.h`
 
-- **`HwScreen`** - the hardware text console behind the `Tab::Hw` tab: the
-  bounded text-mode RX/TX line buffer for guest UART / OEM-debug output and
-  CERF's own notices (power events, save/restore progress). `AddLine` appends a
-  line; `RenderInto` draws the scrolling log over the `BootBar`.
+- **`HwScreen`** - the hardware text console behind the `Tab::Hw` tab. It is
+  the bounded text-mode RX/TX line buffer for guest UART / OEM-debug output
+  and for the notices of CERF itself (power events, save/restore progress).
+  `AddLine` appends a line. `RenderInto` draws the scrolled log over the
+  `BootBar`.
   - `cerf/host/hw_screen.{h,cpp}`
 
 - **`BootScreen`** - the CERF-logo boot animation behind the `Tab::Boot` tab,
-  plus the `BootBar`. Time-driven off the 60 Hz present loop (no thread);
-  `Restart` (guest reboot / deep-sleep wake) and `OnFramebufferLatched` are its
-  cross-thread control hooks.
+  plus the `BootBar`. The 60 Hz present loop drives it in time, with no
+  thread. `Restart` (guest reboot / deep-sleep wake) and
+  `OnFramebufferLatched` are its cross-thread control hooks.
   - `cerf/host/boot_screen.{h,cpp}`
 
 - **`BootBar`** - the bottom CPU-activity bar shared by the Boot Screen and
-  Hardware Screen tabs: a scrolling strip advanced off the host animation clock,
-  so it freezes when emulation is paused. - `cerf/host/boot_bar.{h,cpp}`
+  Hardware Screen tabs. It is a strip that scrolls. The host animation clock
+  advances it, so it freezes when emulation is paused.
+  - `cerf/host/boot_bar.{h,cpp}`
 
 - **`TouchInput`** (abstract) - `OnPenDown/Move/Up` + `OnCaptureLost` in
-  guest-surface coordinates; the board's touch peripheral concrete turns
-  them into guest pen samples. Concretes under `cerf/boards/<board>/`.
+  guest-surface coordinates. The touch peripheral concrete of the board
+  converts them into guest pen samples. Concretes live under
+  `cerf/boards/<board>/`.
   - `cerf/host/touch_input.h`
 
 - **`KeyboardInput`** (abstract) - one keyboard source: `OnHostKey(vk, key_up)`
-  plus `SourceName` / `SourcePriority`. Concretes (a board's keyboard under
-  `cerf/boards/<board>/`, the guest-additions keyboard under
-  `cerf/peripherals/cerf_virt/`) self-register with `KeyboardRouter`.
+  plus `SourceName` / `SourcePriority`. Concretes self-register with
+  `KeyboardRouter`. They are the keyboard of a board under
+  `cerf/boards/<board>/` and the guest-additions keyboard under
+  `cerf/peripherals/cerf_virt/`.
   - `cerf/host/keyboard_input.h`
 
 - **`KeyboardRouter`** - the keyboard-source registry and host-key funnel.
-  `KeyboardInput` concretes self-register from `OnReady`; the router forwards
-  host keys to the single active source, chosen by highest `SourcePriority` at
-  boot. When more than one source is registered, the `KeyboardWidget` status-bar
-  widget switches the active source and persists the choice across hibernation.
+  `KeyboardInput` concretes self-register from `OnReady`. The router forwards
+  host keys to the single active source. At boot it selects that source by
+  the highest `SourcePriority`. When more than one source is registered, the
+  `KeyboardWidget` status-bar widget switches the active source and keeps
+  the choice across hibernation.
   - `cerf/host/keyboard_router.{h,cpp}`
 
 - **`PointerRouter` / `PointerWidget`** - the pointer-source registry and
-  host-mouse funnel, mirroring `KeyboardRouter`. Pointing-device sources (a
-  board's touch / mouse, the guest-additions absolute pointer) self-register;
-  the router forwards host mouse messages to the single active source, chosen
-  by highest priority at boot. When more than one is registered, the
-  `PointerWidget` status-bar widget switches the active source - some apps
-  (calibrators) read the stock touch/mouse stream directly - and persists the
-  choice across hibernation. On a board whose stock pointer is a relative
-  mouse, the host-capture mouse lock engages only while that source is active.
+  host-mouse funnel. It mirrors `KeyboardRouter`. Pointing-device sources
+  (the touch / mouse of a board, the guest-additions absolute pointer)
+  self-register. The router forwards host mouse messages to the single
+  active source. At boot it selects that source by the highest priority.
+  When more than one is registered, the `PointerWidget` status-bar widget
+  switches the active source and keeps the choice across hibernation. Some
+  apps (calibrators) read the stock touch/mouse stream directly. On a board
+  whose stock pointer is a relative mouse, the host-capture mouse lock
+  engages only while that source is active.
   - `cerf/host/pointer_router.{h,cpp}`, `cerf/host/pointer_widget.{h,cpp}`
 
-- **`HostInputCapture`** - the low-level keyboard hook + capture toggle (so
-  the guest receives keys the host shell would otherwise eat); forwards to
-  `KeyboardInput` and synthesizes Ctrl-Alt-Del. Installed/removed on the UI
-  thread. - `cerf/host/host_input_capture.{h,cpp}`
+- **`HostInputCapture`** - the low-level keyboard hook and capture toggle, so
+  the guest receives the keys that the host shell normally takes. It forwards
+  to `KeyboardInput` and synthesizes Ctrl-Alt-Del. Installation and removal
+  happen on the UI thread. - `cerf/host/host_input_capture.{h,cpp}`
 
-- **`HostStatusBar`** - the bottom status bar. Renders the
-  `HostWidgetRegistry`'s ordered widget set (icons + per-icon tooltips,
-  left-click → primary action, right-click → declarative popup); the
-  capture/lock indicator is itself one such (host-owned) widget.
+- **`HostStatusBar`** - the bottom status bar. It renders the ordered widget
+  set of `HostWidgetRegistry` (icons + per-icon tooltips, left-click →
+  primary action, right-click → declarative popup). The capture/lock
+  indicator is itself one such host-owned widget.
   - `cerf/host/host_status_bar.{h,cpp}`
 
 - **`HostWidget` / `HostWidgetRegistry`** - the status-bar + Actions-menu
-  widget framework. `HostWidget` is an abstract, **non-`Service`** interface
-  (so a `Peripheral`, which already derives `Service`, can implement it
-  without a diamond) that any service implements to declare a host-UI
-  presence: a custom GDI icon, tooltip, left-click action, declarative
-  right-click menu (replicated into the Actions menu), hot-path-safe RX/TX
-  activity dots, an `IsEnabled()` grayscale seam, and a `WidgetGroup`
-  ordering key (the terminal `InputControl` group pins rightmost).
-  Implementers self-register with `HostWidgetRegistry` from `OnReady`, the
-  same way peripherals self-register with `PeripheralDispatcher`;
-  `HostStatusBar` renders the ordered set and concretes follow the three-tree
-  rule (`cerf/socs|boards|peripherals/`). Reach for it whenever a peripheral
-  or board has user-visible state (RX/TX, enabled/disabled) or a
-  configuration/toggle surface. - `cerf/host/host_widget*.{h,cpp}`
+  widget framework. `HostWidget` is an abstract, **non-`Service`** interface,
+  so a `Peripheral`, which already derives `Service`, implements it with no
+  diamond. Any service implements it to declare a host-UI presence: a custom
+  GDI icon, tooltip, left-click action, declarative right-click menu
+  (replicated into the Actions menu), hot-path-safe RX/TX activity dots, an
+  `IsEnabled()` grayscale seam, and a `WidgetGroup` order key (the terminal
+  `InputControl` group pins rightmost). Implementers self-register with
+  `HostWidgetRegistry` from `OnReady`, the same way peripherals self-register
+  with `PeripheralDispatcher`. `HostStatusBar` renders the ordered set, and
+  concretes obey the three-tree rule (`cerf/socs|boards|peripherals/`). Use
+  this framework whenever a peripheral or board has user-visible state
+  (RX/TX, enabled/disabled) or a configuration/toggle surface.
+  - `cerf/host/host_widget*.{h,cpp}`
 
 - **`HostScreenshot`** - screenshot + clipboard capture of the live guest
   surface (via `HostCanvas::CaptureGuestSurface`, 1:1).
@@ -364,18 +378,19 @@ concretes (strategy pattern, selected by `BoardContext`).
 
 ## TraceManager
 
-Always-built developer facility for hanging in-host C++ handlers off guest PC
-addresses and per-`Run` iteration ticks, so bug-specific diagnostics never
-pollute permanent code. Hot paths are zero-overhead when no traces are
-registered (empty-container short-circuit). Hook surfaces: `OnPc` /
-`OnPcFiltered` (per-instruction, the filtered form taking a fire-time process
-predicate), compiled in every configuration, and `OnRunLoopIter` (dev-only).
-Handlers read guest memory through `TraceContext::ReadVa8 / 16 / 32`
+The always-built developer facility that attaches in-host C++ handlers to guest
+PC addresses and to per-`Run` iteration ticks. Bug-specific diagnostics
+therefore never pollute permanent code. When no traces are registered, hot
+paths have zero
+overhead (empty-container short-circuit). Hook surfaces: `OnPc` /
+`OnPcFiltered` (per-instruction, where the filtered form takes a fire-time
+process predicate), compiled in every configuration, and `OnRunLoopIter`
+(dev-only). Handlers read guest memory through `TraceContext::ReadVa8 / 16 / 32`
 (`GuestEngine::PeekGuestVa`), with no MMU side effects.
 
-Usage - picking a hook VA, per-process filtering, when to trace vs `LOG`,
-adding a device trace file - is in [agent_docs/debugging.md](debugging.md)
-§ TraceManager.
+[agent_docs/debugging.md](debugging.md) § TraceManager covers usage: how to
+pick a hook VA, per-process filters, when to trace instead of `LOG`, and how
+to add a device trace file.
 
 - `cerf/tracing/trace_manager.{h,cpp}`, `Trace` log channel.
 
@@ -384,135 +399,138 @@ adding a device trace file - is in [agent_docs/debugging.md](debugging.md)
 `cerf/tracing/<bundle>/*.cpp` - one subdirectory per device bundle.
 Each file is a small `Service` whose `OnReady` calls
 `TraceManager::RegisterForBundle(<expected_crc32>, register_fn)`. The
-closure runs iff the live bundle's CRC32 matches; otherwise the file
-silently no-ops at runtime. `<bundle>/bundle.h` (or `wm5_bundle.h` etc.)
-declares `constexpr uint32_t kBundleCrc32 = ...;` used by every trace file
-in that directory.
+closure runs if and only if the CRC32 of the live bundle matches. On a
+mismatch the file silently does nothing at runtime. `<bundle>/bundle.h`
+(or `wm5_bundle.h` and similar) declares
+`constexpr uint32_t kBundleCrc32 = ...;`. Every trace file in that directory
+uses this constant.
 
-The bundle CRC32 is computed by `TraceManager::OnReady` over the
+`TraceManager::OnReady` computes the bundle CRC32 over the
 concatenated `RomParserService::Loaded()[i].raw` bytes in load order. On
-first boot for a new bundle, the log line `[TRACE] bundle CRC32 = 0xXXXX`
-gives you the value to paste into the trace file's `bundle.h`.
+the first boot of a new bundle, the log line `[TRACE] bundle CRC32 = 0xXXXX`
+gives you the value to paste into the `bundle.h` of that trace file.
 
 `build.ps1 -Mode production` excludes the per-device trace files from the
-build via a `<ClCompile Remove="tracing\*\**\*.cpp">` rule in
-`cerf/cerf.vcxproj`, then re-includes `tracing\*\nkdbg\*.cpp` so the
+build with a `<ClCompile Remove="tracing\*\**\*.cpp">` rule in
+`cerf/cerf.vcxproj`. It then re-includes `tracing\*\nkdbg\*.cpp`, so the
 kernel-debug hooks stay in production builds. The framework
-(`cerf/tracing/trace_manager.{h,cpp}`) stays compiled; with no registered
+(`cerf/tracing/trace_manager.{h,cpp}`) stays compiled. With no registered
 traces, every hook is a single empty-container check.
 
 **CRC32 / bundle gating is diagnostics-only - never runtime behavior.**
-Because this per-device trace tree is stripped from production builds, any
-emulation or board behavior placed behind a `RegisterForBundle` / bundle-CRC
-gate compiles OUT of the production binary: it works in a dev build and is
-silently dead for every user, with no error pointing at the absence. A CRC
-also matches ONE exact ROM image, never a class - a board has many ROMs
-(revisions, regions, generations, future user dumps), so CRC-gated behavior
-needs an unbounded checksum list and any unseen ROM gets nothing. Behavior
-that must hold for a class of ROMs uses a generalizing ROM-content fingerprint
-(the way `BoardContext` does); CRC/bundle gating stays in diagnostics, where
-its single-image, dev-only nature is exactly correct.
+Production builds strip this per-device trace tree. Any emulation or board
+behavior behind a `RegisterForBundle` / bundle-CRC gate therefore compiles
+OUT of the production binary. It works in a dev build and is silently dead
+for every user, and no error points at the absence. A CRC also matches ONE
+exact ROM image, never a class. A board has many ROMs (revisions, regions,
+generations, future user dumps), so CRC-gated behavior needs an unbounded
+checksum list, and any unseen ROM gets nothing. Behavior that must hold for
+a class of ROMs uses a ROM-content fingerprint that generalizes, the way
+`BoardContext` does. CRC/bundle gating stays in diagnostics, where its
+single-image, dev-only nature is exactly correct.
 
 The one production-built CRC-gated exception is the kernel-debug (`nkdbg/`)
-hooks: they are OBSERVATION-ONLY (read guest debug text, emit it to the log +
-HwScreen - never altering emulation or board behavior) and fail benignly (a
-CRC mismatch installs no hook, costing only absent debug output, never a
-misbehaving device). Anything that changes how the guest runs stays out of
-CRC gates.
+hooks. They are OBSERVATION-ONLY: they read guest debug text and emit it to
+the log and HwScreen, and they never alter emulation or board behavior. They
+also fail benignly: a CRC mismatch installs no hook, which costs only absent
+debug output, never a device that misbehaves. Anything that changes how the
+guest runs stays out of CRC gates.
 
 - `cerf/tracing/<bundle>/`
 
 ## Kernel debug output
 
 `KernelDebugSink` (`cerf/tracing/kernel_debug_sink.{h,cpp}`) is the single
-funnel for guest OS debug text. Every producer routes finished lines to it: a
-live SoC/board UART or serial peripheral's TX, and a hook on a nulled OEM debug
-sink (`cerf/tracing/<bundle>/nkdbg/`). It emits each line to the `Nkdbg` log
-channel (`[NKDBG]`) and to the `HwScreen` debug console.
+funnel for guest OS debug text. Every producer routes finished lines to it:
+the TX of a live SoC/board UART or serial peripheral, and a hook on a nulled
+OEM debug sink (`cerf/tracing/<bundle>/nkdbg/`). It emits each line to the
+`Nkdbg` log channel (`[NKDBG]`) and to the `HwScreen` debug console.
 
-- `EmitLine(line, source, to_screen)` - the output primitive; `source` is an
-  optional tag (e.g. `"UART1"`).
+- `EmitLine(line, source, to_screen)` - the output primitive. `source` is an
+  optional tag (for example `"UART1"`).
 - `EmitChar(ch, buf, …)` - the common CRLF / hex-escape / cap accumulator over a
   caller-owned buffer (concurrent producers never share state).
 - `EmitWideStringAt(ctx, va, …)` - read a guest wide string and emit it.
 
-A UART/serial peripheral never open-codes `LOG` + `HwScreen::AddLine`; it calls
-the sink. Register-access logging stays on its own SoC channel (e.g. `SocUart`)
-and is gated like any other channel - only the assembled debug line is `Nkdbg`.
+A UART/serial peripheral never open-codes `LOG` + `HwScreen::AddLine`. It calls
+the sink. Register-access logging stays on its own SoC channel (for example
+`SocUart`) and is gated like any other channel. Only the assembled debug line
+is `Nkdbg`.
 
 - `cerf/tracing/kernel_debug_sink.{h,cpp}`, `Nkdbg` log channel
 
 ## Bundled device tree
 
-`bundled/devices/<name>/` is the input CERF reads at boot:
+`bundled/devices/<name>/` is the input that CERF reads at boot:
 
-- A Windows CE ROM image, `*.nb0` or `*.bin`. CERF picks up whichever
-  is present; the filename does not matter.
-- `cerf.json` - optional per-device configuration; every field is optional and
-  `cerf.exe` runs without the file. The one case it is genuinely required is a
-  multi-partition / multi-file bundle (e.g. a ROM plus a separate EEPROM image
-  present together): the `rom` block then names which file boots and which is
-  data, so CERF does not have to guess. Everything else it carries is a user
-  convenience - the `meta` block is launcher-only metadata (display name,
-  board, SoC, OS, year), and `board` / `network` / `rom` overrides let a user
-  pre-bake options they would otherwise pass through the launcher or CLI each
+- A Windows CE ROM image, `*.nb0` or `*.bin`. CERF takes whichever file
+  is present. The filename does not matter.
+- `cerf.json` - the optional per-device configuration. Every field is optional,
+  and `cerf.exe` runs without the file. The file is required in one case only:
+  a multi-partition / multi-file bundle, for example a ROM plus a separate
+  EEPROM image present together. The `rom` block then names which file boots
+  and which file is data, so CERF does not guess. Everything else in the file
+  is a user convenience. The `meta` block is launcher-only metadata (display
+  name, board, SoC, OS, year). The `board` / `network` / `rom` overrides let a
+  user pre-bake options that the launcher or the CLI otherwise passes each
   time (a custom screen resolution on boards that support one or for a
-  guest-additions boot, force-flipping a flag). A missing file means CERF uses
-  `DeviceConfig` defaults plus CLI overrides.
+  guest-additions boot, a force-flipped flag). When the file is absent, CERF
+  uses `DeviceConfig` defaults plus CLI overrides.
 
-`bundled/devices/` is synced via `./launcher`,
-which downloads the public manifest and installs selected bundles.
+`./launcher` syncs `bundled/devices/`. It downloads the public manifest and
+installs selected bundles.
 
-Downloaded bundle directories and the local `manifest.json` are
-ignored by Git - only those are copied to the release directory; users
-run `launcher` locally. Never run `launcher` on your own.
+Git ignores the downloaded bundle directories and the local `manifest.json`.
+Only those are copied to the release directory. Users run `launcher` locally.
+Never run `launcher` on your own.
 
-For IDA debugging, the same `.nb0` / `.bin` is decomposed offline by
-`tools/extract_bundles.py` (runs `references/extract-wince-rom`
-against each ROM and copies any matching PDBs in) into
-`references/extracted-roms/<dev>/<rom>/`. That tree is gitignored,
-not consumed by CERF at runtime, and exists solely for IDA / static
-analysis - see `agent_docs/debugging.md` § IDA discipline.
+For IDA debugging, `tools/extract_bundles.py` decomposes the same `.nb0` /
+`.bin` offline into `references/extracted-roms/<dev>/<rom>/`. The script runs
+`references/extract-wince-rom` against each ROM and copies in any matching
+PDBs. That tree is gitignored. CERF does not consume it at runtime. It serves
+IDA / static analysis only - see `agent_docs/debugging.md` § IDA discipline.
 
-Build-time staging mirrors `bundled/**/*` into `build/<config>/Win32/**`
-via the `CopyBundledFiles` MSBuild target (incremental, never deletes
-destination files absent from the source set).
+The `CopyBundledFiles` MSBuild target mirrors `bundled/**/*` into
+`build/<config>/Win32/**` at build time. The copy is incremental and never
+deletes destination files that are absent from the source set.
 
-We are using `bundled/devices` locally because it is synced into 
-`build\release\win32\devices` however regular users have launcher
-inside build directory and sync the devices folder there.
+CERF uses `bundled/devices` locally, because the build syncs it into
+`build\release\win32\devices`. Regular users have the launcher inside the
+build directory and sync the devices folder there.
 
 ## Launcher
 
 `launcher/` is a standalone Python/tkinter GUI (packaged to `launcher.exe`
-via PyInstaller), not a `CerfEmulator` service but a separate host-side
-tool. It syncs public ROM bundles into `bundled/devices/` from a remote
-manifest, authors each installed bundle's `cerf.json` from the manifest's
-`cerf_json` and reconciles it on refresh, boots a selected device via
-`cerf.exe`, and runs a release self-update check
-against the repo-root `.last-release-version`. It owns the developer-editable
-supported-boards / board-quirk list (`supported_devices.py`), whose per-board
-`notes` surface in the side panel and extend a ROM's own `cerf.json` notes.
+with PyInstaller). It is not a `CerfEmulator` service. It is a separate
+host-side tool.
+
+It syncs public ROM bundles into `bundled/devices/` from a remote manifest.
+It authors the `cerf.json` of each installed bundle from the `cerf_json` of
+the manifest and reconciles that file on refresh. It boots a selected device
+through `cerf.exe`. It runs a release self-update check against the repo-root
+`.last-release-version`. It owns the developer-editable supported-boards /
+board-quirk list (`supported_devices.py`). The per-board `notes` in that list
+appear in the side panel and extend the `cerf.json` notes of a ROM.
 
 **The launcher ships on CPython 3.7.9** (the newest that loads on its Windows
-Vista floor - see `launcher/build.ps1`), so every `launcher/*.py` must stay
-3.7-compatible: no 3.8+ stdlib/syntax (`Path.unlink(missing_ok=)`,
-`str.removeprefix`/`removesuffix`, `math.isqrt`, the walrus `:=`, …). A 3.8+ call
-passes on a dev's modern Python but crashes the shipped exe at runtime; the
-repo's cached 3.7 interpreter (`references/python/cpython-3.7.9-x86/python.exe`)
-is the check to run.
+Vista floor - see `launcher/build.ps1`). Every `launcher/*.py` must therefore
+stay 3.7-compatible. Use no 3.8+ stdlib or syntax (`Path.unlink(missing_ok=)`,
+`str.removeprefix`/`removesuffix`, `math.isqrt`, the walrus `:=`, …). A 3.8+
+call passes on the modern Python of a developer, but it crashes the shipped
+exe at runtime. Run the cached 3.7 interpreter of the repo
+(`references/python/cpython-3.7.9-x86/python.exe`) to verify.
 
 - `launcher/` (`launcher.py`, `bundles.py`, `operations.py`,
 `supported_devices.py`)
 
 ## CE Apps - CERF-built CE binaries
 
-`ce_apps/<name>/` directories build small Windows CE EXEs and DLLs
+The `ce_apps/<name>/` directories build small Windows CE EXEs and DLLs
 against the per-CE-era SDKs in `references/WindowsCE-Build-Tools/`
 (`ce3-oak` … `ce7-oak`), per guest architecture. Each
 directory has a `main.c` and a one-line `build.ps1` that delegates to
-`tools/build_ce_app.ps1`; the top-level `build.ps1` walks every
-`ce_apps/*/build.ps1` after msbuild succeeds. Outputs land at
-`build/<Config>/Win32/ce_apps/<arch>/`. It hosts the `cerf_guest`
-guest-additions display driver alongside sample binaries; it is the home
+`tools/build_ce_app.ps1`. After msbuild succeeds, the top-level `build.ps1`
+walks every `ce_apps/*/build.ps1`. Outputs land at
+`build/<Config>/Win32/ce_apps/<arch>/`. This tree hosts the `cerf_guest`
+guest-additions display driver next to sample binaries. It is the home
 for any CERF-built CE binary.
