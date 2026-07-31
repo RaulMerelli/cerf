@@ -7,25 +7,26 @@
 </p>
 
 <p align="center">
-  <b><a href="https://cerf.cx">cerf.cx</a></b> - read more about the project
+  <b><a href="https://cerf.cx">cerf.cx</a></b> - more information about the project
 </p>
 
 <br/>
 
-A universal Windows CE emulator: a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
+A universal Windows CE emulator. It is a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) [![Patreon](https://img.shields.io/badge/Patreon-support-FF424D?logo=patreon&logoColor=white)](https://www.patreon.com/dz3n)
 
 > [!IMPORTANT]
-> **Downloads are unavailable and builds will fail.** Third-party licensed code is being
-> removed from the emulator core and reimplemented from primary documentation. Until that
-> work lands there are no releases or build artifacts, and the tree does not compile.
+> **Downloads are not available and builds fail.** We remove third-party licensed
+> code from the emulator core and write new code from primary documentation. Until
+> this work is complete, there are no releases and no build artifacts. The tree does
+> not compile.
 
 ## Downloads
 
-Download the WIP build (6.8) from artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml) to use all the latest features, or go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+To use the newest features, download the WIP build (6.8) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
-Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots it. Running `cerf.exe --device=...` directly, its command line and its logs are covered [in the articles](https://cerf.cx/articles/command-line/).
+Run **`launcher.exe`** and select a device. The launcher downloads the ROM bundle and boots it. The [articles](https://cerf.cx/articles/command-line/) show how to run `cerf.exe --device=...` directly, and describe its command line and its logs.
 
 ## Supported boards
 
@@ -205,40 +206,41 @@ Run **`launcher.exe`**: pick a device, and it downloads the ROM bundle and boots
 
 ## Running your own ROM
 
-A ROM boots only if **that exact board is implemented in CERF** - a matching SoC is not enough. Dropping in your own dump of an already-supported board is covered [in the articles](https://cerf.cx/articles/own-rom/).
+A ROM boots only if **CERF implements that exact board**. A matching SoC is not sufficient. The [articles](https://cerf.cx/articles/own-rom/) show how to use your own dump of a board that CERF supports.
 
-Bringing up a board CERF does **not** support is emulator development: the board's memory map, every peripheral its drivers touch, the SoC quirks - all of it implemented in C++, grounded in datasheets, BSP sources and RE, at the quality bar CERF already ships. It is not a config tweak, and not something to hand to an AI and expect magic.
+To add a board that CERF does **not** support is emulator development. You must write C++ code for the memory map of the board and for each peripheral that its drivers use. You must also write code for the quirks of the SoC. This code must agree with datasheets, BSP sources and reverse engineering, at the quality level that CERF has now. This work is not a change to a configuration file. An AI cannot do it for you.
 
 > [!IMPORTANT]
-> **CERF does not accept ROM submissions / board implementation requests.**
-> The devices worth doing are done, and so are several that cost months of work and that essentially nobody needs. Bringing up one more board to arrive at one more Windows CE desktop is a very large amount of work for an outcome that already exists. **Further submissions will be declined**, unless they are genuinely interesting or in demand and I want to do the work.
+> **CERF does not accept ROM submissions or requests for new boards.**
+> The devices that are worth the work are complete. Several boards took months of work, and almost nobody needs them. One more board gives one more Windows CE desktop, and CERF already has one. **New requests get a refusal**, unless a board is very interesting, or many people want it, and I want to do the work.
 
 ## Building
 
-Requires Visual Studio 2026 with the C++ desktop development workload.
+CERF requires Visual Studio 2026 with the C++ desktop development workload.
 
 > [!NOTE]
-> **First build on a fresh machine takes 1+ hour.** vcpkg compiles dependencies from source before CERF starts linking. This happens once per machine - subsequent builds reuse the cached `vcpkg_installed/` tree and finish in a few minutes. Do not interrupt the first build.
+> **The first build on a new machine takes more than one hour.** vcpkg compiles the dependencies from source before CERF links. This occurs one time on each machine. Later builds use the cached `vcpkg_installed/` tree and are complete in a few minutes. Do not stop the first build.
 
-Set up the clone (once per machine):
+Configure the clone (one time on each machine):
 
 ```
 setup.cmd
 ```
 
-This initialises submodules, points git at the repo's tracked hooks
-(`core.hooksPath` = `.githooks` - git does not clone hook config, so hooks are
-inert in a fresh clone until this runs), and reports any missing prerequisite
-(Python launcher, vcpkg MSBuild integration). Re-run it any time; it is
-idempotent. `setup.cmd -Check` reports status without changing anything.
+This script initializes the submodules. It points git at the tracked hooks of the
+repo (`core.hooksPath` = `.githooks`). Git does not clone the hook configuration,
+so the hooks do nothing in a new clone until you run this script. The script also
+reports each missing prerequisite (the Python launcher, the vcpkg MSBuild
+integration). You can run it again at any time, because it is idempotent.
+`setup.cmd -Check` reports the status and changes nothing.
 
-Build via the helper script:
+Build with the helper script:
 
 ```
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Or invoke msbuild directly:
+Or run msbuild directly:
 
 ```
 msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
@@ -246,17 +248,18 @@ msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
 
 ### Building the CE-side binaries (optional)
 
-`ce_apps/` holds the Windows CE binaries CERF ships, including the Guest Additions display
-driver. Building them needs a CE toolchain and SDK, which are **not** required for
-`cerf.exe` itself - if you are working on the emulator core, boards, SoCs, the JIT or the
-host UI, ignore this and use the prebuilt binaries.
+`ce_apps/` holds the Windows CE binaries that CERF ships, and the Guest Additions
+display driver. To build them, you need a CE toolchain and a CE SDK. `cerf.exe`
+does **not** need them. If you work on the emulator core, the boards, the SoCs,
+the JIT or the host UI, use the prebuilt binaries.
 
-To build them, install eMbedded Visual C++ 4.0 (a free, officially archived Microsoft
-download) and run one script. Full instructions: **[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
+To build them, install eMbedded Visual C++ 4.0 (a free Microsoft download from the
+Microsoft archive). Then run one script. The full instructions are in
+**[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
 
 `setup.cmd -Check` reports whether the CE toolchain is present.
 
-The website is built from `docs/website/` - `python tools/build_site.py --serve` runs it locally with live reload.
+CERF builds the website from `docs/website/`. The command `python tools/build_site.py --serve` runs the website on your machine with live reload.
 
 ## Changelog
 
@@ -374,29 +377,29 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
 
 ## Known Issues
 
-See [launcher's boards details database](launcher/supported_devices.py) for per-board issues.
+For the issues of each board, see the [board database of the launcher](launcher/supported_devices.py).
 
 ## Claude Development Environment
 
 > [!CAUTION]
-> **DO NOT USE CERF CODEBASE AS REFERENCE FOR SoCs, BOARDS, PERIPHERALS** - AI WRITTEN CODE CAN'T BE TRUSTED!
+> **DO NOT USE THE CERF CODEBASE AS A REFERENCE FOR SoCs, BOARDS OR PERIPHERALS.** AI written code might include mistakes a developer did not notice.
 
-Built with [Claude](https://claude.ai) via [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Not production-grade.
+built CERF with [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 ---
 
-CERF ships a Claude Code-based development environment for working on the emulator - including bringing up brand-new boards from their ROMs. Launch it from the repo root with:
+CERF includes a development environment that uses Claude Code. You can work on the emulator with it, and you can add new boards from their ROMs. Run it from the root of the repo:
 
 ```
 run_claude.cmd
 ```
 
-It runs Claude Code with a custom system prompt that injects the **entire project documentation** (`CLAUDE.md` plus every `agent_docs/` reference page) into every agent, so each session starts fully briefed on the project's rules, architecture, and subsystems - no "please read the docs first" needed.
+This environment runs Claude Code with a custom system prompt. The prompt puts the **full project documentation** into each agent (`CLAUDE.md` and each reference page in `agent_docs/`). Thus each session starts with the rules, the architecture and the subsystems of the project. You do not tell the agent to read the documentation first.
 
-The environment provides the **`/start-board-implementation`** skill: drop your ROM into `bundled/devices/` (or just point the agent at it) and run the skill. The agent identifies the board and SoC straight from the ROM, checks what CERF already supports, estimates the effort, and - on your go-ahead - starts the bring-up with a cross-session tracking document. So you can literally drop in your ROM and start the procedure of bringing it up.
+The environment gives you the **`/start-board-implementation`** skill. Put your ROM into `bundled/devices/`, or give the agent the path to it. Then run the skill. The agent identifies the board and the SoC from the ROM. It then examines what CERF supports and estimates the work. If you agree, the agent starts the work and writes a tracking document that stays between sessions.
 
 > [!WARNING]
-> The dev environment runs Claude in skip-permissions mode - it can execute anything on your machine without prompting. It also force-kills its own Claude instance, and **any** `clangd.exe`, that leaks memory past a threshold. The first launch shows a one-time explanation; press Enter to acknowledge it.
+> The development environment runs Claude in skip-permissions mode. Claude can run any command on your machine, and it does not ask you first. The environment also stops its own Claude instance, and **any** `clangd.exe`, that uses more memory than a limit. At the first start, it shows an explanation one time. Press Enter to accept it.
 
 ## License
 
