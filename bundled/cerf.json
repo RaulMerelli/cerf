@@ -10,5 +10,10 @@
     "ddi_ragexl.dll",
     "ddraw_ipu.dll"
   ],
-  "bundle_repositories": []
+  "bundle_repositories": [
+    {
+      "url": "https://cerf-bundles.dz3n.net/cerf-bundles",
+      "enabled": true
+    }
+  ]
 }
