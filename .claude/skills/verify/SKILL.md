@@ -5,9 +5,9 @@ description: Spawn a hostile-reviewer subagent to cold-check a claim, diff, file
 
 # Verify - Reality Check
 
-Spawn a subagent to cold-review a claim, diff, or piece of code. The subagent is a hostile reviewer whose job is to find problems, not to validate. Its verdict has teeth: a `CRITICAL PROBLEM FOUND` halts the main agent's current line of work.
+Spawn a subagent to cold-review a claim, a diff or a piece of code. The subagent is a hostile reviewer. Its job is to find problems, not to validate. Its verdict has teeth, because a `CRITICAL PROBLEM FOUND` halts the main agent's current line of work.
 
-The subagent's full operating manual lives in `.claude/VERIFY_INSTRUCTION.md` - the main agent does NOT need to read or understand that file. The main agent's only responsibilities are: spawn the subagent, point it at that file, hand it the target material verbatim, and act on the verdict. Keeping the operating manual out of this skill keeps the main agent's context lean and removes any temptation to paraphrase the reviewer's rules into the spawn prompt (which is how bias gets smuggled in).
+The subagent's full operating manual lives in `.claude/VERIFY_INSTRUCTION.md`. The main agent does NOT read or understand that file. The main agent has four responsibilities: spawn the subagent, point it at that file, hand it the target material verbatim, then act on the verdict. The manual stays out of this skill for two reasons. It keeps the main agent's context lean. It also removes the temptation to paraphrase the reviewer's rules into the spawn prompt, which is how bias enters the review.
 
 ## When to invoke
 
@@ -16,35 +16,37 @@ The subagent's full operating manual lives in `.claude/VERIFY_INSTRUCTION.md` - 
   - `/verify the weird code in cerf/memory/shared_mem_pool.cpp`
   - `/verify current diff for hacks`
   - `/verify my fix for the tray bug`
-- The main agent itself wants an independent check - typically after writing something non-trivial, after a refactor, or after producing a long-form explanation it is about to hand back as authoritative.
+- The main agent wants an independent check. This happens after non-trivial code, after a refactor, or before it hands back a long-form explanation as authoritative.
 
-## Self-audit gate - MANDATORY before spawning
+## Self-audit gate - mandatory before spawning
 
-**Writing rule-compliant code is the main agent's own responsibility. `/verify` is not a "find my bugs for me" service that discharges that responsibility - it is a fresh-eyes pass for blind spots the main agent honestly cannot see on its own.** Before spawning the subagent, the main agent MUST audit the target against `CLAUDE.md` and every page under `agent_docs/` itself. If that self-audit finds any violation the main agent already knows about, the spawn is invalid; the subagent does not get to be the first reader to notice problems the author already saw.
+Rule-compliant code is the main agent's own responsibility. `/verify` does not discharge that responsibility, because it is not a find-my-bugs service. It is a fresh-eyes pass for blind spots that the main agent cannot see alone.
 
-There are exactly two shapes the self-audit can land in, and each has exactly one allowed next action:
+Before you spawn the subagent, audit the target yourself against `CLAUDE.md` and every page under `agent_docs/`. If your self-audit finds a violation you can already name, the spawn is invalid. The subagent never gets to be the first reader of a problem the author already saw.
+
+The self-audit lands in one of two shapes. Each shape allows exactly one next action.
 
 ### Shape A - known small-scale violation, locally fixable
 
-The main agent identifies a specific, bounded rule violation it wrote (or is about to hand back): a reader-side guard masking a writer bug; a stub returning fake success; a missing reference citation on a peripheral-register handler; a hex/decimal value the main agent computed in its head instead of through a tool; a free function that takes services as parameters; a static or global for service state; a comment that names a checklist filename or `§` reference; a `LOG` site firing per-clock that belongs in a trace file; a `x ? f(x) : 0` null-guard around a callee that already handles null; etc.
+You can name a specific, bounded rule violation in what you wrote or are about to hand back. Examples: a reader-side guard that masks a writer bug. A stub that returns fake success. A missing reference citation on a peripheral-register handler. A hex or decimal value you computed in your head instead of through a tool. A free function that takes services as parameters. A static or global that holds service state. A comment that names a checklist filename or a `§` reference. A `LOG` site that fires per-clock and belongs in a trace file. A `x ? f(x) : 0` null-guard around a callee that already handles null.
 
-**Action: fix it yourself, in the same turn, BEFORE spawning.** You are never permitted to spawn `/verify` while sitting on a violation you can already name. After the fix is applied, re-evaluate whether `/verify` is still wanted at all - often the original motivation for spawning evaporates once the known defect is gone. If it is still wanted, spawn against the fixed target.
+**Action: fix it yourself, in the same turn, before you spawn.** You can never spawn `/verify` while you sit on a violation you can name. After the fix, decide whether you still want `/verify` at all, because the reason to spawn often disappears with the known defect. If you still want it, spawn against the fixed target.
 
-### Shape B - foundational damage, NOT locally fixable
+### Shape B - foundational damage, not locally fixable
 
-The target rests on hacks; the architecture violates dependency-inversion / service-locator rules at its core; the implementation layers reader-side suppression on top of an unfixed writer chain; the change cascades workarounds on top of a wrong premise; multiple CLAUDE.md "serious violation" categories apply (no guessed implementations, reader-side suppression, host-API blame, mocking CE binaries in host C++, etc.); the code as a whole cannot be rescued by local edits.
+The target rests on hacks. The architecture breaks dependency-inversion or service-locator rules at its core. The implementation layers reader-side suppression over an unfixed writer chain. The change cascades workarounds over a wrong premise. Several CLAUDE.md serious-violation categories apply at once, such as guessed implementations, reader-side suppression, host-API blame, or CE binaries mocked in host C++. Local edits cannot rescue the code.
 
-**There is no point spawning `/verify` here.** A hostile reviewer will return `CRITICAL PROBLEM FOUND` and the main agent will already know why - the spawn burns budget to confirm what the main agent already sees. There is also no point silently fixing it: the scope is large enough that a unilateral rewrite is a direction-changing decision that belongs to the user, not the agent.
+**A spawn produces nothing here.** The hostile reviewer returns `CRITICAL PROBLEM FOUND`, and you already know why, so the spawn burns budget to confirm what you can already see. A silent fix is equally wrong, because the scope makes a unilateral rewrite a direction-changing decision that belongs to the user.
 
-**Action: halt the spawn, halt any further patching, and present the situation to the user in the following shape:**
+**Action: halt the spawn, halt further patching, and present the situation to the user in this shape:**
 
 > "I was about to run `/verify` on `<target>`, but caught myself first. The target has foundational damage I can already name without a hostile-reviewer pass: `<specific rule(s) violated, specific hack(s), specific architectural break>`. Running `/verify` here will not produce information I do not already have. I propose deleting `<files / sections / commits / staged changes>` and rewriting properly: `<one-sentence sketch of the correct shape>`. Want me to proceed with the delete-and-rewrite, or take a different direction?"
 
-Then wait for the user's call. Do NOT spawn the subagent. Do NOT soften the diagnosis to make the spawn feel justified ("but maybe a reviewer should double-check just in case"). Do NOT begin the rewrite unilaterally - direction-changing work waits for explicit user approval.
+Then wait for the user's call. Do NOT spawn the subagent. Do NOT soften the diagnosis to justify a spawn, as in "but maybe a reviewer must double-check just in case". Do NOT start the rewrite alone, because direction-changing work waits for explicit user approval.
 
 ### When the self-audit comes up clean
 
-The spawn is valid only when the main agent has honestly looked at the target, found no rule violation it can already name, and genuinely wants a fresh pair of eyes for blind spots it cannot see itself. If during the self-audit the main agent catches itself rationalizing ("this is *probably* fine, the reviewer will confirm if I'm wrong"), that rationalization IS the answer - the spawn is invalid. Pick Shape A or Shape B and act accordingly.
+The spawn is valid when three things hold. You looked at the target honestly. You found no rule violation you can name. You want a fresh pair of eyes for blind spots you cannot see yourself. If you catch yourself rationalizing during the self-audit, as in "this is probably fine, the reviewer will confirm it", that rationalization is the answer. The spawn is invalid. Pick Shape A or Shape B and act.
 
 ## Protocol
 
@@ -52,85 +54,85 @@ The spawn is valid only when the main agent has honestly looked at the target, f
 
 Resolve the freeform input into a concrete target. Be literal:
 
-- **Quoted claim** - take the claim verbatim. Do NOT rephrase, summarize, or soften tone.
-- **File path** - read the file; for a specific function, capture its full body plus enough surrounding context to be reviewable.
-- **"current diff" / "this diff" / "unstaged"** - run `git diff` and, if anything is staged, also `git diff --cached`. Capture the full patch.
+- **Quoted claim** - take the claim verbatim. Do NOT rephrase it, summarize it, or soften its tone.
+- **File path** - read the file. For a single function, capture its full body plus enough surrounding context to make it reviewable.
+- **"current diff" / "this diff" / "unstaged"** - run `git diff`. If anything is staged, also run `git diff --cached`. Capture the full patch.
 - **Commit or range** - `git diff <range>`.
-- **Mix** - collect every piece referenced.
+- **Mix** - collect every piece the input references.
 
-If the target is genuinely ambiguous, ask the user ONE short clarifying question before spawning. Do not guess the target.
+If the target is genuinely ambiguous, ask the user one short clarifying question before you spawn. Do not guess the target.
 
 ### 2. Spawn the subagent
 
 Use the Agent tool with:
 
-- `subagent_type: Explore` - read-only by construction (no Edit/Write/Agent), which matches the hostile-reviewer role and prevents the reviewer from modifying anything.
-- `model: opus` - **mandatory, never omitted.** Without it the reviewer runs on whatever the agent definition or the parent session supplies, which may be a smaller model. The review is the gate that catches guessed implementations, fabricated IDA citations and reader-side suppression; those are exactly the defects a weaker reviewer waves through with a confident `LEGIT`, and a false `LEGIT` is worse than no review because the main agent then treats the target as cleared.
-- `description`: short, e.g. `Reality-check on <short target>`.
-- `prompt`: a short, neutral brief that points the subagent at `.claude/VERIFY_INSTRUCTION.md` - see the shape below.
-- `run_in_background: true` - **preferred default.** A `/verify` review reads CLAUDE.md plus every page under `agent_docs/`, often runs IDA decompiles, and greps the codebase; it routinely takes minutes. Spawn it backgrounded and advance other work in parallel - the harness will signal when the verdict is ready. **Do NOT poll, sleep, or check progress yourself** - per CLAUDE.md § Background tasks, the signal IS the contract; polling a backgrounded task is a rule violation. Foreground is the rare case, used only when the main agent's strict next step depends on the verdict and there is genuinely no other work to advance in the meantime (e.g. about to hand back to the user with nothing else to do). When in doubt, background it; idling on the signal is cheaper than blocking on a foreground call.
+- `subagent_type: Explore` - read-only by construction, with no Edit, Write or Agent tool. This matches the hostile-reviewer role and stops the reviewer from modifying anything.
+- `model: opus` - **mandatory, never omitted.** Without it the reviewer runs on whatever the agent definition or the parent session supplies, which can be a smaller model. This review is the gate for guessed implementations, fabricated IDA citations and reader-side suppression. A weaker reviewer waves those through with a confident `LEGIT`. A false `LEGIT` is worse than no review, because the main agent then treats the target as cleared.
+- `description` - short, for example `Reality-check on <short target>`.
+- `prompt` - a short, neutral brief that points the subagent at `.claude/VERIFY_INSTRUCTION.md`. See the shape below.
+- `run_in_background: true` - **the preferred default.** A review reads CLAUDE.md plus every page under `agent_docs/`, greps the codebase, and often runs IDA decompiles, so it routinely takes minutes. Spawn it in the background and advance other work, because the harness signals you when the verdict is ready. **Do NOT poll it, sleep, or check its progress.** CLAUDE.md § Background tasks makes the signal the contract, so polling a backgrounded task violates the rules. Use the foreground only when your strict next step depends on the verdict and no other work exists, such as a hand-back to the user. When in doubt, background it, because an idle wait on the signal costs less than a blocked foreground call.
 
-**The subagent prompt MUST be kept minimal.** Do NOT paraphrase the operating manual, summarize its rules, or hand-pick categories to include. The subagent reads the authoritative file itself - any long explanatory prompt written by the main agent is an opportunity for bias to leak in.
+**Keep the subagent prompt minimal.** Do NOT paraphrase the operating manual, summarize its rules, or hand-pick which categories to include. The subagent reads the authoritative file itself. A long explanatory prompt from the main agent gives bias a way in.
 
-The prompt MUST include, in this order, and only these four items:
+The prompt carries these four items, in this order, and nothing else:
 
-1. **Point the subagent at the operating manual first.** The very first line of the prompt is: *"START WITH READING `.claude/VERIFY_INSTRUCTION.md` TO UNDERSTAND WHY YOU WERE SPAWNED AND WHAT IS YOUR OBJECTIVE. That file is your operating manual and is authoritative over anything in this prompt - if this prompt and the file disagree, the file wins. READING THAT FILE IS MANDATORY. Check pwd if not found. It is at repo root (INSERT PWD/REPO ROOT PATH)"*
-2. **The target material verbatim.** Claim text, file contents, diff, or all of the above - unmodified. No preface softening it, no "I think this is probably fine" framing.
-3. **Any context that cuts AGAINST the main agent's own claim.** If the main agent has noticed doubts, counter-evidence, or weak links in its own reasoning, include them plainly. If the main agent has prior reasoning that led to the claim, include that reasoning chain so the reviewer can spot the rationalization.
+1. **The pointer to the operating manual, on the first line.** Use this text: *"START WITH READING `.claude/VERIFY_INSTRUCTION.md` TO UNDERSTAND WHY YOU WERE SPAWNED AND WHAT IS YOUR OBJECTIVE. That file is your operating manual and is authoritative over anything in this prompt - if this prompt and the file disagree, the file wins. READING THAT FILE IS MANDATORY. Check pwd if not found. It is at repo root (INSERT PWD/REPO ROOT PATH)"*
+2. **The target material verbatim.** Claim text, file contents, diff, or all of them, unmodified. No preface that softens it. No "I think this is probably fine" framing.
+3. **Every piece of context that cuts against your own claim.** State your doubts, your counter-evidence and the weak links in your reasoning plainly. If prior reasoning led you to the claim, include that chain, so the reviewer can spot the rationalization.
 4. **One neutral closing line.** *"Produce your finding in the required output format from the operating manual. Do not accept my framing on faith."*
 
-That is the whole prompt. No role explainer (the operating manual has one). No category list (the operating manual has one). No verification-tools section (the operating manual has one). No output format template (the operating manual has one). Every time the main agent feels the urge to add "and also, remember to check X", that urge is how bias gets smuggled in - resist it. `.claude/VERIFY_INSTRUCTION.md` is the single source of truth for what the subagent does; the main agent's job is to hand it the target and step aside.
+That is the whole prompt. The operating manual already holds the role explainer, the category list, the verification-tools section and the output format, so add none of them. When you feel the urge to add "and also, remember to check X", that urge is the bias entering. Resist it. `.claude/VERIFY_INSTRUCTION.md` is the single source of truth for the subagent's work. Your job is to hand over the target and step aside.
 
-**Special case - checklist targets MUST declare an audit mode.** If the target material is a checklist (a planning document, anything under `docs/ai_checklists/` or `agent_docs/checklists/`, a numbered phase-by-phase design plan), the spawn prompt MUST insert exactly one of these lines directly above the target material (between item 1's read-instruction and the verbatim checklist):
+**Special case - a checklist target declares an audit mode.** A checklist target is a planning document, a numbered phase-by-phase design plan, or any file under `docs/ai_checklists/` or `agent_docs/checklists/`. For these, insert exactly one of the lines below directly above the target material, between item 1 and the verbatim checklist:
 
-- `AUDIT MODE: PLAN` - the checklist describes work that has NOT been implemented yet. The reviewer audits the plan's soundness: IDA grounding, hidden assumptions, bullet ambiguity, "known gaps / things I could not verify" sections (bombs documented), whether the steps in literal order produce the claimed runtime behavior. The reviewer does NOT check whether the codebase matches the checklist - the work hasn't started.
-- `AUDIT MODE: IMPLEMENTATION` - the checklist describes work that HAS been done; this commit/diff/branch claims to implement it. The reviewer audits the codebase against each bullet: literal file-layout compliance, per-bullet code mapping, silent deviations from checklist values, fabricated citations.
+- `AUDIT MODE: PLAN` - the work is not implemented yet. The reviewer audits the plan itself: IDA grounding, hidden assumptions, bullet ambiguity, and every "known gaps" section. It also verifies that the steps in literal order produce the claimed runtime behavior. The reviewer does NOT compare the codebase against the checklist, because the work has not started.
+- `AUDIT MODE: IMPLEMENTATION` - the work is done, and this diff or branch claims to implement it. The reviewer audits the codebase against each bullet: literal file-layout compliance, per-bullet code mapping, silent deviations from checklist values, and fabricated citations.
 
-Without an explicit `AUDIT MODE:` on a checklist target, the reviewer returns `CRITICAL PROBLEM FOUND. [UNVERIFIABLE]` because it cannot tell which audit shape applies. This rule exists because reviewers historically wasted entire verdicts accusing the main agent of "lying" about completion when the main agent had only sent a planning document for design review. The mode declaration removes the guess.
+A checklist target with no `AUDIT MODE:` line returns `CRITICAL PROBLEM FOUND. [UNVERIFIABLE]`, because the reviewer cannot tell which audit shape applies. A planning document and a completion claim look identical to a reviewer. Without the declaration the reviewer guesses, and a wrong guess spends the whole verdict on an accusation that the main agent lied about completion.
 
-**Special case - a model taken from another project MUST declare that project's LOCAL source path.** If any part of the target implements a model studied from another codebase (QEMU, Linux, U-Boot, a vendor BSP, another emulator, a reference driver), the spawn prompt MUST name where that source sits on this machine - the path under `references/`, plus the file and function the model came from - directly above the target material:
+**Special case - a model taken from another project declares that project's LOCAL source path.** This applies when any part of the target implements a model studied from another codebase. Examples: QEMU, Linux, U-Boot, a vendor BSP, another emulator, a reference driver. Name where that source sits on this machine, directly above the target material. Give the path under `references/`, plus the file and the function the model came from.
 
 - `PORTED MODEL: <what> <- references/<path>/<file>:<function>`
 
-Studying another project's model is legitimate and expected. Copying its code into CERF is a licensing breach that no later verdict can undo. From a prompt alone those two are indistinguishable, and the reviewer cannot diff against a source it does not have - so a disclosed port with no local path makes the reviewer HALT with `CRITICAL PROBLEM FOUND. [LICENSE VIOLATION]` and no audit is performed. If the source is not on disk yet, fetch it into `references/` before spawning. Concealing the provenance to dodge the declaration is worse than the missing path: it puts the breach past review entirely.
+To study another project's model is legitimate and expected. To copy its code into CERF is a licensing breach that no later verdict undoes. From a prompt alone the two look identical, and the reviewer cannot diff against a source it does not have. A disclosed port with no local path therefore makes the reviewer halt with `CRITICAL PROBLEM FOUND. [LICENSE VIOLATION]`, and it performs no audit. If the source is not on disk, fetch it into `references/` before you spawn. Concealed provenance is worse than a missing path, because it puts the breach past review entirely.
 
-### 3. What the main agent MUST NOT do when writing the subagent prompt
+### 3. What the main agent must NOT do when writing the subagent prompt
 
-- Do NOT presuppose the answer. No "please confirm this is fine", no "I think this is legit, just double-check", no "this should pass".
-- Do NOT cherry-pick context. If the main agent has context that cuts AGAINST its own claim, include it.
-- Do NOT omit the main agent's prior reasoning when the target is "my last claim" - include the reasoning chain so the reviewer can spot the rationalization.
-- Do NOT instruct the subagent which verdict to return, or hint at a preferred answer through tone ("I'm 95% sure this is fine, just paranoid").
-- Do NOT attach a time budget or scope limit that would force the subagent to skip verification.
+- Do NOT presuppose the answer. No "please confirm this is fine". No "I think this is legit, just double-check". No "this should pass".
+- Do NOT cherry-pick context. Include the context that cuts against your own claim.
+- Do NOT omit your prior reasoning when the target is your last claim. Include the reasoning chain, so the reviewer can spot the rationalization.
+- Do NOT tell the subagent which verdict to return. Do NOT hint at a preferred answer through tone, as in "I'm 95% sure this is fine, just paranoid".
+- Do NOT attach a time budget or a scope limit, because either one forces the subagent to skip verification.
 
-If the main agent catches itself about to violate any of the above while drafting the prompt, stop, delete the offending phrasing, and rewrite neutrally before spawning.
+If you catch yourself about to break any rule above while you draft the prompt, stop. Delete the offending phrasing and rewrite it neutrally before you spawn.
 
 ## After the subagent returns
 
-The subagent's reply ends with exactly one of:
+The subagent's reply ends with exactly one of these lines:
 
 - `VERDICT: LEGIT. KEEP GOING.`
 - `VERDICT: CRITICAL PROBLEM FOUND. [<CATEGORY>]`
 
-Both are preceded by a `SUMMARY` block. The full output format and the category list live in `.claude/VERIFY_INSTRUCTION.md` - the main agent does not need to know them; it only needs to recognize the verdict line and act on it.
+A `SUMMARY` block precedes both. The full output format and the category list live in `.claude/VERIFY_INSTRUCTION.md`. You do not need them. You need to recognize the verdict line and act on it.
 
-- **`VERDICT: LEGIT. KEEP GOING.`** - relay the summary to the user in a short recap, then continue the task. Do NOT treat LEGIT as permission to skip future verification on related work.
-- **`VERDICT: CRITICAL PROBLEM FOUND. […]`** - the main agent MUST:
-  1. Stop the SPECIFIC flawed approach the reviewer rejected. Do not continue the edit, the claim, the diff that the reviewer flagged. This does NOT mean halt all related work - see point 4.
-  2. Echo the verdict line + the subagent's full SUMMARY block to the user verbatim. The user must see it.
-  3. Acknowledge the finding. Do not argue the verdict back at the subagent. Do not attempt to explain it away.
-  4. Categorize the reviewer's action items. Research / investigation that closes the flagged gaps (decompile, grep, read code, gather evidence) - do these immediately, in this turn, without waiting. Code changes that require judgment about scope or direction - wait for the user. The default assumption is that the reviewer caught real damage AND that the gap-closing research is the right next step; the user redirects only if they want a different shape entirely.
-- **Never go fully passive after a CRITICAL verdict.** "Stop the flawed work" ≠ "stop all work." If the reviewer's findings include items with concrete `Action required: decompile X / grep Y / read Z` instructions, those are not awaiting direction - they ARE the direction. Do them now.
-- **Never hide a `CRITICAL PROBLEM FOUND` verdict from the user, even if the main agent disagrees.**
+- **`VERDICT: LEGIT. KEEP GOING.`** - relay the summary to the user in a short recap, then continue the task. Do NOT treat one `LEGIT` as permission to skip verification on related work.
+- **`VERDICT: CRITICAL PROBLEM FOUND. […]`** - take these four steps:
+  1. Stop the specific flawed approach the reviewer rejected. Do not continue the edit, the claim or the diff that it flagged. This does not halt all related work. See step 4.
+  2. Echo the verdict line and the full `SUMMARY` block to the user verbatim. The user must see it.
+  3. Acknowledge the finding. Do not argue the verdict back at the subagent. Do not explain it away.
+  4. Sort the reviewer's action items into two kinds. Research that closes the flagged gaps, such as a decompile, a grep or a code read, runs immediately in this turn. Code changes that need a judgment about scope or direction wait for the user. Assume the reviewer caught real damage, and assume the gap-closing research is the right next step. The user redirects you only for a different shape entirely.
+- **Never go passive after a CRITICAL verdict.** To stop the flawed work is not to stop all work. Findings that carry a concrete instruction, such as `Action required: decompile X / grep Y / read Z`, are the direction. Run them now.
+- **Never hide a `CRITICAL PROBLEM FOUND` verdict from the user**, even when you disagree with it.
 
 ## Anti-patterns (forbidden)
 
-- Re-running `/verify` with the same or lightly-reworded input after a `CRITICAL PROBLEM FOUND`, hoping for `LEGIT`. That is gaslighting. One verdict per target.
-- Softening or paraphrasing the target claim when passing it to the subagent.
-- Adding "but here's why it's actually fine" or any defense of the claim into the subagent's prompt.
-- Spawning multiple reviewers in parallel and picking the friendliest answer.
-- Treating `LEGIT` on one part as implicit `LEGIT` on the rest of the file / diff.
-- Running `/verify` as a checkbox ritual and then ignoring the verdict.
+- Re-running `/verify` on the same or lightly-reworded input after a `CRITICAL PROBLEM FOUND`, in the hope of a `LEGIT`. That is gaslighting. One verdict per target.
+- Softening or paraphrasing the target claim on its way to the subagent.
+- Adding "but here's why it's actually fine", or any other defense of the claim, into the subagent's prompt.
+- Spawning several reviewers in parallel and picking the friendliest answer.
+- Treating a `LEGIT` on one part as a `LEGIT` on the rest of the file or diff.
+- Running `/verify` as a checkbox ritual, then ignoring the verdict.
 
 ## Why this skill exists
 
-The main agent's training rewards producing output, defending claims, and sounding confident. That bias produces rationalizations that look like analysis and hacks that look like fixes. A fresh reviewer with no investment in the prior answer, reading the same rules and the same code, catches what the main agent no longer can see. The verdict is worth more than the main agent's own second-guessing precisely because the reviewer has no sunk cost in the claim.
+The main agent's training rewards output, defended claims and confident tone. That bias produces rationalizations that look like analysis, and hacks that look like fixes. A fresh reviewer holds no investment in the prior answer. It reads the same rules and the same code, and it catches what the main agent can no longer see. Its verdict outweighs the main agent's own second-guessing, because it carries no sunk cost in the claim.
