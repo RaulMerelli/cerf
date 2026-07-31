@@ -86,6 +86,9 @@ class Toolbar:
                   self.btn_remove, self.btn_discard):
             b.config(state=state)
 
+    def set_catalog_loading(self, loading: bool) -> None:
+        self.btn_refresh.config(state="disabled" if loading else "normal")
+
     def set_selection_enabled(self, selected_has_update: bool,
                               any_updateable: bool, can_remove: bool,
                               can_discard: bool) -> None:

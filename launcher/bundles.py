@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from bundle_repositories import (BundleRepository, analytics_url_for,
                                  manifest_url_for)
@@ -226,7 +226,14 @@ def _parse_packages(bundle_name: str, raw, manifest_url: str) -> tuple:
     return tuple(parsed)
 
 
-def _fetch_repo_bundles(base_url: str) -> List[RemoteBundle]:
+def _parse_abuse_email(manifest: dict) -> Optional[str]:
+    value = manifest.get("abuse_email")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
+
+
+def _fetch_repo_bundles(base_url: str) -> Tuple[List[RemoteBundle], Optional[str]]:
     manifest_url = manifest_url_for(base_url)
     fresh_url = _append_query(manifest_url, "cb", str(int(time.time())))
     try:
@@ -270,7 +277,7 @@ def _fetch_repo_bundles(base_url: str) -> List[RemoteBundle]:
             cerf_json=item.get("cerf_json") if isinstance(item.get("cerf_json"), dict) else None,
             packages=_parse_packages(name, item.get("additional_packages"), manifest_url),
         ))
-    return parsed
+    return parsed, _parse_abuse_email(manifest)
 
 
 def _fetch_repo_analytics(base_url: str) -> dict:
@@ -315,21 +322,26 @@ def load_analytics(repositories: List[BundleRepository]) -> Optional[dict]:
 
 def load_merged_manifest(
         repositories: List[BundleRepository],
-) -> Tuple[List[RemoteBundle], List[Tuple[str, str]]]:
-    """Fetch every enabled repo's manifest. Per-repo failures are collected
-    into the returned (url, error) list; when NO repo could be fetched at all
-    the first failure is raised so the GUI surfaces it as the refresh error.
+) -> Tuple[List[RemoteBundle], List[Tuple[str, str]], Dict[str, str]]:
+    """Fetch every enabled repo's manifest. Returns the merged bundles, the
+    per-repo (url, error) failures, and each repo's published copyright-removal
+    contact keyed by repository URL. When NO repo could be fetched at all the
+    first failure is raised so the GUI surfaces it as the refresh error.
     A manifest-version mismatch always raises - it carries the upgrade
     notice."""
     all_bundles: List[RemoteBundle] = []
     errors: List[Tuple[str, str]] = []
+    abuse_emails: Dict[str, str] = {}
     first_exc: Optional[Exception] = None
     fetched = 0
     for repo in repositories:
         if not repo.enabled:
             continue
         try:
-            all_bundles.extend(_fetch_repo_bundles(repo.url))
+            bundles, abuse_email = _fetch_repo_bundles(repo.url)
+            all_bundles.extend(bundles)
+            if abuse_email is not None:
+                abuse_emails[repo.url] = abuse_email
             fetched += 1
         except ManifestVersionError:
             raise
@@ -340,4 +352,4 @@ def load_merged_manifest(
     if not fetched and first_exc is not None:
         raise first_exc
     all_bundles.sort(key=lambda b: b.name.lower())
-    return all_bundles, errors
+    return all_bundles, errors, abuse_emails

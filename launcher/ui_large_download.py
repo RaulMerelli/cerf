@@ -99,7 +99,8 @@ def gate_large_bundle(app, device: DeviceBundle) -> bool:
 
 
 def gate_bundle_download(app, device: DeviceBundle) -> bool:
-    if not confirm_rom_license(app, device.meta.device_name or device.name):
+    if not confirm_rom_license(app, device.meta.device_name or device.name,
+                               app.manager.repo_abuse_contacts):
         return False
     show_source_thanks(app, device.meta.source)
     return gate_large_bundle(app, device)
@@ -126,7 +127,7 @@ def gate_package_download(app, device: DeviceBundle, ps: PackageStatus) -> bool:
     gate. Returns True to proceed with the in-launcher download; False when the
     user cancelled or chose the manual path (fully handled here)."""
     label = f"{ps.remote.name} ({device.meta.device_name or device.name})"
-    if not confirm_rom_license(app, label):
+    if not confirm_rom_license(app, label, app.manager.repo_abuse_contacts):
         return False
     show_source_thanks(app, device.meta.source)
     if not is_large_download(ps.remote.archive_size):

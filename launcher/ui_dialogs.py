@@ -5,8 +5,10 @@ from __future__ import annotations
 import tkinter as tk
 import webbrowser
 from tkinter import ttk
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
+from copyright_removal_dialog import (BUTTON_LABEL as COPYRIGHT_BUTTON_LABEL,
+                                      ContactsFn, show_copyright_removal)
 from device_state import DeviceSource
 import ui_theme as theme
 
@@ -20,9 +22,17 @@ GUEST_ADDITIONS_URL = "https://cerf.cx/articles/guest-additions/"
 PATREON_URL = "https://www.patreon.com/dz3n"
 
 
+def _run_extra(dlg: tk.Toplevel, handler: Callable[[tk.Misc], None]) -> None:
+    handler(dlg)
+    if dlg.winfo_exists():
+        dlg.grab_set()
+
+
 def show_dialog(parent: tk.Misc, title: str, message: str,
                 buttons: tuple[str, ...] = ("OK",),
-                default: Optional[str] = None) -> str:
+                default: Optional[str] = None,
+                extra: Optional[Tuple[str, Callable[[tk.Misc], None]]] = None
+                ) -> str:
     dlg = tk.Toplevel(parent)
     dlg.title(title)
     dlg.configure(bg=theme.BG)
@@ -35,8 +45,16 @@ def show_dialog(parent: tk.Misc, title: str, message: str,
     ttk.Label(body, text=message, wraplength=420, justify="left").pack(
         anchor="w", pady=(0, 14))
 
-    btns = ttk.Frame(body)
-    btns.pack(anchor="e")
+    row = ttk.Frame(body)
+    row.pack(fill="x")
+    if extra is not None:
+        extra_label, extra_handler = extra
+        ttk.Button(row, text=extra_label,
+                   command=lambda: _run_extra(dlg, extra_handler)).pack(
+            side="left")
+
+    btns = ttk.Frame(row)
+    btns.pack(side="right")
     for i, label in enumerate(buttons):
         def click(l=label):
             result["value"] = l
@@ -110,11 +128,15 @@ def show_error(parent: tk.Misc, title: str, message: str) -> None:
     show_dialog(parent, title, message)
 
 
-def ask_yesno(parent: tk.Misc, title: str, message: str) -> bool:
-    return show_dialog(parent, title, message, ("Yes", "No"), default="No") == "Yes"
+def ask_yesno(parent: tk.Misc, title: str, message: str,
+              extra: Optional[Tuple[str, Callable[[tk.Misc], None]]] = None
+              ) -> bool:
+    return show_dialog(parent, title, message, ("Yes", "No"), default="No",
+                       extra=extra) == "Yes"
 
 
-def confirm_rom_license(parent: tk.Misc, display_name: str) -> bool:
+def confirm_rom_license(parent: tk.Misc, display_name: str,
+                        abuse_contacts_fn: ContactsFn) -> bool:
     return ask_yesno(
         parent,
         "Download confirmation",
@@ -127,7 +149,9 @@ def confirm_rom_license(parent: tk.Misc, display_name: str) -> bool:
         f"terms, or restrictions the OEM applied. The CERF project "
         f"gives no warranty, grants no license, and accepts no "
         f"liability for the contents.\n\n"
-        f"Download {display_name}?"
+        f"Download {display_name}?",
+        extra=(COPYRIGHT_BUTTON_LABEL,
+               lambda dlg: show_copyright_removal(dlg, abuse_contacts_fn())),
     )
 
 

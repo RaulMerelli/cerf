@@ -10,6 +10,8 @@ from device_model import (GROUP_IID_PREFIX, _device_group_key,
                           _device_search_haystack, _table_device_label,
                           _table_os_label)
 from board_info import board_soc_label, board_support_state
+from copyright_removal_dialog import (BUTTON_LABEL as COPYRIGHT_BUTTON_LABEL,
+                                      ContactsFn, show_copyright_removal)
 from screen_geometry import fit_geometry
 from sources_dialog import SourcesDialog
 import ui_theme as theme
@@ -26,9 +28,11 @@ ReloadFn = Callable[
 class DownloadWindow:
     def __init__(self, parent: tk.Misc, devices: List[DeviceBundle],
                  on_download: Callable[[List[str]], None],
+                 abuse_contacts_fn: ContactsFn,
                  reload_fn: Optional[ReloadFn] = None,
                  download_places: Optional[dict] = None) -> None:
         self._on_download = on_download
+        self._abuse_contacts_fn = abuse_contacts_fn
         self._reload_fn = reload_fn
         self._places = download_places
         self._checked: set[str] = set()
@@ -92,15 +96,18 @@ class DownloadWindow:
 
         footer = ttk.Frame(body)
         footer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        footer.columnconfigure(0, weight=1)
+        footer.columnconfigure(1, weight=1)
+        ttk.Button(footer, text=COPYRIGHT_BUTTON_LABEL,
+                   command=self._open_copyright_removal).grid(
+            row=0, column=0, sticky="w")
         self.summary = ttk.Label(footer, text="")
-        self.summary.grid(row=0, column=0, sticky="w")
+        self.summary.grid(row=0, column=1, sticky="w", padx=(12, 0))
         ttk.Button(footer, text="Cancel", command=dlg.destroy).grid(
-            row=0, column=1, padx=(0, 6))
+            row=0, column=2, padx=(0, 6))
         self.btn_download = ttk.Button(footer, text="Download",
                                        style="Download.TButton",
                                        command=self._confirm)
-        self.btn_download.grid(row=0, column=2)
+        self.btn_download.grid(row=0, column=3)
 
         self._refill()
         dlg.update_idletasks()
@@ -117,6 +124,9 @@ class DownloadWindow:
         return sorted(
             [d for d in devices if d.remote is not None and not d.is_installed],
             key=lambda d: (_device_group_key(d), _device_sort_key(d)))
+
+    def _open_copyright_removal(self) -> None:
+        show_copyright_removal(self._dlg, self._abuse_contacts_fn())
 
     def _open_sources(self) -> None:
         SourcesDialog(self._dlg, self._sources_changed)

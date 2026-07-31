@@ -14,7 +14,7 @@ from ui_large_download import (filter_update_all_targets, gate_bundle_download,
 class OperationsMixin:
     def _download_selected(self) -> None:
         sel = self.tree_panel.selection()
-        if self.busy or sel.device is None:
+        if self.busy or self.catalog_loading or sel.device is None:
             return
         if sel.kind == "package" and sel.package is not None:
             self._download_package(sel.device, sel.package)
@@ -49,7 +49,7 @@ class OperationsMixin:
             self._apply_device_update(sel.device)
 
     def _apply_device_update(self, d: DeviceBundle) -> None:
-        if self.busy:
+        if self.busy or self.catalog_loading:
             return
         if self._running_status_for(d) is not None:
             show_error(self, "Device is running",
@@ -62,7 +62,7 @@ class OperationsMixin:
             self._refresh_cerf_json(d)
 
     def _refresh_cerf_json(self, d: DeviceBundle) -> None:
-        if self.busy or d.remote is None:
+        if self.busy or self.catalog_loading or d.remote is None:
             return
         self._set_busy(True, f"Updating {d.name} config…")
         f = self.manager.submit_refresh_cerf_json(d.name)
@@ -70,7 +70,7 @@ class OperationsMixin:
             exc, f"Updated {d.name} config"))
 
     def _update(self) -> None:
-        if self.busy:
+        if self.busy or self.catalog_loading:
             return
         sel = self.tree_panel.selection()
         d = sel.device
@@ -141,7 +141,7 @@ class OperationsMixin:
         self._await_future(f, lambda exc: self._after_op(exc, f"Deleted {d.name}"))
 
     def _update_all(self) -> None:
-        if self.busy:
+        if self.busy or self.catalog_loading:
             return
         devices = self.tree_panel.devices
         running = {d.name for d in devices
@@ -177,7 +177,7 @@ class OperationsMixin:
                       "table individually.")
             return
         if (rom_targets or pkg_targets) and not confirm_rom_license(
-                self, f"{total} item(s)"):
+                self, f"{total} item(s)", self.manager.repo_abuse_contacts):
             return
         self._set_busy(True, f"Updating {total} item(s)…")
         work: List[Tuple[str, Callable[[], Future]]] = []

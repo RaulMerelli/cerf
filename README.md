@@ -275,6 +275,9 @@ The website is built from `docs/website/` - `python tools/build_site.py --serve`
       <td>
         <p><b>📱 Devices</b><br/>
           🆕 Casio Toricomail: bezel touch buttons</p>
+        <p><b>🚀 Launcher</b><br/>
+          🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
+          ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection</p>
       </td>
     </tr>
     <tr>
