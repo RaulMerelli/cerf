@@ -75,13 +75,16 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         self.progress_queue: "queue.Queue[tuple[str, int, Optional[int]]]" = queue.Queue()
         self.cancel_event = threading.Event()
         self.busy = False
+        self.catalog_loading = False
 
         self._build_ui()
         theme.apply_titlebar(self)
         fit_geometry(self, int(1100 * scale), int(640 * scale))
         self._install_theme_listener()
         self._pump_progress()
-        self.after(50, self._refresh_manifest)
+        self.manager.load_local()
+        self._reload_device_list()
+        self.after(50, lambda: self._refresh_manifest(silent=True))
         self.after(50, self.update_check.start)
         self.after(50, self._poll_runtime)
         if upgraded:
@@ -188,6 +191,15 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         else:
             self.status_bar.set_status("Ready.")
             self.status_bar.reset_progress()
+        self._refresh_selection_state()
+
+    def _set_catalog_loading(self, loading: bool, label: str = "") -> None:
+        self.catalog_loading = loading
+        self.toolbar.set_catalog_loading(loading)
+        if loading:
+            self.status_bar.set_status(label or "Fetching bundle catalog…")
+        elif not self.busy:
+            self.status_bar.set_status("Ready.")
         self._refresh_selection_state()
 
     def _await_future(self, future: Future, done: Callable[[Optional[BaseException]], None]) -> None:
@@ -303,9 +315,10 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         self._await_future(f, done)
 
     def _open_download_window(self) -> None:
-        if self.busy:
+        if self.busy or self.catalog_loading:
             return
         DownloadWindow(self, self.tree_panel.devices, self._download_queue,
+                       self.manager.repo_abuse_contacts,
                        reload_fn=self._reload_download_sources,
                        download_places=self.manager.download_places)
 
@@ -319,7 +332,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
             return
         label = ((targets[0].meta.device_name or targets[0].name)
                  if len(targets) == 1 else f"{len(targets)} ROMs")
-        if not confirm_rom_license(self, label):
+        if not confirm_rom_license(self, label,
+                                   self.manager.repo_abuse_contacts):
             return
         show_sources_thanks(self, [d.meta.source for d in targets])
         stream = [d for d in targets if gate_large_bundle(self, d)]
@@ -435,14 +449,15 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
             return
         d = sel.device
         running = self._running_status_for(d) is not None
-        any_updateable = any(x.has_update or x.has_cerf_json_update
-                             or x.has_package_updates
-                             for x in self.tree_panel.devices)
+        any_updateable = not self.catalog_loading and any(
+            x.has_update or x.has_cerf_json_update or x.has_package_updates
+            for x in self.tree_panel.devices)
         if sel.kind == "device" and d is not None:
             can_discard = (saved_state_info(self.manager.devices_dir / d.name)
                            is not None and not running)
             self.toolbar.set_selection_enabled(
-                d.has_update or d.has_cerf_json_update, any_updateable,
+                not self.catalog_loading
+                and (d.has_update or d.has_cerf_json_update), any_updateable,
                 d.is_installed and not running, can_discard)
         else:
             self.toolbar.set_selection_enabled(False, any_updateable,

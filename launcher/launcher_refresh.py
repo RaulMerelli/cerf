@@ -9,16 +9,19 @@ from ui_dialogs import show_error, show_info
 
 
 class RefreshMixin:
-    def _refresh_manifest(self) -> None:
-        if self.busy:
+    def _refresh_manifest(self, silent: bool = False) -> None:
+        if self.busy or self.catalog_loading:
             return
-        self._set_busy(True, "Fetching manifest…")
+        self._set_catalog_loading(True, "Fetching bundle catalog…")
         future = self.manager.submit_refresh()
 
         def done(exc: Optional[BaseException]) -> None:
-            self._set_busy(False)
+            self._set_catalog_loading(False)
             if isinstance(exc, ManifestVersionError):
                 self._show_manifest_version_error(exc)
+            elif exc is not None and silent:
+                self.status_bar.set_status(
+                    "Bundle catalog unavailable - local devices only.")
             elif exc is not None:
                 show_error(self, "Remote manifest unavailable",
                            f"{exc}\n\nLocal devices remain available to launch. "
@@ -27,7 +30,8 @@ class RefreshMixin:
                            f"The catalog can also be fetched by hand, and the "
                            f"bundles it lists downloaded manually, from:\n"
                            f"{manifest_url_for(MAIN_REPOSITORY_URL)}")
-            self._surface_repo_errors()
+            else:
+                self._surface_repo_errors()
             self._reload_device_list()
         self._await_future(future, done)
 
@@ -41,16 +45,16 @@ class RefreshMixin:
             self,
             done: Callable[[List[DeviceBundle], list, Optional[dict]], None]
     ) -> None:
-        if self.busy:
+        if self.busy or self.catalog_loading:
             done(self.tree_panel.devices,
                  getattr(self.manager, "repo_errors", []),
                  getattr(self.manager, "download_places", None))
             return
-        self._set_busy(True, "Fetching manifest…")
+        self._set_catalog_loading(True, "Fetching bundle catalog…")
         future = self.manager.submit_refresh()
 
         def cb(exc: Optional[BaseException]) -> None:
-            self._set_busy(False)
+            self._set_catalog_loading(False)
             if isinstance(exc, ManifestVersionError):
                 self._show_manifest_version_error(exc)
             elif exc is not None:

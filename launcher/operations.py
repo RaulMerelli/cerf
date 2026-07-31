@@ -60,6 +60,7 @@ class BundleManager:
         self.remote_bundles: List[RemoteBundle] = []
         self._remote_index: Dict[Tuple[str, str], RemoteBundle] = {}
         self.repo_errors: List[Tuple[str, str]] = []
+        self.repo_abuse_emails: Dict[str, str] = {}
         self.download_places: Optional[Dict[Tuple[str, str], int]] = None
         # Local install manifest, keyed by device DIRECTORY name.
         self.installed: Dict[str, LocalBundleRecord] = {}
@@ -83,17 +84,27 @@ class BundleManager:
         return self._pool.submit(create_user_device, self.devices_dir, spec,
                                  progress, cancel_event)
 
-    def _do_refresh(self) -> None:
+    def load_local(self) -> None:
         try:
-            self.installed = load_local_manifest(self.local_manifest_path)
+            installed = load_local_manifest(self.local_manifest_path)
         except BundleError:
-            self.installed = {}
+            installed = {}
+        with self._manifest_lock:
+            self.installed = installed
+
+    def _do_refresh(self) -> None:
+        self.load_local()
         repositories = read_repositories()
-        self.remote_bundles, self.repo_errors = load_merged_manifest(repositories)
+        (self.remote_bundles, self.repo_errors,
+         self.repo_abuse_emails) = load_merged_manifest(repositories)
         self._remote_index = {(rb.repo_url, rb.name): rb
                               for rb in self.remote_bundles}
         self.download_places = load_analytics(repositories)
         self._backfill_installed_sha256()
+
+    def repo_abuse_contacts(self) -> List[Tuple[str, Optional[str]]]:
+        return [(r.url, self.repo_abuse_emails.get(r.url))
+                for r in read_repositories()]
 
     def _local_device_dirs(self) -> List[Path]:
         if not self.devices_dir.is_dir():
