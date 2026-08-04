@@ -27,7 +27,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
        service-locator call (mirrors ArmJit::JitGenerateCode). */
     TraceManager& tm = emu_.Get<TraceManager>();
 
-    bool terminated = false;  /* a within-block delay-slot resolve emitted the ret */
+    bool terminated = false;
 
     for (uint32_t i = 0; i < block_ctx_.num_insns; ++i) {
         MipsDecodedInsn& insn = block_ctx_.insns[i];
@@ -67,7 +67,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             EmitCall(code_location, reinterpret_cast<void*>(&NullifyLikelyHelper));
             EmitTestRegReg(code_location, kEax, kEax);
             uint8_t* j_run = EmitJzLabel(code_location);
-            EmitRetn(code_location, 0);              /* nullified: pc set, exit block */
+            EmitRet(code_location);
             FixupLabel(j_run, code_location);
             if (j_skip_gate) FixupLabel(j_skip_gate, code_location);
         }
@@ -88,7 +88,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             /* The helper already set pc (EretHelper from EPC/ErrorEPC,
                HibernateHelper to the next insn); suppress the straight-line
                pc override and exit. */
-            EmitRetn(code_location, 0);
+            EmitRet(code_location);
             terminated = true;
             break;
         }
@@ -98,9 +98,9 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             EmitMovRegImm32(code_location, kEcx, insn.guest_address + insn.length);
             EmitMovRegImm32(code_location, kEdx, self);
             EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
-            EmitRetn(code_location, 0);
+            EmitRet(code_location);
             terminated = true;
-            break;  /* nothing executes after a branch's delay slot */
+            break;
         }
         if (i == 0 && !insn.is_branch) {
             /* insn[0] may be a delay slot entered from a branch in the prior block
@@ -111,7 +111,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
             EmitCall(code_location, reinterpret_cast<void*>(&ResolveBranchHelper));
             EmitTestRegReg(code_location, kEax, kEax);
             uint8_t* j_continue = EmitJzLabel(code_location);
-            EmitRetn(code_location, 0);
+            EmitRet(code_location);
             FixupLabel(j_continue, code_location);
         }
     }
@@ -120,7 +120,7 @@ size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count 
         const MipsDecodedInsn& last = block_ctx_.insns[block_ctx_.num_insns - 1];
         const uint32_t next_pc = last.guest_address + last.length;
         EmitMovBaseDisp32Imm32(code_location, kStateReg, kPcOff, next_pc);
-        EmitRetn(code_location, 0);
+        EmitRet(code_location);
     }
 
     return static_cast<size_t>(code_location - start);

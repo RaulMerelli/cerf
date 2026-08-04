@@ -115,7 +115,7 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
        to the stored high word; mismatch is fatal. */
     if (is_dword) {
         EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rt));
-        Emit8(cursor, 0x99);  /* cdq: EDX = sext(EAX) */
+        EmitCdq(cursor);
         EmitCmpRegBaseDisp32(cursor, kEdx, kStateReg, mips_emit::GprHiOff(d->rt));
         uint8_t* ok = EmitJzLabel(cursor);
         EmitMovRegImm32(cursor, kEcx, d->rd);

@@ -55,19 +55,9 @@ void CerfFsLock(void)   { EnterCriticalSection(&s_cs); }
 void CerfFsUnlock(void) { LeaveCriticalSection(&s_cs); }
 
 int CerfFsResultToBool(unsigned long result) {
-    DWORD w;
     if (result == CERF_FS_OK) return 1;
-    switch (result) {
-        case CERF_FS_E_FILE_NOT_FOUND: w = ERROR_FILE_NOT_FOUND;      break;
-        case CERF_FS_E_PATH_NOT_FOUND: w = ERROR_PATH_NOT_FOUND;      break;
-        case CERF_FS_E_ACCESS_DENIED:  w = ERROR_ACCESS_DENIED;       break;
-        case CERF_FS_E_INVALID_HANDLE: w = ERROR_INVALID_HANDLE;      break;
-        case CERF_FS_E_TOO_MANY_FILES: w = ERROR_TOO_MANY_OPEN_FILES; break;
-        case CERF_FS_E_NO_MORE_FILES:  w = ERROR_NO_MORE_FILES;       break;
-        case CERF_FS_E_INVALID_FUNC:   w = ERROR_INVALID_FUNCTION;    break;
-        default:                       w = ERROR_GEN_FAILURE;         break;
-    }
-    SetLastError(w);
+    if (result == CERF_FS_E_DISK_FULL) result = ERROR_DISK_FULL;
+    SetLastError(result);
     return 0;
 }
 

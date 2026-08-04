@@ -54,7 +54,7 @@ uint8_t* EmitVfpBlockTransfer(uint8_t*      cursor,
        Raise* redirected state, RETN to dispatcher. */
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* continue_label = EmitJzLabel(cursor);
-    EmitRetn(cursor, 0);
+    EmitRet(cursor);
     FixupLabel(continue_label, cursor);
     return cursor;
 }

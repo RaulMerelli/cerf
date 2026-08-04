@@ -17,16 +17,17 @@ uint8_t* PlaceMipsMultu(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) 
     const int32_t kHiLo = static_cast<int32_t>(offsetof(MipsCpuState, hi));
     const int32_t kHiHi = kHiLo + 4;
 
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));  /* ECX = rt.lo */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));  /* EAX = rs.lo */
-    Emit8(cursor, 0xF7);                            /* MUL ecx (F7 /4): EDX:EAX = EAX*ECX */
+    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));
+    Emit8(cursor, 0xF7);                            /* MUL ecx - F7 /4, EDX:EAX = EAX*ECX
+                                                       (SDM Vol. 2B 4-150 MUL) */
     EmitModRmReg(cursor, 3, kEcx, 4);
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);  /* LO.lo = low product */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);  /* HI.lo = high product */
-    Emit8(cursor, 0x99);                            /* CDQ: EDX = sext(EAX=low product) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);  /* LO.hi = sext(low product) */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);  /* EAX = high product */
-    Emit8(cursor, 0x99);                            /* CDQ: EDX = sext(high product) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);  /* HI.hi = sext(high product) */
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);
     return cursor;
 }

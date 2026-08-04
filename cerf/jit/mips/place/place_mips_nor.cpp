@@ -10,14 +10,10 @@
    0xF7 /2). */
 uint8_t* PlaceMipsNor(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     using namespace x86;
-    mips_emit::EmitRtypeBitwise64(cursor, d->rd, d->rs, d->rt, 0x0B);  /* rd = rs | rt */
+    mips_emit::EmitRtypeBitwise64(cursor, d->rd, d->rs, d->rt, 0x0B);
     if (d->rd != 0) {
-        Emit8(cursor, 0xF7);                                  /* NOT dword [esi+rd.lo] */
-        EmitModRmReg(cursor, 2, kStateReg, 2);
-        Emit32(cursor, static_cast<uint32_t>(mips_emit::GprLoOff(d->rd)));
-        Emit8(cursor, 0xF7);                                  /* NOT dword [esi+rd.hi] */
-        EmitModRmReg(cursor, 2, kStateReg, 2);
-        Emit32(cursor, static_cast<uint32_t>(mips_emit::GprHiOff(d->rd)));
+        EmitNotBaseDisp32(cursor, kStateReg, mips_emit::GprLoOff(d->rd));
+        EmitNotBaseDisp32(cursor, kStateReg, mips_emit::GprHiOff(d->rd));
     }
     return cursor;
 }

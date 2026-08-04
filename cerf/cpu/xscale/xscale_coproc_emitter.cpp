@@ -30,8 +30,8 @@ public:
                                   BlockContext* ctx) override {
         if (d->cp_num == 15) {
             /* CPAR (Coprocessor Access Register) - XScale §7.2.15: cp15
-               c15, CRm=c1, opc2=0. Shared cp15 dispatch UNDs c15 (boot
-               hangs on the UND), so handle here. Backed by ArmMmuState::
+               c15, CRm=c1, opc2=0. The shared cp15 dispatch fatals on
+               c15, so handle here. Backed by ArmMmuState::
                coprocessor_access, unused on XScale unless HasCp15V6(). */
             if (d->crn == 15 && d->crm == 1 && d->cp == 0 && d->cp_opc == 0) {
                 using namespace x86;
@@ -163,7 +163,7 @@ public:
             return EmitRaiseUndAndReturn(cursor, d, ctx);
         }
 
-        /* XScale Core Dev Manual §7.2.15 p. 7-94: an access to CP0 with
+        /* XScale Core Dev Manual §7.2.15 (page 94): an access to CP0 with
            CPAR bit 0 clear raises an undefined exception; the OS grants the
            bit and the access is retried. */
         const int32_t cpar_disp = static_cast<int32_t>(

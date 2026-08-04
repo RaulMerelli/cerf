@@ -18,4 +18,6 @@ public:
     static uint32_t FiletimeToLong(const FILETIME& ft);
     static bool     LongToFiletime(uint32_t dos_datetime, FILETIME& out);
     static uint16_t CeFileAttributes(DWORD win32_attrs);
+    static uint32_t CeFileSize(DWORD size_high, DWORD size_low);
+    static uint16_t CeError(DWORD win32_error);
 };

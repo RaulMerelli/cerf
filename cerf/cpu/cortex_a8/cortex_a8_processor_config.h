@@ -36,6 +36,9 @@ public:
     bool     HasBarrierInsn()             const override { return true; }
     bool     HasCp15V6()                  const override { return true; }
     bool     HasCp15V7()                  const override { return true; }
+
+    /* ARM DDI 0344 §3.2.26 c1, Auxiliary Control Register (p. 3-47). */
+    bool     HasAuxControlRegister()      const override { return true; }
     bool     HasVmsav7()                  const override { return true; }
     /* ARM DDI 0344 §2.1: "The processor implements the ARMv7-A architecture.
        This includes ... the Security Extensions architecture". */

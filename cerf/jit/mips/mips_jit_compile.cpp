@@ -48,9 +48,9 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
         if (ex->native_start && ex->phys_start == phys_start &&
             TailStillMapped(ex)) {
             space.JumpCacheInsert(guest_pc, ex->native_start, ex);
-            return ex->native_start;     /* phys-checked reuse */
+            return ex->native_start;
         }
-        space.RemoveExact(guest_pc);     /* stale phys at same VA - evict */
+        space.RemoveBlock(ex);
     }
 
     block_ctx_.tail_split          = 0;
@@ -101,7 +101,6 @@ void* MipsJit::JitCompile(uint32_t guest_pc) {
 
     const size_t code_size = JitGenerateCode(code, 1);
     arena_.FreeUnusedTail(code + code_size);
-    stored->native_end = code + code_size;
 
     space.JumpCacheInsert(guest_pc, stored->native_start, stored);
     return stored->native_start;
@@ -126,18 +125,18 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
     std::memset(block_ctx_.insns, 0, sizeof(block_ctx_.insns));
 
     uint32_t i = 0;
-    bool delay_pending = false;  /* prior insn was a branch; this is its delay slot */
+    bool delay_pending = false;
     for (; i < kMaxMipsInsnPerBlock && guest_pc < page_end; ++i, guest_pc += 4) {
         MipsDecodedInsn& insn = block_ctx_.insns[i];
 
         uint32_t pa = 0;
         if (mmu_->Translate(&cpu_state_, guest_pc, MipsAccess::kFetch, &pa) !=
             MipsTlbResult::kMatch) {
-            break;  /* TLB/address fault */
+            break;
         }
         uint8_t* host = memory_->TryTranslate(pa);
         if (!host) {
-            break;  /* unmapped or I/O space: not executable */
+            break;
         }
 
         uint32_t word;
@@ -151,16 +150,16 @@ void MipsJit::JitDecode(uint32_t guest_pc) {
             insn.place_fn = &PlaceMipsUndefined;
         }
 
-        if (delay_pending) {            /* this insn was the branch's delay slot */
+        if (delay_pending) {
             ++i;
-            break;                      /* block ends after the delay slot */
+            break;
         }
-        if (insn.ends_block) {          /* ERET / HIBERNATE: no delay slot */
+        if (insn.ends_block) {
             ++i;
             break;
         }
         if (insn.is_branch) {
-            delay_pending = true;       /* next insn is the delay slot, then end */
+            delay_pending = true;
         }
     }
 

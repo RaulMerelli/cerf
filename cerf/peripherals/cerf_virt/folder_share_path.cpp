@@ -3,6 +3,7 @@
 #include "cerf_virt_folder_share_regs.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/folder_share_config.h"
+#include "../../core/log.h"
 
 #include <cwchar>
 
@@ -58,9 +59,41 @@ bool FolderSharePath::LongToFiletime(uint32_t dos_datetime, FILETIME& out) {
     return LocalFileTimeToFileTime(&local, &out) != 0;
 }
 
+uint32_t FolderSharePath::CeFileSize(DWORD size_high, DWORD size_low) {
+    return size_high != 0 ? 0xFFFFFFFFu : size_low;
+}
+
 uint16_t FolderSharePath::CeFileAttributes(DWORD win32_attrs) {
     return (uint16_t)(win32_attrs &
         (FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN |
          FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_DIRECTORY));
+}
+
+uint16_t FolderSharePath::CeError(DWORD win32_error) {
+    switch (win32_error) {
+        case ERROR_FILE_NOT_FOUND:       return CerfVirt::kErrorFileNotFound;
+        case ERROR_PATH_NOT_FOUND:       return CerfVirt::kErrorPathNotFound;
+        case ERROR_TOO_MANY_OPEN_FILES:  return CerfVirt::kErrorTooManyOpenFiles;
+        case ERROR_ACCESS_DENIED:        return CerfVirt::kErrorAccessDenied;
+        case ERROR_DIR_NOT_EMPTY:        return CerfVirt::kErrorAccessDenied;
+        case ERROR_INVALID_HANDLE:       return CerfVirt::kErrorInvalidHandle;
+        case ERROR_NO_MORE_FILES:        return CerfVirt::kErrorNoMoreFiles;
+        case ERROR_WRITE_PROTECT:        return CerfVirt::kErrorWriteProtect;
+        case ERROR_WRITE_FAULT:          return CerfVirt::kErrorWriteFault;
+        case ERROR_READ_FAULT:           return CerfVirt::kErrorReadFault;
+        case ERROR_SHARING_VIOLATION:    return CerfVirt::kErrorSharingViolation;
+        case ERROR_LOCK_VIOLATION:       return CerfVirt::kErrorLockViolation;
+        case ERROR_HANDLE_DISK_FULL:     return CerfVirt::kErrorDiskFull;
+        case ERROR_DISK_FULL:            return CerfVirt::kErrorDiskFull;
+        case ERROR_FILE_EXISTS:          return CerfVirt::kErrorFileExists;
+        case ERROR_ALREADY_EXISTS:       return CerfVirt::kErrorFileExists;
+        case ERROR_INVALID_NAME:         return CerfVirt::kErrorInvalidName;
+        case ERROR_BAD_PATHNAME:         return CerfVirt::kErrorInvalidName;
+        case ERROR_FILENAME_EXCED_RANGE: return CerfVirt::kErrorInvalidName;
+        default:
+            LOG(Cerf, "[FolderShare] unmapped Win32 error %lu -> general failure\n",
+                win32_error);
+            return CerfVirt::kErrorGeneralFailure;
+    }
 }
 

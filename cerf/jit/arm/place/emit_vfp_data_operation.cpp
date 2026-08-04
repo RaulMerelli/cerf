@@ -31,7 +31,7 @@ uint8_t* EmitVfpDataOperation(uint8_t*      cursor,
     EmitAddRegImm32(cursor, kEsp, 12);
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* fall_through = EmitJzLabel(cursor);
-    EmitRetn(cursor, 0);
+    EmitRet(cursor);
     FixupLabel(fall_through, cursor);
     return cursor;
 }

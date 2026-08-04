@@ -26,7 +26,7 @@ inline void EmitLoadGprLo(uint8_t*& c, uint8_t reg, uint32_t r) {
    CDQ (Intel SDM Vol. 2: opcode 0x99) sign-extends EAX into EDX:EAX; EDX is
    clobbered (scratch). */
 inline void EmitStoreGprSextEax(uint8_t*& c, uint32_t r) {
-    x86::Emit8(c, 0x99);
+    x86::EmitCdq(c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprLoOff(r), x86::kEax);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprHiOff(r), x86::kEdx);
 }
@@ -64,7 +64,8 @@ inline void EmitShiftImm32Sext(uint8_t*& c, uint32_t rd, uint32_t rt, uint32_t s
     }
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
     if (sa != 0) {
-        x86::Emit8(c, 0xC1);                   /* shift r/m32, imm8 */
+        x86::Emit8(c, 0xC1);       /* C1 /ext ib, shift r/m32, imm8
+                                      (SDM Vol. 2B 4-599 SAL/SAR/SHL/SHR) */
         x86::EmitModRmReg(c, 3, x86::kEax, ext);
         x86::Emit8(c, static_cast<uint8_t>(sa));
     }
@@ -80,20 +81,24 @@ inline void EmitDShiftImm(uint8_t*& c, uint32_t rd, uint32_t rt, uint8_t sa,
     if (rd == 0) {
         return;
     }
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));  /* EAX = rt.lo */
-    x86::EmitMovRegBaseDisp32(c, x86::kEdx, x86::kStateReg, GprHiOff(rt));  /* EDX = rt.hi */
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rt));
+    x86::EmitMovRegBaseDisp32(c, x86::kEdx, x86::kStateReg, GprHiOff(rt));
     if (sa != 0) {
         if (left) {
-            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xA4);          /* SHLD edx,eax,sa */
+            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xA4);   /* SHLD edx,eax,sa - 0F A4 /r ib
+                                                           (SDM Vol. 2B 4-635 SHLD) */
             x86::EmitModRmReg(c, 3, x86::kEdx, x86::kEax);
             x86::Emit8(c, sa);
-            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEax, outer_ext);  /* SHL eax,sa */
+            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEax, outer_ext);  /* SHL eax,sa - C1 /4 ib
+                                                           (SDM Vol. 2B 4-600) */
             x86::Emit8(c, sa);
         } else {
-            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xAC);          /* SHRD eax,edx,sa */
+            x86::Emit8(c, 0x0F); x86::Emit8(c, 0xAC);   /* SHRD eax,edx,sa - 0F AC /r ib
+                                                           (SDM Vol. 2B 4-638 SHRD) */
             x86::EmitModRmReg(c, 3, x86::kEax, x86::kEdx);
             x86::Emit8(c, sa);
-            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEdx, outer_ext);  /* SHR/SAR edx,sa */
+            x86::Emit8(c, 0xC1); x86::EmitModRmReg(c, 3, x86::kEdx, outer_ext);  /* SHR/SAR edx,sa - C1 /5, /7 ib
+                                                           (SDM Vol. 2B 4-599/4-600) */
             x86::Emit8(c, sa);
         }
     }
@@ -169,18 +174,18 @@ inline void EmitSltImm64(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t imm16,
     const uint32_t imm_lo = static_cast<uint32_t>(static_cast<int32_t>(
                                 static_cast<int16_t>(imm16)));
     const uint8_t imm_hi8 = (imm16 & 0x8000u) ? 0xFFu : 0x00u;
-    x86::EmitXorRegReg(c, x86::kEcx, x86::kEcx);                          /* ECX = 0 */
+    x86::EmitXorRegReg(c, x86::kEcx, x86::kEcx);
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
-    /* SUB EAX, imm_lo as the EAX form (0x2D id) - the borrow CF MUST be set for
-       the SBB high half. EmitSubRegImm32 emits DEC for imm==1, and DEC does not
-       affect CF (Intel SDM Vol.2), which silently broke SLTIU/SLTI(rs,1). */
+    /* SUB EAX, imm32 - 2D id (SDM Vol. 2B 4-681 SUB). */
     x86::Emit8(c, 0x2D);
-    x86::Emit32(c, imm_lo);                                /* CF = low borrow */
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));  /* MOV keeps CF */
-    x86::Emit8(c, 0x83);                                   /* SBB eax, imm8 (83 /3 ib) */
+    x86::Emit32(c, imm_lo);
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
+    x86::Emit8(c, 0x83);                       /* SBB eax, imm8 - 83 /3 ib
+                                                  (SDM Vol. 2B 4-608 SBB) */
     x86::EmitModRmReg(c, 3, x86::kEax, 3);
     x86::Emit8(c, imm_hi8);
-    x86::Emit8(c, 0x0F);                                   /* SETcc cl */
+    x86::Emit8(c, 0x0F);                       /* SETcc cl - 0F 9x, Op/En M
+                                                  (SDM Vol. 2B 4-618 SETcc) */
     x86::Emit8(c, setcc_op);
     x86::EmitModRmReg(c, 3, x86::kCl, 0);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, GprLoOff(rd), x86::kEcx);
@@ -286,12 +291,12 @@ inline void EmitBranchCondEq(uint8_t*& c, uint32_t rs, uint32_t rt, uint32_t bta
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitCmpRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rt));
     uint8_t* j_neq_hi = x86::EmitJnzLabel(c);
-    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 1u : 0u);   /* equal */
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 1u : 0u);
     uint8_t* j_done = x86::EmitJmpLabel(c);
     uint8_t* neq_label = c;
     x86::FixupLabel(j_neq_lo, neq_label);
     x86::FixupLabel(j_neq_hi, neq_label);
-    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 0u : 1u);   /* not equal */
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_equal ? 0u : 1u);
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
@@ -307,11 +312,11 @@ inline void EmitBranchCondSign(uint8_t*& c, uint32_t rs, uint32_t btarget,
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
     uint8_t* j_neg = x86::EmitJsLabel32(c);
-    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 0u : 1u);     /* >= 0 */
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 0u : 1u);
     uint8_t* j_done = x86::EmitJmpLabel(c);
     uint8_t* neg_label = c;
     x86::FixupLabel32(j_neg, neg_label);
-    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 1u : 0u);     /* < 0 */
+    x86::EmitMovRegImm32(c, x86::kEax, take_if_neg ? 1u : 0u);
     x86::FixupLabel(j_done, c);
     x86::EmitMovBaseDisp32Reg(c, x86::kStateReg, BcondOff(), x86::kEax);
     x86::EmitMovBaseDisp32Imm32(c, x86::kStateReg, BtargetOff(), btarget);
@@ -326,14 +331,14 @@ inline void EmitBranchCondGtz(uint8_t*& c, uint32_t rs, uint32_t btarget,
                               uint32_t branch_state, uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
-    uint8_t* j_neg = x86::EmitJsLabel32(c);     /* hi<0 -> value<0 -> not >0 */
-    uint8_t* j_pos = x86::EmitJnzLabel(c);      /* hi>0 -> >0 */
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));  /* hi==0 */
+    uint8_t* j_neg = x86::EmitJsLabel32(c);
+    uint8_t* j_pos = x86::EmitJnzLabel(c);
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
-    uint8_t* j_lo_nz = x86::EmitJnzLabel(c);    /* lo!=0 -> >0 */
+    uint8_t* j_lo_nz = x86::EmitJnzLabel(c);
     uint8_t* nottaken_label = c;
     x86::FixupLabel32(j_neg, nottaken_label);
-    x86::EmitMovRegImm32(c, x86::kEax, 0u);     /* hi==0 && lo==0 -> ==0 -> not >0 */
+    x86::EmitMovRegImm32(c, x86::kEax, 0u);
     uint8_t* j_done = x86::EmitJmpLabel(c);
     uint8_t* taken_label = c;
     x86::FixupLabel(j_pos, taken_label);
@@ -352,12 +357,12 @@ inline void EmitBranchCondLez(uint8_t*& c, uint32_t rs, uint32_t btarget,
                               uint32_t branch_state, uint32_t branch_len) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprHiOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
-    uint8_t* j_taken_neg = x86::EmitJsLabel32(c);   /* hi<0 -> value<0 -> <=0 */
-    uint8_t* j_nt_hi = x86::EmitJnzLabel(c);        /* hi>0 -> >0 -> not <=0 */
-    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));  /* hi==0 */
+    uint8_t* j_taken_neg = x86::EmitJsLabel32(c);
+    uint8_t* j_nt_hi = x86::EmitJnzLabel(c);
+    x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
     x86::EmitTestRegReg(c, x86::kEax, x86::kEax);
-    uint8_t* j_nt_lo = x86::EmitJnzLabel(c);        /* lo!=0 -> >0 -> not <=0 */
-    uint8_t* taken_label = c;                        /* hi<0 (js) or hi==0 && lo==0 */
+    uint8_t* j_nt_lo = x86::EmitJnzLabel(c);
+    uint8_t* taken_label = c;
     x86::FixupLabel32(j_taken_neg, taken_label);
     x86::EmitMovRegImm32(c, x86::kEax, 1u);
     uint8_t* j_done = x86::EmitJmpLabel(c);

@@ -13,9 +13,7 @@ uint8_t* PlaceMips16Bnez(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*)
     using namespace x86;
     constexpr int32_t kPcOff = static_cast<int32_t>(offsetof(MipsCpuState, pc));
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));
-    Emit8(cursor, 0x0B);                                /* OR eax, [esi+rs.hi] */
-    EmitModRmReg(cursor, 2, kStateReg, kEax);
-    Emit32(cursor, static_cast<uint32_t>(mips_emit::GprHiOff(d->rs)));
+    EmitOrRegBaseDisp32 (cursor, kEax, kStateReg, mips_emit::GprHiOff(d->rs));
     uint8_t* j_z = EmitJzLabel(cursor);
     EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff, d->target);
     uint8_t* j_done = EmitJmpLabel(cursor);

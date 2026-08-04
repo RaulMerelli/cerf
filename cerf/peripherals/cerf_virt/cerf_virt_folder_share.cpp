@@ -42,11 +42,13 @@ public:
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - MmioBase();
         switch (off) {
-            case kFsCode:         return last_code_;
             case kFsIoPending:    return 0u;
             case kFsResult:       return result_;
             case kFsEnabled:      return emu_.Get<FolderShareConfig>().Enabled() ? 1u : 0u;
-            case kFsGeneration:   return emu_.Get<FolderShareConfig>().Generation();
+            case kFsGeneration:
+                emu_.Get<FolderShareFiles>().ReconcileGeneration();
+                emu_.Get<FolderShareDir>().ReconcileGeneration();
+                return emu_.Get<FolderShareConfig>().Generation();
             default: break;
         }
         if (off >= kFsMountPoint && off + 4u <= kFsMountPoint + kMountBytes) {
@@ -55,7 +57,7 @@ public:
             std::memcpy(&v, mount_bytes_ + (off - kFsMountPoint), 4);
             return v;
         }
-        return 0u;
+        HaltUnsupportedAccess("ReadWord", addr, 0);
     }
 
     uint8_t ReadByte(uint32_t addr) override {
@@ -70,19 +72,20 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - MmioBase();
         switch (off) {
-            case kFsCode:         last_code_ = value; HandleCode(value); break;
-            case kFsResult:       result_ = value; break;
-            default: break;
+            case kFsServerPbAddr: break;
+            case kFsCode:         HandleCode(value); break;
+            default:              HaltUnsupportedAccess("WriteWord", addr, value);
         }
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(last_code_);
         w.Write(result_);
+        emu_.Get<FolderShareFiles>().SaveState(w);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(last_code_);
         r.Read(result_);
+        emu_.Get<FolderShareFiles>().RestoreState(r);
+        emu_.Get<FolderShareDir>().CloseAll();
     }
 
 private:
@@ -102,10 +105,19 @@ private:
     void HandleCode(uint32_t code) {
         if (code == kServerPollCompletion) return;
 
-        CerfVirt::ServerPB& pb = *emu_.Get<FolderShareStage>().Pb();
-        if (pb.fStructureSize != sizeof(pb)) {
+        emu_.Get<FolderShareFiles>().ReconcileGeneration();
+        emu_.Get<FolderShareDir>().ReconcileGeneration();
+
+        if (!emu_.Get<FolderShareConfig>().Enabled()) {
             result_ = kErrorGeneralFailure;
             return;
+        }
+
+        CerfVirt::ServerPB& pb = *emu_.Get<FolderShareStage>().Pb();
+        if (pb.fStructureSize != sizeof(pb)) {
+            LOG(Cerf, "[FolderShare] ServerPB fStructureSize %u != %u\n",
+                pb.fStructureSize, (unsigned)sizeof(pb));
+            CerfFatalExit();
         }
 
 #if CERF_DEV_MODE
@@ -118,8 +130,10 @@ private:
             r = emu_.Get<FolderShareFiles>().Run(code, pb);
         else if (FolderShareDir::Owns(code))
             r = emu_.Get<FolderShareDir>().Run(code, pb);
-        else
-            r = kErrorInvalidFunction;
+        else {
+            LOG(Cerf, "[FolderShare] unmodeled op 0x%X\n", code);
+            CerfFatalExit();
+        }
 
         result_ = r;
 #if CERF_DEV_MODE
@@ -131,7 +145,6 @@ private:
 #endif
     }
 
-    uint32_t last_code_   = 0;
     uint32_t result_      = 0;
     uint32_t mount_gen_   = 0;
     bool     mount_inited_ = false;

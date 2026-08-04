@@ -46,6 +46,10 @@ public:
     /* XScale Core Dev Manual §2.2.4: implements the ARM DSP-Enhanced
        instruction set (SMLAxy/QADD/...) and LDRD/STRD/PLD. */
     bool     HasDsp()                     const override { return true; }
+
+    /* XScale Core Dev Manual Table 7-3 (p. 80): CRn=1 Opc_2=1
+       Auxiliary Control, Read/Write. */
+    bool     HasAuxControlRegister()      const override { return true; }
     bool     HasLoadStoreDouble()         const override { return true; }
 
     /* XScale Core Dev Manual §2.1: ARMv5TE adds CLZ and the V5(T)

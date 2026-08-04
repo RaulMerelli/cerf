@@ -85,7 +85,7 @@ uint8_t* PlaceNeonLoadStoreSingleLane(uint8_t*      cursor,
     EmitAddRegImm32(cursor, kEsp, 24);
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* continue_label = EmitJzLabel(cursor);
-    EmitRetn(cursor, 0);
+    EmitRet(cursor);
     FixupLabel(continue_label, cursor);
     return cursor;
 }

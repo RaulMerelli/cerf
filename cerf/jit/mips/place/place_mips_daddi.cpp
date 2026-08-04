@@ -17,10 +17,12 @@ uint8_t* PlaceMipsDaddi(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* c
                                 static_cast<int16_t>(d->imm)));
     const uint32_t imm_hi = (d->imm & 0x8000u) ? 0xFFFFFFFFu : 0x00000000u;
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));
-    Emit8(cursor, 0x05);                       /* ADD eax, imm_lo (sets CF) */
+    Emit8(cursor, 0x05);                       /* ADD eax, imm32 - 05 id, sets CF
+                                                  (SDM Vol. 2A 3-32 ADD) */
     Emit32(cursor, imm_lo);
     EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, mips_emit::GprHiOff(d->rs));
-    Emit8(cursor, 0x81);                       /* ADC edx, imm_hi (81 /2 id) */
+    Emit8(cursor, 0x81);                       /* ADC edx, imm32 - 81 /2 id
+                                                  (SDM Vol. 2A 3-27 ADC) */
     EmitModRmReg(cursor, 3, kEdx, 2);
     Emit32(cursor, imm_hi);
     mips_emit::EmitTrappingArith64Tail(cursor, d->rt, ctx->jit,

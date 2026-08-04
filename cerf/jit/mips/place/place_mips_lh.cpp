@@ -15,14 +15,12 @@ uint8_t* PlaceMipsLh(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx)
     const uint32_t sext = static_cast<uint32_t>(static_cast<int32_t>(
                               static_cast<int16_t>(d->imm)));
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));
-    EmitAddRegImm32(cursor, kEcx, sext);          /* ECX = EA */
+    EmitAddRegImm32(cursor, kEcx, sext);
     EmitMovRegImm32(cursor, kEdx,
                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::LoadHalfHelper)); /* EAX = half */
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::LoadHalfHelper));
     if (d->rt != 0) {
-        Emit8(cursor, 0x0F);                      /* MOVSX eax, ax (Intel SDM 0F BF /r) */
-        Emit8(cursor, 0xBF);
-        EmitModRmReg(cursor, 3, kEax, kEax);
+        EmitMovsxReg32Reg16(cursor, kEax, kEax);
         mips_emit::EmitStoreGprSextEax(cursor, d->rt);
     }
     return cursor;
