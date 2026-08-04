@@ -35,7 +35,7 @@ public:
         /* SA-1110 c15 (Dev Man §5.2 "Test, clock, idle"): writes have
            no software-visible state; reads reserved. Kernel writes
            0x80020000 here - without the intercept the shared dispatch
-           UNDs c15. */
+           fatals on c15. */
         if (d->crn == 15) {
             /* MCR p15, 0, Rd, c15, c2, 2 - SA-1110 "Wait for Interrupt"
                (Dev Man §5.3.4). OEMIdle uses this to halt CPU until next

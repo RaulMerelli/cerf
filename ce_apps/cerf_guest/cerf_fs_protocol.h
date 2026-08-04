@@ -6,7 +6,6 @@
 #define CERF_FS_MAX_LFN      255u
 
 #define CERF_FS_OP_POLL          0x00u
-#define CERF_FS_OP_DRIVE_CONFIG  0x04u
 #define CERF_FS_OP_CREATE        0x05u
 #define CERF_FS_OP_OPEN          0x06u
 #define CERF_FS_OP_READ          0x07u
@@ -21,17 +20,12 @@
 #define CERF_FS_OP_DELETE        0x10u
 #define CERF_FS_OP_GET_INFO      0x11u
 #define CERF_FS_OP_GET_FCB_INFO  0x13u
-#define CERF_FS_OP_GET_MAX_IO    0x15u
+#define CERF_FS_OP_FIND_CLOSE    0x16u
 
 #define CERF_FS_OK               0x00u
-#define CERF_FS_E_INVALID_FUNC   0x01u
 #define CERF_FS_E_FILE_NOT_FOUND 0x02u
-#define CERF_FS_E_PATH_NOT_FOUND 0x03u
-#define CERF_FS_E_TOO_MANY_FILES 0x04u
-#define CERF_FS_E_ACCESS_DENIED  0x05u
-#define CERF_FS_E_INVALID_HANDLE 0x06u
-#define CERF_FS_E_NO_MORE_FILES  0x12u
 #define CERF_FS_E_GENERAL        0x1Fu
+#define CERF_FS_E_DISK_FULL      0x27u
 
 #define CERF_FS_ACCESS_READ      0x00u
 #define CERF_FS_ACCESS_WRITE     0x01u
@@ -40,6 +34,7 @@
 #define CERF_FS_SHARE_DENY_WRITE 0x20u
 #define CERF_FS_SHARE_DENY_READ  0x30u
 #define CERF_FS_SHARE_DENY_NONE  0x40u
+#define CERF_FS_SHARE_MASK       0x70u
 
 #pragma pack(push, 4)
 

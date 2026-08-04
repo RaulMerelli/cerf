@@ -5,11 +5,6 @@
 #include "../../x86_emit.h"
 #include "../../../core/log.h"
 
-/* Loud stub for an architecturally-VALID coproc instruction not yet
-   implemented - NOT for EmitRaiseUndAndReturn's cases (genuine UND / data
-   decoded past a block end). Routing a real-but-unimplemented coproc to UND
-   hangs the guest silently; fires at RUNTIME so speculative compiles don't trip. */
-
 namespace {
 
 [[noreturn]] void CoprocUnimplementedFatalHelper(uint32_t pc, uint32_t cp_info) {
@@ -33,7 +28,5 @@ uint8_t* EmitCoprocUnimplementedFatal(uint8_t* cursor, DecodedInsn* d, BlockCont
     EmitPush32(cursor, cp_info);
     EmitPush32(cursor, d->guest_address);
     EmitCall(cursor, reinterpret_cast<void*>(&CoprocUnimplementedFatalHelper));
-    EmitAddRegImm32(cursor, kEsp, 8);
-    EmitRetn(cursor, 0);
     return cursor;
 }

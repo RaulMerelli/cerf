@@ -18,21 +18,22 @@ uint8_t* PlaceMipsDivu(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     const int32_t kHiLo = static_cast<int32_t>(offsetof(MipsCpuState, hi));
     const int32_t kHiHi = kHiLo + 4;
 
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));  /* ECX = divisor */
+    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));
     EmitTestRegReg(cursor, kEcx, kEcx);
     uint8_t* j_nz = EmitJnzLabel(cursor);
-    EmitMovRegImm32(cursor, kEcx, 1);              /* divisor 0 -> 1 (QEMU guard) */
+    EmitMovRegImm32(cursor, kEcx, 1);
     FixupLabel(j_nz, cursor);
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));  /* EAX = dividend */
-    EmitXorRegReg(cursor, kEdx, kEdx);             /* EDX = 0 (unsigned high half) */
-    Emit8(cursor, 0xF7);                           /* DIV ecx (F7 /6): EAX=quot, EDX=rem */
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));
+    EmitXorRegReg(cursor, kEdx, kEdx);
+    Emit8(cursor, 0xF7);                           /* DIV ecx - F7 /6, EAX=quot,
+                                                      EDX=rem (SDM Vol. 2A 3-321 DIV) */
     EmitModRmReg(cursor, 3, kEcx, 6);
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);  /* LO.lo = quotient */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);  /* HI.lo = remainder */
-    Emit8(cursor, 0x99);                           /* CDQ: EDX = sext(quotient) (EAX unchanged) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);  /* LO.hi = sext(quotient) */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);  /* EAX = remainder */
-    Emit8(cursor, 0x99);                           /* CDQ: EDX = sext(remainder) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);  /* HI.hi = sext(remainder) */
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);
     return cursor;
 }

@@ -7,7 +7,6 @@
 #include <cstddef>
 
 #include "../../core/cerf_emulator.h"
-#include "../../jit/arm/arm_jit.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../jit/arm/place_fns.h"
 #include "../../jit/x86_emit.h"
@@ -34,20 +33,8 @@ public:
             return EmitRaiseUndAndReturn(cursor, d, ctx);
         }
 
-        /* ARM1136 TRM §3.3 Table 3-2 (p.3-19) MCR p15,0,Rd,c7,c0,4 =
-           WFI.  Emit as no-op and the kernel idle MCR spins at JIT
-           speed, burning a host core. */
-        if (!d->l && d->crn == 7 && d->crm == 0 &&
-            d->cp == 4 && d->cp_opc == 0) {
-            using namespace x86;
-            EmitMovRegImm32(cursor, kEcx,
-                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-            EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
-            return cursor;
-        }
-
         /* CRn=15 implementation-defined; iMX31 boot stub writes
-           0x40000015 which would UND in shared dispatch.  Read
+           0x40000015 which would fatal in shared dispatch.  Read
            returns 0; write is no-op. */
         if (d->crn == 15) {
             if (d->l) {

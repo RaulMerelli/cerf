@@ -132,7 +132,11 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, control_register)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
-            } else if (d->cp == 1) {
+            /* ACTLR only where the core allocates c1 op2=1; an unallocated
+               encoding in an allocated primary register is UNPREDICTABLE
+               (B3.15 rule 2, p. B3-1447) -> UND (glossary). */
+            } else if (d->cp == 1 &&
+                       jit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
@@ -149,7 +153,8 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
                 EmitMovRegImm32(cursor, kEdx, d->guest_address);
                 EmitCall(cursor, ctx->sctlr_write_target);
-            } else if (d->cp == 1) {
+            } else if (d->cp == 1 &&
+                       jit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)), kEax);
@@ -385,7 +390,10 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
 
     case 15:
     default:
-        cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+        /* ARM DDI 0406C.c B3.15 rule 3 (p. B3-1448): c15 is reserved for
+           IMPLEMENTATION DEFINED registers. Cortex-A8 allocates c15 (ARM DDI
+           0344 §3.2.74 / §3.2.81 system array debug); CERF models none. */
+        cursor = EmitCoprocUnimplementedFatal(cursor, d, ctx);
         break;
     }
 

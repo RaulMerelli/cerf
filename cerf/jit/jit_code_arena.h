@@ -18,8 +18,7 @@ public:
     uint8_t* Allocate(size_t size);
 
     /* Caller may shorten the most recent allocation. The cursor is
-       kept 4-byte aligned and any padding gap created by alignment
-       is filled with a single NOP. */
+       kept 4-byte aligned. */
     void FreeUnusedTail(uint8_t* start_of_free);
 
     /* Drop every allocation; reset the cursor to the start of the

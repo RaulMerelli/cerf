@@ -13,9 +13,10 @@ uint8_t* PlaceMipsSllv(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     if (d->rd == 0) {
         return cursor;
     }
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));  /* CL = count */
+    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rt));
-    Emit8(cursor, 0xD3);                          /* SHL r/m32, CL (D3 /4) */
+    Emit8(cursor, 0xD3);                          /* SHL r/m32, CL - D3 /4
+                                                     (SDM Vol. 2B 4-600 SAL/SAR/SHL/SHR) */
     EmitModRmReg(cursor, 3, kEax, 4);
     mips_emit::EmitStoreGprSextEax(cursor, d->rd);
     return cursor;

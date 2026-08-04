@@ -6,6 +6,7 @@
 #include "../../core/rate_probe.h"
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
+#include "arm_tlb_ops.h"
 
 /* JIT translation invalidation: context-switch (VA-keyed native caches) and
    SMC (targeted phys-page block removal). */
@@ -48,4 +49,42 @@ void ArmJit::InvalidateDirtyCodePages() {
 
 void __fastcall ArmJit::InvalidateDirtyCodePagesHelper(ArmJit* jit) {
     jit->InvalidateDirtyCodePages();
+}
+
+void __fastcall ArmJit::ItlbInvalidateAllHelper(ArmJit* jit) {
+    ArmTlbFlushAll(&jit->mmu_->State()->instruction_tlb);
+    jit->InvalidateVaCachesAll();
+}
+
+void __fastcall ArmJit::DtlbInvalidateAllHelper(ArmJit* jit) {
+    ArmTlbFlushAll(&jit->mmu_->State()->data_tlb);
+}
+
+void __fastcall ArmJit::UtlbInvalidateAllHelper(ArmJit* jit) {
+    ArmMmuState* st = jit->mmu_->State();
+    ArmTlbFlushAll(&st->instruction_tlb);
+    ArmTlbFlushAll(&st->data_tlb);
+    jit->InvalidateVaCachesAll();
+}
+
+/* Rd[7:0] carries an ASID on ARMv6+ (ARM ARM DDI 0406C.c Figure B3-34,
+   p. B3-1476); the page-tag match clears the page across every ASID, per
+   B3.10.1 (p. B3-1381): "Any TLB operation can affect any other TLB entries
+   that are not locked down." */
+void __fastcall ArmJit::ItlbInvalidateMvaHelper(uint32_t mva, ArmJit* jit) {
+    ArmMmuState* st = jit->mmu_->State();
+    jit->InvalidateVaCachesPage(
+        ArmTlbInvalidateByVa(&st->instruction_tlb, st->process_id, mva));
+}
+
+void __fastcall ArmJit::DtlbInvalidateMvaHelper(uint32_t mva, ArmJit* jit) {
+    ArmMmuState* st = jit->mmu_->State();
+    ArmTlbInvalidateByVa(&st->data_tlb, st->process_id, mva);
+}
+
+void __fastcall ArmJit::UtlbInvalidateMvaHelper(uint32_t mva, ArmJit* jit) {
+    ArmMmuState* st = jit->mmu_->State();
+    ArmTlbInvalidateByVa(&st->data_tlb, st->process_id, mva);
+    jit->InvalidateVaCachesPage(
+        ArmTlbInvalidateByVa(&st->instruction_tlb, st->process_id, mva));
 }

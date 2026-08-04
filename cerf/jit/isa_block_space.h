@@ -9,7 +9,7 @@
 /* VA-indexed jump cache (QEMU tb_jmp_cache). Keyed by FCSE-folded VA; the
    block index itself is phys-keyed. Flushed on context switch / SMC / full
    flush so a stale VA→native mapping never survives an address-space change. */
-constexpr uint32_t kJumpCacheSize = 4096;   /* power of two */
+constexpr uint32_t kJumpCacheSize = 4096;
 
 constexpr uint32_t kBlockUnindexed = 0xFFFFFFFFu;
 struct JumpCacheEntry {
@@ -26,13 +26,13 @@ struct JumpCacheEntry {
 struct IsaBlockSpace {
     JitBlockIndex global;
     JitBlockIndex per_asid[256];
-    uint32_t      asid_populated[8] = {0};   /* bit i ⇒ per_asid[i] non-empty */
+    uint32_t      asid_populated[8] = {0};
     JumpCacheEntry jump_cache[kJumpCacheSize];
 
     /* Per-physical-page intrusive list of outer blocks (QEMU
        PageDesc.first_tb), sized over the DRAM page extent. */
     std::vector<JitBlock*> page_heads;
-    uint32_t               page_base  = 0;   /* first DRAM page number */
+    uint32_t               page_base  = 0;
     uint32_t               page_count = 0;
 
     void JumpCacheFlush() { std::memset(jump_cache, 0, sizeof(jump_cache)); }
@@ -44,7 +44,11 @@ struct IsaBlockSpace {
         for (uint32_t off = 0; off < 0x1000u; off += 4u) {
             const uint32_t va = base + off;
             JumpCacheEntry& e = jump_cache[(va >> 2) & (kJumpCacheSize - 1u)];
-            if (e.folded_va == va) { e.folded_va = 0; e.native = nullptr; }
+            if (e.folded_va == va) {
+                e.folded_va = 0;
+                e.native    = nullptr;
+                e.blk       = nullptr;
+            }
         }
     }
 
@@ -100,6 +104,7 @@ struct IsaBlockSpace {
         if (e.folded_va == folded_va) {
             e.folded_va = 0;
             e.native    = nullptr;
+            e.blk       = nullptr;
         }
     }
 
@@ -199,24 +204,9 @@ struct IsaBlockSpace {
         return removed;
     }
 
-    /* Evict the single outer block whose folded-VA range contains folded_va
-       (FCSE-PID-reuse stale dedup): unlink from its page list, then RbDelete. */
-    uint32_t RemoveExact(uint32_t folded_va) {
-        JitBlock*      outer = global.FindOuter(folded_va);
-        JitBlockIndex* owner = &global;
-        for (uint32_t w = 0; w < 8u && !outer; ++w) {
-            uint32_t bits = asid_populated[w];
-            for (uint32_t bit = 0; bit < 32u && !outer; ++bit) {
-                if (bits & (1u << bit)) {
-                    outer = per_asid[(w << 5) + bit].FindOuter(folded_va);
-                    if (outer) owner = &per_asid[(w << 5) + bit];
-                }
-            }
-        }
-        if (!outer) return 0;
+    void RemoveBlock(JitBlock* outer) {
         UnlinkPage(outer);
-        owner->RemoveNode(outer, &ClearJcSlot, this);
-        return 1;
+        outer->owner->RemoveNode(outer, &ClearJcSlot, this);
     }
     void FlushAll() {
         global.Flush();

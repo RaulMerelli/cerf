@@ -82,6 +82,7 @@ HANDLE CerfFsCreateFileW(CerfVol* vol, HANDLE hProc, PCWSTR name, DWORD access,
     unsigned long e;
     HANDLE h = INVALID_HANDLE_VALUE;
     CerfFile* fc;
+    int already = 0;
     (void)vol; (void)sa; (void)flags; (void)templ;
 
     CerfFsLock();
@@ -91,27 +92,55 @@ HANDLE CerfFsCreateFileW(CerfVol* vol, HANDLE hProc, PCWSTR name, DWORD access,
             if (e == CERF_FS_OK) e = DoOpen(name, mode, &slot);
             break;
         case CREATE_ALWAYS:
-            SetName(pb, name);
-            CerfFsCall(pb, CERF_FS_OP_DELETE);
-            e = DoCreate(name);
-            if (e == CERF_FS_OK) e = DoOpen(name, mode, &slot);
+            /* learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+               CREATE_ALWAYS: "If the specified file exists and is writable, the
+               function truncates the file, the function succeeds, and last-error
+               code is set to ERROR_ALREADY_EXISTS". */
+            e = DoOpen(name,
+                       (unsigned short)((mode & CERF_FS_SHARE_MASK) | CERF_FS_ACCESS_WRITE),
+                       &slot);
+            if (e == CERF_FS_OK) {
+                pb->fHandle = slot; pb->fPosition = 0;
+                e = CerfFsCall(pb, CERF_FS_OP_SET_EOF);
+                pb->fHandle = slot;
+                CerfFsCall(pb, CERF_FS_OP_CLOSE);
+                if (e == CERF_FS_OK) {
+                    e = DoOpen(name, mode, &slot);
+                    if (e == CERF_FS_OK) already = 1;
+                }
+            } else if (e == CERF_FS_E_FILE_NOT_FOUND) {
+                e = DoCreate(name);
+                if (e == CERF_FS_OK) e = DoOpen(name, mode, &slot);
+            }
             break;
         case OPEN_ALWAYS:
             e = DoOpen(name, mode, &slot);
-            if (e != CERF_FS_OK) {
-                if (DoCreate(name) == CERF_FS_OK) e = DoOpen(name, mode, &slot);
+            if (e == CERF_FS_OK) {
+                already = 1;
+            } else if (e == CERF_FS_E_FILE_NOT_FOUND) {
+                e = DoCreate(name);
+                if (e == CERF_FS_OK) e = DoOpen(name, mode, &slot);
             }
             break;
         case TRUNCATE_EXISTING:
             e = DoOpen(name, mode, &slot);
             if (e == CERF_FS_OK) {
                 pb->fHandle = slot; pb->fPosition = 0;
-                CerfFsCall(pb, CERF_FS_OP_SET_EOF);
+                e = CerfFsCall(pb, CERF_FS_OP_SET_EOF);
+                if (e != CERF_FS_OK) {
+                    pb->fHandle = slot;
+                    CerfFsCall(pb, CERF_FS_OP_CLOSE);
+                }
             }
             break;
         case OPEN_EXISTING:
-        default:
             e = DoOpen(name, mode, &slot);
+            break;
+        default:
+            /* learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+               dwCreationDisposition: "This parameter must be one of the following
+               values, which cannot be combined". */
+            e = ERROR_INVALID_PARAMETER;
             break;
     }
 
@@ -125,11 +154,20 @@ HANDLE CerfFsCreateFileW(CerfVol* vol, HANDLE hProc, PCWSTR name, DWORD access,
                 pb->fHandle = slot;
                 CerfFsCall(pb, CERF_FS_OP_CLOSE);
                 LocalFree(fc);
+                e = ERROR_OUTOFMEMORY;
             }
+        } else {
+            pb->fHandle = slot;
+            CerfFsCall(pb, CERF_FS_OP_CLOSE);
+            e = ERROR_OUTOFMEMORY;
         }
     }
     CerfFsUnlock();
-    if (h == INVALID_HANDLE_VALUE) CerfFsResultToBool(e);
+    if (h == INVALID_HANDLE_VALUE) {
+        CerfFsResultToBool(e);
+    } else if (create == CREATE_ALWAYS || create == OPEN_ALWAYS) {
+        SetLastError(already ? ERROR_ALREADY_EXISTS : 0);
+    }
     return h;
 }
 
@@ -146,7 +184,6 @@ static BOOL RwAtSeek(CerfFile* fc, PVOID buf, DWORD count, PDWORD done,
         pb->fHandle = fc->fHandle;
         pb->fPosition = pos + total;
         pb->fSize = chunk;
-        pb->fDTAPtr = (unsigned long)io;
         if (op == CERF_FS_OP_WRITE)
             memcpy(io, (unsigned char*)buf + total, chunk);
         e = CerfFsCall(pb, op);

@@ -12,17 +12,17 @@ conflation of the two is the most common mistake in this subsystem.
 
 Host implementation: `cerf/host/guest_deep_sleep.{h,cpp}`,
 `cerf/state/shutdown_dialog.{h,cpp}`. CPU halt/wake: `cerf/jit/arm/arm_jit.cpp`
-(`EnterDeepSleep`, `SetResetPending`), `cerf/jit/jit_runner.cpp` (the park),
-`cerf/jit/arm/arm_cpu_exceptions.cpp` (delivery), `cerf/jit/arm/arm_cpu.cpp`
-(`RaiseResetException`). Reset cause + reset line: `cerf/socs/guest_cpu_reset.{h,cpp}`.
+(`EnterDeepSleep`, `SetResetPending`, delivery), `cerf/jit/jit_runner.cpp` (the
+park), `cerf/jit/arm/arm_cpu.cpp` (`RaiseResetException`). Reset cause + reset
+line: `cerf/socs/guest_cpu_reset.{h,cpp}`.
 
 ## The halt model
 
 `ArmCpuState::deep_sleep` is the halt flag. `ArmJit::EnterDeepSleep()` sets it and
-re-arms the interrupt poll. The poll's delivery helper (`ArmCpuRaiseIrqException`)
-returns `nullptr` while `deep_sleep` is set, which unwinds to a return from
-`ArmJit::Run()`. `JitRunner::RunLoop` then parks the JIT thread - the same park a
-reset uses. A delivered reset clears `deep_sleep` and releases the park. No guest
+re-arms the interrupt poll. The poll's delivery helper
+(`ArmJit::RaiseIrqExceptionHelper`) returns `nullptr` while `deep_sleep` is set,
+which unwinds to a return from `ArmJit::Run()`. `JitRunner::RunLoop` then parks
+the JIT thread - the same park a reset uses. A delivered reset clears `deep_sleep` and releases the park. No guest
 instructions run while the thread is parked, so no peripheral IRQ reaches the
 sleeping CPU.
 

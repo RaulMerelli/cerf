@@ -23,7 +23,8 @@ uint8_t* PlaceClz(uint8_t*      cursor,
     /* JZ .done */
     uint8_t* jz_done = EmitJzLabel(cursor);
 
-    /* BSR EDX, EAX  →  0F BD /r  (reg = EDX, r/m = EAX, mod = 3). */
+    /* BSR EDX, EAX - 0F BD /r, RM: reg=dest, r/m=src
+       (SDM Vol. 2A 3-127 BSR). */
     Emit8(cursor, 0x0F);
     Emit8(cursor, 0xBD);
     EmitModRmReg(cursor, /*mod=*/3, /*rm=*/kEax, /*reg=*/kEdx);

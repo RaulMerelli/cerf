@@ -43,6 +43,10 @@ public:
     bool     HasLdrexStrex()              const override { return true; }
     bool     HasCp15V6()                  const override { return true; }
 
+    /* ARM DDI 0406C.c Figure D12-1 (p. D12-2526): c1 opc1=0 CRm=c0
+       opc2={0-2} System control registers, Read/Write. */
+    bool     HasAuxControlRegister()      const override { return true; }
+
     bool     HasVfp()                     const override { return true; }
 
     /* MCIMX31RM Figure 3-24 (PDF p235) clock tree + Table 3-5 PDR0

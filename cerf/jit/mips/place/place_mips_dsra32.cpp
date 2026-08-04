@@ -15,10 +15,8 @@ uint8_t* PlaceMipsDsra32(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*)
     }
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprHiOff(d->rt));
     if (d->sa != 0) {
-        Emit8(cursor, 0xC1);                      /* SAR r/m32, imm8 (C1 /7) */
-        EmitModRmReg(cursor, 3, kEax, 7);
-        Emit8(cursor, static_cast<uint8_t>(d->sa));
+        EmitSarReg32Imm(cursor, kEax, static_cast<uint8_t>(d->sa));
     }
-    mips_emit::EmitStoreGprSextEax(cursor, d->rd);  /* lo=eax, hi=sext(eax) */
+    mips_emit::EmitStoreGprSextEax(cursor, d->rd);
     return cursor;
 }

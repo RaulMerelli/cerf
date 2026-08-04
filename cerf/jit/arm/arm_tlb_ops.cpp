@@ -8,7 +8,7 @@ void ArmTlbFlushAll(ArmTlbUnit* unit) {
     std::memset(unit, 0xFF, sizeof(*unit));
 }
 
-void ArmTlbInvalidateByVa(ArmTlbUnit* unit, uint32_t process_id, uint32_t va) {
+uint32_t ArmTlbInvalidateByVa(ArmTlbUnit* unit, uint32_t process_id, uint32_t va) {
     /* FCSE fold for the low 32 MB slot; cp15 c8 runs regardless of SCTLR.M. */
     if ((va & 0xFE000000u) == 0u) {
         va |= process_id;
@@ -22,6 +22,7 @@ void ArmTlbInvalidateByVa(ArmTlbUnit* unit, uint32_t process_id, uint32_t va) {
             unit->entries[base + w].tag = kArmTlbInvalidTag;
         }
     }
+    return va;
 }
 
 /* Install a direct-mapped fast-path entry for a uniform RAM page. host

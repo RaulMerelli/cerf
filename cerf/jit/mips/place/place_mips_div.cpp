@@ -18,33 +18,33 @@ uint8_t* PlaceMipsDiv(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext*) {
     const int32_t kHiLo = static_cast<int32_t>(offsetof(MipsCpuState, hi));
     const int32_t kHiHi = kHiLo + 4;
 
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));  /* ECX = divisor */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));  /* EAX = dividend */
+    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, mips_emit::GprLoOff(d->rs));
 
-    /* divisor 0 -> 1; else overflow (dividend INT_MIN && divisor -1) -> 1. */
     EmitTestRegReg(cursor, kEcx, kEcx);
-    uint8_t* j_chk_ovf = EmitJnzLabel(cursor);     /* ECX != 0 -> check overflow */
-    EmitMovRegImm32(cursor, kEcx, 1);              /* div0 -> divisor 1 */
+    uint8_t* j_chk_ovf = EmitJnzLabel(cursor);
+    EmitMovRegImm32(cursor, kEcx, 1);
     uint8_t* j_div_a = EmitJmpLabel(cursor);
     FixupLabel(j_chk_ovf, cursor);
-    EmitCmpRegImm32(cursor, kEax, 0x80000000u);    /* dividend == INT_MIN ? */
-    uint8_t* j_div_b = EmitJnzLabel(cursor);       /* no -> divide as-is */
-    EmitCmpRegImm32(cursor, kEcx, 0xFFFFFFFFu);    /* divisor == -1 ? */
-    uint8_t* j_div_c = EmitJnzLabel(cursor);       /* no -> divide as-is */
-    EmitMovRegImm32(cursor, kEcx, 1);              /* overflow -> divisor 1 */
+    EmitCmpRegImm32(cursor, kEax, 0x80000000u);
+    uint8_t* j_div_b = EmitJnzLabel(cursor);
+    EmitCmpRegImm32(cursor, kEcx, 0xFFFFFFFFu);
+    uint8_t* j_div_c = EmitJnzLabel(cursor);
+    EmitMovRegImm32(cursor, kEcx, 1);
     FixupLabel(j_div_a, cursor);
     FixupLabel(j_div_b, cursor);
     FixupLabel(j_div_c, cursor);
 
-    Emit8(cursor, 0x99);                            /* CDQ: EDX:EAX = sext(dividend) */
-    Emit8(cursor, 0xF7);                            /* IDIV ecx (F7 /7): EAX=quot, EDX=rem */
+    EmitCdq(cursor);
+    Emit8(cursor, 0xF7);                            /* IDIV ecx - F7 /7, EAX=quot,
+                                                       EDX=rem (SDM Vol. 2A 3-497 IDIV) */
     EmitModRmReg(cursor, 3, kEcx, 7);
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);  /* LO.lo = quotient */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);  /* HI.lo = remainder */
-    Emit8(cursor, 0x99);                            /* CDQ: EDX = sext(quotient) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);  /* LO.hi = sext(quotient) */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);  /* EAX = remainder */
-    Emit8(cursor, 0x99);                            /* CDQ: EDX = sext(remainder) */
-    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);  /* HI.hi = sext(remainder) */
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoLo, kEax);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiLo, kEdx);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kLoHi, kEdx);
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kHiLo);
+    EmitCdq(cursor);
+    EmitMovBaseDisp32Reg(cursor, kStateReg, kHiHi, kEdx);
     return cursor;
 }

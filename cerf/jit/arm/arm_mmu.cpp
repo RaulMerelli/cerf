@@ -7,6 +7,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../cpu/arm_processor_config.h"
 #include "../../cpu/emulated_memory.h"
+#include "arm_cpu.h"
 #include "arm_pte.h"
 #include "arm_tlb_ops.h"
 #include "../../state/state_stream.h"
@@ -157,6 +158,36 @@ void ArmMmu::RaiseAlignmentFault(uint32_t va, bool is_write) {
     state_.fault_address = va;
 }
 
+void __fastcall ArmMmu::AlignmentFaultReadHelper(uint32_t va, ArmMmu* mmu) {
+    mmu->RaiseAlignmentFault(va, /*is_write=*/false);
+}
+
+void __fastcall ArmMmu::AlignmentFaultWriteHelper(uint32_t va, ArmMmu* mmu) {
+    mmu->RaiseAlignmentFault(va, /*is_write=*/true);
+}
+
+uint32_t __cdecl ArmMmu::UnalignedHalfwordLoadHelper(ArmMmu* mmu, uint32_t va) {
+    ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    uint8_t b[2];
+    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/true) ||
+        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/true)) {
+        return 0xFFFFFFFFu;
+    }
+    return static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8);
+}
+
+uint32_t __cdecl ArmMmu::UnalignedHalfwordStoreHelper(ArmMmu* mmu, uint32_t va,
+                                                      uint32_t value) {
+    ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    uint8_t b[2] = { static_cast<uint8_t>(value),
+                     static_cast<uint8_t>(value >> 8) };
+    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/false) ||
+        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/false)) {
+        return 0xFFFFFFFFu;
+    }
+    return 0u;
+}
+
 void ArmMmu::SetIoPending(uint32_t pa) {
     if (pa == 0u) {
         LOG(Caution, "ArmMmu::SetIoPending: MMIO at PA 0 is not implemented "
@@ -234,7 +265,8 @@ bool ArmMmu::AccessPaged(ArmCpuState* cpu_state, uint32_t va,
         uint8_t* host = is_load ? TranslateRead (cpu_state, va_cur)
                                 : TranslateWrite(cpu_state, va_cur);
         if (host == nullptr) return false;
-        const uint32_t page_left = 0x1000u - (va_cur & 0xFFFu);
+        /* ARM DDI 0406C.c Table D15-10 (p. D15-2609): a Tiny page maps 1 KB. */
+        const uint32_t page_left = 0x400u - (va_cur & 0x3FFu);
         const uint32_t chunk = (n - done < page_left) ? (n - done) : page_left;
         if (is_load) std::memcpy(host_buf + done, host, chunk);
         else         std::memcpy(host, host_buf + done, chunk);

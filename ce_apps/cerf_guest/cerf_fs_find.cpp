@@ -16,6 +16,12 @@ static void FreeTid(unsigned long tid) {
     if (tid < CERF_FS_MAX_FIND) g_tid_used[tid] = 0;
 }
 
+static void HostFindClose(unsigned long tid) {
+    CerfFsServerPB* pb = CerfFsPb();
+    pb->fFindTransactionID = tid;
+    CerfFsCall(pb, CERF_FS_OP_FIND_CLOSE);
+}
+
 static void FillFindData(WIN32_FIND_DATAW* fd, CerfFsServerPB* pb) {
     int n;
     memset(fd, 0, sizeof(*fd));
@@ -61,9 +67,16 @@ HANDLE CerfFsFindFirstFileW(CerfVol* vol, HANDLE hProc, PCWSTR spec,
         if (sc) {
             sc->tid = tid;
             h = CerfFsMakeHandle(g_hCerfFindAPI, sc, hProc);
-            if (h == INVALID_HANDLE_VALUE) { FreeTid(tid); LocalFree(sc); }
+            if (h == INVALID_HANDLE_VALUE) {
+                HostFindClose(tid);
+                FreeTid(tid);
+                LocalFree(sc);
+                e = ERROR_OUTOFMEMORY;
+            }
         } else {
+            HostFindClose(tid);
             FreeTid(tid);
+            e = ERROR_OUTOFMEMORY;
         }
     } else {
         FreeTid(tid);
@@ -87,6 +100,7 @@ BOOL CerfFsFindNextFileW(CerfFind* s, PWIN32_FIND_DATAW fd) {
 
 BOOL CerfFsFindClose(CerfFind* s) {
     CerfFsLock();
+    HostFindClose(s->tid);
     FreeTid(s->tid);
     CerfFsUnlock();
     LocalFree(s);

@@ -27,7 +27,7 @@ uint8_t* PlaceNeonLoadStoreMultiple(uint8_t*      cursor,
     }
 
     const uint32_t d_idx      = (d->n << 4) | d->crn;
-    const uint32_t align_log2 = align ? (align + 2u) : 0u;  /* 1->3,2->4,3->5 */
+    const uint32_t align_log2 = align ? (align + 2u) : 0u;
     const uint32_t flags      = (d->l & 1u) | (regs << 1) | (align_log2 << 4);
 
     /* __cdecl PUSH RTL: flags, rm, rn, d_idx, pc, neon_ptr. */
@@ -43,7 +43,7 @@ uint8_t* PlaceNeonLoadStoreMultiple(uint8_t*      cursor,
     EmitAddRegImm32(cursor, kEsp, 24);
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* continue_label = EmitJzLabel(cursor);
-    EmitRetn(cursor, 0);
+    EmitRet(cursor);
     FixupLabel(continue_label, cursor);
     return cursor;
 }

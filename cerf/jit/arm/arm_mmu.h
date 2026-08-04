@@ -74,6 +74,17 @@ public:
        caller signals the abort via ArmCpu::RaiseAbortDataException. */
     void RaiseAlignmentFault(uint32_t va, bool is_write);
 
+    static void __fastcall AlignmentFaultReadHelper(uint32_t va, ArmMmu* mmu);
+    static void __fastcall AlignmentFaultWriteHelper(uint32_t va, ArmMmu* mmu);
+
+    /* Out: zero-extended halfword (load) / 0 (store); 0xFFFFFFFF = fault,
+       FAR/FSR or the io-pending slot set by the walk. */
+    static uint32_t __cdecl UnalignedHalfwordLoadHelper(ArmMmu* mmu,
+                                                        uint32_t va);
+    static uint32_t __cdecl UnalignedHalfwordStoreHelper(ArmMmu* mmu,
+                                                         uint32_t va,
+                                                         uint32_t value);
+
     /* Guest-additions injection band: a CERF-owned PA region the walker serves
        at a guest-unmapped static-window VA, so the injected stub's bytes live
        in CERF memory and the victim's TOC is only repointed at this VA. size 0

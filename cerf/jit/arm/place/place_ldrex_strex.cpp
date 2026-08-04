@@ -30,14 +30,6 @@ uint8_t* EmitTranslatePrefix(uint8_t*& cursor, DecodedInsn* d,
     return EmitJzLabel32(cursor);
 }
 
-/* Emit the abort tail: MOV ECX, guest_pc; JMP abort trampoline.
-   Caller has already FixupLabel32'd its abort jump to this point. */
-void EmitAbortTail(uint8_t*& cursor, DecodedInsn* d, BlockContext* ctx) {
-    using namespace x86;
-    EmitMovRegImm32(cursor, kEcx, d->guest_address);
-    EmitJmp32(cursor, ctx->raise_abort_data_helper_target);
-}
-
 }  /* namespace */
 
 uint8_t* PlaceLdrex(uint8_t*      cursor,
@@ -47,8 +39,7 @@ uint8_t* PlaceLdrex(uint8_t*      cursor,
 
     uint8_t* abort_label = EmitTranslatePrefix(cursor, d, ctx, /*is_write=*/false);
 
-    /* Success path. Load 32-bit value from translated host pointer.
-       MOV ECX, [EAX] - 0x8B with ModR/M mod=00 r/m=EAX reg=ECX. */
+    /* MOV ECX, [EAX] - 8B /r mod=00 (SDM Vol. 2B 4-35 MOV). */
     Emit8(cursor, 0x8B);
     EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEcx);
 
@@ -66,7 +57,7 @@ uint8_t* PlaceLdrex(uint8_t*      cursor,
 
     /* .abort: */
     FixupLabel32(abort_label, cursor);
-    EmitAbortTail(cursor, d, ctx);
+    cursor = EmitAbortDataTail(cursor, d, ctx);
 
     /* .done: */
     FixupLabel32(done_label, cursor);
@@ -93,7 +84,8 @@ uint8_t* PlaceStrex(uint8_t*      cursor,
 
     /* Translation succeeded. Load Rt source value, write to host ptr. */
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rm));
-    Emit8(cursor, 0x89);                                  /* MOV [EAX], ECX */
+    Emit8(cursor, 0x89);                /* MOV [EAX], ECX - 89 /r mod=00
+                                           (SDM Vol. 2B 4-35 MOV) */
     EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEcx);
 
     /* Rd = 0 (success), clear monitor. */
@@ -111,7 +103,7 @@ uint8_t* PlaceStrex(uint8_t*      cursor,
 
     /* .abort: */
     FixupLabel32(abort_label, cursor);
-    EmitAbortTail(cursor, d, ctx);
+    cursor = EmitAbortDataTail(cursor, d, ctx);
 
     /* .done: */
     FixupLabel32(done_label,   cursor);
