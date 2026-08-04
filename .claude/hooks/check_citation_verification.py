@@ -29,6 +29,11 @@ Trigger words:
   - manual chapter / page references ("ch.27", "chapter 27", "page 643",
     "pg 12", "p.643", "p643"). Case-insensitive. The bare "p<n>" page
     form needs 3+ digits so 1-2 digit GPIO pin names do not fire.
+  - document IDs ("DDI 0406C", "ddi0406c", "IHI 0042F", "JESD79-3") and
+    manual section identifiers ("A8.8.44", "B3.5.1").
+  - named vendor manuals ("Intel SDM", "TRM", "PRM", "datasheet",
+    "user manual", "reference manual") and volume references
+    ("Vol. 2B", "Volume 3").
 """
 import json
 import os
@@ -55,6 +60,12 @@ CITATION_TRIGGER_RE = re.compile(
     # ("A8.8.44", "B3.5.1", "D15-10"). Requires the leading capital
     # letter so version strings and decimals do not fire.
     r"|\b[A-Z]\d+\.\d+(?:\.\d+)+\b"
+    # Named vendor manuals ("Intel SDM", "SDM Vol. 2B", "TRM", "PRM",
+    # "the RM", "datasheet", "user manual", "reference manual").
+    r"|(?i:\bSDM\b|\bTRM\b|\bPRM\b|\bRM\s+(?:Vol|ch|table|section|p)"
+    r"|\bdatasheet\b|\buser\s+manual\b|\breference\s+manual\b)"
+    # Volume references ("Vol. 2B", "Volume 3", "vol 1").
+    r"|(?i:\bvol(?:ume)?\.?\s*\d)"
 )
 
 
