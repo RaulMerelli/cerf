@@ -40,6 +40,20 @@ public:
     static void __cdecl RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
     static void __cdecl UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source);
 
+    static void __cdecl WriteCpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
+                                               uint32_t mask_user,
+                                               uint32_t mask_priv,
+                                               uint32_t state_trip_mask,
+                                               uint32_t sctlr);
+    static void __cdecl WriteSpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
+                                               uint32_t mask);
+    static uint32_t __cdecl ReadSpsrHelper(ArmCpu* cpu);
+
+    static uint32_t __cdecl ReadUserRegHelper(ArmCpu* cpu, uint32_t reg);
+    static void     __cdecl WriteUserRegHelper(ArmCpu* cpu, uint32_t reg,
+                                               uint32_t value);
+    static uint32_t __cdecl ExceptionReturnHelper(ArmCpu* cpu, uint32_t new_pc);
+
 private:
     void     SwitchModeBanks(uint32_t old_mode, uint32_t new_mode);
     void     EnterException(uint32_t target_mode, uint32_t new_lr_value,

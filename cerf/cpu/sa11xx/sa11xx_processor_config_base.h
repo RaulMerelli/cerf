@@ -10,12 +10,14 @@ class Sa11xxProcessorConfigBase : public ArmProcessorConfig {
 public:
     using ArmProcessorConfig::ArmProcessorConfig;
 
+    /* ARM DDI 0100I "Reading the program counter" (p. A2-9): STR/STM of R15
+       stores insn+8 or insn+12 - "IMPLEMENTATION DEFINED". The SA-1110
+       Developer's Manual and the SA-110 datasheet's "ARM Implementation
+       Options" chapter do not document the choice; 8 is unverified. */
     uint32_t PcStoreOffset()              const override { return 8; }
 
     /* proc-sa1100.S:238  dabort=v4_early_abort → base-RESTORED. */
     bool     BaseRestoredAbortModel()     const override { return true; }
-
-    bool     MemoryBeforeWritebackModel() const override { return true; }
 
     /* proc-sa1100.S:33  #define DCACHELINESIZE 32. */
     uint32_t CacheLineSize()              const override { return 32; }

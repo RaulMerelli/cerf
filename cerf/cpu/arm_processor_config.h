@@ -12,7 +12,6 @@ public:
 
     virtual uint32_t PcStoreOffset()              const = 0;
     virtual bool     BaseRestoredAbortModel()     const = 0;
-    virtual bool     MemoryBeforeWritebackModel() const = 0;
     virtual uint32_t CacheLineSize()              const = 0;
     virtual uint32_t Midr()                       const = 0;
     virtual uint32_t Ctr()                        const = 0;

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <optional>
 
 #include "../../boards/board_context.h"
@@ -9,6 +9,7 @@
 #include "../../tracing/trace_manager.h"
 #include "../guest_engine.h"
 #include "../isa_block_space.h"
+#include "../jit_code_arena.h"
 #include "cpu_state.h"
 
 class ArmCpu;
@@ -53,6 +54,7 @@ class ArmVfp;
 class ArmJit : public GuestEngine {
 public:
     using GuestEngine::GuestEngine;
+    ~ArmJit() override;
 
     void OnReady() override;
     bool ShouldRegister() override {
@@ -147,9 +149,6 @@ public:
     static uint8_t* __fastcall TranslateWriteHelper(uint32_t va, ArmJit* jit);
     static uint8_t* __fastcall TranslateReadWriteHelper(uint32_t va, ArmJit* jit);
 
-    static void* __fastcall RaiseIrqExceptionHelper(uint32_t target_pc,
-                                                    ArmJit*  jit);
-
     void     Run() override;
     bool     DeepSleep()    const override { return cpu_state_->deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_->reset_pending != 0; }
@@ -170,8 +169,7 @@ public:
     void SaveMmuState(StateWriter& w)    override;
     void RestoreMmuState(StateReader& r) override;
 
-    void ResyncInterruptPoll() override;
-    void FlushTranslationCache(uint32_t va, uint32_t length) override;
+    void FlushTranslationCache() override;
     void SetResetPending(bool is_resume = false) override;
     void EnterDeepSleep() override;
     void ExitDeepSleep() override;
@@ -179,7 +177,8 @@ public:
     void SetDmaRegion(uint32_t pa, uint32_t size) override;
 
 private:
-    void UpdateInterruptOnPoll();
+    JitCodeArena arena_;
+    void*        idle_event_ = nullptr;
 
     ArmCpu*             cpu_              = nullptr;
     ArmMmu*             mmu_              = nullptr;
@@ -225,6 +224,6 @@ private:
     IsaBlockSpace blocks_arm_;
     IsaBlockSpace blocks_thumb_;
 
-    uint32_t   shadow_stack_count_ = 0;
-    std::mutex interrupt_lock_;
+    uint32_t              shadow_stack_count_ = 0;
+    std::atomic<uint32_t> irq_line_{0};
 };

@@ -29,18 +29,25 @@ bool OdoArm720BoardIntc::ShouldRegister() {
 }
 
 bool OdoArm720BoardIntc::HasPendingUnmaskedLocked() const {
-    return (cpu_isr_ & cpu_mr_) != 0;
+
+    return timer_irq_level_ || (cpu_isr_ & cpu_mr_) != 0;
+}
+
+void OdoArm720BoardIntc::PublishIrqLineLocked() {
+    auto& jit = emu_.Get<ArmJit>();
+    if (HasPendingUnmaskedLocked()) jit.SetInterruptPending();
+    else                            jit.ClearInterruptPending();
 }
 
 void OdoArm720BoardIntc::NotifyJitInterruptState() {
-    bool pending = false;
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        pending = HasPendingUnmaskedLocked();
-    }
-    auto& jit = emu_.Get<ArmJit>();
-    if (pending) jit.SetInterruptPending();
-    else         jit.ClearInterruptPending();
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    PublishIrqLineLocked();
+}
+
+void OdoArm720BoardIntc::SetTimerIrqLevel(bool level) {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    timer_irq_level_ = level;
+    PublishIrqLineLocked();
 }
 
 void OdoArm720BoardIntc::AssertIrq(int source_bit) {
@@ -201,6 +208,11 @@ void OdoArm720BoardIntc::RestoreState(StateReader& r) {
     r.Read(cpu_mr_);
 }
 
+void OdoArm720BoardIntc::PostRestore() {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    PublishIrqLineLocked();
+}
+
 REGISTER_SERVICE_AS(OdoArm720BoardIntc, IrqController);
 
 
@@ -243,6 +255,9 @@ public:
     }
     void RestoreState(StateReader& r) override {
         static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>()).RestoreState(r);
+    }
+    void PostRestore() override {
+        static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>()).PostRestore();
     }
 };
 

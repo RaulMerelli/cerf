@@ -79,7 +79,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
         uint8_t* smc_done_b = EmitJaeLabel32(cursor);
 
         EmitSubRegBaseDisp32(cursor, kEax, kMmuReg, cwbase);   /* EAX = PA - base */
-        EmitPushReg         (cursor, kEcx);                     /* spill EA */
+        EmitPushReg         (cursor, kEcx);
         EmitMovRegBaseDisp32(cursor, kEcx, kMmuReg, xlat);      /* ECX = code_xlat_bitmap */
         EmitShrReg32Imm     (cursor, kEax, 2);                  /* EAX = word index */
         EmitBtMemReg        (cursor, kEcx, kEax);               /* CF = code bit */
@@ -88,7 +88,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
         EmitMovRegBaseDisp32(cursor, kEcx, kMmuReg, dirty);     /* ECX = code_page_dirty */
         EmitBtsMemReg       (cursor, kEcx, kEax);
         FixupLabel32(smc_restore, cursor);
-        EmitPopReg          (cursor, kEcx);                     /* restore EA */
+        EmitPopReg          (cursor, kEcx);
         FixupLabel32(smc_done_a, cursor);
         FixupLabel32(smc_done_b, cursor);
     }
@@ -151,6 +151,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
 
     /* Not a cached I/O way-0 entry: page-table-walk helper. */
     for (int i = 0; i < n_io_miss; ++i) FixupLabel32(io_miss[i], cursor);
+    EmitPushReg(cursor, kEcx);
     EmitMovRegImm32(cursor, kEdx,
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
     void* helper =
@@ -160,6 +161,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
             ? reinterpret_cast<void*>(&ArmJit::TranslateWriteHelper)
             : reinterpret_cast<void*>(&ArmJit::TranslateReadHelper);
     EmitCall(cursor, helper);
+    EmitPopReg(cursor, kEcx);
 
     FixupLabel32(hit_done, cursor);
     FixupLabel32(io_done, cursor);

@@ -99,10 +99,10 @@ Presentation → Widget → Reset**.
   boot-time guest-RAM write replays).
 
 CERF **flushes** the JIT translation cache and never saves it
-(`FlushTranslationCache(0, 0xFFFFFFFF)`). After a full restore,
-`GuestEngine::ResyncInterruptPoll()` re-arms interrupt delivery from the
-restored state. The ARM engine re-derives the interrupt-poll trampoline byte.
-If you miss that step, a restored-pending IRQ is silently dropped.
+(`FlushTranslationCache()`). Interrupt delivery re-arms from the restored
+state: each engine's `Run` re-reads the live interrupt line every
+iteration, and the INTC's `PostRestore` re-drives that line. An INTC
+without the `PostRestore` re-drive silently drops a restored-pending IRQ.
 
 ## The two-thread freeze model - read before touching ANY peripheral
 
