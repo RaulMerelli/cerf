@@ -4,9 +4,9 @@
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../jit/arm/arm_jit.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
+#include "odo_arm720_board_intc.h"
 
 #include <atomic>
 #include <chrono>
@@ -40,9 +40,6 @@ public:
 
     ~OdoArm720CpuTimer() override { StopTickThread(); }
 
-    /* Stop the tick thread here: it calls ArmJit::SetInterruptPending, so it
-       must not outlive the JIT. The quiesce phase runs before any destructor,
-       so the JIT is still alive when the thread is joined. */
     void OnShutdown() override { StopTickThread(); }
 
     bool ShouldRegister() override {
@@ -71,9 +68,12 @@ public:
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
         r.Read(cpuisr_);  r.Read(tir_);
-        /* Wall-clock timer: re-anchor the period to now so it continues
-           from the restored registers instead of a stale baseline. */
         period_start_ = Clock::now();
+    }
+    void PostRestore() override {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>())
+            .SetTimerIrqLevel((tir_ & kTirSetBit) != 0);
     }
 
 private:
@@ -169,6 +169,8 @@ void OdoArm720CpuTimer::WriteWord(uint32_t addr, uint32_t value) {
     } else if (slot == kSlotTir) {
 
         tir_ &= ~value;
+        static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>())
+            .SetTimerIrqLevel((tir_ & kTirSetBit) != 0);
     } else {
         HaltUnsupportedAccess("WriteWord TVR", addr, value);
     }
@@ -203,24 +205,13 @@ void OdoArm720CpuTimer::TickLoop() {
 
         {
             auto frozen = freeze.WorkerSection();
-            {
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                /* If the kernel changed the mode while we slept,
-                   period_start_ was already reset by the WriteWord
-                   path; skip the fire and reload the local period_ms
-                   view at the top of the loop. */
-                if (PeriodMsLocked() != period_ms) continue;
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            if (PeriodMsLocked() != period_ms) continue;
 
-                /* Advance period_start_ by exactly period_duration
-                   (not Clock::now()) so timing drift stays bounded
-                   across many ticks. */
-                period_start_ += milliseconds(period_ms);
-                tir_ |= kTirSetBit;
-            }
-
-            /* Wake the JIT outside the lock - ArmJit::SetInterruptPending
-               takes its own interrupt_lock_. */
-            emu_.Get<ArmJit>().SetInterruptPending();
+            period_start_ += milliseconds(period_ms);
+            tir_ |= kTirSetBit;
+            static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>())
+                .SetTimerIrqLevel(true);
         }
     }
 }

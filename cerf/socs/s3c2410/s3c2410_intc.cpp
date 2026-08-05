@@ -106,7 +106,6 @@ void S3C2410Intc::AssertIrq(int source_bit) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    bool needs_irq = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         const uint32_t bit_mask = 1u << source_bit;
@@ -120,10 +119,8 @@ void S3C2410Intc::AssertIrq(int source_bit) {
 
         storage_[kSlotSRCPND] |= bit_mask;
         RecomputeIntpndIntoffset();
-        needs_irq = HasPendingUnmasked();
+        if (HasPendingUnmasked()) emu_.Get<ArmJit>().SetInterruptPending();
     }
-
-    if (needs_irq) emu_.Get<ArmJit>().SetInterruptPending();
 }
 
 void S3C2410Intc::AssertSubIrq(int main_source_bit, int sub_source_bit) {
@@ -142,7 +139,6 @@ void S3C2410Intc::AssertSubIrq(int main_source_bit, int sub_source_bit) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    bool needs_irq = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         const uint32_t sub_mask  = 1u << sub_source_bit;
@@ -165,11 +161,9 @@ void S3C2410Intc::AssertSubIrq(int main_source_bit, int sub_source_bit) {
         if ((storage_[kSlotINTSUBMSK] & sub_mask) == 0) {
             storage_[kSlotSRCPND] |= main_mask;
             RecomputeIntpndIntoffset();
-            needs_irq = HasPendingUnmasked();
+            if (HasPendingUnmasked()) emu_.Get<ArmJit>().SetInterruptPending();
         }
     }
-
-    if (needs_irq) emu_.Get<ArmJit>().SetInterruptPending();
 }
 
 void S3C2410Intc::DeliverPendingIrq() {
@@ -214,7 +208,6 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    bool needs_halt = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         switch (slot) {
@@ -226,14 +219,12 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
                    bits before IRETing. */
                 storage_[slot] &= ~value;
                 RecomputeIntpndIntoffset();
-                needs_halt = HasPendingUnmasked();
                 break;
 
             case kSlotINTMSK:
             case kSlotINTSUBMSK:
                 storage_[slot] = value;
                 RecomputeIntpndIntoffset();
-                needs_halt = HasPendingUnmasked();
                 break;
 
             case kSlotINTOFFSET:
@@ -249,13 +240,10 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
                 /* unreachable - slot bounds-checked above */
                 break;
         }
+        auto& jit = emu_.Get<ArmJit>();
+        if (HasPendingUnmasked()) jit.SetInterruptPending();
+        else                      jit.ClearInterruptPending();
     }
-
-    /* Mirror JIT pending against post-W1C state - when the last
-       unmasked source drains, the trampoline must re-arm to no-deliver. */
-    auto& jit = emu_.Get<ArmJit>();
-    if (needs_halt) jit.SetInterruptPending();
-    else            jit.ClearInterruptPending();
 }
 
 void S3C2410Intc::SaveState(StateWriter& w) {
@@ -270,16 +258,11 @@ void S3C2410Intc::RestoreState(StateReader& r) {
 
 void S3C2410Intc::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored SRCPND/INTMSK after
-       every peripheral's RestoreState has run - the INTC owns the CPU IRQ line.
-       Same lock-then-notify-outside-lock shape as WriteReg. */
-    bool pending = false;
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        pending = HasPendingUnmasked();
-    }
+       every peripheral's RestoreState has run - the INTC owns the CPU IRQ line. */
+    std::lock_guard<std::mutex> lk(state_mutex_);
     auto& jit = emu_.Get<ArmJit>();
-    if (pending) jit.SetInterruptPending();
-    else         jit.ClearInterruptPending();
+    if (HasPendingUnmasked()) jit.SetInterruptPending();
+    else                      jit.ClearInterruptPending();
 }
 
 class S3C2410IntcMmio : public Peripheral {

@@ -335,8 +335,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                and guards an asymmetric peripheral impl from desyncing. */
             r.SeekTo(body_start + sh.length);
         }
-        if (!ram_only) emu_.Get<GuestEngine>().ResyncInterruptPoll();
-        emu_.Get<GuestEngine>().FlushTranslationCache(0, 0xFFFFFFFFu);
+        emu_.Get<GuestEngine>().FlushTranslationCache();
         ok = r.Ok();
     }
     snap.unlock();

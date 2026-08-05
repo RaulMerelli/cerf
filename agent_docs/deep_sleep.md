@@ -18,11 +18,10 @@ line: `cerf/socs/guest_cpu_reset.{h,cpp}`.
 
 ## The halt model
 
-`ArmCpuState::deep_sleep` is the halt flag. `ArmJit::EnterDeepSleep()` sets it and
-re-arms the interrupt poll. The poll's delivery helper
-(`ArmJit::RaiseIrqExceptionHelper`) returns `nullptr` while `deep_sleep` is set,
-which unwinds to a return from `ArmJit::Run()`. `JitRunner::RunLoop` then parks
-the JIT thread - the same park a reset uses. A delivered reset clears `deep_sleep` and releases the park. No guest
+`ArmCpuState::deep_sleep` is the halt flag. `ArmJit::EnterDeepSleep()` sets it
+on the JIT thread; when `ArmJit::Run()` returns with it set,
+`JitRunner::RunLoop` parks the JIT thread - the same park a reset uses. A
+delivered reset clears `deep_sleep` and releases the park. No guest
 instructions run while the thread is parked, so no peripheral IRQ reaches the
 sleeping CPU.
 

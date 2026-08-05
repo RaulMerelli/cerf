@@ -27,6 +27,8 @@ public:
     void DeAssertIrq (int source_bit)                          override;
     void DeliverPendingIrq()                                   override;
 
+    void SetTimerIrqLevel(bool level);
+
     uint32_t ReadReg32 (uint32_t offset);
     uint16_t ReadReg16 (uint32_t offset);
     void     WriteReg32(uint32_t offset, uint32_t value);
@@ -35,12 +37,15 @@ public:
     /* State image: cpuIsr + cpuMr are the whole INTC state. */
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
+    void PostRestore();
 
 private:
     bool HasPendingUnmaskedLocked() const;
     void NotifyJitInterruptState();
+    void PublishIrqLineLocked();
 
     std::mutex state_mutex_;
     uint32_t   cpu_isr_ = 0;
     uint32_t   cpu_mr_  = 0;
+    bool       timer_irq_level_ = false;
 };

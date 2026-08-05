@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <optional>
 
 #include "../../core/cerf_emulator.h"
@@ -271,8 +270,7 @@ public:
     void RestoreCpuState(StateReader& r) override;
     void SaveMmuState(StateWriter& w)    override;
     void RestoreMmuState(StateReader& r) override;
-    void ResyncInterruptPoll() override;
-    void FlushTranslationCache(uint32_t va, uint32_t length) override;
+    void FlushTranslationCache() override;
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;
     void SetDmaRegion(uint32_t pa, uint32_t size) override;
 
@@ -333,11 +331,7 @@ private:
     uint32_t              device_ip_mask_ = 0;
 
     void*       idle_event_ = nullptr;
-    std::mutex  interrupt_lock_;
     std::atomic<uint32_t> external_ip_{0};   /* Cause.IP[5:2] driven by the INTC */
-    uint8_t*    interrupt_check_ = nullptr;
-    uint8_t*    branch_helper_   = nullptr;
-    bool        tc_flush_pending_ = false;
 
     /* CP0 synchronous-exception delivery, faithful to QEMU target/mips
        mips_cpu_do_interrupt set_EPC + raise_mmu_exception. */

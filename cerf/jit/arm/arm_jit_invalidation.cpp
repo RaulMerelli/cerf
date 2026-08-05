@@ -11,6 +11,14 @@
 /* JIT translation invalidation: context-switch (VA-keyed native caches) and
    SMC (targeted phys-page block removal). */
 
+void ArmJit::ContextSwitchFlush() {
+    InvalidateVaCachesAll();
+}
+
+void __fastcall ArmJit::ContextSwitchFlushHelper(ArmJit* jit) {
+    jit->ContextSwitchFlush();
+}
+
 void ArmJit::InvalidateDirtyCodePages() {
     ArmMmuState* st    = mmu_->State();
     uint8_t*     dirty = st->code_page_dirty;

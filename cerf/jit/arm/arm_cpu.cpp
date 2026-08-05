@@ -108,14 +108,9 @@ void ArmCpu::UpdateCpsrWithFlags(ArmPsrFull psr) {
     }
 
     const uint32_t old_mode = state_.cpsr.bits.mode;
-    const uint32_t old_irq  = state_.cpsr.bits.irq_disable;
 
     state_.cpsr = psr;
     SwitchModeBanks(old_mode, state_.cpsr.bits.mode);
-
-    if (old_irq != state_.cpsr.bits.irq_disable) {
-        emu_.Get<GuestEngine>().ResyncInterruptPoll();
-    }
 }
 
 /* ARM ARM DDI 0406C.c B1.9, pp. B1-1206 (Undefined Instruction), B1-1210 (SVC),
@@ -135,11 +130,7 @@ void ArmCpu::EnterException(uint32_t target_mode,
     state_.spsr_bank[kSpsrIdx(SelectSpsrBank(target_mode))] = old_cpsr;
     state_.gprs[ArmGpr::kR14] = new_lr_value;
 
-    const uint32_t old_irq       = old_cpsr.bits.irq_disable;
     state_.cpsr.bits.irq_disable = 1u;
-    if (old_irq != 1u) {
-        emu_.Get<GuestEngine>().ResyncInterruptPoll();
-    }
     state_.cpsr.bits.it_low      = 0u;
     state_.cpsr.bits.it_high     = 0u;
     state_.cpsr.bits.jazelle     = 0u;
@@ -214,11 +205,7 @@ void ArmCpu::RaiseResetException(uint32_t initial_pc) {
        permitted value for every other FPEXC bit. */
     state_.fpexc = 0u;
 
-    const uint32_t old_irq               = state_.cpsr.bits.irq_disable;
     state_.cpsr.bits.irq_disable         = 1u;
-    if (old_irq != 1u) {
-        emu_.Get<GuestEngine>().ResyncInterruptPoll();
-    }
     state_.cpsr.bits.fiq_disable         = 1u;
     state_.cpsr.bits.async_abort_disable = 1u;
     state_.cpsr.bits.it_low              = 0u;
@@ -278,6 +265,116 @@ void __cdecl ArmCpu::UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source) {
     constexpr uint32_t kNzcvMask = 0xF0000000u;
     cpu->state_.cpsr.word = (cpu->state_.cpsr.word & ~kNzcvMask) |
                             (nzcv_source & kNzcvMask);
+}
+
+/* ARM DDI 0100I A4.1.39 (p. A4-77): mask = byte_mask AND UserMask in User
+   mode, AND (UserMask OR PrivMask) privileged; privileged with
+   "(operand AND StateMask) != 0" is UNPREDICTABLE. ARM DDI 0406C.c
+   CPSRWriteByInstr (p. B1-1153): SCTLR.NMFI gates setting F. */
+void __cdecl ArmCpu::WriteCpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
+                                            uint32_t mask_user,
+                                            uint32_t mask_priv,
+                                            uint32_t state_trip_mask,
+                                            uint32_t sctlr) {
+    const bool privileged = cpu->state_.cpsr.bits.mode != ArmMode::kUser;
+    if (privileged && (value & state_trip_mask) != 0u) {
+        LOG(Caution, "ArmCpu: privileged MSR CPSR with execution-state bits "
+                     "set (value=0x%08X StateMask=0x%08X) is UNPREDICTABLE\n",
+            value, state_trip_mask);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    uint32_t mask = privileged ? mask_priv : mask_user;
+    if ((sctlr & (1u << 27)) != 0u && (value & (1u << 6)) != 0u) {
+        mask &= ~(1u << 6);
+    }
+    ArmPsrFull merged;
+    merged.word = (cpu->state_.cpsr.word & ~mask) | (value & mask);
+    if (merged.bits.endian != 0u) {
+        LOG(Caution, "ArmCpu: MSR sets CPSR.E; big-endian data accesses are "
+                     "not modelled\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    cpu->UpdateCpsrWithFlags(merged);
+}
+
+/* ARM DDI 0100I A4.1.39 (p. A4-77); ARM DDI 0406C.c SPSRWriteByInstr
+   (p. B1-1154). */
+void __cdecl ArmCpu::WriteSpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
+                                            uint32_t mask) {
+    ArmPsrFull* spsr = cpu->BankedSpsr(cpu->state_.cpsr.bits.mode);
+    spsr->word = (spsr->word & ~mask) | (value & mask);
+}
+
+uint32_t __cdecl ArmCpu::ReadSpsrHelper(ArmCpu* cpu) {
+    return cpu->BankedSpsr(cpu->state_.cpsr.bits.mode)->word;
+}
+
+/* ARM DDI 0406C.c B9.3.6/B9.3.17 (pp. B9-1989/B9-2008): Rmode[i, '10000']
+   selects the User-mode instance; Figure B1-2 (p. B1-1144): FIQ banks
+   R8-R12, and SP/LR bank per mode with System sharing the usr bank. */
+uint32_t __cdecl ArmCpu::ReadUserRegHelper(ArmCpu* cpu, uint32_t reg) {
+    ArmCpuState* st = &cpu->state_;
+    if (reg >= 8u && reg <= 12u && st->cpsr.bits.mode == ArmMode::kFiq) {
+        return st->r8_r12_fiq[reg - 8u];
+    }
+    if (reg == ArmGpr::kR13) {
+        return *cpu->BankedSp(ArmMode::kUser);
+    }
+    if (reg == ArmGpr::kR14) {
+        if (SelectBank(st->cpsr.bits.mode) == ArmBank::kUsr) {
+            return st->gprs[ArmGpr::kR14];
+        }
+        return st->lr_bank[kBankIdx(ArmBank::kUsr)];
+    }
+    return st->gprs[reg];
+}
+
+void __cdecl ArmCpu::WriteUserRegHelper(ArmCpu* cpu, uint32_t reg,
+                                        uint32_t value) {
+    ArmCpuState* st = &cpu->state_;
+    if (reg >= 8u && reg <= 12u && st->cpsr.bits.mode == ArmMode::kFiq) {
+        st->r8_r12_fiq[reg - 8u] = value;
+        return;
+    }
+    if (reg == ArmGpr::kR13) {
+        *cpu->BankedSp(ArmMode::kUser) = value;
+        return;
+    }
+    if (reg == ArmGpr::kR14) {
+        if (SelectBank(st->cpsr.bits.mode) == ArmBank::kUsr) {
+            st->gprs[ArmGpr::kR14] = value;
+        } else {
+            st->lr_bank[kBankIdx(ArmBank::kUsr)] = value;
+        }
+        return;
+    }
+    st->gprs[reg] = value;
+}
+
+/* ARM DDI 0406C.c B9.3.5 (p. B9-1987): CPSRWriteByInstr(SPSR[], '1111',
+   TRUE) then BranchWritePC(new_pc_value); BranchWritePC masks <31:1> in
+   Thumb state, <31:2> in ARM state (A2.3.2, p. A2-47). */
+uint32_t __cdecl ArmCpu::ExceptionReturnHelper(ArmCpu* cpu, uint32_t new_pc) {
+    const ArmPsrFull spsr = *cpu->BankedSpsr(cpu->state_.cpsr.bits.mode);
+    ArmPsrFull merged = spsr;
+    if (cpu->emu_.Get<ArmProcessorConfig>().HasCp15V7()) {
+        /* CPSRWriteByInstr, bytemask '1111', is_excpt_return TRUE
+           (p. B1-1153): 23:20 are SBZP and SCTLR.NMFI gates F. Pre-v7 is
+           a whole copy - ARM DDI 0100I A4.1.22 (p. A4-41) "CPSR = SPSR". */
+        uint32_t mask = 0xFF0FFFFFu;
+        if (cpu->emu_.Get<ArmMmu>().State()->control_register.bits.nmfi &&
+            spsr.bits.fiq_disable) {
+            mask &= ~(1u << 6);
+        }
+        merged.word = (cpu->state_.cpsr.word & ~mask) | (spsr.word & mask);
+    }
+    if (merged.bits.endian != 0u) {
+        LOG(Caution, "ArmCpu: exception return restores CPSR.E; big-endian "
+                     "data accesses are not modelled\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    cpu->UpdateCpsrWithFlags(merged);
+    return merged.bits.thumb_mode ? (new_pc & ~1u) : (new_pc & ~3u);
 }
 
 void ArmCpu::SaveState(StateWriter& w) {

@@ -15,9 +15,9 @@ public:
         return bd && bd->GetSoc() == SocFamily::PXA25x;
     }
 
-    /* ARMv5 / StrongARM / XScale store PC+8 for STR/STM of R15. Not
-       documented in the Intel manuals (ARM-ARM implementation-defined);
-       matches sibling SA-1110 (StrongARM ancestor) and ARM1136 configs. */
+    /* ARM DDI 0100I "Reading the program counter" (p. A2-9): STR/STM of R15
+       stores insn+8 or insn+12 - "IMPLEMENTATION DEFINED". Neither Intel
+       XScale manual documents the choice; 8 is unverified. */
     uint32_t PcStoreOffset()              const override { return 8; }
 
     /* XScale Core Dev Manual §2.2.5: "the contents of the base register
@@ -25,7 +25,6 @@ public:
        Restored Abort Model." */
     bool     BaseRestoredAbortModel()     const override { return true; }
 
-    bool     MemoryBeforeWritebackModel() const override { return true; }
 
 
     /* Cache Type Register line length 0b10 = 8 words = 32 bytes

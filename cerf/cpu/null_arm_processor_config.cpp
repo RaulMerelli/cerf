@@ -15,7 +15,6 @@ public:
 
     uint32_t PcStoreOffset()              const override { return 0; }
     bool     BaseRestoredAbortModel()     const override { return false; }
-    bool     MemoryBeforeWritebackModel() const override { return false; }
     uint32_t CacheLineSize()              const override { return 0; }
     uint32_t Midr()                       const override { return 0; }
     uint32_t Ctr()                        const override { return 0; }

@@ -9,9 +9,10 @@ class CortexA8ProcessorConfigBase : public ArmProcessorConfig {
 public:
     using ArmProcessorConfig::ArmProcessorConfig;
 
-    uint32_t PcStoreOffset()              const override { return 12; }
+    /* ARM DDI 0406C.c PCStoreValue() (p. A2-47): the +12 alternative is
+       permitted only before ARMv7. */
+    uint32_t PcStoreOffset()              const override { return 8; }
     bool     BaseRestoredAbortModel()     const override { return true; }
-    bool     MemoryBeforeWritebackModel() const override { return true; }
     uint32_t CacheLineSize()              const override { return 64; }
 
     /* Cortex-A8 Cache Type Register reset value (ARM DDI0344K TRM, c0 Cache

@@ -13,11 +13,12 @@ public:
         return emu_.Get<BoardContext>().GetBoard() == Board::ZuneKeel;
     }
 
+    /* ARM DDI 0100I "Reading the program counter" (p. A2-9): STR/STM of R15
+       stores insn+8 or insn+12 - "IMPLEMENTATION DEFINED". The ARM1136 TRM
+       (ARM DDI 0211) does not document the choice; 8 is unverified. */
     uint32_t PcStoreOffset()              const override { return 8; }
 
     bool     BaseRestoredAbortModel()     const override { return true; }
-
-    bool     MemoryBeforeWritebackModel() const override { return true; }
 
 
     uint32_t CacheLineSize()              const override { return 32; }

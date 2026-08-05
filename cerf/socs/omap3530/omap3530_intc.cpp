@@ -61,7 +61,6 @@ void Omap3530Intc::AssertIrq(int source_bit) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    bool needs_irq = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
 
@@ -77,10 +76,8 @@ void Omap3530Intc::AssertIrq(int source_bit) {
         const uint32_t bank     = source_bit / kBitsPerBank;
         const uint32_t bit_mask = 1u << (source_bit % kBitsPerBank);
         banks_[bank].itr |= bit_mask;
-        needs_irq = HasPendingUnmasked();
+        if (HasPendingUnmasked()) emu_.Get<ArmJit>().SetInterruptPending();
     }
-
-    if (needs_irq) emu_.Get<ArmJit>().SetInterruptPending();
 }
 
 void Omap3530Intc::DeAssertIrq(int source_bit) {
@@ -90,20 +87,13 @@ void Omap3530Intc::DeAssertIrq(int source_bit) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    bool still_pending = false;
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        const uint32_t bank     = source_bit / kBitsPerBank;
-        const uint32_t bit_mask = 1u << (source_bit % kBitsPerBank);
-        banks_[bank].itr &= ~bit_mask;
-        still_pending = HasPendingUnmasked();
-    }
-
-    /* Outside the lock so the cross-thread call to ArmJit doesn't
-       nest mutex acquisition. */
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    const uint32_t bank     = source_bit / kBitsPerBank;
+    const uint32_t bit_mask = 1u << (source_bit % kBitsPerBank);
+    banks_[bank].itr &= ~bit_mask;
     auto& jit = emu_.Get<ArmJit>();
-    if (still_pending) jit.SetInterruptPending();
-    else               jit.ClearInterruptPending();
+    if (HasPendingUnmasked()) jit.SetInterruptPending();
+    else                      jit.ClearInterruptPending();
 }
 
 void Omap3530Intc::AssertSubIrq(int /*main_source_bit*/, int /*sub_source_bit*/) {
@@ -235,17 +225,11 @@ void Omap3530Intc::WriteReg(uint32_t off, uint32_t value) {
         }
     }
 
-    /* Outside the lock so the cross-thread call to ArmJit doesn't
-       nest mutex acquisition. */
     if (reeval_needed) {
-        bool pending = false;
-        {
-            std::lock_guard<std::mutex> lk(state_mutex_);
-            pending = HasPendingUnmasked();
-        }
+        std::lock_guard<std::mutex> lk(state_mutex_);
         auto& jit = emu_.Get<ArmJit>();
-        if (pending) jit.SetInterruptPending();
-        else         jit.ClearInterruptPending();
+        if (HasPendingUnmasked()) jit.SetInterruptPending();
+        else                      jit.ClearInterruptPending();
     }
 }
 
@@ -273,16 +257,11 @@ void Omap3530Intc::RestoreState(StateReader& r) {
 
 void Omap3530Intc::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored banks_/ilr_ after every
-       peripheral's RestoreState has run - the INTC owns the CPU IRQ line. Same
-       lock-then-notify-outside-lock shape as WriteReg's re-evaluation. */
-    bool pending = false;
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        pending = HasPendingUnmasked();
-    }
+       peripheral's RestoreState has run - the INTC owns the CPU IRQ line. */
+    std::lock_guard<std::mutex> lk(state_mutex_);
     auto& jit = emu_.Get<ArmJit>();
-    if (pending) jit.SetInterruptPending();
-    else         jit.ClearInterruptPending();
+    if (HasPendingUnmasked()) jit.SetInterruptPending();
+    else                      jit.ClearInterruptPending();
 }
 
 namespace {

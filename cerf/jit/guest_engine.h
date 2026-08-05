@@ -29,8 +29,7 @@ public:
     virtual void SaveMmuState(StateWriter& w)    = 0;
     virtual void RestoreMmuState(StateReader& r) = 0;
 
-    virtual void ResyncInterruptPoll() = 0;
-    virtual void FlushTranslationCache(uint32_t va, uint32_t length) = 0;
+    virtual void FlushTranslationCache() = 0;
 
     /* Pend a CPU reset (GuestCpuReset/GuestColdBoot route here). is_resume
        selects the deep-sleep-wake notification over the reboot one. */

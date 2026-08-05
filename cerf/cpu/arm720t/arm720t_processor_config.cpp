@@ -14,9 +14,11 @@ public:
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
 
+    /* ARM7TDMI Data Sheet (ARM DDI 0029E) STM, Block Data Transfer:
+       "Whenever R15 is stored to memory the stored value is the address
+       of the STM instruction plus 12." */
     uint32_t PcStoreOffset()              const override { return 12; }
     bool     BaseRestoredAbortModel()     const override { return false; }
-    bool     MemoryBeforeWritebackModel() const override { return true; }
     uint32_t CacheLineSize()              const override { return 32; }
     uint32_t Midr()                       const override { return 0x41807200u; }
     uint32_t Ctr()                        const override { return 0x41807200u; }
