@@ -436,7 +436,7 @@ def main() -> int:
             "BSP source archives, ARM manual excerpts) and is gitignored. "
             "Pointing to a path in it is dead-weight narration - the "
             "comment should inline the SUBSTANCE the doc says at that "
-            "point (specific bits, register fields, BSP function "
+            "point (specific bits, register fields, peripheral "
             "behaviour) or not exist at all. The PATH itself helps "
             "nobody: it can't be opened from a fresh clone, and even "
             "where the tree exists locally, the reader needs the "
@@ -453,7 +453,17 @@ def main() -> int:
             "references/foo/bar.txt' - both halves are bloat. The 'we "
             "use X instead of Y' is design narration (the FAIL example "
             "in BLOATED-COMMENT), and the references/ pointer is "
-            "dead-weight redirection.",
+            "dead-weight redirection.\n\n"
+            "ONE EXCEPTION TO RESPONSE 1: if the path points into the "
+            "Microsoft Device Emulator source or a Microsoft Platform "
+            "Builder / Windows CE Shared Source tree (references/WINCE*, "
+            "any BSP / PUBLIC / PRIVATE / OAK subtree), do NOT inline "
+            "its substance - that keeps the licence exposure and drops "
+            "the label. Those are the forbidden set in "
+            "agent_docs/rules.md § Reference Licence Hygiene. Re-ground "
+            "the fact on a permitted source (the guest ROM in IDA, the "
+            "chip datasheet, the standard) and cite that, or hand it to "
+            "the user.",
         ))
 
     if cerf_ref_hits:
@@ -559,8 +569,9 @@ def main() -> int:
             f"     host TLB directly and a stale entry from the prior\n"
             f"     process returns the wrong PA. */\n"
             f"  /* Read XSIZE/YSIZE before PDISP_PD=1 - the regs read 0\n"
-            f"     once powered down (BSP odo_display.c:142), and the\n"
-            f"     renderer would publish a 0-by-0 frame. */\n\n"
+            f"     once powered down (jornada720 display.dll DrvPowerOff\n"
+            f"     0x0301A4C8), and the renderer would publish a 0-by-0\n"
+            f"     frame. */\n\n"
             f"FAIL examples (look technical, fail Test 1 or Test 2):\n"
             f"  /* Dims come from DeviceConfig (cerf.json) rather than\n"
             f"     DISP_XSIZE / DISP_YSIZE MMIO: the 2BPP driver\n"
