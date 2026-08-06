@@ -15,6 +15,7 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15RegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitHalfwordSignedTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* EmitLoadedPcWrite(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitNeonCoreToScalar(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitNeonScalarToCore(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -34,11 +35,13 @@ uint8_t* EmitVfpSingleMoveIdx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx
 uint8_t* EmitVfpSingleTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitVfpSystemRegTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
+uint8_t* PlaceArmUnimplemented(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBfc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBfi(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBlockDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBlxReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceBx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBxImpl(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx, bool is_call);
 uint8_t* PlaceClz(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocDataOperation(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -108,6 +111,7 @@ uint8_t* PlaceRev16(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRevsh(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSbfx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceSingleDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSrs(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceStrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -116,3 +120,9 @@ uint8_t* PlaceUbfx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceUxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceUxth(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceWfi(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+
+inline bool MarkArmUnimplemented(DecodedInsn* insn, uint32_t word) {
+    insn->immediate = word;
+    insn->place_fn  = &PlaceArmUnimplemented;
+    return true;
+}
