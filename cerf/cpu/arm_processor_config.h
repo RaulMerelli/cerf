@@ -59,10 +59,10 @@ public:
     virtual bool     HasClz()                     const { return false; }
     virtual bool     HasBlxReg()                  const { return false; }
 
-    /* On ARMv4, cond=NV falls through as a NOP (ARM ARM v4 §A1.2:
-       the 0xF space is UNPREDICTABLE pre-ARMv5) and CE kernel abort
-       handlers execute through it; v4 SoCs must report false here or
-       those handlers take spurious UND traps. */
+    /* ARM DDI 0100I A3.2.1 (p. A3-4): "In ARMv4, any instruction with a
+       condition field of 0b1111 is UNPREDICTABLE." ARM DDI 0406C.c A5.7
+       (p. A5-216): "All encodings in this space are UNPREDICTABLE in
+       ARMv4 and ARMv4T." */
     virtual bool     HasArmv5UnconditionalSpace() const { return false; }
 
     virtual bool     HasMovwMovt()                const { return false; }

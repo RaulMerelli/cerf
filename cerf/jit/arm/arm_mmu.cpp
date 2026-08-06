@@ -188,6 +188,36 @@ uint32_t __cdecl ArmMmu::UnalignedHalfwordStoreHelper(ArmMmu* mmu, uint32_t va,
     return 0u;
 }
 
+uint64_t __cdecl ArmMmu::UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va) {
+    ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    uint8_t b[4];
+    for (uint32_t i = 0; i < 4u; ++i) {
+        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/true)) {
+            return 0u;
+        }
+    }
+    const uint32_t value = static_cast<uint32_t>(b[0]) |
+                           (static_cast<uint32_t>(b[1]) << 8) |
+                           (static_cast<uint32_t>(b[2]) << 16) |
+                           (static_cast<uint32_t>(b[3]) << 24);
+    return (1ull << 32) | value;
+}
+
+uint32_t __cdecl ArmMmu::UnalignedWordStoreHelper(ArmMmu* mmu, uint32_t va,
+                                                  uint32_t value) {
+    ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    uint8_t b[4] = { static_cast<uint8_t>(value),
+                     static_cast<uint8_t>(value >> 8),
+                     static_cast<uint8_t>(value >> 16),
+                     static_cast<uint8_t>(value >> 24) };
+    for (uint32_t i = 0; i < 4u; ++i) {
+        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/false)) {
+            return 0xFFFFFFFFu;
+        }
+    }
+    return 0u;
+}
+
 void ArmMmu::SetIoPending(uint32_t pa) {
     if (pa == 0u) {
         LOG(Caution, "ArmMmu::SetIoPending: MMIO at PA 0 is not implemented "

@@ -439,6 +439,13 @@ inline void EmitRorReg32Imm(uint8_t*& c, uint8_t reg, uint8_t imm8) {
     Emit8(c, imm8);
 }
 
+/* ROR r/m32, CL - D3 /1, register-direct
+   (SDM Vol. 2B 4-533 RCL/RCR/ROL/ROR). */
+inline void EmitRorReg32Cl(uint8_t*& c, uint8_t reg) {
+    Emit8(c, 0xD3);
+    EmitModRmReg(c, 3, reg, 1);
+}
+
 /* BSWAP r32 - 0F C8+rd (SDM Vol. 2A 3-129 BSWAP). */
 inline void EmitBswapReg32(uint8_t*& c, uint8_t reg) {
     Emit8(c, 0x0F);

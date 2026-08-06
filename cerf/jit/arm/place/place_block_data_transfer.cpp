@@ -203,25 +203,10 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
                 reinterpret_cast<void*>(&ArmCpu::ExceptionReturnHelper));
             EmitAddRegImm32(cursor, kEsp, 8);
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(15u), kEax);
+            cursor = PlaceR15ModifiedHelper(cursor, d, ctx);
         } else {
-            if (config->HasLoadToPcInterworking()) {
-                cursor = EmitArmInterworkingFullEax(cursor);
-            } else {
-                /* BranchWritePC (A2.3.2, p. A2-47): <31:2>:'00' in ARM
-                   state, <31:1>:'0' in Thumb state. */
-                EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
-                    static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
-                EmitTestRegImm32(cursor, kEcx, 0x20u);
-                uint8_t* thumb_l = EmitJnzLabel32(cursor);
-                EmitAndRegImm32(cursor, kEax, 0xFFFFFFFCu);
-                uint8_t* mask_done = EmitJmpLabel32(cursor);
-                FixupLabel32(thumb_l, cursor);
-                EmitAndRegImm32(cursor, kEax, 0xFFFFFFFEu);
-                FixupLabel32(mask_done, cursor);
-            }
-            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(15u), kEax);
+            cursor = EmitLoadedPcWrite(cursor, d, ctx);
         }
-        cursor = PlaceR15ModifiedHelper(cursor, d, ctx);
     } else {
         done_jmp = EmitJmpLabel32(cursor);
     }

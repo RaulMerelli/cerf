@@ -85,6 +85,13 @@ public:
                                                          uint32_t va,
                                                          uint32_t value);
 
+    /* Out: EDX:EAX - high dword 1 (value in the low dword) / 0 = fault,
+       FAR/FSR or the io-pending slot set by the walk. */
+    static uint64_t __cdecl UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va);
+    /* Out: 0 (stored) / 0xFFFFFFFF = fault. */
+    static uint32_t __cdecl UnalignedWordStoreHelper(ArmMmu* mmu, uint32_t va,
+                                                     uint32_t value);
+
     /* Guest-additions injection band: a CERF-owned PA region the walker serves
        at a guest-unmapped static-window VA, so the injected stub's bytes live
        in CERF memory and the victim's TOC is only repointed at this VA. size 0
