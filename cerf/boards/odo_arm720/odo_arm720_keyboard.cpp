@@ -16,17 +16,14 @@
 
 namespace {
 
-
 constexpr uint32_t kKeyboardPaBase    = 0x1000C000u;
 constexpr uint32_t kKeyboardSize      = 0x08u;       /* CSR + ISR */
 
 constexpr uint32_t kSlotKbCsr         = 0x00u;
 constexpr uint32_t kSlotKbIsr         = 0x04u;
 
-
 constexpr uint16_t kKbRdrf            = 0x0001u;
 constexpr uint16_t kKbClkEn           = 0x8000u;
-
 
 constexpr uint16_t kKbCsrReadOnlyMask = 0x07FFu;
 constexpr uint16_t kKbCsrRwMask       = static_cast<uint16_t>(

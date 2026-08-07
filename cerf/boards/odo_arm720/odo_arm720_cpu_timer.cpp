@@ -25,7 +25,6 @@ constexpr uint32_t kSlotTir          = 1;
 constexpr uint32_t kSlotTvr          = 2;
 constexpr uint32_t kSlotCount        = 3;
 
-
 constexpr uint32_t kTimerModeMask    = 0x00000C00u;  /* bits 11:10 */
 constexpr uint32_t kTimerMode10ms    = 0x00000400u;
 constexpr uint32_t kTimerMode25ms    = 0x00000800u;
@@ -167,7 +166,6 @@ void OdoArm720CpuTimer::WriteWord(uint32_t addr, uint32_t value) {
             period_start_ = Clock::now();
         }
     } else if (slot == kSlotTir) {
-
         tir_ &= ~value;
         static_cast<OdoArm720BoardIntc&>(emu_.Get<IrqController>())
             .SetTimerIrqLevel((tir_ & kTirSetBit) != 0);
@@ -241,7 +239,6 @@ uint16_t OdoArm720CpuTimer::ReadHalf(uint32_t addr) {
 }
 
 void OdoArm720CpuTimer::WriteHalf(uint32_t addr, uint16_t value) {
-
     LOG(Caution, "OdoArm720CpuTimer::WriteHalf at 0x%08X = 0x%04X "
             "- the ARM720 CPU-interface registers are 32-bit-only; "
             "halt rather than guess the half-write semantic.\n",

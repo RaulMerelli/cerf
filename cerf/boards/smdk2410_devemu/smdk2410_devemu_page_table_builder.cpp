@@ -78,7 +78,6 @@ private:
     std::vector<OatEntry> dram_bands_;
 };
 
-
 void Smdk2410DevEmuPageTableBuilder::OnReady() {
     uint32_t ram_start = 0;
     bool     flash_window_xip = false;

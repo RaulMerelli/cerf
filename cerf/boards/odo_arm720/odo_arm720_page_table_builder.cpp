@@ -12,7 +12,6 @@ namespace {
 
 constexpr uint32_t MB(uint32_t mb) { return mb * 0x100000u; }
 
-
 enum class OatKind { Dram, Flash, Mmio };
 
 struct OatEntry {

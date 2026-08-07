@@ -37,7 +37,6 @@ uint32_t GuestModulePlacer::ComputeVbase(uint32_t orig_vbase,
     const auto& toc = parser.Primary().xips[0].toc;
 
     constexpr uint32_t kO32CodeRealaddr = 16u;
-
     uint32_t slot_ceiling = 0xFFFFFFFFu;   /* lowest module vbase > victim */
     uint32_t lowest_code  = 0xFFFFFFFFu;   /* lowest section-1 code realaddr */
     for (const auto& m : toc.modules) {

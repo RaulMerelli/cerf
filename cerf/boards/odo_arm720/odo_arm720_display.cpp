@@ -17,7 +17,6 @@
 
 namespace {
 
-
 constexpr uint32_t kDisplayRegsPa  = 0x10001000u;
 constexpr uint32_t kDisplayRegsSize = 0x10u;  /* CSR + XSIZE + YSIZE */
 
@@ -52,7 +51,6 @@ public:
         return bd && bd->GetBoard() == Board::OdoArm720;
     }
     void OnReady() override {
-
         xsize_ = 479;
         ysize_ = 239;
         emu_.Get<PeripheralDispatcher>().Register(this);

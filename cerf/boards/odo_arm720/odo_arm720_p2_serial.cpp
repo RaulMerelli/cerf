@@ -78,7 +78,6 @@ public:
         return value;
     }
 
-
     uint32_t GetEffectivePa() {
         std::lock_guard<std::mutex> lk(state_mutex_);
         const uint32_t chip_addr =

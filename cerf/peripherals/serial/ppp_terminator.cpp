@@ -8,6 +8,8 @@
 
 #include <cstring>
 
+/* PPP Protocol field hex c021 = Link Control Protocol (RFC 1661), hex 8021
+   = IP Control Protocol (RFC 1332). */
 namespace {
 
 constexpr uint16_t kProtoLcp  = 0xC021;
@@ -17,7 +19,6 @@ constexpr uint16_t kProtoIp   = 0x0021;
 constexpr uint8_t kConfReq = 1, kConfAck = 2, kConfNak = 3, kConfRej = 4;
 constexpr uint8_t kTermReq = 5, kTermAck = 6, kCodeRej = 7;
 constexpr uint8_t kProtoRej = 8, kEchoReq = 9, kEchoRep = 10;
-
 constexpr uint8_t kLcpMru = 1, kLcpAccm = 2, kLcpAuth = 3, kLcpMagic = 5,
                   kLcpPfc = 7, kLcpAcfc = 8;
 constexpr uint8_t kIpcpComp = 2, kIpcpAddr = 3, kIpcpDns = 129,
@@ -176,6 +177,7 @@ void PppTerminator::HandleConfProto(uint16_t proto, const uint8_t* p,
 
 void PppTerminator::HandleLcpConfReq(uint8_t id, const uint8_t* opts,
                                      size_t len) {
+    /* Configure-Reject per RFC 1661 §5.4. */
     std::vector<uint8_t> rej;
     size_t i = 0;
     while (i + 2 <= len) {
