@@ -20,7 +20,6 @@ constexpr uint8_t  kPciDev   = 1u;        /* bus-0 slot (OS matches by VID/DID, 
 
 constexpr uint32_t kFbSize   = 0x00800000u;
 constexpr uint32_t kMmioSize = 0x00001000u;
-
 constexpr uint32_t kBarMemPrefetch = 0x8u;    /* PCI BAR bit3: memory prefetchable */
 constexpr uint32_t kCmdMemEnable   = 0x2u;    /* PCI command: memory space enable */
 
@@ -38,7 +37,6 @@ constexpr uint32_t kGuiStatIdleReady = 0x03FF0000u;  /* emulated engine: never b
 constexpr uint32_t kRegDacCntl       = 0x4C4u;
 constexpr uint32_t kDacCmpDis        = 0x00000008u;
 constexpr uint32_t kDacCmpOutput     = 0x00000080u;
-
 constexpr uint32_t kRegDstOffPitch    = 0x500u;
 constexpr uint32_t kRegDstYX          = 0x50Cu;
 constexpr uint32_t kRegDstHeightWidth = 0x518u;
@@ -52,14 +50,12 @@ constexpr uint32_t kRegDpPixWidth     = 0x6D0u;
 constexpr uint32_t kRegDpMix          = 0x6D4u;
 constexpr uint32_t kRegDpSrc          = 0x6D8u;
 constexpr uint32_t kRegDstWidthHeight = 0x6ECu;
-
 /* CRTC scanout geometry (decoded for the FrameRenderer + display-enable signal). */
 constexpr uint32_t kRegCrtcHTotalDisp = 0x400u;
 constexpr uint32_t kRegCrtcVTotalDisp = 0x408u;
 constexpr uint32_t kRegCrtcOffPitch   = 0x414u;      /* OFFSET bits 0:19 (*8B), PITCH bits 22:31 (*8px) */
 constexpr uint32_t kRegCrtcGenCntl    = 0x41Cu;      /* PIX_WIDTH bits 8:10, CrtcEnable, DisplayDis */
 constexpr uint32_t kCrtcEnable        = 0x02000000u;
-
 constexpr uint32_t kRegCurClr0         = 0x460u;
 constexpr uint32_t kRegCurClr1         = 0x464u;
 constexpr uint32_t kRegCurOffset       = 0x468u;
@@ -67,7 +63,6 @@ constexpr uint32_t kRegCurHorzVertPosn = 0x46Cu;
 constexpr uint32_t kRegCurHorzVertOff  = 0x470u;
 constexpr uint32_t kRegGenTestCntl     = 0x4D0u;
 constexpr uint32_t kHwCursorEnable     = 0x80u;
-
 struct Bar {
     uint32_t size_mask = 0;   /* e.g. 0xFF800000 for 8 MB; 0 = BAR not implemented */
     uint32_t flags     = 0;   /* low type/prefetch bits OR'd into reads */
@@ -308,7 +303,6 @@ private:
         const uint32_t wmask    = RegOut(kRegDpWriteMask, 4);
         const bool full_mask = (wmask == 0u || wmask == 0xFFFFFFFFu);
         const bool transp = (RegOut(kRegClrCmpCntl, 4) & 0x01000000u) != 0;
-
         if (bytespp && full_mask && !transp && mix_code <= 15u &&
             (frgd_src == 0x100u || frgd_src == 0x300u)) {
             const bool   is_blit = (frgd_src == 0x300u);

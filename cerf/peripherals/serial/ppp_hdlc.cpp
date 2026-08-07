@@ -2,11 +2,14 @@
 
 namespace {
 
+/* RFC 1662: Flag Sequence 0x7e, Control Escape 0x7d; PPPINITFCS16 0xffff
+   and PPPGOODFCS16 0xf0b8. */
 constexpr uint8_t  kFlag    = 0x7E;
 constexpr uint8_t  kEsc     = 0x7D;
 constexpr uint16_t kInitFcs = 0xFFFF;
 constexpr uint16_t kGoodFcs = 0xF0B8;
 
+/* FCS-16 table, RFC 1662 fcstab[256]. */
 const uint16_t fcstab[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
     0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,

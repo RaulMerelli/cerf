@@ -58,6 +58,8 @@ constexpr uint32_t kRegSprdat = 0x14u;
 
 constexpr uint32_t kSpstaRedy = 0x1u;
 
+/* SMOD field in SPCON: bits 5:6 per the S3C2410A user manual chapter
+   22 ("SPI"). */
 constexpr uint32_t kSpconSmodMask  = 0x60u;
 constexpr uint32_t kSpconSmodShift = 5;
 constexpr uint32_t kSpconSmodIntMode = 1;

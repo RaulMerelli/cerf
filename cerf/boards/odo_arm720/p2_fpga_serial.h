@@ -6,7 +6,6 @@
 class StateWriter;
 class StateReader;
 
-
 inline constexpr uint32_t kSlotCsrA          = 0x00u;
 inline constexpr uint32_t kSlotCsrB          = 0x04u;
 inline constexpr uint32_t kSerialBlockSize   = 0x08u;

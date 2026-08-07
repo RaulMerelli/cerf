@@ -22,16 +22,13 @@
 
 namespace {
 
-
 constexpr uint32_t kRecordDmaPa    = 0x10040810u;
 constexpr uint32_t kPlaybackDmaPa  = 0x10050810u;
 constexpr uint32_t kDmaPairSize    = 0x08u;
 constexpr uint32_t kSlotDmaLow     = 0x00u;
 constexpr uint32_t kSlotDmaHigh    = 0x04u;
 
-
 constexpr uint32_t kDramPaBase     = 0x0C000000u;
-
 
 constexpr uint16_t kIoSoundStrPlaybackIntr    = (1u << 13);
 constexpr uint16_t kIoSoundStrPlaybackEndIntr = (1u << 12);
@@ -83,7 +80,6 @@ public:
 #endif
         return value;
     }
-
 
     uint32_t GetEffectivePa() {
         std::lock_guard<std::mutex> lk(state_mutex_);
@@ -183,10 +179,8 @@ void OdoArm720AudioPlayer::OnThreadMessage(const MSG& msg) {
         {
             auto frozen = emu_.Get<EmulationFreeze>().WorkerSection();
             already_set = emu_.Get<OdoArm720TouchSound>().RaiseSoundStrBits(bits);
-
             if (already_set) {
                 emu_.Get<IrqController>().DeAssertIrq(kSourceTouchAudioAdcIntr);
-
             } else if (emu_.Get<OdoArm720TouchSound>().SoundIntrEnabled()) {
                 emu_.Get<IrqController>().AssertIrq(kSourceTouchAudioAdcIntr);
             }

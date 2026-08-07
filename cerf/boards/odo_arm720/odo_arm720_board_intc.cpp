@@ -12,7 +12,6 @@
 
 #include <mutex>
 
-
 namespace {
 
 constexpr uint32_t kBoardIntcPaBase   = 0x10000800u;
@@ -29,7 +28,6 @@ bool OdoArm720BoardIntc::ShouldRegister() {
 }
 
 bool OdoArm720BoardIntc::HasPendingUnmaskedLocked() const {
-
     return timer_irq_level_ || (cpu_isr_ & cpu_mr_) != 0;
 }
 

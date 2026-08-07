@@ -5,6 +5,8 @@
 #include <functional>
 #include <vector>
 
+/* Async-HDLC framing for PPP per RFC 1662: Flag Sequence 0x7e, Control
+   Escape 0x7d, escaped octet exclusive-or'd with 0x20. */
 class PppHdlc {
 public:
     using FrameFn = std::function<void(uint16_t protocol,
@@ -12,6 +14,8 @@ public:
 
     void SetFrameSink(FrameFn fn) { sink_ = std::move(fn); }
 
+    /* Async-Control-Character-Map per RFC 1662 §7.1: a set bit means the
+       corresponding control character is escaped on transmit. */
     void SetTxAccm(uint32_t accm) { tx_accm_ = accm; }
 
     /* Feed guest TX bytes; each complete, FCS-good frame is delivered to the

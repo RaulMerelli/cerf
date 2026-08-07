@@ -15,7 +15,6 @@
 
 namespace {
 
-
 constexpr uint32_t kHkeepFpgaPaBase   = 0x04040000u;
 constexpr uint32_t kHkeepFpgaSize     = 0x00030000u;
 
@@ -66,7 +65,6 @@ public:
 private:
     bool ClassifyAddr(uint32_t addr, bool* out_is_alpha) const;
 
-
     void LogAlphaWrite(uint32_t addr, uint32_t value);
 
     mutable std::mutex state_mutex_;
@@ -107,7 +105,6 @@ uint32_t OdoArm720HkeepFpga::ReadWord(uint32_t addr) {
     }
 
 #if CERF_DEV_MODE
-
     LOG(Board, "Odo HKEEP %s read  [0x%08X] -> 0x%08X\n",
         is_alpha ? "LED_ALPHA" : "LED_DISCRETE", addr, value);
 #endif
@@ -151,7 +148,6 @@ void OdoArm720HkeepFpga::LogAlphaWrite(uint32_t addr, uint32_t value) {
     auto sanitize = [](char c) -> char {
         return (c >= 0x20 && c < 0x7F) ? c : '.';
     };
-
     const uint32_t offset = addr - kLedAlphaPa;
     LOG(Board, "Odo HKEEP LED_ALPHA +0x%04X = 0x%08X (\"%c%c%c%c\")\n",
         offset, value,
@@ -185,7 +181,6 @@ void OdoArm720HkeepFpga::DrawIcon(HDC dc, const RECT& box) const {
         std::lock_guard<std::mutex> lk(state_mutex_);
         discrete = led_discrete_value_;
     }
-
     const uint8_t bits = (uint8_t)(discrete & 0xFFu);
     constexpr int kCell = 4, kGap = 1;
     const int grid_w = 4 * kCell + 3 * kGap;

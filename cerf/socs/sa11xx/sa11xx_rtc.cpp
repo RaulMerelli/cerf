@@ -16,6 +16,8 @@
 
 namespace {
 
+/* SA-1110 Dev Man §9.3.5 "Trim Procedure": RTTR (+0x08) corrects
+   physical-crystal error only, so it never scales the emulated rate. */
 
 constexpr uint32_t kRtsrAl  = 0x1u;   /* bit 0: alarm detected (W1C)       */
 constexpr uint32_t kRtsrHz  = 0x2u;   /* bit 1: 1-Hz rising edge (W1C)     */

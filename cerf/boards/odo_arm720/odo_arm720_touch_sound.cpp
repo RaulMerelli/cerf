@@ -18,7 +18,6 @@
 
 namespace {
 
-
 constexpr uint32_t kSlotIoAdcCntr    = 0x00u;
 constexpr uint32_t kSlotIoAdcStr     = 0x04u;
 constexpr uint32_t kSlotUcbCntr      = 0x08u;
@@ -35,7 +34,6 @@ constexpr uint16_t kIoSoundStrW1cMask  = (1u << 15) | (1u << 14)
 
 constexpr uint16_t kIoSoundCntrPlaybackEn = (1u << 14);
 
-
 constexpr uint16_t kPenIntr           = 0x0010u;  /* ioAdcStr bit 4 */
 constexpr uint16_t kPenTimingIntr     = 0x0004u;  /* ioAdcStr bit 2 */
 constexpr uint16_t kUcbIntr           = 0x0008u;  /* ioAdcStr bit 3 */
@@ -47,16 +45,12 @@ constexpr uint16_t kPenTimingIntrMask  = 0x0004u;
 constexpr uint16_t kUcbIntrMask        = 0x0008u;
 constexpr uint16_t kPenIntrMask        = 0x0010u;
 
-
 constexpr uint16_t kIoAdcCntrDoSample     = 0x4000u; /* bit 14 */
 constexpr uint16_t kIoAdcCntrAdcSelY      = 0x0800u; /* bit 11 */
 constexpr uint16_t kIoAdcCntrPenTimingEn  = 0x0400u; /* bit 10 */
-
 constexpr uint16_t kTouchSampleValid      = 0x0FFFu;
 
-
 constexpr int     kCalScaleFactor          = 4;
-
 
 constexpr uint16_t kUcbRegisterPenState   = 0x1000u;
 
@@ -211,7 +205,6 @@ void OdoArm720TouchSound::WriteHalf(uint32_t addr, uint16_t value) {
             } else {
                 uint16_t v = ucb_regs_[reg];
                 if (reg == 0x0A) v |= 0x0C00u;
-
                 if (reg == 0x09) {
                     if (pen_down_.load(std::memory_order_acquire)) {
                         v &= static_cast<uint16_t>(~kUcbRegisterPenState);

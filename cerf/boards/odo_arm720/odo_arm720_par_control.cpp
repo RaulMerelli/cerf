@@ -12,7 +12,6 @@
 namespace {
 
 
-
 constexpr uint32_t kParControlPaBase = 0x04020000u;
 constexpr uint32_t kParControlSize   = 0x04u;
 
@@ -29,7 +28,6 @@ constexpr uint32_t kParDataIn      = 0x0000FF00u;
 /* Peer-driven bits - read returns the peer's view regardless of
    what the kernel last wrote into these positions. */
 constexpr uint32_t kPeerDrivenMask = kParAutoFd | kParIntr | kParDataIn;
-
 
 constexpr uint32_t kPeerByte = 0xFFu;
 
@@ -95,7 +93,6 @@ public:
     }
 
 private:
-
     static bool ComputePeerAutoFdLocked(uint32_t kernel_value) {
         if (kernel_value & kParNack) {
             /* Step 4 of SendByte: kernel asserts NACK → peer

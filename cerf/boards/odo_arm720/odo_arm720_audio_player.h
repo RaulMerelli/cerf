@@ -25,7 +25,6 @@ private:
     static constexpr uint16_t kChannels       = 2u;
     static constexpr uint16_t kBitsPerSample  = 16u;
 
-
     static constexpr uint32_t kPageSize       = 2048u;
     static constexpr uint32_t kPagesPerBuffer = 4u;
 

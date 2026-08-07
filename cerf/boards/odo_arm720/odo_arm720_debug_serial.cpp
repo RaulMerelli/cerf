@@ -17,7 +17,6 @@
 
 namespace {
 
-
 constexpr uint32_t kDramPaBase        = 0x0C000000u;
 
 constexpr uint32_t kSlotDmaLow        = 0x00u;

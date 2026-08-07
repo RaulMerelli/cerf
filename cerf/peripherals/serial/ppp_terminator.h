@@ -11,6 +11,7 @@
 class CerfEmulator;
 class SerialLine;
 
+/* LCP per RFC 1661; IPCP per RFC 1332. */
 class PppTerminator {
 public:
     PppTerminator(CerfEmulator& emu, SerialLine& uart);
@@ -64,6 +65,8 @@ private:
     bool    lcp_we_acked_   = false;   /* we ACKed peer's LCP ConfReq */
     uint8_t lcp_req_id_     = 0;
 
+    /* RFC 1662 §7.1: on asynchronous links the default receiving ACCM is
+       0xffffffff, so a narrower map holds only once negotiated. */
     uint32_t negotiated_tx_accm_ = 0xFFFFFFFFu;
 
     bool    ipcp_open_      = false;

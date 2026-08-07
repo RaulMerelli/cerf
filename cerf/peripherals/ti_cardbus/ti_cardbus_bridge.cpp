@@ -30,7 +30,6 @@ constexpr uint32_t kIrqInta    = 8u;            /* IRQ_INTA, the VRC5477 INTC so
 constexpr uint32_t kSocketBarSize  = 0x1000u;
 constexpr uint32_t kExCaWindowBase   = 0x800u;
 constexpr uint8_t  kExCaChipRevision = 0x84u;
-
 constexpr uint32_t kSockEvent        = 0x00u;   /* W1C event latch */
 constexpr uint32_t kSockMask         = 0x04u;
 constexpr uint32_t kSockPresentState = 0x08u;   /* read-only */
