@@ -39,7 +39,8 @@ int PromptDownload(const std::string& device) {
     }
     msg += "Otherwise, would you like to just open Launcher app (press No) "
            "or exit and do nothing (Cancel)?";
-    return MessageBoxA(nullptr, msg.c_str(), "CERF: device not found",
+    return MessageBoxA(nullptr, msg.c_str(),
+                       "Device not found - CE Runtime Foundation",
                        MB_YESNOCANCEL | MB_ICONQUESTION);
 }
 
@@ -108,7 +109,8 @@ void DeviceNotFoundService::EnsureFound() {
         MessageBoxA(nullptr,
                     "launcher.exe could not be started. Make sure it sits "
                     "next to cerf.exe.",
-                    "CERF: launcher missing", MB_OK | MB_ICONERROR);
+                    "Launcher missing - CE Runtime Foundation",
+                    MB_OK | MB_ICONERROR);
 #endif
 
     CerfFatalExit(CERF_FATAL_USER_ERROR);

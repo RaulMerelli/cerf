@@ -189,7 +189,7 @@ void HostMenu::HandleCommand(int id) {
                     L"Hard reset clears all guest RAM.\n"
                     L"Unsaved guest data and the object store are lost.\n\n"
                     L"Continue?",
-                    L"CERF - Hard reset",
+                    L"Hard reset - CE Runtime Foundation",
                     MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES) {
                 emu_.Get<GuestColdBoot>().RequestHardReset();
             }

@@ -192,7 +192,7 @@ void FordSync2VmcuPeer::HandlePmInbound(const uint8_t* pm, std::size_t n) {
                         "from the device directory and try flashing again.\n\n"
                         "If that does not help, you have hit something genuinely "
                         "else that is not fixable on your side.",
-                        "CERF: Sync 2 panic reboot",
+                        "Sync 2 panic reboot - CE Runtime Foundation",
                         MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
 #endif
             CerfFatalExit(CERF_FATAL_USER_ERROR);
