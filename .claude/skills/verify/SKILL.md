@@ -96,6 +96,26 @@ A checklist target with no `AUDIT MODE:` line returns `CRITICAL PROBLEM FOUND. [
 
 To study another project's model is legitimate and expected. To copy its code into CERF is a licensing breach that no later verdict undoes. From a prompt alone the two look identical, and the reviewer cannot diff against a source it does not have. A disclosed port with no local path therefore makes the reviewer halt with `CRITICAL PROBLEM FOUND. [LICENSE VIOLATION]`, and it performs no audit. If the source is not on disk, fetch it into `references/` before you spawn. Concealed provenance is worse than a missing path, because it puts the breach past review entirely.
 
+**Special case - a re-spawn after a `CRITICAL` verdict keeps the first prompt and appends the round history.** A `CRITICAL PROBLEM FOUND` sends the same body of work back for another round. **The prompt you wrote for round 1 is the base. Every later round reuses that text verbatim.** Copy the base unchanged. It holds the manual pointer, the target description, and the context that cuts against you. It also holds any `AUDIT MODE:` or `PORTED MODEL:` line, and the closing line. Never rewrite the base to describe the last fix. Never shrink the target to the files of one round.
+
+Then append one `ROUND HISTORY` block directly above the closing neutral line. Write one entry per round that returned `CRITICAL`, oldest first:
+
+```
+ROUND HISTORY - this is round <N>. Rounds 1-<N-1> returned CRITICAL.
+  ROUND 1 [<verdict category, verbatim>]: <one sentence on what the finding was>.
+    CLEARED: <what changed, and the file it changed in>.
+  ROUND 2 [<category>]: <finding>.
+    CLEARED: <what changed, and where>.
+```
+
+Each round appends its own entry and edits nothing above that entry. The block grows, and the base stays frozen. A `CLEARED` line can also state where you are unsure that the fix is right. The frozen base carries only the doubts of round 1.
+
+The base stays frozen for two reasons. The reviewer is a fresh subagent with no memory of any earlier round. A prompt that shrinks to the last fix leaves the rest of the work unreviewed. Fixes also regress. A change in round 4 can reintroduce the defect of round 1. Only a reviewer that holds the whole target and the whole history finds that regression.
+
+The base must survive a compaction. Nothing in the harness stores it for you, and a base rebuilt from memory is the drift that this rule removes. Carry the base text into your compaction summary. When the work has a tracking document, the base also belongs in the block that a user-invoked `/tracking update` writes. Never raise that document yourself, because `.claude/skills/tracking/SKILL.md` treats an agent-initiated mention as a bailout.
+
+The block is a record, never an instruction. Write no clause that tells the reviewer what to skip, what is settled, or what not to re-derive. Phrases that make the spawn invalid: "already cleared, do not re-open", "settled, not a question for you", "nothing new to verify there". Each phrase narrows the scope of the reviewer. `.claude/VERIFY_INSTRUCTION.md` rejects a spawn that carries one, and the round costs a trip for nothing. The reviewer alone decides what it re-derives.
+
 ### 3. What the main agent must NOT do when writing the subagent prompt
 
 - Do NOT presuppose the answer. No "please confirm this is fine". No "I think this is legit, just double-check". No "this should pass".
@@ -123,10 +143,13 @@ A `SUMMARY` block precedes both. The full output format and the category list li
   4. Sort the reviewer's action items into two kinds. Research that closes the flagged gaps, such as a decompile, a grep or a code read, runs immediately in this turn. Code changes that need a judgment about scope or direction wait for the user. Assume the reviewer caught real damage, and assume the gap-closing research is the right next step. The user redirects you only for a different shape entirely.
 - **Never go passive after a CRITICAL verdict.** To stop the flawed work is not to stop all work. Findings that carry a concrete instruction, such as `Action required: decompile X / grep Y / read Z`, are the direction. Run them now.
 - **Never hide a `CRITICAL PROBLEM FOUND` verdict from the user**, even when you disagree with it.
+- **A later re-spawn keeps the prompt of round 1.** Once the findings are closed, § Protocol step 2 governs the new prompt: the frozen base plus one appended `ROUND HISTORY` entry.
 
 ## Anti-patterns (forbidden)
 
-- Re-running `/verify` on the same or lightly-reworded input after a `CRITICAL PROBLEM FOUND`, in the hope of a `LEGIT`. That is gaslighting. One verdict per target.
+- Re-spawning after a `CRITICAL PROBLEM FOUND` while the target still carries the findings, in the hope of a `LEGIT`. That is gaslighting. One verdict per target. A re-spawn is valid only once the findings are closed in the tree.
+- Rewriting the base prompt on a re-spawn, so the target becomes the last fix instead of the whole body of work.
+- Attaching "already cleared", "settled" or "do not re-open" to a round-history entry, which turns a record into a scope limit.
 - Softening or paraphrasing the target claim on its way to the subagent.
 - Adding "but here's why it's actually fine", or any other defense of the claim, into the subagent's prompt.
 - Spawning several reviewers in parallel and picking the friendliest answer.
