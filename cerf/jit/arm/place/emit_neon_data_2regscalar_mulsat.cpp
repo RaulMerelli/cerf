@@ -4,7 +4,7 @@
 #include "../arm_neon_2regscalar.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 2-reg-and-scalar Saturating Doubling Multiply Long form
    (A8.8.371 VQDMLAL/VQDMLSL T2/A2). Signed only (U=0 fixed). */

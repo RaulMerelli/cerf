@@ -4,7 +4,7 @@
 #include "../arm_neon_scalar_move.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 static inline uint32_t ExtractLaneIndex(DecodedInsn* d, uint32_t esize) {
     const uint32_t opc1_lsb = d->cp_opc & 1u;

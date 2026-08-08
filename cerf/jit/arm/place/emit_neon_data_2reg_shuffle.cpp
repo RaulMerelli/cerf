@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_shuffle.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VTRN / VUZP / VZIP (A8.8.420 / A8.8.422 / A8.8.423) - A7.4.5 A=10,
    bits[10:7]=0001/0010/0011. */

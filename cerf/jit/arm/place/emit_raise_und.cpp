@@ -5,7 +5,7 @@
 #include "../arm_jit.h"
 #include "../arm_mmu.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 #include "../../../core/log.h"
 
 uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {

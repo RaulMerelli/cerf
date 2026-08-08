@@ -4,7 +4,7 @@
 #include "../arm_neon_2regscalar.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 2-reg-and-scalar Saturating Doubling Multiply Returning High Half
    (A8.8.372 VQDMULH / A8.8.376 VQRDMULH, T2/A2). Same-length output;

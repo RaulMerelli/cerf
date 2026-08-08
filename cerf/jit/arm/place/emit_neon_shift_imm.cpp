@@ -4,7 +4,7 @@
 #include "../arm_neon_shift_imm.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 2-reg-shift immediate (A7.4.4). L:imm6 (7 bits) determines esize and
    shift_amount per A8.8.398's case table. Decoder pre-filters L:imm6 ==

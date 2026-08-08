@@ -3,6 +3,7 @@
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../cpu/arm_processor_config.h"
+#include "arm_multiply_space_decoder.h"
 #include "arm_opcode.h"
 #include "cpu_state.h"
 #include "decoded_insn.h"
@@ -15,6 +16,7 @@ bool ArmDataprocSpaceDecoder::ShouldRegister() {
 }
 
 void ArmDataprocSpaceDecoder::OnReady() {
+    multiply_decoder_ = &emu_.Get<ArmMultiplySpaceDecoder>();
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
 }
 
@@ -28,13 +30,7 @@ bool ArmDataprocSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
     if (((op.word >> 25) & 0x1u) == 0u) {
         if (op2 == 0x9u) {
             if ((op1 & 0x10u) == 0u) {
-                /* DDI 0406C.c Table A5-7 (p. A5-202): op = insn[23:20];
-                   0101 and 0111 are UNDEFINED. */
-                const uint32_t mul = (op.word >> 20) & 0xFu;
-                if (mul == 0x5u || mul == 0x7u) {
-                    return false;
-                }
-                return MarkArmUnimplemented(insn, op.word);
+                return multiply_decoder_->Decode(insn, op);
             }
             return DecodeSyncSpace(insn, op);
         }
@@ -45,22 +41,19 @@ bool ArmDataprocSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
             if ((op2 & 0x8u) == 0u) {
                 return DecodeMiscSpace(insn, op);
             }
-            /* DDI 0406C.c Table A5-9 (p. A5-203), A5.2.7: "available in
-               ARMv5TE and above, and are UNDEFINED in earlier variants". */
-            if (!processor_config_->HasDsp()) {
-                return false;
-            }
-            return MarkArmUnimplemented(insn, op.word);
+            return multiply_decoder_->DecodeHalfword(insn, op);
         }
-        /* DDI 0406C.c Tables A5-3/A5-4 via Table A5-2 rows
-           "Data-processing (register / register-shifted register)". */
-        return MarkArmUnimplemented(insn, op.word);
+        /* DDI 0406C.c Table A5-2 (p. A5-196): op2 xxx0 selects
+           Data-processing (register), op2 0xx1 register-shifted
+           register. */
+        if ((op2 & 0x1u) == 0u) {
+            return DecodeDataProcessingReg(insn, op);
+        }
+        return DecodeDataProcessingShiftedReg(insn, op);
     }
 
     if (!misc_row) {
-        /* DDI 0406C.c Table A5-5 via Table A5-2 row
-           "Data-processing (immediate)". */
-        return MarkArmUnimplemented(insn, op.word);
+        return DecodeDataProcessingImm(insn, op);
     }
     if (op1 == 0x10u || op1 == 0x14u) {
         /* MOVW - DDI 0406C.c A8.8.102 encoding A2 (p. A8-484); MOVT -
@@ -79,6 +72,142 @@ bool ArmDataprocSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         return true;
     }
     return DecodeMsrImmHints(insn, op);
+}
+
+/* DDI 0406C.c Table A5-5 (p. A5-199): op = insn[24:20]; A5.2.4
+   (pp. A5-200/201): imm32 = imm8 ROR (2 * imm12<11:8>). MOV / MVN A1
+   (pp. A8-484 / A8-504): Rn is (0); TST A1 (p. A8-744, repeated for
+   TEQ / CMP / CMN): Rd is (0). */
+bool ArmDataprocSpaceDecoder::DecodeDataProcessingImm(DecodedInsn* insn,
+                                                      ArmOpcode    op) {
+    const uint32_t opcode = (op.word >> 21) & 0xFu;
+    const uint32_t s      = (op.word >> 20) & 0x1u;
+    const uint32_t rn     = (op.word >> 16) & 0xFu;
+    const uint32_t rd     = (op.word >> 12) & 0xFu;
+    const uint32_t rot2   = ((op.word >> 8) & 0xFu) * 2u;
+    const uint32_t imm8   =  op.word        & 0xFFu;
+    const uint32_t imm32  =
+        rot2 ? ((imm8 >> rot2) | (imm8 << (32u - rot2))) : imm8;
+
+    const bool is_test = opcode >= 8u && opcode <= 11u;
+    const bool is_move = opcode == 13u || opcode == 15u;
+    if (is_move && rn != 0u) {
+        return false;
+    }
+    if (is_test && rd != 0u) {
+        return false;
+    }
+
+    insn->op1       = opcode;
+    insn->s         = s;
+    insn->rn        = rn;
+    insn->rd        = rd;
+    insn->rs        = rot2;
+    insn->immediate = imm32;
+    if (rd == ArmGpr::kR15 && !is_test) {
+        insn->r15_modified = true;
+        if (s != 0u) {
+            insn->is_exception_return = true;
+        }
+    }
+    insn->place_fn = &PlaceDataProcessing;
+    return true;
+}
+
+/* DDI 0406C.c Table A5-3 (p. A5-197): op = insn[24:20], op2 = insn[6:5],
+   imm5 = insn[11:7]; (shift_t, shift_n) = DecodeImmShift(type, imm5) per
+   A8.4.3 (pp. A8-292/293). MOV / LSL / LSR / ASR / RRX / ROR / MVN A1
+   (pp. A8-488/468/472/330/572/568/506): Rn is (0); TST A1 (p. A8-746,
+   repeated for TEQ / CMP / CMN): Rd is (0). */
+bool ArmDataprocSpaceDecoder::DecodeDataProcessingReg(DecodedInsn* insn,
+                                                      ArmOpcode    op) {
+    const uint32_t opcode = (op.word >> 21) & 0xFu;
+    const uint32_t s      = (op.word >> 20) & 0x1u;
+    const uint32_t rn     = (op.word >> 16) & 0xFu;
+    const uint32_t rd     = (op.word >> 12) & 0xFu;
+    const uint32_t imm5   = (op.word >>  7) & 0x1Fu;
+    const uint32_t type   = (op.word >>  5) & 0x3u;
+    const uint32_t rm     =  op.word        & 0xFu;
+
+    const bool is_test = opcode >= 8u && opcode <= 11u;
+    const bool is_move = opcode == 13u || opcode == 15u;
+    if (is_move && rn != 0u) {
+        return false;
+    }
+    if (is_test && rd != 0u) {
+        return false;
+    }
+
+    uint32_t shift_t = type;
+    uint32_t shift_n = imm5;
+    if ((type == 1u || type == 2u) && imm5 == 0u) {
+        shift_n = 32u;
+    } else if (type == 3u && imm5 == 0u) {
+        shift_t = kSrRrx;
+        shift_n = 1u;
+    }
+
+    insn->op1 = opcode;
+    insn->s   = s;
+    insn->rn  = rn;
+    insn->rd  = rd;
+    insn->rm  = rm;
+    insn->n   = shift_t;
+    insn->rs  = shift_n;
+    if (rd == ArmGpr::kR15 && !is_test) {
+        insn->r15_modified = true;
+        if (s != 0u) {
+            insn->is_exception_return = true;
+        }
+    }
+    insn->place_fn = &PlaceDataProcessingReg;
+    return true;
+}
+
+/* DDI 0406C.c Table A5-4 (p. A5-198): op = insn[24:20], type = insn[6:5],
+   Rs = insn[11:8]; shift_t = DecodeRegShift(type), shift amount =
+   UInt(R[s]<7:0>) (A8.4.3 pp. A8-292/293). Every A1 encoding is
+   UNPREDICTABLE when any named register is 15 (A8.8.15 p. A8-328,
+   A8.8.3 p. A8-304, A8.8.242 p. A8-748, A8.8.117 p. A8-508, A8.8.95
+   p. A8-470); TST/TEQ/CMP/CMN A1: Rd is (0); MVN and the shift aliases
+   A1: Rn is (0). */
+bool ArmDataprocSpaceDecoder::DecodeDataProcessingShiftedReg(
+        DecodedInsn* insn, ArmOpcode op) {
+    const uint32_t opcode = (op.word >> 21) & 0xFu;
+    const uint32_t s      = (op.word >> 20) & 0x1u;
+    const uint32_t rn     = (op.word >> 16) & 0xFu;
+    const uint32_t rd     = (op.word >> 12) & 0xFu;
+    const uint32_t rs     = (op.word >>  8) & 0xFu;
+    const uint32_t type   = (op.word >>  5) & 0x3u;
+    const uint32_t rm     =  op.word        & 0xFu;
+
+    const bool is_test = opcode >= 8u && opcode <= 11u;
+    const bool is_move = opcode == 13u || opcode == 15u;
+    if (is_move && rn != 0u) {
+        return false;
+    }
+    if (is_test && rd != 0u) {
+        return false;
+    }
+    if (rm == ArmGpr::kR15 || rs == ArmGpr::kR15) {
+        return false;
+    }
+    if (!is_test && rd == ArmGpr::kR15) {
+        return false;
+    }
+    if (!is_move && rn == ArmGpr::kR15) {
+        return false;
+    }
+
+    insn->op1      = opcode;
+    insn->s        = s;
+    insn->rn       = rn;
+    insn->rd       = rd;
+    insn->rm       = rm;
+    insn->rs       = rs;
+    insn->n        = type;
+    insn->place_fn = &PlaceDataProcessingShiftedReg;
+    return true;
 }
 
 /* DDI 0406C.c Table A5-14 (p. A5-207): op2 = insn[6:4], B = insn[9],
@@ -158,13 +287,32 @@ bool ArmDataprocSpaceDecoder::DecodeMiscSpace(DecodedInsn* insn, ArmOpcode op) {
             return true;
         }
         return false;
-    case 5u:
+    case 5u: {
         /* DDI 0406C.c Table A5-8 (p. A5-202), A5.2.6: "available in
-           ARMv5TE and above, and are UNDEFINED in earlier variants". */
+           ARMv5TE and above, and are UNDEFINED in earlier variants".
+           A1 encodings (QADD p. A8-540, QSUB A8-554, QDADD A8-548,
+           QDSUB A8-550): Rn = insn[19:16], Rd = insn[15:12],
+           insn[11:8] is (0), Rm = insn[3:0]; d / n / m == 15
+           UNPREDICTABLE. */
         if (!processor_config_->HasDsp()) {
             return false;
         }
-        return MarkArmUnimplemented(insn, op.word);
+        if (((op.word >> 8) & 0xFu) != 0u) {
+            return false;
+        }
+        const uint32_t rn = (op.word >> 16) & 0xFu;
+        const uint32_t rd = (op.word >> 12) & 0xFu;
+        const uint32_t rm =  op.word        & 0xFu;
+        if (rn == ArmGpr::kR15 || rd == ArmGpr::kR15 || rm == ArmGpr::kR15) {
+            return false;
+        }
+        insn->op1      = mop;
+        insn->rn       = rn;
+        insn->rd       = rd;
+        insn->rm       = rm;
+        insn->place_fn = &PlaceSaturatingArith;
+        return true;
+    }
     case 7u:
         if (mop == 1u) {
             /* BKPT - DDI 0406C.c A8.8.24 (p. A8-346). */

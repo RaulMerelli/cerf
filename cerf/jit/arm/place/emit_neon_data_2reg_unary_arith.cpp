@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_unary_arith.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VABS / VNEG (A8.8.280 / A8.8.355) - A7.4.5 A=01, bits[9:7]=110/111.
    bit[10]=F selects integer (0) vs .F32 (1). bit[6]=Q selects D vs Q form. */

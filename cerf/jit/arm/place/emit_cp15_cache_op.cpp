@@ -5,7 +5,7 @@
 #include "../arm_jit.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ARM ARM DDI 0406C.c Figure B3-32 (p. B3-1475) ARMv7; Table D12-8
    (pp. D12-2533/2534) ARMv6; Table D15-22 (pp. D15-2629/2630) ARMv4/v5.

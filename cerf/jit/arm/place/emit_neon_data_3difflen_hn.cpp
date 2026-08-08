@@ -4,7 +4,7 @@
 #include "../arm_neon_3difflen.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-different-length "narrow returning high half" family
    (A8.8.284/416/383/394). Inputs are two Q-regs; output is one D-reg. */

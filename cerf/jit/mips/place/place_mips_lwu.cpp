@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* LWU rt, offset(rs): rt = zero_extend64(mem[gpr[rs] + sext(imm16)][31:0]).
    (QEMU translate.c OPC_LWU: MO_UL.) LoadWordHelper returns the word in EAX;

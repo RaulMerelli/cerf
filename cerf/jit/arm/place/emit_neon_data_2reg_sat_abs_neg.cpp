@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_sat_abs_neg.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VQABS / VQNEG (A8.8.369 / A8.8.375) - A7.4.5 A=00, bits[10:7]=1110/1111. */
 uint8_t* PlaceNeonData2RegSatAbsNeg(uint8_t*      cursor,

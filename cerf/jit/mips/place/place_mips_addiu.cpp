@@ -1,7 +1,7 @@
 #include "../mips_place_fns.h"
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ADDIU rt, rs, imm : rt = sign_extend_32(rs[31:0] + sign_extend(imm16)). No
    overflow trap; the 32-bit result is sign-extended into the full register. */

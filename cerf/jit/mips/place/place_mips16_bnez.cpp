@@ -5,7 +5,7 @@
 
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* MIPS16 BNEZ rx / BTNEZ (T=$24) (U15509EJ2V0UM Table 3-19 p83): taken iff
    the 64-bit gpr[rs] != 0; no delay slot (ibid. + 3.8.3 p70). */

@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_pairwise_add_long.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VPADDL / VPADAL (A8.8.364 / A8.8.361) - A7.4.5 A=00, bits[10:8]=010/110. */
 uint8_t* PlaceNeonData2RegPairwiseAddLong(uint8_t*      cursor,

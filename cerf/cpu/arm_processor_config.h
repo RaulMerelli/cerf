@@ -65,6 +65,7 @@ public:
        ARMv4 and ARMv4T." */
     virtual bool     HasArmv5UnconditionalSpace() const { return false; }
 
+    virtual bool     HasMls()                     const { return false; }
     virtual bool     HasMovwMovt()                const { return false; }
     virtual bool     HasBitField()                const { return false; }
     virtual bool     HasRev()                     const { return false; }

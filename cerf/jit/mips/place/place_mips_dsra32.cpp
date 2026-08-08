@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DSRA32 rd, rt, sa : rd = (int64)gpr[rt] >> (sa + 32), arithmetic -> rd.lo =
    (int32)rt.hi >> sa, rd.hi = sign-extension. (QEMU translate.c gen_shift_imm

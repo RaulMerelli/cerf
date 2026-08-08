@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VLD1 / VST1 (multiple single elements), DDI0406C A8.8.320 / A8.8.404.
    Decoder packs: rn=Rn, rm=Rm, crn=Vd, n=D, l=L(1=load), op1=type,

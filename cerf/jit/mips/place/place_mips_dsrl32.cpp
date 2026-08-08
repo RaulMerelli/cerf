@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DSRL32 rd, rt, sa : rd = rt >> (sa + 32), logical, full 64-bit -> rd.lo =
    rt.hi >> sa, rd.hi = 0. (QEMU translate.c gen_shift_imm OPC_DSRL32.) The R bit

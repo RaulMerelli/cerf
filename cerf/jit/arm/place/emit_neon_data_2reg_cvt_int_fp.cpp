@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_cvt_int_fp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VCVT int↔fp Advanced SIMD (A8.8.305) - A7.4.5 A=11, bits[10:9]=11,
    bits[8:7]=op. */

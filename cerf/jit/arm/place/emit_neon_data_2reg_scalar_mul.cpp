@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_scalar_mul.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMLA / VMLS / VMUL by scalar T1/A1 (A8.8.338 / A8.8.352).
    bit[24]=Q D/Q form. bit[8]=F integer/.F32. */

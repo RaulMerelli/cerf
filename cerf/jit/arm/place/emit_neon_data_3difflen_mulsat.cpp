@@ -4,7 +4,7 @@
 #include "../arm_neon_3difflen.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-different-length Saturating Doubling Multiply Long family
    (A8.8.371 VQDMLAL/VQDMLSL T1/A1, A8.8.373 VQDMULL T1/A1). D op D -> Q,

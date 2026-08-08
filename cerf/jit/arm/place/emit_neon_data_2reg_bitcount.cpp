@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_bitcount.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VCLS / VCLZ / VCNT (A8.8.299 / A8.8.302 / A8.8.304). */
 uint8_t* PlaceNeonData2RegBitcount(uint8_t*      cursor,

@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-same accumulate ops: d = f(d_old, n*m). Encoding (VMLA/VMLS,
    A8.8.336): opc=1001, C=0, bit24=op (MLA=0/MLS=1); op selector in

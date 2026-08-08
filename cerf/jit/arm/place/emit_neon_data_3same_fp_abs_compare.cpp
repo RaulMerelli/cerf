@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_abs_compare.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VACGE / VACGT - A8.8.281, opc=1110 C=1 U=1. bit[21]=op selects
    ACGE (0) / ACGT (1). */

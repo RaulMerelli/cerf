@@ -1,7 +1,7 @@
 #include "../mips_place_fns.h"
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ORI rt, rs, imm : rt = rs | zero_extend(imm16), full 64-bit. The immediate
    only touches the low bits; rs's high word passes through, so it is copied

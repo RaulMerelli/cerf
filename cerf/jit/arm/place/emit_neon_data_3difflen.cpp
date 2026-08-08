@@ -4,7 +4,7 @@
 #include "../arm_neon_3difflen.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-different-length data-proc (A7.4.2). Decoder stashes the raw word
    in d->immediate and the op selector (ArmNeon3DiffLen::kDl*) in d->op1. */

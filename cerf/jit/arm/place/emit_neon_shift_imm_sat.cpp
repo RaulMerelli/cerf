@@ -4,7 +4,7 @@
 #include "../arm_neon_sat.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VQSHL imm / VQSHLU (A8.8.380): saturating shift left by immediate.
    Same L:imm6 case table as VSHL imm (left-shift formula, range

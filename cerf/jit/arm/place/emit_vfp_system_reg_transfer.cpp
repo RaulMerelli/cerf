@@ -6,7 +6,7 @@
 #include "../arm_jit.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMRS / VMSR - VFP system-register move. Encoding: cp_num=10,
    cp_opc=7, CRm=0, opc2=0; CRn selects which VFP system register.

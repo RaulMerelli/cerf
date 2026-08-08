@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_compare.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VCEQ.F32 / VCGE.F32 / VCGT.F32 (register) - A8.8.291 / A8.8.293 / A8.8.295,
    opc=1110 C=0. (u, bit[21]) selects EQ / GE / GT (decoded upstream). */

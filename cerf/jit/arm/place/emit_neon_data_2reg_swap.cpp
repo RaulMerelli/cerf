@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_swap.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VSWP (A8.8.418) - A7.4.5 A=10, bits[10:7]=0000. */
 uint8_t* PlaceNeonData2RegSwap(uint8_t*      cursor,

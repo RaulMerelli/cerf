@@ -21,6 +21,11 @@ public:
         if (d->cp_num == 15) {
             return EmitCp15RegisterTransfer(cursor, d, ctx);
         }
+        /* S3C2410A UM p. 2-1: ARM920T CP14 is the debug communications
+           channel, "accessible with MCR and MRC instructions". */
+        if (d->cp_num == 14) {
+            return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+        }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 

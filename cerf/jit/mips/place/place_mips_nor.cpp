@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* NOR rd, rs, rt : rd = ~(rs | rt), full 64-bit (both halves). Compute rs|rt
    via the shared bitwise helper, then NOT each half in place (NOT r/m32 =

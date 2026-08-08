@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_mul_acc.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMLA.F32 / VMLS.F32 (A8.8.337) - A7.4.1 opc=1101, B=1, U=0. */
 uint8_t* PlaceNeonData3SameFpMulAcc(uint8_t*      cursor,

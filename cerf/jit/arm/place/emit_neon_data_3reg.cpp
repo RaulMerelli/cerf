@@ -4,7 +4,7 @@
 #include "../arm_neon_simd_3same.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-registers-same-length integer/logical data-proc (A7.4.1), e.g. VADD
    (A8.8.282) / VSUB (A8.8.414). Decoder stashes the raw word in

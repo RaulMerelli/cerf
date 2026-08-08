@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DADDI rt, rs, imm16 : rt = rs + sext64(imm16), 64-bit; a signed 64-bit overflow
    raises Integer Overflow and writes nothing (QEMU gen_arith_imm OPC_DADDI). The

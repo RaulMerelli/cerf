@@ -4,7 +4,7 @@
 #include "../arm_neon_sat.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-same saturating ops (A8.8.370 VQADD, A8.8.382 VQSUB). All sizes
    valid (incl. I64); the saturating handler sets FPSCR.QC. */

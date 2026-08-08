@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_cvt_half_single.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VCVT half↔single Advanced SIMD (A8.8.310) - A7.4.5 A=10, bits[10:7]=11x0
    with bit[6]=0. bit[8]=op selects direction (0=single→half, 1=half→single). */

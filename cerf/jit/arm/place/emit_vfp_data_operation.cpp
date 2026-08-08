@@ -5,7 +5,7 @@
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 uint8_t* EmitVfpDataOperation(uint8_t*      cursor,
                               DecodedInsn*  d,

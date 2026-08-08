@@ -2,6 +2,7 @@
 
 #include "../../core/service.h"
 
+class ArmMultiplySpaceDecoder;
 class ArmProcessorConfig;
 struct DecodedInsn;
 union  ArmOpcode;
@@ -19,11 +20,15 @@ public:
     bool Decode(DecodedInsn* insn, ArmOpcode op);
 
 private:
+    bool DecodeDataProcessingImm(DecodedInsn* insn, ArmOpcode op);
+    bool DecodeDataProcessingReg(DecodedInsn* insn, ArmOpcode op);
+    bool DecodeDataProcessingShiftedReg(DecodedInsn* insn, ArmOpcode op);
     bool DecodeMiscSpace(DecodedInsn* insn, ArmOpcode op);
     bool DecodeSyncSpace(DecodedInsn* insn, ArmOpcode op);
     bool DecodeLdrexStrex(DecodedInsn* insn, ArmOpcode op);
     bool DecodeExtraLoadStore(DecodedInsn* insn, ArmOpcode op);
     bool DecodeMsrImmHints(DecodedInsn* insn, ArmOpcode op);
 
-    ArmProcessorConfig* processor_config_ = nullptr;
+    ArmMultiplySpaceDecoder* multiply_decoder_ = nullptr;
+    ArmProcessorConfig*      processor_config_ = nullptr;
 };

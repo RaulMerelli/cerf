@@ -4,7 +4,7 @@
 #include "../arm_neon_shift_imm.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* Widening left shift family: VSHLL T1/A1 (A8.8.397). `esize` is the
    INPUT element size; output is a Q register with 2*esize elements. */

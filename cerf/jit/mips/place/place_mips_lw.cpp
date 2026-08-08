@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* LW rt, offset(rs): rt = sext64(mem[gpr[rs] + sext(imm16)][31:0]). The load
    runs even when rt==0 - its translate / fault / MMIO side effects are

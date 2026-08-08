@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_fma.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VFMA / VFMS - A8.8.317 Advanced SIMD T1/A1, opc=1100 C=1 U=0. */
 uint8_t* PlaceNeonData3SameFpFma(uint8_t*      cursor,

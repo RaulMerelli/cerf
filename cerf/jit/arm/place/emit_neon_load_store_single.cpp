@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VLD1/2/3/4 + VST1/2/3/4 (single element to one lane), DDI0406C
    A8.8.321/324/327/330 (load), A8.8.405/407/409/411 (store). Decoder

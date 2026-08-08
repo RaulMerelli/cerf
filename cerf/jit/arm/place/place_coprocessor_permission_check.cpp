@@ -6,7 +6,7 @@
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* Coproc_Accepted() - ARM DDI 0406C.c A8.7.1 (pp. A8-295/A8-296); cp10/cp11
    access controls - B1.11.1 (p. B1-1229). */

@@ -4,7 +4,7 @@
 #include "../arm_neon_vext.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VEXT - A8.8.316, U=0, bit23=1, bits[21:20]=11, bit[4]=0. */
 uint8_t* PlaceNeonDataVext(uint8_t*      cursor,

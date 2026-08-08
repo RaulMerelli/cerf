@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* LBU rt, offset(rs): rt = zero_extend64(mem[gpr[rs] + sext(imm16)][7:0]).
    LoadByteHelper returns the byte zero-extended in EAX; LBU keeps it zero-

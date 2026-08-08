@@ -29,6 +29,7 @@ public:
     bool     HasLoadToPcInterworking()     const override { return true; }
     bool     HasDataProcToPcInterworking() const override { return true; }
 
+    bool     HasMls()                     const override { return true; }
     bool     HasMovwMovt()                const override { return true; }
     bool     HasBitField()                const override { return true; }
     bool     HasRev()                     const override { return true; }

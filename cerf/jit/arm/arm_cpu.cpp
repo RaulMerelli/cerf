@@ -259,6 +259,10 @@ void __cdecl ArmCpu::RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_p
     cpu->RaiseUndefinedException(guest_pc);
 }
 
+void __cdecl ArmCpu::RaiseSwiExceptionHelper(ArmCpu* cpu, uint32_t guest_pc) {
+    cpu->RaiseSwiException(guest_pc);
+}
+
 /* ARM ARM DDI 0406C.c B1.3.3, p. B1-1148: condition flags N[31] Z[30] C[29]
    V[28]. */
 void __cdecl ArmCpu::UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source) {

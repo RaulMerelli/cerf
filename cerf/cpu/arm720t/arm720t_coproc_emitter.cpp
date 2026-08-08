@@ -21,18 +21,33 @@ public:
         if (d->cp_num == 15) {
             return EmitCp15RegisterTransfer(cursor, d, ctx);
         }
+        /* ARM720T TRM (DDI 0229C) §8.1.1 + Table 8-1: CP14 is the
+           communications channel / debug controller coprocessor. */
+        if (d->cp_num == 14) {
+            return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+        }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
     uint8_t* EmitDataTransfer(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) override {
+        /* ARM720T TRM (DDI 0229C) §8.1.1 + Table 8-1: CP14 is the
+           communications channel / debug controller coprocessor. */
+        if (d->cp_num == 14) {
+            return EmitCoprocDataTransferUnimplementedFatal(cursor, d, ctx);
+        }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
     uint8_t* EmitDataOperation(uint8_t*      cursor,
                                DecodedInsn*  d,
                                BlockContext* ctx) override {
+        /* ARM720T TRM (DDI 0229C) §8.1.1 + Table 8-1: CP14 is the
+           communications channel / debug controller coprocessor. */
+        if (d->cp_num == 14) {
+            return EmitCoprocDataOperationUnimplementedFatal(cursor, d, ctx);
+        }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 };

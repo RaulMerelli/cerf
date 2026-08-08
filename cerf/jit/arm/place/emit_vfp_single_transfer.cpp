@@ -4,7 +4,7 @@
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VLDR / VSTR - single-register VFP load/store. Encoding form
    P=1, W=0; cp_num=10 SP, cp_num=11 DP. Per
