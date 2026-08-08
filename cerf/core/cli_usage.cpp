@@ -4,8 +4,7 @@
 #include <cstdio>
 
 void PrintUsage(const char* prog) {
-    printf("CE Runtime Foundation (CERF) - Windows CE virtual platform\n");
-    printf("Boots unmodified Windows CE / Mobile / Phone ROMs on x64 Windows.\n\n");
+    printf("CE Runtime Foundation (CERF) - Universal Windows CE Emulator\n\n");
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");
     printf("  --device=NAME            Bundle to boot (default from cerf.json)\n");
