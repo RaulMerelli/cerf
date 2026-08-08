@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* LD rt, offset(rs): rt = mem[gpr[rs] + sext(imm16)] (full 64-bit).
    LoadDwordHelper returns the value in EDX:EAX; the load runs even when rt==0

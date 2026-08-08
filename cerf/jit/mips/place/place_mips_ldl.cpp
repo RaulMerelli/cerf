@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* LDL rt, offset(rs): unaligned load-doubleword-left (64-bit). LdlHelper does the
    merge; the register index is passed (the helper reads and writes gpr[rt]).

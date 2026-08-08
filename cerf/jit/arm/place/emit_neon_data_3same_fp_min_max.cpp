@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_min_max.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMAX.F32 / VMIN.F32 (A8.8.335) - A7.4.1 opc=1111, B=0, U=0. */
 uint8_t* PlaceNeonData3SameFpMinMax(uint8_t*      cursor,

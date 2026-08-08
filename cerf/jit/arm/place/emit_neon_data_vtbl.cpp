@@ -4,7 +4,7 @@
 #include "../arm_neon_vtbl.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VTBL / VTBX - A8.8.419, U=1, bit23=1, bits[21:20]=11, bits[11:10]=10,
    bit[4]=0. Routed from NeonUnconditionalDecoder. */

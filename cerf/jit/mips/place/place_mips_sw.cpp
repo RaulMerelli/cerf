@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* SW rt, offset(rs): mem[gpr[rs] + sext(imm16)][31:0] = gpr[rt][31:0], 32-bit
    addressing. No r0 guard (unlike GPR-writing place fns): r0 reads as 0, so

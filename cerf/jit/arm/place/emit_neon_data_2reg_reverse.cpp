@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_reverse.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VREV16/VREV32/VREV64 (A8.8.386). bit[6]=Q selects D vs Q form. */
 uint8_t* PlaceNeonData2RegReverse(uint8_t*      cursor,

@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* SDR rt, offset(rs): unaligned store-doubleword-right. SdrHelper does the
    byte-wise store; the register index is passed (not the 64-bit value). */

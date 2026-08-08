@@ -5,7 +5,7 @@
 
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* MULT rs, rt : 64-bit signed product of rs[31:0] * rt[31:0]; LO = sext32 of the
    low word, HI = sext32 of the high word (QEMU translate.c gen_muldiv OPC_MULT

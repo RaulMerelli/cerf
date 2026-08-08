@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* SLTU rd, rs, rt : rd = (rs < rt) unsigned, 64-bit ? 1 : 0. The borrow (CF)
    left by a 64-bit subtract (SUB low, SBB high) IS the unsigned less-than;

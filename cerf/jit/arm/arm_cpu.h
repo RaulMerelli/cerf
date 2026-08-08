@@ -38,6 +38,7 @@ public:
     void RaiseResetException();
 
     static void __cdecl RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
+    static void __cdecl RaiseSwiExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
     static void __cdecl UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source);
 
     static void __cdecl WriteCpsrByInstrHelper(ArmCpu* cpu, uint32_t value,

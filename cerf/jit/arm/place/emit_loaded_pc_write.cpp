@@ -4,9 +4,9 @@
 #include "../arm_jit.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
-/* LoadWritePC (DDI 0406C.c A2.3.2, p. A2-47): BXWritePC from ARMv5 on,
+/* LoadWritePC (DDI 0406C.c A2.3.2, p. A2-48): BXWritePC from ARMv5 on,
    else BranchWritePC. In: the loaded value in EAX. */
 uint8_t* EmitLoadedPcWrite(uint8_t* cursor, DecodedInsn* d,
                            BlockContext* ctx) {

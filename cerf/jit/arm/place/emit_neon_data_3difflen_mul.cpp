@@ -4,7 +4,7 @@
 #include "../arm_neon_3difflen.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-different-length Multiply Long family
    (A8.8.336 VMLAL/VMLSL T2/A2, A8.8.350 VMULL T2/A2). D op D -> Q. */

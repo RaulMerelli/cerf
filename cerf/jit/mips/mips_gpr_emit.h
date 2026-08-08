@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include "mips_cpu_state.h"
-#include "../x86_emit.h"
+#include "../x86_emit_alu.h"
 
 /* 64-bit GPR access for MIPS place fns: each register is two dwords (low at
    base, high at base+4). ESI = MipsCpuState*; EAX/ECX/EDX scratch. */

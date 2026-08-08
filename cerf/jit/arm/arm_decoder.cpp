@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../cpu/arm_processor_config.h"
 #include "arm_branch_block_space_decoder.h"
+#include "arm_coproc_space_decoder.h"
 #include "arm_dataproc_space_decoder.h"
 #include "arm_media_space_decoder.h"
 #include "arm_opcode.h"
@@ -21,6 +22,7 @@ bool ArmDecoder::ShouldRegister() {
 void ArmDecoder::OnReady() {
     processor_config_      = &emu_.Get<ArmProcessorConfig>();
     branch_block_decoder_  = &emu_.Get<ArmBranchBlockSpaceDecoder>();
+    coproc_decoder_        = &emu_.Get<ArmCoprocSpaceDecoder>();
     dataproc_decoder_      = &emu_.Get<ArmDataprocSpaceDecoder>();
     media_decoder_         = &emu_.Get<ArmMediaSpaceDecoder>();
     single_data_decoder_   = &emu_.Get<ArmSingleDataSpaceDecoder>();
@@ -62,13 +64,8 @@ bool ArmDecoder::DecodeArm(DecodedInsn* insn, ArmOpcode op) {
     case 5u:
         /* DDI 0406C.c Table A5-21, p. A5-214. */
         return branch_block_decoder_->Decode(insn, op);
-    default: {
-        /* DDI 0406C.c Table A5-22 (p. A5-215): the op1 = insn[25:20]
-           row 00000x is UNDEFINED. */
-        if (((op.word >> 20) & 0x3Eu) == 0u) {
-            return false;
-        }
-        return MarkArmUnimplemented(insn, op.word);
-    }
+    default:
+        /* DDI 0406C.c Table A5-22, p. A5-215. */
+        return coproc_decoder_->Decode(insn, op);
     }
 }

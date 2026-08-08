@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_narrow.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMOVN / VQMOVUN / VQMOVN.S / VQMOVN.U (A8.8.347 / A8.8.374) - A7.4.5
    A=10, bits[10:8]=010 with op at bits[7:6] selecting the variant. */

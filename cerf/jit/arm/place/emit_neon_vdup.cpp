@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VDUP (ARM core register), DDI0406C A8.8.314, decoded as a cp11
    register transfer (Table A7-22): cp_opc = 1:B:Q, cp = D:0:E,

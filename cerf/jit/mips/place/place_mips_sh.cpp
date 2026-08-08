@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* SH rt, offset(rs): mem[EA][15:0] = gpr[rt][15:0] (EA must be 2-aligned). No r0
    guard (gpr[0] reads 0, so SH $zero stores 0). */

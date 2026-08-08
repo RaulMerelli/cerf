@@ -4,7 +4,7 @@
 #include "../arm_neon_one_reg_imm.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 namespace {
 

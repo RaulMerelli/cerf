@@ -26,6 +26,11 @@ public:
         if (d->cp_num == 10 || d->cp_num == 11) {
             return EmitVfpRegisterTransfer(cursor, d, ctx);
         }
+        /* CP14 is the Cortex-A8 debug control coprocessor (DDI 0344
+           §1.3.2, Chapter 12 Debug). */
+        if (d->cp_num == 14) {
+            return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+        }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
@@ -34,6 +39,11 @@ public:
                               BlockContext* ctx) override {
         if (d->cp_num == 10 || d->cp_num == 11) {
             return EmitVfpDataTransfer(cursor, d, ctx);
+        }
+        /* CP14 is the Cortex-A8 debug control coprocessor (DDI 0344
+           §1.3.2, Chapter 12 Debug). */
+        if (d->cp_num == 14) {
+            return EmitCoprocDataTransferUnimplementedFatal(cursor, d, ctx);
         }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

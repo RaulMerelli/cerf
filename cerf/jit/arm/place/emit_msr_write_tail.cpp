@@ -6,7 +6,7 @@
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 #include "../../../cpu/arm_processor_config.h"
 
 /* ARM DDI 0406C.c B9.3.8 (p. B9-1990), B9.3.11 (p. B9-1996), B9.3.12

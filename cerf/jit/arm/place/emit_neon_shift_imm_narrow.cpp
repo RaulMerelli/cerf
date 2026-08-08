@@ -4,7 +4,7 @@
 #include "../arm_neon_shift_imm.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* Narrowing right shift family: VSHRN (A8.8.399) truncating, VRSHRN
    (A8.8.390) rounding. `esize` is the OUTPUT size; source is 2*esize. */

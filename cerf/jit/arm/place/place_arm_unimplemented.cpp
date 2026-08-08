@@ -8,8 +8,7 @@ namespace {
 
 [[noreturn]] void ArmUnimplementedFatalHelper(uint32_t pc, uint32_t opcode) {
     LOG(Jit, "FATAL: unimplemented ARM instruction 0x%08X executed at guest "
-             "pc=0x%08X. Implement its decode/place path before lifting "
-             "this.\n",
+             "pc=0x%08X\n",
         opcode, pc);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }

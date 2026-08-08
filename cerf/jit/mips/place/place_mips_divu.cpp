@@ -5,7 +5,7 @@
 
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DIVU rs, rt : LO/HI = sext32 of the unsigned quotient/remainder of rs[31:0] by
    rt[31:0]. A zero divisor would trap the host DIV (#DE); MIPS leaves the result

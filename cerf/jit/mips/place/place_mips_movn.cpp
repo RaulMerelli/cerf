@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* MOVN rd, rs, rt : if gpr[rt] != 0 then rd = rs, full 64-bit (no sign-extension);
    rd==0 is a NOP. (QEMU translate.c gen_cond_move OPC_MOVN - twin of MOVZ with the

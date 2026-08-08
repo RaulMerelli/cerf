@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DADDIU rt, rs, imm : rt = rs + sext64(imm16), full 64-bit, no overflow trap.
    64-bit add on a 32-bit host: the low add sets CF, the MOVs preserve it, and

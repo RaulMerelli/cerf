@@ -8,7 +8,7 @@
 #include "../arm_tlb_ops.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 namespace {
 

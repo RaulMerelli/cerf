@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* SLT rd, rs, rt : rd = (int64)rs < (int64)rt ? 1 : 0. SUB low / SBB high leaves
    SF/OF on the high SBB = the 64-bit signed compare; SETL (SF!=OF) captures it

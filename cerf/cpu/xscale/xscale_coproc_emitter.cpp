@@ -11,7 +11,7 @@
 #include "../../jit/arm/arm_mmu_state.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../jit/arm/place_fns.h"
-#include "../../jit/x86_emit.h"
+#include "../../jit/x86_emit_alu.h"
 #include "../../boards/board_context.h"
 
 namespace {
@@ -155,13 +155,7 @@ public:
 
         const uint32_t rdlo = d->crd;       /* RdLo (bits[15:12]) */
         const uint32_t rdhi = d->rn;        /* RdHi (bits[19:16]) */
-        const bool to_arm   = d->x1 != 0u;  /* L=1 → MRRC = MRA (read acc0) */
-
-        /* Writing R15 bypasses the JIT branch-resolve; on MRA a shared
-           RdLo/RdHi register makes the result unpredictable. */
-        if (rdlo == 15u || rdhi == 15u || (to_arm && rdlo == rdhi)) {
-            return EmitRaiseUndAndReturn(cursor, d, ctx);
-        }
+        const bool to_arm   = d->l != 0u;   /* L=1 → MRRC = MRA (read acc0) */
 
         /* XScale Core Dev Manual §7.2.15 (page 94): an access to CP0 with
            CPAR bit 0 clear raises an undefined exception; the OS grants the

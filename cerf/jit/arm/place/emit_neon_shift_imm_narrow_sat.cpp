@@ -4,7 +4,7 @@
 #include "../arm_neon_sat.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* Saturating narrowing right shift (A8.8.381 VQSHRN/VQSHRUN truncating,
    A8.8.378 VQRSHRN/VQRSHRUN rounding). `esize` is the OUTPUT size;

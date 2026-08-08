@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VLD2/3/4 + VST2/3/4 (multiple N-element structures, de-interleaved),
    DDI0406C A8.8.323/326/329 (load), A8.8.406/408/410 (store). Decoder

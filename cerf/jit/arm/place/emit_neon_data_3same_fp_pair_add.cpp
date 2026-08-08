@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_pair_add.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VPADD (floating-point) - A8.8.363, opc=1101 C=0 U=1 bit[21]=0. */
 uint8_t* PlaceNeonData3SameFpPairAdd(uint8_t*      cursor,

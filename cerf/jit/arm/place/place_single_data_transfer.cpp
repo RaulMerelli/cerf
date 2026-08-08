@@ -8,7 +8,7 @@
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 namespace {
 
@@ -240,7 +240,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         }
     } else {
         if (d->rd == 15u) {
-            /* PCStoreValue (A2.3.2, p. A2-46): the stored value is the
+            /* PCStoreValue (A2.3.2, p. A2-47): the stored value is the
                instruction address plus 8 or plus 12 per the core. */
             EmitMovRegImm32(cursor, kEdx,
                 d->guest_address + config->PcStoreOffset());

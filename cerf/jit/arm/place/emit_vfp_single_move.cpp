@@ -5,7 +5,7 @@
 #include "../arm_jit.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* Move between ARM core register d->rd and VFP single register index `sn`,
    d->l selects direction. Rt=R15 on a read does the FMRS/VMRS NZCV-to-APSR

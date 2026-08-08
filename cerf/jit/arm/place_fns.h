@@ -7,13 +7,25 @@
 
 enum class TlbAccess { kRead, kWrite, kReadWrite };
 
+/* DDI 0406C.c A8.4.3 (p. A8-293): Shift_C(amount == 0) returns carry_in,
+   else the shifter carry-out; A5.2.4 (p. A5-200): the immediate form's
+   carry-out is a translate-time constant. */
+enum class DpLogicalCarry { kUnchanged, kSetImm, kClearImm, kFromDl };
+
 uint8_t* EmitAbortDataTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitArmInterworkingFullEax(uint8_t* cursor);
 uint8_t* EmitArmInterworkingMaskEax(uint8_t* cursor);
+uint8_t* EmitCoprocDataOperationUnimplementedFatal(uint8_t* cursor, DecodedInsn* d,
+                                                   BlockContext* ctx);
+uint8_t* EmitCoprocDataTransferUnimplementedFatal(uint8_t* cursor, DecodedInsn* d,
+                                                  BlockContext* ctx);
 uint8_t* EmitCoprocUnimplementedFatal(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15RegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* EmitDpArithFlagTail(uint8_t* cursor, DecodedInsn* d);
+uint8_t* EmitDpLogicalFlagTail(uint8_t* cursor, DpLogicalCarry carry);
+uint8_t* EmitDpPcWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitHalfwordSignedTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitLoadedPcWrite(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -49,13 +61,17 @@ uint8_t* PlaceCoprocDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* 
 uint8_t* PlaceCoprocExtension(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocRegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocessorPermissionCheck(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
-uint8_t* PlaceIllegalCoproc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceDataProcessing(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceDataProcessingReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceDataProcessingShiftedReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceHalfwordMultiply(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceLdrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceLoadStoreExtension(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceMRSorMSR(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceMSRImmediate(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceMovt(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceMovw(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceMultiply(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonData2RegBitcount(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonData2RegBitwiseNot(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonData2RegCompareZero(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -110,10 +126,12 @@ uint8_t* PlaceRev(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRev16(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRevsh(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceSaturatingArith(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSbfx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSingleDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSrs(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceStrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceSvc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxth(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceUbfx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);

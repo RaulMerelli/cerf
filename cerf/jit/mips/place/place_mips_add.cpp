@@ -5,7 +5,7 @@
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
 #include "../mips_jit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ADD rd, rs, rt : rd = sext32(rs[31:0] + rt[31:0]); a signed 32-bit overflow
    raises Integer Overflow and writes nothing (the only difference from ADDU). */

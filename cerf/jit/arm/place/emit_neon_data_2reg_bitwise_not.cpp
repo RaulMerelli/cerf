@@ -4,7 +4,7 @@
 #include "../arm_neon_2reg_bitwise_not.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VMVN (register) - A8.8.354. */
 uint8_t* PlaceNeonData2RegBitwiseNot(uint8_t*      cursor,

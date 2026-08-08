@@ -4,7 +4,7 @@
 #include "../arm_neon_shift_imm.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VSHLL T2/A2 (A8.8.397, line 50311 "Or TRUE without change of functionality"
    - routed through kSiShllS, sign-extension is bit-equivalent at shift=esize). */

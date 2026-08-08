@@ -4,7 +4,7 @@
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* 3-reg-same pairwise (A8.8.362 VPADD, A8.8.365 VPMAX/VPMIN). Q==1 is
    UNDEFINED (doubleword only); size==11 is UNDEFINED. */

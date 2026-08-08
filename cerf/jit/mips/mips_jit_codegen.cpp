@@ -5,7 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../tracing/trace_manager.h"
-#include "../x86_emit.h"
+#include "../x86_emit_alu.h"
 
 size_t MipsJit::JitGenerateCode(uint8_t* code_location, int /* entrypoint_count */) {
     using namespace x86;

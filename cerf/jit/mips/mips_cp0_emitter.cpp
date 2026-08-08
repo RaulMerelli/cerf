@@ -10,7 +10,7 @@
 #include "mips_gpr_emit.h"
 #include "mips_jit.h"
 #include "mips_place_fns.h"
-#include "../x86_emit.h"
+#include "../x86_emit_alu.h"
 
 namespace {
 

@@ -5,7 +5,7 @@
 #include "../arm_mmu_state.h"
 #include "../block_context.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* In: ECX = guest EA. Out: EAX = host pointer (null fault from the helper on a
    miss). ECX must survive for the caller's merged load/store; EBX/ESI are the

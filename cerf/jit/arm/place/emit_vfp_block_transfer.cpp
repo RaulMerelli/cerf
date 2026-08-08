@@ -4,7 +4,7 @@
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VLDM / VSTM - block VFP load / store. cp_num=10 single-precision,
    cp_num=11 double-precision. Per

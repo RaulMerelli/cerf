@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ANDI rt, rs, imm : rt = rs & zext64(imm16). The immediate is ZERO-extended,
    so the result's high 32 bits are always 0 (unlike ORI/XORI, which pass the

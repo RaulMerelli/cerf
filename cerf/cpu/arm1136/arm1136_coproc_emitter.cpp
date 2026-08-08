@@ -29,6 +29,12 @@ public:
         if (d->cp_num == 10 || d->cp_num == 11) {
             return EmitVfpRegisterTransfer(cursor, d, ctx);
         }
+        /* CP14 is the ARM1136 debug coprocessor (DDI 0211 Chapter 13:
+           "CP14 registers reset" p. 13-43, "CP14 debug instructions"
+           p. 13-44). */
+        if (d->cp_num == 14) {
+            return EmitCoprocUnimplementedFatal(cursor, d, ctx);
+        }
         if (d->cp_num != 15) {
             return EmitRaiseUndAndReturn(cursor, d, ctx);
         }
@@ -54,6 +60,11 @@ public:
                               BlockContext* ctx) override {
         if (d->cp_num == 10 || d->cp_num == 11) {
             return EmitVfpDataTransfer(cursor, d, ctx);
+        }
+        /* DDI 0211 Table 13-28 (p. 13-44): "STC p14, c5" / "LDC p14, c5"
+           are CP14 debug instructions accessing the rDTR / wDTR. */
+        if (d->cp_num == 14) {
+            return EmitCoprocDataTransferUnimplementedFatal(cursor, d, ctx);
         }
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

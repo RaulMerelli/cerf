@@ -5,7 +5,7 @@
 
 #include "../mips_cpu_state.h"
 #include "../mips_gpr_emit.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* DIV rs, rt : LO=quotient, HI=remainder (signed, sext32). x86 IDIV (#DE) faults
    on divisor 0 and on INT_MIN/-1; both are UNPREDICTABLE-no-trap on MIPS, so

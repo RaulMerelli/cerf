@@ -4,7 +4,7 @@
 #include "../arm_neon_3same_fp_arith.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
-#include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* VADD.F32 / VSUB.F32 / VMUL.F32 / VABD.F32 (A8.8.283 / A8.8.415 /
    A8.8.351 / A8.8.279) - A7.4.1 opc=1101. */
