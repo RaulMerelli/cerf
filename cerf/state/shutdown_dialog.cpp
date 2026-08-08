@@ -189,7 +189,8 @@ ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
     const int y = orc.top + ((orc.bottom - orc.top) - wh) / 2;
 
     EnableWindow(owner, FALSE);
-    hwnd_ = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass, L"Shut down CERF",
+    hwnd_ = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass,
+                            L"Shut down - CE Runtime Foundation",
                             style, x, y, ww, wh, owner, nullptr,
                             GetModuleHandleW(nullptr), this);
     if (!hwnd_) {
