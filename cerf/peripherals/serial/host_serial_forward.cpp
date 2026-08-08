@@ -29,7 +29,8 @@ void HostSerialForward::ReportDead(const std::wstring& detail) {
                         L"again.";
     std::function<void()> on_dead = on_dead_;
     emu_.Get<HostWindow>().RunOnUiThread([text, on_dead] {
-        MessageBoxW(nullptr, text.c_str(), L"CERF - serial port forwarder",
+        MessageBoxW(nullptr, text.c_str(),
+                    L"Serial port forwarder - CE Runtime Foundation",
                     MB_OK | MB_ICONWARNING);
         if (on_dead) on_dead();
     });

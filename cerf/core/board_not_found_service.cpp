@@ -34,7 +34,8 @@ void BoardNotFoundService::EnsureFound() {
             : ("Unrecognised board id '" + id +
                "'.\n\nRun cerf.exe --help for the supported id list. "
                "CERF will exit.");
-    MessageBoxA(nullptr, msg.c_str(), "CERF: unsupported board",
+    MessageBoxA(nullptr, msg.c_str(),
+                "Unsupported board - CE Runtime Foundation",
                 MB_OK | MB_ICONERROR);
 #endif
 

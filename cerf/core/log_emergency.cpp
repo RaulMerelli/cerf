@@ -317,7 +317,7 @@ void CerfFatalExit(int code) {
                  "\"Report a bug\".",
                  detail);
 
-        MessageBoxA(nullptr, box, "CERF: unexpected error",
+        MessageBoxA(nullptr, box, "Unexpected error - CE Runtime Foundation",
                     MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
     }
 #endif
