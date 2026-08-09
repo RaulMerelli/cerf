@@ -11,6 +11,8 @@ and reference for the parts underneath.
 - [**Touch and mouse**](pointer-input.md) - when taps do not land, and the calibration trap.
 - [**Report a bug**](report-a-bug.md) - reproduce it with the logs on, and what to send.
 - [**Running your own ROM**](own-rom.md) - boot a dump of a board CERF already supports.
+- [**The configuration files**](cerf-json.md) - the three layers of `cerf.json`, and what each one
+  can set.
 - [**ROM bundle repositories**](bundle-repositories.md) - where the launcher downloads ROMs from,
   running your own, and copyright removal.
 - [**Connecting to ActiveSync**](activesync.md) - connect a guest handheld to a desktop ActiveSync
