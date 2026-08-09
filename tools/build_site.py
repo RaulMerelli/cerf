@@ -1,7 +1,8 @@
 """Builds the CERF website into build/site, or serves it locally with live reload.
 
-    python tools/build_site.py           build into build/site
-    python tools/build_site.py --serve   http://127.0.0.1:8000, reloads on edit
+    python tools/build_site.py                      build into build/site
+    python tools/build_site.py --serve              http://127.0.0.1:8000, reloads on edit
+    python tools/build_site.py --serve --port 8123  the same, on another port
 
 The board table, changelog and version are pulled in by docs/website/hooks/render.py
 from the same sources the launcher and README.md use, so the site cannot drift from
@@ -59,7 +60,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--serve', action='store_true',
                         help='serve locally with live reload instead of building')
+    parser.add_argument('--port', type=int, default=None,
+                        help='port for --serve (default: mkdocs\' own 8000)')
     args = parser.parse_args()
+    if args.port is not None and not args.serve:
+        parser.error('--port applies to --serve')
 
     sync_assets()
     config = os.path.join(SITE, 'mkdocs.yml')
@@ -71,12 +76,15 @@ def main():
         #
         # -w: the manifests, the hook and the data the hook reads all live outside
         # content/, which is the only tree mkdocs watches on its own.
-        subprocess.check_call([sys.executable, '-m', 'mkdocs', 'serve',
-                               '--livereload',
-                               '-f', config,
-                               '-w', SITE,
-                               '-w', os.path.join(ROOT, 'launcher', 'supported_devices.py'),
-                               '-w', os.path.join(ROOT, 'docs', 'changelog.yml')])
+        cmd = [sys.executable, '-m', 'mkdocs', 'serve',
+               '--livereload',
+               '-f', config,
+               '-w', SITE,
+               '-w', os.path.join(ROOT, 'launcher', 'supported_devices.py'),
+               '-w', os.path.join(ROOT, 'docs', 'changelog.yml')]
+        if args.port is not None:
+            cmd += ['-a', f'127.0.0.1:{args.port}']
+        subprocess.check_call(cmd)
         return
 
     subprocess.check_call([sys.executable, '-m', 'mkdocs', 'build', '--strict',
