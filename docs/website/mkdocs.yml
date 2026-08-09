@@ -46,6 +46,7 @@ nav:
       - Touch and mouse: articles/pointer-input.md
       - Report a bug: articles/report-a-bug.md
       - Running your own ROM: articles/own-rom.md
+      - The configuration files: articles/cerf-json.md
       - ROM bundle repositories: articles/bundle-repositories.md
       - Connecting to ActiveSync: articles/activesync.md
       - Windows CE ROM containers: articles/rom-containers.md
