@@ -23,7 +23,8 @@ it finds, and fetches archives over HTTPS. No account, no API, no server-side co
 
 Open **Download ROMs**, then **Sources...**. Add a repository by its base URL
 (`https://example.com/bundles`, not the path to the manifest), tick it to enable it, or delete it.
-The list lives in `cerf.json` next to `cerf.exe`, under `bundle_repositories`.
+The list lives in `cerf.json` next to `cerf.exe`, under `bundle_repositories` - see
+[the configuration files](cerf-json.md).
 
 ## Running your own repository
 

@@ -39,8 +39,9 @@ That is it. The launcher writes the device and it shows up ready to boot.
 
 4. Run `cerf.exe --device=mydump`.
 
-The board id is your device's - `cerf.exe --help` lists them all. Both fields can also be given on
-the command line instead:
+The board id is your device's - `cerf.exe --help` lists them all. Those two keys are the minimum.
+[The configuration files](cerf-json.md) covers everything else a `cerf.json` can carry. Both fields
+can also be given on the command line instead:
 
 ```
 cerf.exe --device=mydump --board-id=jornada_720 --rom-primary=mykernel.nb0
