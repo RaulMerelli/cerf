@@ -44,5 +44,6 @@ else is happier with the host pointer.
 
 On a board whose stock input is a **relative mouse** rather than a touch panel, CERF locks the host
 pointer to the window while that source is active - a relative device has no absolute position to
-map a free cursor onto. The lock releases when you switch to another pointer source, or with the
-capture toggle in the status bar.
+map a free cursor onto.
+
+**Tap Right Ctrl to release the pointer.** Tap it again to give the pointer back to the guest.
