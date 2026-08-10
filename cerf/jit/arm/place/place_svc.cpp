@@ -1,5 +1,5 @@
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
 
@@ -10,7 +10,7 @@ uint8_t* PlaceSvc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
     EmitCall(cursor, reinterpret_cast<void*>(&ArmCpu::RaiseSwiExceptionHelper));
     EmitAddRegImm32(cursor, kEsp, 8);
     EmitRet(cursor);

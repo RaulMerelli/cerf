@@ -3,7 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
-#include "../../jit/arm/arm_jit.h"
+#include "../../jit/guest_engine.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
 #include "../../state/state_stream.h"
@@ -64,7 +64,7 @@ private:
         auto& gpio = emu_.Get<Pxa255Gpio>();
         gpio.SetInputLevel(2, true);
         gpio.SetInputLevel(3, true);
-        emu_.Get<ArmJit>().SetResetPending();
+        emu_.Get<GuestEngine>().SetResetPending(false);
     }
 
     /* +4 tail so a word access at the last in-range offset (0xFFF) cannot

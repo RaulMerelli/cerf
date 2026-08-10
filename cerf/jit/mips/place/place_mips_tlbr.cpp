@@ -3,7 +3,8 @@
 #include <cstdint>
 
 #include "../mips_block_context.h"
-#include "../mips_jit.h"
+#include "../mips_cp0_ops.h"
+#include "../mips_emit_services.h"
 #include "../../x86_emit.h"
 
 /* TLBR: read the TLB entry indexed by CP0_Index into EntryHi/EntryLo0/EntryLo1/
@@ -11,7 +12,7 @@
 uint8_t* PlaceMipsTlbr(uint8_t* cursor, MipsDecodedInsn*, MipsBlockContext* ctx) {
     using namespace x86;
     EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::TlbrHelper));
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cp0Ops())));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsCp0Ops::TlbrHelper));
     return cursor;
 }

@@ -25,6 +25,7 @@ void JitCodeArena::Initialize() {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     region_start_ = static_cast<uint8_t*>(region);
+    flush_floor_  = region_start_;
     cursor_       = region_start_;
     region_end_   = region_start_ + kRegionSize;
     region_size_  = kRegionSize;
@@ -45,9 +46,9 @@ uint8_t* JitCodeArena::Allocate(size_t size) {
 }
 
 void JitCodeArena::FreeUnusedTail(uint8_t* start_of_free) {
-    if (start_of_free < region_start_ || start_of_free > cursor_) {
+    if (start_of_free < flush_floor_ || start_of_free > cursor_) {
         LOG(Caution, "JitCodeArena::FreeUnusedTail: %p outside [%p, %p]\n",
-            start_of_free, region_start_, cursor_);
+            start_of_free, flush_floor_, cursor_);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     cursor_ = reinterpret_cast<uint8_t*>(
@@ -55,6 +56,12 @@ void JitCodeArena::FreeUnusedTail(uint8_t* start_of_free) {
         ~static_cast<uintptr_t>(3u));
 }
 
+uint8_t* JitCodeArena::AllocatePermanent(size_t size) {
+    uint8_t* p = Allocate(size);
+    flush_floor_ = cursor_;
+    return p;
+}
+
 void JitCodeArena::Flush() {
-    cursor_ = region_start_;
+    cursor_ = flush_floor_;
 }

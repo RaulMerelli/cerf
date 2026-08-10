@@ -5,8 +5,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../jit/mips/mips_cp0_ops.h"
 #include "../../jit/mips/mips_cpu_state.h"
-#include "../../jit/mips/mips_jit.h"
+#include "../../jit/mips/mips_translation_cache.h"
 
 namespace {
 
@@ -31,13 +32,13 @@ namespace Tx39Cp0 {
 constexpr uint32_t kEntryHiVpnMask = 0xFFFFF000u;
 constexpr uint32_t kEntryHiPidMask = 0x00000FC0u;
 
-void __fastcall Mtc0EntryHiR3000(uint32_t value, MipsJit* jit) {
-    MipsCpuState& s = *jit->CpuState();
+void __fastcall Mtc0EntryHiR3000(uint32_t value, MipsCp0Ops* ops) {
+    MipsCpuState& s = *ops->CpuState();
     const uint32_t old = s.cp0_entryhi;
     const uint32_t val = value & (kEntryHiVpnMask | kEntryHiPidMask);
     s.cp0_entryhi = val;
     if ((old & kEntryHiPidMask) != (val & kEntryHiPidMask)) {
-        jit->ContextSwitchFlush();
+        ops->Cache()->ContextSwitchFlush();
     }
 }
 

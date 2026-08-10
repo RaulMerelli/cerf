@@ -195,11 +195,11 @@ inline void EmitSltImm64(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t imm16,
 /* Tail of a trapping 32-bit add (ADD / ADDI): EAX holds the result with OF set;
    on signed overflow call overflow_helper, else sign-extend EAX into gpr[dst]
    (no store when dst==0). */
-inline void EmitTrappingArith32Tail(uint8_t*& c, uint32_t dst, void* jit,
+inline void EmitTrappingArith32Tail(uint8_t*& c, uint32_t dst, void* owner,
                                     void* overflow_helper, uint32_t guest_addr) {
     uint8_t* j_ok = x86::EmitJnoLabel(c);
     x86::EmitPush32(c, guest_addr);
-    x86::EmitPush32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+    x86::EmitPush32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)));
     x86::EmitCall(c, overflow_helper);
     x86::FixupLabel(j_ok, c);
     if (dst != 0) {
@@ -211,11 +211,11 @@ inline void EmitTrappingArith32Tail(uint8_t*& c, uint32_t dst, void* jit,
    with x86 OF reflecting the 64-bit signed overflow; on overflow call
    overflow_helper, else store EDX:EAX into gpr[dst] (no store when dst==0; the
    overflow helper never returns, so the skipped pushes keep the stack balanced). */
-inline void EmitTrappingArith64Tail(uint8_t*& c, uint32_t dst, void* jit,
+inline void EmitTrappingArith64Tail(uint8_t*& c, uint32_t dst, void* owner,
                                     void* overflow_helper, uint32_t guest_addr) {
     uint8_t* j_ok = x86::EmitJnoLabel(c);
     x86::EmitPush32(c, guest_addr);
-    x86::EmitPush32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+    x86::EmitPush32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)));
     x86::EmitCall(c, overflow_helper);
     x86::FixupLabel(j_ok, c);
     if (dst != 0) {
@@ -229,7 +229,7 @@ inline void EmitTrappingArith64Tail(uint8_t*& c, uint32_t dst, void* jit,
    (ADC 0x13 / SBB 0x1B). The MOV between halves preserves CF; OF after hi_op is the
    64-bit signed overflow. No flag-clobbering op may sit between the halves. */
 inline void EmitTrappingArith64RR(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_t rt,
-                                  uint8_t lo_op, uint8_t hi_op, void* jit,
+                                  uint8_t lo_op, uint8_t hi_op, void* owner,
                                   void* overflow_helper, uint32_t guest_addr) {
     x86::EmitMovRegBaseDisp32(c, x86::kEax, x86::kStateReg, GprLoOff(rs));
     x86::Emit8(c, lo_op);
@@ -239,7 +239,7 @@ inline void EmitTrappingArith64RR(uint8_t*& c, uint32_t rd, uint32_t rs, uint32_
     x86::Emit8(c, hi_op);
     x86::EmitModRmReg(c, 2, x86::kStateReg, x86::kEdx);   /* OP edx, [esi+rt.hi] */
     x86::Emit32(c, static_cast<uint32_t>(GprHiOff(rt)));
-    EmitTrappingArith64Tail(c, rd, jit, overflow_helper, guest_addr);
+    EmitTrappingArith64Tail(c, rd, owner, overflow_helper, guest_addr);
 }
 
 inline int32_t BranchStateOff() { return static_cast<int32_t>(offsetof(MipsCpuState, branch_state)); }

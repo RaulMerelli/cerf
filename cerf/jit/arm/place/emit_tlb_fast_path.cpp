@@ -1,6 +1,6 @@
 #include <cstddef>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../block_context.h"
@@ -145,7 +145,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
     EmitMovRegReg       (cursor, kEdx, kEcx);          /* EDX = EA */
     EmitAndRegImm32     (cursor, kEdx, 0x00000FFFu);   /* EDX = EA & 0xFFF */
     EmitOrReg32Reg32    (cursor, kEax, kEdx);          /* EAX = device PA */
-    EmitMovDwordPtrReg  (cursor, ctx->jit->Mmu()->IoPendingAddressPtr(), kEax);
+    EmitMovDwordPtrReg  (cursor, ctx->emit->Mmu()->IoPendingAddressPtr(), kEax);
     EmitXorRegReg       (cursor, kEax, kEax);
     uint8_t* io_done = EmitJmpLabel32(cursor);
 
@@ -153,13 +153,13 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
     for (int i = 0; i < n_io_miss; ++i) FixupLabel32(io_miss[i], cursor);
     EmitPushReg(cursor, kEcx);
     EmitMovRegImm32(cursor, kEdx,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Mmu())));
     void* helper =
         access == TlbAccess::kReadWrite
-            ? reinterpret_cast<void*>(&ArmJit::TranslateReadWriteHelper)
+            ? reinterpret_cast<void*>(&ArmMmu::TranslateReadWriteHelper)
         : access == TlbAccess::kWrite
-            ? reinterpret_cast<void*>(&ArmJit::TranslateWriteHelper)
-            : reinterpret_cast<void*>(&ArmJit::TranslateReadHelper);
+            ? reinterpret_cast<void*>(&ArmMmu::TranslateWriteHelper)
+            : reinterpret_cast<void*>(&ArmMmu::TranslateReadHelper);
     EmitCall(cursor, helper);
     EmitPopReg(cursor, kEcx);
 

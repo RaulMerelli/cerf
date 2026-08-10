@@ -9,8 +9,6 @@
    (place_fn) from the decoded fields. */
 class MipsDecoder {
 public:
-    /* Capability gates from MipsProcessorConfig (set once in MipsJit::OnReady);
-       instruction recognition is config-driven, not hardcoded. */
     void Configure(bool has_fpu, bool has_llsc, bool has_mips4,
                    bool has_vr41xx_power_modes, bool has_64bit, bool has_eret,
                    bool has_rfe, bool has_mips16) {

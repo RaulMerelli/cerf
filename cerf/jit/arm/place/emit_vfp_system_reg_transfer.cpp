@@ -3,7 +3,7 @@
 
 #include "../../../cpu/arm_processor_config.h"
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -17,7 +17,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
                                   BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
     const int32_t rd_disp =
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u);
 
@@ -36,7 +36,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                 return EmitRaiseUndAndReturn(cursor, d, ctx);
             }
             EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                jit->ProcessorConfig()->Fpsid());
+                emit->ProcessorConfig()->Fpsid());
             return cursor;
 
         case kFpscr:
@@ -46,7 +46,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                     static_cast<int32_t>(offsetof(ArmCpuState, fpscr)));
                 EmitPush32(cursor,
                     static_cast<uint32_t>(
-                        reinterpret_cast<uintptr_t>(jit->Cpu())));
+                        reinterpret_cast<uintptr_t>(emit->Cpu())));
                 EmitCall(cursor, reinterpret_cast<void*>(
                     &ArmCpu::UpdateNzcvOnlyHelper));
                 EmitAddRegImm32(cursor, kEsp, 8);
@@ -62,7 +62,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                 return EmitRaiseUndAndReturn(cursor, d, ctx);
             }
             EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                jit->ProcessorConfig()->Mvfr1());
+                emit->ProcessorConfig()->Mvfr1());
             return cursor;
 
         case kMvfr0:
@@ -70,7 +70,7 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                 return EmitRaiseUndAndReturn(cursor, d, ctx);
             }
             EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                jit->ProcessorConfig()->Mvfr0());
+                emit->ProcessorConfig()->Mvfr0());
             return cursor;
 
         case kFpexc:

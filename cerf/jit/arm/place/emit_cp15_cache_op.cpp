@@ -2,7 +2,9 @@
 #include <cstdint>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
+#include "../arm_interrupt_channel.h"
+#include "../arm_translation_cache.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -13,16 +15,18 @@
    (p. Glossary-2737). */
 uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
-    const bool v7 = jit->ProcessorConfig()->HasCp15V7();
-    const bool v6 = jit->ProcessorConfig()->HasCp15V6();
+    ArmEmitServices* emit = ctx->emit;
+    const bool v7 = emit->ProcessorConfig()->HasCp15V7();
+    const bool v6 = emit->ProcessorConfig()->HasCp15V6();
 
     if (d->cp_opc != 0) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
-    void* const icache_helper =
-        reinterpret_cast<void*>(&ArmJit::InvalidateDirtyCodePagesHelper);
+    void* const icache_helper = reinterpret_cast<void*>(
+        &ArmTranslationCache::InvalidateDirtyCodePagesHelper);
+    const uint32_t icache_self = static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(emit->TranslationCache()));
 
     if (d->l) {
         /* "MRC p15, 0, APSR_nzcv, c7, c10, 3 ; test and clean" (also c14,3);
@@ -64,8 +68,10 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                p. D12-2538); UNPREDICTABLE on ARMv7 (p. B3-1499). */
             if (d->cp == 4 && !v7) {
                 EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
-                EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                        emit->InterruptChannel())));
+                EmitCall(cursor,
+                    reinterpret_cast<void*>(&ArmInterruptChannel::WfiHelper));
                 return cursor;
             }
             break;
@@ -74,8 +80,7 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             /* ICIALLU c5/0, ICIMVAU c5/1 (Figure B3-32); the v4/v5/v6 rows
                add c5/2 invalidate-by-set/way (Tables D15-22, D12-8). */
             if (d->cp == 0 || d->cp == 1 || (d->cp == 2 && !v7)) {
-                EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                EmitMovRegImm32(cursor, kEcx, icache_self);
                 EmitCall(cursor, icache_helper);
                 return cursor;
             }
@@ -102,8 +107,7 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             /* Invalidate unified cache / by MVA / by set/way, c7/{0,1,2},
                v4/v5/v6 only (Tables D15-22, D12-8; not in Figure B3-32). */
             if (!v7 && d->cp <= 2) {
-                EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                EmitMovRegImm32(cursor, kEcx, icache_self);
                 EmitCall(cursor, icache_helper);
                 return cursor;
             }
@@ -162,8 +166,7 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             /* Clean and Invalidate unified cache line by MVA / by set/way
                c15/{1,2}, v4/v5/v6 only (Tables D15-22, D12-8). */
             if (!v7 && (d->cp == 1 || d->cp == 2)) {
-                EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                EmitMovRegImm32(cursor, kEcx, icache_self);
                 EmitCall(cursor, icache_helper);
                 return cursor;
             }

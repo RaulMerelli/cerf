@@ -1,6 +1,7 @@
 #include <cstddef>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
+#include "../arm_exception_frame.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
@@ -21,13 +22,11 @@ uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
         (static_cast<uint32_t>(d->rn) & 0x1Fu);
     EmitMovRegImm32(cursor, kEdx, encoded);
 
-    /* PUSH jit (__fastcall arg 3 on stack). */
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+        static_cast<uint32_t>(
+            reinterpret_cast<uintptr_t>(ctx->emit->ExceptionFrame())));
 
-    /* CALL RfeHelper. __fastcall callee-cleans the stack arg - no
-       ADD ESP after. EAX holds the masked new_pc on return. */
-    EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::RfeHelper));
+    EmitCall(cursor, reinterpret_cast<void*>(&ArmExceptionFrame::RfeHelper));
 
     /* MOV [ESI + gprs[15]], EAX */
     EmitMovBaseDisp32Reg(cursor, kStateReg,

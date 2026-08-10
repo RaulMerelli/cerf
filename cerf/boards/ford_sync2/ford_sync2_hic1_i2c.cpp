@@ -5,7 +5,7 @@
 #include "../board_context.h"
 #include "../../socs/imx51/imx51_gpio4.h"
 #include "../../jit/arm/arm_cpu.h"
-#include "../../jit/arm/arm_mmu.h"
+#include "../../jit/arm/arm_mmu_probe.h"
 #include "../../peripherals/cirrus_cs42448/cs42448_codec.h"
 #include "../../peripherals/ti_tsc2003/ti_tsc2003_touch.h"
 
@@ -57,9 +57,9 @@ private:
     [[noreturn]] void FatalUnmodelledSlave() const {
         const ArmCpuState* st = emu_.Get<ArmCpu>().State();
         const uint32_t sp = st->gprs[ArmGpr::kR13];
-        ArmMmu& mmu = emu_.Get<ArmMmu>();
+        ArmMmuProbe& probe = emu_.Get<ArmMmuProbe>();
         auto rd = [&](uint32_t va) -> uint32_t {
-            uint8_t* p = mmu.PeekVaToHost(va);
+            uint8_t* p = probe.PeekVaToHost(va);
             return p ? *reinterpret_cast<uint32_t*>(p) : 0u;
         };
         char chain[320];

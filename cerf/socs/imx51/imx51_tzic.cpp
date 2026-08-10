@@ -92,10 +92,10 @@ void Imx51Tzic::DeliverPendingIrq() {
     }
     if (!ready) return;
 
-    auto&        jit   = emu_.Get<ArmJit>();
-    ArmCpuState* state = jit.CpuState();
+    auto&        cpu   = emu_.Get<ArmCpu>();
+    ArmCpuState* state = cpu.State();
     if (state->cpsr.bits.irq_disable) return;
-    jit.Cpu()->RaiseIrqException(state->gprs[ArmGpr::kR15]);
+    cpu.RaiseIrqException(state->gprs[ArmGpr::kR15]);
 }
 
 int Imx51Tzic::BankInSet(uint32_t off, uint32_t base) {

@@ -3,7 +3,8 @@
 #include <cstdint>
 
 #include "../mips_block_context.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_wide_arithmetic.h"
 #include "../../x86_emit.h"
 
 /* DDIV rs, rt : LO = gpr[rs] / gpr[rt], HI = remainder, signed 64-bit (QEMU
@@ -13,7 +14,7 @@ uint8_t* PlaceMipsDdiv(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ct
     using namespace x86;
     EmitMovRegImm32(cursor, kEcx, d->rs);
     EmitMovRegImm32(cursor, kEdx, d->rt);
-    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::DdivHelper));
+    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->WideArithmetic())));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsWideArithmetic::DdivHelper));
     return cursor;
 }

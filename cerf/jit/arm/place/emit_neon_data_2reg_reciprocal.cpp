@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon_2reg_reciprocal.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -12,7 +12,7 @@ uint8_t* PlaceNeonData2RegReciprocal(uint8_t*      cursor,
                                      DecodedInsn*  d,
                                      BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t w     = d->immediate;
     const uint32_t op    = d->op1;
@@ -43,7 +43,7 @@ uint8_t* PlaceNeonData2RegReciprocal(uint8_t*      cursor,
     EmitPush32(cursor, F);
     EmitPush32(cursor, op);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Neon2RegReciprocal())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Neon2RegReciprocal())));
     EmitCall(cursor, reinterpret_cast<void*>(&ArmNeon2RegReciprocal::HandleReciprocalHelper));
     EmitAddRegImm32(cursor, kEsp, 24);
     return cursor;

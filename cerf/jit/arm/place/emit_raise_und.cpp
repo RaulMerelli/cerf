@@ -2,8 +2,8 @@
 #include <cstring>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
-#include "../arm_mmu.h"
+#include "../arm_emit_services.h"
+#include "../arm_mmu_probe.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
 #include "../../../core/log.h"
@@ -12,7 +12,7 @@ uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
     EmitCall(cursor,
         reinterpret_cast<void*>(&ArmCpu::RaiseUndefinedExceptionHelper));
     EmitAddRegImm32(cursor, kEsp, 8);
@@ -21,13 +21,13 @@ uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 }
 
 uint8_t* EmitRaiseUndAndReturn(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
     /* Re-read the guest word the decoder choked on (read-only MMU peek, same
        page the fetch used) so the log distinguishes corrupt/poison bytes from a
        genuine unsupported encoding. */
     uint32_t word = 0xFFFFFFFFu;
     bool word_ok = false;
-    if (uint8_t* p = jit->Mmu()->PeekVaToHost(d->actual_guest_address)) {
+    if (uint8_t* p = emit->MmuProbe()->PeekVaToHost(d->actual_guest_address)) {
         std::memcpy(&word, p, sizeof(word));
         word_ok = true;
     }

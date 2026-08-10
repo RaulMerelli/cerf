@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon_scalar_move.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -20,7 +20,7 @@ uint8_t* EmitNeonCoreToScalar(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     /* Rt == 15 is UNPREDICTABLE per A8.8.341 line 45180. */
     if (d->rd == 15u) {
@@ -37,7 +37,7 @@ uint8_t* EmitNeonCoreToScalar(uint8_t*      cursor,
     EmitPush32(cursor, lane_index);
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->NeonScalarMove())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->NeonScalarMove())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmNeonScalarMove::HandleCoreToScalarHelper));
     EmitAddRegImm32(cursor, kEsp, 20);
@@ -50,7 +50,7 @@ uint8_t* EmitNeonScalarToCore(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     /* Rt == 15 is UNPREDICTABLE per A8.8.342 line 45263. */
     if (d->rd == 15u) {
@@ -69,7 +69,7 @@ uint8_t* EmitNeonScalarToCore(uint8_t*      cursor,
     EmitPush32(cursor, lane_index);
     EmitPush32(cursor, n_idx);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->NeonScalarMove())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->NeonScalarMove())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmNeonScalarMove::HandleScalarToCoreHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

@@ -176,24 +176,38 @@ void Log::EmergencyPrintNativeStack(const char* tag) {
 
 /* ==== Top-level unhandled-exception filter =============================== */
 
+bool Log::SymbolizeAddress(const void* addr, char* out, size_t out_size) {
+    if (!out || out_size == 0) return false;
+    out[0] = '\0';
+
+    std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
+    if (!lk.owns_lock()) return false;
+    EnsureDbgHelpInited_Locked();
+
+    char         sym_buf[sizeof(SYMBOL_INFO) + 256];
+    SYMBOL_INFO* sym  = (SYMBOL_INFO*)sym_buf;
+    sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+    sym->MaxNameLen   = 255;
+    DWORD64 disp      = 0;
+    if (!SymFromAddr(GetCurrentProcess(), (DWORD64)addr, &disp, sym)) {
+        return false;
+    }
+
+    char line[512];
+    if (wsprintfA(line, "%s+0x%X", sym->Name, (uint32_t)disp) <= 0) return false;
+    size_t n = 0;
+    while (line[n] != '\0' && n + 1 < out_size) { out[n] = line[n]; ++n; }
+    out[n] = '\0';
+    return true;
+}
+
 /* Symbolize one address under the dbghelp mutex (try_lock - a frozen thread
    may hold it). Mirrors EmergencyPrintNativeStack's locking. */
 static void EmergencySymbolizeAddr(const char* tag, void* addr) {
-    std::unique_lock<std::mutex> lk(g_dbghelp_mutex, std::try_to_lock);
-    char line[512];
-    if (lk.owns_lock()) {
-        EnsureDbgHelpInited_Locked();
-        char sym_buf[sizeof(SYMBOL_INFO) + 256];
-        SYMBOL_INFO* sym = (SYMBOL_INFO*)sym_buf;
-        sym->SizeOfStruct = sizeof(SYMBOL_INFO);
-        sym->MaxNameLen   = 255;
-        DWORD64 disp = 0;
-        if (SymFromAddr(GetCurrentProcess(), (DWORD64)addr, &disp, sym)) {
-            int n = wsprintfA(line, "%s fault at %s+0x%X (0x%p)\n",
-                              tag, sym->Name, (uint32_t)disp, addr);
-            if (n > 0) Log::Emergency("%s", line);
-            return;
-        }
+    char sym[512];
+    if (Log::SymbolizeAddress(addr, sym, sizeof(sym))) {
+        Log::Emergency("%s fault at %s (0x%p)\n", tag, sym, addr);
+        return;
     }
     Log::Emergency("%s fault at 0x%p (sym-locked)\n", tag, addr);
 }

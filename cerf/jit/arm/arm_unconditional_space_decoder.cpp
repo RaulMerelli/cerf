@@ -61,7 +61,11 @@ bool ArmUnconditionalSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         (op.word & 0xFFFFFF00u) == 0xF57FF000u) {
         const uint32_t barrier_op = (op.word >> 4) & 0xFu;
         if (barrier_op >= 0x4u && barrier_op <= 0x6u) {
-            insn->place_fn = &PlaceNop;
+            /* DDI 0406C.c Glossary, "Context synchronization operation": one
+               of "Performing an ISB operation ... Taking an exception ...
+               Returning from an exception". DSB and DMB are not in that set. */
+            insn->context_sync = barrier_op == 0x6u;
+            insn->place_fn     = &PlaceNop;
             return true;
         }
     }

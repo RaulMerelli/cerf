@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon_simd_3same.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -14,7 +14,7 @@ uint8_t* PlaceNeonData3Same(uint8_t*      cursor,
                             DecodedInsn*  d,
                             BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t w     = d->immediate;
     const uint32_t op    = d->op1;
@@ -71,7 +71,7 @@ uint8_t* PlaceNeonData3Same(uint8_t*      cursor,
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor, op);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Simd3Same())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Simd3Same())));
     EmitCall(cursor, reinterpret_cast<void*>(&ArmNeonSimd3Same::HandleSimd3SameHelper));
     EmitAddRegImm32(cursor, kEsp, 28);
     return cursor;

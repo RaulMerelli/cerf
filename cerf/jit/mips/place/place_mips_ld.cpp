@@ -4,7 +4,8 @@
 
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_memory_access.h"
 #include "../../x86_emit_alu.h"
 
 /* LD rt, offset(rs): rt = mem[gpr[rs] + sext(imm16)] (full 64-bit).
@@ -17,8 +18,8 @@ uint8_t* PlaceMipsLd(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx)
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));
     EmitAddRegImm32(cursor, kEcx, sext);                                /* ECX = EA */
     EmitMovRegImm32(cursor, kEdx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::LoadDwordHelper)); /* EDX:EAX */
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Memory())));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsMemoryAccess::LoadDwordHelper)); /* EDX:EAX */
     if (d->rt != 0) {
         EmitMovBaseDisp32Reg(cursor, kStateReg, mips_emit::GprLoOff(d->rt), kEax);
         EmitMovBaseDisp32Reg(cursor, kStateReg, mips_emit::GprHiOff(d->rt), kEdx);

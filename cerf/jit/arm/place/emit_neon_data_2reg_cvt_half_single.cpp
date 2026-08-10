@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon_2reg_cvt_half_single.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -12,7 +12,7 @@ uint8_t* PlaceNeonData2RegCvtHalfSingle(uint8_t*      cursor,
                                         DecodedInsn*  d,
                                         BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t w     = d->immediate;
     const uint32_t op    = d->op1;  /* kSingleToHalf or kHalfToSingle */
@@ -41,7 +41,7 @@ uint8_t* PlaceNeonData2RegCvtHalfSingle(uint8_t*      cursor,
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor, op);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Neon2RegCvtHalfSingle())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Neon2RegCvtHalfSingle())));
     EmitCall(cursor, reinterpret_cast<void*>(&ArmNeon2RegCvtHalfSingle::HandleCvtHalfSingleHelper));
     EmitAddRegImm32(cursor, kEsp, 16);
     return cursor;

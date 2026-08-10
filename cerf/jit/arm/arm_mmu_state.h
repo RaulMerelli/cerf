@@ -9,6 +9,13 @@ enum class ArmMmuAccess : uint32_t {
     kExecute,
 };
 
+/* ARM DDI 0406C.c B3.19.2 FCSETranslate (p. B3-1503): "if va<31:25> ==
+   '0000000' then mva = FCSEIDR.PID:va<24:0>", with no SCTLR.M term.
+   process_id holds FCSEIDR.PID:'0'*25, so the concatenation is an OR. */
+inline uint32_t ArmFcseFold(uint32_t va, uint32_t process_id) {
+    return (va & 0xFE000000u) == 0u ? (va | process_id) : va;
+}
+
 /* SCTLR bit positions: ARM DDI 0406C.c B4.1.130 (VMSAv7), D12.7.4
    (VMSAv6 diagram), D15.7 (ARMv4/v5). */
 union ArmSctlr {
@@ -151,7 +158,12 @@ inline ArmTlbEntry& ArmTlbInsertSlot(ArmTlbUnit* unit, uint32_t base) {
 }
 
 struct ArmMmuState {
+    /* ARM DDI 0406C.c B3.15.5 (p. B3-1461): a direct write "must be
+       synchronized before any instruction that appears after the direct
+       write ... can rely on the effect of that write"; the same section
+       exempts direct reads of the same register using the same encoding. */
     ArmSctlr  control_register{};
+    ArmSctlr  effective_control_register{};
     uint32_t  aux_control_register  = 0;
     ArmTtbr0  translation_table_base{};
     uint32_t  domain_access_control = 0;   /* DACR (B4.1.43) */
@@ -185,3 +197,23 @@ struct ArmMmuState {
     uint32_t code_page_dirty_bytes  = 0;
     uint8_t* code_page_dirty        = nullptr;
 };
+
+template <ArmMmuAccess kAccess>
+inline void ArmNoteCodeTracking(ArmMmuState& st, uint32_t pa) {
+    if (pa < st.code_word_base || pa >= st.code_word_top) return;
+    const uint32_t off = pa - st.code_word_base;
+    if constexpr (kAccess == ArmMmuAccess::kExecute) {
+        const uint32_t w0 = off >> 2;
+        const uint32_t w1 = (off + 3u) >> 2;
+        st.code_xlat_bitmap[w0 >> 3] |= static_cast<uint8_t>(1u << (w0 & 7u));
+        st.code_xlat_bitmap[w1 >> 3] |= static_cast<uint8_t>(1u << (w1 & 7u));
+    } else if constexpr (kAccess == ArmMmuAccess::kWrite ||
+                         kAccess == ArmMmuAccess::kReadWrite) {
+        const uint32_t w = off >> 2;
+        if (st.code_xlat_bitmap[w >> 3] & (1u << (w & 7u))) {
+            const uint32_t page = off >> 12;
+            st.code_page_dirty[page >> 3] |=
+                static_cast<uint8_t>(1u << (page & 7u));
+        }
+    }
+}

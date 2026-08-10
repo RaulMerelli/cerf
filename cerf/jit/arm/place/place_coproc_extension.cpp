@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../coproc_emitter.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
@@ -21,7 +21,7 @@ uint8_t* PlaceCoprocExtension(uint8_t*      cursor,
     cursor = PlaceCoprocessorPermissionCheck(cursor, d, ctx);
 
     if (d->cp_num != 10u && d->cp_num != 11u) {
-        return ctx->jit->Coproc()->EmitRegisterTransferDouble(cursor, d, ctx);
+        return ctx->emit->Coproc()->EmitRegisterTransferDouble(cursor, d, ctx);
     }
 
     const uint32_t opc1 = (d->offset >> 4) & 0xFu;

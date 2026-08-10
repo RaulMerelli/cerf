@@ -1,12 +1,11 @@
-#include "mips_jit.h"
+#include "mips_place_fn_selector.h"
 
 #include "mips_opcode.h"
 #include "mips_place_fns.h"
 
-/* Decode -> emit dispatch. Implemented opcodes map to their place fn; every
-   other (recognized-but-unimplemented or reserved) maps to the loud-fatal stub
-   so the bring-up loop surfaces it on first execution. */
-MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
+REGISTER_SERVICE(MipsPlaceFnSelector);
+
+MipsPlaceFn MipsPlaceFnSelector::Select(const MipsDecodedInsn* d) {
     switch (d->op) {
         case MipsOp::kLUI:   return &PlaceMipsLui;
         case MipsOp::kADDIU: return &PlaceMipsAddiu;
@@ -48,9 +47,8 @@ MipsPlaceFn MipsJit::SelectPlaceFn(const MipsDecodedInsn* d) {
         case MipsOp::kBGTZL: return &PlaceMipsBgtzl;
         case MipsOp::kPREF:  return &PlaceMipsNop;   /* prefetch hint: NOP (QEMU OPC_PREF translate.c:14676) */
         /* NOP: QEMU emits nothing for CACHE (translate.c:14674) and its helper_cache
-           no-ops Index/Hit Invalidate (special_helper.c:142-172). Block coherence is
-           driven from the guest store instead - MipsJit::InvalidateOnRamWrite, the
-           port of accel/tcg notdirty_write - so it needs no announcement. */
+           no-ops Index/Hit Invalidate (special_helper.c:142-172). Block coherence
+           comes from the QEMU accel/tcg notdirty_write model on the guest store. */
         case MipsOp::kCACHE: return &PlaceMipsNop;
         case MipsOp::kREGIMM:
             if (d->rt == MipsRegimm::kBLTZ)        return &PlaceMipsBltz;

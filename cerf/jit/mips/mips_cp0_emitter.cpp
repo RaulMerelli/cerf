@@ -7,8 +7,9 @@
 #include "mips_block_context.h"
 #include "mips_cpu_state.h"
 #include "mips_decoded_insn.h"
+#include "mips_cp0_ops.h"
+#include "mips_emit_services.h"
 #include "mips_gpr_emit.h"
-#include "mips_jit.h"
 #include "mips_place_fns.h"
 #include "../x86_emit_alu.h"
 
@@ -32,13 +33,13 @@ bool MipsCp0Emitter::RegWritable(uint32_t rd) const { return Cp0RegWritable(rd);
 
 void* MipsCp0Emitter::Mtc0Helper(uint32_t rd) const {
     if (rd == MipsCp0::kCount) {
-        return reinterpret_cast<void*>(&MipsJit::Mtc0CountHelper);
+        return reinterpret_cast<void*>(&MipsCp0Ops::Mtc0CountHelper);
     }
     if (rd == MipsCp0::kCompare) {
-        return reinterpret_cast<void*>(&MipsJit::Mtc0CompareHelper);
+        return reinterpret_cast<void*>(&MipsCp0Ops::Mtc0CompareHelper);
     }
     if (rd == MipsCp0::kEntryHi) {
-        return reinterpret_cast<void*>(&MipsJit::Mtc0EntryHiHelper);
+        return reinterpret_cast<void*>(&MipsCp0Ops::Mtc0EntryHiHelper);
     }
     return nullptr;
 }
@@ -72,7 +73,7 @@ uint8_t* MipsCp0Emitter::EmitFromCop0(uint8_t* cursor, MipsDecodedInsn* d,
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     const int32_t off = RegOffset(d->rd);
-    if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
+    if (off < 0 || !ctx->emit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     if (d->rt == 0) {
@@ -81,8 +82,9 @@ uint8_t* MipsCp0Emitter::EmitFromCop0(uint8_t* cursor, MipsDecodedInsn* d,
     /* Random has no stored value; compute it on read (QEMU helper_mfc0_random). */
     if (d->rd == MipsCp0::kRandom) {
         EmitMovRegImm32(cursor, kEcx,
-                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-        EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::Mfc0RandomHelper));
+                        static_cast<uint32_t>(
+                            reinterpret_cast<uintptr_t>(ctx->emit->Cp0Ops())));
+        EmitCall(cursor, reinterpret_cast<void*>(&MipsCp0Ops::Mfc0RandomHelper));
         mips_emit::EmitStoreGprSextEax(cursor, d->rt);
         return cursor;
     }
@@ -101,7 +103,7 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     const int32_t off = RegOffset(d->rd);
-    if (off < 0 || !ctx->jit->CpuConfig()->HasCp0Reg(d->rd)) {
+    if (off < 0 || !ctx->emit->CpuConfig()->HasCp0Reg(d->rd)) {
         return PlaceMipsUndefined(cursor, d, ctx);
     }
     /* MTC0 to a read-only register is ignored on R4000-class silicon (VR4102 UM
@@ -125,7 +127,8 @@ uint8_t* MipsCp0Emitter::EmitToCop0(uint8_t* cursor, MipsDecodedInsn* d,
     if (void* helper = Mtc0Helper(d->rd)) {
         EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rt));
         EmitMovRegImm32(cursor, kEdx,
-                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+                        static_cast<uint32_t>(
+                            reinterpret_cast<uintptr_t>(ctx->emit->Cp0Ops())));
         EmitCall(cursor, helper);
         return cursor;
     }

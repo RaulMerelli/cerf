@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -13,7 +13,7 @@ uint8_t* PlaceNeonLoadStoreMultiple(uint8_t*      cursor,
                                     DecodedInsn*  d,
                                     BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t type  = d->op1;
     const uint32_t regs  = (type == 0x7u) ? 1u : (type == 0xAu) ? 2u
@@ -37,7 +37,7 @@ uint8_t* PlaceNeonLoadStoreMultiple(uint8_t*      cursor,
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Neon())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Neon())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmNeon::HandleLoadStoreMultipleHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

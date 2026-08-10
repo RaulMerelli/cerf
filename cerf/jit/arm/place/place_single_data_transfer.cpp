@@ -3,7 +3,7 @@
 
 #include "../../../core/log.h"
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
@@ -125,9 +125,9 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
                                  DecodedInsn*  d,
                                  BlockContext* ctx) {
     using namespace x86;
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
-    ArmMmu*                   mmu    = ctx->jit->Mmu();
-    const ArmSctlr            sctlr  = mmu->State()->control_register;
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
+    ArmMmu*                   mmu    = ctx->emit->Mmu();
+    const ArmSctlr            sctlr  = mmu->State()->effective_control_register;
     const uint32_t            mmu_imm =
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mmu));
 
@@ -181,9 +181,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
        fault, A == 0 unaligned access; D15.3.1 (p. D15-2592): v4/v5 and the
        v6 SCTLR.U == 0 legacy configuration rotate an unaligned LDR and
        ignore address[1:0] on an unaligned STR. */
-    const bool legacy =
-        !config->HasCp15V7() &&
-        (!config->HasCp15V6() || !sctlr.bits.u);
+    const bool legacy = !mmu->UnalignedAccessesFault();
 
     uint8_t* align_fault_label = nullptr;
     uint8_t* legacy_label      = nullptr;
@@ -355,8 +353,10 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         }
     }
 
-    /* .align_fault: ECX = EA; translate never ran, so the io-pending slot
-       is stale and the D15.5.2 writeback is unconditional here. */
+    /* .align_fault: ECX = EA. ddi0406c D15.5.2 Base Updated Abort Model
+       (p. D15-2604): "the base register of any valid load/store instruction
+       that causes a memory system abort is modified by the base register
+       writeback, if any, of that instruction". */
     const bool base_updated_abort =
         wback && !config->BaseRestoredAbortModel();
     uint8_t* align_done_label = nullptr;

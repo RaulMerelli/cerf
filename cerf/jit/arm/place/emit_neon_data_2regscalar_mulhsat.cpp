@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon_2regscalar.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -13,7 +13,7 @@ uint8_t* PlaceNeonData2RegScalarMulhSat(uint8_t*      cursor,
                                         DecodedInsn*  d,
                                         BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t w     = d->immediate;
     const uint32_t op    = d->op1;
@@ -59,7 +59,7 @@ uint8_t* PlaceNeonData2RegScalarMulhSat(uint8_t*      cursor,
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor, op);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Neon2RegScalar())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Neon2RegScalar())));
     EmitCall(cursor, reinterpret_cast<void*>(&ArmNeon2RegScalar::HandleScalarMulhSatHelper));
     EmitAddRegImm32(cursor, kEsp, 32);
     return cursor;

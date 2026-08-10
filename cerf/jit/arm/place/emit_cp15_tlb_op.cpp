@@ -2,7 +2,8 @@
 #include <cstdint>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
+#include "../arm_translation_cache.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
@@ -12,9 +13,9 @@
    ARMv4/v5: CRm c5/c6/c7 with opc2 0/1 only. */
 uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
-    const bool v6plus = jit->ProcessorConfig()->HasCp15V6() ||
-                        jit->ProcessorConfig()->HasCp15V7();
+    ArmEmitServices* emit = ctx->emit;
+    const bool v6plus = emit->ProcessorConfig()->HasCp15V6() ||
+                        emit->ProcessorConfig()->HasCp15V7();
 
     /* Figure B3-34: every c8 op is write-only with opc1=0; not-shown and
        unimplemented-extension encodings UNPREDICTABLE (p. B3-1476) ->
@@ -27,16 +28,22 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     void* mva_helper = nullptr;
     switch (d->crm) {
         case 5:
-            all_helper = reinterpret_cast<void*>(&ArmJit::ItlbInvalidateAllHelper);
-            mva_helper = reinterpret_cast<void*>(&ArmJit::ItlbInvalidateMvaHelper);
+            all_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::ItlbInvalidateAllHelper);
+            mva_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::ItlbInvalidateMvaHelper);
             break;
         case 6:
-            all_helper = reinterpret_cast<void*>(&ArmJit::DtlbInvalidateAllHelper);
-            mva_helper = reinterpret_cast<void*>(&ArmJit::DtlbInvalidateMvaHelper);
+            all_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::DtlbInvalidateAllHelper);
+            mva_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::DtlbInvalidateMvaHelper);
             break;
         case 7:
-            all_helper = reinterpret_cast<void*>(&ArmJit::UtlbInvalidateAllHelper);
-            mva_helper = reinterpret_cast<void*>(&ArmJit::UtlbInvalidateMvaHelper);
+            all_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::UtlbInvalidateAllHelper);
+            mva_helper = reinterpret_cast<void*>(
+                &ArmTranslationCache::UtlbInvalidateMvaHelper);
             break;
         default:
             return EmitRaiseUndAndReturn(cursor, d, ctx);
@@ -45,14 +52,16 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     switch (d->cp) {
         case 0:
             EmitMovRegImm32(cursor, kEcx,
-                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                static_cast<uint32_t>(
+                    reinterpret_cast<uintptr_t>(emit->TranslationCache())));
             EmitCall(cursor, all_helper);
             return cursor;
         case 1:
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
                 static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u));
             EmitMovRegImm32(cursor, kEdx,
-                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                static_cast<uint32_t>(
+                    reinterpret_cast<uintptr_t>(emit->TranslationCache())));
             EmitCall(cursor, mva_helper);
             return cursor;
         case 2:
@@ -62,7 +71,8 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                locked down." */
             if (v6plus) {
                 EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
+                    static_cast<uint32_t>(
+                    reinterpret_cast<uintptr_t>(emit->TranslationCache())));
                 EmitCall(cursor, all_helper);
                 return cursor;
             }

@@ -1,7 +1,7 @@
 #include <cstddef>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -26,11 +26,11 @@ uint8_t* EmitDpPcWriteTail(uint8_t* cursor, DecodedInsn* d,
            then BranchWritePC(result); the flag outputs are discarded. */
         EmitPushReg(cursor, kEax);
         EmitPush32(cursor, static_cast<uint32_t>(
-            reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+            reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
         EmitCall(cursor,
             reinterpret_cast<void*>(&ArmCpu::ExceptionReturnHelper));
         EmitAddRegImm32(cursor, kEsp, 8);
-    } else if (ctx->jit->ProcessorConfig()->HasDataProcToPcInterworking()) {
+    } else if (ctx->emit->ProcessorConfig()->HasDataProcToPcInterworking()) {
         /* ALUWritePC (A2.3.2 p. A2-48): BXWritePC from ARMv7 on. */
         cursor = EmitArmInterworkingFullEax(cursor);
     } else {

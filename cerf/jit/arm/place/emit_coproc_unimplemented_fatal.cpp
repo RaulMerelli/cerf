@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
 #include "../../../core/log.h"
