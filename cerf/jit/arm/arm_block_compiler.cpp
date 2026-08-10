@@ -145,7 +145,7 @@ void __fastcall ArmBlockCompiler::SctlrWriteHelper(uint32_t          value,
 
 void __fastcall ArmBlockCompiler::RaiseAbortDataHelper(
     uint32_t guest_pc, ArmBlockCompiler* compiler) {
-    if (compiler->mmu_->io_pending_address() != 0u) {
+    if (compiler->mmu_->io_pending()) {
         compiler->routed_->Complete(guest_pc);
         return;
     }
@@ -269,7 +269,7 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
     const uint32_t folded_pc = ArmFcseFold(guest_pc, mmu_state->process_id);
 
     if (walker_->TranslateExecute(cpu_state_, guest_pc) == nullptr) {
-        if (mmu_->io_pending_address() != 0u) {
+        if (mmu_->io_pending()) {
             LOG(Caution, "ArmBlockCompiler::Compile: instruction fetch at 0x%08X "
                     "resolves to peripheral PA 0x%08X\n",
                 guest_pc, mmu_->io_pending_address());

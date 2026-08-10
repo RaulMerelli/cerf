@@ -240,13 +240,11 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
         FixupLabel32(abort_labels[i], cursor);
     }
     if (base_updated_abort) {
-        /* D15.5.2 (p. D15-2604) Base Updated Abort Model: a genuine abort
-           (io-pending slot zero) leaves Rn updated; a routed MMIO access is
-           completed whole by the trampoline instead. */
+        /* ARM DDI 0406C.c D15.5.2 (p. D15-2604) Base Updated Abort Model. */
         Emit8(cursor, 0x8B);
         EmitModRmDisp32(cursor, kEax);
         Emit32(cursor, static_cast<uint32_t>(
-            reinterpret_cast<uintptr_t>(mmu->IoPendingAddressPtr())));
+            reinterpret_cast<uintptr_t>(mmu->IoPendingValidPtr())));
         EmitTestRegReg(cursor, kEax, kEax);
         uint8_t* io_skip = EmitJnzLabel32(cursor);
         EmitMovRegBaseDisp32(cursor, kEax, kStateReg, GprDisp(d->rn));

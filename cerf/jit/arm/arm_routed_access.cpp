@@ -49,7 +49,7 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
             return true;
         }
         const uint32_t split_pa = mmu_->io_pending_address();
-        if (split_pa == 0u) {
+        if (!mmu_->io_pending()) {
             return false;
         }
         HaltUnalignedRouted(guest_pc, va, bytes, split_pa, "load");
@@ -63,7 +63,7 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
         return true;
     }
     const uint32_t pa = mmu_->io_pending_address();
-    if (pa == 0u) {
+    if (!mmu_->io_pending()) {
         return false;
     }
     switch (bytes) {
@@ -84,7 +84,7 @@ bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
             return true;
         }
         const uint32_t split_pa = mmu_->io_pending_address();
-        if (split_pa == 0u) {
+        if (!mmu_->io_pending()) {
             return false;
         }
         HaltUnalignedRouted(guest_pc, va, bytes, split_pa, "store");
@@ -96,7 +96,7 @@ bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
         return true;
     }
     const uint32_t pa = mmu_->io_pending_address();
-    if (pa == 0u) {
+    if (!mmu_->io_pending()) {
         return false;
     }
     switch (bytes) {

@@ -55,9 +55,15 @@ public:
 
     uint32_t io_pending_address() const { return io_pending_address_; }
 
-    void ClearIoPending() { io_pending_address_ = 0; }
+    bool io_pending() const { return io_pending_valid_ != 0u; }
+
+    void ClearIoPending() {
+        io_pending_valid_   = 0u;
+        io_pending_address_ = 0u;
+    }
 
     uint32_t* IoPendingAddressPtr() { return &io_pending_address_; }
+    uint32_t* IoPendingValidPtr()   { return &io_pending_valid_; }
 
     /* cp15 c0 op1=1 CRm=0 op2=0 (CCSIDR), indexed by CSSELR.
        Called from JIT only when HasCp15V7() is true.
@@ -99,6 +105,7 @@ private:
     ArmCpuState*        cpu_state_        = nullptr;
 
     uint32_t io_pending_address_ = 0;
+    uint32_t io_pending_valid_   = 0;
 
     /* Backing stores for the SMC bitmaps (code_xlat_bitmap word-marks +
        code_page_dirty page set). Sized once in OnReady, never resized, so

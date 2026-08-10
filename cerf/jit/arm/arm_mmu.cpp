@@ -218,7 +218,7 @@ void ArmMmu::RaiseAlignmentFault(uint32_t va, bool is_write) {
     dfsr.bits.wnr        = is_write ? 1u : 0u;
     state_.fault_status  = dfsr;
     state_.fault_address = va;
-    io_pending_address_  = 0;
+    ClearIoPending();
 }
 
 void __fastcall ArmMmu::AlignmentFaultReadHelper(uint32_t va, ArmMmu* mmu) {
@@ -282,12 +282,8 @@ uint32_t __cdecl ArmMmu::UnalignedWordStoreHelper(ArmMmu* mmu, uint32_t va,
 }
 
 void ArmMmu::SetIoPending(uint32_t pa) {
-    if (pa == 0u) {
-        LOG(Caution, "ArmMmu::SetIoPending: MMIO at PA 0 is not implemented "
-                "(0 is the no-io-pending value).\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
     io_pending_address_ = pa;
+    io_pending_valid_   = 1u;
 }
 
 bool ArmMmu::AccessPaged(ArmCpuState* cpu_state, uint32_t va,
