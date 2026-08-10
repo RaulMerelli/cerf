@@ -1,7 +1,7 @@
 #include <cstdint>
 
 #include "../../../core/cerf_emulator.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -11,7 +11,7 @@ uint8_t* EmitVfpDataOperation(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t packed =
         ((d->cp_opc & 0xFu) << 19) |
@@ -24,7 +24,7 @@ uint8_t* EmitVfpDataOperation(uint8_t*      cursor,
     EmitPush32(cursor, packed);
     EmitPush32(cursor, d->guest_address);
     EmitMovRegImm32(cursor, kEax,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Vfp())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Vfp())));
     EmitPushReg(cursor, kEax);
     EmitCall(cursor,
         reinterpret_cast<void*>(&ArmVfp::ExecuteCdpHelper));

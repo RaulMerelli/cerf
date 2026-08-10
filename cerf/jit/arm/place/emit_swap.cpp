@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
@@ -29,13 +29,12 @@ uint8_t* EmitSwap(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
-    ArmMmu*                   mmu    = ctx->jit->Mmu();
-    const ArmSctlr            sctlr  = mmu->State()->control_register;
+    ArmMmu*                   mmu    = ctx->emit->Mmu();
+    const ArmSctlr            sctlr  = mmu->State()->effective_control_register;
     /* Unaligned SWP faults when U == 1 (Table A3-1, p. A3-108; D12.3.1,
        p. D12-2506) or A == 1 (D15.3.1, p. D15-2592); U by architecture
        version per Table D12-1 (p. D12-2506). */
-    const bool u1 = config->HasCp15V7() || (config->HasCp15V6() && sctlr.bits.u);
+    const bool u1 = mmu->UnalignedAccessesFault();
     const bool align_fault_check = !d->n && (u1 || sctlr.bits.a);
 
     uint8_t* align_fault_label = nullptr;

@@ -1,7 +1,7 @@
 #include <cstddef>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -11,7 +11,7 @@
 uint8_t* EmitLoadedPcWrite(uint8_t* cursor, DecodedInsn* d,
                            BlockContext* ctx) {
     using namespace x86;
-    if (ctx->jit->ProcessorConfig()->HasLoadToPcInterworking()) {
+    if (ctx->emit->ProcessorConfig()->HasLoadToPcInterworking()) {
         cursor = EmitArmInterworkingFullEax(cursor);
     } else {
         /* BranchWritePC (A2.3.2, p. A2-47): <31:2>:'00' in ARM state,

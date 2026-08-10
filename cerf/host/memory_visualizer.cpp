@@ -6,6 +6,7 @@
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
 #include "../jit/arm/arm_mmu.h"
+#include "../jit/arm/arm_mmu_probe.h"
 #include "frame_renderer.h"
 
 #include <windowsx.h>
@@ -60,7 +61,7 @@ void MemoryVisualizer::RenderInto(HDC dc, uint32_t* dib, uint32_t w, uint32_t h)
     if (!initialized_ && JumpToFramebuffer()) initialized_ = true;
 
     auto& mem  = emu_.Get<EmulatedMemory>();
-    auto* mmu  = space_ == Space::Va ? emu_.TryGet<ArmMmu>() : nullptr;
+    auto* probe = space_ == Space::Va ? emu_.TryGet<ArmMmuProbe>() : nullptr;
     const uint32_t base = space_ == Space::Va ? base_va_ : base_pa_;
 
     const int scale = zoom_ > 0 ? zoom_ + 1 : 1;
@@ -77,7 +78,7 @@ void MemoryVisualizer::RenderInto(HDC dc, uint32_t* dib, uint32_t w, uint32_t h)
         const uint32_t page = addr & ~0xFFFu;
         if (!cache_valid || page != cache_page) {
             cache_host  = space_ == Space::Va
-                        ? (mmu ? mmu->PeekVaToHost(page) : nullptr)
+                        ? (probe ? probe->PeekVaToHost(page) : nullptr)
                         : mem.TryTranslate(page);
             cache_page  = page;
             cache_valid = true;

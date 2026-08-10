@@ -1,6 +1,7 @@
 #include <cstddef>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
+#include "../arm_interrupt_channel.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
 
@@ -9,7 +10,8 @@ uint8_t* PlaceWfi(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     (void)d;
     EmitMovRegImm32(cursor, kEcx,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
+        static_cast<uint32_t>(
+            reinterpret_cast<uintptr_t>(ctx->emit->InterruptChannel())));
+    EmitCall(cursor, reinterpret_cast<void*>(&ArmInterruptChannel::WfiHelper));
     return cursor;
 }

@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -16,7 +16,7 @@ uint8_t* EmitVfpSingleMoveIdx(uint8_t*      cursor,
                               BlockContext* ctx,
                               uint32_t      sn) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const int32_t sn_disp =
         static_cast<int32_t>(offsetof(ArmCpuState, vfp_d) + sn * 4u);
@@ -29,7 +29,7 @@ uint8_t* EmitVfpSingleMoveIdx(uint8_t*      cursor,
             EmitPushBaseDisp32(cursor, kStateReg, sn_disp);
             EmitPush32(cursor,
                 static_cast<uint32_t>(
-                    reinterpret_cast<uintptr_t>(jit->Cpu())));
+                    reinterpret_cast<uintptr_t>(emit->Cpu())));
             EmitCall(cursor, reinterpret_cast<void*>(
                 &ArmCpu::UpdateNzcvOnlyHelper));
             EmitAddRegImm32(cursor, kEsp, 8);

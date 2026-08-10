@@ -3,7 +3,7 @@
 #include <intrin.h>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
@@ -26,13 +26,13 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
                                 DecodedInsn*  d,
                                 BlockContext* ctx) {
     using namespace x86;
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
-    ArmMmu*        mmu     = ctx->jit->Mmu();
-    const ArmSctlr sctlr   = mmu->State()->control_register;
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
+    ArmMmu*        mmu     = ctx->emit->Mmu();
+    const ArmSctlr sctlr   = mmu->State()->effective_control_register;
     const uint32_t mmu_imm =
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mmu));
     const uint32_t cpu_imm =
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit->Cpu()));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu()));
 
     const uint32_t list       = d->register_list;
     const uint32_t count      = __popcnt16(d->register_list);
@@ -70,8 +70,7 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
     /* Table A3-1 (p. A3-108) + D12.3.1 (p. D12-2506): multi-word accesses
        are word-aligned or abort on ARMv7 and ARMv6 U == 1; D15.3.1
        (p. D15-2592): otherwise SCTLR.A == 0 ignores address[1:0]. */
-    const bool always_fault =
-        config->HasCp15V7() || (config->HasCp15V6() && sctlr.bits.u);
+    const bool always_fault  = mmu->UnalignedAccessesFault();
     const bool legacy_ignore = !always_fault && !sctlr.bits.a;
     uint8_t* align_fault_label = nullptr;
     if (legacy_ignore) {
@@ -214,8 +213,10 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
     const bool base_updated_abort =
         do_wback && !config->BaseRestoredAbortModel();
 
-    /* .align_fault: ECX = start address; translate never ran, so the
-       D15.5.2 writeback is unconditional here. */
+    /* .align_fault: ECX = start address. ddi0406c D15.5.2 Base Updated Abort
+       Model (p. D15-2604): "the base register of any valid load/store
+       instruction that causes a memory system abort is modified by the base
+       register writeback, if any, of that instruction". */
     uint8_t* align_done_label = nullptr;
     if (align_fault_label != nullptr) {
         FixupLabel32(align_fault_label, cursor);

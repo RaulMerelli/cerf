@@ -118,6 +118,11 @@ bool ArmCoprocSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
     insn->l        = l;
     insn->cp_opc   = (word >> 21) & 0x7u;
     insn->rd       = rt;
+    /* DDI 0406C.c B4.2.6 (p. B4-1753): "The deprecated CP15 c7 encoding for an
+       Instruction Synchronization Barrier is an MCR instruction with <opc1> set
+       to 0, <CRn> set to c7, <CRm> set to c5, and <opc2> set to 4." */
+    insn->context_sync = l == 0u && cp_num == 15u && insn->cp_opc == 0u &&
+                         insn->crn == 7u && insn->crm == 5u && insn->cp == 4u;
     insn->place_fn = &PlaceCoprocRegisterTransfer;
     return true;
 }

@@ -4,8 +4,8 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../jit/mips/mips_cpu.h"
 #include "../../jit/mips/mips_cpu_state.h"
-#include "../../jit/mips/mips_jit.h"
 
 namespace {
 
@@ -58,8 +58,8 @@ public:
         return (s.cp0_status & (1u << kStatusIEc)) != 0u;
     }
 
-    void Enter(MipsJit* jit, uint32_t cause, bool refill_eligible) override {
-        MipsCpuState& s = *jit->CpuState();
+    void Enter(MipsCpuState* state, uint32_t cause, bool refill_eligible) override {
+        MipsCpuState& s = *state;
 
         /* EPC = the faulting PC, or the branch (pc-4) when the faulting instruction
            sits in a delay slot, which also sets Cause.BD (§6.2.2). branch_state !=
@@ -94,8 +94,8 @@ public:
         s.llbit = 0;
     }
 
-    void SetMmuFaultRegs(MipsJit* jit, uint32_t va) override {
-        MipsCpuState& s = *jit->CpuState();
+    void SetMmuFaultRegs(MipsCpuState* state, uint32_t va) override {
+        MipsCpuState& s = *state;
         s.cp0_badvaddr = va;
         s.cp0_context  = (s.cp0_context & kContextPteBase) |
                          ((va >> kContextVpnShift) & kContextBadVpn);

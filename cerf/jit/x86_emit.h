@@ -17,6 +17,7 @@ constexpr uint8_t kEbx = 3;
 constexpr uint8_t kEsp = 4;
 constexpr uint8_t kEbp = 5;
 constexpr uint8_t kEsi = 6;
+constexpr uint8_t kEdi = 7;
 
 constexpr uint8_t kMmuReg   = kEbx;
 constexpr uint8_t kStateReg = kEsi;

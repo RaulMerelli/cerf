@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../../../cpu/arm_processor_config.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -12,7 +12,7 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
        MUST precede the VMRS check: VDUP.8 Qd encodes cp_opc=7, cp=0 and
        would otherwise alias VMRS. HasNeon() gate => non-NEON SoCs fall
        through and UND it, like real hardware. */
-    if (ctx->jit->ProcessorConfig()->HasNeon() &&
+    if (ctx->emit->ProcessorConfig()->HasNeon() &&
         d->cp_num == 11 && d->l == 0 &&
         (d->cp_opc & 4u) && (d->cp & 2u) == 0u) {
         return EmitNeonVdup(cursor, d, ctx);
@@ -22,7 +22,7 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
        or 16. MUST precede VMRS: VMOV.U8 Rt, Dn[7] aliases cp_opc=7
        cp=0. esize=32 collapses to VMOV Sn↔Rt (handled below) and is
        not matched here. */
-    if (ctx->jit->ProcessorConfig()->HasNeon() && d->cp_num == 11) {
+    if (ctx->emit->ProcessorConfig()->HasNeon() && d->cp_num == 11) {
         const bool esize_8  = (d->cp_opc & 2u) != 0u;
         const bool esize_16 = ((d->cp_opc & 2u) == 0u) && ((d->cp & 1u) != 0u);
         if (esize_8 || esize_16) {

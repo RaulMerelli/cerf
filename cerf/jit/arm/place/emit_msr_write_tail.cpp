@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
@@ -29,7 +29,7 @@ uint8_t* EmitSpsrModeGuard(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 
 uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
 
     /* ARM DDI 0100I A4.1.39 (p. A4-77): field_mask bit 0 -> 0x000000FF,
        1 -> 0x0000FF00, 2 -> 0x00FF0000, 3 -> 0xFF000000. */
@@ -63,7 +63,7 @@ uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
         EmitPush32(cursor, spsr_mask);
         EmitPushReg(cursor, kEax);
         EmitPush32(cursor,
-            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
         EmitCall(cursor,
             reinterpret_cast<void*>(&ArmCpu::WriteSpsrByInstrHelper));
         EmitAddRegImm32(cursor, kEsp, 12);
@@ -101,7 +101,7 @@ uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 
     if (nmfi_gate) {
         EmitPushBaseDisp32(cursor, kMmuReg,
-            static_cast<int32_t>(offsetof(ArmMmuState, control_register)));
+            static_cast<int32_t>(offsetof(ArmMmuState, effective_control_register)));
     } else {
         EmitPush32(cursor, 0);
     }
@@ -110,7 +110,7 @@ uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     EmitPush32(cursor, mask_user);
     EmitPushReg(cursor, kEax);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
     EmitCall(cursor,
         reinterpret_cast<void*>(&ArmCpu::WriteCpsrByInstrHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

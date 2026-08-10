@@ -4,7 +4,8 @@
 
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_exception_delivery.h"
 #include "../../x86_emit_alu.h"
 
 /* DADDI rt, rs, imm16 : rt = rs + sext64(imm16), 64-bit; a signed 64-bit overflow
@@ -25,7 +26,8 @@ uint8_t* PlaceMipsDaddi(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* c
                                                   (SDM Vol. 2A 3-27 ADC) */
     EmitModRmReg(cursor, 3, kEdx, 2);
     Emit32(cursor, imm_hi);
-    mips_emit::EmitTrappingArith64Tail(cursor, d->rt, ctx->jit,
-        reinterpret_cast<void*>(&MipsJit::ArithOverflowHelper), d->guest_address);
+    mips_emit::EmitTrappingArith64Tail(cursor, d->rt, ctx->emit->Exceptions(),
+        reinterpret_cast<void*>(&MipsExceptionDelivery::ArithOverflowHelper),
+        d->guest_address);
     return cursor;
 }

@@ -38,8 +38,6 @@ class MipsMmu : public Service {
 public:
     using Service::Service;
 
-    /* The JIT block caches MipsMmu invalidates as QEMU's tlb_flush_page would
-       (one per ISA mode); bound in MipsJit::OnReady. */
     void Bind(IsaBlockSpace* b32, IsaBlockSpace* b16) {
         blocks32_ = b32;
         blocks16_ = b16;

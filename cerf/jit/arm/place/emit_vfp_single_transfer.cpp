@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -14,7 +14,7 @@ uint8_t* EmitVfpSingleTransfer(uint8_t*      cursor,
                                DecodedInsn*  d,
                                BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const bool is_dp = (d->cp_num == 11);
     const uint32_t vd = is_dp
@@ -32,7 +32,7 @@ uint8_t* EmitVfpSingleTransfer(uint8_t*      cursor,
     EmitPush32(cursor, d->rn);
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Vfp())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Vfp())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmVfp::HandleSingleTransferHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

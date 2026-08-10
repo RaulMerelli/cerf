@@ -43,7 +43,7 @@ Only **the placement of the stub into the ROM** differs by ROM class:
   band in the `cerf_virt` window (`cerf/boot/cerf_injection_region.{h,cpp}`).
   That band is exposed at a guest-unmapped static-window VA, a hole that
   `PageTableBuilder::StaticWindowHole` finds over the `MappedVaSpans()` of the
-  board. An MMU-walker overlay serves the band (`ArmMmu::ServeInjectionBand` at
+  board. An MMU-walker overlay serves the band (`ServeInjectionBand` at
   the L1-fault site), never the section bytes of the victim. On CE6/7 the stub
   runs in place from the band, because a kernel-VA base makes the loader skip
   its section copy. On CE3/4/5 the loader copies the stub to a section-1 vbase

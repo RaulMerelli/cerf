@@ -4,7 +4,8 @@
 
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_memory_access.h"
 #include "../../x86_emit_alu.h"
 
 /* SD rt, offset(rs): mem[gpr[rs] + sext(imm16)] = gpr[rt] (full 64-bit). The
@@ -17,7 +18,7 @@ uint8_t* PlaceMipsSd(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx)
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));
     EmitAddRegImm32(cursor, kEcx, sext);          /* ECX = EA */
     EmitMovRegImm32(cursor, kEdx, d->rt);         /* EDX = rt index */
-    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::StoreDwordHelper));
+    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Memory())));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsMemoryAccess::StoreDwordHelper));
     return cursor;
 }

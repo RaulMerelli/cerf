@@ -5,11 +5,15 @@
 #include "../../boards/board_context.h"
 #include "../../cpu/arm_processor_config.h"
 #include "../guest_engine.h"
+#include "../../host/guest_deep_sleep.h"
 #include "arm_mmu.h"
-#include "arm_tlb_ops.h"
 #include "../../state/state_stream.h"
 
 REGISTER_SERVICE(ArmCpu);
+
+void __fastcall ArmCpu::EnterDeepSleepHelper(ArmCpu* cpu) {
+    cpu->emu_.Get<GuestDeepSleep>().Enter();
+}
 
 namespace {
 
@@ -121,6 +125,11 @@ void ArmCpu::EnterException(uint32_t target_mode,
                             uint32_t new_lr_value,
                             uint32_t vect_offset,
                             bool     set_async_abort_mask) {
+    /* ARM DDI 0406C.c B3.15.5 (p. B3-1461): "the explicit synchronization
+       occurs as the first step of any Context synchronization operation",
+       and the Glossary makes taking an exception one of the three. */
+    emu_.Get<ArmMmu>().SynchronizeSctlr();
+
     const ArmPsrFull old_cpsr = state_.cpsr;
     const uint32_t   old_mode = old_cpsr.bits.mode;
 
@@ -166,12 +175,10 @@ uint32_t ArmCpu::ReturnAddress(uint32_t guest_pc, int32_t thumb_sub, int32_t arm
 }
 
 /* ARM ARM DDI 0406C.c B1.8.1 ExcVectorBase(): SCTLR.V=1 -> 0xFFFF0000
-   (Hivecs); else HaveSecurityExt() -> VBAR, else 0. VBAR's reset value is
-   IMPLEMENTATION DEFINED (B4.1.156) - CERF defines 0; cp15 c12 is
-   unimplemented and fatals on a Security-Extensions core (the only cores
-   that have VBAR), so VBAR never leaves its reset value. */
+   (Hivecs); else HaveSecurityExt() -> VBAR, else 0. VBAR reset value is
+   IMPLEMENTATION DEFINED (B4.1.156). */
 uint32_t ArmCpu::ExcVectorBase() {
-    return emu_.Get<ArmMmu>().State()->control_register.bits.v ? 0xFFFF0000u
+    return emu_.Get<ArmMmu>().State()->effective_control_register.bits.v ? 0xFFFF0000u
                                                                : 0u;
 }
 
@@ -180,7 +187,7 @@ uint32_t ArmCpu::ExcVectorBase() {
    only, EE from ARMv6 (D12.7.4); ARMv4/v5 SCTLR bits[31:16] are Reserved
    UNK/SBZP (D15.7). */
 void ArmCpu::ApplySctlrExecutionState() {
-    const ArmSctlr sctlr = emu_.Get<ArmMmu>().State()->control_register;
+    const ArmSctlr sctlr = emu_.Get<ArmMmu>().State()->effective_control_register;
     ArmProcessorConfig& config = emu_.Get<ArmProcessorConfig>();
     state_.cpsr.bits.thumb_mode = config.HasCp15V7() ? sctlr.bits.te : 0u;
     state_.cpsr.bits.endian     = config.HasCp15V6() ? sctlr.bits.ee : 0u;
@@ -212,13 +219,14 @@ void ArmCpu::RaiseResetException(uint32_t initial_pc) {
     state_.cpsr.bits.it_high             = 0u;
     state_.cpsr.bits.jazelle             = 0u;
 
+    emu_.Get<ArmMmu>().ResetControlRegisters();
+
     if (pending_resume_mmu_set_) {
         ArmMmuState* mmu_state = emu_.Get<ArmMmu>().State();
-        mmu_state->control_register.word       = pending_resume_control_;
-        mmu_state->translation_table_base.word = pending_resume_ttbr0_;
-        mmu_state->domain_access_control       = pending_resume_dacr_;
-        ArmTlbFlushAll(&mmu_state->data_tlb);
-        ArmTlbFlushAll(&mmu_state->instruction_tlb);
+        mmu_state->control_register.word           = pending_resume_control_;
+        mmu_state->effective_control_register.word = pending_resume_control_;
+        mmu_state->translation_table_base.word     = pending_resume_ttbr0_;
+        mmu_state->domain_access_control           = pending_resume_dacr_;
         pending_resume_mmu_set_ = false;
     }
 
@@ -231,6 +239,7 @@ void ArmCpu::RaiseResetException(uint32_t initial_pc) {
         state_.gprs[ArmGpr::kR15] = pending_resume_pc_;
         pending_resume_pc_set_    = false;
     } else {
+        state_.gprs[ArmGpr::kR13] = initial_sp_;
         state_.gprs[ArmGpr::kR15] = initial_pc;
     }
 }
@@ -240,7 +249,7 @@ void ArmCpu::RaiseResetException() {
 }
 
 void ArmCpu::SetInitialStackPointer(uint32_t sp) {
-    state_.gprs[ArmGpr::kR13] = sp;
+    initial_sp_ = sp;
 }
 
 void ArmCpu::SetPendingResumeVector(uint32_t pc) {
@@ -355,30 +364,41 @@ void __cdecl ArmCpu::WriteUserRegHelper(ArmCpu* cpu, uint32_t reg,
     st->gprs[reg] = value;
 }
 
-/* ARM DDI 0406C.c B9.3.5 (p. B9-1987): CPSRWriteByInstr(SPSR[], '1111',
-   TRUE) then BranchWritePC(new_pc_value); BranchWritePC masks <31:1> in
-   Thumb state, <31:2> in ARM state (A2.3.2, p. A2-47). */
-uint32_t __cdecl ArmCpu::ExceptionReturnHelper(ArmCpu* cpu, uint32_t new_pc) {
-    const ArmPsrFull spsr = *cpu->BankedSpsr(cpu->state_.cpsr.bits.mode);
-    ArmPsrFull merged = spsr;
-    if (cpu->emu_.Get<ArmProcessorConfig>().HasCp15V7()) {
-        /* CPSRWriteByInstr, bytemask '1111', is_excpt_return TRUE
-           (p. B1-1153): 23:20 are SBZP and SCTLR.NMFI gates F. Pre-v7 is
-           a whole copy - ARM DDI 0100I A4.1.22 (p. A4-41) "CPSR = SPSR". */
+uint32_t ArmCpu::ReturnFromException(uint32_t new_cpsr_word, uint32_t new_pc) {
+    /* ARM DDI 0406C.c B3.15.5 (p. B3-1461) + Glossary "Context
+       synchronization operation": returning from an exception synchronizes
+       as its first step. */
+    emu_.Get<ArmMmu>().SynchronizeSctlr();
+
+    ArmPsrFull source;
+    source.word = new_cpsr_word;
+    ArmPsrFull merged = source;
+    /* CPSRWriteByInstr bytemask '1111', is_excpt_return TRUE (p. B1-1153):
+       23:20 SBZP, SCTLR.NMFI gates F. Pre-v7 whole copy - ARM DDI 0100I
+       A4.1.22 (p. A4-41). */
+    if (emu_.Get<ArmProcessorConfig>().HasCp15V7()) {
         uint32_t mask = 0xFF0FFFFFu;
-        if (cpu->emu_.Get<ArmMmu>().State()->control_register.bits.nmfi &&
-            spsr.bits.fiq_disable) {
+        if (emu_.Get<ArmMmu>().State()->effective_control_register.bits.nmfi &&
+            source.bits.fiq_disable) {
             mask &= ~(1u << 6);
         }
-        merged.word = (cpu->state_.cpsr.word & ~mask) | (spsr.word & mask);
+        merged.word = (state_.cpsr.word & ~mask) | (source.word & mask);
     }
     if (merged.bits.endian != 0u) {
         LOG(Caution, "ArmCpu: exception return restores CPSR.E; big-endian "
                      "data accesses are not modelled\n");
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    cpu->UpdateCpsrWithFlags(merged);
+    UpdateCpsrWithFlags(merged);
+    /* BranchWritePC (ARM DDI 0406C.c A2.3.2, p. A2-47). */
     return merged.bits.thumb_mode ? (new_pc & ~1u) : (new_pc & ~3u);
+}
+
+/* ARM DDI 0406C.c B9.3.5 (p. B9-1987): CPSRWriteByInstr(SPSR[], '1111',
+   TRUE) then BranchWritePC(new_pc_value). */
+uint32_t __cdecl ArmCpu::ExceptionReturnHelper(ArmCpu* cpu, uint32_t new_pc) {
+    const uint32_t spsr = cpu->BankedSpsr(cpu->state_.cpsr.bits.mode)->word;
+    return cpu->ReturnFromException(spsr, new_pc);
 }
 
 void ArmCpu::SaveState(StateWriter& w) {

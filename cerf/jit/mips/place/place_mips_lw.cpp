@@ -4,7 +4,8 @@
 
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_memory_access.h"
 #include "../../x86_emit_alu.h"
 
 /* LW rt, offset(rs): rt = sext64(mem[gpr[rs] + sext(imm16)][31:0]). The load
@@ -17,8 +18,8 @@ uint8_t* PlaceMipsLw(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx)
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, mips_emit::GprLoOff(d->rs));
     EmitAddRegImm32(cursor, kEcx, sext);                                /* ECX = EA */
     EmitMovRegImm32(cursor, kEdx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::LoadWordHelper)); /* EAX = value */
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Memory())));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsMemoryAccess::LoadWordHelper)); /* EAX = value */
     if (d->rt != 0) {
         mips_emit::EmitStoreGprSextEax(cursor, d->rt);
     }

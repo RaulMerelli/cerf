@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "../arm_cpu.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -12,7 +12,7 @@ uint8_t* PlaceMRSorMSR(uint8_t*      cursor,
                        DecodedInsn*  d,
                        BlockContext* ctx) {
     using namespace x86;
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
 
     if (d->s == 0u) {
         /* MRS. Rd == 15 is UNPREDICTABLE (ARM DDI 0406C.c A8.8.109,
@@ -24,7 +24,7 @@ uint8_t* PlaceMRSorMSR(uint8_t*      cursor,
             cursor = EmitSpsrModeGuard(cursor, d, ctx);
             EmitPush32(cursor,
                 static_cast<uint32_t>(
-                    reinterpret_cast<uintptr_t>(ctx->jit->Cpu())));
+                    reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
             EmitCall(cursor,
                 reinterpret_cast<void*>(&ArmCpu::ReadSpsrHelper));
             EmitAddRegImm32(cursor, kEsp, 4);

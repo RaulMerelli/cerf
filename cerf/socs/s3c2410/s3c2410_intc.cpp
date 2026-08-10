@@ -174,15 +174,15 @@ void S3C2410Intc::DeliverPendingIrq() {
     }
     if (!ready) return;
 
-    auto&        jit   = emu_.Get<ArmJit>();
-    ArmCpuState* state = jit.CpuState();
+    auto&        cpu   = emu_.Get<ArmCpu>();
+    ArmCpuState* state = cpu.State();
     if (state->cpsr.bits.irq_disable) return;
 
     /* Faulting PC is the next-instruction PC at this between-blocks
        observation point; ArmCpu::RaiseIrqException applies the
        per-spec +4 itself. The pending bit stays set - kernel ack via
        INTPND W1C clears it through WriteReg's ClearInterruptPending. */
-    jit.Cpu()->RaiseIrqException(state->gprs[ArmGpr::kR15]);
+    cpu.RaiseIrqException(state->gprs[ArmGpr::kR15]);
 }
 
 uint32_t S3C2410Intc::ReadReg(uint32_t offset) {

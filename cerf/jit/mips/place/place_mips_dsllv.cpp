@@ -3,7 +3,8 @@
 #include <cstdint>
 
 #include "../mips_block_context.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_wide_arithmetic.h"
 #include "../../x86_emit.h"
 
 /* DSLLV rd, rt, rs : rd = gpr[rt] << (gpr[rs] & 63), 64-bit (QEMU gen_shift
@@ -13,8 +14,8 @@ uint8_t* PlaceMipsDsllv(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* c
     using namespace x86;
     EmitMovRegImm32(cursor, kEcx, d->rd);
     EmitMovRegImm32(cursor, kEdx, d->rt);
-    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+    EmitPush32(cursor, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->WideArithmetic())));
     EmitPush32(cursor, d->rs);
-    EmitCall(cursor, reinterpret_cast<void*>(&MipsJit::DsllvHelper));
+    EmitCall(cursor, reinterpret_cast<void*>(&MipsWideArithmetic::DsllvHelper));
     return cursor;
 }

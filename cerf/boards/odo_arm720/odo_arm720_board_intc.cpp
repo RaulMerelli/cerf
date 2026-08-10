@@ -91,11 +91,11 @@ void OdoArm720BoardIntc::DeliverPendingIrq() {
     }
     if (!ready) return;
 
-    auto&        jit   = emu_.Get<ArmJit>();
-    ArmCpuState* state = jit.CpuState();
+    auto&        cpu   = emu_.Get<ArmCpu>();
+    ArmCpuState* state = cpu.State();
     if (state->cpsr.bits.irq_disable) return;
 
-    jit.Cpu()->RaiseIrqException(state->gprs[ArmGpr::kR15]);
+    cpu.RaiseIrqException(state->gprs[ArmGpr::kR15]);
 }
 
 uint32_t OdoArm720BoardIntc::ReadReg32(uint32_t offset) {

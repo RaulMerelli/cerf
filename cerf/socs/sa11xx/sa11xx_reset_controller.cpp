@@ -6,7 +6,7 @@
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
 #include "../../host/guest_deep_sleep.h"
-#include "../../jit/arm/arm_jit.h"
+#include "../../jit/guest_engine.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -91,7 +91,7 @@ private:
         const uint32_t rcsr = rcsr_.fetch_or(0x2u, std::memory_order_acq_rel) | 0x2u;
         LOG(SocReset, "RSRR SWR=1: triggering guest reset (rcsr_=0x%08X)\n",
             rcsr);
-        emu_.Get<ArmJit>().SetResetPending();
+        emu_.Get<GuestEngine>().SetResetPending(false);
     }
 };
 

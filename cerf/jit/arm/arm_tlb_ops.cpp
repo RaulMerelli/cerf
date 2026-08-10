@@ -9,10 +9,7 @@ void ArmTlbFlushAll(ArmTlbUnit* unit) {
 }
 
 uint32_t ArmTlbInvalidateByVa(ArmTlbUnit* unit, uint32_t process_id, uint32_t va) {
-    /* FCSE fold for the low 32 MB slot; cp15 c8 runs regardless of SCTLR.M. */
-    if ((va & 0xFE000000u) == 0u) {
-        va |= process_id;
-    }
+    va = ArmFcseFold(va, process_id);
     const uint32_t page = va & 0xFFFFF000u;
     const uint32_t base = ArmTlbSetBase(va);
     /* The page may sit in any way of its set - invalidate every match. Mask the

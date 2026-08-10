@@ -316,8 +316,8 @@ Undefined-mode handler at vector 0x4, and the guest decides what to do
 guest-side fault / hang / wrong behavior, not a `[FATAL]` line - to
 catch it early, hook `OnPc` at the entry of
 `ArmCpu::RaiseUndefinedExceptionHelper` and log the offending PC + insn
-bytes. The **MIPS engine** instead loud-fatals through
-`MipsJit::UnimplementedHelper` (logs op + PC, then `CerfFatalExit`), so
+bytes. The **MIPS engine** instead loud-fatals through its
+`UnimplementedHelper` (logs op + PC, then `CerfFatalExit`), so
 an undecodable / unimplemented MIPS opcode surfaces as a `[FATAL]`
 directly. Either way the instruction bytes at `pc` are not the bytes the
 kernel or driver expects. **Almost always not a JIT bug** - the bytes at
@@ -355,7 +355,7 @@ Investigation:
 This is the ARM engine's fault shape (the cp15 register dump identifies
 it). The MIPS engine does not fatal on a normal TLB miss. The MIPS
 engine delivers the miss to the guest as a CP0 `TLBL` / `TLBS` exception
-(`MipsJit::RaiseTlbException` / `DeliverFetchTlbException`) and the
+(`RaiseTlbException` / `DeliverFetchTlbException`) and the
 guest's own refill handler runs. A MIPS access that is genuinely
 unmapped surfaces through the peripheral / unmapped-PA path (shape #3).
 

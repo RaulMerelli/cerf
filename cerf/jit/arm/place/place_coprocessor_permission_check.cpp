@@ -2,7 +2,7 @@
 #include <cstdint>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
@@ -15,7 +15,7 @@ uint8_t* PlaceCoprocessorPermissionCheck(uint8_t*      cursor,
                                          BlockContext* ctx) {
     using namespace x86;
 
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
 
     if (d->cp_num == 14u || d->cp_num == 15u) {
         const bool mcr_mrc = d->place_fn == &PlaceCoprocRegisterTransfer;

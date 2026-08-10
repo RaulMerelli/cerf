@@ -19,7 +19,7 @@ public:
     bool ShouldRegister() override;
 
     enum class Interp { Bit1, Gray8, Rgb565, Rgb8888 };
-    enum class Space  { Pa, Va };  /* Va = live on-CPU process via ArmMmu::PeekVaToHost */
+    enum class Space  { Pa, Va };
 
     /* UI thread. Fills every pixel of dib_bgra32[0..w*h). */
     void RenderInto(HDC dc, uint32_t* dib_bgra32, uint32_t width, uint32_t height);

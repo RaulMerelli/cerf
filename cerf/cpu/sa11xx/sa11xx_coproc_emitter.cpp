@@ -7,7 +7,8 @@
 #include <cstddef>
 
 #include "../../core/cerf_emulator.h"
-#include "../../jit/arm/arm_jit.h"
+#include "../../jit/arm/arm_emit_services.h"
+#include "../../jit/arm/arm_interrupt_channel.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../jit/arm/place_fns.h"
 #include "../../jit/x86_emit.h"
@@ -38,14 +39,14 @@ public:
            fatals on c15. */
         if (d->crn == 15) {
             /* MCR p15, 0, Rd, c15, c2, 2 - SA-1110 "Wait for Interrupt"
-               (Dev Man §5.3.4). OEMIdle uses this to halt CPU until next
-               IRQ. Without this, the kernel polls cp15 + LCD-mmio 137K
-               times/sec instead of sleeping. */
+               (Dev Man §5.3.4). */
             if (!d->l && d->crm == 2 && d->cp == 2 && d->cp_opc == 0) {
                 using namespace x86;
                 EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-                EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                        ctx->emit->InterruptChannel())));
+                EmitCall(cursor,
+                    reinterpret_cast<void*>(&ArmInterruptChannel::WfiHelper));
                 return cursor;
             }
             if (d->l) {

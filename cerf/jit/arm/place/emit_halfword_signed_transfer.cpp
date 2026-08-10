@@ -3,7 +3,7 @@
 
 #include "../../../core/log.h"
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
 #include "../cpu_state.h"
@@ -71,9 +71,9 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
                                     DecodedInsn*  d,
                                     BlockContext* ctx) {
     using namespace x86;
-    const ArmProcessorConfig* config = ctx->jit->ProcessorConfig();
-    ArmMmu*                   mmu    = ctx->jit->Mmu();
-    const ArmSctlr            sctlr  = mmu->State()->control_register;
+    const ArmProcessorConfig* config = ctx->emit->ProcessorConfig();
+    ArmMmu*                   mmu    = ctx->emit->Mmu();
+    const ArmSctlr            sctlr  = mmu->State()->effective_control_register;
     const uint32_t            mmu_imm =
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mmu));
 
@@ -192,9 +192,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
            columns; D12.3.1 (p. D12-2506): doubleword-aligned iff v6 U == 0;
            v4/v5 A == 0 unaligned is UNPREDICTABLE (D15.3.1, p. D15-2592),
            implemented as the same fault (p. Glossary-2737). */
-        const uint32_t mask =
-            (config->HasCp15V6() && !config->HasCp15V7() && !sctlr.bits.u)
-                ? 7u : 3u;
+        const uint32_t mask = mmu->DoublewordAlignMask();
         EmitTestRegImm32(cursor, kEcx, mask);
         align_fault_label = EmitJnzLabel32(cursor);
     }
@@ -246,16 +244,20 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             break;
 
         case (2u << 1) | 0u:  /* LDRD */
-            /* MOV EDX, [EAX] - 8B /r (SDM Vol. 2B 4-35 MOV). */
+            /* B1.9.9 (p. B1-1217) restores the base on a Data Abort when
+               the loaded list includes it, and A8.8.72 A1 (p. A8-426) makes
+               Rt == Rn UNPREDICTABLE only when wback: an early word-1
+               commit destroys the base the routed re-execution re-reads. */
+            /* MOV EDI, [EAX] - 8B /r (SDM Vol. 2B 4-35 MOV). */
             Emit8(cursor, 0x8B);
-            EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
-            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdx);
+            EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdi);
             EmitAddRegImm32(cursor, kEcx, 4u);
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
             EmitTestRegReg(cursor, kEax, kEax);
             abort_labels[n_abort++] = EmitJzLabel32(cursor);
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
+            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdi);
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd + 1), kEdx);
             if (wback) {
                 if (d->p) {
@@ -330,8 +332,10 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
         done_labels[n_done++] = EmitJmpLabel32(cursor);
     }
 
-    /* .align_fault: ECX = EA; translate never ran, so the io-pending slot
-       is stale and the D15.5.2 writeback is unconditional here. */
+    /* .align_fault: ECX = EA. ddi0406c D15.5.2 Base Updated Abort Model
+       (p. D15-2604): "the base register of any valid load/store instruction
+       that causes a memory system abort is modified by the base register
+       writeback, if any, of that instruction". */
     uint8_t* align_done_label = nullptr;
     if (align_fault_label != nullptr) {
         FixupLabel32(align_fault_label, cursor);

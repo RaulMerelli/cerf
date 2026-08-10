@@ -21,6 +21,8 @@ public:
 
     void UpdateCpsrWithFlags(ArmPsrFull psr);
 
+    uint32_t ReturnFromException(uint32_t new_cpsr_word, uint32_t new_pc);
+
     uint32_t*   BankedSp(uint32_t mode);
     ArmPsrFull* BankedSpsr(uint32_t mode);
 
@@ -55,6 +57,8 @@ public:
                                                uint32_t value);
     static uint32_t __cdecl ExceptionReturnHelper(ArmCpu* cpu, uint32_t new_pc);
 
+    static void __fastcall EnterDeepSleepHelper(ArmCpu* cpu);
+
 private:
     void     SwitchModeBanks(uint32_t old_mode, uint32_t new_mode);
     void     EnterException(uint32_t target_mode, uint32_t new_lr_value,
@@ -72,4 +76,5 @@ private:
     uint32_t pending_resume_dacr_    = 0;
     bool     pending_resume_mmu_set_ = false;
     uint32_t initial_pc_             = 0;
+    uint32_t initial_sp_             = 0;
 };

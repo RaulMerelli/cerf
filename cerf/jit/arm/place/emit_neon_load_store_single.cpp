@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_neon.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -14,7 +14,7 @@ uint8_t* PlaceNeonLoadStoreSingleLane(uint8_t*      cursor,
                                       DecodedInsn*  d,
                                       BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const uint32_t size = d->cp;          /* 0..2 (size==3 -> all-lanes path) */
     const uint32_t N    = d->op1 + 1u;    /* 1..4 */
@@ -79,7 +79,7 @@ uint8_t* PlaceNeonLoadStoreSingleLane(uint8_t*      cursor,
     EmitPush32(cursor, d_idx);
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Neon())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Neon())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmNeon::HandleLoadStoreSingleLaneHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

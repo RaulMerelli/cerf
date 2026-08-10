@@ -4,119 +4,210 @@
 #define NOMINMAX
 #include <windows.h>
 
-#include "../../boards/page_table_builder.h"
+#include <atomic>
+#include <cstdio>
+
+#include "../../boot/boot_mode.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../cpu/arm_processor_config.h"
+#include "../../socs/guest_cpu_reset.h"
+#include "../../host/guest_deep_sleep.h"
+#include "../../host/guest_power_notifier.h"
+#include "../jit_code_arena.h"
+#include "arm_block_compiler.h"
 #include "arm_cpu.h"
+#include "arm_interrupt_channel.h"
 #include "arm_mmu.h"
+#include "arm_mmu_probe.h"
 #include "arm_mmu_state.h"
-#include "arm_neon.h"
-#include "arm_neon_2reg_bitcount.h"
-#include "arm_neon_2reg_bitwise_not.h"
-#include "arm_neon_2reg_compare_zero.h"
-#include "arm_neon_2reg_cvt_half_single.h"
-#include "arm_neon_2reg_cvt_int_fp.h"
-#include "arm_neon_2reg_narrow.h"
-#include "arm_neon_2reg_pairwise_add_long.h"
-#include "arm_neon_2reg_reciprocal.h"
-#include "arm_neon_2reg_reverse.h"
-#include "arm_neon_2reg_sat_abs_neg.h"
-#include "arm_neon_2reg_scalar_mul.h"
-#include "arm_neon_2reg_shuffle.h"
-#include "arm_neon_2reg_swap.h"
-#include "arm_neon_2reg_unary_arith.h"
-#include "arm_neon_2regscalar.h"
-#include "arm_neon_3difflen.h"
-#include "arm_neon_3same_fp_abs_compare.h"
-#include "arm_neon_3same_fp_arith.h"
-#include "arm_neon_3same_fp_compare.h"
-#include "arm_neon_3same_fp_fma.h"
-#include "arm_neon_3same_fp_min_max.h"
-#include "arm_neon_3same_fp_mul_acc.h"
-#include "arm_neon_3same_fp_pair_add.h"
-#include "arm_neon_3same_fp_pair_min_max.h"
-#include "arm_neon_3same_fp_recip_step.h"
-#include "arm_neon_one_reg_imm.h"
-#include "arm_neon_sat.h"
-#include "arm_neon_scalar_move.h"
-#include "arm_neon_shift_imm.h"
-#include "arm_neon_simd_3same.h"
-#include "arm_neon_vext.h"
-#include "arm_neon_vtbl.h"
-#include "arm_vfp.h"
-#include "coproc_emitter.h"
+#include "arm_page_walker.h"
+#include "arm_translation_cache.h"
 
-ArmJit::~ArmJit() {
-    if (idle_event_) {
-        CloseHandle(idle_event_);
-        idle_event_ = nullptr;
+REGISTER_SERVICE_AS(ArmJit, GuestEngine);
+
+namespace {
+
+constexpr uintptr_t kFaultWindowBytes = 16;
+
+void LogEmittedBytesAroundFault(const JitCodeArena& arena, uintptr_t fault) {
+    const uintptr_t base = reinterpret_cast<uintptr_t>(arena.RegionBase());
+    const uintptr_t size = static_cast<uintptr_t>(arena.MaxSize());
+    if (size == 0 || fault < base || fault >= base + size) {
+        return;
     }
+
+    const uintptr_t lo = (fault - base >= kFaultWindowBytes)
+                             ? fault - kFaultWindowBytes : base;
+    const uintptr_t hi = ((base + size) - fault > kFaultWindowBytes)
+                             ? fault + kFaultWindowBytes : base + size;
+
+    char line[128];
+    int  n = 0;
+    for (uintptr_t p = lo; p < hi; ++p) {
+        const int written =
+            _snprintf_s(line + n, sizeof(line) - static_cast<size_t>(n),
+                        _TRUNCATE, "%02X ",
+                        *reinterpret_cast<const uint8_t*>(p));
+        if (written <= 0) break;
+        n += written;
+    }
+    LOG(Caution, "ArmJit:   emitted 0x%08lX..0x%08lX (fault at +0x%lX): %s\n",
+        static_cast<unsigned long>(lo), static_cast<unsigned long>(hi),
+        static_cast<unsigned long>(fault - lo), line);
+}
+
+int ArmDispatchFaultFilter(EXCEPTION_POINTERS*  ep,
+                           uint32_t             guest_pc,
+                           const ArmCpuState*   state,
+                           const JitCodeArena&  arena) {
+    const EXCEPTION_RECORD* rec = ep->ExceptionRecord;
+    const CONTEXT*          ctx = ep->ContextRecord;
+
+    LOG(Caution, "ArmJit: host exception 0x%08lX at host address %p while "
+            "running guest PC 0x%08X (CPSR=0x%08X)\n",
+        rec->ExceptionCode, rec->ExceptionAddress, guest_pc, state->cpsr.word);
+
+    char symbol[512];
+    if (Log::SymbolizeAddress(rec->ExceptionAddress, symbol, sizeof(symbol))) {
+        LOG(Caution, "ArmJit:   host symbol %s\n", symbol);
+    }
+
+    LOG(Caution, "ArmJit:   eax=%08lX ecx=%08lX edx=%08lX ebx=%08lX\n",
+        ctx->Eax, ctx->Ecx, ctx->Edx, ctx->Ebx);
+    LOG(Caution, "ArmJit:   esp=%08lX ebp=%08lX esi=%08lX edi=%08lX\n",
+        ctx->Esp, ctx->Ebp, ctx->Esi, ctx->Edi);
+    LOG(Caution, "ArmJit:   eip=%08lX eflags=%08lX\n", ctx->Eip, ctx->EFlags);
+
+    LogEmittedBytesAroundFault(
+        arena, reinterpret_cast<uintptr_t>(rec->ExceptionAddress));
+
+    for (uint32_t i = 0; i < 16u; i += 4u) {
+        LOG(Caution, "ArmJit:   r%u=0x%08X r%u=0x%08X r%u=0x%08X r%u=0x%08X\n",
+            i, state->gprs[i], i + 1u, state->gprs[i + 1u],
+            i + 2u, state->gprs[i + 2u], i + 3u, state->gprs[i + 3u]);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 }
 
 void ArmJit::OnReady() {
     cpu_       = &emu_.Get<ArmCpu>();
     cpu_state_ = cpu_->State();
     mmu_       = &emu_.Get<ArmMmu>();
+    probe_     = &emu_.Get<ArmMmuProbe>();
+    walker_    = &emu_.Get<ArmPageWalker>();
+    cache_     = &emu_.Get<ArmTranslationCache>();
+    compiler_  = &emu_.Get<ArmBlockCompiler>();
+    channel_   = &emu_.Get<ArmInterruptChannel>();
 
-    coproc_           = &emu_.Get<CoprocEmitter>();
-    processor_config_ = &emu_.Get<ArmProcessorConfig>();
+    BootMode&      boot       = emu_.Get<BootMode>();
+    const uint32_t cold_entry = boot.ColdEntryPa();
+    const uint32_t cold_stack = boot.ColdStackPa();
+    cpu_->SetInitialStackPointer(cold_stack);
+    cpu_->RaiseResetException(cold_entry);
 
-    neon_                        = &emu_.Get<ArmNeon>();
-    simd3same_                   = &emu_.Get<ArmNeonSimd3Same>();
-    neon_sat_                    = &emu_.Get<ArmNeonSat>();
-    neon_shift_imm_              = &emu_.Get<ArmNeonShiftImm>();
-    neon_one_reg_imm_            = &emu_.Get<ArmNeonOneRegImm>();
-    neon_scalar_move_            = &emu_.Get<ArmNeonScalarMove>();
-    neon_vext_                   = &emu_.Get<ArmNeonVext>();
-    neon_vtbl_                   = &emu_.Get<ArmNeonVtbl>();
-    neon_2reg_scalar_            = &emu_.Get<ArmNeon2RegScalar>();
-    neon_3difflen_               = &emu_.Get<ArmNeon3DiffLen>();
-    neon_2reg_bitcount_          = &emu_.Get<ArmNeon2RegBitcount>();
-    neon_2reg_bitwise_not_       = &emu_.Get<ArmNeon2RegBitwiseNot>();
-    neon_2reg_compare_zero_      = &emu_.Get<ArmNeon2RegCompareZero>();
-    neon_2reg_cvt_half_single_   = &emu_.Get<ArmNeon2RegCvtHalfSingle>();
-    neon_2reg_cvt_int_fp_        = &emu_.Get<ArmNeon2RegCvtIntFp>();
-    neon_2reg_narrow_            = &emu_.Get<ArmNeon2RegNarrow>();
-    neon_2reg_pairwise_add_long_ = &emu_.Get<ArmNeon2RegPairwiseAddLong>();
-    neon_2reg_reciprocal_        = &emu_.Get<ArmNeon2RegReciprocal>();
-    neon_2reg_reverse_           = &emu_.Get<ArmNeon2RegReverse>();
-    neon_2reg_sat_abs_neg_       = &emu_.Get<ArmNeon2RegSatAbsNeg>();
-    neon_2reg_scalar_mul_        = &emu_.Get<ArmNeon2RegScalarMul>();
-    neon_2reg_shuffle_           = &emu_.Get<ArmNeon2RegShuffle>();
-    neon_2reg_swap_              = &emu_.Get<ArmNeon2RegSwap>();
-    neon_2reg_unary_arith_       = &emu_.Get<ArmNeon2RegUnaryArith>();
-    neon_3same_fp_abs_compare_   = &emu_.Get<ArmNeon3SameFpAbsCompare>();
-    neon_3same_fp_arith_         = &emu_.Get<ArmNeon3SameFpArith>();
-    neon_3same_fp_compare_       = &emu_.Get<ArmNeon3SameFpCompare>();
-    neon_3same_fp_fma_           = &emu_.Get<ArmNeon3SameFpFma>();
-    neon_3same_fp_min_max_       = &emu_.Get<ArmNeon3SameFpMinMax>();
-    neon_3same_fp_mul_acc_       = &emu_.Get<ArmNeon3SameFpMulAcc>();
-    neon_3same_fp_pair_add_      = &emu_.Get<ArmNeon3SameFpPairAdd>();
-    neon_3same_fp_pair_min_max_  = &emu_.Get<ArmNeon3SameFpPairMinMax>();
-    neon_3same_fp_recip_step_    = &emu_.Get<ArmNeon3SameFpRecipStep>();
-    vfp_                         = &emu_.Get<ArmVfp>();
+    LOG(Jit, "ArmJit::OnReady: cold entry PA 0x%08X, cold stack PA 0x%08X\n",
+        cold_entry, cold_stack);
+}
 
-    arena_.Initialize();
-
-    const ArmMmuState* st = mmu_->State();
-    if (st->code_word_top <= st->code_word_base) {
-        LOG(Caution, "ArmJit: board declares no cached-DRAM extent; the JIT "
-                "block index has no page window\n");
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+__declspec(naked) void __cdecl ArmJit::Dispatch(void*, ArmCpuState*, ArmMmuState*) {
+    __asm {
+        push ebp
+        push ebx
+        push esi
+        push edi
+        mov  ecx, [esp + 20]
+        mov  esi, [esp + 24]
+        mov  ebx, [esp + 28]
+        call ecx
+        pop  edi
+        pop  esi
+        pop  ebx
+        pop  ebp
+        ret
     }
-    const uint32_t page_base  = st->code_word_base >> 12;
-    const uint32_t page_count = (st->code_word_top - st->code_word_base) >> 12;
-    blocks_arm_.Initialize(page_base, page_count);
-    blocks_thumb_.Initialize(page_base, page_count);
+}
 
-    idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    if (!idle_event_) {
-        LOG(Caution, "ArmJit: CreateEventW(idle_event) failed gle=%lu\n",
-            GetLastError());
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+void ArmJit::Run() {
+    mmu_->SynchronizeSctlr();
+
+    if (cpu_state_->reset_pending != 0u) {
+        emu_.Get<GuestCpuReset>().OnResetDelivered();
+        cpu_->RaiseResetException();
+        cache_->Flush();
+        return;
     }
 
-    LOG(Jit, "ArmJit::OnReady: arena + %u-page block window at PA 0x%08X\n",
-        page_count, st->code_word_base);
+    cpu_state_->irq_interrupt_pending = channel_->Level();
+    if (cpu_state_->irq_interrupt_pending != 0u &&
+        cpu_state_->cpsr.bits.irq_disable == 0u &&
+        cpu_state_->deep_sleep == 0u) {
+        cpu_->RaiseIrqException(cpu_state_->gprs[ArmGpr::kR15]);
+    }
+
+    const uint32_t pc = cpu_state_->gprs[ArmGpr::kR15];
+    void*          native =
+        cache_->Lookup(cpu_state_->cpsr.bits.thumb_mode != 0u,
+                       ArmFcseFold(pc, mmu_->State()->process_id));
+    if (native == nullptr) {
+        native = compiler_->Compile(pc);
+        if (native == nullptr) {
+            return;
+        }
+    }
+
+    __try {
+        Dispatch(native, cpu_state_, mmu_->State());
+    } __except (ArmDispatchFaultFilter(GetExceptionInformation(), pc,
+                                       cpu_state_, cache_->Arena())) {
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+}
+
+void ArmJit::SetInterruptPending()   { channel_->SetInterruptPending(); }
+void ArmJit::ClearInterruptPending() { channel_->ClearInterruptPending(); }
+
+void ArmJit::EnterDeepSleep() {
+    /* SA-1110 §9.5.3: PMCR.SF halts the CPU until a wake reset. */
+    cpu_state_->deep_sleep = 1;
+}
+
+void ArmJit::ExitDeepSleep() {
+    cpu_state_->deep_sleep = 0;
+    channel_->Wake();
+}
+
+void ArmJit::SetResetPending(bool is_resume) {
+    emu_.Get<GuestCpuReset>().SetPendingResume(is_resume);
+    cpu_state_->reset_pending = 1u;
+    channel_->Wake();
+    if (is_resume) return;
+    emu_.Get<GuestDeepSleep>().ClearWakeCause();
+    emu_.Get<GuestPowerNotifier>().NotifyReboot();
+}
+
+void ArmJit::SaveCpuState(StateWriter& w)    { cpu_->SaveState(w); }
+void ArmJit::RestoreCpuState(StateReader& r) { cpu_->RestoreState(r); }
+void ArmJit::SaveMmuState(StateWriter& w)    { mmu_->SaveState(w); }
+void ArmJit::RestoreMmuState(StateReader& r) { mmu_->RestoreState(r); }
+
+void ArmJit::FlushTranslationCache() { cache_->Flush(); }
+
+void ArmJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
+    walker_->SetInjectionBand(va, pa, size);
+}
+
+void ArmJit::SetDmaRegion(uint32_t /*pa*/, uint32_t /*size*/) {}
+
+std::optional<uint8_t*> ArmJit::PeekGuestVa(uint32_t va) {
+    return probe_->PeekDataTlb(va);
+}
+
+uint8_t* ArmJit::ResolveGuestVaToHost(uint32_t va) {
+    return probe_->PeekVaToHost(va);
+}
+
+bool ArmJit::ResolveGuestVaToPa(uint32_t va, uint32_t* pa) {
+    return probe_->PeekVaToPa(va, pa);
 }

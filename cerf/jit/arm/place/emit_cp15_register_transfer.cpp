@@ -2,8 +2,9 @@
 #include <cstdint>
 
 #include "../../../cpu/arm_processor_config.h"
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_mmu.h"
+#include "../arm_translation_cache.h"
 #include "../arm_mmu_state.h"
 #include "../arm_tlb_ops.h"
 #include "../cpu_state.h"
@@ -16,7 +17,7 @@ namespace {
    native caches via ContextSwitchFlush. NOT a translation-cache flush - blocks
    are phys-keyed so they survive an address-space change; a TC flush here would
    reinstate the per-context-switch storm. `mask` is ANDed in (0xFFFFFFFF=none). */
-uint8_t* EmitFieldWriteContextSwitch(uint8_t* cursor, ArmJit* jit,
+uint8_t* EmitFieldWriteContextSwitch(uint8_t* cursor, ArmTranslationCache* tc,
                                      int32_t rd_disp, int32_t mmu_disp,
                                      uint32_t mask) {
     using namespace x86;
@@ -26,8 +27,9 @@ uint8_t* EmitFieldWriteContextSwitch(uint8_t* cursor, ArmJit* jit,
     EmitMovBaseDisp32Reg(cursor, kMmuReg, mmu_disp, kEax);   /* store (keeps flags) */
     uint8_t* same = EmitJzLabel(cursor);                     /* unchanged → no flush */
     EmitMovRegImm32(cursor, kEcx,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit)));
-    EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::ContextSwitchFlushHelper));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tc)));
+    EmitCall(cursor,
+        reinterpret_cast<void*>(&ArmTranslationCache::ContextSwitchFlushHelper));
     FixupLabel(same, cursor);
     return cursor;
 }
@@ -41,14 +43,14 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
                                   BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     const int32_t rd_disp =
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u);
 
     switch (d->crn) {
     case 0:
-        if (jit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 1 &&
+        if (emit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 1 &&
             d->crm == 0 && d->l) {
             /* MRC p15, 1, Rt, c0, c0, {0,1}. op2=0 → CCSIDR (depends
                on current CSSELR, dispatch through ArmMmu helper);
@@ -59,17 +61,17 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                    ArmMmuState* and would make mmu->emu_ read garbage). */
                 EmitMovRegImm32(cursor, kEcx,
                     static_cast<uint32_t>(
-                        reinterpret_cast<uintptr_t>(jit->Mmu())));
+                        reinterpret_cast<uintptr_t>(emit->Mmu())));
                 EmitCall(cursor,
                     reinterpret_cast<void*>(&ArmMmu::CcsidrLookupHelper));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
             } else if (d->cp == 1) {
                 EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                    jit->ProcessorConfig()->Clidr());
+                    emit->ProcessorConfig()->Clidr());
             } else {
                 cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             }
-        } else if (jit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 2 &&
+        } else if (emit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 2 &&
                    d->crm == 0 && d->cp == 0) {
             /* MRC/MCR p15, 2, Rt, c0, c0, 0 - CSSELR R/W. Per-CPU
                mutable state stored in ArmMmuState::cssel_register.
@@ -90,10 +92,10 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
             if (d->l) {
                 if (d->cp == 0) {
                     EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                        jit->ProcessorConfig()->Midr());
+                        emit->ProcessorConfig()->Midr());
                 } else if (d->cp == 1) {
                     EmitMovBaseDisp32Imm32(cursor, kStateReg, rd_disp,
-                        jit->ProcessorConfig()->Ctr());
+                        emit->ProcessorConfig()->Ctr());
                 } else {
                     cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
                 }
@@ -119,7 +121,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
            op2=0..2), implemented silicon on Cortex-A8 (ARM DDI 0344 §2.1)
            that CERF does not model - every op2 there fatals. */
         if (d->cp_opc == 0 && d->crm == 1 &&
-            jit->ProcessorConfig()->HasSecurityExtensions()) {
+            emit->ProcessorConfig()->HasSecurityExtensions()) {
             cursor = EmitCoprocUnimplementedFatal(cursor, d, ctx);
             break;
         }
@@ -136,11 +138,11 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                encoding in an allocated primary register is UNPREDICTABLE
                (B3.15 rule 2, p. B3-1447) -> UND (glossary). */
             } else if (d->cp == 1 &&
-                       jit->ProcessorConfig()->HasAuxControlRegister()) {
+                       emit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
-            } else if (d->cp == 2 && jit->ProcessorConfig()->HasCp15V6()) {
+            } else if (d->cp == 2 && emit->ProcessorConfig()->HasCp15V6()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, coprocessor_access)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
@@ -151,14 +153,13 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         } else {
             if (d->cp == 0) {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
-                EmitMovRegImm32(cursor, kEdx, d->guest_address);
                 EmitCall(cursor, ctx->sctlr_write_target);
             } else if (d->cp == 1 &&
-                       jit->ProcessorConfig()->HasAuxControlRegister()) {
+                       emit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)), kEax);
-            } else if (d->cp == 2 && jit->ProcessorConfig()->HasCp15V6()) {
+            } else if (d->cp == 2 && emit->ProcessorConfig()->HasCp15V6()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, coprocessor_access)), kEax);
@@ -171,7 +172,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
     case 2: {
         const int32_t ttbr0_disp =
             static_cast<int32_t>(offsetof(ArmMmuState, translation_table_base));
-        if (jit->ProcessorConfig()->HasCp15V6() &&
+        if (emit->ProcessorConfig()->HasCp15V6() &&
             (d->cp == 1 || d->cp == 2)) {
             const int32_t disp = (d->cp == 1)
                 ? static_cast<int32_t>(offsetof(ArmMmuState, ttbr1))
@@ -195,7 +196,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
             EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, ttbr0_disp);
             EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
         } else {
-            cursor = EmitFieldWriteContextSwitch(cursor, jit, rd_disp, ttbr0_disp,
+            cursor = EmitFieldWriteContextSwitch(cursor, emit->TranslationCache(), rd_disp, ttbr0_disp,
                                                  0xFFFFFFFFu);
         }
         break;
@@ -237,7 +238,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         /* ARM DDI 0406C.c Figure B3-31 (p. B3-1474): c5 op1=0 CRm=c0 op2=0
            DFSR, op2=1 IFSR (VMSAv6+, D12.6); encodings not shown are
            UNPREDICTABLE, implemented as UNDEFINED (glossary). */
-        const bool is_ifsr = d->cp == 1 && jit->ProcessorConfig()->HasCp15V6();
+        const bool is_ifsr = d->cp == 1 && emit->ProcessorConfig()->HasCp15V6();
         if (d->cp_opc != 0 || d->crm != 0 || (d->cp != 0 && !is_ifsr)) {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             break;
@@ -259,7 +260,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         /* ARM DDI 0406C.c Figure B3-31 (p. B3-1474): c6 op1=0 CRm=c0 op2=0
            DFAR, op2=2 IFAR (VMSAv6+, D12.6); encodings not shown are
            UNPREDICTABLE, implemented as UNDEFINED (glossary). */
-        const bool is_ifar = d->cp == 2 && jit->ProcessorConfig()->HasCp15V6();
+        const bool is_ifar = d->cp == 2 && emit->ProcessorConfig()->HasCp15V6();
         if (d->cp_opc != 0 || d->crm != 0 || (d->cp != 0 && !is_ifar)) {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             break;
@@ -290,7 +291,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
            DDI0344K §3.2.55). CERF models no L2 → config latch (read/write field).
            HW restricts the write to Secure state; CERF has no NS world and the
            guest boots Secure, so the write is always taken. */
-        if (jit->ProcessorConfig()->HasL2CacheAuxControl() && d->cp_opc == 1 &&
+        if (emit->ProcessorConfig()->HasL2CacheAuxControl() && d->cp_opc == 1 &&
             d->crm == 0 && d->cp == 2) {
             const int32_t disp =
                 static_cast<int32_t>(offsetof(ArmMmuState, l2_aux_control));
@@ -309,7 +310,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
     case 10: {
         /* PRRR/NMRR storage only valid while SCTLR.TRE=0 - if TRE
            becomes 1, walker must consult these or attributes diverge. */
-        if (jit->ProcessorConfig()->HasCp15V6() && d->cp_opc == 0 &&
+        if (emit->ProcessorConfig()->HasCp15V6() && d->cp_opc == 0 &&
             d->crm == 2 && (d->cp == 0 || d->cp == 1)) {
             const int32_t disp = (d->cp == 0)
                 ? static_cast<int32_t>(offsetof(ArmMmuState, prrr))
@@ -336,7 +337,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
            Extensions c12 = VBAR / MVBAR / ISR - implemented silicon on
            Cortex-A8 (ARM DDI 0344 §2.1) that CERF does not model; without
            them "all CP15 c12 encodings are UNDEFINED" (p. B3-1479). */
-        if (jit->ProcessorConfig()->HasSecurityExtensions()) {
+        if (emit->ProcessorConfig()->HasSecurityExtensions()) {
             cursor = EmitCoprocUnimplementedFatal(cursor, d, ctx);
         } else {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
@@ -344,7 +345,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         break;
 
     case 13: {
-        if (jit->ProcessorConfig()->HasCp15V6() &&
+        if (emit->ProcessorConfig()->HasCp15V6() &&
             d->cp >= 1 && d->cp <= 4) {
             int32_t disp = 0;
             switch (d->cp) {
@@ -358,7 +359,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
             } else if (d->cp == 1) {
                 /* CONTEXTIDR[7:0] is the ASID - an address-space switch. */
-                cursor = EmitFieldWriteContextSwitch(cursor, jit, rd_disp, disp,
+                cursor = EmitFieldWriteContextSwitch(cursor, emit->TranslationCache(), rd_disp, disp,
                                                      0xFFFFFFFFu);
             } else {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
@@ -374,7 +375,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
             /* FCSE PID = bits[31:25] (ARM1136 TRM §3.3.35); [24:0] SBZ, ignored
                not faulted. Mask so the walker's `p |= process_id` fold is right.
                PID reuse is the stale-block trigger → context-switch flush. */
-            cursor = EmitFieldWriteContextSwitch(cursor, jit, rd_disp,
+            cursor = EmitFieldWriteContextSwitch(cursor, emit->TranslationCache(), rd_disp,
                 static_cast<int32_t>(offsetof(ArmMmuState, process_id)),
                 0xFE000000u);
         }

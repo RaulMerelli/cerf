@@ -4,7 +4,8 @@
 
 #include "../mips_block_context.h"
 #include "../mips_gpr_emit.h"
-#include "../mips_jit.h"
+#include "../mips_emit_services.h"
+#include "../mips_exception_delivery.h"
 #include "../../x86_emit.h"
 
 /* DSUB rd, rs, rt : rd = rs - rt, 64-bit; a signed 64-bit overflow raises Integer
@@ -12,7 +13,8 @@
    OPC_DSUB). SUB low (sets CF) then SBB high -> OF = 64-bit overflow. */
 uint8_t* PlaceMipsDsub(uint8_t* cursor, MipsDecodedInsn* d, MipsBlockContext* ctx) {
     mips_emit::EmitTrappingArith64RR(cursor, d->rd, d->rs, d->rt,
-        /*lo_op=SUB*/ 0x2B, /*hi_op=SBB*/ 0x1B, ctx->jit,
-        reinterpret_cast<void*>(&MipsJit::ArithOverflowHelper), d->guest_address);
+        /*lo_op=SUB*/ 0x2B, /*hi_op=SBB*/ 0x1B, ctx->emit->Exceptions(),
+        reinterpret_cast<void*>(&MipsExceptionDelivery::ArithOverflowHelper),
+        d->guest_address);
     return cursor;
 }

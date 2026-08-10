@@ -4,8 +4,8 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../jit/mips/mips_cpu.h"
 #include "../../jit/mips/mips_cpu_state.h"
-#include "../../jit/mips/mips_jit.h"
 
 namespace {
 
@@ -27,8 +27,8 @@ public:
         return true;
     }
 
-    void Enter(MipsJit* jit, uint32_t cause, bool refill_eligible) override {
-        MipsCpuState& s = *jit->CpuState();
+    void Enter(MipsCpuState* state, uint32_t cause, bool refill_eligible) override {
+        MipsCpuState& s = *state;
 
         /* Status.EXL is sampled once: it gates BOTH the refill-offset choice
            (do_interrupt EXCP_TLBL/TLBS line 1182) and the set_EPC block (line 1302),
@@ -76,11 +76,11 @@ public:
         s.branch_state = MipsBranch::kNone;
     }
 
-    void SetMmuFaultRegs(MipsJit* jit, uint32_t va) override {
+    void SetMmuFaultRegs(MipsCpuState* state, uint32_t va) override {
         /* raise_mmu_exception CP0 setup (tlb_helper.c:558-566), on min-page shift S:
            EntryHi/Context VPN2 = VA[31:S+1]. Context BadVPN2 field = [4+(31-S)-1 : 4]
            (VR4102 UM Fig 6-1: S=10 -> [24:4], VA>>7; R4000 S=12 -> [22:4], VA>>9). */
-        MipsCpuState& s = *jit->CpuState();
+        MipsCpuState& s = *state;
         const uint32_t shift = s.min_page_shift;
         const uint32_t ctx_field = ((1u << (31u - shift)) - 1u) << 4;
         s.cp0_badvaddr = va;

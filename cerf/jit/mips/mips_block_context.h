@@ -4,17 +4,15 @@
 
 #include "mips_decoded_insn.h"
 
-class MipsJit;
+class MipsBlockCompiler;
+class MipsEmitServices;
 enum class MipsTlbResult;
 
 constexpr uint32_t kMaxMipsInsnPerBlock = 100;
 
-/* Per-block emit state passed to every MIPS place_fn. Trampoline-target fields
-   are added as the engine's trampolines are designed; offsets are not baked
-   into emitted code until the engine emits, so extending this is free until
-   then. */
 struct MipsBlockContext {
-    MipsJit*        jit;
+    MipsEmitServices*  emit;
+    MipsBlockCompiler* compiler;
 
     MipsDecodedInsn insns[kMaxMipsInsnPerBlock];
     uint32_t        num_insns;

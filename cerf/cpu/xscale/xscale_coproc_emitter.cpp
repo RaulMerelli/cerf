@@ -7,7 +7,9 @@
 #include <cstddef>
 
 #include "../../core/cerf_emulator.h"
-#include "../../jit/arm/arm_jit.h"
+#include "../../jit/arm/arm_cpu.h"
+#include "../../jit/arm/arm_emit_services.h"
+#include "../../jit/arm/arm_interrupt_channel.h"
 #include "../../jit/arm/arm_mmu_state.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../jit/arm/place_fns.h"
@@ -97,15 +99,18 @@ public:
                 /* M=3 SLEEP: halt the CPU + recovery prompt; the halt replaces
                    the idle wait, so skip the WfiHelper fall-through. */
                 EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
+                    static_cast<uint32_t>(
+                        reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
                 EmitCall(cursor,
-                    reinterpret_cast<void*>(&ArmJit::EnterDeepSleepHelper));
+                    reinterpret_cast<void*>(&ArmCpu::EnterDeepSleepHelper));
                 uint8_t* done = EmitJmpLabel(cursor);
                 FixupLabel(not_sleep, cursor);
                 /* M=1 IDLE: wait for the next interrupt. */
                 EmitMovRegImm32(cursor, kEcx,
-                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->jit)));
-                EmitCall(cursor, reinterpret_cast<void*>(&ArmJit::WfiHelper));
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                        ctx->emit->InterruptChannel())));
+                EmitCall(cursor,
+                    reinterpret_cast<void*>(&ArmInterruptChannel::WfiHelper));
                 FixupLabel(done, cursor);
                 return cursor;
             }

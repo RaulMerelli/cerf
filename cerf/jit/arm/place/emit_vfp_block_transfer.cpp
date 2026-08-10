@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../arm_jit.h"
+#include "../arm_emit_services.h"
 #include "../arm_vfp.h"
 #include "../decoded_insn.h"
 #include "../place_fns.h"
@@ -14,7 +14,7 @@ uint8_t* EmitVfpBlockTransfer(uint8_t*      cursor,
                               DecodedInsn*  d,
                               BlockContext* ctx) {
     using namespace x86;
-    ArmJit* jit = ctx->jit;
+    ArmEmitServices* emit = ctx->emit;
 
     /* Vd from D-bit + crd (= bits[15:12]). For SP form Vd = crd:D
        (5-bit single index); for DP form Vd = D:crd (5-bit double
@@ -46,7 +46,7 @@ uint8_t* EmitVfpBlockTransfer(uint8_t*      cursor,
     EmitPush32(cursor, d->rn);
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(jit->Vfp())));
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Vfp())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmVfp::HandleBlockTransferHelper));
     EmitAddRegImm32(cursor, kEsp, 24);

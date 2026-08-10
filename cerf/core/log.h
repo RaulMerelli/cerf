@@ -120,6 +120,8 @@ namespace Log {
     /* Print every category and its description to stdout - used by --help. */
     void PrintCategoryList();
 
+    bool SymbolizeAddress(const void* addr, char* out, size_t out_size);
+
     void EmergencyStart();
     void Emergency(const char* fmt, ...);
     void EmergencyPrintNativeStack(const char* tag);
