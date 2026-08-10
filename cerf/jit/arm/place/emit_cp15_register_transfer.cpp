@@ -86,7 +86,8 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg, csselr_disp, kEax);
             }
-        } else if (d->cp_opc == 0 && d->crm == 0) {
+        } else if (d->cp_opc == 0 &&
+                   (d->crm == 0 || !emit->ProcessorConfig()->HasCp15V6())) {
             /* Legacy MIDR/CTR path - read-only constants from
                ArmProcessorConfig. */
             if (d->l) {
@@ -112,7 +113,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         }
         break;
 
-    case 1:
+    case 1: {
         /* ARM DDI 0406C.c Figure B3-28 (p. B3-1472): c1 op1=0 CRm=c0 op2=0
            SCTLR, op2=1 ACTLR, op2=2 CPACR. p. B3-1472: encodings not shown,
            and encodings that are part of an unimplemented architectural
@@ -125,24 +126,30 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
             cursor = EmitCoprocUnimplementedFatal(cursor, d, ctx);
             break;
         }
-        if (d->cp_opc != 0 || d->crm != 0) {
+        /* ARM DDI 0100I B4.9 (p. B4-39): "Unless specified otherwise, CRm and
+           opcode_2 SBZ." */
+        if (d->cp_opc != 0 ||
+            (d->crm != 0 && emit->ProcessorConfig()->HasCp15V6())) {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             break;
         }
+        const uint32_t c1_op2 =
+            (emit->ProcessorConfig()->HasAuxControlRegister() ||
+             emit->ProcessorConfig()->HasCp15V6()) ? d->cp : 0u;
         if (d->l) {
-            if (d->cp == 0) {
+            if (c1_op2 == 0) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, control_register)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
             /* ACTLR only where the core allocates c1 op2=1; an unallocated
                encoding in an allocated primary register is UNPREDICTABLE
                (B3.15 rule 2, p. B3-1447) -> UND (glossary). */
-            } else if (d->cp == 1 &&
+            } else if (c1_op2 == 1 &&
                        emit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
-            } else if (d->cp == 2 && emit->ProcessorConfig()->HasCp15V6()) {
+            } else if (c1_op2 == 2 && emit->ProcessorConfig()->HasCp15V6()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, coprocessor_access)));
                 EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
@@ -151,15 +158,15 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
                 break;
             }
         } else {
-            if (d->cp == 0) {
+            if (c1_op2 == 0) {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
                 EmitCall(cursor, ctx->sctlr_write_target);
-            } else if (d->cp == 1 &&
+            } else if (c1_op2 == 1 &&
                        emit->ProcessorConfig()->HasAuxControlRegister()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, aux_control_register)), kEax);
-            } else if (d->cp == 2 && emit->ProcessorConfig()->HasCp15V6()) {
+            } else if (c1_op2 == 2 && emit->ProcessorConfig()->HasCp15V6()) {
                 EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
                 EmitMovBaseDisp32Reg(cursor, kMmuReg,
                     static_cast<int32_t>(offsetof(ArmMmuState, coprocessor_access)), kEax);
@@ -168,6 +175,7 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
             }
         }
         break;
+    }
 
     case 2: {
         const int32_t ttbr0_disp =
@@ -239,7 +247,10 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
            DFSR, op2=1 IFSR (VMSAv6+, D12.6); encodings not shown are
            UNPREDICTABLE, implemented as UNDEFINED (glossary). */
         const bool is_ifsr = d->cp == 1 && emit->ProcessorConfig()->HasCp15V6();
-        if (d->cp_opc != 0 || d->crm != 0 || (d->cp != 0 && !is_ifsr)) {
+        if (d->cp_opc != 0 ||
+            (d->crm != 0 && emit->ProcessorConfig()->HasCp15V6()) ||
+            (d->cp != 0 && !is_ifsr &&
+             emit->ProcessorConfig()->HasCp15V6())) {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             break;
         }
@@ -261,7 +272,10 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
            DFAR, op2=2 IFAR (VMSAv6+, D12.6); encodings not shown are
            UNPREDICTABLE, implemented as UNDEFINED (glossary). */
         const bool is_ifar = d->cp == 2 && emit->ProcessorConfig()->HasCp15V6();
-        if (d->cp_opc != 0 || d->crm != 0 || (d->cp != 0 && !is_ifar)) {
+        if (d->cp_opc != 0 ||
+            (d->crm != 0 && emit->ProcessorConfig()->HasCp15V6()) ||
+            (d->cp != 0 && !is_ifar &&
+             emit->ProcessorConfig()->HasCp15V6())) {
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
             break;
         }
