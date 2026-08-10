@@ -139,13 +139,12 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
         io_miss[n_io_miss++] = EmitJzLabel32(cursor);
     }
 
-    /* I/O way-0 hit: io_pending = entry.pa_page | (EA & 0xFFF); EAX = null. EDX is
-       free now (the helper reloads it), so use it to build the page offset. */
     EmitMovRegBaseDisp32(cursor, kEax, kEdx, e_pa);   /* EAX = pa_page */
     EmitMovRegReg       (cursor, kEdx, kEcx);          /* EDX = EA */
     EmitAndRegImm32     (cursor, kEdx, 0x00000FFFu);   /* EDX = EA & 0xFFF */
     EmitOrReg32Reg32    (cursor, kEax, kEdx);          /* EAX = device PA */
     EmitMovDwordPtrReg  (cursor, ctx->emit->Mmu()->IoPendingAddressPtr(), kEax);
+    EmitMovDwordPtrImm32(cursor, ctx->emit->Mmu()->IoPendingValidPtr(), 1u);
     EmitXorRegReg       (cursor, kEax, kEax);
     uint8_t* io_done = EmitJmpLabel32(cursor);
 

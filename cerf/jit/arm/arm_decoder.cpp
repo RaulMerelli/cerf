@@ -36,10 +36,15 @@ bool ArmDecoder::DecodeArm(DecodedInsn* insn, ArmOpcode op) {
 
     if (cond == 0xFu) {
         insn->cond = 14u;
-        /* ARM DDI 0100I A3.2.1 (p. A3-4): "In ARMv4, any instruction with
-           a condition field of 0b1111 is UNPREDICTABLE." */
+        /* ARM DDI 0100I A3.2.1 (p. A3-4): in ARMv4 a condition field of
+           0b1111 is UNPREDICTABLE; A3.2 (p. A3-3) gives a failed
+           condition as "the instruction acts as a NOP". jornada720
+           nk.exe executes cond=0b1111 words as that NOP, falling from
+           MOV R1,#3 at 0x800557E4 into its exception reporter at
+           0x800557F0. */
         if (!processor_config_->HasArmv5UnconditionalSpace()) {
-            return MarkArmUnimplemented(insn, op.word);
+            insn->place_fn = &PlaceNop;
+            return true;
         }
         return unconditional_decoder_->Decode(insn, op);
     }

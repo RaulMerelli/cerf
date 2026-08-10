@@ -354,15 +354,12 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
         FixupLabel32(abort_labels[i], cursor);
     }
     if (base_updated_abort) {
-        /* D15.5.2 (p. D15-2604) Base Updated Abort Model: a genuine abort
-           (io-pending slot zero) leaves Rn = offset_addr; a routed MMIO
-           access is completed whole by the trampoline instead. */
-        /* MOV EAX, [io_pending] - 8B /r mod=00 disp32 (SDM Vol. 2B 4-35
-           MOV). */
+        /* ARM DDI 0406C.c D15.5.2 (p. D15-2604) Base Updated Abort Model. */
+        /* 8B /r mod=00 disp32 (SDM Vol. 2B 4-35 MOV). */
         Emit8(cursor, 0x8B);
         EmitModRmDisp32(cursor, kEax);
         Emit32(cursor, static_cast<uint32_t>(
-            reinterpret_cast<uintptr_t>(mmu->IoPendingAddressPtr())));
+            reinterpret_cast<uintptr_t>(mmu->IoPendingValidPtr())));
         EmitTestRegReg(cursor, kEax, kEax);
         uint8_t* io_skip = EmitJnzLabel32(cursor);
         EmitWritebackRecomputed(cursor, d);

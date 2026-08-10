@@ -191,6 +191,15 @@ inline void EmitMovDwordPtrReg(uint8_t*& c, const void* addr, uint8_t reg) {
     Emit32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(addr)));
 }
 
+/* MOV [disp32], imm32 - C7 /0 id, mod=00 r/m=101 = bare disp32
+   (SDM Vol. 2B 4-35 MOV; Vol. 2A Table 2-2 note 2). */
+inline void EmitMovDwordPtrImm32(uint8_t*& c, const void* addr, uint32_t imm) {
+    Emit8(c, 0xC7);
+    EmitModRmDisp32(c, 0);
+    Emit32(c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(addr)));
+    Emit32(c, imm);
+}
+
 /* MOVSX r32, r/m8 - 0F BE /r mod=10 (SDM Vol. 2B 4-130 MOVSX). */
 inline void EmitMovsxByteRegBaseDisp32(uint8_t*& c, uint8_t reg, uint8_t base,
                                        int32_t disp) {

@@ -146,13 +146,14 @@ None of these is visible from any single file.
 
 An ARM translate returns null for two different reasons: a real fault,
 or a resolved PA that lies in peripheral space. The MMU records the
-peripheral PA in an I/O-pending slot, and a zero slot means "raise the
-abort".
+peripheral PA, and a separate flag shows whether that record is live.
+The flag alone separates the two cases. A peripheral can occupy
+physical address zero.
 
-**Every path that reaches the abort tail must leave that slot in a
+**Every path that reaches the abort tail must leave that record in a
 defined state.** The walker clears it on entry, and a path that never
-runs the walker clears it itself. A translation-free path that leaves
-the slot alone sends its abort into the interpreter.
+runs the walker clears it itself. A translation-free path that does
+not clear the record sends its abort into the interpreter.
 
 On a peripheral access, emitted code leaves the block with only the
 guest PC. The routed interpreter then re-fetches, re-decodes and
