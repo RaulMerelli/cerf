@@ -10,9 +10,9 @@
 #include "../../x86_emit_alu.h"
 
 /* ARM ARM DDI 0406C.c Figure B3-32 (p. B3-1475) ARMv7; Table D12-8
-   (pp. D12-2533/2534) ARMv6; Table D15-22 (pp. D15-2629/2630) ARMv4/v5.
-   Not-shown encodings UNPREDICTABLE (p. B3-1475) -> UNDEFINED
-   (p. Glossary-2737). */
+   (pp. D12-2533/2534) ARMv6; Table D15-22 (pp. D15-2629/2630) ARMv4/v5;
+   DDI 0100I Table B6-6 (pp. B6-21/B6-22) + B6.6.5 (p. B6-19) pre-v6.
+   Unallocated ARMv7 encodings UNDEFINED (pp. B3-1475, Glossary-2737). */
 uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     ArmEmitServices* emit = ctx->emit;
@@ -72,6 +72,15 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                         emit->InterruptChannel())));
                 EmitCall(cursor,
                     reinterpret_cast<void*>(&ArmInterruptChannel::WfiHelper));
+                return cursor;
+            }
+            /* SA-1110 Developer's Manual §5.2.8: six register 7 functions,
+               none with CRm=c0; unlisted in ARM DDI 0100I Table B6-6
+               (pp. B6-21/B6-22). simpad_sl4_hpc2000 nk.exe start 0x80081900
+               executes it on resume, after the Flush I+D at 0x800818C0. */
+            if (d->cp == 0 && !v6 && !v7) {
+                EmitMovRegImm32(cursor, kEcx, icache_self);
+                EmitCall(cursor, icache_helper);
                 return cursor;
             }
             break;
@@ -163,9 +172,11 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             break;
 
         case 15:
-            /* Clean and Invalidate unified cache line by MVA / by set/way
-               c15/{1,2}, v4/v5/v6 only (Tables D15-22, D12-8). */
-            if (!v7 && (d->cp == 1 || d->cp == 2)) {
+            /* Clean and Invalidate unified cache c15/{1,2} v4/v5/v6 only
+               (Tables D15-22, D12-8); entire c15/0, footnote f "Only applies
+               to a unified cache" (DDI 0100I Table B6-6 p. B6-22). jornada820
+               nk.exe sub_8003A3B4 0x8003A3E8 and 0x8003A430. */
+            if (!v7 && (d->cp == 1 || d->cp == 2 || (d->cp == 0 && !v6))) {
                 EmitMovRegImm32(cursor, kEcx, icache_self);
                 EmitCall(cursor, icache_helper);
                 return cursor;
