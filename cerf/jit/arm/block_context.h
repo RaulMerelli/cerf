@@ -16,6 +16,8 @@ struct BlockContext {
     const void* sctlr_write_target;
     const void* raise_abort_data_helper_target;
 
+    uint8_t* native_start;
+
     DecodedInsn insns[kMaxArmInsnPerBlock];
     uint32_t    num_insns;
 };

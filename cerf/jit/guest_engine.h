@@ -53,4 +53,7 @@ public:
        mirrors high addresses into a smaller region returns the reduced mask;
        a flat space returns all-ones. */
     virtual uint32_t PhysAddrMask() const { return 0xFFFFFFFFu; }
+
+    /* QEMU hw/core/cpu-common.c:76 cpu_exit(). */
+    virtual void SetHostChainExit(bool) {}
 };

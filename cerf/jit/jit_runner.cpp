@@ -44,11 +44,18 @@ void JitRunner::Join() {
     }
 }
 
+void JitRunner::PublishHostChainExit(const std::unique_lock<std::mutex>&) {
+    emu_.Get<GuestEngine>().SetHostChainExit(
+        pause_requested_.load(std::memory_order_acquire) ||
+        stop_requested_.load(std::memory_order_acquire));
+}
+
 void JitRunner::RequestStop() {
-    stop_requested_.store(true, std::memory_order_release);
-    /* Wake the JIT thread if it is parked in a pause wait so it can
-       observe the stop and exit. */
-    { std::lock_guard<std::mutex> lk(pause_mutex_); }
+    {
+        std::unique_lock<std::mutex> lk(pause_mutex_);
+        stop_requested_.store(true, std::memory_order_release);
+        PublishHostChainExit(lk);
+    }
     pause_cv_.notify_all();
 }
 
@@ -56,6 +63,7 @@ void JitRunner::Pause() {
     if (!started_) return;
     std::unique_lock<std::mutex> lk(pause_mutex_);
     pause_requested_.store(true, std::memory_order_release);
+    PublishHostChainExit(lk);
     pause_cv_.wait(lk, [this] {
         return paused_ || stopped_.load(std::memory_order_acquire);
     });
@@ -63,8 +71,9 @@ void JitRunner::Pause() {
 
 void JitRunner::Resume() {
     {
-        std::lock_guard<std::mutex> lk(pause_mutex_);
+        std::unique_lock<std::mutex> lk(pause_mutex_);
         pause_requested_.store(false, std::memory_order_release);
+        PublishHostChainExit(lk);
     }
     pause_cv_.notify_all();
 }

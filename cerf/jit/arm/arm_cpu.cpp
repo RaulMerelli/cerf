@@ -1,5 +1,7 @@
 #include "arm_cpu.h"
 
+#include <atomic>
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
@@ -407,4 +409,7 @@ void ArmCpu::SaveState(StateWriter& w) {
 
 void ArmCpu::RestoreState(StateReader& r) {
     r.Read(state_);
+    std::atomic_ref<uint32_t>(state_.chain_exit_request)
+        .store(state_.reset_pending != 0u ? kChainExitReset : 0u,
+               std::memory_order_release);
 }
