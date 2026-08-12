@@ -5,7 +5,7 @@
 <ellipse cx="408.5" cy="200.5" rx="199.5" ry="131.5" fill="#636363" fill-opacity="0.39"/>
 </g>
 <g filter="url(#filter1_f_377_1540)">
-<ellipse cx="613" cy="347" rx="268" ry="66" fill="#636363" fill-opacity="0.76"/>
+<path d="M853.017 364.692C869.385 414 779.754 403.491 648.671 403.491C517.587 403.491 400 420 422.5 364.701C422.5 329.355 437.733 289 568.817 289C861.449 279 860.953 301 853.017 364.692Z" fill="#636363" fill-opacity="0.76"/>
 </g>
 <path d="M409.256 55.5293C490.316 55.5293 556.032 121.659 556.032 203.255C556.032 284.838 490.316 350.977 409.256 350.977C328.196 350.977 262.478 284.838 262.478 203.255C262.478 121.659 328.193 55.5293 409.256 55.5293Z" fill="url(#paint1_linear_377_1540)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M409.001 63.5501C332.479 63.5501 270.46 125.983 270.46 202.995C270.46 280 332.479 342.433 409.001 342.433C485.526 342.433 547.542 280 547.542 202.998C547.542 125.98 485.522 63.5501 409.001 63.5501ZM409.001 46.998C494.602 46.998 564.001 116.832 564.001 202.998C564.001 289.151 494.602 358.998 409.001 358.998C323.4 358.998 254.001 289.151 254.001 202.998C254.001 116.832 323.4 46.998 409.001 46.998Z" fill="#2D2D2D"/>
@@ -50,10 +50,10 @@
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
 <feGaussianBlur stdDeviation="35" result="effect1_foregroundBlur_377_1540"/>
 </filter>
-<filter id="filter1_f_377_1540" x="275" y="211" width="676" height="272" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<filter id="filter1_f_377_1540" x="376.921" y="243.892" width="521.009" height="204.705" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-<feGaussianBlur stdDeviation="35" result="effect1_foregroundBlur_377_1540"/>
+<feGaussianBlur stdDeviation="21.4" result="effect1_foregroundBlur_377_1540"/>
 </filter>
 <linearGradient id="paint0_linear_377_1540" x1="493" y1="-2.39147e-06" x2="490.506" y2="457.973" gradientUnits="userSpaceOnUse">
 <stop stop-color="#8DBBFF" stop-opacity="0.19"/>
