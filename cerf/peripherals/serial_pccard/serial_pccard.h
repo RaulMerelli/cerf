@@ -10,10 +10,6 @@
 
 class SerialEndpoint;
 
-/* Generic 16-bit serial / modem PC Card: a PC16550D (Serial16550) behind a
-   SerialEndpoint personality, presented so CE's in-box serial.dll binds it as
-   COMx: with no device-specific driver. CIS + attribute config registers (COR/
-   FCSR) + I/O map follow the WinCE6 DDK SERIAL / PCCARD sources. */
 class SerialPcCard : public PcmciaCard {
 public:
     static constexpr const wchar_t* kDisplayName        = serial_endpoint_kind::kModemName;
