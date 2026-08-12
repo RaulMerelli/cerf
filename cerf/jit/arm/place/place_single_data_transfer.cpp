@@ -6,6 +6,7 @@
 #include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
+#include "../arm_routed_access.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -205,9 +206,11 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         }
     }
 
-    uint8_t* abort_labels[2];
+    uint8_t* abort_labels[3];
     int      n_abort = 0;
-    uint8_t* done_labels[2];
+    uint8_t* fault_labels[2];
+    int      n_fault = 0;
+    uint8_t* done_labels[3];
     int      n_done = 0;
 
     cursor = EmitTlbFastPath(cursor, ctx,
@@ -273,7 +276,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
             EmitPopReg(cursor, kEdx);
             EmitTestRegReg(cursor, kEax, kEax);
-            abort_labels[n_abort++] = EmitJzLabel32(cursor);
+            fault_labels[n_fault++] = EmitJzLabel32(cursor);
             /* MOV EAX, [EAX] - 8B /r (SDM Vol. 2B 4-35 MOV). */
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEax);
@@ -323,7 +326,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
                 &ArmMmu::UnalignedWordLoadHelper));
             EmitAddRegImm32(cursor, kEsp, 8u);
             EmitTestRegReg(cursor, kEdx, kEdx);
-            abort_labels[n_abort++] = EmitJzLabel32(cursor);
+            fault_labels[n_fault++] = EmitJzLabel32(cursor);
             EmitMovRegReg(cursor, kEdx, kEax);
             if (wback) {
                 EmitWritebackRecomputed(cursor, d);
@@ -345,7 +348,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
                 &ArmMmu::UnalignedWordStoreHelper));
             EmitAddRegImm32(cursor, kEsp, 12u);
             EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
-            abort_labels[n_abort++] = EmitJzLabel32(cursor);
+            fault_labels[n_fault++] = EmitJzLabel32(cursor);
             if (wback) {
                 EmitWritebackRecomputed(cursor, d);
             }
@@ -376,8 +379,64 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     for (int i = 0; i < n_abort; ++i) {
         FixupLabel32(abort_labels[i], cursor);
     }
+    /* 8B /r mod=00 disp32 (SDM Vol. 2B 4-35 MOV). */
+    Emit8(cursor, 0x8B);
+    EmitModRmDisp32(cursor, kEax);
+    Emit32(cursor, static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(mmu->IoPendingValidPtr())));
+    EmitTestRegReg(cursor, kEax, kEax);
+    uint8_t* real_fault_label = EmitJzLabel32(cursor);
+
+    const uint32_t routed_imm = static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(ctx->emit->RoutedAccess()));
+    const uint32_t io_bytes = is_byte ? 1u : 4u;
+    if (load) {
+        EmitPushReg(cursor, kEcx);
+        EmitPush32 (cursor, d->guest_address);
+        EmitPush32 (cursor, io_bytes);
+        EmitPush32 (cursor, routed_imm);
+        EmitCall(cursor,
+            reinterpret_cast<void*>(&ArmRoutedAccess::IoLoadHelper));
+        EmitAddRegImm32(cursor, kEsp, 16u);
+        EmitMovRegReg(cursor, kEdx, kEax);
+        if (wback) {
+            EmitWritebackRecomputed(cursor, d);
+        }
+        if (d->rd == 15u) {
+            EmitMovRegReg(cursor, kEax, kEdx);
+            cursor = EmitLoadedPcWrite(cursor, d, ctx);
+        } else {
+            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdx);
+            done_labels[n_done++] = EmitJmpLabel32(cursor);
+        }
+    } else {
+        if (d->rd == 15u) {
+            EmitMovRegImm32(cursor, kEdx,
+                d->guest_address + config->PcStoreOffset());
+        } else {
+            EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd));
+        }
+        EmitPushReg(cursor, kEdx);
+        EmitPushReg(cursor, kEcx);
+        EmitPush32 (cursor, d->guest_address);
+        EmitPush32 (cursor, io_bytes);
+        EmitPush32 (cursor, routed_imm);
+        EmitCall(cursor,
+            reinterpret_cast<void*>(&ArmRoutedAccess::IoStoreHelper));
+        EmitAddRegImm32(cursor, kEsp, 20u);
+        if (wback) {
+            EmitWritebackRecomputed(cursor, d);
+        }
+        done_labels[n_done++] = EmitJmpLabel32(cursor);
+    }
+
+    FixupLabel32(real_fault_label, cursor);
+    for (int i = 0; i < n_fault; ++i) {
+        FixupLabel32(fault_labels[i], cursor);
+    }
     if (base_updated_abort) {
-        /* ARM DDI 0406C.c D15.5.2 (p. D15-2604) Base Updated Abort Model. */
+        /* ARM DDI 0406C.c D15.5.2 (p. D15-2604) Base Updated Abort Model
+           applies to an instruction "that causes a memory system abort". */
         /* 8B /r mod=00 disp32 (SDM Vol. 2B 4-35 MOV). */
         Emit8(cursor, 0x8B);
         EmitModRmDisp32(cursor, kEax);

@@ -40,6 +40,7 @@
 #include "arm_neon_simd_3same.h"
 #include "arm_neon_vext.h"
 #include "arm_neon_vtbl.h"
+#include "arm_routed_access.h"
 #include "arm_translation_cache.h"
 #include "arm_vfp.h"
 #include "coproc_emitter.h"
@@ -58,6 +59,7 @@ void ArmEmitServices::OnReady() {
     translation_cache_ = &emu_.Get<ArmTranslationCache>();
     interrupt_channel_ = &emu_.Get<ArmInterruptChannel>();
     exception_frame_   = &emu_.Get<ArmExceptionFrame>();
+    routed_access_     = &emu_.Get<ArmRoutedAccess>();
 
     neon_                        = &emu_.Get<ArmNeon>();
     simd3same_                   = &emu_.Get<ArmNeonSimd3Same>();
