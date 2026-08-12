@@ -16,13 +16,13 @@ A universal Windows CE emulator. It is a virtual hardware platform that boots re
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) {support_badges}
 
-> [!IMPORTANT]
-> **Downloads are not available and builds fail.** We remove third-party licensed
-> code from the emulator core and write new code from primary documentation. Until
-> this work is complete, there are no releases and no build artifacts. The tree does
-> not compile.
-
 ## Downloads
+
+> [!IMPORTANT]
+> **Downloads are temporary not available.** We remove third-party licensed
+> code from the emulator core and write new code from primary documentation. Until
+> this work is complete, there are no releases and no build artifacts. The current
+> version still does not correspond to CERF 6.7 level of stability and performance.
 
 To use the newest features, download the WIP build ({version}) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
@@ -34,13 +34,14 @@ Run **`launcher.exe`** and select a device. The launcher downloads the ROM bundl
 
 ## Running your own ROM
 
-A ROM boots only if **CERF implements that exact board**. A matching SoC is not sufficient. The [articles](https://cerf.cx/articles/own-rom/) show how to use your own dump of a board that CERF supports.
+A ROM boots only if **CERF implements that exact board**. A matching SoC is not sufficient.
 
-To add a board that CERF does **not** support is emulator development. You must write C++ code for the memory map of the board and for each peripheral that its drivers use. You must also write code for the quirks of the SoC. This code must agree with datasheets, BSP sources and reverse engineering, at the quality level that CERF has now. This work is not a change to a configuration file. An AI cannot do it for you.
+**The board is on the supported list.** The [articles](https://cerf.cx/articles/own-rom/) show how to boot your own dump.
+
+**The board is not on the supported list.** A new board is a code contribution. It needs C++ for the memory map of the board, for each peripheral that the drivers use, and for the quirks of the SoC. The code must agree with datasheets, BSP sources and reverse engineering, at the quality level of the current tree. A new board is not a change to a configuration file - that's not that simple.
 
 > [!IMPORTANT]
-> **CERF does not accept ROM submissions or requests for new boards.**
-> The devices that are worth the work are complete. Several boards took months of work, and almost nobody needs them. One more board gives one more Windows CE desktop, and CERF already has one. **New requests get a refusal**, unless a board is very interesting, or many people want it, and I want to do the work.
+> **CERF does not accept ROM submissions or requests for new boards.** Send a contribution, or use a board that CERF supports. The project also adds a board on its own sometimes, when the board is important for historical preservation, or interesting.
 
 ## Building
 
@@ -99,10 +100,10 @@ For the issues of each board, see the [board database of the launcher](launcher/
 
 ## Claude Development Environment
 
-> [!CAUTION]
-> **DO NOT USE THE CERF CODEBASE AS A REFERENCE FOR SoCs, BOARDS OR PERIPHERALS.** AI written code might include mistakes a developer did not notice.
+The project is primarily built with help of [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-Built with help of [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+> [!CAUTION]
+> AI written code (and well - the human written code too) might include mistakes a developer did not notice. Be careful when using it as a reference for peripherals and other hardware level systems.
 
 ---
 
