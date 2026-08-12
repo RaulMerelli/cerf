@@ -18,7 +18,7 @@ A universal Windows CE emulator. It is a virtual hardware platform that boots re
 
 ## Downloads
 
-> [!IMPORTANT]
+> [!CAUTION]
 > **Downloads are temporary not available.** We remove third-party licensed
 > code from the emulator core and write new code from primary documentation. Until
 > this work is complete, there are no releases and no build artifacts. The current
