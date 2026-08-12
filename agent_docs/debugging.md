@@ -551,7 +551,11 @@ at a given VA, so the match is unambiguous where a name lookup is not.
    than one), or just boot CERF once and read the `[TRACE] bundle
    CRC32 = 0x…` line.
 3. Create a `.cpp` named after the investigation (for example
-   `wm5_msh_handle_corruption.cpp`). Define one `Service` subclass
+   `wm5_msh_handle_corruption.cpp`). If all hooks in the file stay in
+   one guest module, name the file after that module. Examples:
+   `nk.exe` → `nk_trace.cpp`, `coredll.dll` → `coredll_trace.cpp`,
+   `gwes.exe` → `gwes_trace.cpp`. This form is optional. It shows which
+   binary the file hooks. Define one `Service` subclass
    whose `OnReady` calls `emu_.Get<TraceManager>().RegisterForBundle(
    kBundleCrc32, [&]{ ... });`. Inside the lambda, call `OnPc` and
    `OnRunLoopIter` as the investigation requires. Read memory inside
