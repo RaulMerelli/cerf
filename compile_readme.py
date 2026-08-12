@@ -126,8 +126,9 @@ def build_support_badges():
             continue
         alt = label.replace('--', '-').replace('%20', ' ')
         badges.append(
-            f'[![{alt}](https://img.shields.io/badge/{label}-{FUNDING_MESSAGE}-{color}'
-            f'?logo={logo}&logoColor={logo_color})]({url.format(user=user)})')
+            f'<a href="{url.format(user=user)}">'
+            f'<img src="https://img.shields.io/badge/{label}-{FUNDING_MESSAGE}-{color}'
+            f'?logo={logo}&amp;logoColor={logo_color}" alt="{alt}"/></a>')
     return ' '.join(badges)
 
 
