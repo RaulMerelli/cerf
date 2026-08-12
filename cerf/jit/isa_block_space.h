@@ -18,7 +18,12 @@ struct JumpCacheEntry {
     /* QEMU cpu-exec.c tb_lookup: a tb_jmp_cache hit is validated against the
        TB before use. */
     JitBlock* blk;
+    uint32_t  reserved;
 };
+
+constexpr uint32_t kJumpCacheEntryShift = 4;
+static_assert(sizeof(JumpCacheEntry) == (1u << kJumpCacheEntryShift),
+              "emitted jump-cache probes scale the index by a shift");
 
 /* Per-ISA blocks. CE7 sets FCSE process_id=0, so the index key no
    longer separates address spaces - partition by ASID: global (nG=0

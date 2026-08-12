@@ -30,6 +30,8 @@ public:
 
     void* Compile(uint32_t guest_pc);
 
+    void SetPredecessor(uint32_t folded_va) { predecessor_va_ = folded_va; }
+
     static void __fastcall SctlrWriteHelper(uint32_t value,
                                             ArmBlockCompiler* compiler);
     static void __fastcall RaiseAbortDataHelper(uint32_t guest_pc,
@@ -38,6 +40,8 @@ public:
                                               uint32_t pc);
 
 private:
+    uint32_t predecessor_va_ = 0;
+
     void   BuildTrampolines();
     void   Decode(uint32_t guest_pc, uint32_t folded_pc);
     size_t GenerateCode(uint8_t* code, uint8_t* code_end);

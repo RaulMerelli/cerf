@@ -25,14 +25,6 @@ uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
         target);
 
-    /* QEMU accel/tcg/cpu-exec.c:619 tb_add_jump(). */
-    if (target == ctx->insns[0].guest_address) {
-        EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-            static_cast<int32_t>(offsetof(ArmCpuState, chain_exit_request)));
-        EmitTestRegReg(cursor, kEax, kEax);
-        uint8_t* to_dispatcher = EmitJnzLabel32(cursor);
-        EmitJmp32(cursor, ctx->native_start);
-        FixupLabel32(to_dispatcher, cursor);
-    }
+    cursor = EmitChainToBlock(cursor, ctx, target, 0u);
     return PlaceR15ModifiedHelper(cursor, d, ctx);
 }

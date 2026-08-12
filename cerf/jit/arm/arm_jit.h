@@ -72,6 +72,7 @@ private:
     ArmMmu*              mmu_      = nullptr;
     ArmMmuProbe*         probe_    = nullptr;
     ArmPageWalker*       walker_   = nullptr;
+    uint32_t             predecessor_va_ = 0;
     ArmTranslationCache* cache_    = nullptr;
     ArmBlockCompiler*    compiler_ = nullptr;
     ArmInterruptChannel* channel_  = nullptr;

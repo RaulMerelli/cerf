@@ -7,6 +7,7 @@
 #include "../../core/service.h"
 #include "../isa_block_space.h"
 #include "../jit_code_arena.h"
+#include "cpu_state.h"
 
 class ArmMmu;
 
@@ -25,7 +26,7 @@ public:
     void* Lookup(bool thumb, uint32_t folded_pc);
 
     void Flush();
-    void PendFlush() { flush_pending_ = true; }
+    void PendFlush();
 
     /* QEMU tlb_flush -> tcg_flush_jmp_cache (accel/tcg/cputlb.c:401). */
     void InvalidateVaCachesAll() {
@@ -58,5 +59,6 @@ private:
     IsaBlockSpace blocks_thumb_;
     bool          flush_pending_ = false;
 
-    ArmMmu* mmu_ = nullptr;
+    ArmMmu*      mmu_       = nullptr;
+    ArmCpuState* cpu_state_ = nullptr;
 };

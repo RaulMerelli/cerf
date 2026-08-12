@@ -97,3 +97,4 @@ struct ArmCpuState {
 constexpr uint32_t kChainExitIrq   = 1u << 0;
 constexpr uint32_t kChainExitReset = 1u << 1;
 constexpr uint32_t kChainExitHost  = 1u << 2;
+constexpr uint32_t kChainExitFlush = 1u << 3;
