@@ -1,4 +1,4 @@
-# **CE Runtime Foundation** v6.8 pre-alpha
+# **CE Runtime Foundation** v6.8
 
 <p align="center">
   <a href="https://cerf.cx">
@@ -13,6 +13,10 @@
 <br/>
 
 A universal Windows CE emulator. It is a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
+
+> [!WARNING]
+> **Beta stage.** CERF is a one-person open source project. Expect bugs and
+> breaking changes.
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) [![Patreon](https://img.shields.io/badge/Patreon-support-FF424D?logo=patreon&logoColor=white)](https://www.patreon.com/dz3n)
 
