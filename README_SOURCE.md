@@ -1,18 +1,17 @@
-# **CE Runtime Foundation** v{version}
+<img src="docs/github_band.svg" width="100%"/>
 
-<p align="center">
-  <a href="https://cerf.cx">
-    <img src="gweslab.png" width="400" alt="cerf.cx" />
-  </a>
-</p>
+---
 
-<p align="center">
-  <b><a href="https://cerf.cx">cerf.cx</a></b> - more information about the project
-</p>
+<div align="center">
+  <b>A universal Windows CE emulator.</b><br/>
+  <b><a href="https://cerf.cx">cerf.cx</a></b> - read more information about the project  
+</div><br/>
+
+<div align="center">
+  <a href="https://discord.gg/QREE9Y2v2d"><img src="https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&amp;logoColor=white" alt="Discord"/></a> {support_badges}
+</div>
 
 <br/>
-
-A universal Windows CE emulator. It is a virtual hardware platform that boots real CE and Windows Mobile ROMs on modern Windows.
 
 > [!WARNING]
 > **Beta stage.** CERF is a one-person open source project. Expect bugs and
@@ -22,8 +21,6 @@ A universal Windows CE emulator. It is a virtual hardware platform that boots re
 > **CERF 6.8 is temporary broken.** We remove third-party licensed
 > code from the emulator core and write new code from primary documentation
 > The current version still does not correspond to CERF 6.7 level of stability and performance.
-
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) {support_badges}
 
 ## Downloads
 
