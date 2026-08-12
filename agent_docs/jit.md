@@ -146,7 +146,7 @@ None of these is visible from any single file.
   than the full current level leaves a stuck bit, and the guest
   re-enters its ISR forever. Two words carry that level across
   threads: the line, and the chain-exit bit that returns a chained
-  block to the dispatcher. One channel owns both words.
+  block to the dispatcher. One channel owns the line and that bit.
 - **A reset re-enters at a PHYSICAL address.** The reset must
   therefore turn the MMU off and clear the FCSE fold base. Otherwise
   the fetch folds that address and walks it through the page tables of
@@ -166,16 +166,13 @@ defined state.** The walker clears it on entry, and a path that never
 runs the walker clears it itself. A translation-free path that does
 not clear the record sends its abort into the interpreter.
 
-On a peripheral access, emitted code leaves the block with only the
-guest PC. The routed interpreter then re-fetches, re-decodes and
-re-executes that one instruction whole, including its destination
-registers and its base writeback. It reads and writes through a memory
-surface that serves RAM directly and hands a peripheral PA to
-`PeripheralDispatcher` at the requested width. Any other width is
-fatal.
+A peripheral access happens exactly once. Emitted code either performs
+it and completes the instruction, or it performs no access and leaves
+the block. The interpreter then re-executes the full instruction.
 
-Emitted code never performs a peripheral access itself, so replaying
-the instruction cannot double a device side effect.
+The record that carries the peripheral address holds one address. An
+access with more than one address therefore cannot complete inside the
+block.
 
 ---
 

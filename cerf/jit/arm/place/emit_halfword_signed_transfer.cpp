@@ -6,6 +6,7 @@
 #include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
+#include "../arm_routed_access.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -199,10 +200,16 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
 
     uint8_t* abort_labels[3];
     int      n_abort = 0;
+    uint8_t* fault_labels[3];
+    int      n_fault = 0;
 
     cursor = EmitTlbFastPath(cursor, ctx, access);
     EmitTestRegReg(cursor, kEax, kEax);
-    abort_labels[n_abort++] = EmitJzLabel32(cursor);
+    if (is_dual) {
+        fault_labels[n_fault++] = EmitJzLabel32(cursor);
+    } else {
+        abort_labels[n_abort++] = EmitJzLabel32(cursor);
+    }
 
     switch ((d->op1 << 1) | (d->l ? 1u : 0u)) {
         case (1u << 1) | 1u:  /* LDRH */
@@ -254,7 +261,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             EmitAddRegImm32(cursor, kEcx, 4u);
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
             EmitTestRegReg(cursor, kEax, kEax);
-            abort_labels[n_abort++] = EmitJzLabel32(cursor);
+            fault_labels[n_fault++] = EmitJzLabel32(cursor);
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdi);
@@ -275,7 +282,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             EmitAddRegImm32(cursor, kEcx, 4u);
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kWrite);
             EmitTestRegReg(cursor, kEax, kEax);
-            abort_labels[n_abort++] = EmitJzLabel32(cursor);
+            fault_labels[n_fault++] = EmitJzLabel32(cursor);
             EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd + 1));
             Emit8(cursor, 0x89);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
@@ -294,7 +301,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    uint8_t* done_labels[2];
+    uint8_t* done_labels[3];
     int      n_done = 0;
     done_labels[n_done++] = EmitJmpLabel32(cursor);
 
@@ -317,7 +324,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             EmitAddRegImm32(cursor, kEsp, 8u);
         }
         EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
-        abort_labels[n_abort++] = EmitJzLabel32(cursor);
+        fault_labels[n_fault++] = EmitJzLabel32(cursor);
         if (!is_store) {
             if (d->op1 == 3) {
                 EmitMovsxReg32Reg16(cursor, kEdx, kEax);
@@ -352,6 +359,60 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     /* .abort: */
     for (int i = 0; i < n_abort; ++i) {
         FixupLabel32(abort_labels[i], cursor);
+    }
+    if (n_abort != 0) {
+        /* 8B /r mod=00 disp32 (SDM Vol. 2B 4-35 MOV). */
+        Emit8(cursor, 0x8B);
+        EmitModRmDisp32(cursor, kEax);
+        Emit32(cursor, static_cast<uint32_t>(
+            reinterpret_cast<uintptr_t>(mmu->IoPendingValidPtr())));
+        EmitTestRegReg(cursor, kEax, kEax);
+        uint8_t* real_fault_label = EmitJzLabel32(cursor);
+
+        const uint32_t routed_imm = static_cast<uint32_t>(
+            reinterpret_cast<uintptr_t>(ctx->emit->RoutedAccess()));
+        const uint32_t io_bytes = (d->op1 == 2u) ? 1u : 2u;
+        if (is_store) {
+            EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd));
+            EmitPushReg(cursor, kEdx);
+            EmitPushReg(cursor, kEcx);
+            EmitPush32 (cursor, d->guest_address);
+            EmitPush32 (cursor, io_bytes);
+            EmitPush32 (cursor, routed_imm);
+            EmitCall(cursor,
+                reinterpret_cast<void*>(&ArmRoutedAccess::IoStoreHelper));
+            EmitAddRegImm32(cursor, kEsp, 20u);
+        } else {
+            EmitPushReg(cursor, kEcx);
+            EmitPush32 (cursor, d->guest_address);
+            EmitPush32 (cursor, io_bytes);
+            EmitPush32 (cursor, routed_imm);
+            EmitCall(cursor,
+                reinterpret_cast<void*>(&ArmRoutedAccess::IoLoadHelper));
+            EmitAddRegImm32(cursor, kEsp, 16u);
+            /* A8.8.84 LDRSB (immediate) (p. A8-451): R[t] =
+               SignExtend(MemU[address,1], 32). A8.8.88 LDRSH (immediate)
+               (p. A8-459): R[t] = SignExtend(data, 32). */
+            if (d->op1 == 2u) {
+                EmitMovsxReg32Reg8(cursor, kEdx, kEax);
+            } else if (d->op1 == 3u) {
+                EmitMovsxReg32Reg16(cursor, kEdx, kEax);
+            } else {
+                EmitMovRegReg(cursor, kEdx, kEax);
+            }
+        }
+        if (wback) {
+            EmitWritebackRecomputed(cursor, d);
+        }
+        if (!is_store) {
+            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdx);
+        }
+        done_labels[n_done++] = EmitJmpLabel32(cursor);
+
+        FixupLabel32(real_fault_label, cursor);
+    }
+    for (int i = 0; i < n_fault; ++i) {
+        FixupLabel32(fault_labels[i], cursor);
     }
     if (base_updated_abort) {
         /* ARM DDI 0406C.c D15.5.2 (p. D15-2604) Base Updated Abort Model. */

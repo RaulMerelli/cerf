@@ -8,6 +8,7 @@ struct ArmCpuState;
 
 class ArmCpu;
 class ArmExceptionFrame;
+class ArmRoutedAccess;
 class ArmInterruptChannel;
 class ArmMmu;
 class ArmMmuProbe;
@@ -69,6 +70,7 @@ public:
     ArmTranslationCache* TranslationCache() { return translation_cache_; }
     ArmInterruptChannel* InterruptChannel() { return interrupt_channel_; }
     ArmExceptionFrame*   ExceptionFrame()   { return exception_frame_; }
+    ArmRoutedAccess*     RoutedAccess()     { return routed_access_; }
 
     ArmNeon*                    Neon()                   { return neon_; }
     ArmNeonSimd3Same*           Simd3Same()              { return simd3same_; }
@@ -116,6 +118,7 @@ private:
     ArmTranslationCache* translation_cache_ = nullptr;
     ArmInterruptChannel* interrupt_channel_ = nullptr;
     ArmExceptionFrame*   exception_frame_   = nullptr;
+    ArmRoutedAccess*     routed_access_     = nullptr;
 
     ArmNeon*                    neon_                       = nullptr;
     ArmNeonSimd3Same*           simd3same_                  = nullptr;

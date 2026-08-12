@@ -39,6 +39,47 @@ void ArmRoutedAccess::HaltRoutedWidth(uint32_t guest_pc, uint32_t va,
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
+uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
+                                       uint32_t guest_pc, uint32_t va) {
+    switch (bytes) {
+    case 1u: return dispatcher_->ReadByte(pa);
+    case 2u: return dispatcher_->ReadHalf(pa);
+    case 4u: return dispatcher_->ReadWord(pa);
+    default: HaltRoutedWidth(guest_pc, va, bytes, pa, "load");
+    }
+}
+
+void ArmRoutedAccess::DispatchWrite(uint32_t pa, uint32_t bytes, uint32_t value,
+                                    uint32_t guest_pc, uint32_t va) {
+    switch (bytes) {
+    case 1u: dispatcher_->WriteByte(pa, static_cast<uint8_t>(value)); return;
+    case 2u: dispatcher_->WriteHalf(pa, static_cast<uint16_t>(value)); return;
+    case 4u: dispatcher_->WriteWord(pa, value); return;
+    default: HaltRoutedWidth(guest_pc, va, bytes, pa, "store");
+    }
+}
+
+uint32_t ArmRoutedAccess::IoLoadHelper(ArmRoutedAccess* self, uint32_t bytes,
+                                       uint32_t guest_pc, uint32_t va) {
+    const uint32_t pa = self->mmu_->io_pending_address();
+    self->mmu_->ClearIoPending();
+    if ((pa & (bytes - 1u)) != 0u) {
+        self->HaltUnalignedRouted(guest_pc, va, bytes, pa, "load");
+    }
+    return self->DispatchRead(pa, bytes, guest_pc, va);
+}
+
+void ArmRoutedAccess::IoStoreHelper(ArmRoutedAccess* self, uint32_t bytes,
+                                    uint32_t guest_pc, uint32_t va,
+                                    uint32_t value) {
+    const uint32_t pa = self->mmu_->io_pending_address();
+    self->mmu_->ClearIoPending();
+    if ((pa & (bytes - 1u)) != 0u) {
+        self->HaltUnalignedRouted(guest_pc, va, bytes, pa, "store");
+    }
+    self->DispatchWrite(pa, bytes, value, guest_pc, va);
+}
+
 bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
                            uint32_t va, uint32_t bytes, uint32_t* out) {
     if ((va & (bytes - 1u)) != 0u) {
@@ -66,12 +107,8 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
     if (!mmu_->io_pending()) {
         return false;
     }
-    switch (bytes) {
-    case 1u: *out = dispatcher_->ReadByte(pa); return true;
-    case 2u: *out = dispatcher_->ReadHalf(pa); return true;
-    case 4u: *out = dispatcher_->ReadWord(pa); return true;
-    default: HaltRoutedWidth(guest_pc, va, bytes, pa, "load");
-    }
+    *out = DispatchRead(pa, bytes, guest_pc, va);
+    return true;
 }
 
 bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
@@ -99,10 +136,6 @@ bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
     if (!mmu_->io_pending()) {
         return false;
     }
-    switch (bytes) {
-    case 1u: dispatcher_->WriteByte(pa, static_cast<uint8_t>(value)); return true;
-    case 2u: dispatcher_->WriteHalf(pa, static_cast<uint16_t>(value)); return true;
-    case 4u: dispatcher_->WriteWord(pa, value); return true;
-    default: HaltRoutedWidth(guest_pc, va, bytes, pa, "store");
-    }
+    DispatchWrite(pa, bytes, value, guest_pc, va);
+    return true;
 }
