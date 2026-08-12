@@ -23,7 +23,7 @@ panels - from Windows CE 1.0 to Windows CE 7.
 {stats}
 
 <p class="cerf-note" markdown>
-CERF is a pre-alpha emulator - expect issues.
+Beta stage - expect issues.
 </p>
 
 </div>

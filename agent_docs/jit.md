@@ -64,10 +64,24 @@ turn, then returns the unused tail to the arena.
 A block that outgrows its slab evicts itself. It flushes the arena and
 the block index, then compiles once more.
 
-Neither engine chains blocks. Every block ends by returning to the
-dispatcher, which resolves the next block through the jump cache. The
-guest PC must therefore be live in CPU state before a block exits,
-because the dispatcher reads the next PC from there.
+A block returns to the dispatcher at its end. The dispatcher resolves
+the next block through the jump cache. The guest PC must be live in
+CPU state before that exit, because the dispatcher reads the next PC
+from there.
+
+The ARM engine chains a direct branch back to the start of the block
+that contains it. That block jumps to its own entry and does not
+return.
+
+A block index entry uses the virtual address as its key. The entry
+outlives the VA-to-PA mapping that produced it. A jump baked to an
+index lookup therefore needs its own physical-identity check at the
+link. When the target dies, the engine must remove that jump.
+
+A chained block never reaches the dispatcher, so it observes no
+interrupt, no reset and no pause. Emitted code polls one host-set word
+in CPU state before each chained jump. When that word is set, the
+block returns to the dispatcher.
 
 ## The `place_fn` contract
 
