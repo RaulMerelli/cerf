@@ -4,6 +4,8 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <atomic>
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/arm_processor_config.h"
@@ -34,13 +36,18 @@ void ArmInterruptChannel::OnReady() {
 }
 
 void ArmInterruptChannel::SetInterruptPending() {
-    if (irq_line_.exchange(1u, std::memory_order_acq_rel) == 0u) {
+    const bool edge = irq_line_.exchange(1u, std::memory_order_acq_rel) == 0u;
+    std::atomic_ref<uint32_t>(cpu_state_->chain_exit_request)
+        .fetch_or(kChainExitIrq, std::memory_order_acq_rel);
+    if (edge) {
         SetEvent(idle_event_);
     }
 }
 
 void ArmInterruptChannel::ClearInterruptPending() {
     irq_line_.store(0u, std::memory_order_release);
+    std::atomic_ref<uint32_t>(cpu_state_->chain_exit_request)
+        .fetch_and(~kChainExitIrq, std::memory_order_acq_rel);
 }
 
 void ArmInterruptChannel::Wake() {

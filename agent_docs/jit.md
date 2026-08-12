@@ -73,15 +73,11 @@ The ARM engine chains a direct branch back to the start of the block
 that contains it. That block jumps to its own entry and does not
 return.
 
-A block index entry uses the virtual address as its key. The entry
-outlives the VA-to-PA mapping that produced it. A jump baked to an
-index lookup therefore needs its own physical-identity check at the
-link. When the target dies, the engine must remove that jump.
-
-A chained block never reaches the dispatcher, so it observes no
-interrupt, no reset and no pause. Emitted code polls one host-set word
-in CPU state before each chained jump. When that word is set, the
-block returns to the dispatcher.
+A chained block never reaches the dispatcher, so it observes nothing
+that the dispatcher delivers. Emitted code polls one word in CPU state
+before each chained jump. When that word is not zero, the block
+returns to the dispatcher. Every signal that must stop a chained block
+therefore owns a bit in that word.
 
 ## The `place_fn` contract
 
@@ -148,8 +144,9 @@ None of these is visible from any single file.
   publish the current level. The engine folds that level on the JIT
   thread at the top of each iteration. A publisher that sends less
   than the full current level leaves a stuck bit, and the guest
-  re-enters its ISR forever. One atomic word is the only interrupt
-  state that crosses threads.
+  re-enters its ISR forever. Two words carry that level across
+  threads: the line, and the chain-exit bit that returns a chained
+  block to the dispatcher. One channel owns both words.
 - **A reset re-enters at a PHYSICAL address.** The reset must
   therefore turn the MMU off and clear the FCSE fold base. Otherwise
   the fetch folds that address and walks it through the page tables of

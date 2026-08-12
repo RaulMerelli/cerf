@@ -88,4 +88,12 @@ struct ArmCpuState {
     uint32_t    irq_interrupt_pending;
     uint32_t    reset_pending;
     uint32_t    deep_sleep;
+
+    /* QEMU hw/core/cpu-common.c:76 cpu_exit(), include/hw/core/cpu.h:504
+       CPUState::exit_request. */
+    uint32_t    chain_exit_request;
 };
+
+constexpr uint32_t kChainExitIrq   = 1u << 0;
+constexpr uint32_t kChainExitReset = 1u << 1;
+constexpr uint32_t kChainExitHost  = 1u << 2;

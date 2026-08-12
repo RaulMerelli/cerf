@@ -59,6 +59,7 @@ public:
 
     void FlushTranslationCache() override;
     void SetResetPending(bool is_resume) override;
+    void SetHostChainExit(bool requested) override;
     void EnterDeepSleep() override;
     void ExitDeepSleep() override;
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;

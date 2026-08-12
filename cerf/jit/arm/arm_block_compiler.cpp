@@ -202,6 +202,7 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
 
     uint8_t* const start = code;
     uint8_t*       cursor = code;
+    block_ctx_.native_start = start;
     const uint32_t self =
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
     TraceManager&             tm     = emu_.Get<TraceManager>();

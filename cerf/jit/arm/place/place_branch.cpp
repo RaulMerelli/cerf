@@ -1,8 +1,10 @@
 #include <cstddef>
 
+#include "../block_context.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 /* ARM DDI 0406C.c A8.8.18 B (p. A8-335): BranchWritePC(PC + imm32);
    A8.8.25 BL encoding A1 (p. A8-349): LR = PC - 4, targetAddress =
@@ -17,8 +19,20 @@ uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                                  ArmGpr::kR14 * 4u),
             d->guest_address + 4u);
     }
+    const uint32_t target =
+        d->guest_address + 8u + static_cast<uint32_t>(d->offset);
     EmitMovBaseDisp32Imm32(cursor, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
-        d->guest_address + 8u + static_cast<uint32_t>(d->offset));
+        target);
+
+    /* QEMU accel/tcg/cpu-exec.c:619 tb_add_jump(). */
+    if (target == ctx->insns[0].guest_address) {
+        EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
+            static_cast<int32_t>(offsetof(ArmCpuState, chain_exit_request)));
+        EmitTestRegReg(cursor, kEax, kEax);
+        uint8_t* to_dispatcher = EmitJnzLabel32(cursor);
+        EmitJmp32(cursor, ctx->native_start);
+        FixupLabel32(to_dispatcher, cursor);
+    }
     return PlaceR15ModifiedHelper(cursor, d, ctx);
 }

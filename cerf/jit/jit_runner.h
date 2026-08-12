@@ -45,6 +45,8 @@ public:
     void Resume();
 
 private:
+    void PublishHostChainExit(const std::unique_lock<std::mutex>&);
+
     void RunLoop();
 
     std::thread             thread_;
