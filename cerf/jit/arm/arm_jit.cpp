@@ -149,15 +149,17 @@ void ArmJit::Run() {
     }
 
     const uint32_t pc = cpu_state_->gprs[ArmGpr::kR15];
+    const uint32_t folded = ArmFcseFold(pc, mmu_->State()->process_id);
     void*          native =
-        cache_->Lookup(cpu_state_->cpsr.bits.thumb_mode != 0u,
-                       ArmFcseFold(pc, mmu_->State()->process_id));
+        cache_->Lookup(cpu_state_->cpsr.bits.thumb_mode != 0u, folded);
     if (native == nullptr) {
+        compiler_->SetPredecessor(predecessor_va_);
         native = compiler_->Compile(pc);
         if (native == nullptr) {
             return;
         }
     }
+    predecessor_va_ = folded;
 
     __try {
         Dispatch(native, cpu_state_, mmu_->State());

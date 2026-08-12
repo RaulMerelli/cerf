@@ -25,7 +25,14 @@ public:
 
     void RemoveNode(JitBlock* block, ClearJumpCacheFn clear_jc, void* ctx);
 
+    void LinkChain(JitBlock* src, uint32_t slot, JitBlock* dest, uint8_t* site,
+                   uint8_t* fallback);
+
 private:
+    void RestoreFallbackJump(JitBlock* src, uint32_t slot);
+    void UnlinkChains(JitBlock* block);
+    void DetachFromDest(JitBlock* block, uint32_t slot);
+
     std::map<uint32_t, JitBlock*> blocks_by_start_;
 
     uint32_t max_span_ = 0;

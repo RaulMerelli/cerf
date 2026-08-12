@@ -246,6 +246,8 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     if (last.cond != 14u || !last.r15_modified) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
                                last.guest_address + 4u);
+        cursor = EmitChainToBlock(cursor, &block_ctx_, last.guest_address + 4u,
+                                  1u);
         EmitRet(cursor);
     }
 
@@ -321,6 +323,31 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
             JitBlock* stored = idx.PlaceOuterAt(slab, nb);
             space.IndexInsert(stored, &idx, phys_start);
             if (!outer_global) space.MarkPopulated(asid);
+
+            block_ctx_.index       = &idx;
+            block_ctx_.self        = stored;
+            block_ctx_.guest_start = folded_pc;
+            block_ctx_.phys_start  = phys_start;
+            block_ctx_.fcse_pid    = mmu_state->process_id;
+            block_ctx_.jump_cache  = space.jump_cache;
+
+            JitBlock* const src = idx.FindExact(predecessor_va_);
+            if (src != nullptr && src != stored &&
+                phys_start ==
+                    src->phys_start + (folded_pc - src->guest_start)) {
+                for (uint32_t s = 0; s < 2u; ++s) {
+                    if (src->chain_target[s] != nullptr ||
+                        src->chain_site[s] == nullptr ||
+                        src->chain_pending_va[s] != folded_pc) {
+                        continue;
+                    }
+                    const uint32_t disp = static_cast<uint32_t>(
+                        code - (src->chain_site[s] + 4));
+                    std::memcpy(src->chain_site[s], &disp, 4);
+                    idx.LinkChain(src, s, stored, src->chain_site[s],
+                                  src->chain_fallback[s]);
+                }
+            }
 
             const size_t code_size = GenerateCode(code, slab + slab_size);
             if (code_size != 0u) {

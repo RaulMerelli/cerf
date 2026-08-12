@@ -2,7 +2,8 @@
 #include "../../x86_emit.h"
 
 uint8_t* PlaceR15ModifiedHelper(uint8_t* cursor, DecodedInsn* /*d*/,
-                                BlockContext* /*ctx*/) {
+                                BlockContext* ctx) {
+    cursor = EmitJumpCacheProbe(cursor, ctx);
     x86::EmitRet(cursor);
     return cursor;
 }

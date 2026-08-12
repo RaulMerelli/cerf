@@ -17,4 +17,16 @@ struct JitBlock {
     uint32_t  index_start  = 0;
     uint32_t  index_split  = 0;
     uint32_t  index_start2 = 0;
+
+    /* QEMU include/exec/translation-block.h jmp_list_next / jmp_dest, and
+       accel/tcg/tb-maint.c tb_jmp_unlink(). */
+    uint32_t  chain_pending_va[2] = {0, 0};
+    uint8_t*  chain_site[2]       = {nullptr, nullptr};
+    uint8_t*  chain_fallback[2]   = {nullptr, nullptr};
+    JitBlock* chain_target[2]     = {nullptr, nullptr};
+
+    JitBlock* chain_src_next[2]      = {nullptr, nullptr};
+    uint8_t   chain_src_next_slot[2] = {0, 0};
+    JitBlock* chain_src_head         = nullptr;
+    uint8_t   chain_src_head_slot    = 0;
 };

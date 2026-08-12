@@ -1,17 +1,26 @@
 #include "arm_translation_cache.h"
 
+#include <atomic>
 #include <cstring>
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "arm_cpu.h"
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
 #include "arm_tlb_ops.h"
 
 REGISTER_SERVICE(ArmTranslationCache);
 
+void ArmTranslationCache::PendFlush() {
+    flush_pending_ = true;
+    std::atomic_ref<uint32_t>(cpu_state_->chain_exit_request)
+        .fetch_or(kChainExitFlush, std::memory_order_acq_rel);
+}
+
 void ArmTranslationCache::OnReady() {
-    mmu_ = &emu_.Get<ArmMmu>();
+    mmu_       = &emu_.Get<ArmMmu>();
+    cpu_state_ = emu_.Get<ArmCpu>().State();
 
     arena_.Initialize();
 
@@ -33,6 +42,8 @@ void ArmTranslationCache::OnReady() {
 void* ArmTranslationCache::Lookup(bool thumb, uint32_t folded_pc) {
     if (flush_pending_) {
         flush_pending_ = false;
+        std::atomic_ref<uint32_t>(cpu_state_->chain_exit_request)
+            .fetch_and(~kChainExitFlush, std::memory_order_acq_rel);
         Flush();
     }
     return Space(thumb).JumpCacheLookup(folded_pc);
