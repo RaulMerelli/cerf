@@ -18,15 +18,14 @@ A universal Windows CE emulator. It is a virtual hardware platform that boots re
 > **Beta stage.** CERF is a one-person open source project. Expect bugs and
 > breaking changes.
 
+> [!CAUTION]
+> **CERF 6.8 is temporary broken.** We remove third-party licensed
+> code from the emulator core and write new code from primary documentation
+> The current version still does not correspond to CERF 6.7 level of stability and performance.
+
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QREE9Y2v2d) [![Patreon](https://img.shields.io/badge/Patreon-support-FF424D?logo=patreon&logoColor=white)](https://www.patreon.com/dz3n)
 
 ## Downloads
-
-> [!CAUTION]
-> **Downloads are temporary not available.** We remove third-party licensed
-> code from the emulator core and write new code from primary documentation. Until
-> this work is complete, there are no releases and no build artifacts. The current
-> version still does not correspond to CERF 6.7 level of stability and performance.
 
 To use the newest features, download the WIP build (6.8) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
