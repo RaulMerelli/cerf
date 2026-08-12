@@ -22,6 +22,7 @@ public:
     enum class Counter : uint8_t {
         JitRuns         = 0,
         OstReadOscr,
+        OstPolls,
         OstFires,
         IntcAsserts,
         IntcDeasserts,
@@ -40,6 +41,7 @@ public:
        executes; emitted as estimated ms/sec in the PERF line. */
     enum class TimeCounter : uint8_t {
         JitRun          = 0,
+        OstMmio,
         JitIo,
         MmuXlate,
         Count,

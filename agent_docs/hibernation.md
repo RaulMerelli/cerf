@@ -128,9 +128,10 @@ state, and a pause of one does NOT pause the other:
 
 Reference worker: `FreescaleGptBase::MatchLoop` in `cerf/socs/freescale_gpt_impl.h`.
 It runs `{ auto frozen = freeze.WorkerSection(); RebaseToCurrent(); CheckAndFire(); }`.
-It then re-locks the cv mutex and waits OUTSIDE the worker section. A peripheral
-whose state advances only on the JIT thread (for example a `VirtualTimerList`-driven
-timer) has no worker and needs no `WorkerSection`.
+It then re-locks the cv mutex and waits OUTSIDE the worker section. The SA-11xx /
+PXA25x OS timer (`cerf/socs/os_timer.h` `MatchLoop`) uses the same pattern. A peripheral
+whose state advances only on the JIT thread has no worker and needs no
+`WorkerSection`.
 
 ## The peripheral contract - MANDATORY when you create or modify a peripheral
 
@@ -195,15 +196,14 @@ freeze model.
   sub-devices like a companion-ASIC `Ps2Mouse`) are not auto-enumerated → they need
   an explicit serialization walk + card-presence recreation
   (`PcmciaCardCatalog::Create(id, binding)`).
-- **Rebase timers** (guest-cycle: synctimer/gptimer/epit/gpt. VirtualClock-ns:
-  the OS timer. Wall-clock: `odo_arm720_cpu_timer`) - **never raw-serialize a
-  `std::chrono::time_point`, a guest-cycle baseline, or a VirtualClock-ns
-  anchor.** Save the live counter. On restore, re-anchor the baseline so the
-  counter resumes continuously. Guest-cycle → `baseline = (saved_count,
-  GuestCycles())`. VirtualClock-ns → the OS timer saves a computed live OSCR and
-  restores it as `(oscr_anchor_ = saved, anchor_ns_ = NowNs())`, because CERF does
-  not serialize `VirtualClock` itself. Wall-clock → `period_start_ =
-  Clock::now()`. Per-channel match anchors stay valid (same counter domain).
+- **Rebase timers** (guest-cycle: synctimer/gptimer/epit/gpt and the OS timer.
+  Wall-clock: `odo_arm720_cpu_timer`) - **never raw-serialize a
+  `std::chrono::time_point` or a guest-cycle baseline.** Save the live counter.
+  On restore, re-anchor the baseline so the counter resumes continuously.
+  Guest-cycle → `baseline = (saved_count, GuestCycles())`. The OS timer saves a
+  live OSCR and re-anchors it against the restored `GuestCycles()`. Wall-clock →
+  `period_start_ = Clock::now()`. Per-channel match anchors stay valid (same
+  counter domain).
 - **In-flight host coupling** resets on restore, because no host sink / pen /
   socket exists after a restore. In RestoreState or PostRestore, clear audio-DMA
   `in_flight`/`tx_running`, touch `pen_down`/`pen_timer_enabled`, and the

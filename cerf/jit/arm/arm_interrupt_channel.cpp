@@ -6,9 +6,9 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../core/virtual_clock.h"
-#include "../../core/virtual_timer_list.h"
 #include "../../cpu/arm_processor_config.h"
+
+#include <chrono>
 #include "arm_cpu.h"
 #include "cpu_state.h"
 
@@ -54,18 +54,12 @@ void __fastcall ArmInterruptChannel::WfiHelper(ArmInterruptChannel* channel) {
        interrupt, regardless of the value of the CPSR.I bit". */
     if (channel->irq_line_.load(std::memory_order_acquire) != 0u) return;
 
-    VirtualClock&     clock  = channel->emu_.Get<VirtualClock>();
-    VirtualTimerList& timers = channel->emu_.Get<VirtualTimerList>();
-
-    const int64_t deadline = timers.NextDeadlineNs();
-
-    clock.BeginIdleWait();
+    const auto start = std::chrono::steady_clock::now();
     WaitForSingleObject(channel->idle_event_, 1);
-    const int64_t folded_ns = clock.EndIdleWait(deadline);
-
-    state->guest_cycle_counter += static_cast<uint32_t>(VirtualClock::ScaleU64(
-        static_cast<uint64_t>(folded_ns),
-        channel->processor_config_->CpuClockHz(), 1000000000ull));
-
-    timers.RunExpired(VirtualTimerList::Site::Wfi);
+    const uint64_t elapsed_ns = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - start).count());
+    const uint64_t cpu_hz = channel->processor_config_->CpuClockHz();
+    state->guest_cycle_counter += static_cast<uint32_t>(
+        (elapsed_ns * cpu_hz) / 1000000000ull);
 }
