@@ -35,7 +35,11 @@ public:
     void OnShutdown() override { StopMatchThread(); }
 
     void OnReady() override {
-        divider_ = emu_.Get<ArmProcessorConfig>().CpuToOscrDivider();
+#if CERF_DEV_MODE
+        rate_probe_ = &emu_.Get<RateProbe>();
+#endif
+        cpu_state_ = emu_.Get<ArmCpu>().State();
+        divider_   = emu_.Get<ArmProcessorConfig>().CpuToOscrDivider();
         baseline_packed_.store(PackBaseline(0, GuestCycles()),
                                std::memory_order_release);
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -57,7 +61,7 @@ public:
         if (!IsKnown(base)) HaltUnsupportedAccess("ReadByte", addr, 0);
         const uint8_t result = static_cast<uint8_t>((ReadReg(base) >> shift) & 0xFFu);
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
+        rate_probe_->AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
 #endif
         return result;
     }
@@ -70,7 +74,7 @@ public:
         if (!IsKnown(off)) HaltUnsupportedAccess("ReadWord", addr, 0);
         const uint32_t result = ReadReg(off);
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
+        rate_probe_->AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
 #endif
         return result;
     }
@@ -87,7 +91,7 @@ public:
         const uint32_t cleared = cur & ~(0xFFu << shift);
         WriteReg(base, cleared | (static_cast<uint32_t>(value) << shift));
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
+        rate_probe_->AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
 #endif
     }
 
@@ -99,7 +103,7 @@ public:
         if (!IsKnown(off)) HaltUnsupportedAccess("WriteWord", addr, value);
         WriteReg(off, value);
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
+        rate_probe_->AddTsc(RateProbe::TimeCounter::OstMmio, __rdtsc() - t0);
 #endif
     }
 
@@ -170,6 +174,12 @@ private:
        the guest and trip the OAL tick catch-up into a 2^32-iteration cascade. */
     uint32_t              divider_ = 56;
 
+    ArmCpuState*          cpu_state_ = nullptr;
+
+#if CERF_DEV_MODE
+    RateProbe*            rate_probe_ = nullptr;
+#endif
+
     /* High 32 bits = OSMR[n], low 32 bits = oscr_at_arm[n] snapshot. */
     std::atomic<uint64_t> osmr_arm_[4]{};
     std::atomic<uint32_t> ossr_{0};
@@ -203,12 +213,12 @@ private:
     /* Aligned 32-bit reads of guest_cycle_counter are atomic on x86, so this
        cross-thread read (JIT writes it, match loop reads it) needs no lock. */
     uint32_t GuestCycles() const {
-        return emu_.Get<ArmCpu>().State()->guest_cycle_counter;
+        return cpu_state_->guest_cycle_counter;
     }
 
     uint32_t ReadOscr() const {
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstReadOscr);
+        rate_probe_->Inc(RateProbe::Counter::OstReadOscr);
 #endif
         const uint64_t packed = baseline_packed_.load(std::memory_order_acquire);
         const uint32_t cycles_now = GuestCycles();
@@ -365,7 +375,7 @@ private:
             return;
         }
 #if CERF_DEV_MODE
-        emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstFires);
+        rate_probe_->Inc(RateProbe::Counter::OstFires);
 #endif
     }
 
@@ -397,7 +407,7 @@ private:
         while (!stop_.load(std::memory_order_acquire)) {
             lk.unlock();
 #if CERF_DEV_MODE
-            emu_.Get<RateProbe>().Inc(RateProbe::Counter::OstPolls);
+            rate_probe_->Inc(RateProbe::Counter::OstPolls);
 #endif
             {
                 auto frozen = freeze.WorkerSection();
