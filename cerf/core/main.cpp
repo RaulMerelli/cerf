@@ -1,6 +1,7 @@
 #include "log.h"
 #include "main_config.h"
 #include "cerf_emulator.h"
+#include "../version.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -19,8 +20,8 @@ int main(int argc, char* argv[]) {
     Log::InitDefaultLogFile();
     Log::InstallCrashHandler();
 
-    LOG(Cerf, "=== CERF ===\n");
-    LOG(Cerf, "Built: %s %s\n\n", __DATE__, __TIME__);
+    LOG(Cerf, "== CE Runtime Foundation %s ==\n", CERF_VERSION_DISPLAY_STR);
+    LOG(Cerf, "main.cpp compiled at: %s %s\n\n", __DATE__, __TIME__);
 
     CerfEmulator emu(cfg, argc, argv);
     emu.Boot();
