@@ -26,8 +26,7 @@ public:
     void DeassertSource(uint32_t bit_index);
 
     /* Level source: set ICPR bits within `mask` to `level` in one atomic update
-       (used by the OS timer; §9.4.2 routes the OSSR status bits to the
-       interrupt controller as levels). */
+       (used by the OS timer, whose §9.4 interrupt follows OSSR&OIER as a level). */
     void SetSourceLevel(uint32_t mask, uint32_t level);
 
     /* Diagnostic snapshot - locks state_mtx_ so all four are
