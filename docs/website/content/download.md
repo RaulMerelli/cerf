@@ -5,10 +5,7 @@ hide:
 
 # Download
 
-!!! warning "Temporary unavailable"
-
-    Downloads are temporarily unavailable. They should be back approximately
-    closer to September, or later.
+[Download latest release](https://github.com/gweslab/cerf/releases/latest){ .md-button .md-button--primary }
 
 ## Supported platforms
 
