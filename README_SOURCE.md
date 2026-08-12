@@ -1,7 +1,7 @@
 <img src="docs/github_band.svg" width="100%"/>
 
 <div align="center">
-  <b>A universal Windows CE emulator.</b><br/>
+  <b>CE Runtime Foundation</b> (aka <i>CERF</I>) - <b>Universal Windows CE emulator</b><br/>
   <b><a href="https://cerf.cx">cerf.cx</a></b> - read more information about the project  
 </div><br/>
 
