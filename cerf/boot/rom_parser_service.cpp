@@ -35,6 +35,7 @@ using cerf::rom_image_parse::IpaqNbfOsXip;
 using cerf::rom_image_parse::ParseModulesAndFiles;
 using cerf::rom_image_parse::NosajLocateOsXip;
 using cerf::rom_image_parse::NosajOsXip;
+using cerf::rom_image_parse::ResolveNextStructuralXip;
 using cerf::rom_image_parse::ResolveRomhdrAtEcec;
 using cerf::rom_image_parse::ResolveRomhdrStructural;
 using cerf::rom_image_parse::U32;
@@ -189,7 +190,29 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
                   "physfirst=0x%08X..physlast=0x%08X  nummods=%u  numfiles=%u\n",
             rom.filename.c_str(), romhdr_off, xip.load_offset,
             xip.toc.romhdr_va, h.physfirst, h.physlast, h.nummods, h.numfiles);
+        const uint32_t base_va = xip.load_offset;
         rom.xips.push_back(std::move(xip));
+
+        for (size_t next = romhdr_off + 4;;) {
+            ParsedXipRegion extra;
+            size_t          extra_off = 0;
+            if (!ResolveNextStructuralXip(rom.flat, next, base_va,
+                                          extra, extra_off)) {
+                break;
+            }
+            ParseModulesAndFiles(rom.flat, extra_off, extra.load_offset,
+                                 extra.toc.romhdr, extra.toc);
+            const auto& eh = extra.toc.romhdr;
+            LOG(Boot, "RomParser %s: structural XIP[%zu] @ file off 0x%zX  "
+                      "load_offset=0x%08X  romhdr_va=0x%08X  "
+                      "physfirst=0x%08X..physlast=0x%08X  nummods=%u  "
+                      "numfiles=%u\n",
+                rom.filename.c_str(), rom.xips.size(), extra_off,
+                extra.load_offset, extra.toc.romhdr_va, eh.physfirst,
+                eh.physlast, eh.nummods, eh.numfiles);
+            rom.xips.push_back(std::move(extra));
+            next = extra_off + 4;
+        }
     } else if (!ececs.empty()) {
         LOG(Boot, "RomParser %s: %zu ECEC marker(s) in flat\n",
             rom.filename.c_str(), ececs.size());

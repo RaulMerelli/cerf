@@ -15,8 +15,9 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::VR4102 || bd->GetSoc() == SocFamily::VR4121 ||
-                      bd->GetSoc() == SocFamily::VR4122 || bd->GetSoc() == SocFamily::VR5500);
+        return bd && (bd->GetSoc() == SocFamily::VR4102 || bd->GetSoc() == SocFamily::VR4111 ||
+                      bd->GetSoc() == SocFamily::VR4121 || bd->GetSoc() == SocFamily::VR4122 ||
+                      bd->GetSoc() == SocFamily::VR5500);
     }
 
     /* mips_cpu_hw_interrupts_enabled (internal.h): IE && !EXL && !ERL. */
@@ -79,7 +80,8 @@ public:
     void SetMmuFaultRegs(MipsCpuState* state, uint32_t va) override {
         /* raise_mmu_exception CP0 setup (tlb_helper.c:558-566), on min-page shift S:
            EntryHi/Context VPN2 = VA[31:S+1]. Context BadVPN2 field = [4+(31-S)-1 : 4]
-           (VR4102 UM Fig 6-1: S=10 -> [24:4], VA>>7; R4000 S=12 -> [22:4], VA>>9). */
+           (VR4102 UM Fig 6-1, VR4111 UM Fig 7-1 p.190: S=10 -> [24:4], VA>>7;
+           R4000 S=12 -> [22:4], VA>>9). */
         MipsCpuState& s = *state;
         const uint32_t shift = s.min_page_shift;
         const uint32_t ctx_field = ((1u << (31u - shift)) - 1u) << 4;
