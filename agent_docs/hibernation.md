@@ -87,8 +87,9 @@ Presentation → Widget → Reset**.
 - **Flash** - `EmulatedMemory` backed PAGE_READONLY / PAGE_EXECUTE_READ regions
   (flash writes-since-boot ARE machine state). Restore applies this section on
   warm boot too, because flash survives a reboot on real hardware.
-- **Periph** - every `PeripheralDispatcher::RegisteredPeripherals()` entry, in
-  registration order, each tagged by `MmioBase()`. Restore verifies the tag.
+- **Periph** - every `PeripheralDispatcher::RegisteredPeripherals()` entry, tagged
+  with its `MmioBase()`. The save pass and the restore pass walk the set in the same
+  order. The restore pass verifies the tag.
 - **Presentation** - `HostCanvas` guest-surface dimensions, so a custom resolution
   restores its window size.
 - **Widget** - `HostWidgetRegistry` state that drives guest-visible hardware

@@ -116,7 +116,8 @@ documentation of correct hardware behavior.
   translation-block chaining (two-slot jump lists, link bookkeeping, and the
   jump reset that unlinks a chain when a block is removed), the exit-request
   signal that returns translated code to the dispatch loop, the emitted
-  next-block lookup, the
+  next-block lookup, the most-recently-used region memo in physical-address
+  dispatch, the
   virtual-clock and timer model (pause-aware guest clock, deadline-list expiry,
   idle-phase clock warp), and per-SoC timer behavior (SA-1110/PXA OS timer,
   i.MX GPT/EPIT, MIPS Count/Compare).
