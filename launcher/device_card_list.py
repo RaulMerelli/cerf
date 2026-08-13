@@ -68,13 +68,13 @@ class DeviceCardList:
         self._heading_wrap = int(320 * scale)
 
         frame = ttk.Frame(parent)
-        frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
         self.frame = frame
 
         filter_bar = ttk.Frame(frame)
-        filter_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        filter_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 4))
         self.var_search = tk.StringVar(value="")
         ttk.Entry(filter_bar, textvariable=self.var_search, width=22).pack(
             side="right")
@@ -195,7 +195,7 @@ class DeviceCardList:
         hdr = tk.Label(self._inner, text=group, bg=theme.BG, fg=theme.FG,
                        anchor="w",
                        font=("Segoe UI", 13, "bold"))
-        hdr.pack(fill="x", padx=2, pady=(14, 4))
+        hdr.pack(fill="x", padx=2, pady=(9, 3))
         self._bind_wheel(hdr)
         return hdr
 
@@ -264,11 +264,11 @@ class DeviceCardList:
         card = tk.Frame(self._inner, bg=theme.BG_LIGHTER, highlightthickness=1,
                         highlightbackground=theme.BORDER,
                         highlightcolor=theme.BORDER)
-        card.pack(fill="x", padx=2, pady=3)
+        card.pack(fill="x", padx=2, pady=2)
 
         tile = PreviewTile(card, self._devices_dir, self._tile_w, self._tile_h,
                            self._glyph, theme.BG_LIGHTER)
-        tile.canvas.pack(side="left", padx=(8, 4), pady=8)
+        tile.canvas.pack(side="left", padx=(6, 4), pady=5)
 
         textcol = tk.Frame(card, bg=theme.BG_LIGHTER)
         textcol.pack(side="left", fill="both", expand=True)
@@ -277,7 +277,7 @@ class DeviceCardList:
                         bg=theme.BG_LIGHTER, fg=theme.FG, anchor="w",
                         justify="left", wraplength=self._heading_wrap,
                         font=("Segoe UI", 11, "bold"))
-        name.pack(fill="x", padx=6, pady=(8, 0))
+        name.pack(fill="x", padx=6, pady=(4, 0))
 
         detail = tk.Frame(textcol, bg=theme.BG_LIGHTER)
         detail.pack(fill="x", padx=6)
@@ -298,7 +298,7 @@ class DeviceCardList:
         label, fg = self._status_text(d)
         status = tk.Label(textcol, text=label, bg=theme.BG_LIGHTER, fg=fg,
                           anchor="w", font=("Segoe UI", 9))
-        status.pack(fill="x", padx=6, pady=(0, 8))
+        status.pack(fill="x", padx=6, pady=(0, 4))
 
         bg_children = [card, textcol, detail, name, prefix_lbl, soc_lbl,
                        suffix_lbl, status]
