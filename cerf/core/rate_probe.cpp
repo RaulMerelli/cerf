@@ -105,6 +105,8 @@ void RateProbe::LogLoop() {
     /* Per-counter total since boot; a lifetime of 0 means the Inc() site is
        not wired on this board, distinct from an idle 0 this interval. */
     uint64_t lifetime[kCount] = {};
+    uint32_t prev[kCount] = {};
+    uint64_t prev_time[kTimeCount] = {};
 
     while (!stop_.load(std::memory_order_acquire)) {
         {
@@ -118,11 +120,16 @@ void RateProbe::LogLoop() {
 
         uint64_t s[kCount];
         for (uint8_t i = 0; i < kCount; ++i) {
-            s[i] = counters_[i].exchange(0, std::memory_order_relaxed);
+            const uint32_t cur = counters_[i].load(std::memory_order_relaxed);
+            s[i] = static_cast<uint32_t>(cur - prev[i]);
+            prev[i] = cur;
         }
         uint64_t t[kTimeCount];
         for (uint8_t i = 0; i < kTimeCount; ++i) {
-            t[i] = time_counters_[i].exchange(0, std::memory_order_relaxed);
+            const uint64_t cur =
+                time_counters_[i].load(std::memory_order_relaxed);
+            t[i] = cur - prev_time[i];
+            prev_time[i] = cur;
         }
         for (uint8_t i = 0; i < kCount; ++i) lifetime[i] += s[i];
 

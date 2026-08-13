@@ -8,10 +8,6 @@
 #include <mutex>
 #include <thread>
 
-/* Diagnostic-only service. Each hot site calls Inc(Counter) once per
-   event. A 1 Hz dumper thread snapshots + zeroes the counters and emits
-   one LOG(Perf, ...) line so VM and host runs can be diffed byte-for-byte
-   to pin which event class differs at runtime. */
 class RateProbe : public Service {
 public:
     using Service::Service;
@@ -51,8 +47,8 @@ public:
 
 #if CERF_DEV_MODE
     void Inc(Counter c) {
-        counters_[static_cast<uint8_t>(c)]
-            .fetch_add(1, std::memory_order_relaxed);
+        counters_[static_cast<uint8_t>(c)].fetch_add(1u,
+                                                     std::memory_order_relaxed);
     }
 
     void AddTsc(TimeCounter c, uint64_t ticks) {
@@ -113,7 +109,7 @@ private:
     static constexpr uint8_t kCount     = static_cast<uint8_t>(Counter::Count);
     static constexpr uint8_t kTimeCount = static_cast<uint8_t>(TimeCounter::Count);
 
-    std::atomic<uint64_t>   counters_[kCount]{};
+    std::atomic<uint32_t>   counters_[kCount]{};
     std::atomic<uint64_t>   time_counters_[kTimeCount]{};
     std::atomic<uint32_t>   mmio_pc_[kMmioHistSize]{};
     std::atomic<uint32_t>   mmio_addr_[kMmioHistSize]{};
