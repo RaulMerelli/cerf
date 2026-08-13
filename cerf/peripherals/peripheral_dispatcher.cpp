@@ -81,17 +81,18 @@ void PeripheralDispatcher::ValidatePhysReachable(uint32_t phys_addr_mask) const 
     }
 }
 
+/* QEMU system/physmem.c:345 address_space_lookup_region(), mru_section. */
 const PeripheralDispatcher::Entry* PeripheralDispatcher::LookupEntry(
+    uint32_t addr) const {
+    if (const Entry* hit = MemoHit(addr)) return hit;
+    return LookupSlow(addr);
+}
+
+const PeripheralDispatcher::Entry* PeripheralDispatcher::LookupSlow(
     uint32_t addr) const {
     const EntryTable* t = live_.load(std::memory_order_acquire);
     if (!t) return nullptr;
 
-    /* QEMU system/physmem.c:345 address_space_lookup_region(), mru_section. */
-    const size_t cached = last_hit_.load(std::memory_order_relaxed);
-    if (cached < t->size()) {
-        const Entry& hit = (*t)[cached];
-        if (addr >= hit.base && addr < hit.end) return &hit;
-    }
     auto it = std::upper_bound(t->begin(), t->end(), addr,
         [](uint32_t a, const Entry& e) { return a < e.base; });
     if (it == t->begin()) return nullptr;
@@ -104,25 +105,50 @@ const PeripheralDispatcher::Entry* PeripheralDispatcher::LookupEntry(
     return nullptr;
 }
 
-uint8_t PeripheralDispatcher::ReadByte(uint32_t addr) {
-    if (const Entry* e = LookupEntry(addr)) {
-        return static_cast<uint8_t>(e->read(e->ctx, addr - e->base, 1));
+uint32_t PeripheralDispatcher::ReadSlow(uint32_t addr, MmioWidth width) {
+    if (const Entry* e = LookupSlow(addr)) {
+        return ClipToWidth(
+            e->read(e->ctx, addr - e->base, static_cast<uint32_t>(width)),
+            width);
     }
-    return emu_.Get<EmulatedMemory>().ReadByte(addr);
+    switch (width) {
+    case MmioWidth::kByte: return emu_.Get<EmulatedMemory>().ReadByte(addr);
+    case MmioWidth::kHalf: return emu_.Get<EmulatedMemory>().ReadHalf(addr);
+    case MmioWidth::kWord: return emu_.Get<EmulatedMemory>().ReadWord(addr);
+    }
+    HaltBadWidth(static_cast<uint32_t>(width));
+}
+
+void PeripheralDispatcher::HaltBadWidth(uint32_t width) {
+    LOG(Caution, "PeripheralDispatcher: unmodeled MMIO width %u\n", width);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
+void PeripheralDispatcher::WriteSlow(uint32_t addr, uint32_t value,
+                                     MmioWidth width) {
+    if (const Entry* e = LookupSlow(addr)) {
+        e->write(e->ctx, addr - e->base, ClipToWidth(value, width),
+                 static_cast<uint32_t>(width));
+        return;
+    }
+    switch (width) {
+    case MmioWidth::kByte: emu_.Get<EmulatedMemory>().WriteByte(addr, static_cast<uint8_t>(value)); return;
+    case MmioWidth::kHalf: emu_.Get<EmulatedMemory>().WriteHalf(addr, static_cast<uint16_t>(value)); return;
+    case MmioWidth::kWord: emu_.Get<EmulatedMemory>().WriteWord(addr, value); return;
+    }
+    HaltBadWidth(static_cast<uint32_t>(width));
+}
+
+uint8_t PeripheralDispatcher::ReadByte(uint32_t addr) {
+    return static_cast<uint8_t>(Read(addr, MmioWidth::kByte));
 }
 
 uint16_t PeripheralDispatcher::ReadHalf(uint32_t addr) {
-    if (const Entry* e = LookupEntry(addr)) {
-        return static_cast<uint16_t>(e->read(e->ctx, addr - e->base, 2));
-    }
-    return emu_.Get<EmulatedMemory>().ReadHalf(addr);
+    return static_cast<uint16_t>(Read(addr, MmioWidth::kHalf));
 }
 
 uint32_t PeripheralDispatcher::ReadWord(uint32_t addr) {
-    if (const Entry* e = LookupEntry(addr)) {
-        return e->read(e->ctx, addr - e->base, 4);
-    }
-    return emu_.Get<EmulatedMemory>().ReadWord(addr);
+    return Read(addr, MmioWidth::kWord);
 }
 
 uint64_t PeripheralDispatcher::ReadDword(uint32_t addr) {
@@ -133,27 +159,15 @@ uint64_t PeripheralDispatcher::ReadDword(uint32_t addr) {
 }
 
 void PeripheralDispatcher::WriteByte(uint32_t addr, uint8_t value) {
-    if (const Entry* e = LookupEntry(addr)) {
-        e->write(e->ctx, addr - e->base, value, 1);
-        return;
-    }
-    emu_.Get<EmulatedMemory>().WriteByte(addr, value);
+    Write(addr, value, MmioWidth::kByte);
 }
 
 void PeripheralDispatcher::WriteHalf(uint32_t addr, uint16_t value) {
-    if (const Entry* e = LookupEntry(addr)) {
-        e->write(e->ctx, addr - e->base, value, 2);
-        return;
-    }
-    emu_.Get<EmulatedMemory>().WriteHalf(addr, value);
+    Write(addr, value, MmioWidth::kHalf);
 }
 
 void PeripheralDispatcher::WriteWord(uint32_t addr, uint32_t value) {
-    if (const Entry* e = LookupEntry(addr)) {
-        e->write(e->ctx, addr - e->base, value, 4);
-        return;
-    }
-    emu_.Get<EmulatedMemory>().WriteWord(addr, value);
+    Write(addr, value, MmioWidth::kWord);
 }
 
 void PeripheralDispatcher::WriteDword(uint32_t addr, uint64_t value) {

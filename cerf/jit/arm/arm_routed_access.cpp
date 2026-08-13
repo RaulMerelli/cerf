@@ -42,9 +42,9 @@ void ArmRoutedAccess::HaltRoutedWidth(uint32_t guest_pc, uint32_t va,
 uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
                                        uint32_t guest_pc, uint32_t va) {
     switch (bytes) {
-    case 1u: return dispatcher_->ReadByte(pa);
-    case 2u: return dispatcher_->ReadHalf(pa);
-    case 4u: return dispatcher_->ReadWord(pa);
+    case 1u: return dispatcher_->Read(pa, MmioWidth::kByte);
+    case 2u: return dispatcher_->Read(pa, MmioWidth::kHalf);
+    case 4u: return dispatcher_->Read(pa, MmioWidth::kWord);
     default: HaltRoutedWidth(guest_pc, va, bytes, pa, "load");
     }
 }
@@ -52,9 +52,9 @@ uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
 void ArmRoutedAccess::DispatchWrite(uint32_t pa, uint32_t bytes, uint32_t value,
                                     uint32_t guest_pc, uint32_t va) {
     switch (bytes) {
-    case 1u: dispatcher_->WriteByte(pa, static_cast<uint8_t>(value)); return;
-    case 2u: dispatcher_->WriteHalf(pa, static_cast<uint16_t>(value)); return;
-    case 4u: dispatcher_->WriteWord(pa, value); return;
+    case 1u: dispatcher_->Write(pa, value, MmioWidth::kByte); return;
+    case 2u: dispatcher_->Write(pa, value, MmioWidth::kHalf); return;
+    case 4u: dispatcher_->Write(pa, value, MmioWidth::kWord); return;
     default: HaltRoutedWidth(guest_pc, va, bytes, pa, "store");
     }
 }

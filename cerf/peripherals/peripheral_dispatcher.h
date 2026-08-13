@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
+
 class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
@@ -40,6 +42,53 @@ private:
     };
 
     using EntryTable = std::vector<Entry>;
+
+public:
+    uint32_t Read(uint32_t addr, MmioWidth width) {
+        if (const Entry* e = MemoHit(addr)) {
+            return ClipToWidth(
+                e->read(e->ctx, addr - e->base, static_cast<uint32_t>(width)),
+                width);
+        }
+        return ReadSlow(addr, width);
+    }
+
+    void Write(uint32_t addr, uint32_t value, MmioWidth width) {
+        if (const Entry* e = MemoHit(addr)) {
+            e->write(e->ctx, addr - e->base, ClipToWidth(value, width),
+                     static_cast<uint32_t>(width));
+            return;
+        }
+        WriteSlow(addr, value, width);
+    }
+
+private:
+    /* ARM DDI 0406C.c A8.8.68 LDRB (immediate, ARM) and A8.8.80 LDRH
+       (immediate, ARM): R[t] = ZeroExtend(MemU[address,N], 32). */
+    static uint32_t ClipToWidth(uint32_t value, MmioWidth width) {
+        switch (width) {
+        case MmioWidth::kByte: return value & 0xFFu;
+        case MmioWidth::kHalf: return value & 0xFFFFu;
+        case MmioWidth::kWord: return value;
+        }
+        HaltBadWidth(static_cast<uint32_t>(width));
+    }
+
+    const Entry* MemoHit(uint32_t addr) const {
+        const EntryTable* t = live_.load(std::memory_order_acquire);
+        if (!t) return nullptr;
+        const size_t cached = last_hit_.load(std::memory_order_relaxed);
+        if (cached >= t->size()) return nullptr;
+        const Entry& hit = (*t)[cached];
+        if (addr < hit.base || addr >= hit.end) return nullptr;
+        return &hit;
+    }
+
+    [[noreturn]] static void HaltBadWidth(uint32_t width);
+
+    uint32_t ReadSlow(uint32_t addr, MmioWidth width);
+    void     WriteSlow(uint32_t addr, uint32_t value, MmioWidth width);
+    const Entry* LookupSlow(uint32_t addr) const;
 
     std::atomic<const EntryTable*>          live_{nullptr};
     std::vector<std::unique_ptr<EntryTable>> tables_;
