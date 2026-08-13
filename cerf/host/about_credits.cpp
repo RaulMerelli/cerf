@@ -27,8 +27,9 @@ constexpr Contributor kContributors[] = {
     { L"Raul Merelli", nullptr, L"Siemens devices emulation", false },
     { L"Karpour",      nullptr, L"Jornada 820 and EM500 ROMs, project support",
       false },
-    { L"Anonymous 1",  nullptr, L"NEC MP700, Toricomail, Sharp HC-4100, Velo 1 "
-                                L"and Nino 300 ROMs, project support", true },
+    { L"Anonymous 1",  nullptr, L"NEC MP700, Toricomail, Sharp HC-4100, Velo 1, "
+                                L"Nino 300 and Cassiopeia E-55 ROMs, project "
+                                L"support", true },
 };
 
 constexpr wchar_t kHeader[] = L"Thanks to project contributors:";

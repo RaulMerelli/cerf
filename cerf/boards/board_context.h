@@ -22,6 +22,7 @@ enum class SocFamily {
     TegraAPX,
     VR5500,
     VR4102,
+    VR4111,
     VR4121,
     VR4122,
     PR31700,
@@ -54,6 +55,7 @@ enum class Board {
     PhilipsVelo1,
     SharpMobilonHc4100,
     CasioCassiopeiaEm500,
+    CasioCassiopeiaE55,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
