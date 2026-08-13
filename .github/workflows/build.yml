@@ -99,6 +99,29 @@ jobs:
           name: CERF-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}-${{matrix.configuration}}-${{matrix.platform}}
           path: ./build/${{matrix.configuration}}/${{matrix.platform}}/
 
+  announce:
+    needs: build
+    if: >-
+      ${{ github.event_name == 'push' &&
+          !contains(github.event.head_commit.message, '[release cerf]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Announce the build in the QA channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_SECRET: ${{ secrets.DISCORD_SECRET }}
+        run: >-
+          python3 tools/announce_build.py
+          --run-id=${{ github.run_id }}
+          --build=${{ github.run_number }}
+          ${{ contains(github.event.head_commit.message, '[rc]') && '--rc' || '' }}
+
   release:
     needs: build
     if: github.event_name == 'push' && contains(github.event.head_commit.message, '[release cerf]')
