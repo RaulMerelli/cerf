@@ -28,8 +28,6 @@ namespace {
 constexpr size_t kArmTrampolineBytes  = 64;
 constexpr size_t kArmBlockReserveBytes = 128u * 1024u;
 
-constexpr int32_t kCpsrOff =
-    static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
 constexpr int32_t kCycleOff =
     static_cast<int32_t>(offsetof(ArmCpuState, guest_cycle_counter));
 constexpr int32_t kPcOff =
@@ -46,49 +44,44 @@ void EmitCycleAdvance(uint8_t*& cursor, uint32_t cycles) {
                           static_cast<uint8_t>(cycles));
 }
 
-/* ARM DDI 0406C.c B1.3.3 (p. B1-1148): CPSR N[31] Z[30] C[29] V[28]. */
-constexpr uint32_t kFlagN = 1u << 31;
-constexpr uint32_t kFlagZ = 1u << 30;
-constexpr uint32_t kFlagC = 1u << 29;
-constexpr uint32_t kFlagV = 1u << 28;
-
-/* ARM DDI 0406C.c Table A8-1 (p. A8-288): EQ Z==1, NE Z==0, CS C==1, CC C==0,
-   MI N==1, PL N==0, VS V==1, VC V==0, HI "C==1 and Z==0", LS "C==0 or Z==1",
-   GE N==V, LT N!=V, GT "Z==0 and N==V", LE "Z==1 or N!=V", AL Any. Returns the
-   label of the jump taken when the condition is FALSE. */
+/* ARM ARM DDI 0406C.c Table A8-1, p. A8-288: EQ Z==1, NE Z==0, CS C==1,
+   CC C==0, MI N==1, PL N==0, VS V==1, VC V==0, HI C==1 and Z==0, LS C==0 or
+   Z==1, GE N==V, LT N!=V, GT Z==0 and N==V, LE Z==1 or N!=V. */
 uint8_t* EmitConditionGuard(uint8_t*& cursor, uint32_t cond) {
     using namespace x86;
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, kCpsrOff);
     switch (cond) {
-    case 0u: EmitTestRegImm32(cursor, kEax, kFlagZ); return EmitJzLabel32(cursor);
-    case 1u: EmitTestRegImm32(cursor, kEax, kFlagZ); return EmitJnzLabel32(cursor);
-    case 2u: EmitTestRegImm32(cursor, kEax, kFlagC); return EmitJzLabel32(cursor);
-    case 3u: EmitTestRegImm32(cursor, kEax, kFlagC); return EmitJnzLabel32(cursor);
-    case 4u: EmitTestRegImm32(cursor, kEax, kFlagN); return EmitJzLabel32(cursor);
-    case 5u: EmitTestRegImm32(cursor, kEax, kFlagN); return EmitJnzLabel32(cursor);
-    case 6u: EmitTestRegImm32(cursor, kEax, kFlagV); return EmitJzLabel32(cursor);
-    case 7u: EmitTestRegImm32(cursor, kEax, kFlagV); return EmitJnzLabel32(cursor);
+    case 0u:
+    case 1u:
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmZfDisp(), 0u);
+        return cond == 0u ? EmitJzLabel32(cursor) : EmitJnzLabel32(cursor);
+    case 2u:
+    case 3u:
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 0u);
+        return cond == 2u ? EmitJzLabel32(cursor) : EmitJnzLabel32(cursor);
+    case 4u:
+    case 5u:
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmNfDisp(), 0u);
+        return cond == 4u ? EmitJzLabel32(cursor) : EmitJnzLabel32(cursor);
+    case 6u:
+    case 7u:
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmVfDisp(), 0u);
+        return cond == 6u ? EmitJzLabel32(cursor) : EmitJnzLabel32(cursor);
     case 8u:
     case 9u:
-        EmitAndRegImm32(cursor, kEax, kFlagC | kFlagZ);
-        EmitCmpRegImm32(cursor, kEax, kFlagC);
+        EmitMovByteRegBaseDisp32(cursor, kAl, kStateReg, ArmCfDisp());
+        EmitSubByteRegBaseDisp32(cursor, kAl, kStateReg, ArmZfDisp());
+        EmitCmpReg8Imm8(cursor, kAl, 1u);
         return cond == 8u ? EmitJnzLabel32(cursor) : EmitJzLabel32(cursor);
     case 10u:
     case 11u:
-        EmitMovRegReg(cursor, kEcx, kEax);
-        EmitShlReg32Imm(cursor, kEcx, 3);
-        EmitXorRegReg(cursor, kEcx, kEax);
-        EmitTestRegImm32(cursor, kEcx, kFlagN);
+        EmitMovByteRegBaseDisp32(cursor, kAl, kStateReg, ArmNfDisp());
+        EmitCmpReg8BaseDisp32(cursor, kAl, kStateReg, ArmVfDisp());
         return cond == 10u ? EmitJnzLabel32(cursor) : EmitJzLabel32(cursor);
     case 12u:
     case 13u:
-        EmitMovRegReg(cursor, kEcx, kEax);
-        EmitShlReg32Imm(cursor, kEcx, 3);
-        EmitXorRegReg(cursor, kEcx, kEax);
-        EmitMovRegReg(cursor, kEdx, kEax);
-        EmitShlReg32Imm(cursor, kEdx, 1);
-        EmitOrReg32Reg32(cursor, kEcx, kEdx);
-        EmitTestRegImm32(cursor, kEcx, kFlagN);
+        EmitMovByteRegBaseDisp32(cursor, kAl, kStateReg, ArmNfDisp());
+        EmitXorByteRegBaseDisp32(cursor, kAl, kStateReg, ArmVfDisp());
+        EmitOrByteRegBaseDisp32(cursor, kAl, kStateReg, ArmZfDisp());
         return cond == 12u ? EmitJnzLabel32(cursor) : EmitJzLabel32(cursor);
     default: break;
     }
@@ -155,7 +148,7 @@ void __fastcall ArmBlockCompiler::RaiseAbortDataHelper(
 void __cdecl ArmBlockCompiler::TraceDispatchPcHelper(ArmBlockCompiler* compiler,
                                                      uint32_t          pc) {
     compiler->emu_.Get<TraceManager>().DispatchPc(pc, compiler->cpu_state_->gprs,
-                                                  compiler->cpu_state_->cpsr.word);
+                                                  ArmPackCpsr(*compiler->cpu_state_));
 }
 
 void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {

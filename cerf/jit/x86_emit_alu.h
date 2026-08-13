@@ -251,29 +251,88 @@ inline void EmitBtRegImm8(uint8_t*& c, uint8_t reg, uint8_t bit) {
     Emit8(c, bit);
 }
 
-/* BT r/m32, imm8 - 0F BA /4 ib, mod=10 (SDM Vol. 2A 3-130 BT). */
-inline void EmitBtMemDisp32Imm8(uint8_t*& c, uint8_t base, int32_t disp,
-                                uint8_t bit) {
+/* SETcc second opcode bytes - SDM Vol. 2B 4-618/4-619 SETcc. */
+constexpr uint8_t kSetO  = 0x90;  /* OF = 1 */
+constexpr uint8_t kSetC  = 0x92;  /* CF = 1 */
+constexpr uint8_t kSetNc = 0x93;  /* CF = 0 */
+constexpr uint8_t kSetZ  = 0x94;  /* ZF = 1 */
+constexpr uint8_t kSetNz = 0x95;  /* ZF = 0 */
+constexpr uint8_t kSetS  = 0x98;  /* SF = 1 */
+
+/* SETcc r8 - 0F 90+cc, mod=11 register-direct; operand encoding M is
+   ModRM:r/m alone, so the reg field is unused (SDM Vol. 2B 4-619). */
+inline void EmitSetccReg8(uint8_t*& c, uint8_t setcc_opcode, uint8_t reg8) {
     Emit8(c, 0x0F);
-    Emit8(c, 0xBA);
-    EmitModRmReg(c, 2, base, 4);
+    Emit8(c, setcc_opcode);
+    EmitModRmReg(c, 3, reg8, 0);
+}
+
+/* SETcc r/m8 - 0F 90+cc, mod=10 [base+disp32]. Operand encoding M is
+   ModRM:r/m alone, so the reg field is unused, and "the destination operand
+   points to a byte register or a byte in memory" (SDM Vol. 2B 4-619). */
+inline void EmitSetccBaseDisp32(uint8_t*& c, uint8_t setcc_opcode,
+                                uint8_t base, int32_t disp) {
+    Emit8(c, 0x0F);
+    Emit8(c, setcc_opcode);
+    EmitModRmReg(c, 2, base, 0);
     Emit32(c, static_cast<uint32_t>(disp));
-    Emit8(c, bit);
 }
 
-/* SETC r/m8 - 0F 92, register-direct; the reg field is unused by SETcc
-   (SDM Vol. 2B 4-618 SETcc, operand encoding M). */
-inline void EmitSetcReg8(uint8_t*& c, uint8_t reg8) {
-    Emit8(c, 0x0F);
-    Emit8(c, 0x92);
-    EmitModRmReg(c, 3, reg8, 0);
+/* MOV r/m8, imm8 - C6 /0 ib, mod=10 (SDM Vol. 2B 4-35 MOV). */
+inline void EmitMovByteBaseDisp32Imm8(uint8_t*& c, uint8_t base, int32_t disp,
+                                      uint8_t imm8) {
+    Emit8(c, 0xC6);
+    EmitModRmReg(c, 2, base, 0);
+    Emit32(c, static_cast<uint32_t>(disp));
+    Emit8(c, imm8);
 }
 
-/* SETO r/m8 - 0F 90, register-direct (SDM Vol. 2B 4-619 SETcc). */
-inline void EmitSetoReg8(uint8_t*& c, uint8_t reg8) {
-    Emit8(c, 0x0F);
-    Emit8(c, 0x90);
-    EmitModRmReg(c, 3, reg8, 0);
+/* MOV r8, r/m8 - 8A /r, mod=10 (SDM Vol. 2B 4-35 MOV). */
+inline void EmitMovByteRegBaseDisp32(uint8_t*& c, uint8_t reg8, uint8_t base,
+                                     int32_t disp) {
+    Emit8(c, 0x8A);
+    EmitModRmReg(c, 2, base, reg8);
+    Emit32(c, static_cast<uint32_t>(disp));
+}
+
+/* CMP r/m8, imm8 - 80 /7 ib, mod=10 (SDM Vol. 2A 3-179 CMP). */
+inline void EmitCmpByteBaseDisp32Imm8(uint8_t*& c, uint8_t base, int32_t disp,
+                                      uint8_t imm8) {
+    Emit8(c, 0x80);
+    EmitModRmReg(c, 2, base, 7);
+    Emit32(c, static_cast<uint32_t>(disp));
+    Emit8(c, imm8);
+}
+
+/* CMP r/m8, imm8 - 80 /7 ib, register-direct (SDM Vol. 2A 3-179 CMP). */
+inline void EmitCmpReg8Imm8(uint8_t*& c, uint8_t reg8, uint8_t imm8) {
+    Emit8(c, 0x80);
+    EmitModRmReg(c, 3, reg8, 7);
+    Emit8(c, imm8);
+}
+
+/* XOR r8, r/m8 - 32 /r, mod=10 (SDM Vol. 2D 6-36 XOR). */
+inline void EmitXorByteRegBaseDisp32(uint8_t*& c, uint8_t reg8, uint8_t base,
+                                     int32_t disp) {
+    Emit8(c, 0x32);
+    EmitModRmReg(c, 2, base, reg8);
+    Emit32(c, static_cast<uint32_t>(disp));
+}
+
+/* SUB r8, r/m8 - 2A /r, mod=10 (SDM Vol. 2B 4-681 SUB). */
+inline void EmitSubByteRegBaseDisp32(uint8_t*& c, uint8_t reg8, uint8_t base,
+                                     int32_t disp) {
+    Emit8(c, 0x2A);
+    EmitModRmReg(c, 2, base, reg8);
+    Emit32(c, static_cast<uint32_t>(disp));
+}
+
+/* OR r8, r/m8 - 0A /r, mod=10 (SDM Vol. 2B 4-172 OR). */
+inline void EmitOrByteRegBaseDisp32(uint8_t*& c, uint8_t reg8, uint8_t base,
+                                    int32_t disp) {
+    Emit8(c, 0x0A);
+    EmitModRmReg(c, 2, base, reg8);
+    Emit32(c, static_cast<uint32_t>(disp));
 }
 
 /* SHL r/m32, imm8 - C1 /4 ib, register-direct (SDM Vol. 2B 4-600 SHL). */
@@ -391,6 +450,16 @@ inline void EmitImulReg32Reg32(uint8_t*& c, uint8_t dst, uint8_t src) {
     EmitModRmReg(c, 3, src, dst);
 }
 
+/* IMUL r32, r/m32, imm32 - 69 /r id, mod=11 register-direct; operand
+   encoding RMI is ModRM:reg (destination), ModRM:r/m (source), imm32, and
+   the product is truncated to the destination width (SDM Vol. 2A 3-500). */
+inline void EmitImulReg32Reg32Imm32(uint8_t*& c, uint8_t dst, uint8_t src,
+                                    uint32_t imm32) {
+    Emit8(c, 0x69);
+    EmitModRmReg(c, 3, src, dst);
+    Emit32(c, imm32);
+}
+
 /* CDQ - 99, EDX:EAX = sign-extend of EAX (SDM Vol. 2A 3-314 CWD/CDQ/CQO). */
 inline void EmitCdq(uint8_t*& c) {
     Emit8(c, 0x99);
@@ -399,11 +468,6 @@ inline void EmitCdq(uint8_t*& c) {
 /* CMC - F5, CF := NOT CF (SDM Vol. 2A 3-174 CMC). */
 inline void EmitCmc(uint8_t*& c) {
     Emit8(c, 0xF5);
-}
-
-/* LAHF - 9F, AH := EFLAGS(SF:ZF:0:AF:0:PF:1:CF) (SDM Vol. 2A 3-580 LAHF). */
-inline void EmitLahf(uint8_t*& c) {
-    Emit8(c, 0x9F);
 }
 
 }  // namespace x86

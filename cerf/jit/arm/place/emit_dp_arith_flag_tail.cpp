@@ -1,16 +1,6 @@
-#include <cstddef>
-
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
-
-namespace {
-
-constexpr int32_t CpsrDisp() {
-    return static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-}
-
-}  /* namespace */
 
 /* ARM DDI 0406C.c: flag writeback for the AddWithCarry data-processing
    class (A8.8.7 Operation, p. A8-313). In: the x86 arithmetic flags of
@@ -27,27 +17,11 @@ uint8_t* EmitDpArithFlagTail(uint8_t* cursor, DecodedInsn* d) {
                                  opcode == 6u || opcode == 7u ||
                                  opcode == 10u;
 
-    /* LAHF (SDM Vol. 2A 3-580): EAX<15> = SF, <14> = ZF, <8> = CF;
-       SETO (Vol. 2B 4-619): AL = OF. Shift each into CPSR
-       N[31] Z[30] C[29] V[28] (DDI 0406C.c B1.3.3 p. B1-1148). */
-    EmitLahf(cursor);
-    EmitSetoReg8(cursor, kAl);
-    EmitMovRegReg(cursor, kEcx, kEax);
-    EmitMovRegReg(cursor, kEdx, kEax);
-    EmitShlReg32Imm(cursor, kEax, 16);
-    EmitAndRegImm32(cursor, kEax, 0xC0000000u);
-    EmitShlReg32Imm(cursor, kEcx, 21);
-    EmitAndRegImm32(cursor, kEcx, 0x20000000u);
-    EmitOrReg32Reg32(cursor, kEax, kEcx);
-    EmitShlReg32Imm(cursor, kEdx, 28);
-    EmitAndRegImm32(cursor, kEdx, 0x10000000u);
-    EmitOrReg32Reg32(cursor, kEax, kEdx);
-    if (borrow_form) {
-        EmitXorRegImm32(cursor, kEax, 0x20000000u);
-    }
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, CpsrDisp());
-    EmitAndRegImm32(cursor, kEcx, 0x0FFFFFFFu);
-    EmitOrReg32Reg32(cursor, kEcx, kEax);
-    EmitMovBaseDisp32Reg(cursor, kStateReg, CpsrDisp(), kEcx);
+    /* SETcc (SDM Vol. 2B 4-620): "Flags Affected: None". */
+    EmitSetccBaseDisp32(cursor, kSetS, kStateReg, ArmNfDisp());
+    EmitSetccBaseDisp32(cursor, kSetZ, kStateReg, ArmZfDisp());
+    EmitSetccBaseDisp32(cursor, borrow_form ? kSetNc : kSetC, kStateReg,
+                        ArmCfDisp());
+    EmitSetccBaseDisp32(cursor, kSetO, kStateReg, ArmVfDisp());
     return cursor;
 }

@@ -115,7 +115,7 @@ void ArmCpu::UpdateCpsrWithFlags(ArmPsrFull psr) {
 
     const uint32_t old_mode = state_.cpsr.bits.mode;
 
-    state_.cpsr = psr;
+    ArmApplyCpsr(state_, psr.word);
     SwitchModeBanks(old_mode, state_.cpsr.bits.mode);
 }
 
@@ -132,8 +132,9 @@ void ArmCpu::EnterException(uint32_t target_mode,
        and the Glossary makes taking an exception one of the three. */
     emu_.Get<ArmMmu>().SynchronizeSctlr();
 
-    const ArmPsrFull old_cpsr = state_.cpsr;
-    const uint32_t   old_mode = old_cpsr.bits.mode;
+    ArmPsrFull old_cpsr;
+    old_cpsr.word = ArmPackCpsr(state_);
+    const uint32_t old_mode = old_cpsr.bits.mode;
 
     state_.cpsr.bits.mode = target_mode;
     SwitchModeBanks(old_mode, target_mode);
@@ -277,9 +278,10 @@ void __cdecl ArmCpu::RaiseSwiExceptionHelper(ArmCpu* cpu, uint32_t guest_pc) {
 /* ARM ARM DDI 0406C.c B1.3.3, p. B1-1148: condition flags N[31] Z[30] C[29]
    V[28]. */
 void __cdecl ArmCpu::UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source) {
-    constexpr uint32_t kNzcvMask = 0xF0000000u;
-    cpu->state_.cpsr.word = (cpu->state_.cpsr.word & ~kNzcvMask) |
-                            (nzcv_source & kNzcvMask);
+    cpu->state_.nf = static_cast<uint8_t>((nzcv_source >> 31) & 1u);
+    cpu->state_.zf = static_cast<uint8_t>((nzcv_source >> 30) & 1u);
+    cpu->state_.cf = static_cast<uint8_t>((nzcv_source >> 29) & 1u);
+    cpu->state_.vf = static_cast<uint8_t>((nzcv_source >> 28) & 1u);
 }
 
 /* ARM DDI 0100I A4.1.39 (p. A4-77): mask = byte_mask AND UserMask in User
@@ -303,7 +305,7 @@ void __cdecl ArmCpu::WriteCpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
         mask &= ~(1u << 6);
     }
     ArmPsrFull merged;
-    merged.word = (cpu->state_.cpsr.word & ~mask) | (value & mask);
+    merged.word = (ArmPackCpsr(cpu->state_) & ~mask) | (value & mask);
     if (merged.bits.endian != 0u) {
         LOG(Caution, "ArmCpu: MSR sets CPSR.E; big-endian data accesses are "
                      "not modelled\n");
@@ -384,7 +386,7 @@ uint32_t ArmCpu::ReturnFromException(uint32_t new_cpsr_word, uint32_t new_pc) {
             source.bits.fiq_disable) {
             mask &= ~(1u << 6);
         }
-        merged.word = (state_.cpsr.word & ~mask) | (source.word & mask);
+        merged.word = (ArmPackCpsr(state_) & ~mask) | (source.word & mask);
     }
     if (merged.bits.endian != 0u) {
         LOG(Caution, "ArmCpu: exception return restores CPSR.E; big-endian "

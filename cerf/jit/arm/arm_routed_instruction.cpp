@@ -115,7 +115,7 @@ uint32_t ArmRoutedInstruction::SingleShiftedOffset(const DecodedInsn* d) {
         if (d->rs != 0u) {
             return (v >> d->rs) | (v << (32u - d->rs));
         }
-        return (v >> 1) | ((cpu_state_->cpsr.word & 0x20000000u) << 2);
+        return (v >> 1) | (static_cast<uint32_t>(cpu_state_->cf) << 31);
     }
 }
 

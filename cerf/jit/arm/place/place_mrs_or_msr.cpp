@@ -29,8 +29,14 @@ uint8_t* PlaceMRSorMSR(uint8_t*      cursor,
                 reinterpret_cast<void*>(&ArmCpu::ReadSpsrHelper));
             EmitAddRegImm32(cursor, kEsp, 4);
         } else {
+            EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, ArmNfDisp());
+            EmitImulReg32Reg32Imm32(cursor, kEcx, kEcx,
+                                    kNzcvGatherMultiplier);
+            EmitAndRegImm32(cursor, kEcx, kCpsrNzcvMask);
             EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
                 static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
+            EmitAndRegImm32(cursor, kEax, ~kCpsrNzcvMask);
+            EmitOrReg32Reg32(cursor, kEax, kEcx);
             if (config->HasCp15V7()) {
                 /* ARM DDI 0406C.c B9.3.8 MRS (p. B9-1991): "CPSR is read
                    with execution state bits other than E masked out",

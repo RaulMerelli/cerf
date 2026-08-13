@@ -10,10 +10,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-constexpr int32_t CpsrDisp() {
-    return static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-}
-
 }  /* namespace */
 
 /* ARM DDI 0406C.c Table A5-5 (p. A5-199): the 16 opcode rows AND..MVN;
@@ -45,17 +41,15 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
     if (is_move && !to_pc) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, GprDisp(d->rd), move_result);
         if (s) {
-            uint32_t bits = 0;
-            uint32_t keep = 0x3FFFFFFFu;
-            if (move_result & 0x80000000u) bits |= 1u << 31;
-            if (move_result == 0u)         bits |= 1u << 30;
+            EmitMovByteBaseDisp32Imm8(
+                cursor, kStateReg, ArmNfDisp(),
+                (move_result & 0x80000000u) != 0u ? 1u : 0u);
+            EmitMovByteBaseDisp32Imm8(cursor, kStateReg, ArmZfDisp(),
+                                      move_result == 0u ? 1u : 0u);
             if (d->rs != 0u) {
-                keep = 0x1FFFFFFFu;
-                if (imm32 & 0x80000000u) bits |= 1u << 29;
-            }
-            EmitAndBaseDisp32Imm32(cursor, kStateReg, CpsrDisp(), keep);
-            if (bits != 0u) {
-                EmitOrBaseDisp32Imm32(cursor, kStateReg, CpsrDisp(), bits);
+                EmitMovByteBaseDisp32Imm8(
+                    cursor, kStateReg, ArmCfDisp(),
+                    (imm32 & 0x80000000u) != 0u ? 1u : 0u);
             }
         }
         return cursor;
@@ -73,8 +67,7 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
         if (opcode == 3u) {
             EmitSubReg32Reg32(cursor, kEax, kEcx);
         } else {
-            EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
-            EmitCmc(cursor);
+            EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
             EmitSbbReg32Reg32(cursor, kEax, kEcx);
         }
     } else {
@@ -89,12 +82,12 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
         case 2u:  EmitSubRegImm32(cursor, kEax, imm32);  break;
         case 4u:  EmitAddRegImm32(cursor, kEax, imm32);  break;
         case 5u:
-            EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
+            EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+            EmitCmc(cursor);
             EmitAdcRegImm32(cursor, kEax, imm32);
             break;
         case 6u:
-            EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
-            EmitCmc(cursor);
+            EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
             EmitSbbRegImm32(cursor, kEax, imm32);
             break;
         case 8u:  EmitTestRegImm32(cursor, kEax, imm32); break;

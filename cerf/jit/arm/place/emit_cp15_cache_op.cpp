@@ -37,10 +37,10 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             if (d->rd != 15) {
                 return EmitCoprocUnimplementedFatal(cursor, d, ctx);
             }
-            const int32_t cpsr_disp =
-                static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-            EmitAndBaseDisp32Imm32(cursor, kStateReg, cpsr_disp, 0x0FFFFFFFu);
-            EmitOrBaseDisp32Imm32(cursor, kStateReg, cpsr_disp, 0x40000000u);
+            EmitMovByteBaseDisp32Imm8(cursor, kStateReg, ArmNfDisp(), 0u);
+            EmitMovByteBaseDisp32Imm8(cursor, kStateReg, ArmZfDisp(), 1u);
+            EmitMovByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 0u);
+            EmitMovByteBaseDisp32Imm8(cursor, kStateReg, ArmVfDisp(), 0u);
             return cursor;
         }
         /* CDSR, ARMv6 only: C bit[0] = 0 "Cache clean", bits[31:1] UNK

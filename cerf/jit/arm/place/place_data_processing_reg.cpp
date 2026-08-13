@@ -10,10 +10,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-constexpr int32_t CpsrDisp() {
-    return static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-}
-
 }  /* namespace */
 
 /* ARM DDI 0406C.c Table A5-3 (p. A5-197): the register rows AND..MVN.
@@ -90,12 +86,13 @@ uint8_t* PlaceDataProcessingReg(uint8_t*      cursor,
     default:
         /* RRX_C (A2.2.1 p. A2-43): result = carry_in : Rm<31:1>,
            carry = Rm<0> - RCR by 1 with CF = CPSR.C. */
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+        EmitCmc(cursor);
         EmitRcrReg32By1(cursor, shiftee);
         break;
     }
     if (capture_carry) {
-        EmitSetcReg8(cursor, kDl);
+        EmitSetccReg8(cursor, kSetC, kDl);
     }
 
     if (!is_move) {
@@ -117,16 +114,16 @@ uint8_t* PlaceDataProcessingReg(uint8_t*      cursor,
     case 4u:
     case 11u: EmitAddReg32Reg32(cursor, kEax, kEcx); break;
     case 5u:
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+        EmitCmc(cursor);
         EmitAdcReg32Reg32(cursor, kEax, kEcx);
         break;
     case 6u:
     case 7u:
         /* SBC / RSC (A8.8.162 p. A8-595 / A8.8.156 p. A8-583):
            AddWithCarry(x, NOT(y), APSR.C) subtracts NOT(C) where the x86
-           SBB subtracts CF (SDM Vol. 2B 4-608) - CMC inverts. */
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
-        EmitCmc(cursor);
+           SBB subtracts CF (SDM Vol. 2B 4-608). */
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
         EmitSbbReg32Reg32(cursor, kEax, kEcx);
         break;
     case 8u:  EmitTestRegReg(cursor, kEax, kEcx);    break;

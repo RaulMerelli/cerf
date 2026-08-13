@@ -54,14 +54,11 @@ void EmitShiftedOffsetIntoEax(uint8_t*& cursor, DecodedInsn* d) {
         if (d->rs != 0u) {
             EmitRorReg32Imm(cursor, kEax, static_cast<uint8_t>(d->rs));
         } else {
-            /* RRX: carry is CPSR bit 29 - "C, bit[29] Carry condition
-               flag" (DDI 0406C.c B1.3, p. B1-1148). */
-            EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
-                static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
-            EmitAndRegImm32(cursor, kEcx, 0x20000000u);
-            EmitShlReg32Imm(cursor, kEcx, 2u);
-            EmitShrReg32Imm(cursor, kEax, 1u);
-            EmitOrReg32Reg32(cursor, kEax, kEcx);
+            /* RRX_C (DDI 0406C.c A2.2.1, p. A2-43): result = carry_in :
+               x<31:1>; RCR by 1 with CF = APSR.C. */
+            EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+            EmitCmc(cursor);
+            EmitRcrReg32By1(cursor, kEax);
         }
         break;
     }
