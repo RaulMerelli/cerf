@@ -11,6 +11,7 @@
 #include "../x86_emit_alu.h"
 #include "arm_cpu.h"
 #include "arm_decoder.h"
+#include "thumb_decoder.h"
 #include "arm_emit_services.h"
 #include "arm_mmu.h"
 #include "arm_mmu_probe.h"
@@ -98,6 +99,7 @@ void ArmBlockCompiler::OnReady() {
     cpu_       = &emu_.Get<ArmCpu>();
     cpu_state_ = cpu_->State();
     decoder_   = &emu_.Get<ArmDecoder>();
+    thumb_decoder_ = &emu_.Get<ThumbDecoder>();
     mmu_       = &emu_.Get<ArmMmu>();
     probe_     = &emu_.Get<ArmMmuProbe>();
     walker_    = &emu_.Get<ArmPageWalker>();
@@ -154,23 +156,34 @@ void __cdecl ArmBlockCompiler::TraceDispatchPcHelper(ArmBlockCompiler* compiler,
 void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
     const uint32_t page_end =
         (folded_pc & ~(kArmBlockPageBytes - 1u)) + kArmBlockPageBytes;
+    /* ARM DDI 0100I Figure A6-1 (A6.2, p. A6-4) encodes every Thumb
+       instruction in bits[15:0]. */
+    const bool     thumb = insn_step_ == 2u;
+    const uint32_t step  = insn_step_;
 
     uint32_t i = 0;
     for (; i < kMaxArmInsnPerBlock && folded_pc < page_end;
-         ++i, guest_pc += 4u, folded_pc += 4u) {
+         ++i, guest_pc += step, folded_pc += step) {
         DecodedInsn& insn = block_ctx_.insns[i];
         std::memset(&insn, 0, sizeof(insn));
 
         uint8_t* host = walker_->TranslateExecute(cpu_state_, guest_pc);
         if (host == nullptr) break;
 
-        ArmOpcode op;
-        std::memcpy(&op.word, host, sizeof(op.word));
+        ArmOpcode op{};
+        uint16_t  half = 0u;
+        if (thumb) {
+            std::memcpy(&half, host, sizeof(half));
+        } else {
+            std::memcpy(&op.word, host, sizeof(op.word));
+        }
 
         insn.guest_address        = guest_pc;
         insn.actual_guest_address = folded_pc;
 
-        if (!decoder_->DecodeArm(&insn, op)) {
+        const bool decoded = thumb ? thumb_decoder_->DecodeThumb(&insn, half)
+                                   : decoder_->DecodeArm(&insn, op);
+        if (!decoded) {
             insn.place_fn = &EmitRaiseUndAndReturn;
             ++i;
             break;
@@ -238,9 +251,9 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     const DecodedInsn& last = block_ctx_.insns[block_ctx_.num_insns - 1];
     if (last.cond != 14u || !last.r15_modified) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
-                               last.guest_address + 4u);
-        cursor = EmitChainToBlock(cursor, &block_ctx_, last.guest_address + 4u,
-                                  1u);
+                               last.guest_address + insn_step_);
+        cursor = EmitChainToBlock(cursor, &block_ctx_,
+                                  last.guest_address + insn_step_, 1u);
         EmitRet(cursor);
     }
 
@@ -248,15 +261,20 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
 }
 
 void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
-    if (cpu_state_->cpsr.bits.thumb_mode) {
-        LOG(Caution, "ArmBlockCompiler::Compile: unimplemented Thumb block at "
-                "guest PC 0x%08X\n", guest_pc);
+    /* BranchWritePC / BXWritePC (DDI 0406C.c A2.3.2, p. A2-47): an ARM-state
+       branch target always has address<1:0> == '00'. ARM DDI 0100I Figure A6-1
+       (A6.2, p. A6-4) encodes Thumb in bits[15:0], so a Thumb target is
+       halfword-aligned. */
+    const bool     thumb      = cpu_state_->cpsr.bits.thumb_mode != 0u;
+    const uint32_t align_mask = thumb ? 1u : 3u;
+    insn_step_                = thumb ? 2u : 4u;
+    if (thumb && emit_->ProcessorConfig()->HasThumb2()) {
+        LOG(Caution, "ArmBlockCompiler::Compile: Thumb-2 block at guest PC "
+                "0x%08X\n", guest_pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    /* BranchWritePC / BXWritePC (DDI 0406C.c A2.3.2, p. A2-47): an ARM-state
-       branch target always has address<1:0> == '00'. */
-    if ((guest_pc & 3u) != 0u) {
-        LOG(Caution, "ArmBlockCompiler::Compile: misaligned ARM-state PC 0x%08X\n",
+    if ((guest_pc & align_mask) != 0u) {
+        LOG(Caution, "ArmBlockCompiler::Compile: misaligned PC 0x%08X\n",
             guest_pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
@@ -277,7 +295,7 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
     const uint32_t phys_start = walker_->LastExecPa();
 
     JitCodeArena&  arena        = cache_->Arena();
-    IsaBlockSpace& space        = cache_->Space(false);
+    IsaBlockSpace& space        = cache_->Space(thumb);
     const uint8_t  asid         = static_cast<uint8_t>(mmu_state->contextidr & 0xFFu);
     const bool     outer_global = probe_->ExecPageGlobal(folded_pc);
     JitBlockIndex& idx          = outer_global ? space.global : space.per_asid[asid];
@@ -310,7 +328,7 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
 
             JitBlock nb{};
             nb.guest_start  = folded_pc;
-            nb.guest_end    = folded_pc + 4u * block_ctx_.num_insns - 1u;
+            nb.guest_end    = folded_pc + insn_step_ * block_ctx_.num_insns - 1u;
             nb.phys_start   = phys_start;
             nb.native_start = code;
             JitBlock* stored = idx.PlaceOuterAt(slab, nb);
@@ -323,6 +341,7 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
             block_ctx_.phys_start  = phys_start;
             block_ctx_.fcse_pid    = mmu_state->process_id;
             block_ctx_.jump_cache  = space.jump_cache;
+            block_ctx_.thumb       = thumb;
 
             JitBlock* const src = idx.FindExact(predecessor_va_);
             if (src != nullptr && src != stored &&

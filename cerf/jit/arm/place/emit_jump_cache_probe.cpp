@@ -26,7 +26,7 @@ uint8_t* EmitJumpCacheProbe(uint8_t* cursor, BlockContext* ctx) {
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
     EmitTestRegImm32(cursor, kEax, 1u << 5);
-    miss[n++] = EmitJnzLabel32(cursor);
+    miss[n++] = ctx->thumb ? EmitJzLabel32(cursor) : EmitJnzLabel32(cursor);
 
     EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + ArmGpr::kR15 * 4u));
