@@ -29,12 +29,8 @@ def header(artifact: Artifact, build: str, release_candidate: bool) -> str:
         return (f"<@&{QA_ROLE_ID}>\n"
                 f"[**{title} release candidate - build {build}**]"
                 f"({artifact.download_url})\n"
-                "This build is a candidate for the next release. Please give it a "
-                "QA sweep and report what you find before it ships: regressions, "
-                "performance drops, broken features, broken devices, broken ROMs.")
-    return (f"[**{title} - CI build {build}**]({artifact.download_url})\n"
-            "A new test build is ready. It is not a release. The changelog below "
-            f"is what has landed for {artifact.tag} so far.")
+                "!!! RELEASE CANDIDATE !!!!")
+    return (f"[**{title} - CI build {build}**]({artifact.download_url})")
 
 
 def footer(artifact: Artifact) -> str:
