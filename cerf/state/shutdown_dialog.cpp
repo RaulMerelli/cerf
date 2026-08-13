@@ -17,6 +17,8 @@ namespace {
 constexpr wchar_t kClass[]   = L"CerfShutdownDlg";
 constexpr UINT    kTimerId   = 1;
 constexpr int     kSeconds   = 15;
+constexpr int     kTotalMs   = kSeconds * 1000;
+constexpr UINT    kTickMs    = 15;
 constexpr int     kClientW   = 416;
 constexpr int     kClientH   = 212;
 constexpr int     kBarX      = 64;
@@ -36,6 +38,14 @@ void ShutdownDialog::OnReady() {
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName = kClass;
     RegisterClassExW(&wc);   /* ERROR_CLASS_ALREADY_EXISTS is benign */
+}
+
+int ShutdownDialog::BarFillWidth() const {
+    return (kBarW - 2) * remaining_ms_ / kTotalMs;
+}
+
+int ShutdownDialog::RemainingSeconds() const {
+    return (remaining_ms_ + 999) / 1000;
 }
 
 void ShutdownDialog::StopTimer(HWND hwnd) {
@@ -73,13 +83,15 @@ void ShutdownDialog::Paint(HWND hwnd) {
         FrameRect(hdc, &bar, (HBRUSH)GetStockObject(GRAY_BRUSH));
         RECT fill = bar;
         InflateRect(&fill, -1, -1);
-        fill.right = fill.left + (fill.right - fill.left) * remaining_ / kSeconds;
+        painted_fill_w_ = BarFillWidth();
+        fill.right = fill.left + painted_fill_w_;
         HBRUSH red = CreateSolidBrush(RGB(200, 30, 30));
         FillRect(hdc, &fill, red);
         DeleteObject(red);
 
+        painted_secs_ = RemainingSeconds();
         wchar_t cd[32];
-        swprintf(cd, 32, L"(%ds left)", remaining_);
+        swprintf(cd, 32, L"(%ds left)", painted_secs_);
         RECT crc = { kBarX, kBarY + kBarH + 4, kBarX + kBarW, kBarY + kBarH + 22 };
         SetTextColor(hdc, dark ? RGB(160, 160, 160) : RGB(96, 96, 96));
         DrawTextW(hdc, cd, -1, &crc, DT_CENTER);
@@ -100,13 +112,24 @@ LRESULT ShutdownDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_TIMER:
             if (wp == kTimerId) {
-                if (--remaining_ <= 0) {
+                const ULONGLONG now = GetTickCount64();
+                remaining_ms_ = (now >= deadline_tick_)
+                    ? 0 : static_cast<int>(deadline_tick_ - now);
+                if (remaining_ms_ <= 0) {
                     save_ = (SendMessageW(chk_save_, BM_GETCHECK, 0, 0) == BST_CHECKED);
                     KillTimer(hwnd, kTimerId);
                     timer_on_ = false;
                     decided_  = true;
                 } else {
-                    InvalidateRect(hwnd, nullptr, FALSE);
+                    if (BarFillWidth() != painted_fill_w_) {
+                        RECT bar = { kBarX, kBarY, kBarX + kBarW, kBarY + kBarH };
+                        InvalidateRect(hwnd, &bar, FALSE);
+                    }
+                    if (RemainingSeconds() != painted_secs_) {
+                        RECT crc = { kBarX, kBarY + kBarH + 4,
+                                     kBarX + kBarW, kBarY + kBarH + 22 };
+                        InvalidateRect(hwnd, &crc, FALSE);
+                    }
                 }
             }
             return 0;
@@ -173,7 +196,9 @@ ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
     cancelled_ = false;
     save_      = false;
     timer_on_  = with_countdown;
-    remaining_ = kSeconds;
+    remaining_ms_    = kTotalMs;
+    painted_fill_w_  = -1;
+    painted_secs_    = -1;
 
     const unsigned long long mb =
         emu_.Get<EmulatedMemory>().VolatileByteCount() >> 20;
@@ -230,7 +255,10 @@ ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
 
     ShowWindow(hwnd_, SW_SHOW);
     SetForegroundWindow(hwnd_);
-    if (with_countdown) SetTimer(hwnd_, kTimerId, 1000, nullptr);
+    if (with_countdown) {
+        deadline_tick_ = GetTickCount64() + kTotalMs;
+        SetTimer(hwnd_, kTimerId, kTickMs, nullptr);
+    }
 
     MSG msg;
     while (!decided_ && GetMessageW(&msg, nullptr, 0, 0)) {

@@ -32,6 +32,8 @@ private:
     LRESULT WndProc(HWND, UINT, WPARAM, LPARAM);
     void    Paint(HWND hwnd);
     void    StopTimer(HWND hwnd);
+    int     BarFillWidth() const;
+    int     RemainingSeconds() const;
 
     HWND hwnd_        = nullptr;
     HWND chk_save_    = nullptr;
@@ -40,6 +42,9 @@ private:
     bool cancelled_ = false;
     bool save_      = false;
     bool timer_on_  = false;
-    int  remaining_ = 0;
+    unsigned long long deadline_tick_ = 0;
+    int  remaining_ms_ = 0;
+    int  painted_fill_w_ = -1;
+    int  painted_secs_   = -1;
     ShutdownTrigger trigger_ = ShutdownTrigger::WindowClose;
 };
