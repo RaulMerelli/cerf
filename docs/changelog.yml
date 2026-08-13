@@ -3,6 +3,9 @@
   devices:
     new: |
       Casio Toricomail: bezel touch buttons
+  emulator:
+    fixed: |
+      ARM JIT and JIT core full rewrite. Expect issues
   launcher:
     new: |
       Copyright removal dialog listing each bundle repository's abuse contact, reachable from the Download ROMs window and the download confirmation
