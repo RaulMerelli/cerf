@@ -631,6 +631,13 @@ runtime layout questions - to learn how it diverges from live memory,
 read the extractor source. Never assume that the file mirrors the
 loader's output.
 
+**A guest binary is read in IDA, as an extracted PE - never with capstone
+or a hand-rolled scan over the ROM container.** If the extractor does not
+produce the PE you need, make it produce it (fix the extractor, add the
+container format, extract the inner XIP first) - a disassembly heuristic
+over compressed / packed ROM bytes is always worse than the work you
+avoided, and its output is not evidence.
+
 Never run IDA from `build/` or `bundled/`. A rebuild wipes `build/`, and
 IDA holds locks there. `bundled/` is CERF's runtime input - an `.i64`
 sidecar inside it pollutes the input tree.
