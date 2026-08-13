@@ -35,6 +35,11 @@ void ArmRoutedInstruction::OnReady() {
 }
 
 void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
+    if (cpu_state_->cpsr.bits.thumb_mode != 0u) {
+        LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X routes a peripheral "
+                "access with CPSR.T set\n", guest_pc);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     uint8_t* host = walker_->TranslateExecute(cpu_state_, guest_pc);
     if (host == nullptr) {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X is unmapped on "

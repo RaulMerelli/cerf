@@ -46,6 +46,12 @@ public:
        expects the T write ignored, as on real silicon. */
     virtual bool     HasThumb()                   const { return true; }
 
+    /* DDI 0406C.c p. A1-29: "ARMv6T2 introduced Thumb-2 technology. This
+       technology extends the original Thumb instruction set with many 32-bit
+       instructions." A6.1, p. A6-220: a halfword whose bits[15:11] are 0b11101,
+       0b11110 or 0b11111 is the first halfword of a 32-bit instruction. */
+    virtual bool     HasThumb2()                  const { return false; }
+
     /* DDI0406C §A2.3.1: LDR/POP/LDM with Rt==PC interwork (bit 0
        selects the ISA state) from ARMv5T on; on v4T they branch
        remaining in the current ISA state. */

@@ -26,6 +26,7 @@ struct BlockContext {
     uint32_t       phys_start;
     uint32_t       fcse_pid;
     const void*    jump_cache;
+    bool           thumb;
 
     DecodedInsn insns[kMaxArmInsnPerBlock];
     uint32_t    num_insns;

@@ -25,15 +25,18 @@ uint8_t* EmitRaiseUndAndReturn(uint8_t* cursor, DecodedInsn* d, BlockContext* ct
     /* Re-read the guest word the decoder choked on (read-only MMU peek, same
        page the fetch used) so the log distinguishes corrupt/poison bytes from a
        genuine unsupported encoding. */
+    const ArmCpuState* cs = emit->Cpu()->State();
     uint32_t word = 0xFFFFFFFFu;
     bool word_ok = false;
     if (uint8_t* p = emit->MmuProbe()->PeekVaToHost(d->actual_guest_address)) {
-        std::memcpy(&word, p, sizeof(word));
+        word = 0u;
+        std::memcpy(&word, p, cs->cpsr.bits.thumb_mode ? 2u : 4u);
         word_ok = true;
     }
     LOG(Jit, "EmitRaiseUndAndReturn: UNDEFINED encoding at pc=0x%08X (actual=0x%08X) "
-             "word=%s0x%08X\n",
+             "word=%s0x%08X T=%u mode=0x%02X\n",
         d->guest_address, d->actual_guest_address,
-        word_ok ? "" : "UNMAPPED:", word);
+        word_ok ? "" : "UNMAPPED:", word,
+        cs->cpsr.bits.thumb_mode, cs->cpsr.bits.mode);
     return EmitRaiseUndTail(cursor, d, ctx);
 }

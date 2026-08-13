@@ -42,14 +42,13 @@ struct IsaBlockSpace {
 
     void JumpCacheFlush() { std::memset(jump_cache, 0, sizeof(jump_cache)); }
 
-    /* Analog of QEMU tb_jmp_cache_clear_page (accel/tcg/cputlb.c:157): drop the
-       VA->native shortcuts for [page_va, page_va+4KiB). */
+    /* QEMU tb_jmp_cache_clear_page (accel/tcg/cputlb.c:150). */
     void JumpCacheClearPage(uint32_t page_va) {
         const uint32_t base = page_va & 0xFFFFF000u;
         for (uint32_t off = 0; off < 0x1000u; off += 4u) {
-            const uint32_t va = base + off;
-            JumpCacheEntry& e = jump_cache[(va >> 2) & (kJumpCacheSize - 1u)];
-            if (e.folded_va == va) {
+            JumpCacheEntry& e =
+                jump_cache[((base + off) >> 2) & (kJumpCacheSize - 1u)];
+            if ((e.folded_va & 0xFFFFF000u) == base) {
                 e.folded_va = 0;
                 e.native    = nullptr;
                 e.blk       = nullptr;
