@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 /* ARM ARM DDI 0406C.c Table B1-1, p. B1-1139: CPSR.M[4:0] mode encodings. */
@@ -67,6 +68,14 @@ struct ArmCpuState {
     uint32_t    gprs[16];
     ArmPsrFull  cpsr{ArmMode::kSupervisor};
 
+    /* QEMU target/arm/cpu.h:286-290 "cpsr flag cache for faster execution",
+       packed into the architectural word only in cpsr_read
+       (target/arm/helper.c:8258). */
+    uint8_t     nf;
+    uint8_t     zf;
+    uint8_t     cf;
+    uint8_t     vf;
+
     uint32_t    sp_bank[static_cast<uint32_t>(ArmBank::kCount)];
     uint32_t    lr_bank[static_cast<uint32_t>(ArmBank::kCount)];
     ArmPsrFull  spsr_bank[static_cast<uint32_t>(ArmSpsrBank::kCount)];
@@ -98,3 +107,71 @@ constexpr uint32_t kChainExitIrq   = 1u << 0;
 constexpr uint32_t kChainExitReset = 1u << 1;
 constexpr uint32_t kChainExitHost  = 1u << 2;
 constexpr uint32_t kChainExitFlush = 1u << 3;
+
+/* ARM ARM DDI 0406C.c B1.3.3, p. B1-1148: "Condition flags, bits[31:28] ...
+   N, bit[31] ... Z, bit[30] ... C, bit[29] ... V, bit[28]". */
+constexpr uint32_t kCpsrNzcvMask = 0xF0000000u;
+
+inline uint32_t ArmPackCpsr(const ArmCpuState& state) {
+    return (state.cpsr.word & ~kCpsrNzcvMask) |
+           (static_cast<uint32_t>(state.nf) << 31) |
+           (static_cast<uint32_t>(state.zf) << 30) |
+           (static_cast<uint32_t>(state.cf) << 29) |
+           (static_cast<uint32_t>(state.vf) << 28);
+}
+
+inline void ArmApplyCpsr(ArmCpuState& state, uint32_t word) {
+    state.cpsr.word = word;
+    state.nf = static_cast<uint8_t>((word >> 31) & 1u);
+    state.zf = static_cast<uint8_t>((word >> 30) & 1u);
+    state.cf = static_cast<uint8_t>((word >> 29) & 1u);
+    state.vf = static_cast<uint8_t>((word >> 28) & 1u);
+}
+
+constexpr int32_t ArmNfDisp() {
+    return static_cast<int32_t>(offsetof(ArmCpuState, nf));
+}
+
+constexpr int32_t ArmZfDisp() {
+    return static_cast<int32_t>(offsetof(ArmCpuState, zf));
+}
+
+constexpr int32_t ArmCfDisp() {
+    return static_cast<int32_t>(offsetof(ArmCpuState, cf));
+}
+
+constexpr int32_t ArmVfDisp() {
+    return static_cast<int32_t>(offsetof(ArmCpuState, vf));
+}
+
+static_assert(offsetof(ArmCpuState, nf) % 4u == 0u,
+              "nf must be 4-aligned: emitted code loads the flag quad as one "
+              "dword");
+static_assert(offsetof(ArmCpuState, zf) == offsetof(ArmCpuState, nf) + 1u &&
+                  offsetof(ArmCpuState, cf) == offsetof(ArmCpuState, nf) + 2u &&
+                  offsetof(ArmCpuState, vf) == offsetof(ArmCpuState, nf) + 3u,
+              "nf/zf/cf/vf must stay consecutive: emitted code loads them as "
+              "one dword and gathers them with kNzcvGatherMultiplier");
+
+constexpr uint32_t kNzcvGatherMultiplier =
+    (1u << 31) | (1u << 22) | (1u << 13) | (1u << 4);
+
+constexpr bool ArmNzcvGatherIsExact() {
+    for (uint32_t i = 0; i < 16u; ++i) {
+        const uint32_t nf = (i >> 3) & 1u;
+        const uint32_t zf = (i >> 2) & 1u;
+        const uint32_t cf = (i >> 1) & 1u;
+        const uint32_t vf = i & 1u;
+        const uint32_t quad = nf | (zf << 8) | (cf << 16) | (vf << 24);
+        const uint32_t want =
+            (nf << 31) | (zf << 30) | (cf << 29) | (vf << 28);
+        if (((quad * kNzcvGatherMultiplier) & kCpsrNzcvMask) != want) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(ArmNzcvGatherIsExact(),
+              "kNzcvGatherMultiplier must map the little-endian nf/zf/cf/vf "
+              "quad onto CPSR bits 31/30/29/28 for all 16 flag combinations");

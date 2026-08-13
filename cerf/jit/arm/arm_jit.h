@@ -44,7 +44,7 @@ public:
     void     DispatchTraceIter() override {
 #if CERF_DEV_MODE
         emu_.Get<TraceManager>().DispatchRunLoopIter(cpu_state_->gprs,
-                                                     cpu_state_->cpsr.word);
+                                                     ArmPackCpsr(*cpu_state_));
 #endif
     }
 

@@ -65,7 +65,8 @@ int ArmDispatchFaultFilter(EXCEPTION_POINTERS*  ep,
 
     LOG(Caution, "ArmJit: host exception 0x%08lX at host address %p while "
             "running guest PC 0x%08X (CPSR=0x%08X)\n",
-        rec->ExceptionCode, rec->ExceptionAddress, guest_pc, state->cpsr.word);
+        rec->ExceptionCode, rec->ExceptionAddress, guest_pc,
+        ArmPackCpsr(*state));
 
     char symbol[512];
     if (Log::SymbolizeAddress(rec->ExceptionAddress, symbol, sizeof(symbol))) {

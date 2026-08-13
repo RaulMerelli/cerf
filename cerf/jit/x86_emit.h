@@ -118,7 +118,7 @@ inline uint8_t* EmitJzLabel32(uint8_t*& c)  { return EmitRel32Label(c, 0x84); }
 inline uint8_t* EmitJnzLabel32(uint8_t*& c) { return EmitRel32Label(c, 0x85); }
 inline uint8_t* EmitJsLabel32(uint8_t*& c)  { return EmitRel32Label(c, 0x88); }
 inline uint8_t* EmitJaeLabel32(uint8_t*& c) { return EmitRel32Label(c, 0x83); }
-inline uint8_t* EmitJncLabel32(uint8_t*& c) { return EmitRel32Label(c, 0x83); }
+inline uint8_t* EmitJncLabel32(uint8_t*& c) { return EmitJaeLabel32(c); }
 inline uint8_t* EmitJbLabel32(uint8_t*& c)  { return EmitRel32Label(c, 0x82); }
 
 /* rel8 - sign-extended 8-bit displacement: SDM Vol. 2A 3-552 JMP (EB cb),

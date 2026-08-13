@@ -10,10 +10,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-constexpr int32_t CpsrDisp() {
-    return static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-}
-
 /* A2.2.1 (pp. A2-41/42): LSL_C / LSR_C carry = the last bit shifted out,
    zero for amounts past 32; #32 carry = Rm<0> / Rm<31> with a zero
    result; ASR_C amounts >= 32 give the sign in every bit and the carry;
@@ -71,11 +67,12 @@ uint8_t* EmitShiftByClCapture(uint8_t* cursor, uint32_t type) {
     }
     uint8_t* done_c = EmitJmpLabel32(cursor);
     FixupLabel32(zero_l, cursor);
-    EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
+    EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+    EmitCmc(cursor);
     FixupLabel32(done_a, cursor);
     if (done_b != nullptr) FixupLabel32(done_b, cursor);
     FixupLabel32(done_c, cursor);
-    EmitSetcReg8(cursor, kDl);
+    EmitSetccReg8(cursor, kSetC, kDl);
     return cursor;
 }
 
@@ -162,23 +159,22 @@ uint8_t* PlaceDataProcessingShiftedReg(uint8_t*      cursor,
     case 4u:
     case 11u: EmitAddReg32Reg32(cursor, kEax, kEcx); break;
     case 5u:
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
+        EmitCmc(cursor);
         EmitAdcReg32Reg32(cursor, kEax, kEcx);
         break;
     case 6u:
         /* SBC (A8.8.163 p. A8-597): AddWithCarry(Rn, NOT(shifted),
            APSR.C) subtracts NOT(C) where the x86 SBB subtracts CF
-           (SDM Vol. 2B 4-608) - CMC inverts. */
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
-        EmitCmc(cursor);
+           (SDM Vol. 2B 4-608). */
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
         EmitSbbReg32Reg32(cursor, kEcx, kEax);
         EmitMovRegReg(cursor, kEax, kEcx);
         break;
     case 7u:
         /* RSC (A8.8.157 p. A8-585): AddWithCarry(NOT(Rn), shifted,
            APSR.C). */
-        EmitBtMemDisp32Imm8(cursor, kStateReg, CpsrDisp(), 29);
-        EmitCmc(cursor);
+        EmitCmpByteBaseDisp32Imm8(cursor, kStateReg, ArmCfDisp(), 1u);
         EmitSbbReg32Reg32(cursor, kEax, kEcx);
         break;
     case 8u:  EmitTestRegReg(cursor, kEax, kEcx);    break;

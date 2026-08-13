@@ -10,10 +10,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-constexpr int32_t CpsrDisp() {
-    return static_cast<int32_t>(offsetof(ArmCpuState, cpsr));
-}
-
 }  /* namespace */
 
 /* DDI 0406C.c Table A5-7 (p. A5-202); operations: MUL p. A8-503, MLA
@@ -78,18 +74,12 @@ uint8_t* PlaceMultiply(uint8_t* cursor, DecodedInsn* d, BlockContext*) {
         return cursor;
     }
     /* A8-647: N = result<63>, Z = IsZeroBit(result<63:0>), C / V
-       unchanged. ZF of the whole via OR (SDM Vol. 2B 4-173), harvested
-       through LAHF AH = SF:ZF:0:AF:0:PF:1:CF (Vol. 2A 3-580). */
+       unchanged; ZF of the whole via OR (SDM Vol. 2B 4-173); SETcc
+       (SDM Vol. 2B 4-620). */
     EmitMovRegReg(cursor, kEcx, kEdx);
     EmitOrReg32Reg32(cursor, kEcx, kEax);
-    EmitLahf(cursor);
-    EmitAndRegImm32(cursor, kEax, 0x00004000u);
-    EmitShlReg32Imm(cursor, kEax, 16u);
-    EmitAndRegImm32(cursor, kEdx, 0x80000000u);
-    EmitOrReg32Reg32(cursor, kEax, kEdx);
-    EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, CpsrDisp());
-    EmitAndRegImm32(cursor, kEcx, 0x3FFFFFFFu);
-    EmitOrReg32Reg32(cursor, kEcx, kEax);
-    EmitMovBaseDisp32Reg(cursor, kStateReg, CpsrDisp(), kEcx);
+    EmitSetccBaseDisp32(cursor, kSetZ, kStateReg, ArmZfDisp());
+    EmitTestRegImm32(cursor, kEdx, 0x80000000u);
+    EmitSetccBaseDisp32(cursor, kSetNz, kStateReg, ArmNfDisp());
     return cursor;
 }
