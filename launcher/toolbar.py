@@ -6,10 +6,12 @@ from tkinter import ttk
 from typing import Callable, Dict, Optional
 
 from launch_button import LaunchSplitButton
+from toolbar_overflow import OverflowBar
 
 
 UPDATE_TEXT_ALL = "Update bundles"
 UPDATE_TEXT_ONE = "Update bundle"
+ISSUES_TEXT = "Bugs&Requests"
 
 
 class Toolbar:
@@ -22,52 +24,44 @@ class Toolbar:
                  on_discard_selected: Callable[[], None],
                  on_launch: Callable[[Optional[str]], None],
                  on_settings: Callable[[], None],
-                 on_about: Callable[[], None]) -> None:
+                 on_about: Callable[[], None],
+                 on_issues: Callable[[], None]) -> None:
         self._icons_dir = icons_dir
         self._icons: Dict[str, object] = {}
 
-        bar = ttk.Frame(parent, padding=(8, 6))
-        self.frame = bar
+        self._bar = OverflowBar(parent)
+        self.frame = self._bar.frame
 
-        self.btn_about = ttk.Button(bar, text="About", image=self._icon("help"),
-                                    compound="top", command=on_about)
-        self.btn_about.pack(side="right")
-        self.btn_settings = ttk.Button(bar, text="Settings",
-                                       image=self._icon("settings"),
-                                       compound="top", command=on_settings)
-        self.btn_settings.pack(side="right", padx=(0, 8))
+        self.btn_new = self._button("New", "new_device", on_new)
+        self.btn_remove = self._button("Remove", "delete_device",
+                                       on_remove_selected, state="disabled")
+        self.btn_discard = self._button("Discard state", "discard_state",
+                                        on_discard_selected, state="disabled")
+        self._bar.add_separator()
+        self.start = LaunchSplitButton(self._bar.frame, devices_dir, on_launch,
+                                       icon=self._icon("start_device"),
+                                       on_resize=self._bar.refresh)
+        self._bar.add(self.start.frame, entries=self.start.menu_entries)
+        self._bar.add_separator()
+        self.btn_refresh = self._button("Refresh bundles", "refresh_remote",
+                                        on_refresh)
+        self.btn_update = self._button(UPDATE_TEXT_ALL, "update_from_remote",
+                                       on_update, state="disabled")
+        self.btn_settings = self._button("Settings", "settings", on_settings,
+                                         side="right")
+        self.btn_issues = self._button(ISSUES_TEXT, "feedback", on_issues,
+                                       side="right")
+        self.btn_about = self._button("About", "help", on_about, side="right")
+        self._bar.finish()
 
-        self.btn_new = ttk.Button(bar, text="New",
-                                  image=self._icon("new_device"), compound="top",
-                                  command=on_new)
-        self.btn_new.pack(side="left")
-        self.btn_remove = ttk.Button(bar, text="Remove",
-                                     image=self._icon("delete_device"),
-                                     compound="top",
-                                     command=on_remove_selected, state="disabled")
-        self.btn_remove.pack(side="left", padx=(8, 0))
-        self.btn_discard = ttk.Button(bar, text="Discard state",
-                                      image=self._icon("discard_state"),
-                                      compound="top",
-                                      command=on_discard_selected,
-                                      state="disabled")
-        self.btn_discard.pack(side="left", padx=(8, 0))
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
-                                                   padx=8, pady=2)
-        self.start = LaunchSplitButton(bar, devices_dir, on_launch,
-                                       icon=self._icon("start_device"))
-        self.start.frame.pack(side="left")
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
-                                                   padx=8, pady=2)
-        self.btn_refresh = ttk.Button(bar, text="Refresh bundles",
-                                      image=self._icon("refresh_remote"),
-                                      compound="top", command=on_refresh)
-        self.btn_refresh.pack(side="left")
-        self.btn_update = ttk.Button(bar, text=UPDATE_TEXT_ALL,
-                                     image=self._icon("update_from_remote"),
-                                     compound="top",
-                                     command=on_update, state="disabled")
-        self.btn_update.pack(side="left", padx=(8, 0))
+    def _button(self, text: str, stem: str, command: Callable[[], None],
+                side: str = "left", state: str = "normal") -> ttk.Button:
+        btn = ttk.Button(self._bar.frame, text=text, image=self._icon(stem),
+                         compound="top", command=command, state=state)
+        self._bar.add(btn, label=lambda b=btn: str(b.cget("text")),
+                      command=command, side=side,
+                      enabled=lambda b=btn: str(b.cget("state")) != "disabled")
+        return btn
 
     def _icon(self, stem: str) -> object:
         if self._icons_dir is None:
@@ -79,6 +73,9 @@ class Toolbar:
             except tk.TclError:
                 self._icons[stem] = ""
         return self._icons[stem]
+
+    def retheme(self) -> None:
+        self._bar.retheme()
 
     def set_busy(self, busy: bool) -> None:
         state = "disabled" if busy else "normal"
@@ -92,8 +89,11 @@ class Toolbar:
     def set_selection_enabled(self, selected_has_update: bool,
                               any_updateable: bool, can_remove: bool,
                               can_discard: bool) -> None:
+        text = UPDATE_TEXT_ONE if selected_has_update else UPDATE_TEXT_ALL
+        changed = str(self.btn_update.cget("text")) != text
         self.btn_update.config(
-            state="normal" if any_updateable else "disabled",
-            text=UPDATE_TEXT_ONE if selected_has_update else UPDATE_TEXT_ALL)
+            state="normal" if any_updateable else "disabled", text=text)
         self.btn_remove.config(state="normal" if can_remove else "disabled")
         self.btn_discard.config(state="normal" if can_discard else "disabled")
+        if changed:
+            self._bar.refresh()

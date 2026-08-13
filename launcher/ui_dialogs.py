@@ -188,7 +188,7 @@ def show_guest_additions_help(parent: tk.Misc) -> None:
     webbrowser.open(GUEST_ADDITIONS_URL)
 
 
-def _link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
+def link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
     lbl = ttk.Label(parent, text=text, foreground=theme.LINK_FG, cursor="hand2")
     lbl.bind("<Button-1>", lambda _e: webbrowser.open(url))
     return lbl
@@ -197,7 +197,7 @@ def _link_label(parent: tk.Misc, text: str, url: str) -> ttk.Label:
 def _maybe_link(parent: tk.Misc, text: str, url: str) -> ttk.Label:
     """A clickable link when url is set, otherwise the same text as plain
     (non-clickable) label."""
-    return _link_label(parent, text, url) if url else ttk.Label(parent, text=text)
+    return link_label(parent, text, url) if url else ttk.Label(parent, text=text)
 
 
 def show_source_thanks(parent: tk.Misc, source: DeviceSource) -> None:
@@ -236,7 +236,7 @@ def show_sources_thanks(parent: tk.Misc, sources) -> None:
         _maybe_link(ask, "support them", source.donate).pack(side="left")
         ttk.Label(ask, text="?").pack(side="left")
         if source.origin:
-            _link_label(body, "Source data link", source.origin).pack(anchor="w")
+            link_label(body, "Source data link", source.origin).pack(anchor="w")
 
     btns = ttk.Frame(body)
     btns.pack(anchor="e", pady=(14, 0))

@@ -47,7 +47,7 @@ WIZARD_STEMS = ("local_rom", "download")
 TOOLBAR_SIZE = 48
 TOOLBAR_STEMS = ("new_device", "start_device", "refresh_remote",
                  "update_from_remote", "delete_device", "discard_state",
-                 "help", "settings")
+                 "help", "settings", "feedback")
 LAUNCHER_ONLY_STEMS = WIZARD_STEMS + TOOLBAR_STEMS
 
 REPO = Path(__file__).resolve().parent.parent
