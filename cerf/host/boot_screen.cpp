@@ -7,10 +7,12 @@
 #include "../core/string_utils.h"
 #include "boot_bar.h"
 #include "emulation_pause.h"
+#include "host_fonts.h"
 #include "host_gdiplus.h"
 #include "hw_screen.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <objbase.h>
 #include <gdiplus.h>
@@ -29,17 +31,24 @@ constexpr float    kDimOpacity    = 0.15f;
 constexpr uint32_t kCerfLogoMinPx = 96;
 constexpr uint32_t kCerfLogoMaxPx = 220;
 
+constexpr float    kLabelGapFrac    = 0.14f;
+
+constexpr float    kGlowRadiusScale = 1.9f;
+constexpr uint32_t kGlowCenterR     = 0x19;
+constexpr uint32_t kGlowCenterG     = 0x20;
+constexpr uint32_t kGlowCenterB     = 0x28;
+
 constexpr int      kLabelFontPx      = 18;
-constexpr int      kDisclaimerFontPx = 12;
+constexpr int      kHwLineFontPx = 12;
 constexpr int      kMargin           = 8;
 constexpr int      kBootBarPx        = 16;
-constexpr int      kHwLineHeightPx   = kDisclaimerFontPx + 4;
+constexpr int      kHwLineHeightPx   = kHwLineFontPx + 4;
 
 }  /* namespace */
 
 BootScreen::~BootScreen() {
     if (label_font_)      DeleteObject(label_font_);
-    if (disclaimer_font_) DeleteObject(disclaimer_font_);
+    if (hw_line_font_) DeleteObject(hw_line_font_);
     if (bg_dc_)           DeleteDC(bg_dc_);
     if (bg_dib_)          DeleteObject(bg_dib_);
 }
@@ -65,6 +74,9 @@ void BootScreen::RenderInto(HDC, uint32_t* dib_bgra32,
     const uint64_t sig = BgSignature(width, height);
     if (bg_bits_ && (!bg_valid_ || sig != bg_sig_)) {
         std::memset(bg_bits_, 0, (size_t)bg_w_ * bg_h_ * 4u);
+        const float glow = GlowOpacity();
+        DrawGlow(bg_bits_, width, height,
+                 LogoRect(width, height, glow, false), glow);
         if (!Finished()) DrawAnimation(bg_dc_, width, height);
         else             DrawHeldFinal(bg_dc_, width, height);
         DrawHwStatusLine(bg_dc_, width, height);
@@ -125,22 +137,90 @@ void BootScreen::EnsureLogosLoaded() {
 }
 
 void BootScreen::EnsureFonts() {
+    HostFonts& fonts = emu_.Get<HostFonts>();
     if (!label_font_)
         label_font_ = CreateFontW(-kLabelFontPx, 0, 0, 0, FW_BOLD, FALSE, FALSE,
                                   FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                   CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                  VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
-    if (!disclaimer_font_)
-        disclaimer_font_ = CreateFontW(-kDisclaimerFontPx, 0, 0, 0, FW_NORMAL, FALSE,
-                                       FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                       CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                       VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
+                                  VARIABLE_PITCH | FF_SWISS, fonts.UiFace());
+    if (!hw_line_font_)
+        hw_line_font_ = CreateFontW(-kHwLineFontPx, 0, 0, 0, FW_BOLD, FALSE,
+                                    FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                    CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                    FIXED_PITCH | FF_MODERN, fonts.MonoFace());
 }
 
 std::wstring BootScreen::CurrentLabelText() const {
     if (fb_latched_)                          return L"LCD is rendering.";
     if (label_mode_ == LabelMode::Restarting) return L"Rebooting...";
     return L"Booting " + short_name_ + L"...";
+}
+
+RECT BootScreen::LogoRect(uint32_t width, uint32_t height,
+                          float label_progress, bool native) const {
+    int dst_w = 0, dst_h = 0;
+    if (native) {
+        if (!cerf_logo_) return RECT{};
+        dst_w = (int)cerf_logo_->GetWidth();
+        dst_h = (int)cerf_logo_->GetHeight();
+    } else {
+        const uint32_t md = std::min(width, height);
+        dst_w = dst_h = (int)std::clamp(md / 3u, kCerfLogoMinPx, kCerfLogoMaxPx);
+    }
+
+    label_progress = std::clamp(label_progress, 0.0f, 1.0f);
+    const float gap  = (float)dst_h * kLabelGapFrac;
+    const float rise = (gap + (float)kLabelFontPx) * 0.5f * label_progress;
+
+    const int left = (int)width / 2 - dst_w / 2;
+    const int top  = (int)((float)height * 0.5f - rise) - dst_h / 2;
+    return RECT{ left, top, left + dst_w, top + dst_h };
+}
+
+float BootScreen::GlowOpacity() const {
+    switch (phase_) {
+        case Phase::CerfFadeIn:
+        case Phase::CerfHold:   return 0.0f;
+        case Phase::TextFadeIn: return cur_op_;
+        case Phase::TextHold:
+        case Phase::Finished:   return 1.0f;
+    }
+    return 0.0f;
+}
+
+void BootScreen::DrawGlow(uint32_t* bits, uint32_t width, uint32_t height,
+                          const RECT& logo, float opacity) const {
+    opacity = std::clamp(opacity, 0.0f, 1.0f);
+    if (!bits || opacity <= 0.0f) return;
+
+    const float cx = (float)(logo.left + logo.right) * 0.5f;
+    const float cy = (float)(logo.top + logo.bottom) * 0.5f;
+    const float radius = (float)std::max(logo.right - logo.left,
+                                         logo.bottom - logo.top) * kGlowRadiusScale;
+    if (radius <= 1.0f) return;
+
+    const int x0 = std::max(0, (int)(cx - radius));
+    const int x1 = std::min((int)width,  (int)(cx + radius) + 1);
+    const int y0 = std::max(0, (int)(cy - radius));
+    const int y1 = std::min((int)height, (int)(cy + radius) + 1);
+
+    const float inv_r = 1.0f / radius;
+    for (int y = y0; y < y1; ++y) {
+        const float dy = (float)y + 0.5f - cy;
+        uint32_t* row = bits + (size_t)y * width;
+        for (int x = x0; x < x1; ++x) {
+            const float dx = (float)x + 0.5f - cx;
+            const float d  = std::sqrt(dx * dx + dy * dy) * inv_r;
+            if (d >= 1.0f) continue;
+
+            const float t = 1.0f - d;
+            const float a = t * t * (3.0f - 2.0f * t) * opacity;
+            const uint32_t r = (uint32_t)((float)kGlowCenterR * a + 0.5f);
+            const uint32_t g = (uint32_t)((float)kGlowCenterG * a + 0.5f);
+            const uint32_t b = (uint32_t)((float)kGlowCenterB * a + 0.5f);
+            row[x] = (r << 16) | (g << 8) | b;
+        }
+    }
 }
 
 void BootScreen::Advance(uint64_t now) {
@@ -196,26 +276,10 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
 
     Gdiplus::Bitmap* bmp = cerf_logo_;
 
-    int dst_w = 0, dst_h = 0;
-    if (bmp) {
-        const int bw = (int)bmp->GetWidth();
-        const int bh = (int)bmp->GetHeight();
-        if (cerf_native_size) {
-            dst_w = bw;   /* native size, window-independent (text-mode watermark) */
-            dst_h = bh;
-        } else {
-            const uint32_t md = std::min(width, height);
-            const int sz = (int)std::clamp(md / 3u, kCerfLogoMinPx, kCerfLogoMaxPx);
-            dst_w = dst_h = sz;
-        }
-    }
-
-    /* With a label below (text phase / held), the logo sits above centre to
-       leave room; without one (CERF intro, text-mode watermark) it is centred
-       on the screen. */
-    const int cx = (int)width / 2;
-    const float cy_frac = show_label ? (0.5f - 0.10f * text_opacity) : 0.5f;
-    const int cy = (int)(height * cy_frac);
+    const RECT lr = LogoRect(width, height,
+                             show_label ? text_opacity : 0.0f, cerf_native_size);
+    const int dst_w = lr.right - lr.left;
+    const int dst_h = lr.bottom - lr.top;
 
     if (bmp && dst_w > 0 && dst_h > 0) {
         Gdiplus::Graphics g(dc);
@@ -229,12 +293,12 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
         Gdiplus::ImageAttributes ia;
         ia.SetColorMatrix(&cm);
 
-        Gdiplus::Rect dst(cx - dst_w / 2, cy - dst_h / 2, dst_w, dst_h);
+        Gdiplus::Rect dst(lr.left, lr.top, dst_w, dst_h);
         g.DrawImage(bmp, dst, 0, 0, (int)bmp->GetWidth(), (int)bmp->GetHeight(),
                     Gdiplus::UnitPixel, &ia);
     }   /* g flushes to the DC on scope exit, before the GDI text below */
 
-    if (!show_label) return;
+    if (!show_label || text_opacity <= 0.0f) return;
 
     EnsureFonts();
     if (!label_font_) return;
@@ -244,12 +308,9 @@ void BootScreen::DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
 
     HFONT old = (HFONT)SelectObject(dc, label_font_);
     SetTextColor(dc, RGB(v, v, v));
-    const int logo_bottom = cy + dst_h / 2;
     const int max_y = (int)height - kLabelFontPx - 8;
-    const int gap = std::clamp((int)((max_y - logo_bottom) * 0.35f), 8, 44);
-    int label_y = logo_bottom + gap;
-    if (label_y > max_y)              label_y = max_y;
-    if (label_y < logo_bottom + 8)    label_y = logo_bottom + 8;  /* but below logo */
+    int label_y = lr.bottom + (int)((float)dst_h * kLabelGapFrac);
+    if (label_y > max_y) label_y = max_y;
     RECT r{ 0, label_y, (int)width, label_y + kLabelFontPx * 2 };
     DrawTextW(dc, label.c_str(), (int)label.size(), &r,
               DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
@@ -281,7 +342,7 @@ void BootScreen::DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height) {
     if (last.empty()) return;
 
     EnsureFonts();
-    if (!disclaimer_font_) return;
+    if (!hw_line_font_) return;
 
     const float op = (phase_ == Phase::CerfFadeIn) ? cur_op_ : 1.0f;
     const int   dv = (int)(150.0f * op);
@@ -290,7 +351,7 @@ void BootScreen::DrawHwStatusLine(HDC dc, uint32_t width, uint32_t height) {
     RECT r{ kMargin, bottom - kHwLineHeightPx, (int)width - kMargin, bottom };
 
     const std::wstring wide = Utf8ToWide(last.c_str());
-    HFONT old = (HFONT)SelectObject(dc, disclaimer_font_);
+    HFONT old = (HFONT)SelectObject(dc, hw_line_font_);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, RGB(dv, dv, dv));
     DrawTextW(dc, wide.c_str(), (int)wide.size(), &r,
