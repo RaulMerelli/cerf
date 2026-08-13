@@ -20,12 +20,13 @@ from ci_release import (Artifact, CiError, changelog_markdown, compose,
                         load_credentials, post_discord, run_artifact)
 
 QA_CHANNEL_ID = "1537263681228771349"
+QA_ROLE_ID = "1537262210118852708"
 
 
 def header(artifact: Artifact, build: str, release_candidate: bool) -> str:
     title = f"CE Runtime Foundation {artifact.tag}"
     if release_candidate:
-        return ("@here\n"
+        return (f"<@&{QA_ROLE_ID}>\n"
                 f"[**{title} release candidate - build {build}**]"
                 f"({artifact.download_url})\n"
                 "This build is a candidate for the next release. Please give it a "
@@ -64,7 +65,8 @@ def main(argv: List[str]) -> int:
                       changelog_markdown(artifact.tag, empty),
                       footer(artifact))
     print(f"\n{content}\n")
-    post_discord(secret, QA_CHANNEL_ID, content, ping_here=release_candidate)
+    post_discord(secret, QA_CHANNEL_ID, content,
+                 ping_role=QA_ROLE_ID if release_candidate else None)
     print(f"Announced {artifact.name} in channel {QA_CHANNEL_ID}.")
     return 0
 

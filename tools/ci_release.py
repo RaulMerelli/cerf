@@ -190,14 +190,15 @@ def compose(top: str, body: str, bottom: str) -> str:
 
 
 def post_discord(secret: str, channel_id: str, content: str,
-                 ping_here: bool = False) -> None:
+                 ping_role: Optional[str] = None) -> None:
     if len(content) > DISCORD_MESSAGE_LIMIT:
         raise CiError(
             f"the Discord message is {len(content)} characters, over the "
             f"{DISCORD_MESSAGE_LIMIT} limit; shorten the changelog")
+    mentions = {"parse": [], "roles": [ping_role] if ping_role else []}
     payload = {"content": content,
                "flags": DISCORD_SUPPRESS_EMBEDS,
-               "allowed_mentions": {"parse": ["everyone"] if ping_here else []}}
+               "allowed_mentions": mentions}
     request(f"{DISCORD_API}/channels/{channel_id}/messages",
             {"Authorization": f"Bot {secret}"}, "POST",
             json.dumps(payload).encode("utf-8"), "application/json")
