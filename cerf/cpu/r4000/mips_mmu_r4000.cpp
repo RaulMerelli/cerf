@@ -13,7 +13,7 @@
 namespace {
 
 /* 8-bit EntryHi ASID: VR5500, VR4102, VR4121 (VR4121 UM Fig 6-17), VR4122
-   (VR4100 Series UM U15509EJ2V0UM 5.4). */
+   (VR4100 Series UM U15509EJ2V0UM 5.4), VR4111 (VR4111 UM Fig 6-17 p.179). */
 constexpr uint32_t kAsidMask = 0x000000FF;
 
 /* get_tlb_pfn_from_entrylo (tlb_helper.c:42), 32-bit: extract64(entrylo,6,24). */
@@ -34,6 +34,7 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && (bd->GetSoc() == SocFamily::VR4102 ||
+                      bd->GetSoc() == SocFamily::VR4111 ||
                       bd->GetSoc() == SocFamily::VR4121 ||
                       bd->GetSoc() == SocFamily::VR4122 ||
                       bd->GetSoc() == SocFamily::VR5500);
