@@ -53,6 +53,24 @@ The test for a line: a developer at a fresh clone, who never saw this session, u
 
 An issue reference is diff metadata, so it is welcome. When the commit fully resolves the issue, put `Fixes #123` on its own line above the trailer. When the commit is related but does not resolve it, use `Refs #123`. Reference an issue only when the diff corresponds to it. The issue thread is still conversation, so do not summarize it into the body.
 
+## CI keywords
+
+**The default is no keyword.** A commit carries a keyword only when the user asks for that CI action.
+
+Three keywords in the commit message start a CI action. CI reads the full message. Put the keyword at the end of the title line.
+
+- `[skip build]` - CI does not build this commit.
+- `[rc]` - CI announces the artifact on the QA Discord channel as a release candidate. Every member of the channel receives a notification.
+- `[release cerf]` - CI publishes the artifact as a release on all platforms. The release is public, and users download it.
+
+When the user asks for one of these actions directly, write its keyword. The request "/commit a release build" names the release action, so write `[release cerf]`. When the user asks for no action, write no keyword.
+
+When you write a keyword, tell the user in bold immediately after the commit. Name the action that CI will do.
+
+> **This commit has `[release cerf]`. CI will publish a release on all platforms.**
+
+If your reading of the request is incorrect, the user sees that line and stops you.
+
 ## Hard stops
 
 - **Never run git unless the user asked.** `/commit` is that ask, and it covers this one commit. Do not `git push`, which needs separate approval.
