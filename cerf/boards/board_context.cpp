@@ -27,6 +27,7 @@ constexpr BoardIdEntry kBoardIds[] = {
     {"philips_velo_1",    Board::PhilipsVelo1},
     {"sharp_mobilon_hc4100", Board::SharpMobilonHc4100},
     {"casio_cassiopeia_em500", Board::CasioCassiopeiaEm500},
+    {"casio_cassiopeia_e55", Board::CasioCassiopeiaE55},
 };
 
 }  /* namespace */
@@ -74,6 +75,7 @@ const char* BoardContext::BoardName(Board b) {
         case Board::PhilipsVelo1:     return "Philips Velo 1";
         case Board::SharpMobilonHc4100: return "Sharp Mobilon HC-4100";
         case Board::CasioCassiopeiaEm500: return "Casio Cassiopeia EM-500";
+        case Board::CasioCassiopeiaE55:   return "Casio Cassiopeia E-55";
     }
     return "Unknown / unsupported";
 }
@@ -101,6 +103,7 @@ const char* BoardContext::ShortBoardName(Board b) {
         case Board::PhilipsVelo1:     return "Velo 1";
         case Board::SharpMobilonHc4100: return "Mobilon HC-4100";
         case Board::CasioCassiopeiaEm500: return "EM-500";
+        case Board::CasioCassiopeiaE55:   return "E-55";
     }
     return "Unknown / unsupported";
 }
@@ -121,6 +124,7 @@ const char* BoardContext::SocFamilyName(SocFamily f) {
         case SocFamily::TegraAPX:  return "TegraAPX";
         case SocFamily::VR5500:    return "VR5500";
         case SocFamily::VR4102:    return "VR4102";
+        case SocFamily::VR4111:    return "VR4111";
         case SocFamily::VR4121:    return "VR4121";
         case SocFamily::VR4122:    return "VR4122";
         case SocFamily::PR31700:   return "PR31700";
