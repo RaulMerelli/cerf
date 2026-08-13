@@ -15,7 +15,7 @@ idb_path = ida_loader.get_path(ida_loader.PATH_TYPE_IDB)
 if idb_path:
     ida_loader.save_database(idb_path, 0)
 
-# Minimize IDA window — we only need the server
+# Minimize IDA window - we only need the server
 # Window may appear with a delay, so retry several times
 import time
 import ctypes.wintypes as wt
@@ -40,6 +40,10 @@ for _attempt in range(5):
     time.sleep(5)
 
 # Now start the HTTP API server
-server_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ida_server.py")
-with open(server_script) as f:
-    exec(compile(f.read(), server_script, "exec"))
+import sys
+_tools_dir = os.path.dirname(os.path.abspath(__file__))
+if _tools_dir not in sys.path:
+    sys.path.insert(0, _tools_dir)
+
+import ida_server
+ida_server.start_server()
