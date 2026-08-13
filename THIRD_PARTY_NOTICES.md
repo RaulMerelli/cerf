@@ -83,6 +83,20 @@ library. This is satisfied as follows:
 - **Relinkable form of the work.** CE Runtime Foundation's complete source is public,
   so a recipient can rebuild the work against a modified library from source.
 
+## Embedded fonts
+
+**[IBM Plex](https://github.com/IBM/plex)** - SIL Open Font License 1.1, (c) 2017 IBM Corp.
+`cerf.exe` embeds the unmodified faces in the table below as `RCDATA` resources. CERF loads
+them at run time as process-private fonts. CERF does not install them on the host system.
+
+| Face | File |
+| --- | --- |
+| IBM Plex Sans Regular | `cerf/assets/fonts/IBMPlexSans-Regular.ttf` |
+| IBM Plex Sans Bold | `cerf/assets/fonts/IBMPlexSans-Bold.ttf` |
+| IBM Plex Mono Bold | `cerf/assets/fonts/IBMPlexMono-Bold.ttf` |
+
+The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full license text.
+
 ## Development environment
 
 The development environment under `.claude/` includes the components below. They are not

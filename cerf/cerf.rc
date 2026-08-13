@@ -33,6 +33,10 @@ ICON_USB_FORD_FLASHER    ICON "assets/usb_ford_flasher.ico"
 
 CERF_LOGO        RCDATA "../gweslab.png"
 
+FONT_PLEX_SANS           RCDATA "assets/fonts/IBMPlexSans-Regular.ttf"
+FONT_PLEX_SANS_BOLD      RCDATA "assets/fonts/IBMPlexSans-Bold.ttf"
+FONT_PLEX_MONO_BOLD      RCDATA "assets/fonts/IBMPlexMono-Bold.ttf"
+
 /* about_band_*.png built from assets/icons_sources/about_band.svg by
    tools/make_icons.py --targets band; picked per-DPI at runtime. */
 ABOUT_BAND_100   RCDATA "assets/about_band_100.png"

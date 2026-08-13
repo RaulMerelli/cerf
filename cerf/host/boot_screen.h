@@ -53,6 +53,11 @@ private:
     void         EnsureLogosLoaded();
     void         EnsureFonts();
     std::wstring CurrentLabelText() const;
+    RECT         LogoRect(uint32_t width, uint32_t height,
+                          float label_progress, bool native) const;
+    float        GlowOpacity() const;
+    void         DrawGlow(uint32_t* bits, uint32_t width, uint32_t height,
+                          const RECT& logo, float opacity) const;
     void DrawLogoFrame(HDC dc, uint32_t width, uint32_t height,
                        float logo_opacity,
                        bool show_label, const std::wstring& label, float text_opacity,
@@ -74,7 +79,7 @@ private:
     bool      bg_valid_ = false;
 
     HFONT label_font_      = nullptr;
-    HFONT disclaimer_font_ = nullptr;
+    HFONT hw_line_font_    = nullptr;
 
     RECT hw_line_rect_{};
 

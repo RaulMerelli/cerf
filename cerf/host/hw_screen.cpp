@@ -5,6 +5,7 @@
 #include "../core/cerf_emulator.h"
 #include "boot_bar.h"
 #include "boot_screen.h"
+#include "host_fonts.h"
 
 #include <algorithm>
 #include <cstring>
@@ -44,8 +45,8 @@ COLORREF ClassifyLineColor(std::string_view line) {
     return kLogTextColor;
 }
 
-constexpr int      kFontHeightSmall      = 14;
-constexpr int      kFontHeightRegular    = 16;
+constexpr int      kFontHeightSmall      = 13;
+constexpr int      kFontHeightRegular    = 15;
 constexpr uint32_t kSmallTierThresholdPx = 480;
 
 }  /* namespace */
@@ -129,9 +130,10 @@ void HwScreen::DrawLog(HDC dc, uint32_t width, uint32_t height,
     const int height_px = small_tier ? kFontHeightSmall : kFontHeightRegular;
     if (!font_cache_[idx]) {
         font_cache_[idx] = CreateFontW(
-            -height_px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            -height_px, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            NONANTIALIASED_QUALITY, FIXED_PITCH | FF_MODERN, L"Fixedsys");
+            CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN,
+            emu_.Get<HostFonts>().MonoFace());
     }
     HFONT font = font_cache_[idx];
     if (!font) return;
