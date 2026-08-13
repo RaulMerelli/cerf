@@ -18,6 +18,7 @@ from device_state import (DeviceBundle, SAVED_STATE_SCREENSHOT_FILENAME,
                           STATE_IMAGE_FILENAME, running_status, saved_state_info)
 from device_model import TreeSelection
 from download_window import DownloadWindow
+from issues_window import IssuesWindow
 from toolbar import Toolbar
 from details_panel import DetailsPanel
 from launch_options import LaunchOptionsPanel
@@ -107,7 +108,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
                                on_discard_selected=self._discard_state,
                                on_launch=self._launch,
                                on_settings=self._open_settings,
-                               on_about=self._open_about)
+                               on_about=self._open_about,
+                               on_issues=self._open_issues)
         self.toolbar.frame.pack(fill="x", side="top")
         self.split = self.toolbar.start
 
@@ -285,6 +287,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         theme.apply_titlebar(self)
         self.paned.config(bg=theme.BORDER)
         self.scroll.retheme()
+        self.toolbar.retheme()
         self.split.retheme()
         self.status_bar.retheme()
         self.preview.retheme(theme.BG)
@@ -300,6 +303,9 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
 
     def _open_settings(self) -> None:
         SettingsDialog(self)
+
+    def _open_issues(self) -> None:
+        IssuesWindow(self)
 
     def _create_user_device(self, spec: UserDeviceSpec) -> None:
         if self.busy:

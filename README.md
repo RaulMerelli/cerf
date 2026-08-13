@@ -281,7 +281,9 @@ CERF builds the website from `docs/website/`. The command `python tools/build_si
           ✅ ARM JIT and JIT core full rewrite. Expect issues</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
-          ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection</p>
+          🆕 GitHub issues window (Bugs&amp;Requests)<br/>
+          ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection<br/>
+          ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off</p>
       </td>
     </tr>
     <tr>
