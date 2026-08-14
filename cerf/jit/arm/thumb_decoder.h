@@ -18,6 +18,8 @@ public:
 
 private:
     bool DecodeAddSubtract(DecodedInsn* insn, uint16_t op);
+    bool DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op);
+    bool DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op);
     bool DecodeImmediateOperations(DecodedInsn* insn, uint16_t op);
     bool DecodeLoadLiteral(DecodedInsn* insn, uint16_t op);
     bool DecodeMiscellaneous(DecodedInsn* insn, uint16_t op);

@@ -83,6 +83,21 @@ bool ThumbDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.17 BL, BLX (1), H == 10 (p. A7-27). */
+bool ThumbDecoder::DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op) {
+    const uint32_t off11 = op & 0x7FFu;
+    insn->offset   = static_cast<int32_t>(((off11 ^ 0x400u) - 0x400u) << 12);
+    insn->place_fn = &PlaceThumbBlPrefix;
+    return true;
+}
+
+/* ARM DDI 0100I A7.1.17 BL, BLX (1), H == 11 (p. A7-27). */
+bool ThumbDecoder::DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op) {
+    insn->offset   = static_cast<int32_t>((op & 0x7FFu) << 1);
+    insn->place_fn = &PlaceThumbBlSuffix;
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
@@ -221,6 +236,10 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         /* Figure A6-1 note 4, p. A6-5. */
         if ((op & 0x1u) != 0u || !processor_config_->HasBlxReg()) return false;
         return MarkArmUnimplemented(insn, op);
+    case 0x1Eu:
+        return DecodeBranchLinkPrefix(insn, op);
+    case 0x1Fu:
+        return DecodeBranchLinkSuffix(insn, op);
     default:
         return MarkArmUnimplemented(insn, op);
     }
