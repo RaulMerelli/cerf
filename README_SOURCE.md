@@ -137,4 +137,4 @@ run_claude.cmd
 
 CERF was started as [WCECL](https://github.com/dz333n/wcecl) in 2019.
 
-**Copyright (c) 2019-{cur_year} Yaroslav Kibysh**
+**Copyright (c) 2019-{cur_year} [Yaroslav Kibysh](https://yaroslavkibysh.com)**

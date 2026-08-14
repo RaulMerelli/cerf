@@ -37,20 +37,20 @@ constexpr int kBuildDy   = 44;
 constexpr int kBuildH    = 18;
 constexpr int kLinksDy   = 66;
 constexpr int kDevDy     = 96;
-constexpr int kMadeByDy  = 120;
+constexpr int kCopyrightDy = 120;
 constexpr int kCreditsDy = 150;
 constexpr int kCreditsH  = 130;
 constexpr int kContentH  = 336;
 constexpr int kCloseGap  = 42;
-constexpr int kNoDeviceDrop = kMadeByDy - kDevDy;
+constexpr int kNoDeviceDrop = kCopyrightDy - kDevDy;
 
 enum : int {
     IDC_TITLE   = 5001,
     IDC_VERSION,
     IDC_BUILD,
     IDC_DEVICE,
-    IDC_MADEBY_PREFIX,
-    IDC_MADEBY,
+    IDC_COPYRIGHT_PREFIX,
+    IDC_COPYRIGHT,
     IDC_LINKS,
 };
 
@@ -152,24 +152,24 @@ void AboutDialog::BuildControls(HWND hwnd, bool with_device) {
            IDC_DEVICE);
     }
 
-    constexpr wchar_t kMadeBy[] = L"Made by ";
-    const int made_by_y = cb + S(kMadeByDy - layout_drop_);
+    constexpr wchar_t kCopyright[] = L"Copyright (c) 2019-2026 ";
+    const int copyright_y = cb + S(kCopyrightDy - layout_drop_);
     SIZE prefix = { 0, 0 };
     {
         HDC     dc  = GetDC(hwnd);
         HGDIOBJ old = SelectObject(dc, ui_font_);
-        GetTextExtentPoint32W(dc, kMadeBy, ARRAYSIZE(kMadeBy) - 1, &prefix);
+        GetTextExtentPoint32W(dc, kCopyright, ARRAYSIZE(kCopyright) - 1, &prefix);
         SelectObject(dc, old);
         ReleaseDC(hwnd, dc);
     }
 
-    mk(L"STATIC", kMadeBy, SS_LEFT, tx, made_by_y, prefix.cx, S(22),
-       IDC_MADEBY_PREFIX);
+    mk(L"STATIC", kCopyright, SS_LEFT, tx, copyright_y, prefix.cx, S(22),
+       IDC_COPYRIGHT_PREFIX);
 
     mk(L"SysLink",
        L"<a href=\"https://yaroslavkibysh.com\">Yaroslav Kibysh</a>",
-       LWS_TRANSPARENT, tx + prefix.cx, made_by_y, tw - prefix.cx, S(22),
-       IDC_MADEBY);
+       LWS_TRANSPARENT, tx + prefix.cx, copyright_y, tw - prefix.cx, S(22),
+       IDC_COPYRIGHT);
 
     emu_.Get<AboutCredits>().Create(hwnd, ui_font_, tx,
                                     cb + S(kCreditsDy - layout_drop_),
@@ -319,7 +319,7 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_NOTIFY: {
             auto* nh = reinterpret_cast<NMHDR*>(lp);
-            if (nh->idFrom == IDC_LINKS || nh->idFrom == IDC_MADEBY) {
+            if (nh->idFrom == IDC_LINKS || nh->idFrom == IDC_COPYRIGHT) {
                 if (nh->code == NM_CLICK || nh->code == NM_RETURN) {
                     emu_.Get<HostLinkOpener>().OpenNotified(hwnd_, lp);
                     return 0;
