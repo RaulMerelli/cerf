@@ -132,6 +132,20 @@ bool ThumbDecoder::DecodeBranchExchange(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.39 LSL (2) (p. A7-66), A7.1.41 LSR (2) (p. A7-70),
+   A7.1.12 ASR (2) (p. A7-17), A7.1.54 ROR (p. A7-92). */
+bool ThumbDecoder::DecodeShiftByRegister(DecodedInsn* insn, uint16_t op,
+                                         uint32_t type) {
+    insn->op1      = 13u;
+    insn->s        = 1u;
+    insn->n        = type;
+    insn->rd       =  op       & 0x7u;
+    insn->rm       =  op       & 0x7u;
+    insn->rs       = (op >> 3) & 0x7u;
+    insn->place_fn = &PlaceDataProcessingShiftedReg;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.10 AND (p. A7-14), A7.1.26 EOR (p. A7-43), A7.1.2 ADC
    (p. A7-4), A7.1.55 SBC (p. A7-94), A7.1.72 TST (p. A7-122), A7.1.22 CMP (2)
    (p. A7-36), A7.1.20 CMN (p. A7-34), A7.1.48 ORR (p. A7-81), A7.1.15 BIC
@@ -179,6 +193,14 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
         insn->place_fn = &PlaceMultiply;
         return true;
     }
+    case 0x2u:
+        return DecodeShiftByRegister(insn, op, kSrLsl);
+    case 0x3u:
+        return DecodeShiftByRegister(insn, op, kSrLsr);
+    case 0x4u:
+        return DecodeShiftByRegister(insn, op, kSrAsr);
+    case 0x7u:
+        return DecodeShiftByRegister(insn, op, kSrRor);
     default:
         return MarkArmUnimplemented(insn, op);
     }
