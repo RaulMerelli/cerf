@@ -77,6 +77,6 @@ Do not use offsets, log lines, filenames, or the words "today I found". The clai
 
 ## Commit
 
-Once the edits land on disk, ask in one line whether to commit them. Then stop and wait.
+Once the edits land on disk, run `Skill(leak)` and `Skill(simple-english)` over the diff of the edited documents. Fix what they flag. Only then ask in one line whether to commit. Then stop and wait.
 
 When the user approves, invoke `Skill(commit)` and follow it. That skill owns staging and message style.
