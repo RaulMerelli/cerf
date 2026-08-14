@@ -130,6 +130,43 @@ bool ThumbDecoder::DecodeBranchExchange(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.10 AND (p. A7-14), A7.1.26 EOR (p. A7-43), A7.1.2 ADC
+   (p. A7-4), A7.1.55 SBC (p. A7-94), A7.1.72 TST (p. A7-122), A7.1.22 CMP (2)
+   (p. A7-36), A7.1.20 CMN (p. A7-34), A7.1.48 ORR (p. A7-81), A7.1.15 BIC
+   (p. A7-23), A7.1.46 MVN (p. A7-79). */
+bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
+    const uint32_t opcode = (op >> 6) & 0xFu;
+    const uint32_t reg    =  op       & 0x7u;
+    switch (opcode) {
+    case 0x0u:
+    case 0x1u:
+    case 0x5u:
+    case 0x6u:
+    case 0xCu:
+    case 0xEu:
+        insn->rn = reg;
+        insn->rd = reg;
+        break;
+    case 0x8u:
+    case 0xAu:
+    case 0xBu:
+        insn->rn = reg;
+        break;
+    case 0xFu:
+        insn->rd = reg;
+        break;
+    default:
+        return MarkArmUnimplemented(insn, op);
+    }
+    insn->op1      = opcode;
+    insn->s        = 1u;
+    insn->rm       = (op >> 3) & 0x7u;
+    insn->n        = kSrLsl;
+    insn->rs       = 0u;
+    insn->place_fn = &PlaceDataProcessingReg;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.59 STR (2) (p. A7-101), A7.1.64 STRH (2) (p. A7-111),
    A7.1.62 STRB (2) (p. A7-107), A7.1.36 LDRSB (p. A7-61), A7.1.29 LDR (2)
    (p. A7-49), A7.1.35 LDRH (2) (p. A7-59), A7.1.33 LDRB (2) (p. A7-56),
@@ -389,7 +426,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) == 0x3u) {
             return DecodeBranchExchange(insn, op);
         }
-        return MarkArmUnimplemented(insn, op);
+        return DecodeAluOperations(insn, op);
     case 0x09u:
         return DecodeLoadLiteral(insn, op);
     case 0x0Au:
