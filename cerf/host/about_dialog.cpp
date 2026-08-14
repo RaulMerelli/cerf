@@ -20,6 +20,7 @@ REGISTER_SERVICE(AboutDialog);
 AboutDialog::~AboutDialog() {
     if (title_font_) DeleteObject(title_font_);
     if (ui_font_)    DeleteObject(ui_font_);
+    if (small_font_) DeleteObject(small_font_);
 }
 
 namespace {
@@ -32,18 +33,21 @@ constexpr int kBandDipH = 112;
 
 constexpr int kTitleDy   = 16;
 constexpr int kTitleH    = 28;
-constexpr int kLinksDy   = 48;
-constexpr int kDevDy     = 78;
-constexpr int kMadeByDy  = 102;
-constexpr int kCreditsDy = 132;
+constexpr int kBuildDy   = 44;
+constexpr int kBuildH    = 18;
+constexpr int kLinksDy   = 66;
+constexpr int kDevDy     = 96;
+constexpr int kMadeByDy  = 120;
+constexpr int kCreditsDy = 150;
 constexpr int kCreditsH  = 130;
-constexpr int kContentH  = 318;
+constexpr int kContentH  = 336;
 constexpr int kCloseGap  = 42;
 constexpr int kNoDeviceDrop = kMadeByDy - kDevDy;
 
 enum : int {
     IDC_TITLE   = 5001,
     IDC_VERSION,
+    IDC_BUILD,
     IDC_DEVICE,
     IDC_MADEBY_PREFIX,
     IDC_MADEBY,
@@ -113,10 +117,12 @@ void AboutDialog::BuildControls(HWND hwnd, bool with_device) {
     title_ = mk(L"STATIC", kTitleText, SS_LEFT | SS_CENTERIMAGE,
                 tx, cb + S(kTitleDy), title_size.cx, S(kTitleH), IDC_TITLE);
 
-    mk(L"STATIC",
-       L"v" CERF_WSTR(CERF_VERSION_MAJOR) L"." CERF_WSTR(CERF_VERSION_MINOR),
+    mk(L"STATIC", L"v" CERF_VERSION_WSTR,
        SS_LEFT | SS_CENTERIMAGE, tx + title_size.cx + S(8),
        cb + S(kTitleDy), tw - title_size.cx - S(8), S(kTitleH), IDC_VERSION);
+
+    build_ = mk(L"STATIC", CERF_VERSION_BUILD_WSTR, SS_LEFT | SS_CENTERIMAGE,
+                tx, cb + S(kBuildDy), tw, S(kBuildH), IDC_BUILD);
 
     const int links_y = cb + S(kLinksDy);
     HWND links = mk(
@@ -182,12 +188,19 @@ void AboutDialog::CreateFonts() {
                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                               CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                               VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
+
+    small_font_ = CreateFontW(-S(11), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                              CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                              VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
 }
 
 void AboutDialog::ApplyCustomFonts() {
     if (ui_font_)
         EnumChildWindows(hwnd_, &AboutDialog::SetChildFontProc, (LPARAM)ui_font_);
     if (title_) SendMessageW(title_, WM_SETFONT, (WPARAM)title_font_, TRUE);
+    if (build_ && small_font_)
+        SendMessageW(build_, WM_SETFONT, (WPARAM)small_font_, TRUE);
 }
 
 void AboutDialog::PaintBand(HDC dc, int origin_x, int origin_y) {
@@ -272,6 +285,8 @@ void AboutDialog::Run(HWND owner, bool with_device) {
     delete band_; band_ = nullptr;
     if (title_font_) { DeleteObject(title_font_); title_font_ = nullptr; }
     if (ui_font_)    { DeleteObject(ui_font_);    ui_font_ = nullptr; }
+    if (small_font_) { DeleteObject(small_font_); small_font_ = nullptr; }
+    build_ = nullptr;
     EnableWindow(owner, TRUE);
     SetForegroundWindow(owner);
 }
@@ -336,8 +351,16 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_CTLCOLORDLG:
         case WM_CTLCOLORSTATIC:
         case WM_CTLCOLORBTN: {
+            auto& dm = emu_.Get<HostDarkMode>();
+            if (msg == WM_CTLCOLORSTATIC && build_ && (HWND)lp == build_) {
+                SetBkMode((HDC)wp, TRANSPARENT);
+                SetTextColor((HDC)wp, dm.IsDark() ? RGB(0x96, 0x96, 0x96)
+                                                  : RGB(0x6E, 0x6E, 0x6E));
+                return (LRESULT)(dm.IsDark() ? dm.BgBrush()
+                                             : GetSysColorBrush(COLOR_BTNFACE));
+            }
             LRESULT br;
-            if (emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br))
+            if (dm.HandleCtlColor(msg, wp, br))
                 return br;
             break;
         }

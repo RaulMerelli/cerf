@@ -68,7 +68,7 @@ def resolve_logo() -> Optional[Path]:
     return None
 
 
-def resolve_version() -> str:
+def _version_header_text() -> str:
     meipass = getattr(sys, "_MEIPASS", None)
     candidates: List[Path] = []
     if meipass:
@@ -76,19 +76,46 @@ def resolve_version() -> str:
     candidates.append(exe_dir() / "version.h")
     candidates.append(exe_dir() / ".." / "cerf" / "version.h")
     for path in candidates:
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        # CI (build.yml) rewrites CERF_VERSION_DISPLAY_STR to the full stamped
-        # string ("3.0.0 (<UTC timestamp>, <short SHA>)"). Local builds leave
-        # it as a bare macro reference, which this quoted-literal regex misses,
-        # so we fall back to assembling the clean semver below.
-        display = re.search(r'#define\s+CERF_VERSION_DISPLAY_STR\s+"([^"]+)"', text)
-        if display:
-            return display.group(1)
-        major = re.search(r"#define\s+CERF_VERSION_MAJOR\s+(\d+)", text)
-        minor = re.search(r"#define\s+CERF_VERSION_MINOR\s+(\d+)", text)
-        patch = re.search(r"#define\s+CERF_VERSION_PATCH\s+(\d+)", text)
-        if major and minor and patch:
-            return f"{major.group(1)}.{minor.group(1)}.{patch.group(1)}"
+        if path.is_file():
+            return path.read_text(encoding="utf-8", errors="ignore")
     return ""
+
+
+def _int_define(text: str, name: str) -> Optional[int]:
+    match = re.search(r"#define\s+" + name + r"\s+(\d+)", text)
+    return int(match.group(1)) if match else None
+
+
+def _str_define(text: str, name: str) -> str:
+    match = re.search(r'#define\s+' + name + r'\s+"([^"]*)"', text)
+    return match.group(1) if match else ""
+
+
+def resolve_version_tuple() -> Optional[tuple]:
+    text = _version_header_text()
+    major = _int_define(text, "CERF_VERSION_MAJOR")
+    minor = _int_define(text, "CERF_VERSION_MINOR")
+    if major is None or minor is None:
+        return None
+    return (major, minor,
+            _int_define(text, "CERF_VERSION_PATCH") or 0,
+            _int_define(text, "CERF_VERSION_BUILD") or 0)
+
+
+def resolve_version() -> str:
+    text = _version_header_text()
+    major = _int_define(text, "CERF_VERSION_MAJOR")
+    minor = _int_define(text, "CERF_VERSION_MINOR")
+    if major is None or minor is None:
+        return ""
+    patch = _int_define(text, "CERF_VERSION_PATCH") or 0
+    version = "{}.{}".format(major, minor)
+    if patch:
+        version += ".{}".format(patch)
+    build = _int_define(text, "CERF_VERSION_BUILD") or 0
+    if not build:
+        return version
+    detail = [part for part in ("build {}".format(build),
+                                _str_define(text, "CERF_VERSION_DATE"),
+                                _str_define(text, "CERF_VERSION_SHA")) if part]
+    return "{} ({})".format(version, ", ".join(detail))

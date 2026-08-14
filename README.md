@@ -293,12 +293,14 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
         <p><b>📱 Devices</b><br/>
           🆕 Casio Toricomail: bezel touch buttons</p>
         <p><b>💿 Emulator</b><br/>
+          🆕 Build number shown in the window title and the About box<br/>
           ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>
           ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection<br/>
-          ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off</p>
+          ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off<br/>
+          ✅ The update check now understands build numbers in release tags</p>
       </td>
     </tr>
     <tr>
