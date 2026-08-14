@@ -53,7 +53,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         self.cerf_exe = cerf_exe
         self.update_check = UpdateCheck(self)
         version = resolve_version()
-        self.title(f"CE Runtime Foundation {version} Launcher" if version else "CE Runtime Foundation Launcher")
+        self.title(f"CE Runtime Foundation Launcher {version}" if version else "CE Runtime Foundation Launcher")
 
         try:
             dpi = float(self.winfo_fpixels("1i"))

@@ -6,7 +6,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from app_paths import exe_dir, resolve_version
+from app_paths import exe_dir, resolve_version_tuple
 from bundles import parse_version_tuple
 from github_release import GithubRelease
 import upgrade_dialog
@@ -37,9 +37,9 @@ class UpdateCheck:
 
         self.app._await_future(future, done)
 
-    def _is_newer(self, version: str) -> bool:
-        current = parse_version_tuple(resolve_version())
-        remote = parse_version_tuple(version)
+    def _is_newer(self, tag: str) -> bool:
+        current = resolve_version_tuple()
+        remote = parse_version_tuple(tag)
         return current is not None and remote is not None and remote > current
 
     def _announce(self, version: str) -> None:

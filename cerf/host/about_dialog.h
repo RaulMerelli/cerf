@@ -33,6 +33,7 @@ private:
 
     HWND hwnd_  = nullptr;
     HWND title_ = nullptr;
+    HWND build_ = nullptr;
     bool done_  = false;
 
     UINT dpi_ = USER_DEFAULT_SCREEN_DPI;
@@ -44,4 +45,5 @@ private:
 
     HFONT title_font_ = nullptr;
     HFONT ui_font_    = nullptr;
+    HFONT small_font_ = nullptr;
 };
