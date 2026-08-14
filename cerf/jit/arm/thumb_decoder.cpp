@@ -83,6 +83,20 @@ bool ThumbDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.7 ADD (5) (p. A7-10), A7.1.8 ADD (6) (p. A7-11). */
+bool ThumbDecoder::DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op) {
+    const uint32_t imm = (op & 0xFFu) * 4u;
+    const bool     sp  = ((op >> 11) & 0x1u) != 0u;
+    insn->op1       = 4u;
+    insn->s         = 0u;
+    insn->rs        = 0u;
+    insn->rd        = (op >> 8) & 0x7u;
+    insn->rn        = sp ? 13u : 15u;
+    insn->immediate = sp ? imm : imm - ((insn->guest_address + 4u) & 3u);
+    insn->place_fn  = &PlaceDataProcessing;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.13 B (1), p. A7-19. */
 bool ThumbDecoder::DecodeConditionalBranch(DecodedInsn* insn, uint16_t op) {
     const uint32_t imm8 = op & 0xFFu;
@@ -241,7 +255,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         return DecodeStackRelativeTransfer(insn, op);
     case 0x14u:
     case 0x15u:
-        return MarkArmUnimplemented(insn, op);
+        return DecodeAddToPcOrSp(insn, op);
     case 0x16u:
     case 0x17u:
         return DecodeMiscellaneous(insn, op);
