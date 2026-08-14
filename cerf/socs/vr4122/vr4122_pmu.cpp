@@ -2,14 +2,13 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../guest_cpu_reset.h"
 #include "vr4122_clock_state.h"
 
-#include <atomic>
 #include <cstdint>
 
 namespace {
 
+using cerf_vr41xx_pmu_detail::kOffWaitReg;
 using cerf_vr41xx_pmu_detail::Vr41xxPmuBase;
 using cerf_vr41xx_pmu_detail::Vr41xxPmuModel;
 
@@ -33,14 +32,17 @@ constexpr Vr41xxPmuModel kModel = {
     /*cnt_writable=*/0xFF8Cu,
     /*cnt_fixed_read=*/0x0002u,  /* D1 RFU: "Write 1. 1 is returned after a read." */
     /*cnt_power_on=*/0x8802u,    /* RTCRST row: GPIO3MSK(D15) + GPIO3TRG(D11) + D1 */
+    /* PMUWAITREG (VR4131 UM 12.2.5): D13:0 WCOUNT, "Activation wait time =
+       (WCOUNT(13:0) + 1) x (1/32.768) ms"; D15:14 RFU. "This register is set to
+       0x2C00 (343.78 ms) after an RTC reset". */
+    0x3FFFu,
+    0x2C00u,
+    0x0008u,   /* PMUINTREG D3 RSTSW  */
+    0x0010u,   /* PMUINTREG D4 RTCRST */
 };
 
 constexpr uint32_t kOffInt2Reg = 0x04u;
 constexpr uint32_t kOffCnt2Reg = 0x06u;
-constexpr uint32_t kOffWaitReg = 0x08u;
-
-constexpr uint16_t kIntRtcRst = 0x0010u;   /* PMUINTREG D4 RTCRST */
-constexpr uint16_t kIntRstSw  = 0x0008u;   /* PMUINTREG D3 RSTSW  */
 
 /* PMUINT2REG (VR4131 UM 12.2.3): D15-12 GPIO(12:9)INTR W1C; D11:0 RFU read 0;
    RTCRST row all 0. */
@@ -51,12 +53,6 @@ constexpr uint16_t kInt2W1c = 0xF000u;
 constexpr uint16_t kCnt2Writable = 0xFF10u;
 constexpr uint16_t kCnt2SoftRst  = 0x0010u;
 
-/* PMUWAITREG (VR4131 UM 12.2.5): D13:0 WCOUNT, "Activation wait time =
-   (WCOUNT(13:0) + 1) x (1/32.768) ms"; D15:14 RFU. "This register is set to
-   0x2C00 (343.78 ms) after an RTC reset". */
-constexpr uint16_t kWaitWcount  = 0x3FFFu;
-constexpr uint16_t kWaitPowerOn = 0x2C00u;
-
 /* PMUTCLKDIVREG (VR4131 UM 12.2.6, 0x0F0000CC): D8 TDIV + D2:0 VTDIV(2:0) R/W,
    D15:9/D7:3 RFU read 0; cleared to 0 at RTC reset (VTDIV 000 = CLKSEL strap mode). */
 constexpr uint32_t kOffTclkDivReg   = 0x0Cu;
@@ -65,21 +61,6 @@ constexpr uint16_t kTclkDivWritable = 0x0107u;
 class Vr4122Pmu : public Vr41xxPmuBase<SocFamily::VR4122, kModel> {
 public:
     using Vr41xxPmuBase::Vr41xxPmuBase;
-
-    void OnReady() override {
-        Vr41xxPmuBase::OnReady();
-        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
-            if (kind != ResetLineKind::Rtc) return;
-            StoreIntReg(kModel.int_power_on);
-            cntreg_   = kModel.cnt_power_on;
-            int2reg_  = 0;
-            cnt2reg_  = 0;
-            waitreg_  = kWaitPowerOn;
-        });
-    }
-
-    void LatchWarmReset() override { SetIntBits(kIntRstSw); }
-    void LatchColdReset() override { SetIntBits(kIntRtcRst); }
 
     /* Table 1-1 (VR4100 Series UM U15509EJ2V0UM): the VR4122's on-chip unit list
        carries no watchdog timer. */
@@ -97,7 +78,6 @@ public:
         Vr41xxPmuBase::SaveState(w);
         w.Write(int2reg_);
         w.Write(cnt2reg_);
-        w.Write(waitreg_);
         emu_.Get<Vr4122ClockState>().SaveState(w);
     }
 
@@ -105,11 +85,15 @@ public:
         Vr41xxPmuBase::RestoreState(r);
         r.Read(int2reg_);
         r.Read(cnt2reg_);
-        r.Read(waitreg_);
         emu_.Get<Vr4122ClockState>().RestoreState(r);
     }
 
 protected:
+    void ResetExt() override {
+        int2reg_ = 0;
+        cnt2reg_ = 0;
+    }
+
     uint16_t ReadHalfExt(uint32_t addr) override {
         switch (addr - kModel.base) {
             case kOffInt2Reg: return int2reg_;
@@ -133,9 +117,6 @@ protected:
                 }
                 cnt2reg_ = static_cast<uint16_t>(value & kCnt2Writable);
                 return;
-            case kOffWaitReg:
-                waitreg_ = static_cast<uint16_t>(value & kWaitWcount);
-                return;
             case kOffTclkDivReg:
                 emu_.Get<Vr4122ClockState>().SetPending(
                     static_cast<uint16_t>(value & kTclkDivWritable));
@@ -147,7 +128,6 @@ protected:
 private:
     uint16_t int2reg_ = 0;
     uint16_t cnt2reg_ = 0;
-    uint16_t waitreg_ = kWaitPowerOn;
 };
 
 }  /* namespace */
