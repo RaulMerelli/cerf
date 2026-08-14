@@ -260,13 +260,25 @@ bool ThumbDecoder::DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.9 ADD (7) (p. A7-12), A7.1.68 SUB (4) (p. A7-116). */
+bool ThumbDecoder::DecodeAdjustStackPointer(DecodedInsn* insn, uint16_t op) {
+    insn->op1       = ((op >> 7) & 0x1u) != 0u ? 2u : 4u;
+    insn->s         = 0u;
+    insn->rs        = 0u;
+    insn->rn        = 13u;
+    insn->rd        = 13u;
+    insn->immediate = (op & 0x7Fu) * 4u;
+    insn->place_fn  = &PlaceDataProcessing;
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
 bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
     switch ((op >> 8) & 0xFu) {
     case 0x0u:
-        return MarkArmUnimplemented(insn, op);
+        return DecodeAdjustStackPointer(insn, op);
     case 0x2u:
         /* Figure A6-2 note 2, p. A6-5. */
         if (!processor_config_->HasExtendRotate()) return false;
