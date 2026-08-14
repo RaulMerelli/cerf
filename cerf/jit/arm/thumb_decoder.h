@@ -28,6 +28,7 @@ private:
     bool DecodeConditionalBranch(DecodedInsn* insn, uint16_t op);
     bool DecodeImmediateOperations(DecodedInsn* insn, uint16_t op);
     bool DecodeMiscellaneous(DecodedInsn* insn, uint16_t op);
+    bool DecodeShiftByImmediate(DecodedInsn* insn, uint16_t op);
     bool DecodeSpecialDataProcessing(DecodedInsn* insn, uint16_t op);
     bool DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op);
 

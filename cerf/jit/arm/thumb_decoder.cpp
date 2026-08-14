@@ -18,6 +18,23 @@ void ThumbDecoder::OnReady() {
     transfer_decoder_ = &emu_.Get<ThumbTransferDecoder>();
 }
 
+/* ARM DDI 0100I A7.1.38 LSL (1) (p. A7-64), A7.1.40 LSR (1) (p. A7-68),
+   A7.1.11 ASR (1) (p. A7-15). */
+bool ThumbDecoder::DecodeShiftByImmediate(DecodedInsn* insn, uint16_t op) {
+    const uint32_t shift_t = (op >> 11) & 0x3u;
+    const uint32_t immed_5 = (op >>  6) & 0x1Fu;
+    insn->op1      = 13u;
+    insn->s        = 1u;
+    insn->rn       = 0u;
+    insn->rd       =  op       & 0x7u;
+    insn->rm       = (op >> 3) & 0x7u;
+    insn->n        = shift_t;
+    insn->rs       =
+        (shift_t != kSrLsl && immed_5 == 0u) ? 32u : immed_5;
+    insn->place_fn = &PlaceDataProcessingReg;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.5 (A7-7), A7.1.3 (A7-5), A7.1.67 (A7-115), A7.1.65
    (A7-113). */
 bool ThumbDecoder::DecodeAddSubtract(DecodedInsn* insn, uint16_t op) {
@@ -299,7 +316,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
     case 0x00u:
     case 0x01u:
     case 0x02u:
-        return MarkArmUnimplemented(insn, op);
+        return DecodeShiftByImmediate(insn, op);
     case 0x03u:
         return DecodeAddSubtract(insn, op);
     case 0x04u:
