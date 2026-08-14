@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class ArmProcessorConfig;
+class ThumbTransferDecoder;
 struct DecodedInsn;
 
 class ThumbDecoder : public Service {
@@ -25,14 +26,11 @@ private:
     bool DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op);
     bool DecodeConditionalBranch(DecodedInsn* insn, uint16_t op);
-    bool DecodeImmediateOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeImmediateOperations(DecodedInsn* insn, uint16_t op);
-    bool DecodeLoadLiteral(DecodedInsn* insn, uint16_t op);
     bool DecodeMiscellaneous(DecodedInsn* insn, uint16_t op);
-    bool DecodeRegisterOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeSpecialDataProcessing(DecodedInsn* insn, uint16_t op);
-    bool DecodeStackRelativeTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op);
 
-    ArmProcessorConfig* processor_config_ = nullptr;
+    ArmProcessorConfig*   processor_config_  = nullptr;
+    ThumbTransferDecoder* transfer_decoder_  = nullptr;
 };
