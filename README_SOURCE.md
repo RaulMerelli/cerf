@@ -99,7 +99,7 @@ See **[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
 
 ### Website
 
-This repositroy includes [cerf.cx](https://cerf.cx]) source code at ``docs/website``.
+This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/website``.
 
 `python tools/build_site.py --serve` runs the website on your machine with live reload.
 
