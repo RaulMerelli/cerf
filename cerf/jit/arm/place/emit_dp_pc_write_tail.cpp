@@ -30,6 +30,9 @@ uint8_t* EmitDpPcWriteTail(uint8_t* cursor, DecodedInsn* d,
         EmitCall(cursor,
             reinterpret_cast<void*>(&ArmCpu::ExceptionReturnHelper));
         EmitAddRegImm32(cursor, kEsp, 8);
+    } else if (ctx->thumb) {
+        /* ARM DDI 0406C.c A2.3.1, p. A2-46. */
+        EmitAndRegImm32(cursor, kEax, 0xFFFFFFFEu);
     } else if (ctx->emit->ProcessorConfig()->HasDataProcToPcInterworking()) {
         /* ALUWritePC (A2.3.2 p. A2-48): BXWritePC from ARMv7 on. */
         cursor = EmitArmInterworkingFullEax(cursor);

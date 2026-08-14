@@ -83,6 +83,44 @@ bool ThumbDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.6 ADD (4) (p. A7-8), A7.1.23 CMP (3) (p. A7-37),
+   A7.1.44 MOV (3) (p. A7-75), A7.1.25 CPY (p. A7-41). */
+bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
+                                               uint16_t     op) {
+    const uint32_t h1  = (op >> 7) & 0x1u;
+    const uint32_t h2  = (op >> 6) & 0x1u;
+    const bool     low = h1 == 0u && h2 == 0u;
+    const uint32_t reg = (h1 << 3) | (op & 0x7u);
+    insn->rm = (h2 << 3) | ((op >> 3) & 0x7u);
+    insn->n  = kSrLsl;
+    insn->rs = 0u;
+    switch ((op >> 8) & 0x3u) {
+    case 0u:
+        if (low) return false;
+        insn->op1 = 4u;
+        insn->s   = 0u;
+        insn->rn  = reg;
+        insn->rd  = reg;
+        break;
+    case 1u:
+        if (low || reg == 15u) return false;
+        insn->op1 = 10u;
+        insn->s   = 1u;
+        insn->rn  = reg;
+        break;
+    case 2u:
+        if (low && !processor_config_->HasCp15V6()) return false;
+        insn->op1 = 13u;
+        insn->s   = 0u;
+        insn->rd  = reg;
+        break;
+    default:
+        return MarkArmUnimplemented(insn, op);
+    }
+    insn->place_fn = &PlaceDataProcessingReg;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.59 STR (2) (p. A7-101), A7.1.64 STRH (2) (p. A7-111),
    A7.1.62 STRB (2) (p. A7-107), A7.1.36 LDRSB (p. A7-61), A7.1.29 LDR (2)
    (p. A7-49), A7.1.35 LDRH (2) (p. A7-59), A7.1.33 LDRB (2) (p. A7-56),
@@ -294,6 +332,9 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) == 0x3u &&
             ((op >> 7) & 0x1u) != 0u && !processor_config_->HasBlxReg()) {
             return false;
+        }
+        if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) != 0x3u) {
+            return DecodeSpecialDataProcessing(insn, op);
         }
         return MarkArmUnimplemented(insn, op);
     case 0x09u:
