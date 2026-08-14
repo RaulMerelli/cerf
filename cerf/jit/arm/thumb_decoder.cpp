@@ -167,6 +167,18 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
         insn->rs        = 0u;
         insn->place_fn  = &PlaceDataProcessing;
         return true;
+    case 0xDu: {
+        /* ARM DDI 0100I A7.1.45 MUL, p. A7-77. */
+        const uint32_t rm = (op >> 3) & 0x7u;
+        if (rm == reg && !processor_config_->HasCp15V6()) return false;
+        insn->op1      = 0u;
+        insn->s        = 1u;
+        insn->rd       = reg;
+        insn->rm       = reg;
+        insn->rn       = rm;
+        insn->place_fn = &PlaceMultiply;
+        return true;
+    }
     default:
         return MarkArmUnimplemented(insn, op);
     }
