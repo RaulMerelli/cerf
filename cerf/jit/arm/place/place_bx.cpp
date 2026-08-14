@@ -4,14 +4,13 @@
 #include "../place_fns.h"
 #include "../../x86_emit.h"
 
-/* ARM DDI 0406C.c A8.8.27 BX (p. A8-353): BXWritePC(R[m]); A2.3
-   (p. A2-45): the ARM-state PC reads as the instruction address + 8. */
+/* ARM DDI 0406C.c A8.8.27 BX (p. A8-353): BXWritePC(R[m]). */
 uint8_t* PlaceBxImpl(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx,
                      bool /*is_call*/) {
     using namespace x86;
 
     if (d->rm == ArmGpr::kR15) {
-        EmitMovRegImm32(cursor, kEax, d->guest_address + 8u);
+        EmitMovRegImm32(cursor, kEax, ArmPcReadValue(d, ctx));
     } else {
         EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
             static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rm * 4u));

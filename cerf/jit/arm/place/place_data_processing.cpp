@@ -59,7 +59,7 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
         EmitMovRegImm32(cursor, kEax, move_result);
     } else if (reversed) {
         if (d->rn == ArmGpr::kR15) {
-            EmitMovRegImm32(cursor, kEcx, d->guest_address + 8u);
+            EmitMovRegImm32(cursor, kEcx, ArmPcReadValue(d, ctx));
         } else {
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
         }
@@ -72,7 +72,7 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
         }
     } else {
         if (d->rn == ArmGpr::kR15) {
-            EmitMovRegImm32(cursor, kEax, d->guest_address + 8u);
+            EmitMovRegImm32(cursor, kEax, ArmPcReadValue(d, ctx));
         } else {
             EmitMovRegBaseDisp32(cursor, kEax, kStateReg, GprDisp(d->rn));
         }

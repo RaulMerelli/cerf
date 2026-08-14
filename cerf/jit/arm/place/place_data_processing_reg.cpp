@@ -40,8 +40,7 @@ uint8_t* PlaceDataProcessingReg(uint8_t*      cursor,
 
     const uint8_t shiftee = (reversed || is_move) ? kEax : kEcx;
     if (d->rm == ArmGpr::kR15) {
-        /* A2.3 (p. A2-45): a PC read is the instruction address + 8. */
-        EmitMovRegImm32(cursor, shiftee, d->guest_address + 8u);
+        EmitMovRegImm32(cursor, shiftee, ArmPcReadValue(d, ctx));
     } else {
         EmitMovRegBaseDisp32(cursor, shiftee, kStateReg, GprDisp(d->rm));
     }
@@ -98,7 +97,7 @@ uint8_t* PlaceDataProcessingReg(uint8_t*      cursor,
     if (!is_move) {
         const uint8_t other = reversed ? kEcx : kEax;
         if (d->rn == ArmGpr::kR15) {
-            EmitMovRegImm32(cursor, other, d->guest_address + 8u);
+            EmitMovRegImm32(cursor, other, ArmPcReadValue(d, ctx));
         } else {
             EmitMovRegBaseDisp32(cursor, other, kStateReg, GprDisp(d->rn));
         }

@@ -16,6 +16,73 @@ void ThumbDecoder::OnReady() {
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
 }
 
+/* ARM DDI 0100I A7.1.5 (A7-7), A7.1.3 (A7-5), A7.1.67 (A7-115), A7.1.65
+   (A7-113). */
+bool ThumbDecoder::DecodeAddSubtract(DecodedInsn* insn, uint16_t op) {
+    insn->op1 = ((op >> 9) & 0x1u) != 0u ? 2u : 4u;
+    insn->s   = 1u;
+    insn->rn  = (op >> 3) & 0x7u;
+    insn->rd  =  op       & 0x7u;
+    insn->rs  = 0u;
+    if (((op >> 10) & 0x1u) != 0u) {
+        insn->immediate = (op >> 6) & 0x7u;
+        insn->place_fn  = &PlaceDataProcessing;
+        return true;
+    }
+    insn->rm       = (op >> 6) & 0x7u;
+    insn->n        = kSrLsl;
+    insn->place_fn = &PlaceDataProcessingReg;
+    return true;
+}
+
+/* ARM DDI 0100I A7.1.42 (A7-72), A7.1.21 (A7-35), A7.1.4 (A7-6), A7.1.66
+   (A7-114). */
+bool ThumbDecoder::DecodeImmediateOperations(DecodedInsn* insn, uint16_t op) {
+    const uint32_t reg = (op >> 8) & 0x7u;
+    insn->s         = 1u;
+    insn->rs        = 0u;
+    insn->immediate = op & 0xFFu;
+    switch ((op >> 11) & 0x3u) {
+    case 0u:
+        insn->op1 = 13u;
+        insn->rd  = reg;
+        break;
+    case 1u:
+        insn->op1 = 10u;
+        insn->rn  = reg;
+        break;
+    case 2u:
+        insn->op1 = 4u;
+        insn->rd  = reg;
+        insn->rn  = reg;
+        break;
+    default:
+        insn->op1 = 2u;
+        insn->rd  = reg;
+        insn->rn  = reg;
+        break;
+    }
+    insn->place_fn = &PlaceDataProcessing;
+    return true;
+}
+
+/* ARM DDI 0100I A7.1.30 LDR (3), p. A7-51. */
+bool ThumbDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
+    const uint32_t pc = insn->guest_address + 4u;
+    insn->p        = 1u;
+    insn->u        = 1u;
+    insn->s        = 0u;
+    insn->w        = 0u;
+    insn->l        = 1u;
+    insn->n        = 1u;
+    insn->rn       = 15u;
+    insn->rd       = (op >> 8) & 0x7u;
+    insn->offset   = static_cast<int32_t>((op & 0xFFu) * 4u) -
+                     static_cast<int32_t>(pc & 3u);
+    insn->place_fn = &PlaceSingleDataTransfer;
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
@@ -104,12 +171,14 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
     case 0x00u:
     case 0x01u:
     case 0x02u:
+        return MarkArmUnimplemented(insn, op);
     case 0x03u:
+        return DecodeAddSubtract(insn, op);
     case 0x04u:
     case 0x05u:
     case 0x06u:
     case 0x07u:
-        return MarkArmUnimplemented(insn, op);
+        return DecodeImmediateOperations(insn, op);
     case 0x08u:
         /* Figure A6-1 note 3, p. A6-5. */
         if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) == 0x3u &&
@@ -118,6 +187,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         }
         return MarkArmUnimplemented(insn, op);
     case 0x09u:
+        return DecodeLoadLiteral(insn, op);
     case 0x0Au:
     case 0x0Bu:
     case 0x0Cu:
