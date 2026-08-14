@@ -1,9 +1,7 @@
 #include "../vr41xx/vr41xx_pmu_impl.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../guest_cpu_reset.h"
 
-#include <atomic>
 #include <cstdint>
 
 namespace {
@@ -24,51 +22,28 @@ constexpr Vr41xxPmuModel kModel = {
     /*int_sw_rw=*/0x00C0u,     /* D7:6 memo(1:0), "can be used by users freely" */
     /*int_power_on=*/0x0010u,  /* RTCRST column: RTCRST(D4) = 1, every other bit 0 */
     /* PMUCNTREG (UM 16.2.2): D15-12 GPIO(3:0)MSK, D11-8 GPIO(3:0)TRG, D7 STANDBY and
-       D2 HALTIMERRST are R/W; D6:3 and D0 are RFU reading 0.
-       HALTIMERRST (D2) is stored R/W with no HAL-timer behind it: the HALTimer is a
-       one-shot activation watchdog - "the software must write '1' to PMUCNTREG's
-       HALTIMERRST bit within about four seconds" after activation (UM 16.1.2(1)), and
-       its expiry is an automatic shutdown, not a reboot (UM 8.1.5) - so a guest that
-       completes its activation sequence disarms it once and forever. */
+       D2 HALTIMERRST are R/W; D6:3 and D0 are RFU reading 0. HALTIMERRST is stored
+       with NO HALTimer modeled behind it; UM 16.1.2(1) p398 gives its expiry as a
+       reset of "all peripheral units except for RTC and PMU" plus a CPU cold reset. */
     /*cnt_writable=*/0xFF84u,
     /*cnt_fixed_read=*/0x0002u,  /* D1 RFU: "Write 1 to this bit. 1 is returned after a read." */
     /*cnt_power_on=*/0x8802u,    /* RTCRST column: "The GPIO3MSK bit is set to 1 by RTCRST,
                                     and the other bits are cleared to 0" - D15 + D11 + D1. */
+    /* PMUWAITREG (UM 16.2.5, p415): D13:0 WCOUNT R/W, D15:14 RFU R. "This register is
+       set to 0x2C00 ... after RTC reset"; its After-reset row is "Hold the value
+       before reset". */
+    0x3FFFu,
+    0x2C00u,
+    0x0008u,   /* PMUINTREG D3 RSTSW  */
+    0x0010u,   /* PMUINTREG D4 RTCRST */
 };
 
-constexpr uint32_t kOffWaitReg = 0x08u;
-
-constexpr uint16_t kIntRtcRst = 0x0010u;   /* PMUINTREG D4 RTCRST */
 constexpr uint16_t kIntRstSw = 0x0008u;   /* PMUINTREG D3 RSTSW  */
 constexpr uint16_t kIntDmsRst = 0x0004u;  /* PMUINTREG D2 DMSRST */
-
-/* PMUWAITREG (UM 16.2.5): D13:0 WCOUNT, "Activation wait time = WCOUNT x (1/32.768)
-   ms"; D15:14 RFU. "This register is set to 0x2C00 (it sets 343.75-ms activation wait
-   time) after RTC reset", and its After-reset row holds the value before reset. */
-constexpr uint16_t kWaitWcount  = 0x3FFFu;
-constexpr uint16_t kWaitPowerOn = 0x2C00u;
 
 class Vr4121Pmu : public Vr41xxPmuBase<SocFamily::VR4121, kModel> {
 public:
     using Vr41xxPmuBase::Vr41xxPmuBase;
-
-    /* "When the RTCRST# signal becomes active, the PMU resets all peripheral units
-       including the RTC unit" (UM 16.1.1(1)): every PMU register takes its RTCRST column.
-       An RSTSW reset (UM 16.1.1(2)) and every shutdown (UM 16.1.2, Table 16-2) reset "all
-       peripheral units except for RTC and PMU", so the PMU keeps its registers and only
-       the new cause is OR'd into PMUINTREG. */
-    void OnReady() override {
-        Vr41xxPmuBase::OnReady();
-        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
-            if (kind != ResetLineKind::Rtc) return;
-            StoreIntReg(kModel.int_power_on);
-            cntreg_  = kModel.cnt_power_on;
-            waitreg_ = kWaitPowerOn;
-        });
-    }
-
-    void LatchWarmReset() override { SetIntBits(kIntRstSw); }
-    void LatchColdReset() override { SetIntBits(kIntRtcRst); }
 
     /* A deadman's SW shutdown sets DMSRST and RSTSW (UM 16.2.1, 16.1.2(2)); the Casio
        IOCTL_HAL_REBOOT (ASIC 0x1118/0x111A) routes here. nk.exe StartUp's reset gate
@@ -80,28 +55,6 @@ public:
        (UM 16.2.1). */
     void LatchSleepWakeCause() override {}
     void ClearSleepWakeCause() override {}
-
-    void SaveState(StateWriter& w) override {
-        Vr41xxPmuBase::SaveState(w);
-        w.Write(waitreg_);
-    }
-
-    void RestoreState(StateReader& r) override {
-        Vr41xxPmuBase::RestoreState(r);
-        r.Read(waitreg_);
-    }
-
-protected:
-    void WriteHalfExt(uint32_t addr, uint16_t value) override {
-        if (addr - kModel.base == kOffWaitReg) {
-            waitreg_ = static_cast<uint16_t>(value & kWaitWcount);
-            return;
-        }
-        Vr41xxPmuBase::WriteHalfExt(addr, value);
-    }
-
-private:
-    uint16_t waitreg_ = kWaitPowerOn;
 };
 
 }  /* namespace */

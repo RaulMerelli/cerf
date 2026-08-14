@@ -14,8 +14,9 @@
 
 namespace cerf_vr41xx_pmu_detail {
 
-constexpr uint32_t kOffIntReg = 0x00u;   /* PMUINTREG */
-constexpr uint32_t kOffCntReg = 0x02u;   /* PMUCNTREG */
+constexpr uint32_t kOffIntReg  = 0x00u;   /* PMUINTREG  */
+constexpr uint32_t kOffCntReg  = 0x02u;   /* PMUCNTREG  */
+constexpr uint32_t kOffWaitReg = 0x08u;   /* PMUWAITREG */
 
 /* Every value is per-chip: the two registers' bit layouts coincide across the
    family, but VR4121 UM 16.2.1 names D7:6 memo(1:0) ("can be used by users
@@ -29,6 +30,10 @@ struct Vr41xxPmuModel {
     uint16_t cnt_writable;    /* PMUCNTREG: R/W bits                          */
     uint16_t cnt_fixed_read;  /* PMUCNTREG: reserved bits that read 1         */
     uint16_t cnt_power_on;    /* PMUCNTREG: RTCRST column                     */
+    uint16_t wait_wmask;      /* PMUWAITREG@0x08: WCOUNT R/W bits (VR4111 UM 16.2.5) */
+    uint16_t wait_power_on;   /* PMUWAITREG@0x08: RTCRST column (VR4111 UM 16.2.5)   */
+    uint16_t int_warm_cause;  /* PMUINTREG: RSTSW-reset cause bit                    */
+    uint16_t int_cold_cause;  /* PMUINTREG: RTC-reset cause bit                      */
 };
 
 /* "When the software executes the HIBERNATE instruction, the VR4102 ... enters reset status ...
@@ -45,14 +50,27 @@ public:
         return bd && bd->GetSoc() == Soc;
     }
 
+    /* An RTC reset "resets all peripheral units including the RTC unit"; an RSTSW
+       reset "resets all peripheral units except for RTC and PMU" (VR4111 UM
+       16.1.1(1)/(2), Table 16-1). */
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
         emu_.Get<GuestCpuReset>().SetCauseLatch(this);
         emu_.Get<GuestDeepSleep>().RegisterWaker(this);
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            if (kind != ResetLineKind::Rtc) return;
+            StoreIntReg(M.int_power_on);
+            cntreg_  = M.cnt_power_on;
+            waitreg_ = M.wait_power_on;
+            ResetExt();
+        });
     }
 
     uint32_t MmioBase() const override { return M.base; }
     uint32_t MmioSize() const override { return M.size; }
+
+    void LatchWarmReset() override { SetIntBits(M.int_warm_cause); }
+    void LatchColdReset() override { SetIntBits(M.int_cold_cause); }
 
     uint16_t ReadHalf(uint32_t addr) override {
         switch (addr - M.base) {
@@ -68,13 +86,19 @@ public:
             case kOffCntReg:
                 cntreg_ = static_cast<uint16_t>((value & M.cnt_writable) | M.cnt_fixed_read);
                 return;
-            default: WriteHalfExt(addr, value); return;
+            case kOffWaitReg:
+                if (M.wait_wmask == 0u) break;
+                waitreg_ = static_cast<uint16_t>(value & M.wait_wmask);
+                return;
+            default: break;
         }
+        WriteHalfExt(addr, value);
     }
 
     void SaveState(StateWriter& w) override {
         w.Write(IntReg());
         w.Write(cntreg_);
+        w.Write(waitreg_);
     }
 
     void RestoreState(StateReader& r) override {
@@ -82,6 +106,7 @@ public:
         r.Read(v);
         intreg_.store(v, std::memory_order_release);
         r.Read(cntreg_);
+        r.Read(waitreg_);
     }
 
 protected:
@@ -91,6 +116,7 @@ protected:
     virtual void WriteHalfExt(uint32_t addr, uint16_t value) {
         Peripheral::WriteHalf(addr, value);
     }
+    virtual void ResetExt() {}
 
     uint16_t IntReg() const { return intreg_.load(std::memory_order_acquire); }
 
@@ -116,7 +142,8 @@ protected:
     void StoreIntReg(uint16_t value) { intreg_.store(value, std::memory_order_release); }
 
     std::atomic<uint16_t> intreg_{M.int_power_on};
-    uint16_t              cntreg_ = M.cnt_power_on;
+    uint16_t              cntreg_  = M.cnt_power_on;
+    uint16_t              waitreg_ = M.wait_power_on;
 };
 
 }  /* namespace cerf_vr41xx_pmu_detail */
