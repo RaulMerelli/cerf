@@ -332,7 +332,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         return transfer_decoder_->DecodeImmediateOffsetTransfer(insn, op);
     case 0x10u:
     case 0x11u:
-        return MarkArmUnimplemented(insn, op);
+        return transfer_decoder_->DecodeHalfwordOffsetTransfer(insn, op);
     case 0x12u:
     case 0x13u:
         return transfer_decoder_->DecodeStackRelativeTransfer(insn, op);

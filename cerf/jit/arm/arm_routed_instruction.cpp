@@ -17,6 +17,7 @@
 #include "cpu_state.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
+#include "thumb_decoder.h"
 
 REGISTER_SERVICE(ArmRoutedInstruction);
 
@@ -32,30 +33,39 @@ void ArmRoutedInstruction::OnReady() {
     walker_    = &emu_.Get<ArmPageWalker>();
     config_    = &emu_.Get<ArmProcessorConfig>();
     access_    = &emu_.Get<ArmRoutedAccess>();
+    thumb_     = &emu_.Get<ThumbDecoder>();
 }
 
 void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
-    if (cpu_state_->cpsr.bits.thumb_mode != 0u) {
-        LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X routes a peripheral "
-                "access with CPSR.T set\n", guest_pc);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    uint8_t* host = walker_->TranslateExecute(cpu_state_, guest_pc);
+    const bool thumb = cpu_state_->cpsr.bits.thumb_mode != 0u;
+    uint8_t*   host  = walker_->TranslateExecute(cpu_state_, guest_pc);
     if (host == nullptr) {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X is unmapped on "
                 "re-fetch\n", guest_pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    ArmOpcode op;
-    std::memcpy(&op.word, host, sizeof(op.word));
 
     DecodedInsn d;
     std::memset(&d, 0, sizeof(d));
     d.guest_address        = guest_pc;
     d.actual_guest_address = guest_pc;
-    if (!decoder_->DecodeArm(&d, op)) {
+
+    uint32_t raw     = 0;
+    bool     decoded = false;
+    if (thumb) {
+        uint16_t half = 0;
+        std::memcpy(&half, host, sizeof(half));
+        raw     = half;
+        decoded = thumb_->DecodeThumb(&d, half);
+    } else {
+        ArmOpcode op;
+        std::memcpy(&op.word, host, sizeof(op.word));
+        raw     = op.word;
+        decoded = decoder_->DecodeArm(&d, op);
+    }
+    if (!decoded) {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X word 0x%08X no "
-                "longer decodes\n", guest_pc, op.word);
+                "longer decodes\n", guest_pc, raw);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
@@ -73,13 +83,19 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     } else {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X word 0x%08X routes "
                 "a peripheral access from an instruction family with no "
-                "completion\n", guest_pc, op.word);
+                "completion\n", guest_pc, raw);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
     if (outcome == Outcome::kNextInsn) {
-        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + 4u;
+        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + (thumb ? 2u : 4u);
     }
+}
+
+/* ARM DDI 0100I A7.1, p. A7-3. */
+uint32_t ArmRoutedInstruction::PcReadValue(const DecodedInsn* d) const {
+    return d->guest_address +
+           (cpu_state_->cpsr.bits.thumb_mode != 0u ? 4u : 8u);
 }
 
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::Abort(
@@ -127,20 +143,20 @@ uint32_t ArmRoutedInstruction::SingleShiftedOffset(const DecodedInsn* d) {
 uint32_t ArmRoutedInstruction::SingleOffsetAddr(const DecodedInsn* d) {
     if (d->n != 0u) {
         if (d->rn == ArmGpr::kR15) {
-            return d->guest_address + 8u + static_cast<uint32_t>(d->offset);
+            return PcReadValue(d) + static_cast<uint32_t>(d->offset);
         }
         return cpu_state_->gprs[d->rn] + static_cast<uint32_t>(d->offset);
     }
     const uint32_t offset = SingleShiftedOffset(d);
     const uint32_t base   = (d->rn == ArmGpr::kR15)
-        ? d->guest_address + 8u
+        ? PcReadValue(d)
         : cpu_state_->gprs[d->rn];
     return d->u != 0u ? base + offset : base - offset;
 }
 
 uint32_t ArmRoutedInstruction::HalfwordOffsetAddr(const DecodedInsn* d) {
     const uint32_t base = (d->rn == ArmGpr::kR15)
-        ? d->guest_address + 8u
+        ? PcReadValue(d)
         : cpu_state_->gprs[d->rn];
     if (d->n != 0u) {
         return base + static_cast<uint32_t>(d->offset);

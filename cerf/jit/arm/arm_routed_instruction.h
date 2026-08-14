@@ -10,6 +10,7 @@ class ArmMmu;
 class ArmPageWalker;
 class ArmProcessorConfig;
 class ArmRoutedAccess;
+class ThumbDecoder;
 struct ArmCpuState;
 struct DecodedInsn;
 
@@ -32,6 +33,7 @@ private:
     Outcome Exclusive(DecodedInsn* d, bool is_store);
 
     Outcome  Abort(DecodedInsn* d, bool wback, uint32_t base_on_abort);
+    uint32_t PcReadValue(const DecodedInsn* d) const;
     uint32_t SingleOffsetAddr(const DecodedInsn* d);
     uint32_t SingleShiftedOffset(const DecodedInsn* d);
     uint32_t HalfwordOffsetAddr(const DecodedInsn* d);
@@ -44,4 +46,5 @@ private:
     ArmPageWalker*            walker_    = nullptr;
     ArmProcessorConfig*       config_    = nullptr;
     ArmRoutedAccess*          access_    = nullptr;
+    ThumbDecoder*             thumb_     = nullptr;
 };
