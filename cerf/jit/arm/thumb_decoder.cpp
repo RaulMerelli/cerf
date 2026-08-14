@@ -157,6 +157,16 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
     case 0xFu:
         insn->rd = reg;
         break;
+    case 0x9u:
+        /* ARM DDI 0100I A7.1.47 NEG, p. A7-80. */
+        insn->op1       = 3u;
+        insn->s         = 1u;
+        insn->rn        = (op >> 3) & 0x7u;
+        insn->rd        = reg;
+        insn->immediate = 0u;
+        insn->rs        = 0u;
+        insn->place_fn  = &PlaceDataProcessing;
+        return true;
     default:
         return MarkArmUnimplemented(insn, op);
     }
