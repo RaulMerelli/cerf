@@ -18,6 +18,7 @@ public:
 
 private:
     bool DecodeAddSubtract(DecodedInsn* insn, uint16_t op);
+    bool DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op);
     bool DecodeConditionalBranch(DecodedInsn* insn, uint16_t op);
