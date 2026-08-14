@@ -12,8 +12,12 @@
 <br/>
 
 > [!WARNING]
-> **Beta stage.** CERF is a one-person open source project. Expect bugs and
-> breaking changes.
+> **Beta stage.** CERF is a hobby project, developed in spare time
+> and can't be a called production-grade/exceptionally stable project.
+> **Expect bugs, crashes, and breaking changes.** 🙃
+>
+> For the same reason - be careful if you are going to use CERF is a reference for
+> hardware level behaviour. The code works but CERF is not an official chip datasheet.
 
 > [!CAUTION]
 > **CERF 6.8 is temporary broken.** We remove third-party licensed
@@ -24,7 +28,9 @@
 
 To use the newest features, download the WIP build (6.8) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
-Run **`launcher.exe`** and select a device. The launcher downloads the ROM bundle and boots it. The [articles](https://cerf.cx/articles/command-line/) show how to run `cerf.exe --device=...` directly, and describe its command line and its logs.
+If you need any additional help, e.g. what to run and how to use the emulator - visit [cerf.cx](https://cerf.cx/articles).
+
+See ``cerf.exe`` command line usage at [cerf.cx/articles/command-line](https://cerf.cx/articles/command-line/).
 
 ## Supported boards
 
@@ -211,7 +217,7 @@ A ROM boots only if **CERF implements that exact board**. A matching SoC is not 
 **The board is not on the supported list.** A new board is a code contribution. It needs C++ for the memory map of the board, for each peripheral that the drivers use, and for the quirks of the SoC. The code must agree with datasheets, BSP sources and reverse engineering, at the quality level of the current tree. A new board is not a change to a configuration file - that's not that simple.
 
 > [!IMPORTANT]
-> **CERF does not accept ROM submissions or requests for new boards.** Send a contribution, or use a board that CERF supports. The project also adds a board on its own sometimes, when the board is important for historical preservation, or interesting.
+> **CERF does not accept ROM submissions or requests for new boards.** If you want a new board - your only choice is to build a support yourself and send a contribution.
 
 ## Building
 
@@ -226,39 +232,48 @@ Configure the clone (one time on each machine):
 setup.cmd
 ```
 
-This script initializes the submodules. It points git at the tracked hooks of the
-repo (`core.hooksPath` = `.githooks`). Git does not clone the hook configuration,
-so the hooks do nothing in a new clone until you run this script. The script also
-reports each missing prerequisite (the Python launcher, the vcpkg MSBuild
-integration). You can run it again at any time, because it is idempotent.
-`setup.cmd -Check` reports the status and changes nothing.
+or dry run:
 
-Build with the helper script:
+```
+setup.cmd -Check
+```
+
+It will
+- point git at tracked hooks
+- report missing prerequisite
+
+**Build the entire proejct with a helper script**:
 
 ```
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Or run msbuild directly:
-
-```
-msbuild cerf.sln /p:Configuration=Release /p:Platform=Win32
-```
+The script will:
+- wait for a parallel build (Claude Code-special feature for parallel agents work)
+- build the launcher (and will install CPython into a repo directory, if needed)
+- build the emulator itself (and will pick appropriate SDK/toolchain from your installations)
+- build all the bundled Windows CE apps (at ``ce_apps/``)
 
 ### Building the CE-side binaries (optional)
 
-`ce_apps/` holds the Windows CE binaries that CERF ships, and the Guest Additions
-display driver. To build them, you need a CE toolchain and a CE SDK. `cerf.exe`
-does **not** need them. If you work on the emulator core, the boards, the SoCs,
-the JIT or the host UI, use the prebuilt binaries.
+`ce_apps/` holds the Windows CE binaries that CERF ships, and the Guest Additions driver.
+To build them, you need a CE toolchain and a CE SDK. 
 
-To build them, install eMbedded Visual C++ 4.0 (a free Microsoft download from the
-Microsoft archive). Then run one script. The full instructions are in
-**[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
+`cerf.exe` does **not** need them. If you work on the emulator core, the boards, the SoCs, the JIT or the host UI,
+use the prebuilt binaries from another CERF release or just dont use them at all.
+
+To build `ce_apps/`, install eMbedded Visual C++ 4.0 (a free Microsoft download from the
+Microsoft archive). CERF includes a script that will unpack the installation (you dont want and probably can't install ancient tools)
+and will place the build tools / SDK into appropriate directories.
+See **[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
 
 `setup.cmd -Check` reports whether the CE toolchain is present.
 
-CERF builds the website from `docs/website/`. The command `python tools/build_site.py --serve` runs the website on your machine with live reload.
+### Website
+
+This repositroy includes [cerf.cx](https://cerf.cx]) source code at ``docs/website``.
+
+`python tools/build_site.py --serve` runs the website on your machine with live reload.
 
 ## Changelog
 
@@ -380,30 +395,32 @@ CERF builds the website from `docs/website/`. The command `python tools/build_si
 
 ## Known Issues
 
-For the issues of each board, see the [board database of the launcher](launcher/supported_devices.py).
+For the issues of each board, see the [board database of the launcher](launcher/supported_devices.py) or read Notes block when you use a launcher.
 
 ## Claude Development Environment
 
-The project is primarily built with help of [Claude](https://claude.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+The environment includes several contraversional things you need to know before using it.
 
-> [!CAUTION]
-> AI written code (and well - the human written code too) might include mistakes a developer did not notice. Be careful when using it as a reference for peripherals and other hardware level systems.
+- Full project **documentation is injected** into a system prompt - this eats tokens
+- The environment **kills** global ``clangd.exe`` and own ``claude.exe`` instances if they leak memory
+- Thinking is set to *high*; **bypass permissions mode** is set
+- Several own/3rd-party **skills** included
+- Powerful hooks triggering when agent might do something bad to the codebase
 
----
+The environment gives you the **`/start-board-implementation`** skill. Run the skill and agent will start the new board bring-up on its own. You need experience - the skill won't do all the work instead of you. (Tho honestly speaking, there have been cases where Claude alone brought a board to a bootable state)
 
-CERF includes a development environment that uses Claude Code. You can work on the emulator with it, and you can add new boards from their ROMs. Run it from the root of the repo:
+Run the environment:
 
 ```
 run_claude.cmd
 ```
 
-This environment runs Claude Code with a custom system prompt. The prompt puts the **full project documentation** into each agent (`CLAUDE.md` and each reference page in `agent_docs/`). Thus each session starts with the rules, the architecture and the subsystems of the project. You do not tell the agent to read the documentation first.
-
-The environment gives you the **`/start-board-implementation`** skill. Put your ROM into `bundled/devices/`, or give the agent the path to it. Then run the skill. The agent identifies the board and the SoC from the ROM. It then examines what CERF supports and estimates the work. If you agree, the agent starts the work and writes a tracking document that stays between sessions.
-
-> [!WARNING]
-> The development environment runs Claude in skip-permissions mode. Claude can run any command on your machine, and it does not ask you first. The environment also stops its own Claude instance, and **any** `clangd.exe`, that uses more memory than a limit. At the first start, it shows an explanation one time. Press Enter to accept it.
-
 ## License
 
 [MIT](LICENSE). Third-party components and studied references are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+CERF was started as [WCECL](https://github.com/dz333n/wcecl) in 2019.
+
+**Copyright (c) 2019-2026 Yaroslav Kibysh**
