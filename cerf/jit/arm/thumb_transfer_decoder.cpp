@@ -105,7 +105,23 @@ bool ThumbTransferDecoder::DecodeImmediateOffsetTransfer(DecodedInsn* insn,
     return true;
 }
 
-/* ARM DDI 0100I A7.1.60 STR (3) (p. A7-104), A7.1.31 LDR (4) (p. A7-54). */
+/* ARM DDI 0100I A7.1.63 STRH (1) (p. A7-109), A7.1.34 LDRH (1) (p. A7-57). */
+bool ThumbTransferDecoder::DecodeHalfwordOffsetTransfer(DecodedInsn* insn,
+                                                        uint16_t     op) {
+    insn->p        = 1u;
+    insn->u        = 1u;
+    insn->w        = 0u;
+    insn->n        = 1u;
+    insn->op1      = 1u;
+    insn->l        = (op >> 11) & 0x1u;
+    insn->rn       = (op >> 3) & 0x7u;
+    insn->rd       =  op       & 0x7u;
+    insn->offset   = static_cast<int32_t>(((op >> 6) & 0x1Fu) * 2u);
+    insn->place_fn = &PlaceLoadStoreExtension;
+    return true;
+}
+
+/* ARM DDI 0100I A7.1.60 STR (3) (p. A7-103), A7.1.31 LDR (4) (p. A7-53). */
 bool ThumbTransferDecoder::DecodeStackRelativeTransfer(DecodedInsn* insn,
                                                        uint16_t     op) {
     insn->p        = 1u;
