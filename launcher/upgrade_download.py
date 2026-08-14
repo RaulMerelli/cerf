@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 from bundles import BundleError
 from device_state import format_size
-from github_release import GithubRelease
+from available_update import AvailableUpdate
 from bundle_download import safe_extract, stream_download
 from upgrade_process import UPGRADE_DIR_NAME, UPGRADE_ZIP_NAME, UpgradeError
 
@@ -24,7 +24,7 @@ def _wipe(path: Path) -> None:
         raise UpgradeError(f"cannot remove {path}: {exc}") from exc
 
 
-def download_upgrade(release: GithubRelease, install_dir: Path,
+def download_upgrade(release: AvailableUpdate, install_dir: Path,
                      log: LogFn, progress: ProgressFn) -> Path:
     upgrade_dir = install_dir / UPGRADE_DIR_NAME
     zip_path = install_dir / UPGRADE_ZIP_NAME

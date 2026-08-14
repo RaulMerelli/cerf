@@ -5,6 +5,20 @@ import json
 from bundle_repositories import config_path, load_config
 
 DISCORD_RICH_PRESENCE_KEY = "discord_rich_presence"
+UPDATE_CHANNEL_KEY = "update_channel"
+
+CHANNEL_DISABLED = "disabled"
+CHANNEL_STABLE = "stable"
+CHANNEL_UNSTABLE = "unstable"
+CHANNEL_DEFAULT = CHANNEL_STABLE
+CHANNELS = (CHANNEL_DISABLED, CHANNEL_STABLE, CHANNEL_UNSTABLE)
+
+
+def _write_key(key: str, value) -> None:
+    path = config_path()
+    obj = load_config(path)
+    obj[key] = value
+    path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 
 
 def read_discord_rich_presence() -> bool:
@@ -12,7 +26,14 @@ def read_discord_rich_presence() -> bool:
 
 
 def write_discord_rich_presence(enabled: bool) -> None:
-    path = config_path()
-    obj = load_config(path)
-    obj[DISCORD_RICH_PRESENCE_KEY] = enabled
-    path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+    _write_key(DISCORD_RICH_PRESENCE_KEY, enabled)
+
+
+def read_update_channel() -> str:
+    value = load_config(config_path()).get(UPDATE_CHANNEL_KEY)
+    return value if value in CHANNELS else CHANNEL_DEFAULT
+
+
+def write_update_channel(channel: str) -> None:
+    _write_key(UPDATE_CHANNEL_KEY,
+               channel if channel in CHANNELS else CHANNEL_DEFAULT)

@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Optional
 
 from app_paths import exe_dir, resolve_version_tuple
+from app_settings import CHANNEL_DISABLED, read_update_channel
 from bundles import parse_version_tuple
-from github_release import GithubRelease
+from available_update import AvailableUpdate
 import upgrade_dialog
 from ui_dialogs import show_dialog, show_error
 from upgrade_download import download_upgrade
@@ -22,9 +23,13 @@ import ui_theme as theme
 class UpdateCheck:
     def __init__(self, app) -> None:
         self.app = app
-        self.release: Optional[GithubRelease] = None
+        self.release: Optional[AvailableUpdate] = None
 
     def start(self) -> None:
+        self.release = None
+        if read_update_channel() == CHANNEL_DISABLED:
+            self._no_update()
+            return
         self.app.status_bar.set_update_status("Checking updates…", theme.FG_DIM,
                                               link=False)
         future = self.app.manager.submit_release_check()
@@ -33,7 +38,11 @@ class UpdateCheck:
             if exc is not None:
                 self._no_update()
                 return
-            self._apply_release(future.result())
+            release = future.result()
+            if release is None:
+                self._no_update()
+                return
+            self._apply_release(release)
 
         self.app._await_future(future, done)
 
@@ -50,7 +59,7 @@ class UpdateCheck:
     def _no_update(self) -> None:
         self.app.status_bar.set_update_status("", theme.FG_DIM, link=False)
 
-    def _apply_release(self, release: GithubRelease) -> None:
+    def _apply_release(self, release: AvailableUpdate) -> None:
         if not self._is_newer(release.tag):
             self._no_update()
             return

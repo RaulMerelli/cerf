@@ -302,7 +302,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
                         on_create=self._create_user_device)
 
     def _open_settings(self) -> None:
-        SettingsDialog(self)
+        SettingsDialog(self, on_update_channel_changed=self.update_check.start)
 
     def _open_issues(self) -> None:
         IssuesWindow(self)

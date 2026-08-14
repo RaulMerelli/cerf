@@ -298,6 +298,7 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>
+          🆕 Update channel setting: disable updates, stable releases, or unstable CI builds<br/>
           ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection<br/>
           ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off<br/>
           ✅ The update check now understands build numbers in release tags</p>

@@ -34,7 +34,7 @@ from cerf_user_json import (
     write_launcher_link,
 )
 from github_issues import fetch_open_issues
-from github_release import fetch_latest_release
+from update_source import fetch_update
 from user_device_create import UserDeviceSpec, create_user_device
 from device_state import (
     DeviceBundle,
@@ -76,7 +76,7 @@ class BundleManager:
         return self._pool.submit(self._do_refresh)
 
     def submit_release_check(self) -> Future:
-        return self._pool.submit(fetch_latest_release)
+        return self._pool.submit(fetch_update)
 
     def submit_issues_fetch(self) -> Future:
         return self._pool.submit(fetch_open_issues)
