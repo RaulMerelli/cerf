@@ -22,6 +22,14 @@ constexpr uint32_t kOffStrap = 0x14u;
    the 0xB400E000 card window (pcmcia.dll sub_14C1604). D0: pcmcia.dll 0x14C1524/38. */
 constexpr uint16_t kStrapValue = 0x0002u;
 
+constexpr uint32_t kOffButtons = 0x10u;
+
+/* casio_cassiopeia_e55 nk.exe sub_9E8144D4 @0x9E814640 latches (+0x10 & 0xFF) into 0xA000251C.
+   keybddr.dll sub_14E37C4 emits a key for each of bits 0/1/2 found CLEAR - codes 195/194/196,
+   the 195/196 that sub_14E2028 writes as the ButtonA/ButtonB registry defaults - so a clear bit
+   is a pressed button; nk.exe @0x9E814BA0 (ori $t1, 0xF) forces all four to released. */
+constexpr uint16_t kButtonsAllReleased = 0x000Fu;
+
 class CasioCassiopeiaE55Asic : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -37,8 +45,11 @@ public:
     uint32_t MmioSize() const override { return kSize; }
 
     uint16_t ReadHalf(uint32_t addr) override {
-        if (addr - kBase == kOffStrap) return kStrapValue;
-        return Peripheral::ReadHalf(addr);
+        switch (addr - kBase) {
+            case kOffButtons: return kButtonsAllReleased;
+            case kOffStrap:   return kStrapValue;
+            default: return Peripheral::ReadHalf(addr);
+        }
     }
 };
 
