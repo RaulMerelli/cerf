@@ -20,6 +20,9 @@ constexpr Vr41xxGiuModel kModel = {
     /*intstat_sets_while_disabled=*/true,
     /*inten_gates_icu_input=*/true,
     /*podat_l_retained_on_reset=*/false,
+    /* The VR4131 UM documents no GIUPODATH; offset 0x1E is GIUPODATL (14.2.16 p.273),
+       which Vr4122Giu::ReadHalf/WriteHalf intercept before the base decodes it. */
+    /*podat_h_retained_on_reset=*/false,
 };
 
 /* Table 14-2 (p.256): the VR4122/VR4131 GIU tail is GIUPODATEN (offset 0x1C) then GIUPODATL

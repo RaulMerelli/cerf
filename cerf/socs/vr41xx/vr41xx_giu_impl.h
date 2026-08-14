@@ -31,10 +31,17 @@ constexpr uint32_t kOffIntAlSelH = 0x16u;   /* GIUINTALSELH (VR4121 19.2.12, VR4
 constexpr uint32_t kOffIntHtSelL = 0x18u;   /* GIUINTHTSELL (VR4121 19.2.13, VR4102 18.2.13) */
 constexpr uint32_t kOffIntHtSelH = 0x1Au;   /* GIUINTHTSELH (VR4121 19.2.14, VR4102 18.2.14) */
 constexpr uint32_t kOffPoDatL    = 0x1Cu;   /* GIUPODATL    (VR4121 19.2.15, VR4102 18.2.15) */
+constexpr uint32_t kOffPoDatH    = 0x1Eu;   /* GIUPODATH    (VR4121 19.2.16, VR4102 18.2.16) */
 
 /* GIUIOSELL IOS15: "Since GPIO15 (DCD#) is fixed as input, IOS15 cannot be set for
    output" - R, where IOS(14:0) are R/W (VR4121 UM 19.2.1, VR4102 UM 18.2.1). */
 constexpr uint16_t kIoSelLWritable = 0x7FFFu;
+
+/* GIUPODATH D9:8 PIOEN(1:0) and D1:0 PIOD(49:48) are R/W; D15:10 and D7:2 carry an "R"
+   column on all three (VR4111 UM 19.2.16 p416, VR4121 UM 19.2.16 p464, VR4102 UM 18.2.16
+   p380), which the VR4111 and VR4121 tables gloss "Write 0 to these bits. 0 is returned
+   after a read" and the VR4102 table names only "Reserved". */
+constexpr uint16_t kPoDatHWritable = 0x0303u;
 
 struct Vr41xxGiuModel {
     uint32_t base;
@@ -43,6 +50,7 @@ struct Vr41xxGiuModel {
     bool     intstat_sets_while_disabled;
     bool     inten_gates_icu_input;
     bool     podat_l_retained_on_reset;  /* GIUPODATL After-reset / Other-resets column */
+    bool     podat_h_retained_on_reset;  /* GIUPODATH After-reset / Other-resets column */
 };
 
 template <SocFamily Soc, Vr41xxGiuModel M>
@@ -151,6 +159,7 @@ public:
         w.Write(iosel_l_);    w.Write(iosel_h_);
         w.Write(piod_out_l_); w.Write(piod_out_h_);
         w.Write(podat_l_);
+        w.Write(podat_h_);
         w.Write(intstat_l_);  w.Write(intstat_h_);
         w.Write(inten_l_);    w.Write(inten_h_);
         w.Write(inttyp_l_);   w.Write(inttyp_h_);
@@ -168,6 +177,7 @@ public:
         r.Read(iosel_l_);    r.Read(iosel_h_);
         r.Read(piod_out_l_); r.Read(piod_out_h_);
         r.Read(podat_l_);
+        r.Read(podat_h_);
         r.Read(intstat_l_);  r.Read(intstat_h_);
         r.Read(inten_l_);    r.Read(inten_h_);
         r.Read(inttyp_l_);   r.Read(inttyp_h_);
@@ -213,6 +223,7 @@ private:
             case kOffIntHtSelL: return inthtsel_l_;
             case kOffIntHtSelH: return inthtsel_h_;
             case kOffPoDatL:    return podat_l_;
+            case kOffPoDatH:    return podat_h_;
             default: HaltUnsupportedAccess("VR41xx GIU ReadHalf", M.base + off, 0);
         }
     }
@@ -236,6 +247,7 @@ private:
                 return;
 
             case kOffPoDatL: podat_l_ = value; return;
+            case kOffPoDatH: podat_h_ = static_cast<uint16_t>(value & kPoDatHWritable); return;
 
             /* GIUINTSTAT INTS: "Cleared to 0 when 1 is written" (VR4121 UM 19.2.5/19.2.6,
                VR4102 UM 18.2.5/18.2.6), and "any held interrupt signal is cleared when '1'
@@ -282,9 +294,10 @@ private:
         }
     }
 
-    /* Every GIU register's After-reset row is 0 except GIUPODATL's, which is "Previous
-       value is retained" on the VR4121 (UM 19.2.1-19.2.15) and all-1 on the VR4102
-       (UM 18.2.1-18.2.15). GIUPIOD's input bits track the pin, which no reset drives. */
+    /* Every GIU register's After-reset row is 0 except GIUPODATL's and GIUPODATH's: on the
+       VR4121 both read "Previous value is retained" (UM 19.2.1-19.2.16), while on the
+       VR4102 GIUPODATL is all-1 and GIUPODATH is 0 (UM 18.2.1-18.2.16). GIUPIOD's input
+       bits track the pin, which no reset drives. */
     void ApplyResetLocked(ResetLineKind kind) {
         iosel_l_    = 0; iosel_h_    = 0;
         piod_out_l_ = 0; piod_out_h_ = 0;
@@ -299,6 +312,9 @@ private:
         }
         if (kind == ResetLineKind::Rtc || !M.podat_l_retained_on_reset) {
             podat_l_ = M.podat_l_power_on;
+        }
+        if (kind == ResetLineKind::Rtc || !M.podat_h_retained_on_reset) {
+            podat_h_ = 0;
         }
         DriveIcuLocked();
     }
@@ -319,10 +335,11 @@ private:
     mutable std::mutex mtx_;
 
     /* Every GIU register's RTCRST column is 0 except GIUPODATL's (VR4121 UM
-       19.2.1-19.2.15, VR4102 UM 18.2.1-18.2.15). */
+       19.2.1-19.2.16, VR4102 UM 18.2.1-18.2.16). */
     uint16_t iosel_l_    = 0, iosel_h_    = 0;
     uint16_t piod_out_l_ = 0, piod_out_h_ = 0;
     uint16_t podat_l_    = M.podat_l_power_on;
+    uint16_t podat_h_    = 0;
     uint16_t intstat_l_  = 0, intstat_h_  = 0;
     uint16_t inten_l_    = 0, inten_h_    = 0;
     uint16_t inttyp_l_   = 0, inttyp_h_   = 0;
