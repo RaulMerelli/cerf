@@ -121,6 +121,15 @@ bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
     return true;
 }
 
+/* ARM DDI 0100I A7.1.19 BX (p. A7-32), A7.1.18 BLX (2) (p. A7-30). */
+bool ThumbDecoder::DecodeBranchExchange(DecodedInsn* insn, uint16_t op) {
+    const bool link = ((op >> 7) & 0x1u) != 0u;
+    insn->rm = (((op >> 6) & 0x1u) << 3) | ((op >> 3) & 0x7u);
+    if (link && insn->rm == 15u) return false;
+    insn->place_fn = link ? &PlaceBlxReg : &PlaceBx;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.59 STR (2) (p. A7-101), A7.1.64 STRH (2) (p. A7-111),
    A7.1.62 STRB (2) (p. A7-107), A7.1.36 LDRSB (p. A7-61), A7.1.29 LDR (2)
    (p. A7-49), A7.1.35 LDRH (2) (p. A7-59), A7.1.33 LDRB (2) (p. A7-56),
@@ -376,6 +385,9 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         }
         if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) != 0x3u) {
             return DecodeSpecialDataProcessing(insn, op);
+        }
+        if (((op >> 10) & 0x1u) != 0u && ((op >> 8) & 0x3u) == 0x3u) {
+            return DecodeBranchExchange(insn, op);
         }
         return MarkArmUnimplemented(insn, op);
     case 0x09u:
