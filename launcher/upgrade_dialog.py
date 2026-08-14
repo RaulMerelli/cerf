@@ -3,7 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from github_release import GithubRelease
+from available_update import AvailableUpdate
 import ui_theme as theme
 
 
@@ -12,7 +12,7 @@ BROWSER = "browser"
 CANCEL = "cancel"
 
 
-def show_release_available(parent: tk.Misc, release: GithubRelease) -> str:
+def show_release_available(parent: tk.Misc, release: AvailableUpdate) -> str:
     dlg = tk.Toplevel(parent)
     dlg.title("A new CERF version is available")
     dlg.configure(bg=theme.BG)

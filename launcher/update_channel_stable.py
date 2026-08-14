@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from dataclasses import dataclass
-from typing import Optional
 
+from available_update import AvailableUpdate
 from bundles import BundleError, DEFAULT_TIMEOUT, USER_AGENT
 
 
@@ -12,17 +11,6 @@ LATEST_RELEASE_API_URL = \
     "https://api.github.com/repos/gweslab/cerf/releases/latest"
 ASSET_NAME_MARKER = "Release-Win32"
 ASSET_NAME_SUFFIX = ".zip"
-
-
-@dataclass(frozen=True)
-class GithubRelease:
-    tag: str
-    title: str
-    body: str
-    html_url: str
-    asset_name: str
-    asset_url: str
-    asset_size: Optional[int]
 
 
 def _fetch_json(url: str, timeout: int) -> dict:
@@ -61,7 +49,7 @@ def _pick_asset(payload: dict) -> dict:
         f"GitHub release has no {ASSET_NAME_MARKER}{ASSET_NAME_SUFFIX} asset")
 
 
-def fetch_latest_release(timeout: int = DEFAULT_TIMEOUT) -> GithubRelease:
+def fetch_latest_release(timeout: int = DEFAULT_TIMEOUT) -> AvailableUpdate:
     payload = _fetch_json(LATEST_RELEASE_API_URL, timeout)
     tag = payload.get("tag_name")
     if not isinstance(tag, str) or not tag.strip():
@@ -71,7 +59,7 @@ def fetch_latest_release(timeout: int = DEFAULT_TIMEOUT) -> GithubRelease:
     title = payload.get("name")
     body = payload.get("body")
     html_url = payload.get("html_url")
-    return GithubRelease(
+    return AvailableUpdate(
         tag=tag.strip(),
         title=title if isinstance(title, str) and title else tag.strip(),
         body=body if isinstance(body, str) else "",
