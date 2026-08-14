@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ci_release import CiError
+from ci_release import CiError, changelog_markdown
 
 VERSION_PATH = Path("cerf/version.h")
 LATEST_NAME = "latest.json"
@@ -116,6 +116,10 @@ def main(argv: List[str]) -> int:
     latest["object_name"] = archive.name
     latest["object_size"] = len(payload)
     latest["object_sha256"] = hashlib.sha256(payload).hexdigest()
+
+    tag = f"{latest['ver_major']}.{latest['ver_minor']}"
+    latest["changelog"] = changelog_markdown(
+        tag, f"Nothing recorded in the {tag} changelog yet.")
 
     client = make_client()
     object_key = f"{prefix}/{archive.name}"
