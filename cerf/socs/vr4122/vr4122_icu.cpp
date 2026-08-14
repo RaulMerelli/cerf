@@ -24,6 +24,23 @@ constexpr Vr41xxIcuModel kModel = {
     /*s2_direct=*/0x000Bu,
     /* DSIUINTREG D11 INTDSIU, D10:0 RFU read 0 (VR4131 UM 11.2.3, p.193). */
     /*dsiu_fixed_read=*/0x0000u,
+    /* MSYSINT1REG D[15..13], D10 and D[7..4] RFU (VR4131 UM 11.2.4 p194). */
+    /*msysint1_writable=*/0x1B0Fu,
+    /* VR4131 UM Table 11-1 p190: SYSINT1REG 0x80 is followed by GIUINTLREG 0x88, and the
+       mask block runs MSYSINT1REG 0x8C -> MGIUINTLREG 0x94 with no MPIU/MAIU/MKIU. */
+    /*mpiu_writable=*/0x0000u,
+    /*maiu_writable=*/0x0000u,
+    /*mkiu_writable=*/0x0000u,
+    /* MGIUINTLREG D14 RFU, INTS15 and INT[13..0] R/W (VR4131 UM 11.2.5 p195). */
+    /*mgiul_writable=*/0xBFFFu,
+    /* MDSIUINTREG D11 INTDSIU R/W, D[15..12] and D[10..0] RFU (VR4131 UM 11.2.6 p196). */
+    /*mdsiu_writable=*/0x0800u,
+    /* MSYSINT2REG D[15..10] and D2 RFU (VR4131 UM 11.2.12 p202). */
+    /*msysint2_writable=*/0x03FBu,
+    /* MGIUINTHREG INTS[31..16] all R/W (VR4131 UM 11.2.13 p203). */
+    /*mgiuh_writable=*/0xFFFFu,
+    /* MFIRINTREG D[15..5] RFU (VR4131 UM 11.2.14 p204). */
+    /*mfir_writable=*/0x001Fu,
 };
 
 /* Level-2 offsets from SYSINT2REG 0xA0 (VR4131 UM Table 11-1, p190):
