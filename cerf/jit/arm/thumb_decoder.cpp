@@ -178,6 +178,26 @@ bool ThumbDecoder::DecodeRegisterOffsetTransfer(DecodedInsn* insn,
     return true;
 }
 
+/* ARM DDI 0100I A7.1.58 STR (1) (p. A7-99), A7.1.28 LDR (1) (p. A7-47),
+   A7.1.61 STRB (1) (p. A7-105), A7.1.32 LDRB (1) (p. A7-55). */
+bool ThumbDecoder::DecodeImmediateOffsetTransfer(DecodedInsn* insn,
+                                                 uint16_t     op) {
+    const uint32_t byte    = (op >> 12) & 0x1u;
+    const uint32_t immed_5 = (op >>  6) & 0x1Fu;
+    insn->p        = 1u;
+    insn->u        = 1u;
+    insn->s        = byte;
+    insn->w        = 0u;
+    insn->l        = (op >> 11) & 0x1u;
+    insn->n        = 1u;
+    insn->rn       = (op >> 3) & 0x7u;
+    insn->rd       =  op       & 0x7u;
+    insn->offset   =
+        static_cast<int32_t>(byte != 0u ? immed_5 : immed_5 * 4u);
+    insn->place_fn = &PlaceSingleDataTransfer;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.7 ADD (5) (p. A7-10), A7.1.8 ADD (6) (p. A7-11). */
 bool ThumbDecoder::DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op) {
     const uint32_t imm = (op & 0xFFu) * 4u;
@@ -346,6 +366,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
     case 0x0Du:
     case 0x0Eu:
     case 0x0Fu:
+        return DecodeImmediateOffsetTransfer(insn, op);
     case 0x10u:
     case 0x11u:
         return MarkArmUnimplemented(insn, op);
