@@ -131,14 +131,11 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
-    /* address = offset_addr (P == 1) or R[n] (P == 0); PC base reads the
-       instruction address + 8 (A2.3, p. A2-45). d->offset carries the
-       already-signed immediate. */
     if (d->p) {
         if (imm_form) {
             if (d->rn == 15) {
                 EmitMovRegImm32(cursor, kEcx,
-                    d->guest_address + 8u + static_cast<uint32_t>(d->offset));
+                    ArmPcReadValue(d, ctx) + static_cast<uint32_t>(d->offset));
             } else {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
                 if (d->offset != 0) {
@@ -148,7 +145,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             }
         } else {
             if (d->rn == 15) {
-                EmitMovRegImm32(cursor, kEcx, d->guest_address + 8u);
+                EmitMovRegImm32(cursor, kEcx, ArmPcReadValue(d, ctx));
             } else {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
             }

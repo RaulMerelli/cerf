@@ -12,6 +12,11 @@ enum class TlbAccess { kRead, kWrite, kReadWrite };
    carry-out is a translate-time constant. */
 enum class DpLogicalCarry { kUnchanged, kSetImm, kClearImm, kFromDl };
 
+/* ARM DDI 0100I A7.1, p. A7-3. */
+inline uint32_t ArmPcReadValue(const DecodedInsn* d, const BlockContext* ctx) {
+    return d->guest_address + (ctx->thumb ? 4u : 8u);
+}
+
 uint8_t* EmitAbortDataTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitArmInterworkingFullEax(uint8_t* cursor);
 uint8_t* EmitArmInterworkingMaskEax(uint8_t* cursor);

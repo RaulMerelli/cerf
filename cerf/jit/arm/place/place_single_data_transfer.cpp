@@ -65,14 +65,13 @@ void EmitShiftedOffsetIntoEax(uint8_t*& cursor, DecodedInsn* d) {
 }
 
 /* offset_addr = R[n] +/- offset (A8.8.63 / A8.8.66 encoding-specific
-   operations; a PC base reads the instruction address + 8, A2.3 p. A2-45)
-   into ECX; EAX/ECX are scratch, EDX is preserved. */
-void EmitOffsetAddrIntoEcx(uint8_t*& cursor, DecodedInsn* d) {
+   operations) into ECX; EAX/ECX are scratch, EDX is preserved. */
+void EmitOffsetAddrIntoEcx(uint8_t*& cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     if (d->n) {
         if (d->rn == 15u) {
             EmitMovRegImm32(cursor, kEcx,
-                d->guest_address + 8u + static_cast<uint32_t>(d->offset));
+                ArmPcReadValue(d, ctx) + static_cast<uint32_t>(d->offset));
         } else {
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
             if (d->offset != 0) {
@@ -84,7 +83,7 @@ void EmitOffsetAddrIntoEcx(uint8_t*& cursor, DecodedInsn* d) {
     }
     EmitShiftedOffsetIntoEax(cursor, d);
     if (d->rn == 15u) {
-        EmitMovRegImm32(cursor, kEcx, d->guest_address + 8u);
+        EmitMovRegImm32(cursor, kEcx, ArmPcReadValue(d, ctx));
     } else {
         EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
     }
@@ -95,22 +94,23 @@ void EmitOffsetAddrIntoEcx(uint8_t*& cursor, DecodedInsn* d) {
     }
 }
 
-void EmitWritebackRecomputed(uint8_t*& cursor, DecodedInsn* d) {
+void EmitWritebackRecomputed(uint8_t*& cursor, DecodedInsn* d,
+                             BlockContext* ctx) {
     using namespace x86;
-    EmitOffsetAddrIntoEcx(cursor, d);
+    EmitOffsetAddrIntoEcx(cursor, d, ctx);
     EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rn), kEcx);
 }
 
 /* R[n] = offset_addr (A8.8.63 operation order: after the access, before
    the Rt write). EDX carries the load's Rt data across this tail - only
    EAX/ECX are scratch. */
-void EmitWritebackTail(uint8_t*& cursor, DecodedInsn* d) {
+void EmitWritebackTail(uint8_t*& cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
     if (d->p) {
         EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rn), kEcx);
         return;
     }
-    EmitWritebackRecomputed(cursor, d);
+    EmitWritebackRecomputed(cursor, d, ctx);
 }
 
 }  /* namespace */
@@ -170,7 +170,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
 
     /* address = offset_addr (P == 1) or R[n] (P == 0). */
     if (d->p) {
-        EmitOffsetAddrIntoEcx(cursor, d);
+        EmitOffsetAddrIntoEcx(cursor, d, ctx);
     } else {
         EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
     }
@@ -227,7 +227,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
         }
         if (wback) {
-            EmitWritebackTail(cursor, d);
+            EmitWritebackTail(cursor, d, ctx);
         }
         if (d->rd == 15u) {
             EmitMovRegReg(cursor, kEax, kEdx);
@@ -255,7 +255,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
         }
         if (wback) {
-            EmitWritebackTail(cursor, d);
+            EmitWritebackTail(cursor, d, ctx);
         }
         done_labels[n_done++] = EmitJmpLabel32(cursor);
     }
@@ -284,7 +284,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitRorReg32Cl(cursor, kEax);
             EmitMovRegReg(cursor, kEdx, kEax);
             if (wback) {
-                EmitWritebackRecomputed(cursor, d);
+                EmitWritebackRecomputed(cursor, d, ctx);
             }
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdx);
             done_labels[n_done++] = EmitJmpLabel32(cursor);
@@ -304,7 +304,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             Emit8(cursor, 0x89);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
             if (wback) {
-                EmitWritebackRecomputed(cursor, d);
+                EmitWritebackRecomputed(cursor, d, ctx);
             }
             done_labels[n_done++] = EmitJmpLabel32(cursor);
         }
@@ -326,7 +326,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
             EmitMovRegReg(cursor, kEdx, kEax);
             if (wback) {
-                EmitWritebackRecomputed(cursor, d);
+                EmitWritebackRecomputed(cursor, d, ctx);
             }
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdx);
             done_labels[n_done++] = EmitJmpLabel32(cursor);
@@ -347,7 +347,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
             if (wback) {
-                EmitWritebackRecomputed(cursor, d);
+                EmitWritebackRecomputed(cursor, d, ctx);
             }
             done_labels[n_done++] = EmitJmpLabel32(cursor);
         }
@@ -367,7 +367,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             ? reinterpret_cast<void*>(&ArmMmu::AlignmentFaultReadHelper)
             : reinterpret_cast<void*>(&ArmMmu::AlignmentFaultWriteHelper));
         if (base_updated_abort) {
-            EmitWritebackRecomputed(cursor, d);
+            EmitWritebackRecomputed(cursor, d, ctx);
             align_done_label = EmitJmpLabel32(cursor);
         }
     }
@@ -397,7 +397,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         EmitAddRegImm32(cursor, kEsp, 16u);
         EmitMovRegReg(cursor, kEdx, kEax);
         if (wback) {
-            EmitWritebackRecomputed(cursor, d);
+            EmitWritebackRecomputed(cursor, d, ctx);
         }
         if (d->rd == 15u) {
             EmitMovRegReg(cursor, kEax, kEdx);
@@ -422,7 +422,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             reinterpret_cast<void*>(&ArmRoutedAccess::IoStoreHelper));
         EmitAddRegImm32(cursor, kEsp, 20u);
         if (wback) {
-            EmitWritebackRecomputed(cursor, d);
+            EmitWritebackRecomputed(cursor, d, ctx);
         }
         done_labels[n_done++] = EmitJmpLabel32(cursor);
     }
@@ -441,7 +441,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             reinterpret_cast<uintptr_t>(mmu->IoPendingValidPtr())));
         EmitTestRegReg(cursor, kEax, kEax);
         uint8_t* io_skip = EmitJnzLabel32(cursor);
-        EmitWritebackRecomputed(cursor, d);
+        EmitWritebackRecomputed(cursor, d, ctx);
         FixupLabel32(io_skip, cursor);
     }
     if (align_done_label != nullptr) {
