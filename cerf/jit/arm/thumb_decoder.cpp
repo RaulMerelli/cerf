@@ -83,6 +83,63 @@ bool ThumbDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.59 STR (2) (p. A7-101), A7.1.64 STRH (2) (p. A7-111),
+   A7.1.62 STRB (2) (p. A7-107), A7.1.36 LDRSB (p. A7-61), A7.1.29 LDR (2)
+   (p. A7-49), A7.1.35 LDRH (2) (p. A7-59), A7.1.33 LDRB (2) (p. A7-56),
+   A7.1.37 LDRSH (p. A7-62). */
+bool ThumbDecoder::DecodeRegisterOffsetTransfer(DecodedInsn* insn,
+                                                uint16_t     op) {
+    insn->p  = 1u;
+    insn->u  = 1u;
+    insn->w  = 0u;
+    insn->n  = 0u;
+    insn->rm = (op >> 6) & 0x7u;
+    insn->rn = (op >> 3) & 0x7u;
+    insn->rd =  op       & 0x7u;
+    switch ((op >> 9) & 0x7u) {
+    case 0u:
+        insn->s = 0u;
+        insn->l = 0u;
+        break;
+    case 2u:
+        insn->s = 1u;
+        insn->l = 0u;
+        break;
+    case 4u:
+        insn->s = 0u;
+        insn->l = 1u;
+        break;
+    case 6u:
+        insn->s = 1u;
+        insn->l = 1u;
+        break;
+    case 1u:
+        insn->op1      = 1u;
+        insn->l        = 0u;
+        insn->place_fn = &PlaceLoadStoreExtension;
+        return true;
+    case 5u:
+        insn->op1      = 1u;
+        insn->l        = 1u;
+        insn->place_fn = &PlaceLoadStoreExtension;
+        return true;
+    case 3u:
+        insn->op1      = 2u;
+        insn->l        = 1u;
+        insn->place_fn = &PlaceLoadStoreExtension;
+        return true;
+    default:
+        insn->op1      = 3u;
+        insn->l        = 1u;
+        insn->place_fn = &PlaceLoadStoreExtension;
+        return true;
+    }
+    insn->op1      = kSrLsl;
+    insn->rs       = 0u;
+    insn->place_fn = &PlaceSingleDataTransfer;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.7 ADD (5) (p. A7-10), A7.1.8 ADD (6) (p. A7-11). */
 bool ThumbDecoder::DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op) {
     const uint32_t imm = (op & 0xFFu) * 4u;
@@ -243,6 +300,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         return DecodeLoadLiteral(insn, op);
     case 0x0Au:
     case 0x0Bu:
+        return DecodeRegisterOffsetTransfer(insn, op);
     case 0x0Cu:
     case 0x0Du:
     case 0x0Eu:
