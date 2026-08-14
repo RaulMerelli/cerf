@@ -23,6 +23,8 @@ constexpr Vr41xxGiuModel kModel = {
     /*inten_gates_icu_input=*/false,
     /* GIUPODATL Other-resets row: every bit 1 (UM 18.2.15). */
     /*podat_l_retained_on_reset=*/false,
+    /* GIUPODATH Other-resets row: every bit 0 (UM 18.2.16 p380). */
+    /*podat_h_retained_on_reset=*/false,
 };
 
 class Vr4102Giu : public Vr41xxGiuBase<SocFamily::VR4102, kModel> {

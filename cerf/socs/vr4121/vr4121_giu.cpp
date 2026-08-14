@@ -24,6 +24,8 @@ constexpr Vr41xxGiuModel kModel = {
     /*inten_gates_icu_input=*/true,
     /* GIUPODATL After-reset row: "Previous value is retained" (UM 19.2.15). */
     /*podat_l_retained_on_reset=*/true,
+    /* GIUPODATH After-reset row: "Previous value is retained" (UM 19.2.16 p464). */
+    /*podat_h_retained_on_reset=*/true,
 };
 
 class Vr4121Giu : public Vr41xxGiuBase<SocFamily::VR4121, kModel> {
