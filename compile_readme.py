@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 VERSION_H = os.path.join(ROOT, 'cerf', 'version.h')
@@ -167,6 +168,7 @@ def main():
     content = content.replace('{changelog}', build_changelog())
     content = content.replace('{supported_devices}', build_supported_devices())
     content = content.replace('{support_badges}', build_support_badges())
+    content = content.replace('{cur_year}', str(datetime.date.today().year))
 
     with open(OUTPUT, 'w', encoding='utf-8') as f:
         f.write(content)
