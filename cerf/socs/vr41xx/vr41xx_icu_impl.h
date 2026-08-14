@@ -79,6 +79,19 @@ struct Vr41xxIcuModel {
     uint16_t s1_direct;        /* SYSINT1REG bits with no Level-2 register */
     uint16_t s2_direct;        /* SYSINT2REG bits with no Level-2 register */
     uint16_t dsiu_fixed_read;  /* DSIUINTREG bits reading back 1 */
+
+    /* MxxxINTREG R/W bits; the rest are Reserved/RFU "R", "Write 0 to these bits. 0 is
+       returned after a read" (VR4111 UM 15.2.7-15.2.12, 15.2.18-15.2.20; VR4102 UM
+       14.2.7-14.2.12, 14.2.18-14.2.20; VR4131 UM 11.2.4-11.2.6, 11.2.12-11.2.14). */
+    uint16_t msysint1_writable;
+    uint16_t mpiu_writable;
+    uint16_t maiu_writable;
+    uint16_t mkiu_writable;
+    uint16_t mgiul_writable;
+    uint16_t mdsiu_writable;
+    uint16_t msysint2_writable;
+    uint16_t mgiuh_writable;
+    uint16_t mfir_writable;
 };
 
 template <SocFamily Soc, Vr41xxIcuModel M>
@@ -134,12 +147,12 @@ public:
             case kOffSysint1: case kOffPiuint: case kOffAiuint: case kOffKiuint:
             case kOffGiuintl: case kOffDsiuint:
                 return;
-            case kOffMsysint1: msysint1_ = value; RecomputeLocked(); return;
-            case kOffMpiu:     mpiu_     = value; RecomputeLocked(); return;
-            case kOffMaiu:     maiu_     = value; RecomputeLocked(); return;
-            case kOffMkiu:     mkiu_     = value; RecomputeLocked(); return;
-            case kOffMgiul:    mgiul_    = value; RecomputeLocked(); return;
-            case kOffMdsiu:    mdsiu_    = value; RecomputeLocked(); return;
+            case kOffMsysint1: msysint1_ = Masked(value, M.msysint1_writable); RecomputeLocked(); return;
+            case kOffMpiu:     mpiu_     = Masked(value, M.mpiu_writable);     RecomputeLocked(); return;
+            case kOffMaiu:     maiu_     = Masked(value, M.maiu_writable);     RecomputeLocked(); return;
+            case kOffMkiu:     mkiu_     = Masked(value, M.mkiu_writable);     RecomputeLocked(); return;
+            case kOffMgiul:    mgiul_    = Masked(value, M.mgiul_writable);    RecomputeLocked(); return;
+            case kOffMdsiu:    mdsiu_    = Masked(value, M.mdsiu_writable);    RecomputeLocked(); return;
             case kOffNmireg:
                 nmireg_  = static_cast<uint16_t>(value & kNmiOrInt);
                 RecomputeLocked();
@@ -173,9 +186,9 @@ public:
                (VR4121 UM 15.2.15, VR4102 UM 14.2.15): the write is inert. */
             case kOffSysint2: case kOffGiuinth: case kOffFirint:
                 return;
-            case kOffMsysint2: msysint2_ = value; RecomputeLocked(); return;
-            case kOffMgiuh:    mgiuh_    = value; RecomputeLocked(); return;
-            case kOffMfir:     mfir_     = value; RecomputeLocked(); return;
+            case kOffMsysint2: msysint2_ = Masked(value, M.msysint2_writable); RecomputeLocked(); return;
+            case kOffMgiuh:    mgiuh_    = Masked(value, M.mgiuh_writable);    RecomputeLocked(); return;
+            case kOffMfir:     mfir_     = Masked(value, M.mfir_writable);     RecomputeLocked(); return;
             default: WriteHalf2Ext(off, value); return;
         }
     }
@@ -257,11 +270,14 @@ protected:
     virtual void RestoreStateExtLocked(StateReader&) {}
 
 private:
-    /* The ICU's own R/W registers, whose RTCRST and After-reset rows are all 0 (VR4121 UM
-       15.2.7-15.2.14, 15.2.18-15.2.20; VR4102 UM 14.2.7-14.2.14, 14.2.18-14.2.19). The
-       indication registers are not latched here: they carry the interrupt each source unit
-       is driving ("Interrupt to GPIO pin. 1: Occurred", VR4121 UM 15.2.5), so a source that
-       the reset line clears re-drives its own line. */
+    static uint16_t Masked(uint16_t value, uint16_t writable) {
+        return static_cast<uint16_t>(value & writable);
+    }
+
+    /* The ICU's own R/W registers, whose RTCRST and After-reset rows are all 0 (VR4111 UM
+       and VR4121 UM 15.2.7-15.2.14, 15.2.18-15.2.20; VR4102 UM 14.2.7-14.2.14,
+       14.2.18-14.2.20). The indication registers carry the level each source unit drives
+       ("Interrupt to GPIO pin. 1: Occurred", VR4121 UM 15.2.5). */
     void ApplyResetLocked() {
         mgiul_ = 0; mgiuh_ = 0; mpiu_ = 0; maiu_ = 0;
         mkiu_  = 0; mdsiu_ = 0; mfir_ = 0;
