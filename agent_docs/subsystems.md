@@ -319,6 +319,17 @@ concretes (strategy pattern, selected by `BoardContext`).
   `cerf/boards/<board>/`.
   - `cerf/host/touch_input.h`
 
+- **Off-screen bezel touch buttons are physical, never framebuffer-drawn.**
+  Some resistive-panel boards (Jornada 720, Casio Toricomail) print soft
+  buttons on the bezel, over the digitizer and outside the LCD area. The
+  guest does not render them. They are extra areas of the same touch panel,
+  in a raw-ADC band past the screen's active range. The board maps its screen
+  to a raw sub-range (a per-board seam) and reserves the rest of the range for
+  the buttons. A host menu (the keyboard-widget hotkey section) sends a held
+  synthetic raw pen tap to each button, because no on-screen pixel maps to one.
+  The guest driver resolves the zone-to-key mapping and its own calibration.
+  CERF models only the panel geometry, never the guest's button table.
+
 - **`KeyboardInput`** (abstract) - one keyboard source: `OnHostKey(vk, key_up)`
   plus `SourceName` / `SourcePriority`. Concretes self-register with
   `KeyboardRouter`. They are the keyboard of a board under
