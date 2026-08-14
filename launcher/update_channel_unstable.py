@@ -8,7 +8,7 @@ import urllib.request
 from available_update import AvailableUpdate
 from bundles import BundleError, DEFAULT_TIMEOUT, USER_AGENT
 
-CI_BASE_URL = "https://cerf.dz3n.net/cerf_ci"
+CI_BASE_URL = "https://cerf-bundles.dz3n.net/cerf_ci"
 CI_LATEST_NAME = "latest.json"
 CI_RUNS_URL = "https://github.com/gweslab/cerf/actions"
 
