@@ -221,6 +221,15 @@ bool ThumbDecoder::DecodeConditionalBranch(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0100I A7.1.14 B (2), p. A7-21. */
+bool ThumbDecoder::DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op) {
+    const uint32_t off11 = op & 0x7FFu;
+    insn->l        = 0u;
+    insn->offset   = static_cast<int32_t>(((off11 ^ 0x400u) - 0x400u) << 1);
+    insn->place_fn = &PlaceBranch;
+    return true;
+}
+
 /* ARM DDI 0100I A7.1.60 STR (3) (p. A7-104), A7.1.31 LDR (4) (p. A7-54). */
 bool ThumbDecoder::DecodeStackRelativeTransfer(DecodedInsn* insn, uint16_t op) {
     insn->p        = 1u;
@@ -394,7 +403,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
             return DecodeConditionalBranch(insn, op);
         }
     case 0x1Cu:
-        return MarkArmUnimplemented(insn, op);
+        return DecodeUnconditionalBranch(insn, op);
     case 0x1Du:
         /* Figure A6-1 note 4, p. A6-5. */
         if ((op & 0x1u) != 0u || !processor_config_->HasBlxReg()) return false;
