@@ -29,6 +29,7 @@ private:
     bool DecodeRegisterOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeSpecialDataProcessing(DecodedInsn* insn, uint16_t op);
     bool DecodeStackRelativeTransfer(DecodedInsn* insn, uint16_t op);
+    bool DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op);
 
     ArmProcessorConfig* processor_config_ = nullptr;
 };
