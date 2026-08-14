@@ -11,21 +11,25 @@
 
 namespace {
 
-/* Unpopulated DRAM above the board's populated top, up to 0x04000000: VR4102 UM
-   Table 5-6 (DRAM 0x0-0x03FFFFFF; 0x04000000-0x09FFFFFF reserved) + VR4121 UM 11.4.7
-   (0x04000000-0x09FFFFFF illegal-access). Read by the OAL RAM-sizing probe
-   (Casio nk.exe sub_9F0B7200). */
+/* Unpopulated DRAM above the board's populated top, up to 0x04000000. DRAM is
+   0x0-0x03FFFFFF and 0x04000000-0x09FFFFFF is reserved per VR4102 UM Table 5-6 and
+   VR4111 UM Table 6-6 p.166; that window is illegal-access-notified per VR4121 UM
+   11.4.7 and VR4111 UM 11.4.6 p.284. Probe: casio_toricomail_ce212 nk.exe sub_9F0B7200. */
 constexpr uint32_t kReservedEnd = 0x04000000u;
 
 class Vr41xxDramReservedSpace : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
+    /* casio_cassiopeia_e55 nk.exe sub_9E81553C writes 0x89ABCDEF to PA 0x017FFFF0 at
+       0x9E81576C and bne's out at 0x9E815774 when it does not read back, leaving the
+       size code 2 that 0x9E816944 turns into RAMEnd 0x81000000. */
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::VR4102 || soc == SocFamily::VR4121;
+        return soc == SocFamily::VR4102 || soc == SocFamily::VR4121 ||
+               soc == SocFamily::VR4111;
     }
 
     void OnReady() override {
@@ -53,14 +57,10 @@ public:
 
 private:
     void NoteAccess(uint32_t addr) {
-#if CERF_DEV_MODE
         if (!logged_.exchange(true, std::memory_order_relaxed)) {
             LOG(Mem, "Vr41xxDramReservedSpace: access to unpopulated DRAM "
                      "pa=0x%08X (>= 0x%08X); reads 0 / writes dropped\n", addr, base_);
         }
-#else
-        (void)addr;
-#endif
     }
     uint32_t base_ = 0;
     uint32_t size_ = 0;
