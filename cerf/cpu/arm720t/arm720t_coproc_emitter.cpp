@@ -12,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetSoc() == SocFamily::Poseidon;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,

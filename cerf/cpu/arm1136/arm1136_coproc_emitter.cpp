@@ -20,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::ZuneKeel;
+        return bd && bd->GetSoc() == SocFamily::iMX31;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,

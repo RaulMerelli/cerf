@@ -11,7 +11,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetSoc() == SocFamily::Poseidon;
     }
 
     /* ARM7TDMI Data Sheet (ARM DDI 0029E) STM, Block Data Transfer:
