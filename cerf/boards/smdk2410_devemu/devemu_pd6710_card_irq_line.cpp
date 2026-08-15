@@ -2,7 +2,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
+#include "../../socs/s3c2410/s3c2410_eint_source.h"
 
 namespace {
 
@@ -17,13 +17,16 @@ public:
         return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
     }
 
+    /* CL-PD6710/'22 data sheet v3.1 p. 58 §9.1 Misc Control 1 (index 16h)
+       bit 3 "Pulse System IRQ" RW:0, p. 59: that value passes RDY/-IREQ
+       interrupts to IRQ[XX] level-sensitive. */
     void Assert() override {
-        LOG(Caution, "[PD6710] card IRQ assert EINT%d - no S3C2410 EINT sink; "
-                "halting\n", kPd6710CardEintNumber);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        emu_.Get<S3C2410EintSource>().DriveEintPin(kPd6710CardEintNumber, true);
     }
 
-    void Deassert() override {}
+    void Deassert() override {
+        emu_.Get<S3C2410EintSource>().DriveEintPin(kPd6710CardEintNumber, false);
+    }
 };
 
 }
