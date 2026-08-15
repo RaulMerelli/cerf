@@ -7,7 +7,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
@@ -41,8 +41,17 @@ class Artifact:
     branch: str
     sha: str
     run_id: int
+    run_number: int
     version: str
-    tag: str
+    series: str
+
+    @property
+    def tag(self) -> str:
+        return f"{self.version}.{self.run_number}"
+
+    @property
+    def title(self) -> str:
+        return f"{self.series} (build {self.run_number})"
 
     @property
     def run_url(self) -> str:
@@ -133,8 +142,19 @@ def _artifact(item: dict) -> Optional[Artifact]:
         created_at=item["created_at"],
         branch=run.get("head_branch") or "?",
         sha=run.get("head_sha") or name_sha,
-        run_id=run.get("id") or 0,
-        version=f"{major}.{minor}.{patch}", tag=f"{major}.{minor}")
+        run_id=run.get("id") or 0, run_number=0,
+        version=f"{major}.{minor}.{patch}", series=f"{major}.{minor}")
+
+
+def _with_run_number(token: str, artifact: Artifact) -> Artifact:
+    if not artifact.run_id:
+        raise CiError(f"artifact {artifact.name} has no workflow run, "
+                      "so it has no build number")
+    payload = github(token, f"/repos/{REPO}/actions/runs/{artifact.run_id}")
+    number = payload.get("run_number")
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise CiError(f"run {artifact.run_id} reports no run_number")
+    return replace(artifact, run_number=number)
 
 
 def latest_artifact(token: str, sha: Optional[str] = None) -> Artifact:
@@ -145,7 +165,7 @@ def latest_artifact(token: str, sha: Optional[str] = None) -> Artifact:
             continue
         if sha and not artifact.sha.startswith(sha) and not sha.startswith(artifact.sha):
             continue
-        return artifact
+        return _with_run_number(token, artifact)
     where = f" built from {sha[:7]}" if sha else ""
     raise CiError(f"no unexpired Release-Win32 artifact{where} found")
 
@@ -158,7 +178,7 @@ def run_artifact(token: str, run_id: int, attempts: int = 12,
         for item in payload.get("artifacts", []):
             artifact = _artifact(item)
             if artifact is not None:
-                return artifact
+                return _with_run_number(token, artifact)
         if attempt + 1 < attempts:
             print(f"  artifact of run {run_id} not listed yet, retrying in {delay}s")
             time.sleep(delay)

@@ -24,7 +24,7 @@ QA_ROLE_ID = "1537262210118852708"
 
 
 def header(artifact: Artifact, build: str, release_candidate: bool) -> str:
-    title = f"CE Runtime Foundation {artifact.tag}"
+    title = f"CE Runtime Foundation {artifact.series}"
     if release_candidate:
         return (f"<@&{QA_ROLE_ID}>\n"
                 f"[**{title} release candidate - build {build}**]"
@@ -56,9 +56,9 @@ def main(argv: List[str]) -> int:
     print(f"  branch / sha  : {artifact.branch} / {artifact.sha[:7]}")
     print(f"  download      : {artifact.download_url}")
 
-    empty = f"Nothing recorded in the {artifact.tag} changelog yet."
+    empty = f"Nothing recorded in the {artifact.series} changelog yet."
     content = compose(header(artifact, build, release_candidate),
-                      changelog_markdown(artifact.tag, empty),
+                      changelog_markdown(artifact.series, empty),
                       footer(artifact))
     print(f"\n{content}\n")
     post_discord(secret, QA_CHANNEL_ID, content,
