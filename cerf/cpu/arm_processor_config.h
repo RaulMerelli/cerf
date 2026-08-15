@@ -40,6 +40,10 @@ public:
     virtual bool     HasDsp()                     const = 0;
     virtual bool     HasLoadStoreDouble()         const = 0;
 
+    /* DDI 0406C.c A1.3, p. A1-30: ARMv5TE "Adds Preload Data (PLD),
+       Load Register Dual (LDRD), Store Register Dual (STRD)". */
+    virtual bool     HasPreload()                 const { return false; }
+
     /* Thumb ISA presence (v4T+). On a no-Thumb core CPSR.T is
        unwritable and BX is undefined - guests rely on that:
        jlime's linexec writes CPSR|0xEF (T set) on SA-1110 and
@@ -78,6 +82,16 @@ public:
     virtual bool     HasExtendRotate()            const { return false; }
     virtual bool     HasLdrexStrex()              const { return false; }
     virtual bool     HasBarrierInsn()             const { return false; }
+
+    /* DDI 0406C.c A4.4.8, p. A4-172: SDIV and UDIV are OPTIONAL in an ARMv7-A
+       implementation without the Virtualization Extensions, and
+       ID_ISAR0.Divide_instrs indicates the level of support. */
+    virtual bool     HasIntegerDivide()           const { return false; }
+
+    /* ARM DDI 0344K Table 3-3, p. 3-17: Cortex-A8 allocates the L1 system
+       array debug operations at c15, write-only and Secure state only. */
+    virtual bool     HasL1SystemArrayDebug()      const { return false; }
+
     virtual bool     HasCp15V6()                  const { return false; }
     virtual bool     HasCp15V7()                  const { return false; }
     virtual bool     HasVmsav7()                  const { return false; }

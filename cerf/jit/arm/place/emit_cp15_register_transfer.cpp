@@ -404,10 +404,13 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
         break;
 
     case 15:
-    default:
-        /* ARM DDI 0406C.c B3.15 rule 3 (p. B3-1448): c15 is reserved for
-           IMPLEMENTATION DEFINED registers. Cortex-A8 allocates c15 (ARM DDI
-           0344 §3.2.74 / §3.2.81 system array debug); CERF models none. */
+        /* ARM DDI 0344K Table 3-3 (p. 3-17): Cortex-A8 c15 op1=0 CRm=c2 opc2=4
+           is the D-TLB PA read operation, write-only; its result appears in the
+           D-L1 Data 0 Register (Table 3-150, p. 3-126). */
+        if (emit->ProcessorConfig()->HasL1SystemArrayDebug() && !d->l &&
+            d->cp_opc == 0 && d->crm == 2 && d->cp == 4) {
+            break;
+        }
         cursor = EmitCoprocUnimplementedFatal(cursor, d, ctx);
         break;
     }

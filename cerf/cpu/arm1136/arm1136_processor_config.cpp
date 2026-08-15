@@ -10,7 +10,8 @@ public:
     using ArmProcessorConfig::ArmProcessorConfig;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetBoard() == Board::ZuneKeel;
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetSoc() == SocFamily::iMX31;
     }
 
     /* ARM DDI 0100I "Reading the program counter" (p. A2-9): STR/STM of R15
@@ -29,6 +30,7 @@ public:
 
     bool     HasDsp()                     const override { return true; }
     bool     HasLoadStoreDouble()         const override { return true; }
+    bool     HasPreload()                 const override { return true; }
 
     /* ARMv5+ ISA additions on top of v4. */
     bool     HasClz()                     const override { return true; }
