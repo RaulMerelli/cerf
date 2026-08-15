@@ -49,9 +49,15 @@ public:
     static uint8_t* __fastcall TranslateWriteHelper(uint32_t va, ArmMmu* mmu);
     static uint8_t* __fastcall TranslateReadWriteHelper(uint32_t va, ArmMmu* mmu);
 
+    /* LDRT/STRT-class user-forced walks (ARM DDI 0100I A4.1.25 p. A4-48 /
+       A4.1.105 p. A4-206). */
+    static uint8_t* __fastcall TranslateUserReadHelper(uint32_t va, ArmMmu* mmu);
+    static uint8_t* __fastcall TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu);
+
     /* Word-aligned VFP/NEON multi-byte loads may page-cross (ARM ARM DDI0406C A3.2 Table A3-1). */
     bool AccessPaged(ArmCpuState* cpu_state, uint32_t va,
-                     uint8_t* host_buf, uint32_t n, bool is_load);
+                     uint8_t* host_buf, uint32_t n, bool is_load,
+                     bool force_user = false);
 
     uint32_t io_pending_address() const { return io_pending_address_; }
 
@@ -80,17 +86,21 @@ public:
     /* Out: zero-extended halfword (load) / 0 (store); 0xFFFFFFFF = fault,
        FAR/FSR or the io-pending slot set by the walk. */
     static uint32_t __cdecl UnalignedHalfwordLoadHelper(ArmMmu* mmu,
-                                                        uint32_t va);
+                                                        uint32_t va,
+                                                        uint32_t force_user);
     static uint32_t __cdecl UnalignedHalfwordStoreHelper(ArmMmu* mmu,
                                                          uint32_t va,
-                                                         uint32_t value);
+                                                         uint32_t value,
+                                                         uint32_t force_user);
 
     /* Out: EDX:EAX - high dword 1 (value in the low dword) / 0 = fault,
        FAR/FSR or the io-pending slot set by the walk. */
-    static uint64_t __cdecl UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va);
+    static uint64_t __cdecl UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va,
+                                                    uint32_t force_user);
     /* Out: 0 (stored) / 0xFFFFFFFF = fault. */
     static uint32_t __cdecl UnalignedWordStoreHelper(ArmMmu* mmu, uint32_t va,
-                                                     uint32_t value);
+                                                     uint32_t value,
+                                                     uint32_t force_user);
 
     void RaiseAbort(uint32_t va, uint32_t fault_status, uint32_t domain,
                     ArmMmuAccess access);

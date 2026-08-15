@@ -17,16 +17,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-[[noreturn]] void UnprivilegedSingleTransferFatalHelper(uint32_t pc,
-                                                        uint32_t byte_l) {
-    LOG(Jit, "FATAL: unimplemented unprivileged load/store (LDRT/STRT/LDRBT/"
-             "STRBT, DDI 0406C.c Table A5-15) executed at guest pc=0x%08X - "
-             "B=%u L=%u. Implement the user-permission access before lifting "
-             "this.\n",
-        pc, byte_l >> 1, byte_l & 1u);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-}
-
 /* Shift(R[m], shift_t, shift_n, APSR.C) with DecodeImmShift (DDI 0406C.c
    A8.4, p. A8-291: LSR/ASR imm5 == 0 encode a shift by 32, ROR imm5 == 0
    encodes RRX) into EAX; ECX is scratch, EDX is preserved. */
@@ -136,19 +126,17 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
 
     /* Table A5-15 (p. A5-208): P == 0 && W == 1 selects
        LDRT/STRT/LDRBT/STRBT. */
-    if (!d->p && d->w) {
-        EmitPush32(cursor, (is_byte ? 2u : 0u) | (load ? 1u : 0u));
-        EmitPush32(cursor, d->guest_address);
-        EmitCall(cursor, reinterpret_cast<void*>(
-            &UnprivilegedSingleTransferFatalHelper));
-        return cursor;
-    }
+    const bool unpriv = !d->p && d->w;
 
     /* A8.8.63: wback && n == t; A8.8.64: P == W; A8.8.66 / STR (register)
        p. A8-676: m == 15, wback && (n == 15 || n == t), ArchVersion() < 6
-       && wback && m == n; LDRB p. A8-418 / STRB p. A8-680: t == 15. Every
-       UNPREDICTABLE case is implemented as UNDEFINED (p. Glossary-2737). */
+       && wback && m == n; LDRB p. A8-418 / STRB p. A8-680: t == 15; LDRT
+       DDI 0100I A4.1.31 (p. A4-60): load Rd == 15. Every UNPREDICTABLE
+       case is implemented as UNDEFINED (p. Glossary-2737). */
     bool unpredictable = false;
+    if (unpriv && load && d->rd == 15u) {
+        unpredictable = true;
+    }
     if (is_byte && d->rd == 15u) {
         unpredictable = true;
     }
@@ -210,8 +198,9 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     uint8_t* done_labels[3];
     int      n_done = 0;
 
-    cursor = EmitTlbFastPath(cursor, ctx,
-                             load ? TlbAccess::kRead : TlbAccess::kWrite);
+    cursor = EmitTranslateAccess(cursor, ctx,
+                                 load ? TlbAccess::kRead : TlbAccess::kWrite,
+                                 unpriv);
     EmitTestRegReg(cursor, kEax, kEax);
     abort_labels[n_abort++] = EmitJzLabel32(cursor);
 
@@ -270,7 +259,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitMovRegReg  (cursor, kEdx, kEcx);
             EmitAndRegImm32(cursor, kEcx, 0xFFFFFFFCu);
             EmitPushReg(cursor, kEdx);
-            cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
+            cursor = EmitTranslateAccess(cursor, ctx, TlbAccess::kRead, unpriv);
             EmitPopReg(cursor, kEdx);
             EmitTestRegReg(cursor, kEax, kEax);
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
@@ -290,7 +279,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             done_labels[n_done++] = EmitJmpLabel32(cursor);
         } else {
             EmitAndRegImm32(cursor, kEcx, 0xFFFFFFFCu);
-            cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kWrite);
+            cursor = EmitTranslateAccess(cursor, ctx, TlbAccess::kWrite, unpriv);
             EmitTestRegReg(cursor, kEax, kEax);
             abort_labels[n_abort++] = EmitJzLabel32(cursor);
             if (d->rd == 15u) {
@@ -317,11 +306,12 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             /* A3.2.2 (p. A3-109): an unaligned PC load is UNPREDICTABLE. */
             cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
         } else if (load) {
+            EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEcx);
             EmitPush32 (cursor, mmu_imm);
             EmitCall(cursor, reinterpret_cast<void*>(
                 &ArmMmu::UnalignedWordLoadHelper));
-            EmitAddRegImm32(cursor, kEsp, 8u);
+            EmitAddRegImm32(cursor, kEsp, 12u);
             EmitTestRegReg(cursor, kEdx, kEdx);
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
             EmitMovRegReg(cursor, kEdx, kEax);
@@ -338,12 +328,13 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
                 EmitMovRegBaseDisp32(cursor, kEdx, kStateReg,
                                      GprDisp(d->rd));
             }
+            EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEdx);
             EmitPushReg(cursor, kEcx);
             EmitPush32 (cursor, mmu_imm);
             EmitCall(cursor, reinterpret_cast<void*>(
                 &ArmMmu::UnalignedWordStoreHelper));
-            EmitAddRegImm32(cursor, kEsp, 12u);
+            EmitAddRegImm32(cursor, kEsp, 16u);
             EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
             if (wback) {

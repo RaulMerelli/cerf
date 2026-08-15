@@ -45,7 +45,7 @@ uint8_t* ArmPageWalker::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
     return host;
 }
 
-template <ArmMmuAccess kAccess>
+template <ArmMmuAccess kAccess, bool kForceUser>
 uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
     ArmMmuState& state_ = *state_p_;
     constexpr bool kIsWrite = (kAccess == ArmMmuAccess::kWrite ||
@@ -84,7 +84,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         ? &state_.instruction_tlb
         : &state_.data_tlb;
 
-    const bool is_user_mode = (cpu_state->cpsr.bits.mode == ArmMode::kUser);
+    const bool is_user_mode =
+        kForceUser || (cpu_state->cpsr.bits.mode == ArmMode::kUser);
     /* ARM DDI 0406C.c B3.9.1: ASID is CONTEXTIDR[7:0]. */
     const uint8_t current_asid = static_cast<uint8_t>(state_.contextidr & 0xFFu);
     /* ARM DDI 0406C.c Table D15-7: AP=00 access depends on SCTLR.{S,R}. */
@@ -104,28 +105,31 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
        write to a page cached read-only falls through to the walk to re-check. */
     const uint32_t va_page  = p & 0xFFFFF000u;
     const uint32_t set_base = ArmTlbSetBase(p);
-    const int hit_way =
-        ArmTlbMatchWay(tlb_unit, set_base, va_page, current_asid, kIsWrite);
-    if (hit_way >= 0) {
-        ArmTlbPromote(tlb_unit, set_base, hit_way);
-        const ArmTlbEntry& fast = tlb_unit->entries[set_base];
-        const uint32_t pa = fast.pa_page | (p & 0x0FFFu);
-        if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
-        ArmNoteCodeTracking<kAccess>(state_, pa);
-        return reinterpret_cast<uint8_t*>(
-            static_cast<uintptr_t>(p) + fast.va_addend);
-    }
+    if constexpr (!kForceUser) {
+        const int hit_way =
+            ArmTlbMatchWay(tlb_unit, set_base, va_page, current_asid, kIsWrite);
+        if (hit_way >= 0) {
+            ArmTlbPromote(tlb_unit, set_base, hit_way);
+            const ArmTlbEntry& fast = tlb_unit->entries[set_base];
+            const uint32_t pa = fast.pa_page | (p & 0x0FFFu);
+            if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
+            ArmNoteCodeTracking<kAccess>(state_, pa);
+            return reinterpret_cast<uint8_t*>(
+                static_cast<uintptr_t>(p) + fast.va_addend);
+        }
 
-    /* I/O fast path: a cached device page routes straight to the
-       PeripheralDispatcher (SetIoPending) without a walk. Execute never caches
-       I/O - code fetched from MMIO is not a real path. */
-    if constexpr (kAccess != ArmMmuAccess::kExecute) {
-        const int io_way =
-            ArmTlbMatchIoWay(tlb_unit, set_base, va_page, current_asid, kIsWrite);
-        if (io_way >= 0) {
-            const ArmTlbEntry& io = tlb_unit->entries[set_base + static_cast<uint32_t>(io_way)];
-            mmu_->SetIoPending(io.pa_page | (p & 0x0FFFu));
-            return nullptr;
+        /* I/O fast path: a cached device page routes straight to the
+           PeripheralDispatcher (SetIoPending) without a walk. Execute never
+           caches I/O - code fetched from MMIO is not a real path. */
+        if constexpr (kAccess != ArmMmuAccess::kExecute) {
+            const int io_way = ArmTlbMatchIoWay(tlb_unit, set_base, va_page,
+                                                current_asid, kIsWrite);
+            if (io_way >= 0) {
+                const ArmTlbEntry& io =
+                    tlb_unit->entries[set_base + static_cast<uint32_t>(io_way)];
+                mmu_->SetIoPending(io.pa_page | (p & 0x0FFFu));
+                return nullptr;
+            }
         }
     }
 
@@ -485,4 +489,12 @@ uint8_t* ArmPageWalker::TranslateReadWrite(ArmCpuState* cpu_state, uint32_t va) 
 
 uint8_t* ArmPageWalker::TranslateExecute(ArmCpuState* cpu_state, uint32_t va) {
     return MapGuestVirtualToHost<ArmMmuAccess::kExecute>(cpu_state, va);
+}
+
+uint8_t* ArmPageWalker::TranslateUserRead(ArmCpuState* cpu_state, uint32_t va) {
+    return MapGuestVirtualToHost<ArmMmuAccess::kRead, true>(cpu_state, va);
+}
+
+uint8_t* ArmPageWalker::TranslateUserWrite(ArmCpuState* cpu_state, uint32_t va) {
+    return MapGuestVirtualToHost<ArmMmuAccess::kWrite, true>(cpu_state, va);
 }

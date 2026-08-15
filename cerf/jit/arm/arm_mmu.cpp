@@ -140,6 +140,14 @@ uint8_t* __fastcall ArmMmu::TranslateReadWriteHelper(uint32_t va, ArmMmu* mmu) {
     return mmu->walker_->TranslateReadWrite(mmu->cpu_state_, va);
 }
 
+uint8_t* __fastcall ArmMmu::TranslateUserReadHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->walker_->TranslateUserRead(mmu->cpu_state_, va);
+}
+
+uint8_t* __fastcall ArmMmu::TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->walker_->TranslateUserWrite(mmu->cpu_state_, va);
+}
+
 void ArmMmu::OnReady() {
     memory_           = &emu_.Get<EmulatedMemory>();
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
@@ -229,33 +237,39 @@ void __fastcall ArmMmu::AlignmentFaultWriteHelper(uint32_t va, ArmMmu* mmu) {
     mmu->RaiseAlignmentFault(va, /*is_write=*/true);
 }
 
-uint32_t __cdecl ArmMmu::UnalignedHalfwordLoadHelper(ArmMmu* mmu, uint32_t va) {
+uint32_t __cdecl ArmMmu::UnalignedHalfwordLoadHelper(ArmMmu* mmu, uint32_t va,
+                                                     uint32_t force_user) {
     ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    const bool   fu = force_user != 0u;
     uint8_t b[2];
-    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/true) ||
-        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/true)) {
+    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/true, fu) ||
+        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/true, fu)) {
         return 0xFFFFFFFFu;
     }
     return static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8);
 }
 
 uint32_t __cdecl ArmMmu::UnalignedHalfwordStoreHelper(ArmMmu* mmu, uint32_t va,
-                                                      uint32_t value) {
+                                                      uint32_t value,
+                                                      uint32_t force_user) {
     ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    const bool   fu = force_user != 0u;
     uint8_t b[2] = { static_cast<uint8_t>(value),
                      static_cast<uint8_t>(value >> 8) };
-    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/false) ||
-        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/false)) {
+    if (!mmu->AccessPaged(cs, va,      &b[0], 1, /*is_load=*/false, fu) ||
+        !mmu->AccessPaged(cs, va + 1u, &b[1], 1, /*is_load=*/false, fu)) {
         return 0xFFFFFFFFu;
     }
     return 0u;
 }
 
-uint64_t __cdecl ArmMmu::UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va) {
+uint64_t __cdecl ArmMmu::UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va,
+                                                 uint32_t force_user) {
     ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    const bool   fu = force_user != 0u;
     uint8_t b[4];
     for (uint32_t i = 0; i < 4u; ++i) {
-        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/true)) {
+        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/true, fu)) {
             return 0u;
         }
     }
@@ -267,14 +281,16 @@ uint64_t __cdecl ArmMmu::UnalignedWordLoadHelper(ArmMmu* mmu, uint32_t va) {
 }
 
 uint32_t __cdecl ArmMmu::UnalignedWordStoreHelper(ArmMmu* mmu, uint32_t va,
-                                                  uint32_t value) {
+                                                  uint32_t value,
+                                                  uint32_t force_user) {
     ArmCpuState* cs = mmu->emu_.Get<ArmCpu>().State();
+    const bool   fu = force_user != 0u;
     uint8_t b[4] = { static_cast<uint8_t>(value),
                      static_cast<uint8_t>(value >> 8),
                      static_cast<uint8_t>(value >> 16),
                      static_cast<uint8_t>(value >> 24) };
     for (uint32_t i = 0; i < 4u; ++i) {
-        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/false)) {
+        if (!mmu->AccessPaged(cs, va + i, &b[i], 1, /*is_load=*/false, fu)) {
             return 0xFFFFFFFFu;
         }
     }
@@ -287,11 +303,18 @@ void ArmMmu::SetIoPending(uint32_t pa) {
 }
 
 bool ArmMmu::AccessPaged(ArmCpuState* cpu_state, uint32_t va,
-                         uint8_t* host_buf, uint32_t n, bool is_load) {
+                         uint8_t* host_buf, uint32_t n, bool is_load,
+                         bool force_user) {
     for (uint32_t done = 0; done < n; ) {
         const uint32_t va_cur = va + done;
-        uint8_t* host = is_load ? walker_->TranslateRead (cpu_state, va_cur)
-                                : walker_->TranslateWrite(cpu_state, va_cur);
+        uint8_t* host;
+        if (force_user) {
+            host = is_load ? walker_->TranslateUserRead (cpu_state, va_cur)
+                           : walker_->TranslateUserWrite(cpu_state, va_cur);
+        } else {
+            host = is_load ? walker_->TranslateRead (cpu_state, va_cur)
+                           : walker_->TranslateWrite(cpu_state, va_cur);
+        }
         if (host == nullptr) return false;
         /* ARM DDI 0406C.c Table D15-10 (p. D15-2609): a Tiny page maps 1 KB. */
         const uint32_t page_left = 0x400u - (va_cur & 0x3FFu);

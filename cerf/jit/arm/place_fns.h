@@ -42,6 +42,8 @@ uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitSpsrModeGuard(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitSwap(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access);
+uint8_t* EmitTranslateAccess(uint8_t* cursor, BlockContext* ctx,
+                             TlbAccess access, bool unpriv);
 uint8_t* EmitVfpBlockTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitVfpDataOperation(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitVfpDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
