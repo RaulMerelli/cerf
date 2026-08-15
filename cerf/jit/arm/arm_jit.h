@@ -41,6 +41,7 @@ public:
     bool     DeepSleep()    const override { return cpu_state_->deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_->reset_pending != 0; }
     uint32_t Pc()           const override { return cpu_state_->gprs[ArmGpr::kR15]; }
+    void     PrintFatalDump() override;
     void     DispatchTraceIter() override {
 #if CERF_DEV_MODE
         emu_.Get<TraceManager>().DispatchRunLoopIter(cpu_state_->gprs,

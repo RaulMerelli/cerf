@@ -1,6 +1,7 @@
 #include "emulated_memory.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/fatal.h"
 #include "../core/log.h"
 #include "../boards/page_table_builder.h"
 #include "../state/state_stream.h"
@@ -109,10 +110,8 @@ uint8_t* EmulatedMemory::EnsureBacked(Region* r) {
 
 uint8_t* EmulatedMemory::Translate(uint32_t vaddr) {
     Region* r = FindRegion(vaddr);
-    if (!r) {
-        LOG(Caution, "EmulatedMemory::Translate unmapped 0x%08X\n", vaddr);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
+    if (!r)
+        emu_.Get<Fatal>().Die("EmulatedMemory::Translate unmapped 0x%08X", vaddr);
     return EnsureBacked(r) + ((vaddr - r->base) & r->wrap_mask);
 }
 

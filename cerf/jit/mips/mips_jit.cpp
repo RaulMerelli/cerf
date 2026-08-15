@@ -70,6 +70,21 @@ __declspec(naked) void __cdecl MipsJit::Dispatch(void* /* native_pc */,
     }
 }
 
+void MipsJit::PrintFatalDump() {
+    const auto& g = cpu_state_->gpr;
+    LOG(Caution, "      guest PC=0x%08X  hi=0x%016llX  lo=0x%016llX\n",
+        cpu_state_->pc,
+        static_cast<unsigned long long>(cpu_state_->hi),
+        static_cast<unsigned long long>(cpu_state_->lo));
+    for (uint32_t i = 0; i < kMipsNumGpr; i += 4)
+        LOG(Caution, "      r%-2u=0x%016llX  r%-2u=0x%016llX  "
+                     "r%-2u=0x%016llX  r%-2u=0x%016llX\n",
+            i,     static_cast<unsigned long long>(g[i]),
+            i + 1, static_cast<unsigned long long>(g[i + 1]),
+            i + 2, static_cast<unsigned long long>(g[i + 2]),
+            i + 3, static_cast<unsigned long long>(g[i + 3]));
+}
+
 void MipsJit::Run() {
     if (cpu_state_->reset_pending) {
         DeliverReset();
