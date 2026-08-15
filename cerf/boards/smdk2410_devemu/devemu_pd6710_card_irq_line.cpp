@@ -2,7 +2,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../socs/s3c2410/s3c2410_io_port.h"
+#include "../../core/log.h"
 
 namespace {
 
@@ -18,13 +18,14 @@ public:
     }
 
     void Assert() override {
-        emu_.Get<S3C2410IoPort>().AssertEint(kPd6710CardEintNumber);
+        LOG(Caution, "[PD6710] card IRQ assert EINT%d - no S3C2410 EINT sink; "
+                "halting\n", kPd6710CardEintNumber);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    void Deassert() override {
-        emu_.Get<S3C2410IoPort>().ClearEint(kPd6710CardEintNumber);
-    }
+
+    void Deassert() override {}
 };
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE_AS(DevEmuPd6710CardIrqLine, Pd6710CardIrqLine);
