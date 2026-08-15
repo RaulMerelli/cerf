@@ -44,11 +44,41 @@ bool ArmMediaSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
     if ((op1 & 0x18u) == 0x08u) {
         return DecodePackSatReverse(insn, op);
     }
-    /* Parallel addition and subtraction (op1 000xx p. A5-210, 001xx
-       p. A5-211) and signed multiply / divide (op1 10xxx p. A5-213) rows
-       of Table A5-16. */
-    if ((op1 & 0x18u) != 0x18u) {
+    /* Parallel addition and subtraction, signed Table A5-17 (p. A5-210) and
+       unsigned Table A5-18 (p. A5-211): both allocate insn[21:20] 01, 10 and
+       11 and insn[7:5] 000, 001, 010, 011, 100 and 111; "Other encodings in
+       this space are UNDEFINED". */
+    if ((op1 & 0x18u) == 0x00u) {
+        if ((op1 & 0x3u) == 0x0u || op2 == 0x5u || op2 == 0x6u) {
+            return false;
+        }
         return MarkArmUnimplemented(insn, op.word);
+    }
+    /* Table A5-16 (p. A5-209) op1 10xxx: signed multiply, signed and unsigned
+       divide, Table A5-20 (p. A5-213), op1 = insn[22:20], op2 = insn[7:5];
+       "Other encodings in this space are UNDEFINED". */
+    if ((op1 & 0x18u) == 0x10u) {
+        switch (op1 & 0x7u) {
+        case 0x0u:
+        case 0x4u:
+            if ((op2 & 0x4u) != 0x0u) {
+                return false;
+            }
+            return MarkArmUnimplemented(insn, op.word);
+        case 0x5u:
+            if ((op2 & 0x6u) != 0x0u && (op2 & 0x6u) != 0x6u) {
+                return false;
+            }
+            return MarkArmUnimplemented(insn, op.word);
+        case 0x1u:
+        case 0x3u:
+            if (op2 != 0x0u || !processor_config_->HasIntegerDivide()) {
+                return false;
+            }
+            return MarkArmUnimplemented(insn, op.word);
+        default:
+            return false;
+        }
     }
     /* USAD8 (A8-792) / USADA8 (A8-794) row (11000, 000) of Table A5-16. */
     if (op1 == 0x18u && op2 == 0x0u) {

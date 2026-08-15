@@ -50,6 +50,7 @@ public:
        Auxiliary Control, Read/Write. */
     bool     HasAuxControlRegister()      const override { return true; }
     bool     HasLoadStoreDouble()         const override { return true; }
+    bool     HasPreload()                 const override { return true; }
 
     /* XScale Core Dev Manual §2.1: ARMv5TE adds CLZ and the V5(T)
        unconditional instruction space (BLX imm, PLD); enhanced

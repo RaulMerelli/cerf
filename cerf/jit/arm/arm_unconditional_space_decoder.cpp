@@ -70,7 +70,12 @@ bool ArmUnconditionalSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         }
     }
 
-    if (processor_config_->HasNeon() && op.neon_load_store.marker == 0x4u) {
+    const uint32_t op1 = (op.word >> 20) & 0xFFu;
+
+    /* DDI 0406C.c Table A5-24 (p. A5-217): the Advanced SIMD element and
+       structure load/store row is 100xxx0 over op1 = insn[26:20], so
+       insn[20] == 1 selects the PLI and memory-hint rows. */
+    if (processor_config_->HasNeon() && (op1 & 0xF1u) == 0x40u) {
         return neon_unconditional_decoder_->DecodeLoadStore(insn, op);
     }
 
@@ -78,12 +83,18 @@ bool ArmUnconditionalSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         return neon_unconditional_decoder_->DecodeData3reg(insn, op);
     }
 
-    /* DDI 0406C.c Table A5-23 (p. A5-216), op1 = insn[27:20]: 0xxxxxxx
-       memory hints / Advanced SIMD / misc (p. A5-217), 101xxxxx BL/BLX
-       (immediate) (p. A8-348), 110xxxx0 not 11000x00 STC/STC2, 110xxxx1
-       not 11000x01 LDC/LDC2, 11000100 MCRR2, 11000101 MRRC2, 1110xxxx
-       CDP2/MCR2/MRC2; other encodings are UNDEFINED in ARMv5 and above. */
-    const uint32_t op1 = (op.word >> 20) & 0xFFu;
+    /* DDI 0406C.c Table A5-24 (p. A5-217) rows 101x101 PLD (immediate) and
+       PLD (literal), 111x101 with op2 xxx0 PLD (register); "Preloading
+       caches" (p. A3-158): "The Preload instructions are hints, and so
+       implementations can treat them as NOPs". */
+    if (processor_config_->HasPreload() &&
+        ((op1 & 0xF7u) == 0x55u ||
+         ((op1 & 0xF7u) == 0x75u && (op.word & 0x10u) == 0u))) {
+        insn->place_fn = &PlaceNop;
+        return true;
+    }
+
+    /* DDI 0406C.c Table A5-23 (p. A5-216), op1 = insn[27:20]. */
     if ((op1 & 0x80u) == 0x00u ||
         (op1 & 0xE0u) == 0xA0u ||
         ((op1 & 0xE0u) == 0xC0u && op1 != 0xC0u && op1 != 0xC1u) ||
