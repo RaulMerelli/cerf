@@ -203,6 +203,18 @@ void ArmJit::SetResetPending(bool is_resume) {
     emu_.Get<GuestPowerNotifier>().NotifyReboot();
 }
 
+void ArmJit::PrintFatalDump() {
+    const auto& r = cpu_state_->gprs;
+    LOG(Caution, "      guest PC=0x%08X  CPSR=0x%08X\n",
+        r[ArmGpr::kR15], ArmPackCpsr(*cpu_state_));
+    LOG(Caution, "      R0=0x%08X  R1=0x%08X  R2=0x%08X  R3=0x%08X "
+                 "R4=0x%08X  R5=0x%08X  R6=0x%08X  R7=0x%08X\n",
+        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+    LOG(Caution, "      R8=0x%08X  R9=0x%08X  R10=0x%08X R11=0x%08X "
+                 "R12=0x%08X SP=0x%08X  LR=0x%08X\n",
+        r[8], r[9], r[10], r[11], r[12], r[13], r[14]);
+}
+
 void ArmJit::SaveCpuState(StateWriter& w)    { cpu_->SaveState(w); }
 void ArmJit::RestoreCpuState(StateReader& r) { cpu_->RestoreState(r); }
 void ArmJit::SaveMmuState(StateWriter& w)    { mmu_->SaveState(w); }

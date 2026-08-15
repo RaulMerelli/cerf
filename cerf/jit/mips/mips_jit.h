@@ -37,6 +37,7 @@ public:
     bool     DeepSleep()    const override { return cpu_state_->deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_->reset_pending != 0; }
     uint32_t Pc()           const override { return cpu_state_->pc; }
+    void     PrintFatalDump() override;
     uint32_t PhysAddrMask() const override { return cpu_state_->phys_addr_mask; }
     void     DispatchTraceIter() override {
 #if CERF_DEV_MODE
