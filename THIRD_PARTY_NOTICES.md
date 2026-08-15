@@ -121,8 +121,10 @@ documentation of correct hardware behavior.
   the most-recently-used region memo in physical-address
   dispatch, the
   virtual-clock and timer model (pause-aware guest clock, deadline-list expiry,
-  idle-phase clock warp), and per-SoC timer behavior (SA-1110/PXA OS timer,
-  i.MX GPT/EPIT, MIPS Count/Compare).
+  idle-phase clock warp), per-SoC timer behavior (SA-1110/PXA OS timer,
+  i.MX GPT/EPIT, MIPS Count/Compare), and the NE2000/DP8390 NIC model
+  (remote-DMA advance and wrap, the station-address PROM layout, and the
+  PCMCIA card's I/O and shared-memory page geometry).
 
 ## Trademarks
 
