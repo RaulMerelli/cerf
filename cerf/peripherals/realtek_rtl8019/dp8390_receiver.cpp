@@ -80,12 +80,10 @@ bool Dp8390Receiver::OnFrameLocked(const uint8_t* frame, std::size_t len) {
     if (nic_.pstart_ < kPageMin || nic_.pstart_ >= kPageMax ||
         nic_.pstop_  < kPageMin || nic_.pstop_  >  kPageMax ||
         nic_.pstart_ >= nic_.pstop_ ||
-        nic_.curr_   < nic_.pstart_ || nic_.curr_ >= nic_.pstop_ ||
-        nic_.bnry_   < nic_.pstart_ || nic_.bnry_ >= nic_.pstop_) {
+        nic_.curr_   < nic_.pstart_ || nic_.curr_ >= nic_.pstop_) {
         LOG(Caution, "[NE2000] RX with inconsistent ring geometry "
-                "PSTART=0x%02X PSTOP=0x%02X CURR=0x%02X BNRY=0x%02X; "
-                "halting\n", nic_.pstart_, nic_.pstop_, nic_.curr_,
-                nic_.bnry_);
+                "PSTART=0x%02X PSTOP=0x%02X CURR=0x%02X; halting\n",
+            nic_.pstart_, nic_.pstop_, nic_.curr_);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
@@ -116,10 +114,11 @@ bool Dp8390Receiver::OnFrameLocked(const uint8_t* frame, std::size_t len) {
        the next buffer is linked its address is compared to the Boundary
        Pointer; equality aborts reception. p. 1-150: RST "is also set
        when a Receive Buffer Ring overflow occurs". */
-    if ((next_page > nic_.curr_ && nic_.bnry_ > nic_.curr_ &&
-         nic_.bnry_ < next_page) ||
-        (next_page < nic_.curr_ &&
-         (nic_.bnry_ > nic_.curr_ || nic_.bnry_ < next_page))) {
+    uint8_t link = nic_.curr_;
+    for (uint8_t i = 1u; i < pages_used; ++i) {
+        link = static_cast<uint8_t>(link + 1u);
+        if (link >= nic_.pstop_) link = nic_.pstart_;
+        if (link != nic_.bnry_) continue;
         nic_.rsr_ |= kRsrMpa;
         nic_.BumpCntr2Locked();
         nic_.rst_overflow_ = true;
