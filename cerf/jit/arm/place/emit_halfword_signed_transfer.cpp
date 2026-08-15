@@ -17,15 +17,6 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
-[[noreturn]] void UnprivilegedTransferFatalHelper(uint32_t pc, uint32_t op2_l) {
-    LOG(Jit, "FATAL: unimplemented unprivileged load/store (LDRHT/STRHT/"
-             "LDRSBT/LDRSHT, DDI 0406C.c A5.2.9) executed at guest "
-             "pc=0x%08X - op2=%u L=%u. Implement the user-permission access "
-             "before lifting this.\n",
-        pc, op2_l >> 1, op2_l & 1u);
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-}
-
 /* offset_addr = R[n] +/- imm/R[m] (A8.8.80 encoding-specific operations),
    recomputed from state into ECX; EAX is scratch. */
 void EmitOffsetAddr(uint8_t*& cursor, DecodedInsn* d) {
@@ -82,13 +73,13 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     const bool wback    = !d->p || d->w;
     const bool is_dual  = !d->l && (d->op1 == 2 || d->op1 == 3);
 
-    /* A5.2.9 (p. A5-204): P == 0 && W == 1 selects the unprivileged forms. */
-    if (!is_dual && !d->p && d->w) {
-        EmitPush32(cursor, (d->op1 << 1) | (d->l ? 1u : 0u));
-        EmitPush32(cursor, d->guest_address);
-        EmitCall(cursor,
-                 reinterpret_cast<void*>(&UnprivilegedTransferFatalHelper));
-        return cursor;
+    /* A5.2.9 (p. A5-204): P == 0 && W == 1 selects the unprivileged forms.
+       LDRHT/STRHT/LDRSBT/LDRSHT are ARMv6T2 encodings (DDI 0406C.c A8.8.83
+       p. A8-448); before v6T2, DDI 0100I A5.3 (p. A5-34): "P == 0 The W bit
+       must be 0 or the instruction is UNPREDICTABLE". */
+    const bool unpriv = !is_dual && !d->p && d->w;
+    if (unpriv && !config->HasMovwMovt()) {
+        return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 
     /* Dual transfers are ARMv5TE (Table A5-10, p. A5-204); every
@@ -200,7 +191,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     uint8_t* fault_labels[3];
     int      n_fault = 0;
 
-    cursor = EmitTlbFastPath(cursor, ctx, access);
+    cursor = EmitTranslateAccess(cursor, ctx, access, unpriv);
     EmitTestRegReg(cursor, kEax, kEax);
     if (is_dual) {
         fault_labels[n_fault++] = EmitJzLabel32(cursor);
@@ -307,18 +298,20 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
         FixupLabel32(cross_label, cursor);
         if (is_store) {
             EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd));
+            EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEdx);
             EmitPushReg(cursor, kEcx);
             EmitPush32 (cursor, mmu_imm);
             EmitCall(cursor, reinterpret_cast<void*>(
                 &ArmMmu::UnalignedHalfwordStoreHelper));
-            EmitAddRegImm32(cursor, kEsp, 12u);
+            EmitAddRegImm32(cursor, kEsp, 16u);
         } else {
+            EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEcx);
             EmitPush32 (cursor, mmu_imm);
             EmitCall(cursor, reinterpret_cast<void*>(
                 &ArmMmu::UnalignedHalfwordLoadHelper));
-            EmitAddRegImm32(cursor, kEsp, 8u);
+            EmitAddRegImm32(cursor, kEsp, 12u);
         }
         EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
         fault_labels[n_fault++] = EmitJzLabel32(cursor);

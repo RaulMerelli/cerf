@@ -1,5 +1,6 @@
 #include <cstddef>
 
+#include "../../../core/log.h"
 #include "../arm_emit_services.h"
 #include "../arm_mmu.h"
 #include "../arm_mmu_state.h"
@@ -164,5 +165,30 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
 
     FixupLabel32(hit_done, cursor);
     FixupLabel32(io_done, cursor);
+    return cursor;
+}
+
+/* In: ECX = guest EA (survives). Out: EAX = host pointer or null. The
+   unprivileged transfers bypass the mode-blind TLB probe and walk with the
+   User-mode permission check (ARM DDI 0100I A4.1.25 p. A4-48 / A4.1.31
+   p. A4-60 / A4.1.101 p. A4-197 / A4.1.105 p. A4-206). */
+uint8_t* EmitTranslateAccess(uint8_t* cursor, BlockContext* ctx,
+                             TlbAccess access, bool unpriv) {
+    using namespace x86;
+    if (!unpriv) {
+        return EmitTlbFastPath(cursor, ctx, access);
+    }
+    if (access == TlbAccess::kReadWrite) {
+        LOG(Jit, "FATAL: EmitTranslateAccess: no unprivileged read-write "
+                 "transfer form exists\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    EmitPushReg(cursor, kEcx);
+    EmitMovRegImm32(cursor, kEdx, static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(ctx->emit->Mmu())));
+    EmitCall(cursor, access == TlbAccess::kRead
+        ? reinterpret_cast<void*>(&ArmMmu::TranslateUserReadHelper)
+        : reinterpret_cast<void*>(&ArmMmu::TranslateUserWriteHelper));
+    EmitPopReg(cursor, kEcx);
     return cursor;
 }
