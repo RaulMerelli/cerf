@@ -99,32 +99,15 @@ The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full licens
 
 ## Development environment
 
-The development environment under `.claude/` includes the components below. They are not
-part of `cerf.exe` and exist only in the source tree. The MIT text above applies to each
-MIT component.
-
-- **[SimpleEnglish](https://github.com/AminBlg/SimpleEnglish)** - MIT, (c) 2026 AminBlg.
-  Commit `379728b` (2026-07-21), copied without changes to `.claude/skills/simple-english/`.
+- **[SimpleEnglish](https://github.com/AminBlg/SimpleEnglish)** - MIT, (c) 2026 AminBlg
 
 ## Studied references
 
-No source from these projects is present in CE Runtime Foundation; they were read as
-documentation of correct hardware behavior.
-
-- **[QEMU](https://www.qemu.org/)** and **[the Linux kernel](https://www.kernel.org/)** -
-  TLB semantics, the MIPS CP0 exception model, block-cache invalidation,
-  translation-block chaining (two-slot jump lists, link bookkeeping, and the
-  jump reset that unlinks a chain when a block is removed), the exit-request
-  signal that returns translated code to the dispatch loop, the emitted
-  next-block lookup, the unpacked condition-flag cache that packs into the
-  architectural status word only when that word is read,
-  the most-recently-used region memo in physical-address
-  dispatch, the
-  virtual-clock and timer model (pause-aware guest clock, deadline-list expiry,
-  idle-phase clock warp), per-SoC timer behavior (SA-1110/PXA OS timer,
-  i.MX GPT/EPIT, MIPS Count/Compare), and the NE2000/DP8390 NIC model
-  (remote-DMA advance and wrap, the station-address PROM layout, and the
-  PCMCIA card's I/O and shared-memory page geometry).
+- **[QEMU](https://www.qemu.org/)** - the MIPS CP0 exception model, translation-block
+  chaining and cache invalidation, the condition-flag cache, MMIO dispatch
+  memoization, the virtual clock and the timer peripherals, and the DP8390 NIC.
+- **[the Linux kernel](https://www.kernel.org/)** - StrongARM coprocessor behavior,
+  the NE2000 PC card, the 8390 NIC, and raw NAND.
 
 ## Trademarks
 
