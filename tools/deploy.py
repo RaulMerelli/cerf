@@ -56,7 +56,7 @@ def create_release(token: str, artifact: Artifact, body: str) -> dict:
     return github(token, f"/repos/{REPO}/releases", "POST", {
         "tag_name": artifact.tag,
         "target_commitish": artifact.sha,
-        "name": artifact.tag,
+        "name": artifact.title,
         "body": body,
         "draft": False,
         "prerelease": False,
@@ -75,7 +75,7 @@ def upload_asset(token: str, release_id: int, archive: Path) -> str:
 
 def announce_release(secret: str, artifact: Artifact, changelog: str) -> None:
     content = compose(
-        f"[**CE Runtime Foundation {artifact.tag} Released**]"
+        f"[**CE Runtime Foundation {artifact.title} Released**]"
         f"(https://github.com/{REPO}/releases/tag/{artifact.tag})",
         changelog,
         f"[CI build]({artifact.run_url}) · "
@@ -91,6 +91,7 @@ def main(argv: List[str]) -> int:
     artifact = latest_artifact(token, sha)
     print(f"\nArtifact        : {artifact.name}")
     print(f"  version / tag : {artifact.version} -> {artifact.tag}")
+    print(f"  release title : {artifact.title}")
     print(f"  branch / sha  : {artifact.branch} / {artifact.sha[:7]}")
     print(f"  built         : {artifact.created_at}")
     print(f"  size          : {artifact.size / 1024 / 1024:.1f} MB")
@@ -99,8 +100,8 @@ def main(argv: List[str]) -> int:
     if existing_release(token, artifact.tag) is not None:
         raise CiError(f"release {artifact.tag} already exists")
 
-    body = changelog_markdown(artifact.tag)
-    print(f"\nChangelog for v{artifact.tag}:\n{body}\n")
+    body = changelog_markdown(artifact.series)
+    print(f"\nChangelog for v{artifact.series}:\n{body}\n")
     confirm("Use this as the release description?", assume_yes)
 
     archive = Path("tmp") / f"{artifact.name}.zip"
