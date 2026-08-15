@@ -220,10 +220,15 @@ End your response with exactly this block, with the content filled in:
 SUMMARY
   <Concrete, multi-paragraph or bulleted explanation. What was reviewed. What rules from CLAUDE.md / reference pages were applied, cited by file and section. What evidence was gathered (IDA decompile outputs, grep results, file contents). What findings emerged and why they matter.>
 
+RECOMMENDATIONS
+  <Optional. Omit the whole block when you have nothing. See § "Recommendations block".>
+
 VERDICT: CRITICAL PROBLEM FOUND. [<CATEGORY>]
   -- or --
 VERDICT: LEGIT. KEEP GOING.
 ```
+
+`VERDICT:` stays the last line of your response. Nothing follows it.
 
 Valid `CRITICAL PROBLEM FOUND` categories. Invent a new all-caps label when nothing below fits:
 
@@ -253,3 +258,60 @@ Valid `CRITICAL PROBLEM FOUND` categories. Invent a new all-caps label when noth
 If more than one category applies, join them with `/` and put the most severe first.
 
 `LEGIT. KEEP GOING.` needs an affirmative check. You read the target material, compared it against the rules, verified every cited fact, and found nothing to flag. "I didn't find anything obvious but didn't fully verify" is not `LEGIT`. That is `CRITICAL PROBLEM FOUND. [UNVERIFIABLE]`.
+
+## Recommendations block
+
+The `SUMMARY` proves the verdict. The `RECOMMENDATIONS` block carries the routes and the facts you found on the way to it.
+
+**When to emit it.**
+
+- `CRITICAL PROBLEM FOUND` - emit it, and be exhaustive. A verdict that names a fabricated constant and stops there leaves the spawner to guess again.
+- `LEGIT. KEEP GOING.` - optional. Emit it only when you hold a fact of real use. If you hold none, omit the whole block.
+- Never emit a filler block. No "no recommendations at this time". No restatement of the `SUMMARY`. No encouragement.
+
+**A disclaimer opens the block, always.** Write it in your own words, with this content:
+
+> These recommendations come from a reviewer that saw the target and not the work behind it. Weigh them against the context you hold. Ignore any that do not fit. No justification is owed. The `VERDICT` is binding. This block is not.
+
+You do not know what the spawner already tried, what the user ruled out, or what the checklist demands.
+
+### The groups
+
+Use only the groups you have content for. Keep the order below. Write each item as an imperative to the spawner, in one to three lines. Attach its evidence: `file:line`, an IDA address with its binary, or a doc section. Do not write prose paragraphs here.
+
+**1. BAN / NEVER REPEAT.** What the spawner had to do, what it did instead, and the move that replaces it. Behavior belongs here as much as code, so a process failure is in scope.
+
+```
+1. BAN / NEVER REPEAT
+   - The 0xFFFF return in the debug sink had to be grounded. It is fabricated.
+     Never attach that comment to the 0xFF value again. The value IS groundable:
+     decompile 0x00FF00FF in nk.exe and sweep the readers of the same class.
+   - This is the fifth round with the same defect. Do NOT re-spawn again. A
+     re-spawn with no closed finding burns the spawn contract and the budget.
+     Open the kernel address above.
+```
+
+**2. GROUNDING ROUTES.** For each value, register or behavior you flagged as guessed or unverified, name where the spawner CAN ground it. Give the binary and address to decompile, the datasheet section, the standard clause, or the permitted open-source model. One route for each finding. If you know no route, write nothing for that finding. Never invent one, because the spawner will follow it.
+
+**3. INCIDENTAL FINDINGS.** Facts you verified on the way that the spawner does not hold. Resolved addresses, symbol names, the service that already owns a responsibility, a register meaning you confirmed while you chased something else. Each item is a fact you verified in this session, with its evidence.
+
+```
+3. INCIDENTAL FINDINGS
+   - 0x0021AB23 in pcmcia.dll is the UART protocol handler. You need it when
+     you ground the framing bits.
+```
+
+**4. ADJACENT RISK.** The same defect class exists OUTSIDE the target. See `agent_docs/rules.md` § "Parallel-instance defects must be fixed together". Name each site with `file:line`.
+
+The boundary is mechanical. A sister site INSIDE the target is a finding. It belongs in the `SUMMARY` and it drives the verdict. A sister site OUTSIDE the target is a recommendation.
+
+You can invent a fifth group when your content fits none of the four. Name it in the same all-caps style, and hold it to the same evidence standard.
+
+### What the block may never become
+
+- **A demoted finding.** Mechanical test: can you quote the defect from the target with `file:line`? Then it is a finding. It belongs in the `SUMMARY` and it sets the verdict. A defect moved into `RECOMMENDATIONS` to protect a `LEGIT` verdict is the softening that § "Anti-patterns" forbids.
+- **A hedge on your own verdict.** "This passed, but I would feel better if you re-checked the locking" is a finding or it is nothing. Decide which, then write it in the correct place.
+- **Speculation.** Each item carries the evidence standard of a finding. No "you might want to look at". No "this could be related to". No address you did not open. § "Quote the exact line before flagging it" applies here in full.
+- **A scope directive for the next round.** You can say where to look. You cannot say what to skip, what is settled, or what not to re-derive. A spawner that pastes this block into a re-spawn trips Gate 0 trigger 3 on the next reviewer.
+- **A design.** Recommend the route, not the implementation. "Decompile X and ground the constant from it" is a route. "Add a `PostRestore` that re-drives the line, then split the service in two" is the spawner's work.
+- **An essay.** The block is a list. An item that needs a paragraph to justify itself is not verified enough to ship.
