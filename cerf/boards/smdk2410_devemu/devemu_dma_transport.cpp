@@ -24,8 +24,12 @@ constexpr uint32_t kChannelStride  = 0x20u;
 constexpr uint32_t kChannelBase    = 0x2080u;
 constexpr uint32_t kChannelTop     = kChannelBase + kChannelCount * kChannelStride;
 constexpr uint32_t kChannelControl = 0x00u;
+constexpr uint32_t kChannelConfig  = 0x04u;
+constexpr uint32_t kChannelIrq     = 0x10u;
 
-constexpr uint32_t kChannelProbe = 1u;
+constexpr uint32_t kChannelPresent = 0x001u;
+constexpr uint32_t kChannelEnable  = 0x100u;
+constexpr uint32_t kChannelProbe   = 0x001u;
 
 class DevEmuDmaTransport : public Peripheral {
 public:
@@ -61,9 +65,11 @@ public:
             std::memcpy(&v, &shared_[off], sizeof(v));
             return v;
         }
-        if (off >= kChannelBase && off < kChannelTop &&
-            (off - kChannelBase) % kChannelStride == kChannelControl) {
-            return 0u;
+        if (off >= kChannelBase && off < kChannelTop) {
+            const uint32_t n   = (off - kChannelBase) / kChannelStride;
+            const uint32_t reg = (off - kChannelBase) % kChannelStride;
+            if (reg == kChannelControl)
+                return ch_control_[n] | kChannelPresent;
         }
         HaltUnsupportedAccess("ReadWord", addr, 0);
     }
@@ -83,19 +89,39 @@ public:
             std::memcpy(&shared_[off], &value, sizeof(value));
             return;
         }
-        if (off >= kChannelBase && off < kChannelTop &&
-            (off - kChannelBase) % kChannelStride == kChannelControl &&
-            value == kChannelProbe) {
-            return;
+        if (off >= kChannelBase && off < kChannelTop) {
+            const uint32_t n   = (off - kChannelBase) / kChannelStride;
+            const uint32_t reg = (off - kChannelBase) % kChannelStride;
+            if (reg == kChannelControl &&
+                (value == kChannelProbe ||
+                 value == (kChannelPresent | kChannelEnable))) {
+                ch_control_[n] = value & kChannelEnable;
+                return;
+            }
+            if (reg == kChannelConfig &&
+                value == kBase + kHostStatusBase + 4u * n) {
+                ch_config_[n] = value;
+                return;
+            }
+            if (reg == kChannelIrq) {
+                ch_irq_[n] = value;
+                return;
+            }
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
 
     void SaveState(StateWriter& w) override {
         w.WriteBytes(shared_.data(), shared_.size());
+        for (uint32_t v : ch_control_) w.Write<uint32_t>(v);
+        for (uint32_t v : ch_config_)  w.Write<uint32_t>(v);
+        for (uint32_t v : ch_irq_)     w.Write<uint32_t>(v);
     }
     void RestoreState(StateReader& r) override {
         r.ReadBytes(shared_.data(), shared_.size());
+        for (uint32_t& v : ch_control_) r.Read(v);
+        for (uint32_t& v : ch_config_)  r.Read(v);
+        for (uint32_t& v : ch_irq_)     r.Read(v);
     }
 
 private:
@@ -109,6 +135,9 @@ private:
     }
 
     std::array<uint8_t, kSharedSize> shared_{};
+    std::array<uint32_t, kChannelCount> ch_control_{};
+    std::array<uint32_t, kChannelCount> ch_config_{};
+    std::array<uint32_t, kChannelCount> ch_irq_{};
 };
 
 }  /* namespace */
