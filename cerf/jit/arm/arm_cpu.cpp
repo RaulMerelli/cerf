@@ -202,8 +202,9 @@ void ArmCpu::RaiseAbortDataException(uint32_t guest_pc) {
 
 /* ARM ARM DDI 0406C.c B1.9.1 TakeReset(): CPSR.M = '10011' Supervisor, then
    CPSR.I = '1'; CPSR.F = '1'; CPSR.A = '1'. */
-void ArmCpu::RaiseResetException(uint32_t initial_pc) {
-    initial_pc_ = initial_pc;
+void ArmCpu::RaiseResetException(uint32_t initial_pc, bool initial_thumb) {
+    initial_pc_    = initial_pc;
+    initial_thumb_ = initial_thumb;
 
     const uint32_t old_mode = state_.cpsr.bits.mode;
     state_.cpsr.bits.mode   = ArmMode::kSupervisor;
@@ -242,13 +243,14 @@ void ArmCpu::RaiseResetException(uint32_t initial_pc) {
         state_.gprs[ArmGpr::kR15] = pending_resume_pc_;
         pending_resume_pc_set_    = false;
     } else {
-        state_.gprs[ArmGpr::kR13] = initial_sp_;
-        state_.gprs[ArmGpr::kR15] = initial_pc;
+        state_.cpsr.bits.thumb_mode = initial_thumb_ ? 1u : 0u;
+        state_.gprs[ArmGpr::kR13]   = initial_sp_;
+        state_.gprs[ArmGpr::kR15]   = initial_pc;
     }
 }
 
 void ArmCpu::RaiseResetException() {
-    RaiseResetException(initial_pc_);
+    RaiseResetException(initial_pc_, initial_thumb_);
 }
 
 void ArmCpu::SetInitialStackPointer(uint32_t sp) {
