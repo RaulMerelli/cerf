@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../cpu/physical_bus.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
@@ -13,7 +14,6 @@
 #include "pxa255_intc.h"
 
 #include <cstdint>
-#include <cstring>
 #include <functional>
 #include <mutex>
 
@@ -362,36 +362,21 @@ private:
         const bool inc_s = (dcmd_[ch] & INCSRCADDR) != 0;
         const bool inc_t = (dcmd_[ch] & INCTRGADDR) != 0;
         const uint32_t w = UnitWidth(dcmd_[ch]);
+        const BusWidth bw = (w == 1u) ? BusWidth::Byte
+                          : (w == 2u) ? BusWidth::Half
+                                      : BusWidth::Word;
+        auto& bus = emu_.Get<PhysicalBus>();
         for (uint32_t off = 0; off < len; off += w) {
             const uint32_t s = inc_s ? sa + off : sa;
             const uint32_t t = inc_t ? da + off : da;
             uint32_t unit = 0;
-            if (!ReadPhys(s, w, &unit) || !WritePhys(t, w, unit)) return false;
+            if (!bus.Read(s, bw, &unit) || !bus.Write(t, bw, unit)) return false;
         }
         return true;
     }
 
-    /* Physical access: backed RAM first, else the peripheral dispatcher.
-       Returns false on an address that is neither (a bad DMA address). */
-    bool ReadPhys32(uint32_t pa, uint32_t* out) { return ReadPhys(pa, 4u, out); }
-    bool ReadPhys(uint32_t pa, uint32_t width, uint32_t* out) {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        if (uint8_t* p = mem.TryTranslate(pa)) { std::memcpy(out, p, width); return true; }
-        auto& disp = emu_.Get<PeripheralDispatcher>();
-        if (!disp.IsPeripheralAddress(pa)) return false;
-        *out = (width == 1u) ? disp.ReadByte(pa)
-             : (width == 2u) ? disp.ReadHalf(pa) : disp.ReadWord(pa);
-        return true;
-    }
-    bool WritePhys(uint32_t pa, uint32_t width, uint32_t value) {
-        auto& mem = emu_.Get<EmulatedMemory>();
-        if (uint8_t* p = mem.TryTranslateWrite(pa)) { std::memcpy(p, &value, width); return true; }
-        auto& disp = emu_.Get<PeripheralDispatcher>();
-        if (!disp.IsPeripheralAddress(pa)) return false;
-        if (width == 1u)      disp.WriteByte(pa, static_cast<uint8_t>(value));
-        else if (width == 2u) disp.WriteHalf(pa, static_cast<uint16_t>(value));
-        else                  disp.WriteWord(pa, value);
-        return true;
+    bool ReadPhys32(uint32_t pa, uint32_t* out) {
+        return emu_.Get<PhysicalBus>().Read(pa, BusWidth::Word, out);
     }
 };
 
