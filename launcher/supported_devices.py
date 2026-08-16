@@ -86,6 +86,7 @@ from board_catalog_schema import (
     WINDOWS_MOBILE_5,
     WINDOWS_MOBILE_6,
     ZUNE_OS_5,
+    LINUX_BASED_OS,
 )
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
@@ -189,7 +190,7 @@ BOARDS_INFORMATION = [
         "board_id": "jornada_720",
         "supported": True,
         "soc": SOC_SA1110,
-        "operating_systems": [HANDHELD_PC_2000],
+        "operating_systems": [HANDHELD_PC_2000, LINUX_BASED_OS],
         "features": {
             "display": True,
             "sound": True,
