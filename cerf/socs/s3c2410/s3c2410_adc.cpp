@@ -31,6 +31,9 @@ constexpr uint32_t kConEnableStart = 1u << 0;
 /* UM p. 16-8 ADCTSC: [8] Reserved, [7] YM_SEN, [6] YP_SEN, [5] XM_SEN,
    [4] XP_SEN, [3] PULL_UP, [2] AUTO_PST, [1:0] XY_PST. */
 constexpr uint32_t kTscWritable  = 0x1FFu;
+/* Linux drivers/input/touchscreen/s3c2410_ts.c INT_DOWN 0 / INT_UP (1 << 8),
+   written as WAIT4INT|INT_DOWN 0xD3 and WAIT4INT|INT_UP 0x1D3. */
+constexpr uint32_t kTscUdSen     = 1u << 8;
 constexpr uint32_t kTscAutoPst   = 1u << 2;
 constexpr uint32_t kTscXyPstMask = 0x3u;
 constexpr uint32_t kXyPstNoOperation = 0u;
@@ -61,6 +64,14 @@ bool S3C2410Adc::ShouldRegister() {
 
 void S3C2410Adc::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
+    emu_.Get<S3C2410SubSourceLevels>().Register(kMainSourceAdc, kSubSourceTc,
+                                                this);
+}
+
+bool S3C2410Adc::SubSourceAsserted(int sub_source_bit) {
+    if (sub_source_bit != kSubSourceTc) return false;
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    return PenInterruptAssertedLocked();
 }
 
 uint32_t S3C2410Adc::MmioBase() const { return kBase; }
@@ -86,9 +97,16 @@ void S3C2410Adc::ConvertLocked() {
             tsc_);
     }
 
+    auto* calibration = emu_.TryGet<S3C2410TouchCalibration>();
+    if (!calibration) {
+        emu_.Get<Fatal>().Die(
+            "S3C2410 ADC: Auto (Sequential) X/Y Position Conversion started on "
+            "a board that registers no S3C2410TouchCalibration");
+    }
+
     uint16_t x = pen_x_;
     uint16_t y = pen_y_;
-    if (emu_.Get<S3C2410TouchCalibration>().AxisSwap()) {
+    if (calibration->AxisSwap()) {
         const uint16_t t = x;
         x = y;
         y = t;
@@ -100,10 +118,12 @@ void S3C2410Adc::ConvertLocked() {
 
 /* UM p. 16-5 "When Touch Screen Controller is in Waiting for Interrupt Mode,
    it waits for Stylus down. The controller generates Interrupt (INT_TC)
-   signals when the Stylus is down on Touch Screen Panel." */
-bool S3C2410Adc::TouchRequestedLocked(bool pen_edge) const {
-    return pen_edge && pen_down_ &&
-           (tsc_ & kTscXyPstMask) == kXyPstWaitForInt;
+   signals when the Stylus is down on Touch Screen Panel." UM p. 16-8 ADCTSC
+   XY_PST 11 = "Waiting for Interrupt Mode". */
+bool S3C2410Adc::PenInterruptAssertedLocked() const {
+    if ((tsc_ & kTscXyPstMask) != kXyPstWaitForInt) return false;
+    const bool reports_stylus_down = (tsc_ & kTscUdSen) == 0;
+    return pen_down_ == reports_stylus_down;
 }
 
 uint32_t S3C2410Adc::ReadWord(uint32_t addr) {
@@ -153,7 +173,7 @@ void S3C2410Adc::WriteWord(uint32_t addr, uint32_t value) {
             }
             case kOffTsc:
                 tsc_        = value & kTscWritable;
-                raise_touch = TouchRequestedLocked(true);
+                raise_touch = PenInterruptAssertedLocked();
                 break;
             case kOffDly:
                 dly_ = value & kDlyWritable;
@@ -175,11 +195,10 @@ void S3C2410Adc::SetPen(bool down, uint16_t sample_x, uint16_t sample_y) {
     bool raise_touch = false;
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        const bool edge = (down != pen_down_);
-        pen_down_ = down;
-        pen_x_    = sample_x;
-        pen_y_    = sample_y;
-        raise_touch = TouchRequestedLocked(edge);
+        pen_down_   = down;
+        pen_x_      = sample_x;
+        pen_y_      = sample_y;
+        raise_touch = PenInterruptAssertedLocked();
     }
     if (raise_touch)
         emu_.Get<IrqController>().AssertSubIrq(kMainSourceAdc, kSubSourceTc);
@@ -205,12 +224,21 @@ void S3C2410Adc::RestoreState(StateReader& r) {
     r.Read(tsc_);
     r.Read(dly_);
     r.Read(v); ecflg_ = (v != 0);
-    r.Read(v);
-    pen_down_ = false;
+    r.Read(v); pen_down_ = false;
     r.Read(v); pen_x_ = static_cast<uint16_t>(v);
     r.Read(v); pen_y_ = static_cast<uint16_t>(v);
     r.Read(x_data_);
     r.Read(y_data_);
+}
+
+void S3C2410Adc::PostRestore() {
+    bool raise_touch = false;
+    {
+        std::lock_guard<std::mutex> lk(state_mutex_);
+        raise_touch = PenInterruptAssertedLocked();
+    }
+    if (raise_touch)
+        emu_.Get<IrqController>().AssertSubIrq(kMainSourceAdc, kSubSourceTc);
 }
 
 REGISTER_SERVICE(S3C2410Adc);

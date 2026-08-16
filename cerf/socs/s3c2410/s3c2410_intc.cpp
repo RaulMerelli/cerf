@@ -10,6 +10,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
+#include "s3c2410_sub_source_levels.h"
 
 #include <bit>
 #include <mutex>
@@ -57,6 +58,19 @@ private:
        Caller holds state_mutex_. */
     void RecomputeIntpndIntoffset();
 
+    /* UM printed 14-17 SUBSRCPND [10] INT_ADC, [9] INT_TC, [8:6] UART2, [5:3]
+       UART1, [2:0] UART0; printed 14-3 groups INT_ADC as "ADC EOC and Touch
+       interrupt (INT_ADC/INT_TC)"; printed 14-7 SRCPND INT_ADC [31],
+       INT_UART0 [28], INT_UART1 [23], INT_UART2 [15]. */
+    struct SubGroup { uint32_t sub_mask; int main_bit; };
+    static constexpr SubGroup kSubGroups[] = {
+        {0x007u, 28}, {0x038u, 23}, {0x1C0u, 15}, {0x600u, 31},
+    };
+
+    int      MainSourceForSubLocked(int sub_source_bit) const;
+    uint32_t SubSourceRollupLocked() const;
+    void     ApplySubSourceRollupLocked();
+
     /* True iff (SRCPND & ~INTMSK) is non-zero. Caller holds
        state_mutex_. */
     bool HasPendingUnmasked() const;
@@ -92,6 +106,26 @@ void S3C2410Intc::RecomputeIntpndIntoffset() {
     const int bit = std::countr_zero(pending);
     storage_[kSlotINTPND]    = (1u << bit);
     storage_[kSlotINTOFFSET] = static_cast<uint32_t>(bit);
+}
+
+int S3C2410Intc::MainSourceForSubLocked(int sub_source_bit) const {
+    for (const SubGroup& g : kSubGroups)
+        if (g.sub_mask & (1u << sub_source_bit)) return g.main_bit;
+    return -1;
+}
+
+uint32_t S3C2410Intc::SubSourceRollupLocked() const {
+    const uint32_t active =
+        storage_[kSlotSUBSRCPND] & ~storage_[kSlotINTSUBMSK];
+    uint32_t main_pending = 0;
+    for (const SubGroup& g : kSubGroups)
+        if (active & g.sub_mask) main_pending |= 1u << g.main_bit;
+    return main_pending;
+}
+
+void S3C2410Intc::ApplySubSourceRollupLocked() {
+    storage_[kSlotSRCPND] |= SubSourceRollupLocked();
+    RecomputeIntpndIntoffset();
 }
 
 bool S3C2410Intc::HasPendingUnmasked() const {
@@ -151,18 +185,19 @@ void S3C2410Intc::AssertSubIrq(int main_source_bit, int sub_source_bit) {
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
 
+        if (MainSourceForSubLocked(sub_source_bit) != main_source_bit) {
+            LOG(Caution, "S3C2410Intc::AssertSubIrq: sub source %d belongs to "
+                    "main source %d, caller passed %d\n", sub_source_bit,
+                    MainSourceForSubLocked(sub_source_bit), main_source_bit);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+
         /* Sub-pending stays latched even when INTSUBMSK masks it -
            drivers read SUBSRCPND directly to demux sub-IRQs. */
         storage_[kSlotSUBSRCPND] |= sub_mask;
 
-        /* Sub→main rollup gates through INTSUBMSK (combinational OR on
-           real silicon); SRCPND and SUBSRCPND latch independently so
-           drivers W1C both at ack. */
-        if ((storage_[kSlotINTSUBMSK] & sub_mask) == 0) {
-            storage_[kSlotSRCPND] |= main_mask;
-            RecomputeIntpndIntoffset();
-            if (HasPendingUnmasked()) emu_.Get<ArmJit>().SetInterruptPending();
-        }
+        ApplySubSourceRollupLocked();
+        if (HasPendingUnmasked()) emu_.Get<ArmJit>().SetInterruptPending();
     }
 }
 
@@ -208,21 +243,36 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
+    uint32_t cleared_sub = 0;
+
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
         switch (slot) {
-            case kSlotSRCPND:
-            case kSlotINTPND:
             case kSlotSUBSRCPND:
+                cleared_sub = storage_[slot] & value;
+                storage_[slot] &= ~value;
+                ApplySubSourceRollupLocked();
+                break;
+
+            case kSlotSRCPND:
                 /* W1C - bit set in `value` clears that bit. The kernel's
                    IRQ handler exit sequence writes 1s to clear pending
                    bits before IRETing. */
                 storage_[slot] &= ~value;
+                ApplySubSourceRollupLocked();
+                break;
+
+            case kSlotINTPND:
+                storage_[slot] &= ~value;
                 RecomputeIntpndIntoffset();
                 break;
 
-            case kSlotINTMSK:
             case kSlotINTSUBMSK:
+                storage_[slot] = value;
+                ApplySubSourceRollupLocked();
+                break;
+
+            case kSlotINTMSK:
                 storage_[slot] = value;
                 RecomputeIntpndIntoffset();
                 break;
@@ -244,6 +294,8 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
         if (HasPendingUnmasked()) jit.SetInterruptPending();
         else                      jit.ClearInterruptPending();
     }
+
+    emu_.Get<S3C2410SubSourceLevels>().ReassertStillHeld(cleared_sub);
 }
 
 void S3C2410Intc::SaveState(StateWriter& w) {
@@ -260,6 +312,7 @@ void S3C2410Intc::PostRestore() {
     /* Re-derive the JIT IRQ-pending latch from the restored SRCPND/INTMSK after
        every peripheral's RestoreState has run - the INTC owns the CPU IRQ line. */
     std::lock_guard<std::mutex> lk(state_mutex_);
+    ApplySubSourceRollupLocked();
     auto& jit = emu_.Get<ArmJit>();
     if (HasPendingUnmasked()) jit.SetInterruptPending();
     else                      jit.ClearInterruptPending();

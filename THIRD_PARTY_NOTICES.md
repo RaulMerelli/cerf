@@ -107,7 +107,8 @@ The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full licens
   chaining and cache invalidation, the condition-flag cache, MMIO dispatch
   memoization, the virtual clock and the timer peripherals, and the DP8390 NIC.
 - **[the Linux kernel](https://www.kernel.org/)** - StrongARM coprocessor behavior,
-  the NE2000 PC card, the 8390 NIC, raw NAND, and the S3C24xx IIS.
+  the NE2000 PC card, the 8390 NIC, raw NAND, the S3C24xx IIS, and the S3C24xx
+  touch screen.
 
 ## Trademarks
 

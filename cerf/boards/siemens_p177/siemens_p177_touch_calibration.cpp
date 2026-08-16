@@ -16,12 +16,6 @@ constexpr double kRawXRight = 886.5;    /* avg(881,892) */
 constexpr double kRawYTop   = 865.0;    /* avg(852,878) */
 constexpr double kRawYBot   = 175.0;    /* avg(168,182) */
 
-uint16_t Clamp10(double v) {
-    if (v <    0.0) return 0;
-    if (v > 1023.0) return 1023;
-    return (uint16_t)(v + 0.5);
-}
-
 class SiemensP177TouchCalibration : public S3C2410TouchCalibration {
 public:
     using S3C2410TouchCalibration::S3C2410TouchCalibration;
@@ -36,13 +30,14 @@ public:
                          uint16_t& sample_x, uint16_t& sample_y) const override {
         const double fx = (double)host_x / screen_w;
         const double fy = (double)host_y / screen_h;
-        sample_x = Clamp10(kRawXLeft + (fx - kCalXLeftFrac) *
-                           (kRawXRight - kRawXLeft) / (kCalXRightFrac - kCalXLeftFrac));
-        sample_y = Clamp10(kRawYTop + (fy - kCalYTopFrac) *
-                           (kRawYBot - kRawYTop) / (kCalYBotFrac - kCalYTopFrac));
+        sample_x = ClampSample(kRawXLeft + (fx - kCalXLeftFrac) *
+                               (kRawXRight - kRawXLeft) / (kCalXRightFrac - kCalXLeftFrac));
+        sample_y = ClampSample(kRawYTop + (fy - kCalYTopFrac) *
+                               (kRawYBot - kRawYTop) / (kCalYBotFrac - kCalYTopFrac));
     }
 
-    /* sub_3422318 reads ADCDAT0 as X, ADCDAT1 as Y - not swapped. */
+    /* siemens_tp177b_4inch_v1020 touch.dll sub_3422318 0x03422318 reads ADCDAT0
+       as X and ADCDAT1 as Y - not swapped. */
     bool AxisSwap() const override { return false; }
 };
 
