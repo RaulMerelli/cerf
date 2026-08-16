@@ -19,6 +19,13 @@ enum ArmSrType : uint32_t {
     kSrRrx = 4u,
 };
 
+/* DDI 0406C.c Table A5-5 (p. A5-199) allocates the ARM data-processing opcodes
+   0..15. DDI 0406C.c Table A6-10 (p. A6-231) row 0011 with Rn != 1111 is
+   Bitwise OR NOT, A8.8.120 ORN (immediate) (p. A8-512). */
+enum ArmDpOpcode : uint32_t {
+    kDpOrn = 16u,
+};
+
 struct DecodedInsn {
     ArmPlaceFn place_fn;
     uint32_t   guest_address;

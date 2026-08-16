@@ -5,6 +5,7 @@
 #include "../../core/fatal.h"
 #include "../../cpu/arm_processor_config.h"
 #include "decoded_insn.h"
+#include "place_fns.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
 
@@ -47,9 +48,71 @@ bool Thumb32Decoder::DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op) {
                   op);
 }
 
+/* ARM DDI 0406C.c Table A6-11 (A6.3.2, p. A6-232): the key i:imm3:a selects
+   the placement of abcdefgh. Keys 00xxx replicate the byte into one, two or
+   four positions; every other key is the rotation applied to 1bcdefgh. */
+uint32_t Thumb32Decoder::ThumbExpandImm(uint32_t key, uint32_t imm8) const {
+    if ((key >> 3) == 0u) {
+        switch ((key >> 1) & 0x3u) {
+        case 0u:  return imm8;
+        case 1u:  return (imm8 << 16) | imm8;
+        case 2u:  return (imm8 << 24) | (imm8 << 8);
+        default:  return (imm8 << 24) | (imm8 << 16) | (imm8 << 8) | imm8;
+        }
+    }
+    const uint32_t value = 0x80u | (imm8 & 0x7Fu);
+    return (value >> key) | (value << (32u - key));
+}
+
+/* ARM DDI 0406C.c Table A6-10 and the encoding diagram above it (A6.3.1,
+   p. A6-231): i = bit[26], op = bits[24:21], S = bit[20], Rn = bits[19:16],
+   imm3 = bits[14:12], Rd = bits[11:8], imm8 = bits[7:0]; "Other encodings in
+   this space are UNDEFINED". */
 bool Thumb32Decoder::DecodeDataProcessingModifiedImmediate(DecodedInsn* insn,
                                                            uint32_t op) {
-    Unimplemented("data-processing (modified immediate) (A6-231)", insn, op);
+    const uint32_t o    = (op >> 21) & 0xFu;
+    const uint32_t s    = (op >> 20) & 0x1u;
+    const uint32_t rn   = (op >> 16) & 0xFu;
+    const uint32_t rd   = (op >>  8) & 0xFu;
+    const uint32_t imm8 =  op        & 0xFFu;
+    const uint32_t key  = (((op >> 26) & 0x1u) << 4) |
+                          (((op >> 12) & 0x7u) << 1) | ((imm8 >> 7) & 0x1u);
+    const bool     wide_rd = rd == 0xFu && s != 0u;
+
+    uint32_t opcode;
+    bool     test = false;
+    switch (o) {
+    case 0x0u: test = wide_rd; opcode = test ? 8u : 0u; break;
+    case 0x1u: opcode = 14u; break;
+    case 0x2u: opcode = rn == 0xFu ? 13u : 12u; break;
+    case 0x3u: opcode = rn == 0xFu ? 15u : static_cast<uint32_t>(kDpOrn); break;
+    case 0x4u: test = wide_rd; opcode = test ? 9u : 1u; break;
+    case 0x8u: test = wide_rd; opcode = test ? 11u : 4u; break;
+    case 0xAu: opcode = 5u; break;
+    case 0xBu: opcode = 6u; break;
+    case 0xDu: test = wide_rd; opcode = test ? 10u : 2u; break;
+    case 0xEu: opcode = 3u; break;
+    default:   return false;
+    }
+    /* d == 15 is UNPREDICTABLE across this class: A8.8.13 AND (immediate)
+       (p. A8-324), A8.8.4 ADD (immediate, Thumb) T3 (p. A8-306) and A8.8.221
+       SUB (immediate, Thumb) T3 (p. A8-708) when S == 0; A8.8.120 ORN
+       (immediate) (p. A8-512), A8.8.102 MOV (immediate) T2 (p. A8-484) and
+       A8.8.115 MVN (immediate) T1 (p. A8-504) outright. */
+    if (!test && rd == 0xFu) return false;
+
+    insn->op1       = opcode;
+    insn->s         = s;
+    insn->rn        = rn;
+    insn->rd        = rd;
+    insn->immediate = ThumbExpandImm(key, imm8);
+    /* A6.3.2 "Carry out" (p. A6-232): "A logical instruction with i:imm3:a ==
+       '00xxx' does not affect the Carry flag. Otherwise, a logical flag-setting
+       instruction sets the Carry flag to the value of bit[31] of the modified
+       immediate constant." */
+    insn->rs        = key >= 8u ? key : 0u;
+    insn->place_fn  = &PlaceDataProcessing;
+    return true;
 }
 
 bool Thumb32Decoder::DecodeDataProcessingPlainBinaryImmediate(DecodedInsn* insn,

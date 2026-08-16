@@ -44,6 +44,8 @@ private:
     bool DecodeSimdElementOrStructure(DecodedInsn* insn, uint32_t op);
     bool DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op);
 
+    uint32_t ThumbExpandImm(uint32_t key, uint32_t imm8) const;
+
     [[noreturn]] void Unimplemented(const char* what, const DecodedInsn* insn,
                                     uint32_t op);
 };

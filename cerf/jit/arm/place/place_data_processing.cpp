@@ -96,6 +96,7 @@ uint8_t* PlaceDataProcessing(uint8_t*      cursor,
         case 11u: EmitAddRegImm32(cursor, kEax, imm32);  break;
         case 12u: EmitOrRegImm32(cursor, kEax, imm32);   break;
         case 14u: EmitAndRegImm32(cursor, kEax, ~imm32); break;
+        case kDpOrn: EmitOrRegImm32(cursor, kEax, ~imm32); break;
         default:
             LOG(Caution, "PlaceDataProcessing: opcode %u has no emit path "
                     "(pc=0x%08X)\n", opcode, d->guest_address);
