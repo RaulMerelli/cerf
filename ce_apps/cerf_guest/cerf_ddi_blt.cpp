@@ -177,6 +177,15 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
     GPESurf* pMask = CerfWrapSurfobj(&tMask, psoMask);
     if (!pDst) return FALSE;
 
+    RECTL rclTrg = *prclTrg;
+    if (rclTrg.right < rclTrg.left) {
+        const LONG t = rclTrg.right; rclTrg.right = rclTrg.left; rclTrg.left = t;
+    }
+    if (rclTrg.bottom < rclTrg.top) {
+        const LONG t = rclTrg.bottom; rclTrg.bottom = rclTrg.top; rclTrg.top = t;
+    }
+    prclTrg = &rclTrg;
+
     GPEBltParms parms;
     memset(&parms, 0, sizeof(parms));
     parms.pDst          = pDst;
@@ -206,12 +215,6 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
                 return CerfBltFail(pDst, pSrc, &parms, lookup_owned);
         }
     } else if (bltFlags & BLT_STRETCH) {
-        if (prclTrg->right < prclTrg->left) {
-            const LONG t = prclTrg->right; prclTrg->right = prclTrg->left; prclTrg->left = t;
-        }
-        if (prclTrg->bottom < prclTrg->top) {
-            const LONG t = prclTrg->bottom; prclTrg->bottom = prclTrg->top; prclTrg->top = t;
-        }
         bltFlags &= ~BLT_STRETCH;
     }
     parms.bltFlags = bltFlags;
@@ -244,7 +247,10 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
             rclMask.right  = pptlMask->x + (prclTrg->right - prclTrg->left);
             rclMask.bottom = pptlMask->y + (prclTrg->bottom - prclTrg->top);
         } else if (prclSrc) {
-            rclMask = *prclSrc;
+            rclMask.left   = prclSrc->left;
+            rclMask.top    = prclSrc->top;
+            rclMask.right  = prclSrc->left + (prclTrg->right - prclTrg->left);
+            rclMask.bottom = prclSrc->top  + (prclTrg->bottom - prclTrg->top);
         } else {
             CERF_LOG("cerf_guest: DROP mask-matters rop with no mask rect");
             return CerfBltFail(pDst, pSrc, &parms, lookup_owned);
@@ -413,7 +419,7 @@ extern "C" BOOL APIENTRY DrvRealizeBrush(BRUSHOBJ* pbo, SURFOBJ* psoTarget,
     }
 
     SCODE sc = pGPE->BltPrepare(&parms);
-    if (!FAILED(sc) && parms.pBlt) sc = (pGPE->*parms.pBlt)(&parms);
+    if (!FAILED(sc)) sc = (pGPE->*parms.pBlt)(&parms);
     pGPE->BltComplete(&parms);
 
     CerfReleaseSurfaceFormat(brush);

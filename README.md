@@ -297,6 +297,8 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ Installed devices are listed and launchable immediately at startup instead of waiting for the bundle catalog on a slow or absent connection<br/>
           ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off<br/>
           ✅ The update check now understands build numbers in release tags</p>
+        <p><b>✨ Guest Additions</b><br/>
+          ✅ Crash when drawing off-screen (GiNi)</p>
       </td>
     </tr>
     <tr>

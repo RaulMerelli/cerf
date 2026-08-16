@@ -87,6 +87,17 @@ int CerfEGPEFormatStride(int width, EGPEFormat fmt);
 EGPEFormat CerfIFormatToEGPE(ULONG iFormat);
 ULONG      CerfEGPEToIFormat(EGPEFormat fmt);
 
+void CerfRectClamp(RECTL* r, const RECTL* bound);
+enum CerfExtentOwner {
+    kCerfExtentDstWidth   = 0,
+    kCerfExtentDstHeight  = 1,
+    kCerfExtentBrushWidth = 2,
+    kCerfExtentBrushHeight = 3
+};
+
+void CerfRequireExtent(int v, int who);
+void CerfEffectiveClip(RECTL* out, const RECTL* clip, GPESurf* dst);
+
 inline EDDGPEPixelFormat CerfFormatToDDGPE(EGPEFormat fmt) {
     switch (fmt) {
         case gpe8Bpp:  return ddgpePixelFormat_8bpp;

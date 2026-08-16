@@ -23,6 +23,8 @@ typedef struct CerfLineDescriptor {
     uint32_t mix;
     uint32_t band_y_first;
     uint32_t band_y_count;
+    uint32_t has_clip;
+    CerfBltRect clip_rect;
     CerfBltSurface dst;
 } CerfLineDescriptor;
 

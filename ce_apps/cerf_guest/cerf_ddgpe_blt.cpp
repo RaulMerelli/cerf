@@ -19,30 +19,6 @@ ULONG CerfSpanBytes(int x0, int y0, int x1, int y1, int stride, int bits) {
     return sp;
 }
 
-static void CerfLineYExtent(const GPELineParms* p, int* ymin, int* ymax) {
-    static const signed char kDirDy[8][2] = {
-        { 0,  1 }, { 1,  0 }, { 1,  0 }, { 0,  1 },
-        { 0, -1 }, { -1, 0 }, { -1, 0 }, { 0, -1 },
-    };
-    const int maj_dy = kDirDy[p->iDir & 7][0];
-    const int min_dy = kDirDy[p->iDir & 7][1];
-    long accum = (long)p->dN + p->llGamma;
-    const long axstp = (long)p->dN;
-    const long dgstp = (long)p->dN - (long)p->dM;
-    int y = p->yStart, lo = y, hi = y, n;
-    for (n = p->cPels; n > 0; --n) {
-        if (y < lo) lo = y;
-        if (y > hi) hi = y;
-        if (n == 1) break;
-        y += maj_dy;
-        if (axstp) {
-            if (accum < 0) accum += axstp;
-            else { y += min_dy; accum += dgstp; }
-        }
-    }
-    *ymin = lo; *ymax = hi;
-}
-
 static int CerfSrcDyAt(int dst_len, int src_len, int k) {
     int src_pos = 0, c;
     if (dst_len == src_len) return k;
@@ -69,6 +45,60 @@ static int CerfSrcDyAt(int dst_len, int src_len, int k) {
     return src_pos;
 }
 
+static void CerfWindowHalt(const char* what, int x0, int y0, int x1, int y1,
+                           int w, int h) {
+    CERF_LOG_X("cerf_guest: stage window x0", (ULONG)x0);
+    CERF_LOG_X("cerf_guest: stage window y0", (ULONG)y0);
+    CERF_LOG_X("cerf_guest: stage window x1", (ULONG)x1);
+    CERF_LOG_X("cerf_guest: stage window y1", (ULONG)y1);
+    CERF_LOG_X("cerf_guest: surface width", (ULONG)w);
+    CERF_LOG_X("cerf_guest: surface height", (ULONG)h);
+    CERF_FATAL(what);
+}
+
+static void CerfClampWindow(int* x0, int* y0, int* x1, int* y1,
+                            const RECTL* bound) {
+    RECTL r;
+    r.left = *x0; r.top = *y0; r.right = *x1; r.bottom = *y1;
+    CerfRectClamp(&r, bound);
+    *x0 = (int)r.left; *y0 = (int)r.top;
+    *x1 = (int)r.right; *y1 = (int)r.bottom;
+}
+
+static void CerfNarrowToSrc(int* x0, int* y0, int* x1, int* y1, GPESurf* s) {
+    const int w = (int)s->Width(), h = (int)s->Height();
+    if (w <= 0 || h <= 0)
+        CerfWindowHalt("cerf_guest: source surface reports no extent - halting",
+                       *x0, *y0, *x1, *y1, w, h);
+    RECTL bound;
+    bound.left = 0; bound.top = 0; bound.right = w; bound.bottom = h;
+    CerfClampWindow(x0, y0, x1, y1, &bound);
+    if (*x1 <= *x0 || *y1 <= *y0)
+        CerfWindowHalt("cerf_guest: source window outside source surface - halting",
+                       *x0, *y0, *x1, *y1, w, h);
+}
+
+static void CerfNarrowToMask(int* x0, int* y0, int* x1, int* y1, GPESurf* s,
+                             const RECTL* mrect) {
+    const int w = (int)s->Width(), h = (int)s->Height();
+    RECTL bound = *mrect;
+    if (bound.right < bound.left) {
+        const LONG t = bound.right; bound.right = bound.left; bound.left = t;
+    }
+    if (bound.bottom < bound.top) {
+        const LONG t = bound.bottom; bound.bottom = bound.top; bound.top = t;
+    }
+    if (w > 0 && h > 0) {
+        RECTL extent;
+        extent.left = 0; extent.top = 0; extent.right = w; extent.bottom = h;
+        CerfRectClamp(&bound, &extent);
+    }
+    CerfClampWindow(x0, y0, x1, y1, &bound);
+    if (*x1 <= *x0 || *y1 <= *y0)
+        CerfWindowHalt("cerf_guest: mask window outside mask bounds - halting",
+                       *x0, *y0, *x1, *y1, w, h);
+}
+
 static void CerfStageSurface(CerfVirt::CerfBltSurface* s, ULONG buffer_va,
                              int x0, int y0, int x1, int y1,
                              int stride, int bits, CerfStageWb* wb) {
@@ -88,6 +118,10 @@ static void CerfStageSurface(CerfVirt::CerfBltSurface* s, ULONG buffer_va,
 
     ULONG arena_off = 0u;
     void* dstp = CerfArenaAlloc(span, &arena_off);
+    if (!dstp) {
+        CERF_LOG_X("cerf_guest: Stage arena alloc failed, span", span);
+        CERF_FATAL("cerf_guest: DMA arena surface alloc failed - halting");
+    }
     memcpy(dstp, (const void*)(ULONG_PTR)((LONG)buffer_va + lo_off), span);
 
     s->buffer    = (uint32_t)((LONG)arena_off - lo_off);
@@ -170,6 +204,21 @@ void CerfDDGPE::FillSurfaceFromSurfobj(CerfVirt::CerfBltSurface* s, SURFOBJ* pso
 }
 
 void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1) {
+    RECTL eclip;
+    CerfEffectiveClip(&eclip, p->prclClip, p->pDst);
+    int dw = b.dr - b.dl; if (dw < 0) dw = -dw;
+    int vx0 = b.dl, vx1 = b.dl + dw;
+    int vy0 = b.dt + r0, vy1 = b.dt + r1;
+    CerfClampWindow(&vx0, &vy0, &vx1, &vy1, &eclip);
+    if (vx1 <= vx0 || vy1 <= vy0) return;
+    const int c0  = vx0 - b.dl,  c1  = vx1 - b.dl;
+    const int rr0 = vy0 - b.dt,  rr1 = vy1 - b.dt;
+    const int sw = b.sr - b.sl;
+    const int sx0 = b.use_lut_y ? CerfSrcDyAt(dw, sw, c0) : c0;
+    const int sx1 = b.use_lut_y ? CerfSrcDyAt(dw, sw, c1 - 1) : (c1 - 1);
+    const int sy0 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, rr0) : rr0;
+    const int sy1 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, rr1 - 1) : (rr1 - 1);
+
     if (!CerfArenaEnter()) CERF_FATAL("cerf_guest: DMA arena unavailable - halting");
     ULONG desc_off = 0u;
     CerfVirt::CerfBltDescriptor* pd = (CerfVirt::CerfBltDescriptor*)
@@ -185,16 +234,14 @@ void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1
     d.x_positive     = p->xPositive ? 1u : 0u;
     d.y_positive     = p->yPositive ? 1u : 0u;
     d.blend_function = *(const ULONG*)&p->blendFunction;
-    d.band_row_first = (uint32_t)r0;
-    d.band_row_count = (uint32_t)(r1 - r0);
+    d.band_row_first = (uint32_t)rr0;
+    d.band_row_count = (uint32_t)(rr1 - rr0);
 
     CerfStageWb dstwb = {0};
     RectToDesc(&d.dst_rect, p->prclDst);
-    FillSurface(&d.dst, p->pDst, b.dl, b.dt + r0, b.dr, b.dt + r1, true, true, &dstwb);
+    FillSurface(&d.dst, p->pDst, vx0, vy0, vx1, vy1, true, true, &dstwb);
 
     if (b.has_src) {
-        const int sy0 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r0) : r0;
-        const int sy1 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r1 - 1) : (r1 - 1);
         d.has_src        = 1u;
         d.convert_active = (!b.src_pal && p->pConvert != NULL) ? 1u : 0u;
         if (b.src_pal && p->pLookup) {
@@ -210,14 +257,18 @@ void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1
         d.to_mono = p->toMono ? 1u : 0u;
         d.mono_bg = (uint32_t)p->monoBg;
         RectToDesc(&d.src_rect, p->prclSrc);
-        FillSurface(&d.src, p->pSrc, b.sl, b.st + sy0, b.sr, b.st + sy1 + 1, false);
+        int sxa = b.sl + sx0,     sya = b.st + sy0;
+        int sxb = b.sl + sx1 + 1, syb = b.st + sy1 + 1;
+        CerfNarrowToSrc(&sxa, &sya, &sxb, &syb, p->pSrc);
+        FillSurface(&d.src, p->pSrc, sxa, sya, sxb, syb, false);
     }
     if (b.has_mask) {
-        const int my0 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r0) : r0;
-        const int my1 = b.use_lut_y ? CerfSrcDyAt(b.height, b.src_h, r1 - 1) : (r1 - 1);
         d.has_mask = 1u;
         RectToDesc(&d.mask_rect, p->prclMask);
-        FillSurface(&d.mask, p->pMask, b.ml, b.mt + my0, b.mr, b.mt + my1 + 1, false);
+        int mxa = b.ml + c0,   mya = b.mt + rr0;
+        int mxb = b.ml + c1,   myb = b.mt + rr1;
+        CerfNarrowToMask(&mxa, &mya, &mxb, &myb, p->pMask, p->prclMask);
+        FillSurface(&d.mask, p->pMask, mxa, mya, mxb, myb, false);
     }
     if (b.has_brush) {
         d.has_brush    = 1u;
@@ -230,10 +281,8 @@ void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1
             d.brush_ptl_y   = p->pptlBrush->y;
         }
     }
-    if (p->prclClip) {
-        d.has_clip = 1u;
-        RectToDesc(&d.clip_rect, p->prclClip);
-    }
+    d.has_clip = 1u;
+    RectToDesc(&d.clip_rect, &eclip);
 
     const ULONG cgb = CerfGpeBlt(desc_off);
     if (cgb == 2u && dstwb.active)
@@ -284,8 +333,8 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
         sl = p->prclSrc->left; st = p->prclSrc->top; sr = p->prclSrc->right;
         src_stride = (int)p->pSrc->Stride();
         src_bits   = CerfFormatBpp(p->pSrc->Format());
-        src_w = p->prclSrc->right  - p->prclSrc->left; if (src_w < 0) src_w = -src_w;
-        src_h = p->prclSrc->bottom - p->prclSrc->top;  if (src_h < 0) src_h = -src_h;
+        src_w = p->prclSrc->right  - p->prclSrc->left;
+        src_h = p->prclSrc->bottom - p->prclSrc->top;
     }
     const bool stretch   = (p->bltFlags & 0x0008u) != 0u;
     const bool use_lut_y = has_src && stretch && (src_w != width || src_h != height);
@@ -313,8 +362,10 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     int bw = 0, bh = 0;
     ULONG brush_span = 0;
     if (has_brush) {
-        bw = p->pBrush->Width()  > 0 ? p->pBrush->Width()  : 1;
-        bh = p->pBrush->Height() > 0 ? p->pBrush->Height() : 1;
+        bw = p->pBrush->Width();
+        bh = p->pBrush->Height();
+        CerfRequireExtent(bw, kCerfExtentBrushWidth);
+        CerfRequireExtent(bh, kCerfExtentBrushHeight);
         if (!SurfaceFbPa(p->pBrush, &pa))
             brush_span = CerfSpanBytes(0, 0, bw, bh, (int)p->pBrush->Stride(),
                                        CerfFormatBpp(p->pBrush->Format()));
@@ -323,9 +374,15 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
                          - (ULONG)sizeof(CerfVirt::CerfBltDescriptor)
                          - lut_bytes - brush_span - 64u;
 
-    const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt, mr,
+    const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt,
                                height, src_h, bw, bh,
                                has_src, has_mask, has_brush, src_pal, use_lut_y };
+
+    RECTL bclip;
+    CerfEffectiveClip(&bclip, p->prclClip, p->pDst);
+    int cl = dl, cr = dl + width, ct = dt, cb = dt + height;
+    CerfClampWindow(&cl, &ct, &cr, &cb, &bclip);
+    if (cr <= cl || cb <= ct) return S_OK;
 
     int r0 = 0;
     while (r0 < height) {
@@ -333,17 +390,14 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
         while (!overlap && r1 > r0 + 1) {
             ULONG t = 0;
             if (!dst_fb)
-                t += CerfSpanBytes(dl, dt + r0, dr, dt + r1, dst_stride, dst_bits);
+                t += CerfSpanBytes(cl, dt + r0, cr, dt + r1, dst_stride, dst_bits);
             if (has_src && !src_fb) {
                 const int sy0 = use_lut_y ? CerfSrcDyAt(height, src_h, r0) : r0;
                 const int sy1 = use_lut_y ? CerfSrcDyAt(height, src_h, r1 - 1) : (r1 - 1);
                 t += CerfSpanBytes(sl, st + sy0, sr, st + sy1 + 1, src_stride, src_bits);
             }
-            if (has_mask) {
-                const int my0 = use_lut_y ? CerfSrcDyAt(height, src_h, r0) : r0;
-                const int my1 = use_lut_y ? CerfSrcDyAt(height, src_h, r1 - 1) : (r1 - 1);
-                t += CerfSpanBytes(ml, mt + my0, mr, mt + my1 + 1, mask_stride, mask_bits);
-            }
+            if (has_mask)
+                t += CerfSpanBytes(ml, mt + r0, mr, mt + r1, mask_stride, mask_bits);
             if (t <= budget) break;
             r1 = r0 + (r1 - r0) / 2;
         }
@@ -379,6 +433,10 @@ extern "C" int CerfDDrawBlt(void* dstLcl, void* srcLcl, const RECTL* rDest,
             ? ((ropArg >> 16) & 0xFFu) : 0xCCu;
         rop4 = (ropByte << 8) | ropByte;
         if (pSrc && rSrc) prclSrc = (const RECT*)rSrc;
+        if (prclSrc &&
+            ((rDest->right - rDest->left) != (rSrc->right - rSrc->left) ||
+             (rDest->bottom - rDest->top) != (rSrc->bottom - rSrc->top)))
+            bltFlags |= 8u;
 
         if ((ddFlags & 0x8000u) && pSrc) {
             bltFlags |= 4u;
@@ -396,81 +454,3 @@ extern "C" int CerfDDrawBlt(void* dstLcl, void* srcLcl, const RECTL* rDest,
     return (sc == S_OK) ? 1 : 0;
 }
 
-SCODE CerfDDGPE::HostLine(GPELineParms* p) {
-    if (!p || !p->pDst) CERF_FATAL("cerf_guest: HostLine has no dst - halting");
-    ULONG pa;
-    const EGPEFormat df = p->pDst->Format();
-    if ((!SurfaceFbPa(p->pDst, &pa) && !p->pDst->Buffer()) ||
-        (df != gpe1Bpp && df != gpe2Bpp && df != gpe4Bpp &&
-         df != gpe8Bpp && df != gpe16Bpp && df != gpe24Bpp && df != gpe32Bpp)) {
-        CERF_LOG_X("cerf_guest: HostLine unsupported dst fmt", (ULONG)df);
-        CERF_FATAL("cerf_guest: HostLine dst has no hardware route - halting");
-    }
-    const bool dst_fb = SurfaceFbPa(p->pDst, &pa) ? true : false;
-
-    int ymin = 0, ymax = -1;
-    if (!dst_fb) {
-        CerfLineYExtent(p, &ymin, &ymax);
-        const int H = (int)p->pDst->Height();
-        if (ymin < 0) ymin = 0;
-        if (ymax > H - 1) ymax = H - 1;
-        if (ymax < ymin) return S_OK;
-    }
-
-    const int   W          = (int)p->pDst->Width();
-    const int   dst_stride = (int)p->pDst->Stride();
-    const int   dst_bits   = CerfFormatBpp(df);
-    const ULONG budget = CerfVirt::kDmaPartitionSize - CerfVirt::kDmaPartHdrSize
-                         - (ULONG)sizeof(CerfVirt::CerfLineDescriptor) - 64u;
-
-    int yb0 = ymin;
-    for (;;) {
-        int yb1 = dst_fb ? 0 : (ymax + 1);
-        if (!dst_fb) {
-            while (yb1 > yb0 + 1 &&
-                   CerfSpanBytes(0, yb0, W, yb1, dst_stride, dst_bits) > budget)
-                yb1 = yb0 + (yb1 - yb0) / 2;
-        }
-
-        if (!CerfArenaEnter()) CERF_FATAL("cerf_guest: DMA arena unavailable - halting");
-        ULONG desc_off = 0u;
-        CerfVirt::CerfLineDescriptor* pd = (CerfVirt::CerfLineDescriptor*)
-            CerfArenaAlloc((ULONG)sizeof(CerfVirt::CerfLineDescriptor), &desc_off);
-        if (!pd) CERF_FATAL("cerf_guest: DMA arena line alloc failed - halting");
-        CerfVirt::CerfLineDescriptor& d = *pd;
-        memset(&d, 0, sizeof(d));
-        d.magic       = CerfVirt::kCerfLineMagic;
-        d.x_start     = p->xStart;
-        d.y_start     = p->yStart;
-        d.c_pels      = p->cPels;
-        d.d_m         = p->dM;
-        d.d_n         = p->dN;
-        d.ll_gamma    = p->llGamma;
-        d.i_dir       = p->iDir;
-        d.style       = p->style;
-        d.style_state = p->styleState;
-        d.solid_color = (uint32_t)p->solidColor;
-        d.mix         = p->mix;
-        CerfStageWb dstwb = {0};
-        if (dst_fb) {
-            d.band_y_first = 0u;
-            d.band_y_count = 0u;
-            FillSurface(&d.dst, p->pDst, 0, 0, W, (int)p->pDst->Height(),
-                        true, false, &dstwb);
-        } else {
-            d.band_y_first = (uint32_t)yb0;
-            d.band_y_count = (uint32_t)(yb1 - yb0);
-            FillSurface(&d.dst, p->pDst, 0, yb0, W, yb1, true, false, &dstwb);
-        }
-        const ULONG cgl = CerfGpeLine(desc_off);
-        if (cgl == 2u && dstwb.active)
-            memcpy((void*)(ULONG_PTR)dstwb.dst_va, dstwb.arena_ptr, dstwb.span);
-        CerfArenaLeave();
-        if (cgl != 2u) CERF_FATAL("cerf_guest: host line did not complete - halting");
-
-        if (dst_fb) break;
-        yb0 = yb1;
-        if (yb0 > ymax) break;
-    }
-    return S_OK;
-}

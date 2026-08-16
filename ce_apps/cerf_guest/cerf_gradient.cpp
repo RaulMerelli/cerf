@@ -26,14 +26,18 @@ extern BOOL APIENTRY AnyBlt(SURFOBJ*, SURFOBJ*, SURFOBJ*, CLIPOBJ*, XLATEOBJ*,
 
 static void CerfRectIntersect(CerfVirt::CerfBltRect* out,
                               const RECTL& a, const RECTL& b) {
-    out->left   = a.left   > b.left   ? a.left   : b.left;
-    out->top    = a.top    > b.top    ? a.top    : b.top;
-    out->right  = a.right  < b.right  ? a.right  : b.right;
-    out->bottom = a.bottom < b.bottom ? a.bottom : b.bottom;
+    RECTL r = a;
+    CerfRectClamp(&r, &b);
+    out->left = r.left; out->top = r.top; out->right = r.right; out->bottom = r.bottom;
 }
 
 static BOOL CerfEmitGradient(CerfVirt::CerfGradDescriptor& g, ULONG desc_off,
-                             const RECTL& grect, CLIPOBJ* pco) {
+                             const RECTL& grect_in, CLIPOBJ* pco, int W, int H) {
+    RECTL grect = grect_in;
+    RECTL sbound;
+    sbound.left = 0; sbound.top = 0; sbound.right = W; sbound.bottom = H;
+    CerfRectClamp(&grect, &sbound);
+    if (grect.right <= grect.left || grect.bottom <= grect.top) return TRUE;
     if (!pco || pco->iDComplexity == DC_TRIVIAL) {
         g.fill_rect.left = grect.left;  g.fill_rect.top    = grect.top;
         g.fill_rect.right = grect.right; g.fill_rect.bottom = grect.bottom;
@@ -156,7 +160,7 @@ extern "C" BOOL APIENTRY CerfDrvGradientFill(SURFOBJ* pso, CLIPOBJ* pco,
             g.start_color[2] = a->Blue; g.start_color[3] = a->Alpha;
             g.end_color[0]   = b->Red; g.end_color[1]   = b->Green;
             g.end_color[2]   = b->Blue; g.end_color[3]   = b->Alpha;
-            if (!CerfEmitGradient(g, desc_off, gr, pco)) ok = FALSE;
+            if (!CerfEmitGradient(g, desc_off, gr, pco, W, H)) ok = FALSE;
         }
         if (dstwb.active)
             memcpy((void*)(ULONG_PTR)dstwb.dst_va, dstwb.arena_ptr, dstwb.span);
