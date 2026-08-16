@@ -36,7 +36,7 @@ public:
     void RaiseAbortPrefetchException(uint32_t guest_pc);
     void RaiseIrqException(uint32_t guest_pc);
     void RaiseSwiException(uint32_t guest_pc);
-    void RaiseResetException(uint32_t initial_pc);
+    void RaiseResetException(uint32_t initial_pc, bool initial_thumb);
     void RaiseResetException();
 
     static void __cdecl RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
@@ -76,5 +76,6 @@ private:
     uint32_t pending_resume_dacr_    = 0;
     bool     pending_resume_mmu_set_ = false;
     uint32_t initial_pc_             = 0;
+    bool     initial_thumb_          = false;
     uint32_t initial_sp_             = 0;
 };

@@ -106,10 +106,10 @@ void ArmJit::OnReady() {
     const uint32_t cold_entry = boot.ColdEntryPa();
     const uint32_t cold_stack = boot.ColdStackPa();
     cpu_->SetInitialStackPointer(cold_stack);
-    cpu_->RaiseResetException(cold_entry);
+    cpu_->RaiseResetException(cold_entry, boot.ColdEntryThumb());
 
-    LOG(Jit, "ArmJit::OnReady: cold entry PA 0x%08X, cold stack PA 0x%08X\n",
-        cold_entry, cold_stack);
+    LOG(Jit, "ArmJit::OnReady: cold entry PA 0x%08X (%s), cold stack PA 0x%08X\n",
+        cold_entry, boot.ColdEntryThumb() ? "Thumb" : "ARM", cold_stack);
 }
 
 __declspec(naked) void __cdecl ArmJit::Dispatch(void*, ArmCpuState*, ArmMmuState*) {
