@@ -19,11 +19,6 @@
 > For the same reason - be careful if you are going to use CERF is a reference for
 > hardware level behaviour. The code works but CERF is not an official chip datasheet.
 
-> [!CAUTION]
-> **CERF 6.8 is temporary broken.** We remove third-party licensed
-> code from the emulator core and write new code from primary documentation
-> The current version still does not correspond to CERF 6.7 level of stability and performance.
-
 ## Downloads
 
 To use the newest features, download the WIP build (6.8) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
