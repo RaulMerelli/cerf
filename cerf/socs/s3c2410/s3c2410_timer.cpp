@@ -7,6 +7,7 @@
 #include "../../boards/board_context.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
+#include "s3c2410_clocks.h"
 
 #include <atomic>
 #include <chrono>
@@ -15,8 +16,6 @@
 #include <thread>
 
 namespace {
-
-constexpr uint64_t kPclkHz = 50750000ull;
 
 struct TimerBits {
     int start;
@@ -145,7 +144,7 @@ uint64_t S3C2410Timer::TimerFreqHz(int timer_idx) const {
     }
     /* mux 0..3 → divider 2,4,8,16 (= 1<<(mux+1)). */
     const uint64_t div = 1ull << (mux + 1);
-    return kPclkHz / presc / div;
+    return kS3C2410PclkHz / presc / div;
 }
 
 uint32_t S3C2410Timer::ComputeTcntoLocked(int timer_idx,
