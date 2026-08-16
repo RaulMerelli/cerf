@@ -45,8 +45,6 @@ constexpr uint32_t kConEnable    = 1u << 0;
 /* S3C2410A User Manual, printed p. 21-6 IISMOD. */
 constexpr uint32_t kModWritable = 0x000001FFu;
 constexpr uint32_t kModSlave    = 1u << 8;
-constexpr uint32_t kModXferMask = 3u << 6;
-constexpr uint32_t kModXferBoth = 3u << 6;
 constexpr uint32_t kModTransmit = 1u << 7;
 constexpr uint32_t kMod16Bit    = 1u << 3;
 constexpr uint32_t kMod384fs    = 1u << 2;
@@ -59,6 +57,7 @@ constexpr uint32_t kPsrFieldMask = 0x1Fu;
 /* S3C2410A User Manual, printed p. 21-8 IISFCON. */
 constexpr uint32_t kFconWritable   = 0x0000F000u;
 constexpr uint32_t kFconTxDmaMode  = 1u << 15;
+constexpr uint32_t kFconRxDmaMode  = 1u << 14;
 constexpr uint32_t kFconTxEnable   = 1u << 13;
 constexpr uint32_t kFconRxEnable   = 1u << 12;
 constexpr uint32_t kFconTxCntShift = 6u;
@@ -260,9 +259,6 @@ void S3C2410Iis::WriteWord(uint32_t addr, uint32_t value) {
                 con_ = (con_ & ~kConWritable) | (value & kConWritable);
                 break;
             case kOffMod:
-                if ((value & kModXferMask) == kModXferBoth)
-                    HaltUnsupportedAccess("WriteWord IISMOD transmit and "
-                                          "receive", addr, value);
                 if ((value & kModTransmit) != 0u) {
                     if ((value & kMod16Bit) == 0u)
                         HaltUnsupportedAccess("WriteWord IISMOD 8-bit transmit",
@@ -277,8 +273,8 @@ void S3C2410Iis::WriteWord(uint32_t addr, uint32_t value) {
                 psr_ = value & kPsrWritable;
                 break;
             case kOffFcon:
-                if ((value & kFconRxEnable) != 0u)
-                    HaltUnsupportedAccess("WriteWord IISFCON Rx FIFO enable",
+                if ((value & (kFconRxEnable | kFconRxDmaMode)) != 0u)
+                    HaltUnsupportedAccess("WriteWord IISFCON receive FIFO",
                                           addr, value);
                 fcon_ = value & kFconWritable;
                 break;
