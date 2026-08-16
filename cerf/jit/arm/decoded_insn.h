@@ -23,6 +23,7 @@ struct DecodedInsn {
     ArmPlaceFn place_fn;
     uint32_t   guest_address;
     uint32_t   actual_guest_address;
+    uint32_t   length;
     uint32_t   immediate;
     uint32_t   cond;
     uint32_t   op1;

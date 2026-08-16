@@ -10,6 +10,7 @@ class ArmMmu;
 class ArmPageWalker;
 class ArmProcessorConfig;
 class ArmRoutedAccess;
+class Thumb32Decoder;
 class ThumbDecoder;
 struct ArmCpuState;
 struct DecodedInsn;
@@ -47,4 +48,5 @@ private:
     ArmProcessorConfig*       config_    = nullptr;
     ArmRoutedAccess*          access_    = nullptr;
     ThumbDecoder*             thumb_     = nullptr;
+    Thumb32Decoder*           thumb32_   = nullptr;
 };

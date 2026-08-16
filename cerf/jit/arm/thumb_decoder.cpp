@@ -98,7 +98,13 @@ bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
     insn->rs = 0u;
     switch ((op >> 8) & 0x3u) {
     case 0u:
-        if (low) return false;
+        /* ARM DDI 0406C.c Table A6-4 (A6.2.3, p. A6-226): opcode 0000 is Add Low
+           Registers, variant v6T2, footnote a "UNPREDICTABLE in earlier
+           variants". */
+        if (low) {
+            if (!processor_config_->HasThumb2()) return false;
+            return MarkArmUnimplemented(insn, op);
+        }
         insn->op1 = 4u;
         insn->s   = 0u;
         insn->rn  = reg;
@@ -315,6 +321,17 @@ bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
         if (!processor_config_->HasCp15V6()) return false;
         return MarkArmUnimplemented(insn, op);
     }
+    case 0x1u:
+    case 0x3u:
+    case 0x9u:
+    case 0xBu:
+    case 0xFu:
+        /* ARM DDI 0406C.c Table A6-6 (A6.2.5, p. A6-228) allocates opcode
+           0001xxx/0011xxx/1001xxx/1011xxx to CBNZ, CBZ (variant v6T2) and
+           1111xxx to If-Then, and hints; "Other encodings in this space are
+           UNDEFINED." */
+        if (!processor_config_->HasThumb2()) return false;
+        return MarkArmUnimplemented(insn, op);
     case 0xAu:
         /* Figure A6-2 note 2, p. A6-5. */
         if (!processor_config_->HasRev()) return false;

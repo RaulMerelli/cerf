@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
 #include "../../cpu/arm_processor_config.h"
@@ -11,6 +12,7 @@
 #include "../x86_emit_alu.h"
 #include "arm_cpu.h"
 #include "arm_decoder.h"
+#include "thumb32_decoder.h"
 #include "thumb_decoder.h"
 #include "arm_emit_services.h"
 #include "arm_mmu.h"
@@ -100,6 +102,7 @@ void ArmBlockCompiler::OnReady() {
     cpu_state_ = cpu_->State();
     decoder_   = &emu_.Get<ArmDecoder>();
     thumb_decoder_ = &emu_.Get<ThumbDecoder>();
+    thumb32_decoder_ = &emu_.Get<Thumb32Decoder>();
     mmu_       = &emu_.Get<ArmMmu>();
     probe_     = &emu_.Get<ArmMmuProbe>();
     walker_    = &emu_.Get<ArmPageWalker>();
@@ -156,33 +159,56 @@ void __cdecl ArmBlockCompiler::TraceDispatchPcHelper(ArmBlockCompiler* compiler,
 void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
     const uint32_t page_end =
         (folded_pc & ~(kArmBlockPageBytes - 1u)) + kArmBlockPageBytes;
-    /* ARM DDI 0100I Figure A6-1 (A6.2, p. A6-4) encodes every Thumb
-       instruction in bits[15:0]. */
-    const bool     thumb = insn_step_ == 2u;
-    const uint32_t step  = insn_step_;
+    fetch_fault_ = false;
+    wide_split_  = 0u;
 
     uint32_t i = 0;
-    for (; i < kMaxArmInsnPerBlock && folded_pc < page_end;
-         ++i, guest_pc += step, folded_pc += step) {
+    for (; i < kMaxArmInsnPerBlock && folded_pc < page_end; ++i) {
         DecodedInsn& insn = block_ctx_.insns[i];
         std::memset(&insn, 0, sizeof(insn));
 
         uint8_t* host = walker_->TranslateExecute(cpu_state_, guest_pc);
         if (host == nullptr) break;
 
-        ArmOpcode op{};
-        uint16_t  half = 0u;
-        if (thumb) {
-            std::memcpy(&half, host, sizeof(half));
-        } else {
-            std::memcpy(&op.word, host, sizeof(op.word));
-        }
-
         insn.guest_address        = guest_pc;
         insn.actual_guest_address = folded_pc;
 
-        const bool decoded = thumb ? thumb_decoder_->DecodeThumb(&insn, half)
-                                   : decoder_->DecodeArm(&insn, op);
+        bool decoded;
+        if (thumb_) {
+            uint16_t half = 0u;
+            std::memcpy(&half, host, sizeof(half));
+            if (thumb32_decoder_->IsWide(half)) {
+                const bool crosses = folded_pc + 4u > page_end;
+                if (crosses && i != 0u) break;
+                uint8_t* hi =
+                    walker_->TranslateExecute(cpu_state_, guest_pc + 2u);
+                if (hi == nullptr) {
+                    if (i == 0u) {
+                        fetch_fault_    = true;
+                        fetch_fault_pc_ = guest_pc;
+                    }
+                    break;
+                }
+                if (crosses) {
+                    wide_split_ = 2u;
+                    wide_pa2_   = walker_->LastExecPa();
+                }
+                uint16_t lo = 0u;
+                std::memcpy(&lo, hi, sizeof(lo));
+                insn.length = 4u;
+                decoded     = thumb32_decoder_->DecodeThumb32(
+                    &insn, (static_cast<uint32_t>(half) << 16) | lo);
+            } else {
+                insn.length = 2u;
+                decoded     = thumb_decoder_->DecodeThumb(&insn, half);
+            }
+        } else {
+            ArmOpcode op{};
+            std::memcpy(&op.word, host, sizeof(op.word));
+            insn.length = 4u;
+            decoded     = decoder_->DecodeArm(&insn, op);
+        }
+
         if (!decoded) {
             insn.place_fn = &EmitRaiseUndAndReturn;
             ++i;
@@ -195,6 +221,9 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
             ++i;
             break;
         }
+
+        guest_pc  += insn.length;
+        folded_pc += insn.length;
     }
     block_ctx_.num_insns = i;
 }
@@ -251,9 +280,9 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     const DecodedInsn& last = block_ctx_.insns[block_ctx_.num_insns - 1];
     if (last.cond != 14u || !last.r15_modified) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
-                               last.guest_address + insn_step_);
+                               last.guest_address + last.length);
         cursor = EmitChainToBlock(cursor, &block_ctx_,
-                                  last.guest_address + insn_step_, 1u);
+                                  last.guest_address + last.length, 1u);
         EmitRet(cursor);
     }
 
@@ -267,12 +296,7 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
        halfword-aligned. */
     const bool     thumb      = cpu_state_->cpsr.bits.thumb_mode != 0u;
     const uint32_t align_mask = thumb ? 1u : 3u;
-    insn_step_                = thumb ? 2u : 4u;
-    if (thumb && emit_->ProcessorConfig()->HasThumb2()) {
-        LOG(Caution, "ArmBlockCompiler::Compile: Thumb-2 block at guest PC "
-                "0x%08X\n", guest_pc);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
+    thumb_                    = thumb;
     if ((guest_pc & align_mask) != 0u) {
         LOG(Caution, "ArmBlockCompiler::Compile: misaligned PC 0x%08X\n",
             guest_pc);
@@ -315,6 +339,16 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
 
     Decode(guest_pc, folded_pc);
     if (block_ctx_.num_insns == 0u) {
+        if (fetch_fault_) {
+            if (mmu_->io_pending()) {
+                emu_.Get<Fatal>().Die(
+                    "ArmBlockCompiler::Compile: instruction fetch at 0x%08X "
+                    "resolves to peripheral PA 0x%08X\n",
+                    fetch_fault_pc_ + 2u, mmu_->io_pending_address());
+            }
+            cpu_->RaiseAbortPrefetchException(fetch_fault_pc_);
+            return nullptr;
+        }
         LOG(Caution, "ArmBlockCompiler::Compile: decoded 0 insns at 0x%08X\n",
             guest_pc);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
@@ -328,11 +362,14 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
 
             JitBlock nb{};
             nb.guest_start  = folded_pc;
-            nb.guest_end    = folded_pc + insn_step_ * block_ctx_.num_insns - 1u;
+            const DecodedInsn& tail =
+                block_ctx_.insns[block_ctx_.num_insns - 1];
+            nb.guest_end    = tail.actual_guest_address + tail.length - 1u;
             nb.phys_start   = phys_start;
             nb.native_start = code;
             JitBlock* stored = idx.PlaceOuterAt(slab, nb);
-            space.IndexInsert(stored, &idx, phys_start);
+            space.IndexInsert(stored, &idx, phys_start, wide_split_,
+                              wide_split_ != 0u ? wide_pa2_ : kBlockUnindexed);
             if (!outer_global) space.MarkPopulated(asid);
 
             block_ctx_.index       = &idx;

@@ -5,6 +5,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/arm_processor_config.h"
 #include "arm_cpu.h"
@@ -17,6 +18,7 @@
 #include "cpu_state.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
+#include "thumb32_decoder.h"
 #include "thumb_decoder.h"
 
 REGISTER_SERVICE(ArmRoutedInstruction);
@@ -34,6 +36,7 @@ void ArmRoutedInstruction::OnReady() {
     config_    = &emu_.Get<ArmProcessorConfig>();
     access_    = &emu_.Get<ArmRoutedAccess>();
     thumb_     = &emu_.Get<ThumbDecoder>();
+    thumb32_   = &emu_.Get<Thumb32Decoder>();
 }
 
 void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
@@ -55,6 +58,11 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     if (thumb) {
         uint16_t half = 0;
         std::memcpy(&half, host, sizeof(half));
+        if (thumb32_->IsWide(half)) {
+            emu_.Get<Fatal>().Die(
+                "ArmRoutedInstruction: 32-bit Thumb instruction at guest PC "
+                "0x%08X completed a peripheral access\n", guest_pc);
+        }
         raw     = half;
         decoded = thumb_->DecodeThumb(&d, half);
     } else {
