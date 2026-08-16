@@ -1,6 +1,7 @@
 #include "jit_runner.h"
 
 #include "../core/cerf_emulator.h"
+#include "../core/fatal.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
 #include "../peripherals/peripheral_dispatcher.h"
@@ -84,6 +85,8 @@ void JitRunner::RunLoop() {
        OnReady dependency chain. A Get<> in JitRunner::OnReady is service
        pre-warming, forbidden by agent_docs/rules.md. */
     auto& engine = emu_.Get<GuestEngine>();
+    auto& fatal  = emu_.Get<Fatal>();
+    fatal.SetLiveEngine(&engine);
     LOG(Jit, "JitRunner::RunLoop: engine resolved, entering loop\n");
 
     /* All boot-time peripherals have registered by now; the engine's physical
@@ -137,6 +140,7 @@ void JitRunner::RunLoop() {
         }
     }
 
+    fatal.SetLiveEngine(nullptr);
     LOG(Boot, "JitRunner: stop requested; thread exiting\n");
     stopped_.store(true, std::memory_order_release);
     { std::lock_guard<std::mutex> lk(pause_mutex_); }

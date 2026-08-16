@@ -18,8 +18,10 @@ void Fatal::Die(const char* fmt, ...) {
 
     LOG(Jit, "%s\n", reason);
 
-    if (auto* engine = emu_.TryGet<GuestEngine>())
+    if (GuestEngine* engine = live_engine_.load(std::memory_order_acquire))
         engine->PrintFatalDump();
+    else
+        LOG(Jit, "no guest context: the engine is not live\n");
 
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
