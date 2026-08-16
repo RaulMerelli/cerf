@@ -16,6 +16,7 @@ class ArmEmitServices;
 class ArmMmu;
 class ArmMmuProbe;
 class ThumbDecoder;
+class Thumb32Decoder;
 class ArmPageWalker;
 class ArmRoutedInstruction;
 class ArmTranslationCache;
@@ -42,7 +43,11 @@ public:
 
 private:
     uint32_t predecessor_va_ = 0;
-    uint32_t insn_step_      = 4u;
+    bool     thumb_          = false;
+    bool     fetch_fault_    = false;
+    uint32_t fetch_fault_pc_ = 0;
+    uint32_t wide_split_     = 0;
+    uint32_t wide_pa2_       = 0;
 
     void   BuildTrampolines();
     void   Decode(uint32_t guest_pc, uint32_t folded_pc);
@@ -56,6 +61,7 @@ private:
     ArmCpuState*          cpu_state_ = nullptr;
     ArmDecoder*           decoder_   = nullptr;
     ThumbDecoder*         thumb_decoder_ = nullptr;
+    Thumb32Decoder*       thumb32_decoder_ = nullptr;
     ArmMmu*               mmu_       = nullptr;
     ArmMmuProbe*          probe_     = nullptr;
     ArmPageWalker*        walker_    = nullptr;
