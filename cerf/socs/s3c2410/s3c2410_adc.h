@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../peripherals/peripheral_base.h"
+#include "s3c2410_sub_source_levels.h"
 
 #include <cstdint>
 #include <mutex>
@@ -9,7 +10,7 @@
    ADCTSC 0x58000004, ADCDLY 0x58000008, ADCDAT0 0x5800000C, ADCDAT1
    0x58000010; Acc. Unit W for all five, R/W for the first three and R for
    the two data registers. */
-class S3C2410Adc : public Peripheral {
+class S3C2410Adc : public Peripheral, public S3C2410LevelSubSource {
 public:
     using Peripheral::Peripheral;
 
@@ -24,14 +25,17 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
+    void PostRestore() override;
 
     /* UM p. 16-10 ADCDAT0 UPDOWN: 0 = Stylus down, 1 = Stylus up. */
     void SetPen(bool down, uint16_t sample_x, uint16_t sample_y);
 
+    bool SubSourceAsserted(int sub_source_bit) override;
+
 private:
     void     ConvertLocked();
     uint32_t ComposeDataLocked(uint32_t data) const;
-    bool     TouchRequestedLocked(bool pen_edge) const;
+    bool     PenInterruptAssertedLocked() const;
 
     std::mutex state_mutex_;
 
