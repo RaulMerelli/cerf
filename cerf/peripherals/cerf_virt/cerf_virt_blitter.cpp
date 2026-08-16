@@ -257,7 +257,7 @@ bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
         const int32_t src_row_y = d.src_rect.top + src_dy;
         const int32_t dst_y = d.dst_rect.top + row;
         if (d.has_clip && (dst_y < d.clip_rect.top || dst_y >= d.clip_rect.bottom)) continue;
-        const int32_t mask_y = d.mask_rect.top + src_dy;
+        const int32_t mask_y = d.mask_rect.top + row;
 
         for (int32_t ix = 0; ix < width; ++ix) {
             const int32_t col = x_pos ? ix : (width - 1 - ix);
@@ -298,7 +298,7 @@ bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
             if (complex) {
                 uint8_t rop3 = fg_rop3;
                 if (has_mask) {
-                    const uint32_t mx = (uint32_t)(d.mask_rect.left + src_dx);
+                    const uint32_t mx = (uint32_t)(d.mask_rect.left + col);
                     uint32_t mrun = 0;
                     uint8_t* mp = PixelPtr(mask, (int32_t)(mx >> 3), mask_y, 1u, &mrun);
                     if (!mp) FatalPixel("mask", d.mask, (int32_t)mx, mask_y);

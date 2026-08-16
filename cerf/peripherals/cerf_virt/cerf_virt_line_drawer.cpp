@@ -65,9 +65,13 @@ bool CerfVirtLineDrawer::Execute(const CerfLineDescriptor& l) {
     for (int32_t n = l.c_pels; n > 0; --n) {
         const uint8_t rop2 = ((l.style >> ((uint32_t)(style_state++) & 31u)) & 1u)
                            ? rop2_space : rop2_mark;
-        if (l.band_y_count == 0u ||
-            ((uint32_t)y >= l.band_y_first &&
-             (uint32_t)y < l.band_y_first + l.band_y_count)) {
+        const bool clipped_out = l.has_clip != 0u &&
+            (x < l.clip_rect.left || x >= l.clip_rect.right ||
+             y < l.clip_rect.top  || y >= l.clip_rect.bottom);
+        if (!clipped_out &&
+            (l.band_y_count == 0u ||
+             ((uint32_t)y >= l.band_y_first &&
+              (uint32_t)y < l.band_y_first + l.band_y_count))) {
             if (subbyte) {
                 uint32_t d = 0;
                 if (!ReadSubBytePixel(dst, x, y, bits, &d)) {

@@ -169,6 +169,32 @@ SCODE GPE::EmulatedLine(GPELineParms* pParms) {
     return E_FAIL;
 }
 
+void CerfRequireExtent(int v, int who) {
+    if (v > 0) return;
+    CERF_LOG_X("cerf_guest: extent owner", (ULONG)who);
+    CERF_LOG_X("cerf_guest: reported extent", (ULONG)v);
+    CERF_FATAL("cerf_guest: surface reports no extent - halting");
+}
+
+void CerfRectClamp(RECTL* r, const RECTL* bound) {
+    if (bound->left   > r->left)   r->left   = bound->left;
+    if (bound->top    > r->top)    r->top    = bound->top;
+    if (bound->right  < r->right)  r->right  = bound->right;
+    if (bound->bottom < r->bottom) r->bottom = bound->bottom;
+}
+
+void CerfEffectiveClip(RECTL* out, const RECTL* clip, GPESurf* dst) {
+    CerfRequireExtent(dst->Width(), kCerfExtentDstWidth);
+    CerfRequireExtent(dst->Height(), kCerfExtentDstHeight);
+    const LONG w = (LONG)dst->Width();
+    const LONG h = (LONG)dst->Height();
+    out->left   = 0;
+    out->top    = 0;
+    out->right  = w;
+    out->bottom = h;
+    if (clip) CerfRectClamp(out, clip);
+}
+
 SCODE GPE::BltExpanded(GPESurf* pDst, GPESurf* pSrc, GPESurf* pPattern,
                        const RECT* prclDst, const RECT* prclSrc, ULONG solidColor,
                        ULONG bltFlags, ULONG rop4) {
@@ -188,7 +214,7 @@ SCODE GPE::BltExpanded(GPESurf* pDst, GPESurf* pSrc, GPESurf* pPattern,
 
     SCODE sc = BltPrepare(&parms);
     if (FAILED(sc)) return sc;
-    if (parms.pBlt) sc = (this->*parms.pBlt)(&parms);
+    sc = (this->*parms.pBlt)(&parms);
     if (FAILED(sc)) return sc;
     return BltComplete(&parms);
 }

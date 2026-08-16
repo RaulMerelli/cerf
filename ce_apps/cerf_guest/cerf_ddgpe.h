@@ -27,7 +27,7 @@ struct CerfStageWb { BOOL active; ULONG dst_va; void* arena_ptr; ULONG span; };
 struct CerfBltBand {
     int dl, dt, dr;
     int sl, st, sr;
-    int ml, mt, mr;
+    int ml, mt;
     int height, src_h;
     int bw, bh;
     bool has_src, has_mask, has_brush, src_pal, use_lut_y;
