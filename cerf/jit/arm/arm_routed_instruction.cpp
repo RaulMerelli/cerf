@@ -151,7 +151,9 @@ uint32_t ArmRoutedInstruction::SingleShiftedOffset(const DecodedInsn* d) {
 uint32_t ArmRoutedInstruction::SingleOffsetAddr(const DecodedInsn* d) {
     if (d->n != 0u) {
         if (d->rn == ArmGpr::kR15) {
-            return PcReadValue(d) + static_cast<uint32_t>(d->offset);
+            /* A8.8.64 LDR (literal) Operation (p. A8-411): "base =
+               Align(PC,4)". */
+            return (PcReadValue(d) & ~3u) + static_cast<uint32_t>(d->offset);
         }
         return cpu_state_->gprs[d->rn] + static_cast<uint32_t>(d->offset);
     }

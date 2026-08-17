@@ -60,8 +60,12 @@ void EmitOffsetAddrIntoEcx(uint8_t*& cursor, DecodedInsn* d, BlockContext* ctx) 
     using namespace x86;
     if (d->n) {
         if (d->rn == 15u) {
+            /* A8.8.64 LDR (literal) Operation (p. A8-411): "base =
+               Align(PC,4); address = if add then (base + imm32) else (base -
+               imm32)". */
             EmitMovRegImm32(cursor, kEcx,
-                ArmPcReadValue(d, ctx) + static_cast<uint32_t>(d->offset));
+                (ArmPcReadValue(d, ctx) & ~3u) +
+                    static_cast<uint32_t>(d->offset));
         } else {
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
             if (d->offset != 0) {
@@ -124,15 +128,12 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     const bool load     = d->l != 0;
     const bool wback    = !d->p || d->w;
 
-    /* Table A5-15 (p. A5-208): P == 0 && W == 1 selects
-       LDRT/STRT/LDRBT/STRBT. */
-    const bool unpriv = !d->p && d->w;
+    const bool unpriv = d->unpriv != 0;
 
     /* A8.8.63: wback && n == t; A8.8.64: P == W; A8.8.66 / STR (register)
        p. A8-676: m == 15, wback && (n == 15 || n == t), ArchVersion() < 6
        && wback && m == n; LDRB p. A8-418 / STRB p. A8-680: t == 15; LDRT
-       DDI 0100I A4.1.31 (p. A4-60): load Rd == 15. Every UNPREDICTABLE
-       case is implemented as UNDEFINED (p. Glossary-2737). */
+       DDI 0100I A4.1.31 (p. A4-60): load Rd == 15. */
     bool unpredictable = false;
     if (unpriv && load && d->rd == 15u) {
         unpredictable = true;

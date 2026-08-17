@@ -11,6 +11,7 @@
 #include "thumb32_branch_system_decoder.h"
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
+#include "thumb32_load_store_decoder.h"
 #include "thumb32_plain_imm_decoder.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
@@ -27,6 +28,7 @@ void Thumb32Decoder::OnReady() {
     branch_system_  = &emu_.Get<Thumb32BranchSystemDecoder>();
     data_proc_      = &emu_.Get<Thumb32DataProcDecoder>();
     fatal_          = &emu_.Get<Thumb32Fatal>();
+    load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 }
 
@@ -88,7 +90,7 @@ bool Thumb32Decoder::DecodeLoadHalfwordMemoryHints(DecodedInsn* insn,
 }
 
 bool Thumb32Decoder::DecodeLoadWord(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("load word (A6-239)", insn, op);
+    return load_store_->DecodeLoadWord(insn, op);
 }
 
 bool Thumb32Decoder::DecodeSimdElementOrStructure(DecodedInsn* insn,

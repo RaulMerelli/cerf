@@ -13,7 +13,6 @@ bool ThumbTransferDecoder::ShouldRegister() {
 
 /* ARM DDI 0100I A7.1.30 LDR (3), p. A7-51. */
 bool ThumbTransferDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
-    const uint32_t pc = insn->guest_address + 4u;
     insn->p        = 1u;
     insn->u        = 1u;
     insn->s        = 0u;
@@ -22,8 +21,7 @@ bool ThumbTransferDecoder::DecodeLoadLiteral(DecodedInsn* insn, uint16_t op) {
     insn->n        = 1u;
     insn->rn       = 15u;
     insn->rd       = (op >> 8) & 0x7u;
-    insn->offset   = static_cast<int32_t>((op & 0xFFu) * 4u) -
-                     static_cast<int32_t>(pc & 3u);
+    insn->offset   = static_cast<int32_t>((op & 0xFFu) * 4u);
     insn->place_fn = &PlaceSingleDataTransfer;
     return true;
 }

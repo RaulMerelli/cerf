@@ -63,6 +63,8 @@ struct DecodedInsn {
     uint32_t   u;
     uint32_t   w;
     uint32_t   n;
+    /* DDI 0406C.c A8.8.92 LDRT (p. A8-466), Table A5-15 (p. A5-208). */
+    uint32_t   unpriv;
 
     uint32_t   cp_num;
     uint32_t   cp_opc;

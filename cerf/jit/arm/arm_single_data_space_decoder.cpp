@@ -13,12 +13,9 @@ bool ArmSingleDataSpaceDecoder::ShouldRegister() {
 }
 
 /* DDI 0406C.c Table A5-15 (p. A5-208): A = insn[25], op1 = insn[24:20]
-   = P/U/B/W/L, Rn = insn[19:16], Rt = insn[15:12]; the A == 1 && B == 1
-   half is the Table A5-16 media space, routed by Table A5-1 before this
-   decoder. Field map: DecodedInsn::n = 1 selects the immediate form
-   (A == 0), ::s = insn[22] (B); immediate form offset = signed imm12 with
-   U applied; register form op1 = insn[6:5] (type), rs = insn[11:7]
-   (imm5), rm = insn[3:0]. */
+   = P/U/B/W/L, Rn = insn[19:16]; "These instructions have either A == 0 or
+   B == 0. For instructions with A == 1 and B == 1, see Media instructions on
+   page A5-209." */
 bool ArmSingleDataSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
     insn->p  = (op.word >> 24) & 0x1u;
     insn->u  = (op.word >> 23) & 0x1u;
@@ -38,6 +35,8 @@ bool ArmSingleDataSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         insn->offset = insn->u != 0u ? static_cast<int32_t>(imm12)
                                      : -static_cast<int32_t>(imm12);
     }
+    /* Table A5-15 (p. A5-208) op1 rows 0x010 / 0x011 / 0x110 / 0x111. */
+    insn->unpriv = (insn->p == 0u && insn->w != 0u) ? 1u : 0u;
     insn->r15_modified =
         insn->l != 0u && insn->rd == 15u && insn->s == 0u;
     insn->place_fn = &PlaceSingleDataTransfer;
