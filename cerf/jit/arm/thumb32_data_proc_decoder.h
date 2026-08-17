@@ -1,0 +1,34 @@
+#pragma once
+
+#include "../../core/service.h"
+
+#include <cstdint>
+
+class Thumb32Fatal;
+struct DecodedInsn;
+
+class Thumb32DataProcDecoder : public Service {
+public:
+    using Service::Service;
+
+    bool ShouldRegister() override;
+    void OnReady() override;
+
+    bool DecodeDataProcessingModifiedImmediate(DecodedInsn* insn, uint32_t op);
+    bool DecodeDataProcessingPlainBinaryImmediate(DecodedInsn* insn,
+                                                 uint32_t op);
+    bool DecodeDataProcessingShiftedRegister(DecodedInsn* insn, uint32_t op);
+    bool DecodeDataProcessingRegister(DecodedInsn* insn, uint32_t op);
+
+private:
+    Thumb32Fatal* fatal_ = nullptr;
+
+    bool DecodeMoveRegisterImmediateShifts(DecodedInsn* insn, uint32_t op);
+    bool MapDataProcessingOpcode(uint32_t o, uint32_t rn, uint32_t rd,
+                                 uint32_t s, uint32_t* opcode,
+                                 bool* test) const;
+    bool DataProcRegistersValid(uint32_t o, uint32_t rn, uint32_t rd, bool test,
+                                bool* sp_form) const;
+
+    uint32_t ThumbExpandImm(uint32_t key, uint32_t imm8) const;
+};

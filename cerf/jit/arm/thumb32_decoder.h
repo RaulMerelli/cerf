@@ -6,6 +6,8 @@
 
 class ArmCoprocSpaceDecoder;
 class NeonUnconditionalDecoder;
+class Thumb32DataProcDecoder;
+class Thumb32Fatal;
 struct DecodedInsn;
 
 class Thumb32Decoder : public Service {
@@ -33,13 +35,11 @@ private:
 
     ArmCoprocSpaceDecoder*    coproc_decoder_ = nullptr;
     NeonUnconditionalDecoder* neon_decoder_   = nullptr;
+    Thumb32DataProcDecoder*   data_proc_      = nullptr;
+    Thumb32Fatal*             fatal_          = nullptr;
 
     bool DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op);
     bool DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op);
-    bool DecodeDataProcessingModifiedImmediate(DecodedInsn* insn, uint32_t op);
-    bool DecodeDataProcessingPlainBinaryImmediate(DecodedInsn* insn, uint32_t op);
-    bool DecodeDataProcessingRegister(DecodedInsn* insn, uint32_t op);
-    bool DecodeDataProcessingShiftedRegister(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadHalfwordMemoryHints(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadStoreDualExclusiveTableBranch(DecodedInsn* insn, uint32_t op);
@@ -49,16 +49,4 @@ private:
     bool DecodeMultiplyAbsoluteDifference(DecodedInsn* insn, uint32_t op);
     bool DecodeSimdElementOrStructure(DecodedInsn* insn, uint32_t op);
     bool DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op);
-
-    bool DecodeMoveRegisterImmediateShifts(DecodedInsn* insn, uint32_t op);
-    bool MapDataProcessingOpcode(uint32_t o, uint32_t rn, uint32_t rd,
-                                 uint32_t s, uint32_t* opcode,
-                                 bool* test) const;
-    bool DataProcRegistersValid(uint32_t o, uint32_t rn, uint32_t rd, bool test,
-                                bool* sp_form) const;
-
-    uint32_t ThumbExpandImm(uint32_t key, uint32_t imm8) const;
-
-    [[noreturn]] void Unimplemented(const char* what, const DecodedInsn* insn,
-                                    uint32_t op);
 };
