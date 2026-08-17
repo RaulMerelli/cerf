@@ -8,6 +8,7 @@
 #include "decoded_insn.h"
 #include "neon_unconditional_decoder.h"
 #include "place_fns.h"
+#include "thumb32_branch_system_decoder.h"
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
 #include "thumb32_plain_imm_decoder.h"
@@ -23,6 +24,7 @@ void Thumb32Decoder::OnReady() {
     has_neon_       = emu_.Get<ArmProcessorConfig>().HasNeon();
     coproc_decoder_ = &emu_.Get<ArmCoprocSpaceDecoder>();
     neon_decoder_   = &emu_.Get<NeonUnconditionalDecoder>();
+    branch_system_  = &emu_.Get<Thumb32BranchSystemDecoder>();
     data_proc_      = &emu_.Get<Thumb32DataProcDecoder>();
     fatal_          = &emu_.Get<Thumb32Fatal>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
@@ -36,11 +38,6 @@ bool Thumb32Decoder::DecodeLoadStoreDualExclusiveTableBranch(DecodedInsn* insn,
                                                              uint32_t op) {
     fatal_->Unimplemented("load/store dual, load/store exclusive, table branch "
                           "(A6-238)", insn, op);
-}
-
-bool Thumb32Decoder::DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("branches and miscellaneous control (A6-235)", insn,
-                          op);
 }
 
 /* DDI 0406C.c Table A6-30 (A6.3.18) p. A6-251, Table A5-22 (A5.6) p. A5-215;
@@ -132,7 +129,7 @@ bool Thumb32Decoder::DecodeThumb32(DecodedInsn* insn, uint32_t op) {
         }
         return DecodeLoadStoreMultiple(insn, op);
     case 0x2u:
-        if (o != 0u) return DecodeBranchesMiscControl(insn, op);
+        if (o != 0u) return branch_system_->Decode(insn, op);
         if ((op2 & 0x20u) != 0u) {
             return plain_imm_->Decode(insn, op);
         }
