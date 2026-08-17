@@ -33,6 +33,7 @@ namespace Log {
         X(SocRtc,      "SOC_RTC",     "any SoC real-time clock")                    \
         X(SocNand,     "SOC_NAND",    "any SoC NAND flash controller")              \
         X(SocIis,      "SOC_IIS",     "any SoC IIS / I2S audio interface")          \
+        X(SocSpi,      "SOC_SPI",     "any SoC SPI interface")                      \
         X(SocGpu,      "SOC_GPU",     "any SoC GPU / graphics core")                \
         X(SocReset,    "SOC_RESET",   "any SoC reset controller")                   \
         X(UsbOtg,      "USB_OTG",     "USB OTG host/device controller")             \
