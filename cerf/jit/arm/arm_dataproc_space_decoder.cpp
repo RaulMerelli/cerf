@@ -138,14 +138,9 @@ bool ArmDataprocSpaceDecoder::DecodeDataProcessingReg(DecodedInsn* insn,
         return false;
     }
 
-    uint32_t shift_t = type;
-    uint32_t shift_n = imm5;
-    if ((type == 1u || type == 2u) && imm5 == 0u) {
-        shift_n = 32u;
-    } else if (type == 3u && imm5 == 0u) {
-        shift_t = kSrRrx;
-        shift_n = 1u;
-    }
+    uint32_t shift_t = 0u;
+    uint32_t shift_n = 0u;
+    DecodeImmShift(type, imm5, &shift_t, &shift_n);
 
     insn->op1 = opcode;
     insn->s   = s;

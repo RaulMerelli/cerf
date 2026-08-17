@@ -50,6 +50,13 @@ private:
     bool DecodeSimdElementOrStructure(DecodedInsn* insn, uint32_t op);
     bool DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op);
 
+    bool DecodeMoveRegisterImmediateShifts(DecodedInsn* insn, uint32_t op);
+    bool MapDataProcessingOpcode(uint32_t o, uint32_t rn, uint32_t rd,
+                                 uint32_t s, uint32_t* opcode,
+                                 bool* test) const;
+    bool DataProcRegistersValid(uint32_t o, uint32_t rn, uint32_t rd, bool test,
+                                bool* sp_form) const;
+
     uint32_t ThumbExpandImm(uint32_t key, uint32_t imm8) const;
 
     [[noreturn]] void Unimplemented(const char* what, const DecodedInsn* insn,

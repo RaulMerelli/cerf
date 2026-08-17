@@ -1,5 +1,7 @@
 #include <cstddef>
 
+#include "../../../core/fatal.h"
+#include "../arm_emit_services.h"
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
@@ -139,13 +141,22 @@ uint8_t* PlaceDataProcessingReg(uint8_t*      cursor,
         EmitNotReg32(cursor, kEcx);
         EmitAndReg32Reg32(cursor, kEax, kEcx);
         break;
-    default:
+    case kDpOrn:
+        /* ORN (register) (A8.8.121 p. A8-515): Rn OR NOT(shifted). */
+        EmitNotReg32(cursor, kEcx);
+        EmitOrReg32Reg32(cursor, kEax, kEcx);
+        break;
+    case 15u:
         /* MVN (A8.8.116 p. A8-507): NOT(shifted). */
         EmitNotReg32(cursor, kEax);
         if (s && !to_pc) {
             EmitTestRegReg(cursor, kEax, kEax);
         }
         break;
+    default:
+        ctx->emit->FatalService()->Die(
+            "data-processing (register) opcode %u not implemented at guest "
+            "pc=0x%08X\n", opcode, d->guest_address);
     }
 
     if (to_pc) {

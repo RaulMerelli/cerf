@@ -19,6 +19,21 @@ enum ArmSrType : uint32_t {
     kSrRrx = 4u,
 };
 
+/* DDI 0406C.c A8.4.3 (p. A8-292): "(SRType, integer) DecodeImmShift(bits(2)
+   type, bits(5) imm5)" - type 00 takes UInt(imm5); type 01 and 10 take 32 when
+   imm5 == 00000; type 11 with imm5 == 00000 is SRType_RRX with shift_n 1. */
+inline void DecodeImmShift(uint32_t type, uint32_t imm5, uint32_t* shift_t,
+                           uint32_t* shift_n) {
+    *shift_t = type;
+    *shift_n = imm5;
+    if ((type == kSrLsr || type == kSrAsr) && imm5 == 0u) {
+        *shift_n = 32u;
+    } else if (type == kSrRor && imm5 == 0u) {
+        *shift_t = kSrRrx;
+        *shift_n = 1u;
+    }
+}
+
 /* DDI 0406C.c Table A5-5 (p. A5-199) allocates the ARM data-processing opcodes
    0..15. DDI 0406C.c Table A6-10 (p. A6-231) row 0011 with Rn != 1111 is
    Bitwise OR NOT, A8.8.120 ORN (immediate) (p. A8-512). */
