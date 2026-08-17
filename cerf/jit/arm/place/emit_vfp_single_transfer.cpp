@@ -6,15 +6,23 @@
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
 
-/* VLDR / VSTR - single-register VFP load/store. Encoding form
-   P=1, W=0; cp_num=10 SP, cp_num=11 DP. Per
-   references/omap3530/armv7_arch_excerpts.txt § VLDR / VSTR. */
+/* DDI 0406C.c A8.8.333 VLDR (p. A8-924) and A8.8.413 VSTR (p. A8-1082): the
+   T1/A1 and T2/A2 diagrams fix bits[27:24] = 1101 and bit[21] = 0, so P == 1
+   and W == 0. coproc 1011 is T1/A1 "single_reg = FALSE; d = UInt(D:Vd)";
+   coproc 1010 is T2/A2 "single_reg = TRUE; d = UInt(Vd:D)". */
 
 uint8_t* EmitVfpSingleTransfer(uint8_t*      cursor,
                                DecodedInsn*  d,
                                BlockContext* ctx) {
     using namespace x86;
     ArmEmitServices* emit = ctx->emit;
+
+    /* A8.8.413 VSTR (p. A8-1082) closes both T1/A1 and T2/A2 with "if n == 15
+       && CurrentInstrSet() != InstrSet_ARM then UNPREDICTABLE"; A8.8.333 VLDR
+       (p. A8-924) carries no such clause. */
+    if (d->rn == 15u && d->l == 0u && ctx->thumb) {
+        return EmitRaiseUndAndReturn(cursor, d, ctx);
+    }
 
     const bool is_dp = (d->cp_num == 11);
     const uint32_t vd = is_dp
@@ -25,17 +33,17 @@ uint8_t* EmitVfpSingleTransfer(uint8_t*      cursor,
     if (d->l)  flags |= ArmVfp::kFlagL;
     if (is_dp) flags |= ArmVfp::kFlagDp;
 
-    /* __cdecl PUSH RTL: flags, signed_off, vd, rn, pc, vfp_ptr. */
     EmitPush32(cursor, flags);
     EmitPush32(cursor, static_cast<uint32_t>(d->offset));
     EmitPush32(cursor, vd);
     EmitPush32(cursor, d->rn);
+    EmitPush32(cursor, ArmPcReadValue(d, ctx));
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Vfp())));
     EmitCall(cursor, reinterpret_cast<void*>(
         &ArmVfp::HandleSingleTransferHelper));
-    EmitAddRegImm32(cursor, kEsp, 24);
+    EmitAddRegImm32(cursor, kEsp, 28);
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* continue_label = EmitJzLabel(cursor);
     EmitRet(cursor);

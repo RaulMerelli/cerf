@@ -94,11 +94,16 @@ bool ArmUnconditionalSpaceDecoder::Decode(DecodedInsn* insn, ArmOpcode op) {
         return true;
     }
 
-    /* DDI 0406C.c Table A5-23 (p. A5-216), op1 = insn[27:20]. */
-    if ((op1 & 0x80u) == 0x00u ||
-        (op1 & 0xE0u) == 0xA0u ||
-        ((op1 & 0xE0u) == 0xC0u && op1 != 0xC0u && op1 != 0xC1u) ||
-        (op1 & 0xF0u) == 0xE0u) {
+    /* DDI 0406C.c Table A5-23 (p. A5-216), op1 = insn[27:20]; its 110xxxxx and
+       1110xxxx rows are the cond == 0b1111 coprocessor forms. B3.15.2
+       (p. B3-1446) makes the CDP2/MCR2/MRC2/MCRR2/MRRC2/LDC2/STC2 forms
+       UNDEFINED on CP14 and CP15, A7.5-A7.9 (pp. A7-272 .. A7-279) on cp10 and
+       cp11; A2.9 (p. A2-94) reserves CP8, CP9, CP12, CP13; B1.9.2 (p. B1-1206)
+       UNDEFs "a coprocessor instruction that is not implemented". */
+    if ((op1 & 0xE0u) == 0xC0u || (op1 & 0xF0u) == 0xE0u) {
+        return false;
+    }
+    if ((op1 & 0x80u) == 0x00u || (op1 & 0xE0u) == 0xA0u) {
         return MarkArmUnimplemented(insn, op.word);
     }
     return false;

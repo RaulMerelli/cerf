@@ -1,6 +1,7 @@
 #include "arm_emit_services.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../cpu/arm_processor_config.h"
 #include "arm_cpu.h"
 #include "arm_exception_frame.h"
@@ -48,6 +49,7 @@
 REGISTER_SERVICE(ArmEmitServices);
 
 void ArmEmitServices::OnReady() {
+    fatal_     = &emu_.Get<Fatal>();
     cpu_       = &emu_.Get<ArmCpu>();
     cpu_state_ = cpu_->State();
     mmu_       = &emu_.Get<ArmMmu>();

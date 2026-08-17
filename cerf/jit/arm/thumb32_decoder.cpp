@@ -4,7 +4,10 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/arm_processor_config.h"
+#include "arm_coproc_space_decoder.h"
+#include "arm_opcode.h"
 #include "decoded_insn.h"
+#include "neon_unconditional_decoder.h"
 #include "place_fns.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
@@ -14,7 +17,10 @@ bool Thumb32Decoder::ShouldRegister() {
 }
 
 void Thumb32Decoder::OnReady() {
-    has_thumb2_ = emu_.Get<ArmProcessorConfig>().HasThumb2();
+    has_thumb2_     = emu_.Get<ArmProcessorConfig>().HasThumb2();
+    has_neon_       = emu_.Get<ArmProcessorConfig>().HasNeon();
+    coproc_decoder_ = &emu_.Get<ArmCoprocSpaceDecoder>();
+    neon_decoder_   = &emu_.Get<NeonUnconditionalDecoder>();
 }
 
 void Thumb32Decoder::Unimplemented(const char* what, const DecodedInsn* insn,
@@ -43,9 +49,54 @@ bool Thumb32Decoder::DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op) {
     Unimplemented("branches and miscellaneous control (A6-235)", insn, op);
 }
 
+/* ARM DDI 0406C.c Table A6-30 (A6.3.18, p. A6-251) and Table A5-22 (A5.6,
+   p. A5-215) place op1 at bits[25:20], coproc at bits[11:8] and op at bit[4]
+   identically and agree row for row, except op1 = 11xxxx: Advanced SIMD in
+   A6-30, Supervisor Call in A5-22. A7.4 (p. A7-261): the U bit "is bit[12] of
+   the first halfword in the Thumb encoding, and bit[24] in the ARM encoding.
+   Other variable bits are in identical locations". */
 bool Thumb32Decoder::DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op) {
-    Unimplemented("coprocessor, Advanced SIMD, floating-point (A6-251)", insn,
-                  op);
+    const uint32_t op1 = (op >> 20) & 0x3Fu;
+    ArmOpcode      arm{};
+    if ((op1 & 0x30u) == 0x30u) {
+        if (!has_neon_) return false;
+        arm.word = 0xF2000000u | (((op >> 28) & 0x1u) << 24) |
+                   (op & 0x00FFFFFFu);
+        neon_decoder_->DecodeData3reg(insn, arm);
+        if (insn->place_fn == &PlaceNeonUnimplemented) insn->immediate = op;
+        return true;
+    }
+    /* T is hw1[12]. A7.5 (p. A7-272), A7.6 (p. A7-274), A7.8 (p. A7-278) and
+       A7.9 (p. A7-279): "If T == 1 in the Thumb encoding or cond == 0b1111 in
+       the ARM encoding, the instruction is UNDEFINED", scoped to cp10 and
+       cp11. B3.15.2 (p. B3-1446) makes "all CDP2, MCR2, MRC2, MCRR2, MRRC2,
+       LDC2, LDCL, LDC2L, STC2, STCL and STC2L operations to CP14 and CP15"
+       UNDEFINED. A2.9 (p. A2-94) reserves CP8, CP9, CP12 and CP13; B1.9.2
+       (p. B1-1206) UNDEFs "a coprocessor instruction that is not
+       implemented". */
+    if (((op >> 28) & 0x1u) != 0u) {
+        return false;
+    }
+    /* A8.8.98 MCR, MCR2 (p. A8-476) and A8.8.107 MRC, MRC2 (p. A8-492) carry
+       "t == 13 && (CurrentInstrSet() != InstrSet_ARM) then UNPREDICTABLE";
+       A8.8.99 MCRR, MCRR2 (p. A8-478) and A8.8.108 MRRC, MRRC2 (p. A8-494)
+       carry it for t and t2 alike, as do the extension-register transfers
+       sharing those encodings: A8.8.314 VDUP (p. A8-886) and the A8.8.341
+       (p. A8-940), A8.8.342 (p. A8-942), A8.8.343 (p. A8-944), A8.8.344
+       (p. A8-946) and A8.8.345 (p. A8-948) VMOV forms. Rt is bits[15:12] and
+       Rt2 bits[19:16]; on Table A6-30's LDC/STC and CDP rows bits[15:12] is
+       CRd, not a core register. */
+    if ((op1 & 0x3Eu) == 0x04u) {
+        if (((op >> 12) & 0xFu) == 13u || ((op >> 16) & 0xFu) == 13u) {
+            return false;
+        }
+    } else if ((op1 & 0x30u) == 0x20u && ((op >> 4) & 0x1u) != 0u &&
+               ((op >> 12) & 0xFu) == 13u) {
+        return false;
+    }
+
+    arm.word = op;
+    return coproc_decoder_->Decode(insn, arm);
 }
 
 /* ARM DDI 0406C.c Table A6-11 (A6.3.2, p. A6-232): the key i:imm3:a selects

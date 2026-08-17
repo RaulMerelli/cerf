@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -20,18 +21,45 @@ uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     return cursor;
 }
 
+/* DDI 0406C.c B1.3.3 "Format of the CPSR and SPSRs" (p. B1-1148) places
+   M[4:0] at bits[4:0]; Table B1-1 (B1.3.1, p. B1-1139) gives User = 10000,
+   its Encoding column being "the corresponding CPSR.M field". */
+uint8_t* EmitCpsrUserModeTest(uint8_t* cursor) {
+    using namespace x86;
+    EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
+        static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
+    EmitAndRegImm32(cursor, kEax, 0x1Fu);
+    EmitCmpRegImm32(cursor, kEax, ArmMode::kUser);
+    return cursor;
+}
+
+uint8_t* EmitRaiseUndIfUserMode(uint8_t* cursor, DecodedInsn* d,
+                                BlockContext* ctx) {
+    using namespace x86;
+    cursor = EmitCpsrUserModeTest(cursor);
+    uint8_t* not_user = EmitJnzLabel32(cursor);
+    cursor = EmitRaiseUndTail(cursor, d, ctx);
+    FixupLabel32(not_user, cursor);
+    return cursor;
+}
+
 uint8_t* EmitRaiseUndAndReturn(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     ArmEmitServices* emit = ctx->emit;
-    /* Re-read the guest word the decoder choked on (read-only MMU peek, same
-       page the fetch used) so the log distinguishes corrupt/poison bytes from a
-       genuine unsupported encoding. */
     const ArmCpuState* cs = emit->Cpu()->State();
-    uint32_t word = 0xFFFFFFFFu;
-    bool word_ok = false;
-    if (uint8_t* p = emit->MmuProbe()->PeekVaToHost(d->actual_guest_address)) {
-        word = 0u;
-        std::memcpy(&word, p, cs->cpsr.bits.thumb_mode ? 2u : 4u);
-        word_ok = true;
+    uint32_t word = 0u;
+    bool word_ok = true;
+    for (uint32_t off = 0u; off < d->length; off += 2u) {
+        uint8_t* p =
+            emit->MmuProbe()->PeekVaToHost(d->actual_guest_address + off);
+        if (p == nullptr) {
+            word_ok = false;
+            word = 0xFFFFFFFFu;
+            break;
+        }
+        uint32_t halfword = 0u;
+        std::memcpy(&halfword, p, 2u);
+        word |= halfword
+                << (ctx->thumb ? (d->length - 2u - off) * 8u : off * 8u);
     }
     LOG(Jit, "EmitRaiseUndAndReturn: UNDEFINED encoding at pc=0x%08X (actual=0x%08X) "
              "word=%s0x%08X T=%u mode=0x%02X\n",

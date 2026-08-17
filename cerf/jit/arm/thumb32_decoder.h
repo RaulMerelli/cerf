@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+class ArmCoprocSpaceDecoder;
+class NeonUnconditionalDecoder;
 struct DecodedInsn;
 
 class Thumb32Decoder : public Service {
@@ -27,6 +29,10 @@ public:
 
 private:
     bool has_thumb2_ = false;
+    bool has_neon_   = false;
+
+    ArmCoprocSpaceDecoder*    coproc_decoder_ = nullptr;
+    NeonUnconditionalDecoder* neon_decoder_   = nullptr;
 
     bool DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op);
     bool DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op);

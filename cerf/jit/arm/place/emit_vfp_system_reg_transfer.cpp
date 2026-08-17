@@ -8,10 +8,10 @@
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
 
-/* VMRS / VMSR - VFP system-register move. Encoding: cp_num=10,
-   cp_opc=7, CRm=0, opc2=0; CRn selects which VFP system register.
-   Per references/omap3530/armv7_arch_excerpts.txt § VFP system
-   registers - VMRS / VMSR. */
+/* DDI 0406C.c B9.3.21 VMRS (p. B9-2014) and B9.3.22 VMSR (p. B9-2016),
+   encoding T1/A1: bits[27:20] = 1110 111L, "reg" at bits[19:16], coproc =
+   1010, opc2 = (0)(0)(0), CRm = (0)(0)(0)(0). The application-level
+   A8.8.348 / A8.8.349 forms hard-fix bits[19:16] and reach FPSCR only. */
 
 uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
@@ -21,12 +21,24 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
     const int32_t rd_disp =
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u);
 
-    /* CRn values per QEMU cpu.h ARM_VFP_* constants (excerpt §VFP). */
+    /* CRn values per the ARM_VFP_* constants of QEMU target/arm/cpu.h. */
     constexpr uint32_t kFpsid  = 0;
     constexpr uint32_t kFpscr  = 1;
     constexpr uint32_t kMvfr1  = 6;
     constexpr uint32_t kMvfr0  = 7;
     constexpr uint32_t kFpexc  = 8;
+
+    /* B9.3.21 (p. B9-2014) and B9.3.22 (p. B9-2016): "if the specified
+       Floating-point Extension System Register is not the FPSCR, the
+       instruction is UNDEFINED if executed in User mode." That is the ARMv7
+       rule; for the VFPv2 cores DDI 0406C.c does not cover, the model of
+       QEMU target/arm/tcg/translate-vfp.c trans_VMSR_VMRS blocks FPSID at
+       PL0 only under isar_feature_aa32_fpsp_v3, which cpu-features.h reads
+       as MVFR0.FPSP (FIELD(MVFR0, FPSP, 4, 4)) >= 2. */
+    const uint32_t fpsp = (emit->ProcessorConfig()->Mvfr0() >> 4) & 0xFu;
+    if (d->crn != kFpscr && (d->crn != kFpsid || fpsp >= 2u)) {
+        cursor = EmitRaiseUndIfUserMode(cursor, d, ctx);
+    }
 
     if (d->l) {
         /* VMRS - read VFP system register → Rt. */
@@ -41,7 +53,6 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
 
         case kFpscr:
             if (d->rd == 15) {
-                /* __cdecl: PUSH args RTL, CALL, ADD ESP. */
                 EmitPushBaseDisp32(cursor, kStateReg,
                     static_cast<int32_t>(offsetof(ArmCpuState, fpscr)));
                 EmitPush32(cursor,
@@ -90,8 +101,8 @@ uint8_t* EmitVfpSystemRegTransfer(uint8_t*      cursor,
     case kFpsid:
     case kMvfr1:
     case kMvfr0:
-        /* Writes ignored on read-only system registers (excerpt
-           §VFP, QEMU translate-vfp.c:1467-1473). */
+        /* Read-only extension system registers: writes are ignored, per the
+           model of QEMU target/arm/tcg/translate-vfp.c trans_VMSR_VMRS. */
         return cursor;
 
     case kFpscr:

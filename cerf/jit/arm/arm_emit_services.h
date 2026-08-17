@@ -6,6 +6,7 @@
 
 struct ArmCpuState;
 
+class Fatal;
 class ArmCpu;
 class ArmExceptionFrame;
 class ArmRoutedAccess;
@@ -61,6 +62,7 @@ public:
 
     ArmCpuState* CpuState() { return cpu_state_; }
 
+    Fatal*              FatalService()    { return fatal_; }
     ArmCpu*             Cpu()             { return cpu_; }
     ArmMmu*             Mmu()             { return mmu_; }
     ArmMmuProbe*        MmuProbe()        { return mmu_probe_; }
@@ -108,6 +110,7 @@ public:
     ArmVfp*                     Vfp()                    { return vfp_; }
 
 private:
+    Fatal*              fatal_            = nullptr;
     ArmCpu*             cpu_              = nullptr;
     ArmMmu*             mmu_              = nullptr;
     ArmMmuProbe*        mmu_probe_        = nullptr;

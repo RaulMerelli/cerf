@@ -25,6 +25,9 @@ uint8_t* EmitCoprocDataOperationUnimplementedFatal(uint8_t* cursor, DecodedInsn*
 uint8_t* EmitCoprocDataTransferUnimplementedFatal(uint8_t* cursor, DecodedInsn* d,
                                                   BlockContext* ctx);
 uint8_t* EmitCoprocUnimplementedFatal(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* EmitCpsrUserModeTest(uint8_t* cursor);
+uint8_t* EmitRaiseUndIfUserMode(uint8_t* cursor, DecodedInsn* d,
+                                BlockContext* ctx);
 uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15RegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);

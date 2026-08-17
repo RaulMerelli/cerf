@@ -4,7 +4,6 @@
 #include "../../../cpu/arm_processor_config.h"
 #include "../arm_emit_services.h"
 #include "../arm_mmu_state.h"
-#include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit_alu.h"
 
@@ -51,14 +50,7 @@ uint8_t* PlaceCoprocessorPermissionCheck(uint8_t*      cursor,
            included (B3.15 p. B3-1448; pre-ARMv6: ARM DDI 0100I p. B3-4;
            XScale Core Dev Manual §7.1 page 77 - CP15/CP14 privileged-only,
            CDP/MRRC/MCRR undefined). */
-        EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-            static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
-        EmitAndRegImm32(cursor, kEax, 0x1Fu);
-        EmitCmpRegImm32(cursor, kEax, ArmMode::kUser);
-        uint8_t* not_user = EmitJnzLabel32(cursor);
-        cursor = EmitRaiseUndTail(cursor, d, ctx);
-        FixupLabel32(not_user, cursor);
-        return cursor;
+        return EmitRaiseUndIfUserMode(cursor, d, ctx);
     }
 
     /* A2.9 (p. A2-94): CP8, CP9, CP12 and CP13 are reserved; any
@@ -94,12 +86,7 @@ uint8_t* PlaceCoprocessorPermissionCheck(uint8_t*      cursor,
     EmitCmpRegImm32(cursor, kEax, 1u);
     uint8_t* und_label_field = EmitJnzLabel32(cursor);
 
-    /* B1.3.3 (p. B1-1148): CPSR.M[4:0] = bits[4:0]; Table B1-1
-       (p. B1-1139): User = 0b10000. */
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-        static_cast<int32_t>(offsetof(ArmCpuState, cpsr)));
-    EmitAndRegImm32(cursor, kEax, 0x1Fu);
-    EmitCmpRegImm32(cursor, kEax, ArmMode::kUser);
+    cursor = EmitCpsrUserModeTest(cursor);
     uint8_t* und_label_user = EmitJzLabel32(cursor);
 
     uint8_t* ok_label = EmitJmpLabel32(cursor);

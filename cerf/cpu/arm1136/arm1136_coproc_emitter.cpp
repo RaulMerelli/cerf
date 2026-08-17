@@ -61,9 +61,13 @@ public:
         if (d->cp_num == 10 || d->cp_num == 11) {
             return EmitVfpDataTransfer(cursor, d, ctx);
         }
-        /* DDI 0211 Table 13-28 (p. 13-44): "STC p14, c5" / "LDC p14, c5"
-           are CP14 debug instructions accessing the rDTR / wDTR. */
-        if (d->cp_num == 14) {
+        /* DDI 0211I Table 13-28 (p. 13-44): "STC p14, c5, <addressing mode>"
+           and "LDC p14, c5, <addressing mode>" are CP14 debug instructions,
+           accessing the rDTR / wDTR. p. 13-45: "If the processor tries to
+           execute a CP14 debug instruction that either is not in Table 13-28
+           on page 13-44, or is targeted to a reserved register ... the
+           Undefined instruction exception is taken." */
+        if (d->cp_num == 14 && d->crd == 5u) {
             return EmitCoprocDataTransferUnimplementedFatal(cursor, d, ctx);
         }
         return EmitRaiseUndAndReturn(cursor, d, ctx);

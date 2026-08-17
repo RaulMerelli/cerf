@@ -31,8 +31,10 @@ uint8_t* EmitVfpRegisterTransfer(uint8_t*      cursor,
         }
     }
 
-    /* VMRS / VMSR - VFP system register R/W (cp_opc=7, CRm=0, op2=0). */
-    if (d->cp_opc == 7 && d->crm == 0 && d->cp == 0) {
+    /* B9.3.21 VMRS (p. B9-2014) and B9.3.22 VMSR (p. B9-2016), encoding
+       T1/A1: bits[27:20] = 1110 111L, coproc = 1010, opc2 = (0)(0)(0),
+       CRm = (0)(0)(0)(0). */
+    if (d->cp_num == 10 && d->cp_opc == 7 && d->crm == 0 && d->cp == 0) {
         return EmitVfpSystemRegTransfer(cursor, d, ctx);
     }
 

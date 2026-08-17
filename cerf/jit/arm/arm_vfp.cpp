@@ -4,12 +4,14 @@
 #include <cstring>
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "arm_cpu.h"
 #include "arm_mmu.h"
 
 REGISTER_SERVICE(ArmVfp);
 
-uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
+uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t pc_read,
+                                     uint32_t rn_idx, uint32_t vd,
                                      uint32_t imm8, uint32_t flags) {
     auto& cpu = emu_.Get<ArmCpu>();
     auto& mmu = emu_.Get<ArmMmu>();
@@ -23,14 +25,18 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     const uint32_t n_regs    = is_dp ? (imm8 >> 1) : imm8;
     const uint32_t bytes_per = is_dp ? 8u : 4u;
 
-    /* UNPREDICTABLE encodings - QEMU chooses to UND. */
+    /* DDI 0406C.c A8.8.332 VLDM (p. A8-922) and A8.8.412 VSTM (p. A8-1080),
+       encoding T1/A1: "if regs == 0 || regs > 16 || (d+regs) > 32 then
+       UNPREDICTABLE"; T2/A2 drops the "regs > 16" term. */
     if (n_regs == 0 || (vd + n_regs) > 32u ||
-        (is_dp && n_regs > 16u) || rn_idx == 15u) {
+        (is_dp && n_regs > 16u)) {
         cpu.RaiseUndefinedException(pc);
         return 1;
     }
 
-    uint32_t addr = state->gprs[rn_idx];
+    /* DDI 0406C.c A8.8.332 VLDM Operation (p. A8-923): "address = if add then
+       R[n] else R[n]-imm32" - no Align(), unlike VLDR (p. A8-925). */
+    uint32_t addr = rn_idx == 15u ? pc_read : state->gprs[rn_idx];
     if (pre_decrement) {
         addr -= imm8 * 4u;
     }
@@ -60,14 +66,16 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
 
 uint32_t __cdecl ArmVfp::HandleBlockTransferHelper(ArmVfp*  vfp,
                                                    uint32_t pc,
+                                                   uint32_t pc_read,
                                                    uint32_t rn_idx,
                                                    uint32_t vd,
                                                    uint32_t imm8,
                                                    uint32_t flags) {
-    return vfp->HandleBlockTransfer(pc, rn_idx, vd, imm8, flags);
+    return vfp->HandleBlockTransfer(pc, pc_read, rn_idx, vd, imm8, flags);
 }
 
-uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
+uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t pc_read,
+                                      uint32_t rn_idx, uint32_t vd,
                                       int32_t signed_off, uint32_t flags) {
     auto& cpu = emu_.Get<ArmCpu>();
     auto& mmu = emu_.Get<ArmMmu>();
@@ -77,14 +85,9 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     const bool is_dp   = (flags & kFlagDp) != 0;
     const uint32_t bytes = is_dp ? 8u : 4u;
 
-    /* Rn=15 (PC) is the PC-relative form: address base is the
-       current insn's PC + 8 (ARM pipeline view), word-aligned. */
-    uint32_t addr;
-    if (rn_idx == 15u) {
-        addr = (pc + 8u) & ~3u;
-    } else {
-        addr = state->gprs[rn_idx];
-    }
+    /* DDI 0406C.c A8.8.333 VLDR Operation (p. A8-925): "base = if n == 15 then
+       Align(PC,4) else R[n]". */
+    uint32_t addr = rn_idx == 15u ? (pc_read & ~3u) : state->gprs[rn_idx];
     addr += static_cast<uint32_t>(signed_off);
 
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
@@ -98,11 +101,13 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
 
 uint32_t __cdecl ArmVfp::HandleSingleTransferHelper(ArmVfp*  vfp,
                                                    uint32_t pc,
+                                                   uint32_t pc_read,
                                                    uint32_t rn_idx,
                                                    uint32_t vd,
                                                    int32_t  signed_off,
                                                    uint32_t flags) {
-    return vfp->HandleSingleTransfer(pc, rn_idx, vd, signed_off, flags);
+    return vfp->HandleSingleTransfer(pc, pc_read, rn_idx, vd, signed_off,
+                                     flags);
 }
 
 namespace {
@@ -341,10 +346,11 @@ uint32_t ArmVfp::ExecuteCdp(uint32_t pc, uint32_t packed) {
             return 0;
         }
         case 0x7: {
-            /* VCVT single<->double: cp10 = single->double (Dd<-Sm), cp11 =
-               double->single (Sd<-Dm). Do NOT swap - running FCVTDS (cp10)
-               through the double->single body writes Sd instead of Dd, leaving
-               Dd garbage. */
+            /* DDI 0406C.c A8.8.309 VCVT (between double-precision and
+               single-precision) (p. A8-876), encoding T1/A1: bits[11:8] are
+               "1 0 1 sz", and "double_to_single = (sz == '1');
+               d = if double_to_single then UInt(Vd:D) else UInt(D:Vd);
+               m = if double_to_single then UInt(M:Vm) else UInt(Vm:M);". */
             if (op_sel == 3u) {
                 if (is_dp) {
                     const double src = dp_regs[(M << 4) | crm];
@@ -398,6 +404,17 @@ uint32_t ArmVfp::ExecuteCdp(uint32_t pc, uint32_t packed) {
             return 0;
         }
         default:
+            /* DDI 0406C.c Table A7-17 (A7.5, p. A7-273): opc2 = 101x and 111x
+               with opc3 = x1 are A8.8.308 VCVT (between floating-point and
+               fixed-point) (p. A8-874), "Encoding T1/A1 VFPv3, VFPv4", opc2
+               diagram 1 op 1 U. A7.5 (p. A7-272): "Other encodings in this
+               space are UNDEFINED". */
+            if ((crn & 0xAu) == 0xAu) {
+                emu_.Get<Fatal>().Die(
+                    "VFP VCVT between floating-point and fixed-point "
+                    "(opc2=0x%X, cp%u) not implemented at guest pc=0x%08X\n",
+                    crn, cp_num, pc);
+            }
             cpu.RaiseUndefinedException(pc);
             return 1;
     }
