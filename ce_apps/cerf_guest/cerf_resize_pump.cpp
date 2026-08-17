@@ -5,7 +5,6 @@
 
 #define CERF_RSZ_WANT_W       0x00u
 #define CERF_RSZ_WANT_H       0x04u
-#define CERF_RSZ_WANT_BPP     0x08u
 #define CERF_RSZ_WANT_GEN     0x0Cu
 #define CERF_RSZ_APPLIED_W    0x10u
 #define CERF_RSZ_APPLIED_H    0x14u

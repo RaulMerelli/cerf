@@ -8,6 +8,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../socs/guest_cpu_reset.h"
 #include "../../state/state_stream.h"
 
 REGISTER_SERVICE(CerfVirtFramebuffer);
@@ -71,6 +72,8 @@ void CerfVirtFramebuffer::OnReady() {
     bpp_    = emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
     region_bytes_ = ComputeRegionBytes();
     bytes_.assign(region_bytes_, 0);
+    emu_.Get<GuestCpuReset>().RegisterResetListener(
+        [this](ResetLineKind) { ReapplyConfiguredDepth(); });
     LOG(Periph, "[CerfVirtFramebuffer] %ux%u %ubpp stride=%u "
                 "fb_size=%u region=%u bytes (offscreen=%u bytes)\n",
         width_, height_, bpp_, Stride(), SizeBytes(),
@@ -106,6 +109,20 @@ void CerfVirtFramebuffer::RestoreState(StateReader& r) {
         std::vector<uint8_t> discard(static_cast<size_t>(n));
         if (n) r.ReadBytes(discard.data(), static_cast<size_t>(n));
     }
+}
+
+void CerfVirtFramebuffer::ReapplyConfiguredDepth() {
+    const uint32_t want = emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
+    if (want == bpp_) return;
+    const uint32_t was = bpp_;
+    bpp_ = want;
+    const uint32_t need = ComputeRegionBytes();
+    if (need > region_bytes_) {
+        region_bytes_ = need;
+        bytes_.assign(region_bytes_, 0);
+    }
+    LOG(Periph, "[CerfVirtFramebuffer] colour depth %ubpp -> %ubpp "
+                "stride=%u region=%u bytes\n", was, bpp_, Stride(), region_bytes_);
 }
 
 void CerfVirtFramebuffer::ApplyGuestMode(uint32_t w, uint32_t h) {

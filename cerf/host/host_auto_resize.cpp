@@ -42,7 +42,7 @@ void HostAutoResize::OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h) {
     if (canvas_w == last_w_ && canvas_h == last_h_) return;
     last_w_ = canvas_w;
     last_h_ = canvas_h;
-    emu_.Get<CerfVirtResize>().RequestResize(canvas_w, canvas_h, 32u);
+    emu_.Get<CerfVirtResize>().RequestResize(canvas_w, canvas_h);
 }
 
 std::wstring HostAutoResize::Tooltip() const {

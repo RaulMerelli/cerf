@@ -291,18 +291,22 @@ bool ChangeResolutionDialog::Apply(HWND hwnd) {
     const uint32_t bpp =
         emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
 
+    int reset_choice = reset_choice_;
+    if (bpp != emu_.Get<CerfVirtFramebuffer>().Bpp() && reset_choice == 0)
+        reset_choice = 1;
+
     auto& win = emu_.Get<HostWindow>();
-    if (reset_choice_ == 1) {
+    if (reset_choice == 1) {
         win.SetGuestResolution(w, h);   /* stage host fb + canvas for the reboot */
         win.FitToResolution(w, h);
         emu_.Get<GuestCpuReset>().WarmReset();
-    } else if (reset_choice_ == 2) {
+    } else if (reset_choice == 2) {
         win.SetGuestResolution(w, h);
         win.FitToResolution(w, h);
         emu_.Get<GuestColdBoot>().RequestHardReset();
     } else {
         win.FitToResolution(w, h);
-        emu_.Get<CerfVirtResize>().RequestResize(w, h, bpp);
+        emu_.Get<CerfVirtResize>().RequestResize(w, h);
     }
     return true;
 }

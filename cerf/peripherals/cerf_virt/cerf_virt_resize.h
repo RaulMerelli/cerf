@@ -20,12 +20,11 @@ public:
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
 
-    void RequestResize(uint32_t w, uint32_t h, uint32_t bpp);
+    void RequestResize(uint32_t w, uint32_t h);
 
 private:
     std::atomic<uint32_t> want_w_{0};
     std::atomic<uint32_t> want_h_{0};
-    std::atomic<uint32_t> want_bpp_{0};
     std::atomic<uint32_t> want_gen_{0};
 
     std::atomic<uint32_t> applied_w_{0};

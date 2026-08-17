@@ -42,6 +42,8 @@ public:
 
     void ApplyGuestMode(uint32_t w, uint32_t h);
 
+    void ReapplyConfiguredDepth();
+
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
 
