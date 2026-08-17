@@ -10,12 +10,13 @@
 
 uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
+    EmitPush32(cursor, d->length);
     EmitPush32(cursor, d->guest_address);
     EmitPush32(cursor,
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ctx->emit->Cpu())));
     EmitCall(cursor,
         reinterpret_cast<void*>(&ArmCpu::RaiseUndefinedExceptionHelper));
-    EmitAddRegImm32(cursor, kEsp, 8);
+    EmitAddRegImm32(cursor, kEsp, 12);
     EmitRet(cursor);
     return cursor;
 }

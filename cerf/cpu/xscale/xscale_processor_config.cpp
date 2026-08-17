@@ -75,6 +75,31 @@ public:
     uint32_t CpuToLowfreqClockDivider()   const override { return 12150; }
 };
 
+class Iop13xxProcessorConfig : public XscaleProcessorConfig {
+public:
+    using XscaleProcessorConfig::XscaleProcessorConfig;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetSoc() == SocFamily::IOP13xx;
+    }
+
+    /* Linux proc-xsc3.S matches IOP13xx with value 0x69056000 and mask
+       0xFFFFE000. */
+    uint32_t Midr() const override { return 0x69056000u; }
+
+    /* Third Generation Intel XScale Microarchitecture Developer's Manual,
+       Table 30: 32-KB I/D caches, 4-way, 32-byte lines. */
+    uint32_t Ctr() const override { return 0x0B192192u; }
+
+    /* MP377 OEMInit programs 25,000 timer counts per millisecond. */
+    uint32_t CpuClockHz() const override { return 800000000u; }
+    uint32_t CpuToOscrDivider() const override { return 32u; }
+    uint32_t CpuToHighfreqClockDivider() const override { return 32u; }
+    uint32_t CpuToLowfreqClockDivider() const override { return 24414u; }
+};
+
 }  /* namespace */
 
 REGISTER_SERVICE_AS(XscaleProcessorConfig, ArmProcessorConfig);
+REGISTER_SERVICE_AS(Iop13xxProcessorConfig, ArmProcessorConfig);

@@ -77,11 +77,13 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t rn_idx, uint32_t vd,
     const bool is_dp   = (flags & kFlagDp) != 0;
     const uint32_t bytes = is_dp ? 8u : 4u;
 
-    /* Rn=15 (PC) is the PC-relative form: address base is the
-       current insn's PC + 8 (ARM pipeline view), word-aligned. */
+    /* ARM DDI 0406C.c A8.8.334 VLDR (p. A8-926): the literal base is
+       Align(PC,4). PC reads as the current instruction address plus 8 in ARM
+       state and plus 4 in Thumb state (A2.3, p. A2-45). */
     uint32_t addr;
     if (rn_idx == 15u) {
-        addr = (pc + 8u) & ~3u;
+        const uint32_t prefetch = state->cpsr.bits.thumb_mode ? 4u : 8u;
+        addr = (pc + prefetch) & ~3u;
     } else {
         addr = state->gprs[rn_idx];
     }

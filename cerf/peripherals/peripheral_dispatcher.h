@@ -10,11 +10,16 @@
 
 enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
 
+class Iop13xxAtuState;
+
 class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
 
     void Register(Peripheral* p);
+    void RegisterAlias(Peripheral* owner, uint64_t base, uint64_t size,
+                       Peripheral::FastReadFn read,
+                       Peripheral::FastWriteFn write, void* ctx);
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
@@ -33,8 +38,8 @@ public:
 
 private:
     struct Entry {
-        uint32_t                base;
-        uint32_t                end;      /* exclusive */
+        uint64_t                base;
+        uint64_t                end;      /* exclusive */
         Peripheral::FastReadFn  read;
         Peripheral::FastWriteFn write;
         void*                   ctx;
@@ -45,21 +50,27 @@ private:
 
 public:
     uint32_t Read(uint32_t addr, MmioWidth width) {
-        if (const Entry* e = MemoHit(addr)) {
+        const uint64_t resolved = ResolveAtuOutboundAlias(
+            addr, static_cast<uint32_t>(width));
+        if (const Entry* e = MemoHit(resolved)) {
             return ClipToWidth(
-                e->read(e->ctx, addr - e->base, static_cast<uint32_t>(width)),
+                e->read(e->ctx, static_cast<uint32_t>(resolved - e->base),
+                        static_cast<uint32_t>(width)),
                 width);
         }
-        return ReadSlow(addr, width);
+        return ReadSlow(addr, resolved, width);
     }
 
     void Write(uint32_t addr, uint32_t value, MmioWidth width) {
-        if (const Entry* e = MemoHit(addr)) {
-            e->write(e->ctx, addr - e->base, ClipToWidth(value, width),
+        const uint64_t resolved = ResolveAtuOutboundAlias(
+            addr, static_cast<uint32_t>(width));
+        if (const Entry* e = MemoHit(resolved)) {
+            e->write(e->ctx, static_cast<uint32_t>(resolved - e->base),
+                     ClipToWidth(value, width),
                      static_cast<uint32_t>(width));
             return;
         }
-        WriteSlow(addr, value, width);
+        WriteSlow(addr, resolved, value, width);
     }
 
 private:
@@ -74,7 +85,7 @@ private:
         HaltBadWidth(static_cast<uint32_t>(width));
     }
 
-    const Entry* MemoHit(uint32_t addr) const {
+    const Entry* MemoHit(uint64_t addr) const {
         const EntryTable* t = live_.load(std::memory_order_acquire);
         if (!t) return nullptr;
         const size_t cached = last_hit_.load(std::memory_order_relaxed);
@@ -86,14 +97,18 @@ private:
 
     [[noreturn]] static void HaltBadWidth(uint32_t width);
 
-    uint32_t ReadSlow(uint32_t addr, MmioWidth width);
-    void     WriteSlow(uint32_t addr, uint32_t value, MmioWidth width);
-    const Entry* LookupSlow(uint32_t addr) const;
+    uint32_t ReadSlow(uint32_t raw_addr, uint64_t addr, MmioWidth width);
+    void     WriteSlow(uint32_t raw_addr, uint64_t addr, uint32_t value,
+                       MmioWidth width);
+    const Entry* LookupSlow(uint64_t addr) const;
+    const Entry* LookupRaw(uint64_t addr) const;
+    uint64_t ResolveAtuOutboundAlias(uint32_t addr, uint32_t width) const;
 
     std::atomic<const EntryTable*>          live_{nullptr};
     std::vector<std::unique_ptr<EntryTable>> tables_;
 
     mutable std::atomic<size_t> last_hit_{0};
 
-    const Entry* LookupEntry(uint32_t addr) const;
+    const Entry* LookupEntry(uint64_t addr) const;
+    mutable Iop13xxAtuState* atu_ = nullptr;
 };

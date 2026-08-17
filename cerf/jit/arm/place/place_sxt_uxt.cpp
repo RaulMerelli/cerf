@@ -26,6 +26,11 @@ inline void EmitStoreRd(uint8_t*& cursor, DecodedInsn* d) {
     EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEax);
 }
 
+inline void EmitAddRn(uint8_t*& cursor, DecodedInsn* d) {
+    x86::EmitAddRegBaseDisp32(cursor, x86::kEax, x86::kStateReg,
+                              GprDisp(d->rn));
+}
+
 }  /* namespace */
 
 uint8_t* PlaceSxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* /*ctx*/) {
@@ -57,5 +62,42 @@ uint8_t* PlaceUxth(uint8_t* cursor, DecodedInsn* d, BlockContext* /*ctx*/) {
     EmitLoadAndRotate  (cursor, d);
     EmitMovzxReg32Reg16(cursor, kEax, kEax);
     EmitStoreRd        (cursor, d);
+    return cursor;
+}
+
+/* ARM DDI 0406C.c A8.8.232/.234/.273/.275: extend then add Rn. */
+uint8_t* PlaceSxtab(uint8_t* cursor, DecodedInsn* d, BlockContext*) {
+    using namespace x86;
+    EmitLoadAndRotate(cursor, d);
+    EmitMovsxReg32Reg8(cursor, kEax, kAl);
+    EmitAddRn(cursor, d);
+    EmitStoreRd(cursor, d);
+    return cursor;
+}
+
+uint8_t* PlaceUxtab(uint8_t* cursor, DecodedInsn* d, BlockContext*) {
+    using namespace x86;
+    EmitLoadAndRotate(cursor, d);
+    EmitMovzxReg32Reg8(cursor, kEax, kAl);
+    EmitAddRn(cursor, d);
+    EmitStoreRd(cursor, d);
+    return cursor;
+}
+
+uint8_t* PlaceSxtah(uint8_t* cursor, DecodedInsn* d, BlockContext*) {
+    using namespace x86;
+    EmitLoadAndRotate(cursor, d);
+    EmitMovsxReg32Reg16(cursor, kEax, kEax);
+    EmitAddRn(cursor, d);
+    EmitStoreRd(cursor, d);
+    return cursor;
+}
+
+uint8_t* PlaceUxtah(uint8_t* cursor, DecodedInsn* d, BlockContext*) {
+    using namespace x86;
+    EmitLoadAndRotate(cursor, d);
+    EmitMovzxReg32Reg16(cursor, kEax, kEax);
+    EmitAddRn(cursor, d);
+    EmitStoreRd(cursor, d);
     return cursor;
 }

@@ -31,7 +31,8 @@ public:
     void SetPendingResumeVector(uint32_t pc);
     void SetPendingResumeMmu(uint32_t control, uint32_t ttbr0, uint32_t dacr);
 
-    void RaiseUndefinedException(uint32_t guest_pc);
+    void RaiseUndefinedException(uint32_t guest_pc,
+                                 uint32_t instruction_length = 4u);
     void RaiseAbortDataException(uint32_t guest_pc);
     void RaiseAbortPrefetchException(uint32_t guest_pc);
     void RaiseIrqException(uint32_t guest_pc);
@@ -39,8 +40,12 @@ public:
     void RaiseResetException(uint32_t initial_pc, bool initial_thumb);
     void RaiseResetException();
 
-    static void __cdecl RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
+    static void __cdecl RaiseUndefinedExceptionHelper(ArmCpu* cpu,
+                                                       uint32_t guest_pc,
+                                                       uint32_t instruction_length);
     static void __cdecl RaiseSwiExceptionHelper(ArmCpu* cpu, uint32_t guest_pc);
+    static void __cdecl RaiseAbortPrefetchExceptionHelper(ArmCpu* cpu,
+                                                          uint32_t guest_pc);
     static void __cdecl UpdateNzcvOnlyHelper(ArmCpu* cpu, uint32_t nzcv_source);
 
     static void __cdecl WriteCpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
@@ -51,6 +56,9 @@ public:
     static void __cdecl WriteSpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
                                                uint32_t mask);
     static uint32_t __cdecl ReadSpsrHelper(ArmCpu* cpu);
+    static void __cdecl ChangeProcessorStateHelper(ArmCpu* cpu, uint32_t imod,
+                                                   uint32_t aif,
+                                                   uint32_t mode);
 
     static uint32_t __cdecl ReadUserRegHelper(ArmCpu* cpu, uint32_t reg);
     static void     __cdecl WriteUserRegHelper(ArmCpu* cpu, uint32_t reg,

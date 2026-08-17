@@ -38,7 +38,7 @@ void Imx31AudioPlayer::OnReady() {
                 [this](const MSG& m) { OnThreadMessage(m); },
                 "iMX31-Audio");
     emu_.Get<Imx31Sdma>().RegisterChannelSink(
-        [this](const Imx31Sdma::ChannelStart& s) { return OnChannelClaim(s); },
+        [this](const FreescaleSdmaChannelStart& s) { return OnChannelClaim(s); },
         [this](uint32_t ch) { OnChannelStop(ch); });
     emu_.Get<AudioActivityWidget>().NotePresent();
 }
@@ -51,7 +51,7 @@ uint32_t Imx31AudioPlayer::SsiForTxEvent(int event) {
     return (event == kEvtSsi2Tx1 || event == kEvtSsi2Tx2) ? 2u : 0u;
 }
 
-bool Imx31AudioPlayer::OnChannelClaim(const Imx31Sdma::ChannelStart& s) {
+bool Imx31AudioPlayer::OnChannelClaim(const FreescaleSdmaChannelStart& s) {
     const uint32_t ssi = SsiForTxEvent(s.event);
     if (ssi == 0u) return false;
 

@@ -43,6 +43,7 @@ void ArmMmu::SaveState(StateWriter& w) {
     w.Write(state_.fault_address);
     w.Write(state_.ifsr);
     w.Write(state_.ifar);
+    w.Write(state_.par);
     w.Write(state_.process_id);
     w.Write(state_.coprocessor_access);
     w.Write(state_.cssel_register);
@@ -67,6 +68,7 @@ void ArmMmu::RestoreState(StateReader& r) {
     r.Read(state_.fault_address);
     r.Read(state_.ifsr);
     r.Read(state_.ifar);
+    r.Read(state_.par);
     r.Read(state_.process_id);
     r.Read(state_.coprocessor_access);
     r.Read(state_.cssel_register);
@@ -103,6 +105,10 @@ void ArmMmu::ResetControlRegisters() {
     /* ARM DDI 0100I B8.3 (p. B8-5): "the PID is initialized to 0b0000000 on
        reset, resulting in the FCSE being effectively disabled." */
     state_.process_id = 0;
+
+    state_.tpidrurw = 0;
+    state_.tpidruro = processor_config_->InitialTpidruro();
+    state_.tpidrprw = 0;
 
     /* ARM DDI 0406C.c Glossary "Context synchronization operation": taking an
        exception is one, and B3.15.5 (p. B3-1461) puts the explicit
@@ -146,6 +152,32 @@ uint8_t* __fastcall ArmMmu::TranslateUserReadHelper(uint32_t va, ArmMmu* mmu) {
 
 uint8_t* __fastcall ArmMmu::TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu) {
     return mmu->walker_->TranslateUserWrite(mmu->cpu_state_, va);
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateHelper(uint32_t va, ArmMmu* mmu) {
+    const ArmDfsr saved_fsr = mmu->state_.fault_status;
+    const uint32_t saved_far = mmu->state_.fault_address;
+    const uint32_t saved_io_address = mmu->io_pending_address_;
+    const uint32_t saved_io_valid = mmu->io_pending_valid_;
+
+    mmu->ClearIoPending();
+    uint8_t* host = mmu->walker_->TranslateRead(mmu->cpu_state_, va);
+    uint32_t par;
+    if (host != nullptr || mmu->io_pending()) {
+        /* ARM DDI 0406C.c B4.1.109: successful short-descriptor PAR returns
+           PA[31:12] with F == 0. */
+        par = mmu->walker_->LastPa() & 0xFFFFF000u;
+    } else {
+        const uint32_t fs = mmu->state_.fault_status.bits.status |
+                            (mmu->state_.fault_status.bits.fs4 << 4);
+        par = 1u | (fs << 1);
+    }
+
+    mmu->state_.fault_status = saved_fsr;
+    mmu->state_.fault_address = saved_far;
+    mmu->io_pending_address_ = saved_io_address;
+    mmu->io_pending_valid_ = saved_io_valid;
+    return par;
 }
 
 void ArmMmu::OnReady() {

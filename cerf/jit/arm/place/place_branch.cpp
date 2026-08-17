@@ -16,10 +16,16 @@ uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg,
             static_cast<int32_t>(offsetof(ArmCpuState, gprs) +
                                  ArmGpr::kR14 * 4u),
-            d->guest_address + 4u);
+            (d->guest_address + 4u) | (ctx->thumb ? 1u : 0u));
     }
-    const uint32_t target =
-        ArmPcReadValue(d, ctx) + static_cast<uint32_t>(d->offset);
+    if (d->n != 0u) {
+        /* ARM DDI 0406C.c A8.8.25 BLX T2: SelectInstrSet(ARM). */
+        EmitAndBaseDisp32Imm32(cursor, kStateReg,
+            static_cast<int32_t>(offsetof(ArmCpuState, cpsr)), ~0x20u);
+    }
+    uint32_t target = ArmPcReadValue(d, ctx) +
+                      static_cast<uint32_t>(d->offset);
+    if (d->n != 0u) target &= ~3u;
     EmitMovBaseDisp32Imm32(cursor, kStateReg,
         static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
         target);

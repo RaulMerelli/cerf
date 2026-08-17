@@ -126,7 +126,8 @@ private:
     /* ONEMS (0xB0) is 24-bit only on i.MX51 (MCIMX51RM §59.3.1); on i.MX31 every
        UART register including ONEMS is 16 LSB (MCIMX31RM §31.3.2). */
     static constexpr uint32_t kOnemsMask =
-        (kSoc == SocFamily::iMX51) ? 0xFFFFFFu : 0xFFFFu;
+        (kSoc == SocFamily::iMX51 || kSoc == SocFamily::iMX6)
+            ? 0xFFFFFFu : 0xFFFFu;
 
     /* §59.3.3 reset values that ARE the idle TX-ready/RX-empty status: USR1.TRDY
        (0x2040), USR2.TXDC+TXFE (0x4028), UTS.TXEMPTY (0x60, TXFULL clear). */
@@ -176,9 +177,17 @@ private:
             else if (n >= 1u)     v |= kUsr1Agtim;
             return v;
         }
-        if (off == kUSR2)
-            return kUsr2Idle | (rx_fifo_.empty() ? 0u : kUsr2Rdr);
-        if (off == kUTS)  return kUtsIdle;
+        if (off == kUSR2) {
+            const uint32_t v = kUsr2Idle | (rx_fifo_.empty() ? 0u : kUsr2Rdr);
+            return v;
+        }
+        if (off == kUTS)  {
+            /* UTS bit 5 is RXEMPTY on Freescale i.MX UART.  Older CERF kept
+               UTS fixed at the idle reset value (TXEMPTY|RXEMPTY), which makes
+               polling clients skip URXD even after an endpoint injected bytes. */
+            const uint32_t v = rx_fifo_.empty() ? kUtsIdle : (kUtsIdle & ~0x20u);
+            return v;
+        }
         if (off >= kCtrlLo && off <= kCtrlHi && (off & 3u) == 0u) {
             uint32_t v = ctrl_[(off - kCtrlLo) / 4u];
             if (off == kUCR2) v |= kSrst;   /* SRST self-deasserts (reset instant) */
@@ -189,7 +198,9 @@ private:
 
     void Wr(uint32_t off, uint32_t v, uint32_t shift, uint32_t vmask) {
         const uint32_t aligned = off & ~3u;
-        if (aligned == kUTXD) { EmitTx(static_cast<uint8_t>(v & 0xFFu)); return; }
+        if (aligned == kUTXD) {
+            EmitTx(static_cast<uint8_t>(v & 0xFFu)); return;
+        }
         if (aligned == kUSR1 || aligned == kUSR2) return;  /* W1C status; idle */
         if (aligned >= kCtrlLo && aligned <= kCtrlHi) {
             /* Each register holds only its significant low bits; the upper bits of
@@ -201,6 +212,7 @@ private:
             r = (r & ~m) | ((v << shift) & m);
             if (aligned == kUCR1 || aligned == kUCR4 || aligned == kUFCR)
                 UpdateRxIrq();   /* enable/threshold changed */
+            if (endpoint_) endpoint_->OnControlWrite(aligned, r);
             return;
         }
         HaltUnsupportedAccess("Write", kBase + off, v);

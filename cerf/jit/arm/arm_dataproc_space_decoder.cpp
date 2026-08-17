@@ -316,7 +316,9 @@ bool ArmDataprocSpaceDecoder::DecodeMiscSpace(DecodedInsn* insn, ArmOpcode op) {
     case 7u:
         if (mop == 1u) {
             /* BKPT - DDI 0406C.c A8.8.24 (p. A8-346). */
-            return MarkArmUnimplemented(insn, op.word);
+            insn->r15_modified = true;
+            insn->place_fn = &PlaceBkpt;
+            return true;
         }
         if (mop == 3u && processor_config_->HasSecurityExtensions()) {
             /* SMC - DDI 0406C.c B9.3.14 (p. B9-2002). */

@@ -17,6 +17,13 @@ uint8_t* PlaceThumbBlSuffix(uint8_t* cursor, DecodedInsn* d,
     if (d->offset != 0) {
         EmitAddRegImm32(cursor, kEax, static_cast<uint32_t>(d->offset));
     }
+    if (d->n != 0u) {
+        /* ARM DDI 0100I A7.1.17 BLX (1): H == 01 selects ARM state and the
+           destination is word-aligned. */
+        EmitAndRegImm32(cursor, kEax, ~3u);
+        EmitAndBaseDisp32Imm32(cursor, kStateReg,
+            static_cast<int32_t>(offsetof(ArmCpuState, cpsr)), ~0x20u);
+    }
     EmitMovBaseDisp32Imm32(cursor, kStateReg, kLrDisp,
                            (d->guest_address + 2u) | 1u);
     EmitMovBaseDisp32Reg(cursor, kStateReg,

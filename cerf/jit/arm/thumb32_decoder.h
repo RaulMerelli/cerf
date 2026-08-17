@@ -5,6 +5,8 @@
 #include <cstdint>
 
 struct DecodedInsn;
+class ArmProcessorConfig;
+class ArmDecoder;
 
 class Thumb32Decoder : public Service {
 public:
@@ -26,7 +28,9 @@ public:
     bool DecodeThumb32(DecodedInsn* insn, uint32_t op);
 
 private:
-    bool has_thumb2_ = false;
+    bool                has_thumb2_ = false;
+    ArmProcessorConfig* processor_config_ = nullptr;
+    ArmDecoder*         arm_decoder_ = nullptr;
 
     bool DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op);
     bool DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op);

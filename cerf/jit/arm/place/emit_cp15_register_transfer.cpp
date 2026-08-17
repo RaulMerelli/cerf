@@ -293,7 +293,27 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
     }
 
     case 7:
-        cursor = EmitCp15CacheOp(cursor, d, ctx);
+        if (emit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 0 &&
+            d->cp == 0 && ((!d->l && d->crm == 8) ||
+                           (d->l && d->crm == 4))) {
+            const int32_t par_disp =
+                static_cast<int32_t>(offsetof(ArmMmuState, par));
+            if (d->l) {
+                /* ARM DDI 0406C.c B4.1.109: MRC p15,0,Rt,c7,c4,0 reads PAR. */
+                EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, par_disp);
+                EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
+            } else {
+                /* ARM DDI 0406C.c B4.1.9: MCR p15,0,Rt,c7,c8,0 is ATS1CPR. */
+                EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
+                EmitMovRegImm32(cursor, kEdx, static_cast<uint32_t>(
+                    reinterpret_cast<uintptr_t>(emit->Mmu())));
+                EmitCall(cursor,
+                    reinterpret_cast<void*>(&ArmMmu::AddressTranslateHelper));
+                EmitMovBaseDisp32Reg(cursor, kMmuReg, par_disp, kEax);
+            }
+        } else {
+            cursor = EmitCp15CacheOp(cursor, d, ctx);
+        }
         break;
 
     case 8:

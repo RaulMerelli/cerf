@@ -2,6 +2,18 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+
+struct FreescaleSdmaChannelStart {
+    uint32_t channel;
+    int      event;        /* CHNENBL DMA-request event, or -1 if unbound. */
+    uint32_t base_bd_pa;   /* CCB base_bd_ptr. */
+    uint32_t stride;       /* BD slot stride. */
+};
+
+using FreescaleSdmaChannelClaim =
+    std::function<bool(const FreescaleSdmaChannelStart&)>;
+using FreescaleSdmaChannelStop = std::function<void(uint32_t channel)>;
 
 /* Freescale i.MX SDMA <-> serial-peripheral coupling. Non-template (peripherals
    hold a pointer to it) because FreescaleSdmaBase is templated on its base. */

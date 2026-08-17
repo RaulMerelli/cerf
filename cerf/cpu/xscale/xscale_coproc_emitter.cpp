@@ -15,21 +15,20 @@
 #include "../../jit/arm/place_fns.h"
 #include "../../jit/x86_emit_alu.h"
 #include "../../boards/board_context.h"
+#include "../../socs/iop13xx/iop13xx_cp6.h"
 
 namespace {
 
-class XscaleCoprocEmitter : public CoprocEmitter {
+class XscaleCoprocEmitterBase : public CoprocEmitter {
 public:
     using CoprocEmitter::CoprocEmitter;
-
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
-    }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,
                                   DecodedInsn*  d,
                                   BlockContext* ctx) override {
+        if (uint8_t* soc_cursor = EmitSocRegisterTransfer(cursor, d, ctx)) {
+            return soc_cursor;
+        }
         if (d->cp_num == 15) {
             /* CPAR (Coprocessor Access Register) - XScale §7.2.15: cp15
                c15, CRm=c1, opc2=0. The shared cp15 dispatch fatals on
@@ -196,8 +195,51 @@ public:
         }
         return cursor;
     }
+
+protected:
+    virtual uint8_t* EmitSocRegisterTransfer(uint8_t*, DecodedInsn*,
+                                              BlockContext*) {
+        return nullptr;
+    }
+};
+
+class Pxa25xXscaleCoprocEmitter : public XscaleCoprocEmitterBase {
+public:
+    using XscaleCoprocEmitterBase::XscaleCoprocEmitterBase;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetSoc() == SocFamily::PXA25x;
+    }
+};
+
+class Iop13xxXscaleCoprocEmitter : public XscaleCoprocEmitterBase {
+public:
+    using XscaleCoprocEmitterBase::XscaleCoprocEmitterBase;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetSoc() == SocFamily::IOP13xx;
+    }
+
+protected:
+    uint8_t* EmitSocRegisterTransfer(uint8_t* cursor, DecodedInsn* d,
+                                      BlockContext* ctx) override {
+        /* Third Generation Intel XScale Microarchitecture Developer's Manual,
+           Table 44: modeled caches need no host operation for these writes. */
+        if (d->cp_num == 15 && !d->l && d->crn == 7 && d->cp_opc == 1) {
+            const bool invalidate_mva = d->crm == 7 && d->cp == 1;
+            const bool clean = d->crm == 11 && (d->cp == 1 || d->cp == 2);
+            const bool clean_invalidate = d->crm == 15 && d->cp == 2;
+            if (invalidate_mva || clean || clean_invalidate) return cursor;
+        }
+        if (d->cp_num != 6) return nullptr;
+        return static_cast<Iop13xxCp6&>(emu_.Get<IrqController>())
+            .EmitRegisterTransfer(cursor, d, ctx);
+    }
 };
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(XscaleCoprocEmitter, CoprocEmitter);
+REGISTER_SERVICE_AS(Pxa25xXscaleCoprocEmitter, CoprocEmitter);
+REGISTER_SERVICE_AS(Iop13xxXscaleCoprocEmitter, CoprocEmitter);

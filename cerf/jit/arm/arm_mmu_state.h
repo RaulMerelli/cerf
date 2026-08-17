@@ -172,6 +172,7 @@ struct ArmMmuState {
     uint32_t  ifsr                  = 0;   /* IFSR: FS[3:0], no Domain/WnR
                                               (B4.1.96, short-descriptor) */
     uint32_t  ifar                  = 0;   /* IFAR (B4.1.95) */
+    uint32_t  par                   = 0;   /* PAR (B4.1.109), written by ATS */
     uint32_t  process_id            = 0;   /* FCSEIDR.PID:'0'*25, ORed over
                                               va<24:0> per ARM DDI 0406C.c
                                               B3.19.2 FCSETranslate */

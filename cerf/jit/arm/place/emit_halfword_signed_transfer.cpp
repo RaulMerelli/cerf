@@ -28,6 +28,11 @@ void EmitOffsetAddr(uint8_t*& cursor, DecodedInsn* d) {
         }
     } else {
         EmitMovRegBaseDisp32(cursor, kEax, kStateReg, GprDisp(d->rm));
+        if (d->rs != 0u) {
+            /* ARM DDI 0406C.c A8.8.82/.86/.90 Thumb register forms allow
+               LSL #0..3 on Rm. ARM forms leave rs at zero. */
+            EmitShlReg32Imm(cursor, kEax, static_cast<uint8_t>(d->rs));
+        }
         if (d->u) {
             EmitAddReg32Reg32(cursor, kEcx, kEax);
         } else {
@@ -73,11 +78,13 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     const bool wback    = !d->p || d->w;
     const bool is_dual  = !d->l && (d->op1 == 2 || d->op1 == 3);
 
-    /* A5.2.9 (p. A5-204): P == 0 && W == 1 selects the unprivileged forms.
+    /* A5.2.9 (p. A5-204): P == 0 && W == 1 selects the unprivileged forms
+       in the ARM encoding. Thumb-2 A8.8.218 STRH (immediate) T3 and the
+       corresponding loads use it for ordinary post-indexing.
        LDRHT/STRHT/LDRSBT/LDRSHT are ARMv6T2 encodings (DDI 0406C.c A8.8.83
        p. A8-448); before v6T2, DDI 0100I A5.3 (p. A5-34): "P == 0 The W bit
        must be 0 or the instruction is UNPREDICTABLE". */
-    const bool unpriv = !is_dual && !d->p && d->w;
+    const bool unpriv = !d->thumb_encoding && !is_dual && !d->p && d->w;
     if (unpriv && !config->HasMovwMovt()) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
@@ -141,6 +148,9 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
             }
             EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rm));
+            if (d->rs != 0u) {
+                EmitShlReg32Imm(cursor, kEdx, static_cast<uint8_t>(d->rs));
+            }
             if (d->u) {
                 EmitAddReg32Reg32(cursor, kEcx, kEdx);
             } else {

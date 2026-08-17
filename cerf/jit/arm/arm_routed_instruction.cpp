@@ -53,18 +53,31 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     d.guest_address        = guest_pc;
     d.actual_guest_address = guest_pc;
 
-    uint32_t raw     = 0;
-    bool     decoded = false;
+    uint32_t raw       = 0;
+    uint32_t insn_size = thumb ? 2u : 4u;
+    bool     decoded   = false;
     if (thumb) {
         uint16_t half = 0;
         std::memcpy(&half, host, sizeof(half));
         if (thumb32_->IsWide(half)) {
-            emu_.Get<Fatal>().Die(
-                "ArmRoutedInstruction: 32-bit Thumb instruction at guest PC "
-                "0x%08X completed a peripheral access\n", guest_pc);
+            uint8_t* second_host =
+                walker_->TranslateExecute(cpu_state_, guest_pc + 2u);
+            if (second_host == nullptr) {
+                emu_.Get<Fatal>().Die(
+                    "ArmRoutedInstruction: second Thumb halfword at guest PC "
+                    "0x%08X is unmapped on re-fetch\n", guest_pc);
+            }
+            uint16_t second = 0;
+            std::memcpy(&second, second_host, sizeof(second));
+            raw = (static_cast<uint32_t>(half) << 16) | second;
+            d.length = 4u;
+            insn_size = 4u;
+            decoded = thumb32_->DecodeThumb32(&d, raw);
+        } else {
+            raw     = half;
+            d.length = 2u;
+            decoded = thumb_->DecodeThumb(&d, half);
         }
-        raw     = half;
-        decoded = thumb_->DecodeThumb(&d, half);
     } else {
         ArmOpcode op;
         std::memcpy(&op.word, host, sizeof(op.word));
@@ -88,6 +101,8 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
         outcome = Exclusive(&d, false);
     } else if (d.place_fn == &PlaceStrex) {
         outcome = Exclusive(&d, true);
+    } else if (d.place_fn == &PlaceThumbDoubleTransfer) {
+        outcome = ThumbDoubleTransfer(&d);
     } else {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X word 0x%08X routes "
                 "a peripheral access from an instruction family with no "
@@ -96,8 +111,50 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     }
 
     if (outcome == Outcome::kNextInsn) {
-        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + (thumb ? 2u : 4u);
+        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + insn_size;
     }
+}
+
+ArmRoutedInstruction::Outcome ArmRoutedInstruction::ThumbDoubleTransfer(
+    DecodedInsn* d) {
+    /* ARM DDI 0406C.c A8.8.72/A8.8.210: Thumb LDRD/STRD names Rt2
+       explicitly, uses two consecutive word accesses, and applies the
+       ordinary P/U/W immediate addressing model. */
+    const uint32_t base = d->rn == ArmGpr::kR15
+        ? (PcReadValue(d) & 0xFFFFFFFCu)
+        : cpu_state_->gprs[d->rn];
+    const uint32_t offset_addr = d->u != 0u
+        ? base + static_cast<uint32_t>(d->offset)
+        : base - static_cast<uint32_t>(d->offset);
+    const uint32_t address = d->p != 0u ? offset_addr : base;
+    const bool wback = d->w != 0u;
+
+    const uint32_t mask = mmu_->DoublewordAlignMask();
+    if ((address & mask) != 0u) {
+        mmu_->RaiseAlignmentFault(address, d->l == 0u);
+        return Abort(d, wback, offset_addr);
+    }
+
+    if (d->l != 0u) {
+        uint32_t first = 0;
+        uint32_t second = 0;
+        if (!access_->Load(cpu_state_, d->guest_address, address, 4u, &first) ||
+            !access_->Load(cpu_state_, d->guest_address, address + 4u, 4u,
+                           &second)) {
+            return Abort(d, wback, offset_addr);
+        }
+        cpu_state_->gprs[d->rd] = first;
+        cpu_state_->gprs[d->rs] = second;
+    } else {
+        if (!access_->Store(cpu_state_, d->guest_address, address, 4u,
+                            cpu_state_->gprs[d->rd]) ||
+            !access_->Store(cpu_state_, d->guest_address, address + 4u, 4u,
+                            cpu_state_->gprs[d->rs])) {
+            return Abort(d, wback, offset_addr);
+        }
+    }
+    if (wback) cpu_state_->gprs[d->rn] = offset_addr;
+    return Outcome::kNextInsn;
 }
 
 /* ARM DDI 0100I A7.1, p. A7-3. */
@@ -425,64 +482,5 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
         }
         return Outcome::kPcWritten;
     }
-    return Outcome::kNextInsn;
-}
-
-ArmRoutedInstruction::Outcome ArmRoutedInstruction::Swap(DecodedInsn* d) {
-    const ArmSctlr sctlr             = mmu_->State()->effective_control_register;
-    const bool     u1                = mmu_->UnalignedAccessesFault();
-    const bool     is_byte           = d->n != 0u;
-    const bool     align_fault_check = !is_byte && (u1 || sctlr.bits.a);
-    const uint32_t bytes             = is_byte ? 1u : 4u;
-    const uint32_t pc                = d->guest_address;
-    const uint32_t base              = cpu_state_->gprs[d->rn];
-    const uint32_t address           =
-        (!is_byte && !align_fault_check) ? (base & 0xFFFFFFFCu) : base;
-
-    uint32_t value = 0;
-    if (!access_->Load(cpu_state_, pc, address, bytes, &value)) {
-        return Abort(d, false, 0u);
-    }
-    if (!is_byte && !align_fault_check) {
-        const uint32_t rot = 8u * (base & 3u);
-        if (rot != 0u) {
-            value = (value >> rot) | (value << (32u - rot));
-        }
-    }
-    if (!access_->Store(cpu_state_, pc, address, bytes,
-                        cpu_state_->gprs[d->rm])) {
-        return Abort(d, false, 0u);
-    }
-    cpu_state_->gprs[d->rd] = value;
-    return Outcome::kNextInsn;
-}
-
-ArmRoutedInstruction::Outcome ArmRoutedInstruction::Exclusive(DecodedInsn* d,
-                                                              bool is_store) {
-    const uint32_t pc      = d->guest_address;
-    const uint32_t address = cpu_state_->gprs[d->rn];
-
-    if (!is_store) {
-        uint32_t value = 0;
-        if (!access_->Load(cpu_state_, pc, address, 4u, &value)) {
-            return Abort(d, false, 0u);
-        }
-        cpu_state_->gprs[d->rd]        = value;
-        cpu_state_->ldrex_monitor_addr = address;
-        cpu_state_->ldrex_monitor_armed = 1u;
-        return Outcome::kNextInsn;
-    }
-
-    if (cpu_state_->ldrex_monitor_armed == 0u ||
-        cpu_state_->ldrex_monitor_addr != address) {
-        cpu_state_->gprs[d->rd] = 1u;
-        return Outcome::kNextInsn;
-    }
-    if (!access_->Store(cpu_state_, pc, address, 4u,
-                        cpu_state_->gprs[d->rm])) {
-        return Abort(d, false, 0u);
-    }
-    cpu_state_->gprs[d->rd]         = 0u;
-    cpu_state_->ldrex_monitor_armed = 0u;
     return Outcome::kNextInsn;
 }

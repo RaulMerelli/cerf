@@ -103,7 +103,6 @@ bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
            variants". */
         if (low) {
             if (!processor_config_->HasThumb2()) return false;
-            return MarkArmUnimplemented(insn, op);
         }
         insn->op1 = 4u;
         insn->s   = 0u;
@@ -233,39 +232,6 @@ bool ThumbDecoder::DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
-/* ARM DDI 0100I A7.1.13 B (1), p. A7-19. */
-bool ThumbDecoder::DecodeConditionalBranch(DecodedInsn* insn, uint16_t op) {
-    const uint32_t imm8 = op & 0xFFu;
-    insn->l        = 0u;
-    insn->offset   = static_cast<int32_t>(((imm8 ^ 0x80u) - 0x80u) << 1);
-    insn->place_fn = &PlaceBranch;
-    return true;
-}
-
-/* ARM DDI 0100I A7.1.14 B (2), p. A7-21. */
-bool ThumbDecoder::DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op) {
-    const uint32_t off11 = op & 0x7FFu;
-    insn->l        = 0u;
-    insn->offset   = static_cast<int32_t>(((off11 ^ 0x400u) - 0x400u) << 1);
-    insn->place_fn = &PlaceBranch;
-    return true;
-}
-
-/* ARM DDI 0100I A7.1.17 BL, BLX (1), H == 10 (p. A7-27). */
-bool ThumbDecoder::DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op) {
-    const uint32_t off11 = op & 0x7FFu;
-    insn->offset   = static_cast<int32_t>(((off11 ^ 0x400u) - 0x400u) << 12);
-    insn->place_fn = &PlaceThumbBlPrefix;
-    return true;
-}
-
-/* ARM DDI 0100I A7.1.17 BL, BLX (1), H == 11 (p. A7-27). */
-bool ThumbDecoder::DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op) {
-    insn->offset   = static_cast<int32_t>((op & 0x7FFu) << 1);
-    insn->place_fn = &PlaceThumbBlSuffix;
-    return true;
-}
-
 /* ARM DDI 0100I A7.1.9 ADD (7) (p. A7-12), A7.1.68 SUB (4) (p. A7-116). */
 bool ThumbDecoder::DecodeAdjustStackPointer(DecodedInsn* insn, uint16_t op) {
     insn->op1       = ((op >> 7) & 0x1u) != 0u ? 2u : 4u;
@@ -282,13 +248,48 @@ bool ThumbDecoder::DecodeAdjustStackPointer(DecodedInsn* insn, uint16_t op) {
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
 bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
+    /* ARM DDI 0406C.c A8.8.24 BKPT T1 (p. A8-346). The modified 6.6 CERF
+       models the debug event as a prefetch-abort exception. */
+    if ((op & 0xFF00u) == 0xBE00u) {
+        insn->r15_modified = true;
+        insn->place_fn = &PlaceBkpt;
+        return true;
+    }
+    /* ARM DDI 0406C.c A8.8.27 CBZ/CBNZ T1 (p. A8-354). */
+    if ((op & 0xF500u) == 0xB100u) {
+        const uint32_t imm6 = (((op >> 9) & 1u) << 5) |
+                              ((op >> 3) & 0x1Fu);
+        insn->rn = op & 7u;
+        insn->n = (op >> 11) & 1u;
+        insn->offset = static_cast<int32_t>(imm6 << 1);
+        insn->r15_modified = true;
+        insn->place_fn = &PlaceThumbCompareBranch;
+        return true;
+    }
+    /* ARM DDI 0406C.c Table A6-6 (p. A6-228): architectural hints. */
+    if ((op & 0xFF0Fu) == 0xBF00u) {
+        const uint32_t hint = (op >> 4) & 0xFu;
+        if (hint == 3u) {
+            insn->place_fn = &PlaceWfi;
+            return true;
+        }
+        if (hint <= 2u || hint == 4u) {
+            insn->place_fn = &PlaceNop;
+            return true;
+        }
+    }
     switch ((op >> 8) & 0xFu) {
     case 0x0u:
         return DecodeAdjustStackPointer(insn, op);
     case 0x2u:
-        /* Figure A6-2 note 2, p. A6-5. */
+        /* DDI 0406C.c A8.8.233/.235/.274/.276, encoding T1. */
         if (!processor_config_->HasExtendRotate()) return false;
-        return MarkArmUnimplemented(insn, op);
+        insn->place_fn = ((op >> 6) & 3u) == 0u ? &PlaceSxth :
+                         ((op >> 6) & 3u) == 1u ? &PlaceSxtb :
+                         ((op >> 6) & 3u) == 2u ? &PlaceUxth : &PlaceUxtb;
+        insn->rm = (op >> 3) & 7u;
+        insn->rd = op & 7u;
+        return true;
     case 0x4u:
     case 0x5u:
     case 0xCu:
@@ -319,7 +320,11 @@ bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
         const bool cps    = (lo & 0xE0u) == 0x60u && (lo & 0x08u) == 0u;
         if (!setend && !cps) return false;
         if (!processor_config_->HasCp15V6()) return false;
-        return MarkArmUnimplemented(insn, op);
+        if (setend) return MarkArmUnimplemented(insn, op);
+        insn->op1 = ((op >> 4) & 1u) != 0u ? 3u : 2u;
+        insn->rn = op & 7u;
+        insn->place_fn = &PlaceCpsMode;
+        return true;
     }
     case 0x1u:
     case 0x3u:
@@ -333,9 +338,14 @@ bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
         if (!processor_config_->HasThumb2()) return false;
         return MarkArmUnimplemented(insn, op);
     case 0xAu:
-        /* Figure A6-2 note 2, p. A6-5. */
+        /* DDI 0406C.c A8.8.144/.145/.146, encoding T1. */
         if (!processor_config_->HasRev()) return false;
-        return MarkArmUnimplemented(insn, op);
+        if (((op >> 6) & 3u) == 2u) return false;
+        insn->place_fn = ((op >> 6) & 3u) == 0u ? &PlaceRev :
+                         ((op >> 6) & 3u) == 1u ? &PlaceRev16 : &PlaceRevsh;
+        insn->rm = (op >> 3) & 7u;
+        insn->rd = op & 7u;
+        return true;
     case 0xEu:
         /* Figure A6-2 note 1, p. A6-5. */
         if (!processor_config_->HasBlxReg()) return false;
@@ -422,7 +432,18 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         return DecodeMiscellaneous(insn, op);
     case 0x18u:
     case 0x19u:
-        return MarkArmUnimplemented(insn, op);
+        /* ARM DDI 0100I A7.1.27 LDMIA (p. A7-45) and A7.1.60 STMIA
+           (p. A7-104): low-register list, increment-after, writeback. */
+        if ((op & 0xFFu) == 0u) return false;
+        insn->register_list = static_cast<uint16_t>(op & 0xFFu);
+        insn->rn = (op >> 8) & 0x7u;
+        insn->l  = (op >> 11) & 0x1u;
+        insn->p  = 0u;
+        insn->u  = 1u;
+        insn->w  = 1u;
+        insn->s  = 0u;
+        insn->place_fn = &PlaceBlockDataTransfer;
+        return true;
     case 0x1Au:
         return DecodeConditionalBranch(insn, op);
     case 0x1Bu:
@@ -430,7 +451,11 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         case 0xEu:
             return false;
         case 0xFu:
-            return MarkArmUnimplemented(insn, op);
+            /* ARM DDI 0406C.c A8.8.228 SVC T1 (p. A8-721). */
+            insn->r15_modified = true;
+            insn->immediate = op & 0xFFu;
+            insn->place_fn = &PlaceSvc;
+            return true;
         default:
             return DecodeConditionalBranch(insn, op);
         }
@@ -439,7 +464,9 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
     case 0x1Du:
         /* Figure A6-1 note 4, p. A6-5. */
         if ((op & 0x1u) != 0u || !processor_config_->HasBlxReg()) return false;
-        return MarkArmUnimplemented(insn, op);
+        /* ARM DDI 0100I A7.1.17 BLX (1), H == 01 (p. A7-27). */
+        insn->n = 1u;
+        return DecodeBranchLinkSuffix(insn, op);
     case 0x1Eu:
         return DecodeBranchLinkPrefix(insn, op);
     case 0x1Fu:

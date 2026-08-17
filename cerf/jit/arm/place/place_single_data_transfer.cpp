@@ -124,9 +124,11 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     const bool load     = d->l != 0;
     const bool wback    = !d->p || d->w;
 
-    /* Table A5-15 (p. A5-208): P == 0 && W == 1 selects
-       LDRT/STRT/LDRBT/STRBT. */
-    const bool unpriv = !d->p && d->w;
+    /* Table A5-15 (p. A5-208): P == 0 && W == 1 selects the unprivileged
+       forms only in the ARM encoding. Thumb-2 A8.8.203 STR (immediate) T4
+       and its load/byte variants use the same P/W pair for ordinary
+       post-indexing. */
+    const bool unpriv = !d->thumb_encoding && !d->p && d->w;
 
     /* A8.8.63: wback && n == t; A8.8.64: P == W; A8.8.66 / STR (register)
        p. A8-676: m == 15, wback && (n == 15 || n == t), ArchVersion() < 6
@@ -254,7 +256,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         FixupLabel32(legacy_label, cursor);
         if (load && d->rd == 15u) {
             /* A3.2.2 (p. A3-109): an unaligned PC load is UNPREDICTABLE. */
-            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+            cursor = EmitRaiseUndTail(cursor, d, ctx);
         } else if (load) {
             EmitMovRegReg  (cursor, kEdx, kEcx);
             EmitAndRegImm32(cursor, kEcx, 0xFFFFFFFCu);
@@ -304,7 +306,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         FixupLabel32(cross_label, cursor);
         if (load && d->rd == 15u) {
             /* A3.2.2 (p. A3-109): an unaligned PC load is UNPREDICTABLE. */
-            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+            cursor = EmitRaiseUndTail(cursor, d, ctx);
         } else if (load) {
             EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEcx);

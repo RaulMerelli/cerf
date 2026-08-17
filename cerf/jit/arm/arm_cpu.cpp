@@ -127,6 +127,11 @@ void ArmCpu::EnterException(uint32_t target_mode,
                             uint32_t new_lr_value,
                             uint32_t vect_offset,
                             bool     set_async_abort_mask) {
+    /* ARM DDI 0406C.c A3.4.5 (p. A3-120): exception entry clears the local
+       exclusive monitor. An LDREX reservation must not survive a syscall,
+       interrupt, or fault and make a later STREX succeed spuriously. */
+    state_.ldrex_monitor_armed = 0u;
+
     /* ARM DDI 0406C.c B3.15.5 (p. B3-1461): "the explicit synchronization
        occurs as the first step of any Context synchronization operation",
        and the Glossary makes taking an exception one of the three. */
@@ -153,8 +158,15 @@ void ArmCpu::EnterException(uint32_t target_mode,
     state_.gprs[ArmGpr::kR15] = ExcVectorBase() + vect_offset;
 }
 
-void ArmCpu::RaiseUndefinedException(uint32_t guest_pc) {
-    EnterException(ArmMode::kUndefined, ReturnAddress(guest_pc, 2u, 4u), 4u, false);
+void ArmCpu::RaiseUndefinedException(uint32_t guest_pc,
+                                     uint32_t instruction_length) {
+    /* ARM DDI 0406C.c B1.9.2 (p. B1-1206): the Undefined Instruction LR is
+       the address of the instruction following the undefined instruction.
+       Thumb encodings can be either two or four bytes wide. */
+    const uint32_t lr = state_.cpsr.bits.thumb_mode
+                            ? guest_pc + instruction_length
+                            : guest_pc + 4u;
+    EnterException(ArmMode::kUndefined, lr, 4u, false);
 }
 
 void ArmCpu::RaiseSwiException(uint32_t guest_pc) {
@@ -269,12 +281,18 @@ void ArmCpu::SetPendingResumeMmu(uint32_t control, uint32_t ttbr0, uint32_t dacr
     pending_resume_mmu_set_ = true;
 }
 
-void __cdecl ArmCpu::RaiseUndefinedExceptionHelper(ArmCpu* cpu, uint32_t guest_pc) {
-    cpu->RaiseUndefinedException(guest_pc);
+void __cdecl ArmCpu::RaiseUndefinedExceptionHelper(
+        ArmCpu* cpu, uint32_t guest_pc, uint32_t instruction_length) {
+    cpu->RaiseUndefinedException(guest_pc, instruction_length);
 }
 
 void __cdecl ArmCpu::RaiseSwiExceptionHelper(ArmCpu* cpu, uint32_t guest_pc) {
     cpu->RaiseSwiException(guest_pc);
+}
+
+void __cdecl ArmCpu::RaiseAbortPrefetchExceptionHelper(ArmCpu* cpu,
+                                                       uint32_t guest_pc) {
+    cpu->RaiseAbortPrefetchException(guest_pc);
 }
 
 /* ARM ARM DDI 0406C.c B1.3.3, p. B1-1148: condition flags N[31] Z[30] C[29]
@@ -322,6 +340,28 @@ void __cdecl ArmCpu::WriteSpsrByInstrHelper(ArmCpu* cpu, uint32_t value,
                                             uint32_t mask) {
     ArmPsrFull* spsr = cpu->BankedSpsr(cpu->state_.cpsr.bits.mode);
     spsr->word = (spsr->word & ~mask) | (value & mask);
+}
+
+/* ARM DDI 0406C.c B9.3.2 CPS (p. B9-1979): in a privileged mode, imod
+   enables/disables the selected A/I/F masks and an optional mode field is
+   applied by CPSRWriteByInstr. */
+void __cdecl ArmCpu::ChangeProcessorStateHelper(ArmCpu* cpu, uint32_t imod,
+                                                uint32_t aif, uint32_t mode) {
+    if (cpu->state_.cpsr.bits.mode == ArmMode::kUser) {
+        return;
+    }
+    ArmPsrFull next;
+    next.word = ArmPackCpsr(cpu->state_);
+    uint32_t mask = 0u;
+    if ((aif & 1u) != 0u) mask |= 1u << 6;
+    if ((aif & 2u) != 0u) mask |= 1u << 7;
+    if ((aif & 4u) != 0u) mask |= 1u << 8;
+    if (imod == 3u) next.word |= mask;
+    if (imod == 2u) next.word &= ~mask;
+    if ((mode & 0x1Fu) != 0u) {
+        next.word = (next.word & ~0x1Fu) | (mode & 0x1Fu);
+    }
+    cpu->UpdateCpsrWithFlags(next);
 }
 
 uint32_t __cdecl ArmCpu::ReadSpsrHelper(ArmCpu* cpu) {

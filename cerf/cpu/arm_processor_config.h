@@ -35,6 +35,9 @@ public:
     /* CPU cycles per low-frequency-reference (CKIL-like 32 kHz) tick. */
     virtual uint32_t CpuToLowfreqClockDivider()   const { return 1; }
 
+    /* Optional board boot-contract value for CP15 TPIDRURO. */
+    virtual uint32_t InitialTpidruro()             const { return 0; }
+
     virtual uint32_t CpuClockHz()                 const = 0;
 
     virtual bool     HasDsp()                     const = 0;

@@ -161,6 +161,7 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
         (folded_pc & ~(kArmBlockPageBytes - 1u)) + kArmBlockPageBytes;
     fetch_fault_ = false;
     wide_split_  = 0u;
+    uint8_t thumb_itstate = 0u;
 
     uint32_t i = 0;
     for (; i < kMaxArmInsnPerBlock && folded_pc < page_end; ++i) {
@@ -177,7 +178,26 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
         if (thumb_) {
             uint16_t half = 0u;
             std::memcpy(&half, host, sizeof(half));
-            if (thumb32_decoder_->IsWide(half)) {
+            bool is_it = false;
+            /* ARM DDI 0406C.c A8.8.55: IT carries firstcond and a nonzero
+               mask; the ITSTATE then predicates each following instruction.
+               Keep four decoded slots available so a JIT block cannot end
+               between IT and the longest possible controlled sequence. */
+            if ((half & 0xFF00u) == 0xBF00u && (half & 0x000Fu) != 0u) {
+                if (i + 4u >= kMaxArmInsnPerBlock && i != 0u) break;
+                const uint32_t firstcond = (half >> 4) & 0xFu;
+                if (firstcond == 0xFu) {
+                    decoded = false;
+                } else {
+                    thumb_itstate = static_cast<uint8_t>(
+                        (firstcond << 4) | (half & 0xFu));
+                    insn.cond     = 14u;
+                    insn.length   = 2u;
+                    insn.place_fn = &PlaceNop;
+                    decoded       = true;
+                    is_it         = true;
+                }
+            } else if (thumb32_decoder_->IsWide(half)) {
                 const bool crosses = folded_pc + 4u > page_end;
                 if (crosses && i != 0u) break;
                 uint8_t* hi =
@@ -201,6 +221,33 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
             } else {
                 insn.length = 2u;
                 decoded     = thumb_decoder_->DecodeThumb(&insn, half);
+            }
+
+            if (decoded && thumb_itstate != 0u && !is_it) {
+                insn.cond = thumb_itstate >> 4;
+                /* ARM DDI 0406C.c A8.8.102/.4/.8: the Thumb T1 MOV/ADD/SUB
+                   forms use setflags = !InITBlock(). The test operations
+                   (TST/CMP/CMN, data-processing opcodes 8, 10 and 11) keep
+                   their mandatory flag update. */
+                const bool data_processing =
+                    insn.place_fn == &PlaceDataProcessing ||
+                    insn.place_fn == &PlaceDataProcessingReg ||
+                    insn.place_fn == &PlaceDataProcessingShiftedReg ||
+                    insn.place_fn == &PlaceMultiply;
+                const bool mandatory_flags =
+                    data_processing &&
+                    (insn.op1 == 8u || insn.op1 == 10u || insn.op1 == 11u);
+                if (data_processing && insn.length == 2u && insn.s != 0u &&
+                    !mandatory_flags) {
+                    insn.s = 0u;
+                }
+                if ((thumb_itstate & 7u) == 0u) {
+                    thumb_itstate = 0u;
+                } else {
+                    thumb_itstate = static_cast<uint8_t>(
+                        (thumb_itstate & 0xE0u) |
+                        ((thumb_itstate << 1) & 0x1Fu));
+                }
             }
         } else {
             ArmOpcode op{};

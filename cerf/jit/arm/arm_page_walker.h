@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
+#include "../../boards/page_table_builder.h"
 #include "../../core/service.h"
 #include "arm_mmu_state.h"
 #include "cpu_state.h"
@@ -30,6 +32,7 @@ public:
     uint8_t* TranslateUserWrite(ArmCpuState* cpu_state, uint32_t va);
 
     uint32_t LastExecPa() const { return last_exec_pa_; }
+    uint32_t LastPa() const { return last_pa_; }
 
     void SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size);
 
@@ -43,8 +46,10 @@ private:
     ArmMmuState*        state_p_          = nullptr;
     EmulatedMemory*     memory_           = nullptr;
     ArmProcessorConfig* processor_config_ = nullptr;
+    std::vector<StaticRuntimeAlias> static_aliases_;
 
     uint32_t last_exec_pa_ = 0;
+    uint32_t last_pa_      = 0;
 
     uint32_t injection_band_va_   = 0;
     uint32_t injection_band_pa_   = 0;

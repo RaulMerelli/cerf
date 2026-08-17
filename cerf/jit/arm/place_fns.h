@@ -60,9 +60,12 @@ uint8_t* PlaceBfi(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBlockDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBlxReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceBkpt(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBxImpl(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx, bool is_call);
 uint8_t* PlaceClz(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceClrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceCpsMode(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocDataOperation(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocExtension(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -135,6 +138,7 @@ uint8_t* EmitChainToBlock(uint8_t* cursor, BlockContext* ctx,
                           uint32_t target_va, uint32_t slot);
 uint8_t* PlaceRev(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRev16(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceRbit(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRevsh(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSaturatingArith(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -144,11 +148,20 @@ uint8_t* PlaceSrs(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceStrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSvc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceSxtab(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceSxtah(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxth(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceThumbBlPrefix(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceThumbBlSuffix(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceThumbCompareBranch(uint8_t* cursor, DecodedInsn* d,
+                                 BlockContext* ctx);
+uint8_t* PlaceTableBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceThumbDoubleTransfer(uint8_t* cursor, DecodedInsn* d,
+                                  BlockContext* ctx);
 uint8_t* PlaceUbfx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceUxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceUxtab(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceUxtah(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceUxth(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceWfi(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 

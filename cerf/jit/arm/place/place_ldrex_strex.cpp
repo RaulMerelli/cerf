@@ -24,6 +24,9 @@ uint8_t* EmitTranslatePrefix(uint8_t*& cursor, DecodedInsn* d,
                              BlockContext* ctx, bool is_write) {
     using namespace x86;
     EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
+    if (d->offset != 0) {
+        EmitAddRegImm32(cursor, kEcx, static_cast<uint32_t>(d->offset));
+    }
     cursor = EmitTlbFastPath(cursor, ctx,
                              is_write ? TlbAccess::kWrite : TlbAccess::kRead);
     EmitTestRegReg(cursor, kEax, kEax);
@@ -31,6 +34,13 @@ uint8_t* EmitTranslatePrefix(uint8_t*& cursor, DecodedInsn* d,
 }
 
 }  /* namespace */
+
+/* ARM DDI 0406C.c A8.8.32 CLREX (p. A8-360): clear the local exclusive
+   monitor. */
+uint8_t* PlaceClrex(uint8_t* cursor, DecodedInsn*, BlockContext*) {
+    x86::EmitMovBaseDisp32Imm32(cursor, x86::kStateReg, MonitorArmedDisp(), 0u);
+    return cursor;
+}
 
 uint8_t* PlaceLdrex(uint8_t*      cursor,
                     DecodedInsn*  d,
@@ -49,6 +59,9 @@ uint8_t* PlaceLdrex(uint8_t*      cursor,
     /* Arm exclusive monitor: monitor_addr = guest VA (re-loaded
        from Rn since EAX held the host pointer), monitor_armed = 1. */
     EmitMovRegBaseDisp32 (cursor, kEax, kStateReg, GprDisp(d->rn));
+    if (d->offset != 0) {
+        EmitAddRegImm32(cursor, kEax, static_cast<uint32_t>(d->offset));
+    }
     EmitMovBaseDisp32Reg (cursor, kStateReg, MonitorAddrDisp(),  kEax);
     EmitMovBaseDisp32Imm32(cursor, kStateReg, MonitorArmedDisp(), 1u);
 
@@ -76,6 +89,9 @@ uint8_t* PlaceStrex(uint8_t*      cursor,
 
     /* Check address match - CMP ECX (VA from Rn), [ESI + monitor_addr]. */
     EmitMovRegBaseDisp32 (cursor, kEcx, kStateReg, GprDisp(d->rn));
+    if (d->offset != 0) {
+        EmitAddRegImm32(cursor, kEcx, static_cast<uint32_t>(d->offset));
+    }
     EmitCmpRegBaseDisp32 (cursor, kEcx, kStateReg, MonitorAddrDisp());
     uint8_t* fail_label_b = EmitJnzLabel32(cursor);
 

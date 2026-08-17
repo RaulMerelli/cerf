@@ -1,7 +1,5 @@
 #include "arm_page_walker.h"
 
-#include "../../boards/board_context.h"
-#include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/arm_processor_config.h"
 #include "../../cpu/emulated_memory.h"
@@ -9,41 +7,6 @@
 #include "arm_mmu_ap_permits.h"
 #include "arm_pte.h"
 #include "arm_tlb_ops.h"
-
-REGISTER_SERVICE(ArmPageWalker);
-
-bool ArmPageWalker::ShouldRegister() {
-    return emu_.Get<BoardContext>().GetCpuArch() == CpuArch::Arm;
-}
-
-void ArmPageWalker::OnReady() {
-    mmu_              = &emu_.Get<ArmMmu>();
-    state_p_          = mmu_->State();
-    memory_           = &emu_.Get<EmulatedMemory>();
-    processor_config_ = &emu_.Get<ArmProcessorConfig>();
-    mmu_->BindWalker(this);
-}
-
-void ArmPageWalker::SetInjectionBand(uint32_t va_base, uint32_t pa_base,
-                                     uint32_t size) {
-    injection_band_va_   = va_base;
-    injection_band_pa_   = pa_base;
-    injection_band_size_ = size;
-}
-
-uint8_t* ArmPageWalker::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
-    if (injection_band_size_ == 0u) return nullptr;
-    const uint32_t off = va - injection_band_va_;
-    if (off >= injection_band_size_) return nullptr;
-    const uint32_t pa = injection_band_pa_ + off;
-    const bool is_write = (access == ArmMmuAccess::kWrite ||
-                           access == ArmMmuAccess::kReadWrite);
-    uint8_t* host = is_write ? memory_->TryTranslateWrite(pa)
-                             : memory_->TryTranslate(pa);
-    if (!host) return nullptr;
-    if (access == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
-    return host;
-}
 
 template <ArmMmuAccess kAccess, bool kForceUser>
 uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p) {
@@ -71,6 +34,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
     p = ArmFcseFold(p, state_.process_id);
 
     if (!state_.effective_control_register.bits.m) {
+        last_pa_ = p;
         uint8_t* host = memory_->TryTranslate(p);
         if (host) {
             if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = p;
@@ -88,6 +52,31 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         kForceUser || (cpu_state->cpsr.bits.mode == ArmMode::kUser);
     /* ARM DDI 0406C.c B3.9.1: ASID is CONTEXTIDR[7:0]. */
     const uint8_t current_asid = static_cast<uint8_t>(state_.contextidr & 0xFFu);
+
+    if constexpr (kAccess != ArmMmuAccess::kExecute) {
+        for (const auto& alias : static_aliases_) {
+            if (p < alias.va_base ||
+                static_cast<uint64_t>(p) >=
+                    static_cast<uint64_t>(alias.va_base) + alias.size) {
+                continue;
+            }
+            const uint32_t pa = alias.pa_base + (p - alias.va_base);
+            uint8_t* host = kIsWrite ? memory_->TryTranslateWrite(pa)
+                                     : memory_->TryTranslate(pa);
+            if (host) {
+                last_pa_ = pa;
+                FillFastTlb(tlb_unit, p, host, pa, current_asid,
+                            /*global=*/true,
+                            /*writable=*/memory_->TryTranslateWrite(pa) != nullptr);
+                ArmNoteCodeTracking<kAccess>(state_, pa);
+                return host;
+            }
+            FillFastTlbIo(tlb_unit, p, pa, current_asid,
+                          /*global=*/true, /*writable=*/kIsWrite);
+            mmu_->SetIoPending(pa);
+            return nullptr;
+        }
+    }
     /* ARM DDI 0406C.c Table D15-7: AP=00 access depends on SCTLR.{S,R}. */
     const bool sctlr_s = state_.effective_control_register.bits.s != 0u;
     const bool sctlr_r = state_.effective_control_register.bits.r != 0u;
@@ -112,6 +101,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             ArmTlbPromote(tlb_unit, set_base, hit_way);
             const ArmTlbEntry& fast = tlb_unit->entries[set_base];
             const uint32_t pa = fast.pa_page | (p & 0x0FFFu);
+            last_pa_ = pa;
             if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
             ArmNoteCodeTracking<kAccess>(state_, pa);
             return reinterpret_cast<uint8_t*>(
@@ -413,6 +403,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                              memory_->IsSlotRangeUniform(new_slot.span_bytes,
                                                          effective_address);
 
+        last_pa_ = effective_address;
         if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = effective_address;
 
         if constexpr (kAccess == ArmMmuAccess::kWrite) {

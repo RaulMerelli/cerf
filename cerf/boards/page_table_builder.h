@@ -29,6 +29,12 @@ struct BackedRegion {
     uint32_t decode_span = 0;
 };
 
+struct StaticRuntimeAlias {
+    uint32_t va_base;
+    uint32_t pa_base;
+    uint32_t size;
+};
+
 class PageTableBuilder : public Service {
 public:
     using Service::Service;
@@ -58,6 +64,11 @@ public:
        VA outside these, and a band VA inside an omitted MMIO span gets shadowed
        by the real peripheral mapping so the stub bytes are never served. */
     virtual std::vector<DramRegion> MappedVaSpans() const = 0;
+
+    /* Board/OAL aliases returned by mapping helpers without a new guest PTE. */
+    virtual std::vector<StaticRuntimeAlias> StaticRuntimeAliases() const {
+        return {};
+    }
 
     /* True iff `va` lies inside any cached-DRAM band. Default impl
        walks CachedDramRegions(); SoC overrides not needed. */

@@ -17,6 +17,19 @@ void ArmMmuProbe::OnReady() {
     state_p_          = emu_.Get<ArmMmu>().State();
     memory_           = &emu_.Get<EmulatedMemory>();
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
+    static_aliases_    = emu_.Get<PageTableBuilder>().StaticRuntimeAliases();
+}
+
+std::optional<uint32_t> ArmMmuProbe::StaticAliasPa(uint32_t va) const {
+    const uint32_t p = ArmFcseFold(va, state_p_->process_id);
+    for (const auto& alias : static_aliases_) {
+        if (p >= alias.va_base &&
+            static_cast<uint64_t>(p) <
+                static_cast<uint64_t>(alias.va_base) + alias.size) {
+            return alias.pa_base + (p - alias.va_base);
+        }
+    }
+    return std::nullopt;
 }
 
 std::optional<uint32_t> ArmMmuProbe::WalkVaToPa(uint32_t va) {
@@ -102,6 +115,10 @@ uint8_t* ArmMmuProbe::PeekVaToHost(uint32_t va) {
         return ram ? ram : memory_->TryTranslate(pa);
     }
 
+    if (const auto alias = StaticAliasPa(va)) {
+        uint8_t* ram = memory_->TryTranslateWrite(*alias);
+        return ram ? ram : memory_->TryTranslate(*alias);
+    }
     if (std::optional<uint8_t*> tlb = PeekDataTlb(va)) return *tlb;
 
     std::optional<uint32_t> pa = WalkVaToPa(va);
@@ -114,6 +131,11 @@ bool ArmMmuProbe::PeekVaToPa(uint32_t va, uint32_t* pa) {
     const ArmMmuState& state_ = *state_p_;
     if (!state_.effective_control_register.bits.m) {
         *pa = ArmFcseFold(va, state_.process_id);
+        return true;
+    }
+
+    if (const auto alias = StaticAliasPa(va)) {
+        *pa = *alias;
         return true;
     }
 

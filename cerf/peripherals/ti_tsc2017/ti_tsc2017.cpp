@@ -1,0 +1,163 @@
+﻿#include "../../socs/imx6/imx6_i2c_bus.h"
+#include "../../socs/imx6/imx6_i2c_device.h"
+#include "ti_tsc2017_host_state.h"
+#include "../../boards/board_context.h"
+#include "../../core/cerf_emulator.h"
+
+namespace {
+
+/* TI TSC2017 touchscreen controller, I2C slave 0x49 on i.MX6 I2C3. A command
+   byte selects a conversion function; the result is clocked back over one or
+   two read bytes. Host pointer state â†’ raw ADC comes from Tsc2017HostState. */
+class TiTsc2017 : public Imx6I2cDevice {
+public:
+    using Imx6I2cDevice::Imx6I2cDevice;
+
+    bool ShouldRegister() override {
+        auto* bd = emu_.TryGet<BoardContext>();
+        return bd && bd->GetBoard() == Board::HmiKtp400Mobile;
+    }
+    void OnReady() override {
+        emu_.Get<Imx6I2cBus>().Register(this);
+    }
+
+    uint32_t I2cControllerBase() const override { return 0x021A8000u; }  /* I2C3 */
+    uint8_t  SlaveAddress() const override { return 0x49u; }
+
+    void StartTransfer(bool read) override {
+        expecting_command_ = !read;
+        pending_completion_ = false;
+        if (read)
+            read_index_ = 0;
+    }
+
+    void WriteByte(uint8_t value) override {
+        if (expecting_command_) {
+            Command(value);
+            pending_completion_ = true;
+            expecting_command_ = false;
+        }
+        /* TSC2017 ACKs only the first command byte in a write cycle; the guest
+           sends no extra bytes, so later bytes are tolerated. */
+    }
+
+    uint8_t ReadByte() override {
+        const bool eight_bit = (command_ & 0x02u) != 0;
+        const uint16_t sample = Clamp12(last_value_);
+        const uint8_t index = read_index_++;
+
+        uint8_t out = 0;
+        if (eight_bit) {
+            out = index == 0 ? static_cast<uint8_t>(sample >> 4) : 0x00u;
+        } else {
+            out = index == 0
+                ? static_cast<uint8_t>(sample >> 4)
+                : static_cast<uint8_t>((sample & 0x000Fu) << 4);
+        }
+        const uint8_t function = static_cast<uint8_t>((command_ >> 4) & 0x0Fu);
+        if (function == 0x0Fu &&
+            ((eight_bit && index == 0u) || (!eight_bit && index == 1u))) {
+            AdvanceFrame(function, index);
+        }
+        return out;
+    }
+
+    bool TakePendingCompletion() override {
+        const bool p = pending_completion_;
+        pending_completion_ = false;
+        return p;
+    }
+
+    void SaveState(StateWriter& w) override {
+        w.Write(command_);
+        w.Write(read_index_);
+        w.Write(last_value_);
+        w.Write(setup_);
+    }
+    void RestoreState(StateReader& r) override {
+        r.Read(command_);
+        r.Read(read_index_);
+        r.Read(last_value_);
+        r.Read(setup_);
+        frame_active_ = false;
+        frame_z2_count_ = 0;
+        pending_completion_ = false;
+        expecting_command_ = false;
+    }
+
+private:
+    static uint16_t Clamp12(uint16_t v) {
+        return static_cast<uint16_t>(v & 0x0FFFu);
+    }
+
+    Tsc2017HostState::Sample FrameSample() {
+        return frame_active_ ? frame_ : emu_.Get<Tsc2017HostState>().Get();
+    }
+
+    void BeginFrameIfNeeded(uint8_t function) {
+        /* touch.dll TSCSample() runs Z1/Z2, X, Z1/Z2, Y, Z1/Z2. Host mouse
+           moves arriving between X and Y would give the driver X and Y from
+           different contact points; latch the full sample at the first
+           activate command (0x0A) and hold it until the third Z2 conversion. */
+        if (function == 0x0Au && !frame_active_) {
+            frame_ = emu_.Get<Tsc2017HostState>().Get();
+            frame_active_ = true;
+            frame_z2_count_ = 0;
+        }
+    }
+
+    void AdvanceFrame(uint8_t function, uint8_t byte_index) {
+        if (!frame_active_ || function != 0x0Fu || byte_index != 0u)
+            return;
+        if (++frame_z2_count_ >= 3u) {
+            frame_active_ = false;
+            frame_z2_count_ = 0;
+        }
+    }
+
+    uint16_t SampleForFunction(uint8_t function) {
+        const auto touch = FrameSample();
+        switch (function & 0x0Fu) {
+            case 0x0u: return 0x300u;   /* TEMP0 */
+            case 0x2u: return 0x800u;   /* AUX mid-scale */
+            case 0x4u: return 0x300u;   /* TEMP1 */
+            case 0x8u:                  /* driver-activation commands, not ADC */
+            case 0x9u:
+            case 0xAu: return 0x000u;
+            case 0xCu: return touch.x;
+            case 0xDu: return touch.y;
+            case 0xEu: return touch.z1;
+            case 0xFu: return touch.z2;
+            default:   return 0x000u;
+        }
+    }
+
+    void Command(uint8_t command) {
+        command_ = command;
+        read_index_ = 0;
+        const uint8_t function = static_cast<uint8_t>(command >> 4);
+        BeginFrameIfNeeded(function);
+        if (function == 0x0Bu) {           /* setup command */
+            setup_ = static_cast<uint8_t>(command & 0x0Fu);
+            if (setup_ & 0x04u) {          /* software reset self-clears */
+                setup_ = 0;
+                last_value_ = 0;
+            }
+            return;
+        }
+        last_value_ = Clamp12(SampleForFunction(function));
+    }
+
+    uint8_t  command_ = 0, read_index_ = 0, setup_ = 0;
+    uint16_t last_value_ = 0;
+    Tsc2017HostState::Sample frame_{};
+    uint8_t  frame_z2_count_ = 0;
+    bool     frame_active_ = false;
+    bool     expecting_command_ = false;
+    bool     pending_completion_ = false;
+};
+
+}  // namespace
+
+REGISTER_SERVICE(TiTsc2017);
+

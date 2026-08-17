@@ -59,4 +59,5 @@ struct DecodedInsn {
     bool       r15_modified;
     bool       is_exception_return;
     bool       context_sync;
+    bool       thumb_encoding;
 };

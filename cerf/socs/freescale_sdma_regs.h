@@ -54,9 +54,17 @@ constexpr uint32_t kBdDone       = 1u << 16;   /* D */
 constexpr uint32_t kBdWrap       = 1u << 17;   /* W */
 constexpr uint32_t kBdIntr       = 1u << 19;   /* I */
 constexpr uint32_t kBdError      = 1u << 20;   /* R */
+constexpr uint32_t kBdLast       = 1u << 21;   /* L */
 constexpr uint32_t kBdExtd       = 1u << 23;
 constexpr uint32_t kCcbStride    = 16u;
+constexpr uint32_t kCcbCurrentBdOff = 0u;
 constexpr uint32_t kCcbBaseBdOff = 4u;
 constexpr uint32_t kMaxBdWalk    = 256u;
+constexpr uint32_t kC0SetDm      = 0x01u;
+constexpr uint32_t kC0SetPm      = 0x04u;
+constexpr uint32_t kC0SetCtx     = 0x07u;
+constexpr uint32_t kSdmaProgramWords = 0x2000u;   /* 16-bit PM words, incl. ROM/RAM window. */
+constexpr uint32_t kSdmaDataWords    = 0x10000u;  /* 32-bit SDMA data address space. */
+constexpr uint32_t kSdmaContextBase  = 0x0800u;
 
 }  /* namespace cerf_freescale_sdma_detail */

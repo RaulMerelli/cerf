@@ -39,6 +39,14 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             mva_helper = reinterpret_cast<void*>(
                 &ArmTranslationCache::DtlbInvalidateMvaHelper);
             break;
+        case 3:
+            /* ARM DDI 0406C.c Figure B3-34 (p. B3-1476): c8,c3 is the
+               inner-shareable unified-TLB group. CERF has one guest CPU, so
+               it has the same effect as the c8,c7 unified group. */
+            if (!emit->ProcessorConfig()->HasCp15V7()) {
+                return EmitRaiseUndAndReturn(cursor, d, ctx);
+            }
+            [[fallthrough]];
         case 7:
             all_helper = reinterpret_cast<void*>(
                 &ArmTranslationCache::UtlbInvalidateAllHelper);
@@ -57,6 +65,10 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             EmitCall(cursor, all_helper);
             return cursor;
         case 1:
+        case 3:
+            if (d->cp == 3u && !v6plus) {
+                return EmitRaiseUndAndReturn(cursor, d, ctx);
+            }
             EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
                 static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u));
             EmitMovRegImm32(cursor, kEdx,
