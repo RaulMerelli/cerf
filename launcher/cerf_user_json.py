@@ -128,12 +128,15 @@ def _extract_persist_fields(obj) -> dict:
         w = board.get("configurable_screen_width")
         h = board.get("configurable_screen_height")
         d = board.get("configurable_screen_dpi")
+        b = board.get("configurable_screen_bpp")
         if isinstance(w, int) and w > 0:
             out["width"] = w
         if isinstance(h, int) and h > 0:
             out["height"] = h
         if isinstance(d, int) and d > 0:
             out["dpi"] = d
+        if isinstance(b, int) and b > 0:
+            out["bpp"] = b
     return out
 
 
@@ -148,6 +151,7 @@ _PERSIST_BOARD_KEYS = {
     "width": "configurable_screen_width",
     "height": "configurable_screen_height",
     "dpi": "configurable_screen_dpi",
+    "bpp": "configurable_screen_bpp",
 }
 
 

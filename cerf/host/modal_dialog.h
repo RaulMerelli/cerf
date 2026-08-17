@@ -23,6 +23,7 @@ protected:
     virtual void OnPaint(HDC)                            {}
     virtual void OnCommand(int, int)                     {}
     virtual bool OnDrawItem(const DRAWITEMSTRUCT*)       { return false; }
+    virtual bool OnMessage(UINT, WPARAM, LPARAM)         { return false; }
 
 private:
     static LRESULT CALLBACK WndProcStatic(HWND, UINT, WPARAM, LPARAM);

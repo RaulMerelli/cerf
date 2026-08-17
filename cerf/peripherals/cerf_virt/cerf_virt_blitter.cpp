@@ -228,6 +228,10 @@ bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
         ac.green_shift = BltAlpha::ShiftOf(d_masks[1]);
         ac.blue_shift  = BltAlpha::ShiftOf(d_masks[2]);
         ac.alpha_shift = BltAlpha::ShiftOf(ac.alpha_mask);
+        ac.red_bits   = BltAlpha::BitsOf(d_masks[0]);
+        ac.green_bits = BltAlpha::BitsOf(d_masks[1]);
+        ac.blue_bits  = BltAlpha::BitsOf(d_masks[2]);
+        ac.alpha_bits = BltAlpha::BitsOf(ac.alpha_mask);
         ac.src_alpha_mask = 0xFF000000u; ac.src_alpha_shift = 24u;
         ac.const_alpha = (uint8_t)(d.blend_function >> 16);
         ac.alpha_format = (uint8_t)(d.blend_function >> 24);

@@ -62,6 +62,8 @@ struct DeviceConfig : public Service {
        the guest driver then falls back to the ROM's registry DPI, then 96. */
     uint32_t screen_dpi = 0;
 
+    uint32_t board_configurable_screen_bpp = 0;
+
     uint32_t screen_refresh_rate = 0;
 
     /* True when the configurable screen size came from cerf.json

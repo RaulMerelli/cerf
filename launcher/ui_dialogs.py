@@ -171,6 +171,21 @@ def show_dpi_help(parent: tk.Misc) -> None:
     )
 
 
+def show_bpp_help(parent: tk.Misc) -> None:
+    show_info(
+        parent,
+        "Color depth override",
+        "Some boards and guest additions allow to change BPP. Windows CE "
+        "guest apps are often very picky.\n\n"
+        "• Auto - Make CERF automatically pick depth per known values.\n"
+        "• 8 bpp - Should be used for Windows CE 2.0.\n"
+        "• 16 bpp - Known to work best for Windows CE 2.11-3 era.\n"
+        "• 24 bpp - Known to work best for all CE eras.\n"
+        "• 32 bpp - Supported by newer CE 2.11+ but often breaks rendering "
+        "in guest apps."
+    )
+
+
 def show_color_scheme_help(parent: tk.Misc) -> None:
     show_info(
         parent,

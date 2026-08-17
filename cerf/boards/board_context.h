@@ -83,11 +83,9 @@ public:
         return std::nullopt;
     }
 
-    /* Guest-Additions framebuffer colour depth in bpp (the cerf_virt FB format
-       the guest's display/DDraw stack sees). Base = 32 (host-native BGRA). A
-       board overrides when its guest software hard-requires another depth - Zune
-       XUI/D3-Mobile only accepts 16bpp RGB565; CE3 imgdecmp rejects 32bpp. */
-    virtual uint32_t GetGuestAdditionsColorDepth() const { return 32u; }
+    virtual uint32_t GetGuestAdditionsColorDepth() const { return 24u; }
+
+    uint32_t ResolveGuestAdditionsColorDepth() const;
 
     virtual uint32_t GuestAdditionsWindowBase() const { return 0xF0000000u; }
 

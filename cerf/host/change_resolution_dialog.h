@@ -18,6 +18,7 @@ private:
     void OnPaint(HDC dc) override;
     void OnCommand(int id, int notify) override;
     bool OnDrawItem(const DRAWITEMSTRUCT* di) override;
+    bool OnMessage(UINT msg, WPARAM wp, LPARAM lp) override;
 
     bool Apply(HWND hwnd);   /* true => accepted, close the dialog */
 
@@ -28,6 +29,12 @@ private:
     void PaintGroup(HDC dc, const RECT& frame, const wchar_t* caption, bool dark,
                     bool enabled);
     void DrawRadio(const DRAWITEMSTRUCT* di);
+
+    void SyncBppLabel(HWND hwnd);
+    uint32_t SelectedBpp(HWND hwnd) const;
+    static uint32_t BppForSlider(int pos);
+
+    uint32_t custom_bpp_ = 0;
 
     bool accepted_     = false;
     bool reset_locked_ = false;

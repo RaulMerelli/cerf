@@ -290,7 +290,9 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           🆕 Casio Toricomail: bezel touch buttons</p>
         <p><b>💿 Emulator</b><br/>
           🆕 Build number shown in the window title and the About box<br/>
-          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.</p>
+          🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
+          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.<br/>
+          ✅ Device Emulator: keyboard no longer drops or repeats keys while typing</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>
@@ -299,7 +301,9 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off<br/>
           ✅ The update check now understands build numbers in release tags</p>
         <p><b>✨ Guest Additions</b><br/>
-          ✅ Crash when drawing off-screen (GiNi)</p>
+          ✅ Crash when drawing off-screen (GiNi)<br/>
+          ✅ Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering<br/>
+          ✅ Colour corruption in 16bpp mode - alpha-blended elements rendered green/cyan</p>
       </td>
     </tr>
     <tr>

@@ -68,7 +68,7 @@ void CerfVirtFramebuffer::OnReady() {
     const auto& cfg = emu_.Get<DeviceConfig>();
     width_  = cfg.board_configurable_screen_width;
     height_ = cfg.board_configurable_screen_height;
-    bpp_    = emu_.Get<BoardContext>().GetGuestAdditionsColorDepth();
+    bpp_    = emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
     region_bytes_ = ComputeRegionBytes();
     bytes_.assign(region_bytes_, 0);
     LOG(Periph, "[CerfVirtFramebuffer] %ux%u %ubpp stride=%u "

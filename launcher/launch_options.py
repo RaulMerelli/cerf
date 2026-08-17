@@ -14,8 +14,11 @@ from board_info import board_configurable_screen, board_features
 from color_schemes import (COLOR_SCHEMES, CS_KEY_TO_LABEL as _CS_KEY_TO_LABEL,
                            CS_LABEL_TO_KEY as _CS_LABEL_TO_KEY,
                            color_scheme_supported_for_os)
-from ui_dialogs import show_error, show_guest_additions_help, show_dpi_help, show_color_scheme_help
-from launch_options_presets import (RES_PRESETS, DPI_SLIDER_MIN, DPI_SLIDER_MAX,
+from ui_dialogs import (show_error, show_guest_additions_help,
+                        show_color_scheme_help)
+from launch_options_dpi import DpiOptionBlock
+from launch_options_bpp import BppOptionBlock
+from launch_options_presets import (RES_PRESETS,
                                     DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT)
 from saved_state_warning import SavedStateEditWarning
 import ui_theme as theme
@@ -115,58 +118,32 @@ class LaunchOptionsPanel:
         self.res_sep = ttk.Separator(cfg, orient="horizontal")
         self.res_sep.grid(row=4, column=0, sticky="ew", pady=8)
 
-        self.var_override_dpi = tk.BooleanVar(value=False)
-        self.var_dpi = tk.StringVar(value="96")
-        dpi_head = self.dpi_head = ttk.Frame(cfg)
-        dpi_head.grid(row=5, column=0, sticky="ew")
-        dpi_head.columnconfigure(0, weight=1)
-        self.dpi_check = ttk.Checkbutton(dpi_head, text="Override DPI",
-                                         variable=self.var_override_dpi,
-                                         command=self._on_override_dpi_changed)
-        self.dpi_check.grid(row=0, column=0, sticky="w")
-        self.dpi_help = ttk.Button(dpi_head, text="?", width=2, style="Help.TButton",
-                                   command=lambda: show_dpi_help(self._window))
-        self.dpi_help.grid(row=0, column=1, sticky="e")
-
-        dpi_fields = self.dpi_fields = ttk.Frame(cfg)
-        dpi_fields.grid(row=6, column=0, sticky="ew", pady=(2, 0))
-        dpi_fields.columnconfigure(3, weight=1)
-        ttk.Label(dpi_fields, text="DPI").grid(row=0, column=0, sticky="w")
-        self.dpi_entry = ttk.Entry(dpi_fields, textvariable=self.var_dpi, width=8,
-                                   validate="key", validatecommand=numeric_vcmd)
-        self.dpi_entry.grid(row=0, column=1, sticky="w", padx=(4, 12))
-        self._dpi_sync_guard = False
-        self.dpi_slider = ttk.Scale(dpi_fields, from_=DPI_SLIDER_MIN, to=DPI_SLIDER_MAX,
-                                    orient="horizontal", style="Res.Horizontal.TScale",
-                                    command=self._on_dpi_slider)
-        self.dpi_slider.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(8, 0))
-        self.var_dpi.trace_add("write", self._on_dpi_text_changed)
-        self._sync_dpi_slider_to_text()
-
-        self.dpi_sep = ttk.Separator(cfg, orient="horizontal")
-        self.dpi_sep.grid(row=7, column=0, sticky="ew", pady=8)
+        self.bpp = BppOptionBlock(cfg, parent_window, self._persist,
+                                  row_head=5, row_fields=6, row_sep=7)
+        self.dpi = DpiOptionBlock(cfg, parent_window, self._persist, numeric_vcmd,
+                                  row_head=8, row_fields=9, row_sep=10)
 
         self.fullscreen_check = ttk.Checkbutton(cfg, text="Borderless full screen",
                                                 variable=self.var_full_screen,
                                                 command=self._persist)
-        self.fullscreen_check.grid(row=8, column=0, sticky="w")
+        self.fullscreen_check.grid(row=11, column=0, sticky="w")
 
-        ttk.Separator(cfg, orient="horizontal").grid(row=9, column=0,
+        ttk.Separator(cfg, orient="horizontal").grid(row=12, column=0,
                                                      sticky="ew", pady=8)
 
         self.logall_check = ttk.Checkbutton(cfg, text="Enable all log channels",
                                             variable=self.var_log_all)
-        self.logall_check.grid(row=10, column=0, sticky="w")
+        self.logall_check.grid(row=13, column=0, sticky="w")
         self.nonet_check = ttk.Checkbutton(cfg, text="Disable network backend",
                                            variable=self.var_no_net,
                                            command=self._persist)
-        self.nonet_check.grid(row=11, column=0, sticky="w")
+        self.nonet_check.grid(row=14, column=0, sticky="w")
 
-        self._lockable = [self.ga_check, self.ga_help, self.color_scheme_combo,
-                          self.width_entry, self.height_entry, self.res_slider,
-                          self.dpi_check, self.dpi_help, self.dpi_entry,
-                          self.dpi_slider, self.fullscreen_check,
-                          self.logall_check, self.nonet_check]
+        self._lockable = ([self.ga_check, self.ga_help, self.color_scheme_combo,
+                           self.width_entry, self.height_entry, self.res_slider]
+                          + self.bpp.lockables() + self.dpi.lockables()
+                          + [self.fullscreen_check, self.logall_check,
+                             self.nonet_check])
         self.refresh_resolution_state()
 
     def set_locked(self, locked: bool) -> None:
@@ -197,7 +174,8 @@ class LaunchOptionsPanel:
         eff = dict(self._baseline)
         eff.update(override)
         if self._guest_additions_locked:
-            for k in ("guest_additions", "color_scheme", "width", "height", "dpi"):
+            for k in ("guest_additions", "color_scheme", "width", "height",
+                      "dpi", "bpp"):
                 if k in self._baseline:
                     eff[k] = self._baseline[k]
                 else:
@@ -212,13 +190,9 @@ class LaunchOptionsPanel:
             self.var_full_screen.set(eff["full_screen"])
             self.var_width.set(str(eff["width"]))
             self.var_height.set(str(eff["height"]))
-            if "dpi" in eff:
-                self.var_override_dpi.set(True)
-                self.var_dpi.set(str(eff["dpi"]))
-            else:
-                self.var_override_dpi.set(False)
+            self.dpi.restore(eff)
+            self.bpp.restore(eff)
             self._sync_slider_to_text()
-            self._sync_dpi_slider_to_text()
         finally:
             self._restoring = False
         self.refresh_resolution_state()
@@ -269,10 +243,13 @@ class LaunchOptionsPanel:
         h = self._optional_uint(self.var_height)
         if h is not None:
             f["height"] = h
-        if self.var_guest_additions.get() and self.var_override_dpi.get():
-            d = self._optional_uint(self.var_dpi)
+        if self.var_guest_additions.get() and self.dpi.enabled():
+            d = self.dpi.optional_value()
             if d is not None:
                 f["dpi"] = d
+        b = self.bpp.optional_value()
+        if b is not None:
+            f["bpp"] = b
         return f
 
     def _optional_uint(self, var: tk.StringVar) -> Optional[int]:
@@ -288,7 +265,7 @@ class LaunchOptionsPanel:
         cur = self._current_fields()
         override: dict = {}
         for k in ("network_enabled", "guest_additions", "color_scheme",
-                  "full_screen", "width", "height", "dpi"):
+                  "full_screen", "width", "height", "dpi", "bpp"):
             if k in cur and cur[k] != self._baseline.get(k):
                 override[k] = cur[k]
         write_persist_overrides(self._device_dir, override)
@@ -299,10 +276,6 @@ class LaunchOptionsPanel:
         self._persist()
 
     def _on_color_scheme_changed(self) -> None:
-        self._persist()
-
-    def _on_override_dpi_changed(self) -> None:
-        self._refresh_dpi_state()
         self._persist()
 
     def collect_args(self, device: DeviceBundle) -> Optional[List[str]]:
@@ -328,8 +301,11 @@ class LaunchOptionsPanel:
             if h is None:
                 return None
             argv += [f"--screen-width={w}", f"--screen-height={h}"]
-        if guest_additions and self.var_override_dpi.get():
-            dpi = self._dpi_value()
+            bpp = self.bpp.optional_value()
+            if bpp is not None:
+                argv.append(f"--screen-bpp={bpp}")
+        if guest_additions and self.dpi.enabled():
+            dpi = self.dpi.value_or_error()
             if dpi is None:
                 return None
             argv.append(f"--screen-dpi={dpi}")
@@ -399,9 +375,12 @@ class LaunchOptionsPanel:
                              if guest_additions else "Resolution override:")
         self.res_preset_label.config(foreground=theme.FG_DIM)
 
+        self._set_block_visible(res_visible, *self.bpp.blocks())
+        self.bpp.refresh_state(self._locked)
+
         self._set_block_visible(guest_additions and not locked,
-                                self.dpi_head, self.dpi_fields, self.dpi_sep)
-        self._refresh_dpi_state()
+                                *self.dpi.blocks())
+        self.dpi.refresh_state(self._locked)
 
     def _on_res_slider(self, value: str) -> None:
         if self._res_sync_guard:
@@ -450,51 +429,3 @@ class LaunchOptionsPanel:
         finally:
             self._res_sync_guard = False
 
-    def _refresh_dpi_state(self) -> None:
-        if self._locked:
-            self.dpi_entry.config(state="disabled")
-            self.dpi_slider.config(state="disabled")
-            return
-        fields = "normal" if self.var_override_dpi.get() else "disabled"
-        self.dpi_entry.config(state=fields)
-        self.dpi_slider.config(state=fields)
-
-    def _dpi_value(self) -> Optional[int]:
-        raw = self.var_dpi.get().strip()
-        try:
-            value = int(raw, 10)
-        except ValueError:
-            value = 0
-        if value < 1:
-            show_error(self._window, "Invalid DPI",
-                       "DPI must be a positive whole number.")
-            self.dpi_entry.focus_set()
-            return None
-        return value
-
-    def _on_dpi_slider(self, value: str) -> None:
-        if self._dpi_sync_guard:
-            return
-        self._dpi_sync_guard = True
-        try:
-            self.var_dpi.set(str(int(round(float(value)))))
-        finally:
-            self._dpi_sync_guard = False
-        self._persist()
-
-    def _on_dpi_text_changed(self, *_args: object) -> None:
-        if self._dpi_sync_guard:
-            return
-        self._sync_dpi_slider_to_text()
-        self._persist()
-
-    def _sync_dpi_slider_to_text(self) -> None:
-        try:
-            dpi = int(self.var_dpi.get().strip())
-        except ValueError:
-            return
-        self._dpi_sync_guard = True
-        try:
-            self.dpi_slider.set(max(DPI_SLIDER_MIN, min(DPI_SLIDER_MAX, dpi)))
-        finally:
-            self._dpi_sync_guard = False

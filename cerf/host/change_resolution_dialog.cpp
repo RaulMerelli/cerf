@@ -1,9 +1,11 @@
 #define NOMINMAX
 #include "change_resolution_dialog.h"
 
+#include <commctrl.h>
 #include <uxtheme.h>
 #include <vssym32.h>
 
+#include "../boards/board_context.h"
 #include "../boot/guest_cold_boot.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
@@ -23,23 +25,28 @@ namespace {
 constexpr wchar_t kClass[] = L"CerfChangeResolutionDlg";
 
 constexpr int kClientW = 380;
-constexpr int kClientH = 380;
+constexpr int kClientH = 452;
 
 /* Group frames (caption sits on the top edge). */
 constexpr RECT kGroupRes   = { 14, 12,  366, 82  };
 constexpr RECT kGroupDpi   = { 14, 92,  366, 150 };
-constexpr RECT kGroupReset = { 14, 160, 366, 322 };
+constexpr RECT kGroupBpp   = { 14, 160, 366, 232 };
+constexpr RECT kGroupReset = { 14, 242, 366, 394 };
 
 constexpr uint32_t kMinDim = 64;
 constexpr uint32_t kMaxDim = 8192;
 
+constexpr int kBppSliderMax = 4;
+
 enum : int {
-    IDC_W_EDIT   = 4001,
-    IDC_H_EDIT   = 4002,
-    IDC_RB_NONE  = 4003,
-    IDC_RB_SOFT  = 4004,
-    IDC_RB_HARD  = 4005,
-    IDC_DPI_EDIT = 4006,
+    IDC_W_EDIT    = 4001,
+    IDC_H_EDIT    = 4002,
+    IDC_RB_NONE   = 4003,
+    IDC_RB_SOFT   = 4004,
+    IDC_RB_HARD   = 4005,
+    IDC_DPI_EDIT  = 4006,
+    IDC_BPP_SLIDE = 4007,
+    IDC_BPP_LABEL = 4008,
 };
 
 }  /* namespace */
@@ -68,15 +75,24 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
     HWND de = mk(L"EDIT", L"", WS_BORDER | WS_TABSTOP | ES_NUMBER,
                  84, 118, 90, 24, IDC_DPI_EDIT);
 
+    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_BAR_CLASSES };
+    InitCommonControlsEx(&icc);
+    HWND bs = mk(TRACKBAR_CLASSW, L"",
+                 WS_TABSTOP | TBS_AUTOTICKS | TBS_BOTTOM,
+                 28, 186, 236, 32, IDC_BPP_SLIDE);
+    SendMessageW(bs, TBM_SETRANGE, TRUE, MAKELPARAM(0, kBppSliderMax));
+    SendMessageW(bs, TBM_SETPAGESIZE, 0, 1);
+    mk(L"STATIC", L"", SS_LEFT, 276, 194, 76, 20, IDC_BPP_LABEL);
+
     mk(L"STATIC",
        L"Windows CE ≤ 3 needs at least a soft reset to use the new "
-       L"resolution. A DPI change requires a reset.",
-       0, 28, 178, 324, 52, 0);
+       L"resolution. A DPI or colour-depth change requires a reset.",
+       0, 28, 260, 324, 52, 0);
     mk(L"BUTTON", L"Do not reset",
-       BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 28, 236, 320, 24, IDC_RB_NONE);
-    mk(L"BUTTON", L"Soft reset", BS_OWNERDRAW | WS_TABSTOP, 28, 264, 320, 24,
+       BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 28, 310, 320, 24, IDC_RB_NONE);
+    mk(L"BUTTON", L"Soft reset", BS_OWNERDRAW | WS_TABSTOP, 28, 338, 320, 24,
        IDC_RB_SOFT);
-    mk(L"BUTTON", L"Hard reset", BS_OWNERDRAW | WS_TABSTOP, 28, 292, 320, 24,
+    mk(L"BUTTON", L"Hard reset", BS_OWNERDRAW | WS_TABSTOP, 28, 366, 320, 24,
        IDC_RB_HARD);
 
     mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
@@ -100,6 +116,22 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
                  devcfg.screen_dpi ? devcfg.screen_dpi : 96u);
     SetWindowTextW(de, buf);
 
+    custom_bpp_ = 0;
+    int slider_pos = 0;
+    const uint32_t cfg_bpp = devcfg.board_configurable_screen_bpp;
+    if (cfg_bpp != 0u) {
+        custom_bpp_ = cfg_bpp;
+        uint32_t best = 0xFFFFFFFFu;
+        for (int p = 1; p <= kBppSliderMax; ++p) {
+            const uint32_t stop = BppForSlider(p);
+            if (stop == cfg_bpp) { slider_pos = p; custom_bpp_ = 0; break; }
+            const uint32_t d = stop > cfg_bpp ? stop - cfg_bpp : cfg_bpp - stop;
+            if (d < best) { best = d; slider_pos = p; }
+        }
+    }
+    SendMessageW(bs, TBM_SETPOS, TRUE, slider_pos);
+    SyncBppLabel(hwnd);
+
     if (reset_locked_) {
         reset_choice_ = 1;
         for (int r = IDC_RB_NONE; r <= IDC_RB_HARD; ++r)
@@ -109,10 +141,36 @@ void ChangeResolutionDialog::BuildControls(HWND hwnd) {
     reset_choice_ = emu_.Get<GuestAdditionsUiPolicy>().DefaultResetIsSoft() ? 1 : 0;
 }
 
+uint32_t ChangeResolutionDialog::BppForSlider(int pos) {
+    switch (pos) {
+        case 1:  return 8u;
+        case 2:  return 16u;
+        case 3:  return 24u;
+        case 4:  return 32u;
+        default: return 0u;
+    }
+}
+
+uint32_t ChangeResolutionDialog::SelectedBpp(HWND hwnd) const {
+    if (custom_bpp_ != 0u) return custom_bpp_;
+    return BppForSlider((int)SendMessageW(GetDlgItem(hwnd, IDC_BPP_SLIDE),
+                                          TBM_GETPOS, 0, 0));
+}
+
+void ChangeResolutionDialog::SyncBppLabel(HWND hwnd) {
+    const uint32_t bpp = SelectedBpp(hwnd);
+    wchar_t txt[24];
+    if (bpp == 0u)             lstrcpynW(txt, L"Auto", 24);
+    else if (custom_bpp_ != 0) _snwprintf_s(txt, _TRUNCATE, L"Custom - %u bpp", bpp);
+    else                       _snwprintf_s(txt, _TRUNCATE, L"%u bpp", bpp);
+    SetDlgItemTextW(hwnd, IDC_BPP_LABEL, txt);
+}
+
 void ChangeResolutionDialog::PaintGroups(HDC dc) {
     const bool dark = emu_.Get<HostDarkMode>().IsDark();
     PaintGroup(dc, kGroupRes,   L"Resolution",   dark, true);
     PaintGroup(dc, kGroupDpi,   L"Display DPI",  dark, true);
+    PaintGroup(dc, kGroupBpp,   L"Colour depth", dark, true);
     PaintGroup(dc, kGroupReset, L"Reset device", dark, !reset_locked_);
 }
 
@@ -221,11 +279,17 @@ bool ChangeResolutionDialog::Apply(HWND hwnd) {
         return false;
     }
 
+    const uint32_t selected_bpp = SelectedBpp(hwnd);
+
     auto& dc = emu_.Get<DeviceConfig>();
     dc.board_configurable_screen_width    = w;
     dc.board_configurable_screen_height   = h;
     dc.board_configurable_screen_explicit = true;
     dc.screen_dpi                         = dpi;
+    dc.board_configurable_screen_bpp      = selected_bpp;
+
+    const uint32_t bpp =
+        emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
 
     auto& win = emu_.Get<HostWindow>();
     if (reset_choice_ == 1) {
@@ -238,7 +302,7 @@ bool ChangeResolutionDialog::Apply(HWND hwnd) {
         emu_.Get<GuestColdBoot>().RequestHardReset();
     } else {
         win.FitToResolution(w, h);
-        emu_.Get<CerfVirtResize>().RequestResize(w, h, 32u);
+        emu_.Get<CerfVirtResize>().RequestResize(w, h, bpp);
     }
     return true;
 }
@@ -257,6 +321,14 @@ bool ChangeResolutionDialog::OnDrawItem(const DRAWITEMSTRUCT* di) {
     if (di->CtlType != ODT_BUTTON) return false;
     if (di->CtlID < IDC_RB_NONE || di->CtlID > IDC_RB_HARD) return false;
     DrawRadio(di);
+    return true;
+}
+
+bool ChangeResolutionDialog::OnMessage(UINT msg, WPARAM, LPARAM lp) {
+    if (msg != WM_HSCROLL) return false;
+    if ((HWND)lp != GetDlgItem(Hwnd(), IDC_BPP_SLIDE)) return false;
+    custom_bpp_ = 0;
+    SyncBppLabel(Hwnd());
     return true;
 }
 

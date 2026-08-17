@@ -116,6 +116,12 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
             Fatal(path, "board.configurable_screen_dpi must be >= 1");
         config.screen_dpi = (uint32_t)n;
     }
+    if (b.contains("configurable_screen_bpp")) {
+        int n = ReadOptInt(b, "configurable_screen_bpp", path, "board");
+        if (n < 1)
+            Fatal(path, "board.configurable_screen_bpp must be >= 1");
+        config.board_configurable_screen_bpp = (uint32_t)n;
+    }
 }
 
 void LoadFeatures(const json& root, DeviceConfig& config, const std::string& path) {
@@ -380,6 +386,10 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             int n = atoi(a + sizeof(kArgScreenDpi) - 1);
             if (n < 1) Fatal("(command line)", "--screen-dpi must be >= 1");
             config.screen_dpi = (uint32_t)n;
+        } else if (strncmp(a, kArgScreenBpp, sizeof(kArgScreenBpp) - 1) == 0) {
+            int n = atoi(a + sizeof(kArgScreenBpp) - 1);
+            if (n < 1) Fatal("(command line)", "--screen-bpp must be >= 1");
+            config.board_configurable_screen_bpp = (uint32_t)n;
         } else if (strncmp(a, kArgScreenRefreshRate, sizeof(kArgScreenRefreshRate) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenRefreshRate) - 1);
             if (n < 1) Fatal("(command line)", "--screen-refresh-rate must be >= 1");

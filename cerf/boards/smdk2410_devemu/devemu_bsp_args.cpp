@@ -14,8 +14,7 @@ namespace {
 constexpr uint32_t kBspArgsPa            = 0x30020000u;
 constexpr uint32_t kScreenSignatureOff   = 0x44u;
 constexpr uint32_t kBspScreenSignature   = 0xDE12DE34u;
-/* S3C2410 LCD handler halts on anything but 16bpp 5:6:5 ENVID=1. */
-constexpr uint16_t kPinnedColorDepthBpp  = 16u;
+constexpr uint16_t kDefaultColorDepthBpp = 16u;
 
 class DevEmuBspArgs : public Service {
 public:
@@ -39,17 +38,20 @@ private:
 
         const uint16_t w = static_cast<uint16_t>(cfg.board_configurable_screen_width);
         const uint16_t h = static_cast<uint16_t>(cfg.board_configurable_screen_height);
+        const uint16_t bpp = cfg.board_configurable_screen_bpp != 0u
+                           ? static_cast<uint16_t>(cfg.board_configurable_screen_bpp)
+                           : kDefaultColorDepthBpp;
 
         const uint32_t base = kBspArgsPa + kScreenSignatureOff;
         mem.WriteWord(base + 0u, kBspScreenSignature);
         mem.WriteHalf(base + 4u, w);
         mem.WriteHalf(base + 6u, h);
-        mem.WriteHalf(base + 8u, kPinnedColorDepthBpp);
+        mem.WriteHalf(base + 8u, bpp);
 
         LOG(Board, "DevEmuBspArgs: ScreenSignature=0x%08X "
                    "Width=%u Height=%u BitsPerPixel=%u at PA 0x%08X\n",
             kBspScreenSignature, (unsigned)w, (unsigned)h,
-            (unsigned)kPinnedColorDepthBpp, base);
+            (unsigned)bpp, base);
     }
 };
 

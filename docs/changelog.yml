@@ -6,8 +6,10 @@
   emulator:
     new: |
       Build number shown in the window title and the About box
+      Configurable display colour depth for Guest Additions and Device Emulator
     fixed: |
       ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.
+      Device Emulator: keyboard no longer drops or repeats keys while typing
   launcher:
     new: |
       Copyright removal dialog listing each bundle repository's abuse contact, reachable from the Download ROMs window and the download confirmation
@@ -20,6 +22,8 @@
   guest_additions:
     fixed: |
       Crash when drawing off-screen (GiNi)
+      Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering
+      Colour corruption in 16bpp mode - alpha-blended elements rendered green/cyan
 
 - version: v6.7
   date: 23 Jul 2026

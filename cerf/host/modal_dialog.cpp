@@ -68,6 +68,7 @@ void ModalDialog::RunModal(HWND owner, const wchar_t* class_name,
 }
 
 LRESULT ModalDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (OnMessage(msg, wp, lp)) return 0;
     switch (msg) {
         case WM_PAINT: {
             PAINTSTRUCT ps;

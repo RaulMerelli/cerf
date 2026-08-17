@@ -88,6 +88,7 @@ the file that boots. Everything else is optional.
 | `configurable_screen_width` | integer | The screen width on a board whose resolution is not fixed, and for the Guest Additions display. |
 | `configurable_screen_height` | integer | As above, the height. |
 | `configurable_screen_dpi` | integer | The display DPI that CERF reports to the guest. Guest Additions only. |
+| `configurable_screen_bpp` | integer | The display colour depth in bits per pixel. Absent, CERF picks the depth. |
 
 ### `rom`
 
