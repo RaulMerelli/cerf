@@ -8,6 +8,7 @@ class ArmCoprocSpaceDecoder;
 class NeonUnconditionalDecoder;
 class Thumb32DataProcDecoder;
 class Thumb32Fatal;
+class Thumb32PlainImmDecoder;
 struct DecodedInsn;
 
 class Thumb32Decoder : public Service {
@@ -37,6 +38,7 @@ private:
     NeonUnconditionalDecoder* neon_decoder_   = nullptr;
     Thumb32DataProcDecoder*   data_proc_      = nullptr;
     Thumb32Fatal*             fatal_          = nullptr;
+    Thumb32PlainImmDecoder*   plain_imm_      = nullptr;
 
     bool DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op);
     bool DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op);

@@ -10,6 +10,7 @@
 #include "place_fns.h"
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
+#include "thumb32_plain_imm_decoder.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
 
@@ -24,6 +25,7 @@ void Thumb32Decoder::OnReady() {
     neon_decoder_   = &emu_.Get<NeonUnconditionalDecoder>();
     data_proc_      = &emu_.Get<Thumb32DataProcDecoder>();
     fatal_          = &emu_.Get<Thumb32Fatal>();
+    plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 }
 
 bool Thumb32Decoder::DecodeLoadStoreMultiple(DecodedInsn* insn, uint32_t op) {
@@ -41,12 +43,8 @@ bool Thumb32Decoder::DecodeBranchesMiscControl(DecodedInsn* insn, uint32_t op) {
                           op);
 }
 
-/* ARM DDI 0406C.c Table A6-30 (A6.3.18, p. A6-251) and Table A5-22 (A5.6,
-   p. A5-215) place op1 at bits[25:20], coproc at bits[11:8] and op at bit[4]
-   identically and agree row for row, except op1 = 11xxxx: Advanced SIMD in
-   A6-30, Supervisor Call in A5-22. A7.4 (p. A7-261): the U bit "is bit[12] of
-   the first halfword in the Thumb encoding, and bit[24] in the ARM encoding.
-   Other variable bits are in identical locations". */
+/* DDI 0406C.c Table A6-30 (A6.3.18) p. A6-251, Table A5-22 (A5.6) p. A5-215;
+   the U bit position per A7.4 p. A7-261. */
 bool Thumb32Decoder::DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op) {
     const uint32_t op1 = (op >> 20) & 0x3Fu;
     ArmOpcode      arm{};
@@ -58,26 +56,14 @@ bool Thumb32Decoder::DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op) {
         if (insn->place_fn == &PlaceNeonUnimplemented) insn->immediate = op;
         return true;
     }
-    /* T is hw1[12]. A7.5 (p. A7-272), A7.6 (p. A7-274), A7.8 (p. A7-278) and
-       A7.9 (p. A7-279): "If T == 1 in the Thumb encoding or cond == 0b1111 in
-       the ARM encoding, the instruction is UNDEFINED", scoped to cp10 and
-       cp11. B3.15.2 (p. B3-1446) makes "all CDP2, MCR2, MRC2, MCRR2, MRRC2,
-       LDC2, LDCL, LDC2L, STC2, STCL and STC2L operations to CP14 and CP15"
-       UNDEFINED. A2.9 (p. A2-94) reserves CP8, CP9, CP12 and CP13; B1.9.2
-       (p. B1-1206) UNDEFs "a coprocessor instruction that is not
-       implemented". */
+    /* T is hw1[12]. A7.5 p. A7-272, A7.6 p. A7-274, A7.8 p. A7-278, A7.9
+       p. A7-279, B3.15.2 p. B3-1446, A2.9 p. A2-94, B1.9.2 p. B1-1206. */
     if (((op >> 28) & 0x1u) != 0u) {
         return false;
     }
-    /* A8.8.98 MCR, MCR2 (p. A8-476) and A8.8.107 MRC, MRC2 (p. A8-492) carry
-       "t == 13 && (CurrentInstrSet() != InstrSet_ARM) then UNPREDICTABLE";
-       A8.8.99 MCRR, MCRR2 (p. A8-478) and A8.8.108 MRRC, MRRC2 (p. A8-494)
-       carry it for t and t2 alike, as do the extension-register transfers
-       sharing those encodings: A8.8.314 VDUP (p. A8-886) and the A8.8.341
-       (p. A8-940), A8.8.342 (p. A8-942), A8.8.343 (p. A8-944), A8.8.344
-       (p. A8-946) and A8.8.345 (p. A8-948) VMOV forms. Rt is bits[15:12] and
-       Rt2 bits[19:16]; on Table A6-30's LDC/STC and CDP rows bits[15:12] is
-       CRd, not a core register. */
+    /* A8.8.98 MCR p. A8-476, A8.8.107 MRC p. A8-492, A8.8.99 MCRR p. A8-478,
+       A8.8.108 MRRC p. A8-494, A8.8.314 VDUP p. A8-886, A8.8.341-345 VMOV
+       pp. A8-940/942/944/946/948; Rt at bits[15:12], Rt2 at bits[19:16]. */
     if ((op1 & 0x3Eu) == 0x04u) {
         if (((op >> 12) & 0xFu) == 13u || ((op >> 16) & 0xFu) == 13u) {
             return false;
@@ -148,8 +134,7 @@ bool Thumb32Decoder::DecodeThumb32(DecodedInsn* insn, uint32_t op) {
     case 0x2u:
         if (o != 0u) return DecodeBranchesMiscControl(insn, op);
         if ((op2 & 0x20u) != 0u) {
-            return data_proc_->DecodeDataProcessingPlainBinaryImmediate(insn,
-                                                                       op);
+            return plain_imm_->Decode(insn, op);
         }
         return data_proc_->DecodeDataProcessingModifiedImmediate(insn, op);
     case 0x3u:
