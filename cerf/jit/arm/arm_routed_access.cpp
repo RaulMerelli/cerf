@@ -81,11 +81,13 @@ void ArmRoutedAccess::IoStoreHelper(ArmRoutedAccess* self, uint32_t bytes,
 }
 
 bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
-                           uint32_t va, uint32_t bytes, uint32_t* out) {
+                           uint32_t va, uint32_t bytes, uint32_t* out,
+                           bool unpriv) {
     if ((va & (bytes - 1u)) != 0u) {
         uint32_t value = 0;
         if (mmu_->AccessPaged(cpu_state, va,
-                              reinterpret_cast<uint8_t*>(&value), bytes, true)) {
+                              reinterpret_cast<uint8_t*>(&value), bytes, true,
+                              unpriv)) {
             *out = value;
             return true;
         }
@@ -96,7 +98,8 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
         HaltUnalignedRouted(guest_pc, va, bytes, split_pa, "load");
     }
 
-    uint8_t* host = walker_->TranslateRead(cpu_state, va);
+    uint8_t* host = unpriv ? walker_->TranslateUserRead(cpu_state, va)
+                           : walker_->TranslateRead(cpu_state, va);
     if (host != nullptr) {
         uint32_t value = 0;
         std::memcpy(&value, host, bytes);
@@ -112,12 +115,13 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
 }
 
 bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
-                            uint32_t va, uint32_t bytes, uint32_t value) {
+                            uint32_t va, uint32_t bytes, uint32_t value,
+                            bool unpriv) {
     if ((va & (bytes - 1u)) != 0u) {
         uint32_t stored = value;
         if (mmu_->AccessPaged(cpu_state, va,
                               reinterpret_cast<uint8_t*>(&stored), bytes,
-                              false)) {
+                              false, unpriv)) {
             return true;
         }
         const uint32_t split_pa = mmu_->io_pending_address();
@@ -127,7 +131,8 @@ bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
         HaltUnalignedRouted(guest_pc, va, bytes, split_pa, "store");
     }
 
-    uint8_t* host = walker_->TranslateWrite(cpu_state, va);
+    uint8_t* host = unpriv ? walker_->TranslateUserWrite(cpu_state, va)
+                           : walker_->TranslateWrite(cpu_state, va);
     if (host != nullptr) {
         std::memcpy(host, &value, bytes);
         return true;

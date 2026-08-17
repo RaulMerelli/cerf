@@ -406,8 +406,8 @@ bool ArmDataprocSpaceDecoder::DecodeLdrexStrex(DecodedInsn* insn, ArmOpcode op) 
 }
 
 /* DDI 0406C.c Tables A5-10/A5-11 (pp. A5-203/A5-204): op2 = insn[6:5],
-   I = insn[22], imm8 = imm4H:imm4L; the A5.2.9 unprivileged forms
-   (P == 0 && W == 1) resolve inside EmitHalfwordSignedTransfer. */
+   I = insn[22], imm8 = imm4H:imm4L. A5.2.9 (p. A5-204) fixes P == 0 and
+   W == 1 and excludes op == 0 with op2 == 1x, the dual forms. */
 bool ArmDataprocSpaceDecoder::DecodeExtraLoadStore(DecodedInsn* insn,
                                                    ArmOpcode    op) {
     insn->op1 = (op.word >>  5) & 0x3u;
@@ -419,6 +419,8 @@ bool ArmDataprocSpaceDecoder::DecodeExtraLoadStore(DecodedInsn* insn,
     insn->rn  = (op.word >> 16) & 0xFu;
     insn->rd  = (op.word >> 12) & 0xFu;
     insn->rm  =  op.word        & 0xFu;
+    const bool is_dual = insn->l == 0u && (insn->op1 & 0x2u) != 0u;
+    insn->unpriv = (!is_dual && insn->p == 0u && insn->w != 0u) ? 1u : 0u;
     const int32_t imm8 = static_cast<int32_t>(
         ((op.word >> 4) & 0xF0u) | (op.word & 0xFu));
     insn->offset   = insn->u ? imm8 : -imm8;

@@ -15,6 +15,7 @@
 #include "arm_opcode.h"
 #include "arm_page_walker.h"
 #include "arm_routed_access.h"
+#include "arm_routed_addressing.h"
 #include "cpu_state.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
@@ -28,15 +29,16 @@ bool ArmRoutedInstruction::ShouldRegister() {
 }
 
 void ArmRoutedInstruction::OnReady() {
-    cpu_       = &emu_.Get<ArmCpu>();
-    cpu_state_ = cpu_->State();
-    decoder_   = &emu_.Get<ArmDecoder>();
-    mmu_       = &emu_.Get<ArmMmu>();
-    walker_    = &emu_.Get<ArmPageWalker>();
-    config_    = &emu_.Get<ArmProcessorConfig>();
-    access_    = &emu_.Get<ArmRoutedAccess>();
-    thumb_     = &emu_.Get<ThumbDecoder>();
-    thumb32_   = &emu_.Get<Thumb32Decoder>();
+    cpu_        = &emu_.Get<ArmCpu>();
+    cpu_state_  = cpu_->State();
+    decoder_    = &emu_.Get<ArmDecoder>();
+    mmu_        = &emu_.Get<ArmMmu>();
+    walker_     = &emu_.Get<ArmPageWalker>();
+    config_     = &emu_.Get<ArmProcessorConfig>();
+    access_     = &emu_.Get<ArmRoutedAccess>();
+    addressing_ = &emu_.Get<ArmRoutedAddressing>();
+    thumb_      = &emu_.Get<ThumbDecoder>();
+    thumb32_    = &emu_.Get<Thumb32Decoder>();
 }
 
 void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
@@ -100,12 +102,6 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     }
 }
 
-/* ARM DDI 0100I A7.1, p. A7-3. */
-uint32_t ArmRoutedInstruction::PcReadValue(const DecodedInsn* d) const {
-    return d->guest_address +
-           (cpu_state_->cpsr.bits.thumb_mode != 0u ? 4u : 8u);
-}
-
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::Abort(
     DecodedInsn* d, bool wback, uint32_t base_on_abort) {
     if (wback && !config_->BaseRestoredAbortModel()) {
@@ -130,56 +126,11 @@ void ArmRoutedInstruction::LoadWritePc(uint32_t value) {
     cpu_state_->gprs[ArmGpr::kR15] = value;
 }
 
-uint32_t ArmRoutedInstruction::SingleShiftedOffset(const DecodedInsn* d) {
-    const uint32_t v = cpu_state_->gprs[d->rm];
-    switch (d->op1) {
-    case 0u:
-        return d->rs != 0u ? (v << d->rs) : v;
-    case 1u:
-        return d->rs != 0u ? (v >> d->rs) : 0u;
-    case 2u:
-        return static_cast<uint32_t>(
-            static_cast<int32_t>(v) >> (d->rs != 0u ? d->rs : 31u));
-    default:
-        if (d->rs != 0u) {
-            return (v >> d->rs) | (v << (32u - d->rs));
-        }
-        return (v >> 1) | (static_cast<uint32_t>(cpu_state_->cf) << 31);
-    }
-}
-
-uint32_t ArmRoutedInstruction::SingleOffsetAddr(const DecodedInsn* d) {
-    if (d->n != 0u) {
-        if (d->rn == ArmGpr::kR15) {
-            /* A8.8.64 LDR (literal) Operation (p. A8-411): "base =
-               Align(PC,4)". */
-            return (PcReadValue(d) & ~3u) + static_cast<uint32_t>(d->offset);
-        }
-        return cpu_state_->gprs[d->rn] + static_cast<uint32_t>(d->offset);
-    }
-    const uint32_t offset = SingleShiftedOffset(d);
-    const uint32_t base   = (d->rn == ArmGpr::kR15)
-        ? PcReadValue(d)
-        : cpu_state_->gprs[d->rn];
-    return d->u != 0u ? base + offset : base - offset;
-}
-
-uint32_t ArmRoutedInstruction::HalfwordOffsetAddr(const DecodedInsn* d) {
-    const uint32_t base = (d->rn == ArmGpr::kR15)
-        ? PcReadValue(d)
-        : cpu_state_->gprs[d->rn];
-    if (d->n != 0u) {
-        return base + static_cast<uint32_t>(d->offset);
-    }
-    const uint32_t offset = cpu_state_->gprs[d->rm];
-    return d->u != 0u ? base + offset : base - offset;
-}
-
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
     DecodedInsn* d) {
     const bool     wback       = d->p == 0u || d->w != 0u;
     const uint32_t bytes       = d->s != 0u ? 1u : 4u;
-    const uint32_t offset_addr = SingleOffsetAddr(d);
+    const uint32_t offset_addr = addressing_->SingleOffsetAddr(d);
     uint32_t address           =
         d->p != 0u ? offset_addr : cpu_state_->gprs[d->rn];
 
@@ -191,6 +142,14 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
                 mmu_->RaiseAlignmentFault(address, d->l == 0u);
                 return Abort(d, wback, offset_addr);
             }
+        } else if (d->l != 0u && d->rd == ArmGpr::kR15) {
+            /* A3.2.2 (p. A3-109) for the Table A3-1 model and DDI 0100I
+               A4.1.23 LDR "Use of R15" (p. A4-45) for v4/v5: a load into the
+               PC from a non-word-aligned address is UNPREDICTABLE. */
+            if ((address & 3u) != 0u) {
+                cpu_->RaiseUndefinedException(d->guest_address);
+                return Outcome::kPcWritten;
+            }
         } else if (!mmu_->UnalignedAccessesFault()) {
             rot      = (address & 3u) * 8u;
             address &= 0xFFFFFFFCu;
@@ -200,7 +159,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
     if (d->l != 0u) {
         uint32_t value = 0;
         if (!access_->Load(cpu_state_, d->guest_address, address, bytes,
-                           &value)) {
+                           &value, d->unpriv != 0u)) {
             return Abort(d, wback, offset_addr);
         }
         if (rot != 0u) {
@@ -220,7 +179,8 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
     const uint32_t value = (d->rd == ArmGpr::kR15)
         ? d->guest_address + config_->PcStoreOffset()
         : cpu_state_->gprs[d->rd];
-    if (!access_->Store(cpu_state_, d->guest_address, address, bytes, value)) {
+    if (!access_->Store(cpu_state_, d->guest_address, address, bytes, value,
+                        d->unpriv != 0u)) {
         return Abort(d, wback, offset_addr);
     }
     if (wback) {
@@ -232,7 +192,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
     DecodedInsn* d) {
     const bool     wback       = d->p == 0u || d->w != 0u;
-    const uint32_t offset_addr = HalfwordOffsetAddr(d);
+    const uint32_t offset_addr = addressing_->HalfwordOffsetAddr(d);
     const uint32_t address     =
         d->p != 0u ? offset_addr : cpu_state_->gprs[d->rn];
     const uint32_t pc          = d->guest_address;
@@ -242,6 +202,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
     const bool     load        = d->l != 0u;
     const bool     is_store    = !load && (d->op1 == 1u || d->op1 == 3u);
     const bool     is_dual     = !load && (d->op1 == 2u || d->op1 == 3u);
+    const bool     unpriv      = d->unpriv != 0u;
     const bool     is_halfword =
         d->op1 == 1u || (load && d->op1 == 3u);
     if (is_dual) {
@@ -257,19 +218,19 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
 
     switch ((d->op1 << 1) | (d->l != 0u ? 1u : 0u)) {
     case 3u:
-        if (!access_->Load(cpu_state_, pc, address, 2u, &value)) {
+        if (!access_->Load(cpu_state_, pc, address, 2u, &value, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         break;
     case 5u:
-        if (!access_->Load(cpu_state_, pc, address, 1u, &value)) {
+        if (!access_->Load(cpu_state_, pc, address, 1u, &value, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         value = static_cast<uint32_t>(
             static_cast<int32_t>(static_cast<int8_t>(value)));
         break;
     case 7u:
-        if (!access_->Load(cpu_state_, pc, address, 2u, &value)) {
+        if (!access_->Load(cpu_state_, pc, address, 2u, &value, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         value = static_cast<uint32_t>(
@@ -277,7 +238,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
         break;
     case 2u:
         if (!access_->Store(cpu_state_, pc, address, 2u,
-                            cpu_state_->gprs[d->rd])) {
+                            cpu_state_->gprs[d->rd], unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         if (wback) {
@@ -289,10 +250,10 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
            loaded list includes it, and A8.8.72 A1 (p. A8-426) makes
            Rt == Rn UNPREDICTABLE only when wback. */
         uint32_t first = 0;
-        if (!access_->Load(cpu_state_, pc, address, 4u, &first)) {
+        if (!access_->Load(cpu_state_, pc, address, 4u, &first, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
-        if (!access_->Load(cpu_state_, pc, address + 4u, 4u, &value)) {
+        if (!access_->Load(cpu_state_, pc, address + 4u, 4u, &value, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         cpu_state_->gprs[d->rd]      = first;
@@ -304,11 +265,11 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
     }
     case 6u:
         if (!access_->Store(cpu_state_, pc, address, 4u,
-                            cpu_state_->gprs[d->rd])) {
+                            cpu_state_->gprs[d->rd], unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         if (!access_->Store(cpu_state_, pc, address + 4u, 4u,
-                            cpu_state_->gprs[d->rd + 1u])) {
+                            cpu_state_->gprs[d->rd + 1u], unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         if (wback) {
@@ -375,7 +336,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
         }
         if (load) {
             uint32_t value = 0;
-            if (!access_->Load(cpu_state_, pc, address, 4u, &value)) {
+            if (!access_->Load(cpu_state_, pc, address, 4u, &value, false)) {
                 return Abort(d, do_wback, cpu_state_->gprs[d->rn] + delta);
             }
             if (i == ArmGpr::kR15) {
@@ -394,7 +355,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
             } else {
                 value = cpu_state_->gprs[i];
             }
-            if (!access_->Store(cpu_state_, pc, address, 4u, value)) {
+            if (!access_->Store(cpu_state_, pc, address, 4u, value, false)) {
                 return Abort(d, do_wback, cpu_state_->gprs[d->rn] + delta);
             }
         }
@@ -403,7 +364,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
 
     if (rn_word_seen) {
         uint32_t value = 0;
-        if (!access_->Load(cpu_state_, pc, rn_word_addr, 4u, &value)) {
+        if (!access_->Load(cpu_state_, pc, rn_word_addr, 4u, &value, false)) {
             return Abort(d, do_wback, cpu_state_->gprs[d->rn] + delta);
         }
         if (user_regs) {
@@ -442,7 +403,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Swap(DecodedInsn* d) {
         (!is_byte && !align_fault_check) ? (base & 0xFFFFFFFCu) : base;
 
     uint32_t value = 0;
-    if (!access_->Load(cpu_state_, pc, address, bytes, &value)) {
+    if (!access_->Load(cpu_state_, pc, address, bytes, &value, false)) {
         return Abort(d, false, 0u);
     }
     if (!is_byte && !align_fault_check) {
@@ -452,7 +413,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Swap(DecodedInsn* d) {
         }
     }
     if (!access_->Store(cpu_state_, pc, address, bytes,
-                        cpu_state_->gprs[d->rm])) {
+                        cpu_state_->gprs[d->rm], false)) {
         return Abort(d, false, 0u);
     }
     cpu_state_->gprs[d->rd] = value;
@@ -466,7 +427,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Exclusive(DecodedInsn* d,
 
     if (!is_store) {
         uint32_t value = 0;
-        if (!access_->Load(cpu_state_, pc, address, 4u, &value)) {
+        if (!access_->Load(cpu_state_, pc, address, 4u, &value, false)) {
             return Abort(d, false, 0u);
         }
         cpu_state_->gprs[d->rd]        = value;
@@ -481,7 +442,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Exclusive(DecodedInsn* d,
         return Outcome::kNextInsn;
     }
     if (!access_->Store(cpu_state_, pc, address, 4u,
-                        cpu_state_->gprs[d->rm])) {
+                        cpu_state_->gprs[d->rm], false)) {
         return Abort(d, false, 0u);
     }
     cpu_state_->gprs[d->rd]         = 0u;

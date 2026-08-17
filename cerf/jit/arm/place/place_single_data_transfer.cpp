@@ -173,6 +173,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     uint8_t* align_fault_label = nullptr;
     uint8_t* legacy_label      = nullptr;
     uint8_t* cross_label       = nullptr;
+    uint8_t* pc_unaligned_label = nullptr;
     if (!is_byte) {
         if (sctlr.bits.a) {
             EmitTestRegImm32(cursor, kEcx, 3u);
@@ -180,6 +181,13 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         } else if (legacy) {
             EmitTestRegImm32(cursor, kEcx, 3u);
             legacy_label = EmitJnzLabel32(cursor);
+        } else if (load && d->rd == 15u) {
+            /* A3.2.2 (p. A3-109): "Any load instruction that is not faulted by
+               the alignment restrictions shown in Table A3-1 and that loads the
+               PC has UNPREDICTABLE behavior if the address it loads from is not
+               word-aligned." */
+            EmitTestRegImm32(cursor, kEcx, 3u);
+            pc_unaligned_label = EmitJnzLabel32(cursor);
         } else {
             /* An unaligned word can span two mappings at a 1 KB boundary -
                Tiny pages map 1 KB (Table D15-10, p. D15-2609; A3.2.3,
@@ -254,8 +262,11 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     if (legacy_label != nullptr) {
         FixupLabel32(legacy_label, cursor);
         if (load && d->rd == 15u) {
-            /* A3.2.2 (p. A3-109): an unaligned PC load is UNPREDICTABLE. */
-            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
+            /* DDI 0100I A4.1.23 LDR "Use of R15" (p. A4-45): "If R15 is
+               specified for <Rd>, the value of the address of the loaded value
+               must be word aligned ... If these constraints are not met, the
+               result is UNPREDICTABLE." */
+            cursor = EmitRaiseUndTail(cursor, d, ctx);
         } else if (load) {
             EmitMovRegReg  (cursor, kEdx, kEcx);
             EmitAndRegImm32(cursor, kEcx, 0xFFFFFFFCu);
@@ -300,13 +311,15 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
         }
     }
 
+    if (pc_unaligned_label != nullptr) {
+        FixupLabel32(pc_unaligned_label, cursor);
+        cursor = EmitRaiseUndTail(cursor, d, ctx);
+    }
+
     /* .cross: ECX = EA. */
     if (cross_label != nullptr) {
         FixupLabel32(cross_label, cursor);
-        if (load && d->rd == 15u) {
-            /* A3.2.2 (p. A3-109): an unaligned PC load is UNPREDICTABLE. */
-            cursor = EmitRaiseUndAndReturn(cursor, d, ctx);
-        } else if (load) {
+        if (load) {
             EmitPush32 (cursor, unpriv ? 1u : 0u);
             EmitPushReg(cursor, kEcx);
             EmitPush32 (cursor, mmu_imm);

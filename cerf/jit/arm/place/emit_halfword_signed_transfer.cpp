@@ -73,11 +73,10 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     const bool wback    = !d->p || d->w;
     const bool is_dual  = !d->l && (d->op1 == 2 || d->op1 == 3);
 
-    /* A5.2.9 (p. A5-204): P == 0 && W == 1 selects the unprivileged forms.
-       LDRHT/STRHT/LDRSBT/LDRSHT are ARMv6T2 encodings (DDI 0406C.c A8.8.83
+    /* LDRHT/STRHT/LDRSBT/LDRSHT are ARMv6T2 encodings (DDI 0406C.c A8.8.83
        p. A8-448); before v6T2, DDI 0100I A5.3 (p. A5-34): "P == 0 The W bit
        must be 0 or the instruction is UNPREDICTABLE". */
-    const bool unpriv = !is_dual && !d->p && d->w;
+    const bool unpriv = d->unpriv != 0;
     if (unpriv && !config->HasMovwMovt()) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }

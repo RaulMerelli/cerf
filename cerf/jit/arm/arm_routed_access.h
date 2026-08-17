@@ -17,9 +17,9 @@ public:
     void OnReady() override;
 
     bool Load(ArmCpuState* cpu_state, uint32_t guest_pc, uint32_t va,
-              uint32_t bytes, uint32_t* out);
+              uint32_t bytes, uint32_t* out, bool unpriv);
     bool Store(ArmCpuState* cpu_state, uint32_t guest_pc, uint32_t va,
-               uint32_t bytes, uint32_t value);
+               uint32_t bytes, uint32_t value, bool unpriv);
 
     static uint32_t __cdecl IoLoadHelper(ArmRoutedAccess* self, uint32_t bytes,
                                          uint32_t guest_pc, uint32_t va);
