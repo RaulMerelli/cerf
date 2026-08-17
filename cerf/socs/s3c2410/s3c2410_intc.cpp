@@ -10,6 +10,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
 #include "../../state/state_stream.h"
+#include "s3c2410_eint_source.h"
 #include "s3c2410_sub_source_levels.h"
 
 #include <bit>
@@ -243,7 +244,8 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    uint32_t cleared_sub = 0;
+    uint32_t cleared_sub  = 0;
+    uint32_t cleared_main = 0;
 
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
@@ -258,6 +260,7 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
                 /* W1C - bit set in `value` clears that bit. The kernel's
                    IRQ handler exit sequence writes 1s to clear pending
                    bits before IRETing. */
+                cleared_main = storage_[slot] & value;
                 storage_[slot] &= ~value;
                 ApplySubSourceRollupLocked();
                 break;
@@ -296,6 +299,9 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
     }
 
     emu_.Get<S3C2410SubSourceLevels>().ReassertStillHeld(cleared_sub);
+    if (cleared_main != 0u) {
+        emu_.Get<S3C2410EintSource>().ReassertHeldLevelEints(cleared_main);
+    }
 }
 
 void S3C2410Intc::SaveState(StateWriter& w) {

@@ -105,13 +105,15 @@ constexpr size_t   kGpgConSlot   = 0x60u / 4u;
 constexpr uint32_t kPinModeEint  = 0x2u;
 constexpr int      kGpgFirstEint = 8;
 
-/* S3C2410A UM pp. 9-26/9-27: EINTMASK and EINTPEND serve EINT[23:4]. */
-constexpr int kEintFirst = 4;
-constexpr int kEintLast  = 23;
-
-/* S3C2410A UM p. 14-7: SRCPND EINT4_7 [4], EINT8_23 [5]. */
+/* S3C2410A UM p. 14-7: SRCPND EINT0 [0], EINT1 [1], EINT2 [2], EINT3 [3],
+   EINT4_7 [4], EINT8_23 [5]. */
+constexpr int kEintFirst      = 0;
 constexpr int kSrcpndEint4_7  = 4;
 constexpr int kSrcpndEint8_23 = 5;
+
+/* S3C2410A UM pp. 9-26/9-27: EINTMASK and EINTPEND serve EINT[23:4]. */
+constexpr int kEintPendFirst = 4;
+constexpr int kEintLast      = 23;
 
 class S3C2410IoPort : public Peripheral,
                       public ResetCauseLatch,
@@ -159,8 +161,14 @@ public:
         if (was == level) { return; }
         if (!EintPinSelectsInterrupt(eint)) { return; }
         if (!EintRequests(EintMode(eint), level)) { return; }
-        OrSlot(kEintPendSlot, bit);
-        PropagateEint(eint);
+        LatchAndPropagateEint(eint);
+    }
+
+    /* S3C2410A UM p. 9-22: EXTINTn "configures the signaling method between the
+       level trigger and edge trigger", 000 = Low level, 001 = High level.
+       UM p. 14-7: SRCPND EINT0 [0], EINT1 [1], EINT2 [2], EINT3 [3]. */
+    void ReassertHeldLevelEints(uint32_t cleared_srcpnd) override {
+        ReevaluateLevelEints(cleared_srcpnd & ((1u << kEintPendFirst) - 1u));
     }
 
     uint32_t MmioBase() const override { return kBase; }
@@ -243,6 +251,17 @@ private:
 
     static bool EintIsLevelMode(uint32_t mode) { return mode <= 0x1u; }
 
+    /* S3C2410A UM p. 9-27: EINTPEND carries EINT[23:4]. p. 14-7: EINT[3:0] each
+       own an SRCPND bit of the same index. */
+    void LatchAndPropagateEint(int eint) {
+        if (eint < kEintPendFirst) {
+            emu_.Get<IrqController>().AssertIrq(eint);
+            return;
+        }
+        OrSlot(kEintPendSlot, 1u << eint);
+        PropagateEint(eint);
+    }
+
     /* S3C2410A UM p. 9-26: EINTMASK 0 = Enable Interrupt, 1 = Masked.
        UM p. 14-7: SRCPND EINT4_7 [4], EINT8_23 [5]. */
     void PropagateEint(int eint) {
@@ -265,8 +284,7 @@ private:
             const uint32_t mode = EintMode(e);
             if (!EintIsLevelMode(mode)) { continue; }
             if (!EintRequests(mode, (levels & bit) != 0u)) { continue; }
-            OrSlot(kEintPendSlot, bit);
-            PropagateEint(e);
+            LatchAndPropagateEint(e);
         }
     }
 
@@ -296,7 +314,7 @@ private:
     }
 
     [[noreturn]] void HaltEint(const char* op, int eint) {
-        LOG(Caution, "S3C2410IoPort::%s: EINT%d outside EINT[23:4]\n", op, eint);
+        LOG(Caution, "S3C2410IoPort::%s: EINT%d outside EINT[23:0]\n", op, eint);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 

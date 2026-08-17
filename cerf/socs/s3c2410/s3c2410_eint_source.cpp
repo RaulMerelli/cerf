@@ -2,6 +2,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 
 REGISTER_SERVICE(S3C2410EintSource);
@@ -25,4 +26,13 @@ void S3C2410EintSource::DriveEintPin(int eint, bool level) {
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
     sink_->DriveEintPin(eint, level);
+}
+
+void S3C2410EintSource::ReassertHeldLevelEints(uint32_t cleared_srcpnd) {
+    if (!sink_) {
+        emu_.Get<Fatal>().Die(
+            "S3C2410EintSource: no EINT sink for cleared SRCPND 0x%08X",
+            cleared_srcpnd);
+    }
+    sink_->ReassertHeldLevelEints(cleared_srcpnd);
 }

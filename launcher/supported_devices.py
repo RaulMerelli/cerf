@@ -493,10 +493,6 @@ BOARDS_INFORMATION = [
 DYNAMIC_NOTES = [
     DynamicNote(
         applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
-        note="Keyboard is misbehaving on Smartphone ROMs.",
-    ),
-    DynamicNote(
-        applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
         note="Guest additions break or cause visual artifacts on Smartphone OS.",
     ),
 ]
