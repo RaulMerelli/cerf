@@ -16,14 +16,9 @@ void Thumb32DataProcDecoder::OnReady() {
     fatal_ = &emu_.Get<Thumb32Fatal>();
 }
 
-/* ARM DDI 0406C.c "Move register and immediate shifts" and Table A6-23
-   (A6.3.11, p. A6-244): type = bits[5:4] with imm3:imm2 select A8.8.103 MOV
-   (register, Thumb) (p. A8-486), A8.8.94 LSL (immediate) (p. A8-468), A8.8.96
-   LSR (immediate) (p. A8-472), A8.8.16 ASR (immediate) (p. A8-330), A8.8.151
-   RRX (p. A8-572) and A8.8.149 ROR (immediate) (p. A8-568). The five shift
-   rows carry "if d IN {13,15} || m IN {13,15} then UNPREDICTABLE"; MOV
-   encoding T3 instead carries "if setflags && (d IN {13,15} || m IN {13,15})"
-   and "if !setflags && (d == 15 || m == 15 || (d == 13 && m == 13))". */
+/* DDI 0406C.c Table A6-23 (A6.3.11) p. A6-244: A8.8.103 MOV (register, Thumb)
+   p. A8-486, A8.8.94 LSL p. A8-468, A8.8.96 LSR p. A8-472, A8.8.16 ASR
+   p. A8-330, A8.8.151 RRX p. A8-572, A8.8.149 ROR p. A8-568. */
 bool Thumb32DataProcDecoder::DecodeMoveRegisterImmediateShifts(
     DecodedInsn* insn, uint32_t op) {
     const uint32_t s    = (op >> 20) & 0x1u;
@@ -57,17 +52,10 @@ bool Thumb32DataProcDecoder::DecodeMoveRegisterImmediateShifts(
     return true;
 }
 
-/* ARM DDI 0406C.c A6.3.11 and Table A6-22 (p. A6-243): op = bits[24:21],
+/* DDI 0406C.c A6.3.11 and Table A6-22 p. A6-243: op = bits[24:21],
    S = bit[20], Rn = bits[19:16], imm3 = bits[14:12], Rd = bits[11:8],
-   imm2 = bits[7:6], type = bits[5:4], Rm = bits[3:0], with "(shift_t,
-   shift_n) = DecodeImmShift(type, imm3:imm2)" (A8.8.14, p. A8-326);
-   "Other encodings in this space are UNDEFINED". Across A8.8.14 AND
-   (p. A8-326), A8.8.241 TST (p. A8-746), A8.8.22 BIC (p. A8-342), A8.8.123
-   ORR (p. A8-518), A8.8.121 ORN (p. A8-514), A8.8.116 MVN (p. A8-506),
-   A8.8.47 EOR (p. A8-384), A8.8.238 TEQ (p. A8-740), A8.8.6 ADD encoding T3
-   (p. A8-310), A8.8.35 CMN (p. A8-366), A8.8.2 ADC (p. A8-302), A8.8.162 SBC
-   (p. A8-594), A8.8.223 SUB (p. A8-712), A8.8.38 CMP encoding T3 (p. A8-372)
-   and A8.8.153 RSB (p. A8-576): every row carries "m IN {13,15}". */
+   imm2 = bits[7:6], type = bits[5:4], Rm = bits[3:0]; DecodeImmShift per
+   A8.8.14 p. A8-326. */
 bool Thumb32DataProcDecoder::DecodeDataProcessingShiftedRegister(
     DecodedInsn* insn, uint32_t op) {
     const uint32_t o    = (op >> 21) & 0xFu;
@@ -79,13 +67,9 @@ bool Thumb32DataProcDecoder::DecodeDataProcessingShiftedRegister(
     const uint32_t type = (op >>  4) & 0x3u;
     const uint32_t rm   =  op        & 0xFu;
 
-    /* A6.1.1 (p. A6-220): "An instruction is UNPREDICTABLE if: a bit marked
-       (0) in the encoding diagram of an instruction is not 0, and the
-       pseudocode for that encoding does not indicate that a different special
-       case applies when that bit is not 0". Every encoding this class reaches
-       marks bits[15] of the second halfword (0) - A8.8.14 (p. A8-326) shows it
-       for the shared T2 diagram - and Table A6-9 (p. A6-230) does not consume
-       that bit on the op1 = 01 path. */
+    /* A6.1.1 p. A6-220: a non-zero (0) bit is UNPREDICTABLE; hw2[15] is (0)
+       on the shared T2 diagram A8.8.14 p. A8-326, and Table A6-9 p. A6-230
+       leaves it unconsumed on the op1 = 01 path. */
     if (((op >> 15) & 0x1u) != 0u) {
         return false;
     }
@@ -155,11 +139,8 @@ uint32_t Thumb32DataProcDecoder::ThumbExpandImm(uint32_t key,
     return (value >> key) | (value << (32u - key));
 }
 
-/* ARM DDI 0406C.c Table A6-10 (A6.3.1, p. A6-231) and Table A6-22 (A6.3.11,
-   p. A6-243) allocate op identically over the rows they share, keyed on Rn ==
-   1111 for the 0010 and 0011 rows and on Rd:S == 11111 for the test aliases;
-   both state "Other encodings in this space are UNDEFINED". The opcode values
-   are the ARM data-processing numbering of Table A5-5 (p. A5-199). */
+/* DDI 0406C.c Table A6-10 (A6.3.1) p. A6-231 and Table A6-22 (A6.3.11)
+   p. A6-243; opcode values are the ARM numbering of Table A5-5 p. A5-199. */
 bool Thumb32DataProcDecoder::MapDataProcessingOpcode(uint32_t o, uint32_t rn,
                                                      uint32_t rd, uint32_t s,
                                                      uint32_t* opcode,
@@ -183,19 +164,10 @@ bool Thumb32DataProcDecoder::MapDataProcessingOpcode(uint32_t o, uint32_t rn,
     }
 }
 
-/* ARM DDI 0406C.c: rows 1000 and 1101 of Tables A6-10 and A6-22 carry
-   "if Rn == '1101' then SEE ADD (SP plus immediate) / ADD (SP plus register) /
-   SUB (SP minus immediate) / SUB (SP minus register)" - A8.8.4 (p. A8-306),
-   A8.8.6 (p. A8-310), A8.8.221 (p. A8-708), A8.8.223 (p. A8-712). Those four
-   redirect targets - A8.8.9 (p. A8-316), A8.8.10 (p. A8-318), A8.8.225
-   (p. A8-716), A8.8.226 (p. A8-718) - permit d == 13, which every other row
-   forbids: "d == 13 || (d == 15 && S == '0')" on A8.8.13 AND (immediate)
-   (p. A8-324) and its siblings. Rn == 15 is UNPREDICTABLE on the 1000 and 1101
-   rows and "n IN {13,15}" elsewhere, except the 0010 and 0011 rows, which
-   carry "d IN {13,15} || n == 13" - A8.8.122 ORR (immediate) (p. A8-516) and
-   A8.8.120 ORN (immediate) (p. A8-512) - because their Rn == 1111 entries are
-   the separate MOV and MVN rows, whose own "d IN {13,15}" is on A8.8.102
-   (p. A8-484) and A8.8.115 (p. A8-504). */
+/* DDI 0406C.c A8.8.4 p. A8-306, A8.8.6 p. A8-310, A8.8.221 p. A8-708,
+   A8.8.223 p. A8-712 SEE-redirect Rn == 1101 to A8.8.9 p. A8-316, A8.8.10
+   p. A8-318, A8.8.225 p. A8-716, A8.8.226 p. A8-718; A8.8.13 p. A8-324,
+   A8.8.122 p. A8-516, A8.8.120 p. A8-512, A8.8.102 p. A8-484, A8.8.115 p. A8-504. */
 bool Thumb32DataProcDecoder::DataProcRegistersValid(uint32_t o, uint32_t rn,
                                                     uint32_t rd, bool test,
                                                     bool* sp_form) const {
@@ -249,23 +221,69 @@ bool Thumb32DataProcDecoder::DecodeDataProcessingModifiedImmediate(
     return true;
 }
 
-bool Thumb32DataProcDecoder::DecodeDataProcessingPlainBinaryImmediate(
-    DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("data-processing (plain binary immediate) (A6-234)",
-                          insn, op);
+/* DDI 0406C.c A6.3.15 and Table A6-27 p. A6-248: op1 = bits[21:20],
+   op2 = bits[5:4], Rn = bits[19:16], Rd = bits[11:8], Rm = bits[3:0];
+   other encodings in this space are UNDEFINED. */
+bool Thumb32DataProcDecoder::DecodeMiscellaneous(DecodedInsn* insn,
+                                                 uint32_t op) {
+    const uint32_t op1 = (op >> 20) & 0x3u;
+    const uint32_t op2 = (op >>  4) & 0x3u;
+    const uint32_t rn  = (op >> 16) & 0xFu;
+    const uint32_t rd  = (op >>  8) & 0xFu;
+    const uint32_t rm  =  op        & 0xFu;
+
+    if (op1 == 0x0u) {
+        /* A8.8.134 QADD p. A8-540, A8.8.138 QDADD p. A8-548, A8.8.141 QSUB
+           p. A8-554, A8.8.139 QDSUB p. A8-550, encoding T1: "if d IN {13,15}
+           || n IN {13,15} || m IN {13,15} then UNPREDICTABLE". */
+        if (rd == 13u || rd == 0xFu || rn == 13u || rn == 0xFu ||
+            rm == 13u || rm == 0xFu) {
+            return false;
+        }
+        /* Table A6-27 p. A6-248 orders op2 QADD / QDADD / QSUB / QDSUB;
+           Table A5-8 p. A5-202 orders insn[22:21] QADD / QSUB / QDADD /
+           QDSUB. */
+        insn->op1      = ((op2 & 0x1u) << 1) | (op2 >> 1);
+        insn->rn       = rn;
+        insn->rd       = rd;
+        insn->rm       = rm;
+        insn->place_fn = &PlaceSaturatingArith;
+        return true;
+    }
+
+    if (op1 == 0x1u && op2 == 0x2u) {
+        fatal_->Unimplemented("reverse bits (A6-248)", insn, op);
+    }
+    if (op1 == 0x2u) {
+        if (op2 != 0x0u) {
+            return false;
+        }
+        fatal_->Unimplemented("select bytes (A6-248)", insn, op);
+    }
+    if (op1 == 0x3u && op2 != 0x0u) {
+        return false;
+    }
+
+    /* A8.8.145 REV p. A8-562, A8.8.146 REV16 p. A8-564, A8.8.147 REVSH
+       p. A8-566 encoding T2 and A8.8.33 CLZ p. A8-362 encoding T1: Rm is
+       duplicated at bits[19:16]; "if !Consistent(Rm) then UNPREDICTABLE",
+       then "if d IN {13,15} || m IN {13,15} then UNPREDICTABLE". */
+    if (rn != rm || rd == 13u || rd == 0xFu || rm == 13u || rm == 0xFu) {
+        return false;
+    }
+    insn->rd       = rd;
+    insn->rm       = rm;
+    insn->place_fn = op1 == 0x3u ? &PlaceClz
+                   : op2 == 0x0u ? &PlaceRev
+                   : op2 == 0x1u ? &PlaceRev16
+                                 : &PlaceRevsh;
+    return true;
 }
 
-/* ARM DDI 0406C.c A6.3.12 and Table A6-24 (p. A6-245): op1 = bits[23:20],
-   Rn = bits[19:16], Rd = bits[11:8], op2 = bits[7:4], Rm = bits[3:0]; "If, in
-   the second halfword of the instruction, bits[15:12] != 0b1111, the
-   instruction is UNDEFINED", and "Other encodings in this space are
-   UNDEFINED". The op1 = 000x / 001x / 010x / 011x rows with op2 = 0000 are
-   A8.8.95 LSL (register) (p. A8-470), A8.8.97 LSR (register) (p. A8-474),
-   A8.8.17 ASR (register) (p. A8-332) and A8.8.150 ROR (register)
-   (p. A8-570), whose encoding T2 is "d = UInt(Rd); n = UInt(Rn);
-   m = UInt(Rm); setflags = (S == '1')" with
-   "if d IN {13,15} || n IN {13,15} || m IN {13,15} then UNPREDICTABLE" - so
-   the low bit of op1 is S and bits[3:1] are the SRType. */
+/* DDI 0406C.c A6.3.12 and Table A6-24 p. A6-245: op1 = bits[23:20],
+   Rn = bits[19:16], Rd = bits[11:8], op2 = bits[7:4], Rm = bits[3:0]; shift
+   rows A8.8.95 LSL p. A8-470, A8.8.97 LSR p. A8-474, A8.8.17 ASR p. A8-332,
+   A8.8.150 ROR p. A8-570. */
 bool Thumb32DataProcDecoder::DecodeDataProcessingRegister(DecodedInsn* insn,
                                                           uint32_t op) {
     const uint32_t op1 = (op >> 20) & 0xFu;
@@ -293,20 +311,15 @@ bool Thumb32DataProcDecoder::DecodeDataProcessingRegister(DecodedInsn* insn,
         return true;
     }
 
-    /* A8.8.235 SXTH (p. A8-734), A8.8.276 UXTH (p. A8-816), A8.8.233 SXTB
-       (p. A8-730) and A8.8.274 UXTB (p. A8-812), encoding T2: "d = UInt(Rd);
-       m = UInt(Rm); rotation = UInt(rotate:'000')" with "if d IN {13,15} ||
-       m IN {13,15} then UNPREDICTABLE"; rotate is bits[5:4] and bits[6] is
-       (0). */
+    /* A8.8.235 SXTH p. A8-734, A8.8.276 UXTH p. A8-816, A8.8.233 SXTB
+       p. A8-730, A8.8.274 UXTB p. A8-812; rotate at bits[5:4], bit[6] is (0). */
     if (op1 <= 0x5u && (op2 & 0x8u) != 0u) {
         if ((op2 & 0x4u) != 0u) {
             return false;
         }
-        /* Table A6-24 (p. A6-245) rows 0010 and 0011: Rn == 1111 is "Signed /
-           Unsigned Extend Byte 16-bit", A8.8.234 SXTB16 (p. A8-732) /
-           A8.8.275 UXTB16 (p. A8-814); Rn != 1111 is "Signed / Unsigned
-           Extend and Add Byte 16-bit", A8.8.231 SXTAB16 (p. A8-726) /
-           A8.8.272 UXTAB16 (p. A8-808). */
+        /* Table A6-24 p. A6-245 rows 0010/0011: Rn == 1111 is A8.8.234
+           SXTB16 p. A8-732 / A8.8.275 UXTB16 p. A8-814; Rn != 1111 is
+           A8.8.231 SXTAB16 p. A8-726 / A8.8.272 UXTAB16 p. A8-808. */
         if (op1 == 0x2u || op1 == 0x3u) {
             fatal_->Unimplemented(rn == 0xFu
                                       ? "signed / unsigned extend byte 16 "
@@ -345,7 +358,7 @@ bool Thumb32DataProcDecoder::DecodeDataProcessingRegister(DecodedInsn* insn,
             "parallel addition and subtraction, unsigned (A6-247)", insn, op);
     }
     if ((op1 & 0xCu) == 0x8u && (op2 & 0xCu) == 0x8u) {
-        fatal_->Unimplemented("miscellaneous operations (A6-248)", insn, op);
+        return DecodeMiscellaneous(insn, op);
     }
     return false;
 }

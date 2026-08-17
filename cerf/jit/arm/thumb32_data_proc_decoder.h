@@ -15,14 +15,13 @@ public:
     void OnReady() override;
 
     bool DecodeDataProcessingModifiedImmediate(DecodedInsn* insn, uint32_t op);
-    bool DecodeDataProcessingPlainBinaryImmediate(DecodedInsn* insn,
-                                                 uint32_t op);
     bool DecodeDataProcessingShiftedRegister(DecodedInsn* insn, uint32_t op);
     bool DecodeDataProcessingRegister(DecodedInsn* insn, uint32_t op);
 
 private:
     Thumb32Fatal* fatal_ = nullptr;
 
+    bool DecodeMiscellaneous(DecodedInsn* insn, uint32_t op);
     bool DecodeMoveRegisterImmediateShifts(DecodedInsn* insn, uint32_t op);
     bool MapDataProcessingOpcode(uint32_t o, uint32_t rn, uint32_t rd,
                                  uint32_t s, uint32_t* opcode,
