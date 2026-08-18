@@ -67,10 +67,10 @@ private:
 
     static constexpr UINT     kMsgArmSilent    = WM_USER + 907;
     static constexpr UINT     kMsgCancelSilent = WM_USER + 908;
-    static constexpr uint32_t kSilentQueue     = 8;
 
 public:
-    static constexpr WPARAM   kSilentDone   = 1;
+    static constexpr uint32_t kSilentQueue = 8;
+    static constexpr WPARAM   kSilentDone  = 1;
 
 private:
 

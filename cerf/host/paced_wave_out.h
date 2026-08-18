@@ -36,7 +36,9 @@ private:
 
     static constexpr UINT kMsgSetFormat  = WM_USER + 41;  /* re-EnsureFormat on the thread. */
 
-    static constexpr uint32_t kSlots = 2;
+    static constexpr uint32_t kSlots = 8;
+    static_assert(kSlots <= WaveOutSink::kSilentQueue,
+                  "every busy slot can hold one silent-mode completion");
 
     WaveOutSink           sink_;
     const char*           log_tag_ = "PacedWaveOut";
