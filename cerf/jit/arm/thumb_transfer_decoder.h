@@ -15,6 +15,7 @@ public:
     bool DecodeHalfwordOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeImmediateOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeLoadLiteral(DecodedInsn* insn, uint16_t op);
+    bool DecodeLoadStoreMultiple(DecodedInsn* insn, uint16_t op);
     bool DecodeRegisterOffsetTransfer(DecodedInsn* insn, uint16_t op);
     bool DecodeStackRelativeTransfer(DecodedInsn* insn, uint16_t op);
 };

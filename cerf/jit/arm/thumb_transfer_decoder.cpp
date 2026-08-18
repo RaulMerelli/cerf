@@ -134,3 +134,25 @@ bool ThumbTransferDecoder::DecodeStackRelativeTransfer(DecodedInsn* insn,
     insn->place_fn = &PlaceSingleDataTransfer;
     return true;
 }
+
+/* ARM DDI 0406C.c A8.8.57 LDM/LDMIA/LDMFD (Thumb) T1 (p. A8-396): "wback =
+   (registers<n> == '0')"; A8.8.199 STM (STMIA, STMEA) T1 (p. A8-664): "wback
+   = TRUE". Both: "if BitCount(registers) < 1 then UNPREDICTABLE". */
+bool ThumbTransferDecoder::DecodeLoadStoreMultiple(DecodedInsn* insn,
+                                                   uint16_t     op) {
+    const uint32_t rn   = (op >> 8) & 0x7u;
+    const uint32_t list =  op       & 0xFFu;
+    if (list == 0u) {
+        return false;
+    }
+    const bool load = ((op >> 11) & 0x1u) != 0u;
+    insn->register_list = static_cast<uint16_t>(list);
+    insn->rn            = rn;
+    insn->l             = load ? 1u : 0u;
+    insn->p             = 0u;
+    insn->u             = 1u;
+    insn->s             = 0u;
+    insn->w             = (load && ((list >> rn) & 0x1u) != 0u) ? 0u : 1u;
+    insn->place_fn      = &PlaceBlockDataTransfer;
+    return true;
+}

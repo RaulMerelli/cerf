@@ -467,7 +467,7 @@ bool ThumbDecoder::DecodeThumb(DecodedInsn* insn, uint16_t op) {
         return DecodeMiscellaneous(insn, op);
     case 0x18u:
     case 0x19u:
-        return MarkArmUnimplemented(insn, op);
+        return transfer_decoder_->DecodeLoadStoreMultiple(insn, op);
     case 0x1Au:
         return DecodeConditionalBranch(insn, op);
     case 0x1Bu:
