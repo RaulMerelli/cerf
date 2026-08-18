@@ -2,6 +2,7 @@
 #include "../../core/service.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/ite_it8368/ite_it8368.h"
+#include "../../peripherals/pcmcia/pcmcia_auto_insert.h"
 #include "../../peripherals/pcmcia/pcmcia_slot.h"
 #include "../../socs/pr31x00/pr31x00_card_space.h"
 #include "../../socs/pr31x00/pr31x00_ir.h"
@@ -29,6 +30,7 @@ public:
         emu_.Get<IteIt8368>().SetSlot(&slot0_);
         emu_.Get<IteIt8368>().SetIntSink(this);
         emu_.Get<HostWidgetRegistry>().Register(&slot0_);
+        emu_.Get<PcmciaAutoInsert>().InsertLaunchCompactFlash(slot0_);
     }
 
     /* The buffer chip's INT pin reaches the SoC's CARDET input, whose rising edge is

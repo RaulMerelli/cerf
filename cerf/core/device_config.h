@@ -20,6 +20,7 @@ struct DeviceMeta {
 struct BundledCompactFlashCard {
     std::string file;   /* image filename, relative to the device directory */
     std::string name;   /* display name; menu shows "Insert bundled CF: <name>" */
+    bool insert_on_launch = false;
 };
 
 /* Boot action when a saved state image exists in the device directory

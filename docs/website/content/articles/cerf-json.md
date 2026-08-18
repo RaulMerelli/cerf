@@ -117,7 +117,7 @@ implementation reads.**
 | `full_screen` | boolean | Enter borderless full screen at startup. |
 | `adopt_guest_additions_resolution_for_host_screen` | boolean | Size the Guest Additions display to the host monitor instead of the configured resolution. |
 | `share_folder` | string | A host folder that CERF mounts into the guest. Guest Additions only. |
-| `additional_packages.compact_flash_cards` | array of `{ file, name }` | CF card images that ship with the ROM. Each one appears in the card insert menu. |
+| `additional_packages.compact_flash_cards` | array of `{ file, name, insert_on_launch }` | CF card images that ship with the ROM. Each one appears in the card insert menu. When `insert_on_launch` is `true`, CERF inserts that card automatically at boot. |
 | `meta` | object | Who the device is: `name`, `device_name`, `device_year`, and `os` (`name`, `ver_major`, `ver_minor`). |
 
 `meta` is descriptive, not operational. CERF displays it, and the launcher lists it. CERF takes

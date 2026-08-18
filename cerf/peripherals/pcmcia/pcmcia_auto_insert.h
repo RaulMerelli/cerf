@@ -9,4 +9,5 @@ public:
     using Service::Service;
 
     void InsertDefaultNetworkCard(PcmciaSlot& slot);
+    void InsertLaunchCompactFlash(PcmciaSlot& slot);
 };

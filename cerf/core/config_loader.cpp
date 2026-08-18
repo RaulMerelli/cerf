@@ -55,6 +55,16 @@ int ReadOptInt(const json& obj, const char* key,
     return v.get<int>();
 }
 
+bool ReadOptBool(const json& obj, const char* key,
+                 const std::string& path, const std::string& ctx) {
+    if (!obj.contains(key)) return false;
+    const auto& v = obj[key];
+    if (v.is_null()) return false;
+    if (!v.is_boolean())
+        Fatal(path, ctx + "." + key + " must be a boolean");
+    return v.get<bool>();
+}
+
 void SetMetaString(std::string& field, const json& obj, const char* key,
                    const std::string& path, const std::string& ctx) {
     std::string v = ReadOptString(obj, key, path, ctx);
@@ -268,6 +278,7 @@ void LoadAdditionalPackages(const json& root, DeviceConfig& config,
         BundledCompactFlashCard card;
         card.file = ReadOptString(e, "file", path, ctx);
         card.name = ReadOptString(e, "name", path, ctx);
+        card.insert_on_launch = ReadOptBool(e, "insert_on_launch", path, ctx);
         if (card.file.empty())
             Fatal(path, ctx + "[].file is required");
         if (card.name.empty()) card.name = card.file;
