@@ -171,7 +171,7 @@ A developer who holds a licence to a forbidden-source tree can still use that tr
 - Do NOT trust agent output - they are as lazy as you are.
 
 ## Git & Process
-- **Never run git** unless user explicitly asks.
+- **Read-only git is permitted. A git command that writes is forbidden unless the user explicitly asks for it in the current message.** You can run `git status`, `git log`, `git diff`, `git show`, and `git blame` at any time. Never run these on your own initiative: `commit`, `push`, `add`, `stash`, `reset`, `checkout`, `switch`, `restore`, `rm`, `clean`, `merge`, `rebase`, `cherry-pick`, `tag`, `branch -d`, or a config write. One approval covers one operation. If the user approves a commit, that approval does not cover the next set of changes. Ask again.
 - **Always `git status` first** - before any add/commit/push, run git status and read the output. Verify staged files are exactly what you expect. Never blindly stage or commit.
 - **Commit messages describe the diff, not the discussion** - title and body cover what the change does to the project, not the conversation that produced it. Edit narrative ("reframed", "replaced X framing"), removed-section names, and user-feedback labels are private session context and stay out of git log.
 - **Scratch / audit directories live under the gitignored `tmp/`, never at the repo root** - top-level scratch dirs become untracked entries in `git status`, `git stash -u` and `git add .` pull them in, and on Windows git cannot clean them if any shell process has them as cwd. Every script-generated artifact, every audit output, every helper script goes under `tmp/<task-or-date>/`.
