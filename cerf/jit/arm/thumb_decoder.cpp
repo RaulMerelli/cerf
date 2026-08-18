@@ -123,7 +123,10 @@ bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
         insn->rd  = reg;
         break;
     case 1u:
-        if (low || reg == 15u) return false;
+        /* ARM DDI 0406C.c A8.8.38 CMP (register) encoding T2 (p. A8-372): "if
+           n < 8 && m < 8 then UNPREDICTABLE; if n == 15 || m == 15 then
+           UNPREDICTABLE". */
+        if (low || reg == 15u || insn->rm == 15u) return false;
         insn->op1 = 10u;
         insn->s   = 1u;
         insn->rn  = reg;
