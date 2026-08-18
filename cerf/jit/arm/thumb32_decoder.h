@@ -10,6 +10,7 @@ class Thumb32BranchSystemDecoder;
 class Thumb32DataProcDecoder;
 class Thumb32Fatal;
 class Thumb32LoadStoreDecoder;
+class Thumb32LoadStoreMultipleDecoder;
 class Thumb32PlainImmDecoder;
 struct DecodedInsn;
 
@@ -43,6 +44,8 @@ private:
     Thumb32Fatal*               fatal_          = nullptr;
     Thumb32LoadStoreDecoder*    load_store_     = nullptr;
     Thumb32PlainImmDecoder*     plain_imm_      = nullptr;
+
+    Thumb32LoadStoreMultipleDecoder* load_store_multiple_ = nullptr;
 
     bool DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op);

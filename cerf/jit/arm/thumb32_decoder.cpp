@@ -12,6 +12,7 @@
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
 #include "thumb32_load_store_decoder.h"
+#include "thumb32_load_store_multiple_decoder.h"
 #include "thumb32_plain_imm_decoder.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
@@ -30,10 +31,12 @@ void Thumb32Decoder::OnReady() {
     fatal_          = &emu_.Get<Thumb32Fatal>();
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
+
+    load_store_multiple_ = &emu_.Get<Thumb32LoadStoreMultipleDecoder>();
 }
 
 bool Thumb32Decoder::DecodeLoadStoreMultiple(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("load/store multiple (A6-237)", insn, op);
+    return load_store_multiple_->Decode(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLoadStoreDualExclusiveTableBranch(DecodedInsn* insn,
