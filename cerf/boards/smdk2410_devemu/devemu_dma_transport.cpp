@@ -36,6 +36,31 @@ constexpr uint32_t kChannelPresent = 0x001u;
 constexpr uint32_t kChannelEnable  = 0x100u;
 constexpr uint32_t kChannelProbe   = 0x001u;
 
+/* devemu_wm2003se dmatrans.dll DMA_Write 0x191187C rings +0x0C with the
+   descriptor at +0x201C, whose third word is the status it then reads. */
+constexpr uint32_t kChannelTxDoorbell = 0x0Cu;
+
+constexpr uint32_t kTxDescriptor     = 0x201Cu;
+constexpr uint32_t kDescriptorStatus = 0x8u;
+
+constexpr uint32_t kTransferNoService = 1u;
+
+constexpr uint32_t kCmdSelect    = 0x2100u;
+constexpr uint32_t kCmdOperation = 0x2104u;
+constexpr uint32_t kCmdStatus    = 0x2108u;
+
+/* devemu_wm2003se dmatrans.dll DMA_Open 0x1911654 selects at +0x2100, writes
+   operation 1 at +0x2104 and treats a zero at +0x2108 as an opened channel;
+   for index 8 and 9 it writes operation 8 or 16 and takes +0x2108 as a handle
+   it requires to be >= 0x80000000. DMA_Close 0x19117B8 writes operation 2. */
+constexpr uint32_t kOpOpen        = 1u;
+constexpr uint32_t kOpClose       = 2u;
+constexpr uint32_t kOpAllocFirst  = 8u;
+constexpr uint32_t kOpAllocSecond = 16u;
+
+constexpr uint32_t kChannelOpened   = 0u;
+constexpr uint32_t kNoDynamicHandle = 0u;
+
 class DevEmuDmaTransport : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -76,6 +101,13 @@ public:
             if (reg == kChannelControl)
                 return ch_control_[n] | kChannelPresent;
         }
+        if (off == kCmdStatus) {
+            if (cmd_operation_ == kOpOpen && ChannelEnabled(cmd_select_))
+                return kChannelOpened;
+            if (cmd_operation_ == kOpAllocFirst ||
+                cmd_operation_ == kOpAllocSecond)
+                return kNoDynamicHandle;
+        }
         HaltUnsupportedAccess("ReadWord", addr, 0);
     }
 
@@ -104,13 +136,26 @@ public:
                 return;
             }
             if (reg == kChannelConfig &&
-                (value == kBase + kHostStatusBase + 4u * n ||
-                 value == kMappedWindowBase + kHostStatusBase + 4u * n)) {
-                ch_config_[n] = value;
+                IsWindowAddress(value, kHostStatusBase + 4u * n))
+                return;
+            /* devemu_wm2003se dmatrans.dll DMA_Init 0x1911540 writes 0x1E at
+               32 * v4 + 8336, which is +0x10 of the channel block. */
+            if (reg == kChannelIrq)
+                return;
+            if (reg == kChannelTxDoorbell && ChannelEnabled(n) &&
+                IsWindowAddress(value, kTxDescriptor)) {
+                CompleteWithoutService(kTxDescriptor);
                 return;
             }
-            if (reg == kChannelIrq) {
-                ch_irq_[n] = value;
+        }
+        if (off == kCmdSelect && value < kChannelCount) {
+            cmd_select_ = value;
+            return;
+        }
+        if (off == kCmdOperation) {
+            if (value == kOpOpen || value == kOpClose ||
+                value == kOpAllocFirst || value == kOpAllocSecond) {
+                cmd_operation_ = value;
                 return;
             }
         }
@@ -120,17 +165,34 @@ public:
     void SaveState(StateWriter& w) override {
         w.WriteBytes(shared_.data(), shared_.size());
         for (uint32_t v : ch_control_) w.Write<uint32_t>(v);
-        for (uint32_t v : ch_config_)  w.Write<uint32_t>(v);
-        for (uint32_t v : ch_irq_)     w.Write<uint32_t>(v);
+        w.Write<uint32_t>(cmd_select_);
+        w.Write<uint32_t>(cmd_operation_);
     }
     void RestoreState(StateReader& r) override {
         r.ReadBytes(shared_.data(), shared_.size());
         for (uint32_t& v : ch_control_) r.Read(v);
-        for (uint32_t& v : ch_config_)  r.Read(v);
-        for (uint32_t& v : ch_irq_)     r.Read(v);
+        r.Read(cmd_select_);
+        r.Read(cmd_operation_);
     }
 
 private:
+    /* devemu_wm2003se dmatrans.dll DMA_Init 0x1911540 rejects a channel whose
+       control bit 0 reads back clear, then writes the control value with bit 8
+       set before DMA_Open 0x1911654 selects that channel. */
+    bool ChannelEnabled(uint32_t n) const {
+        return (ch_control_[n] & kChannelEnable) != 0u;
+    }
+
+    bool IsWindowAddress(uint32_t value, uint32_t off) const {
+        return value == kBase + off || value == kMappedWindowBase + off;
+    }
+
+    void CompleteWithoutService(uint32_t descriptor) {
+        const uint32_t status = kTransferNoService;
+        std::memcpy(&shared_[descriptor + kDescriptorStatus], &status,
+                    sizeof(status));
+    }
+
     void RequireGuestOwned(const char* op, uint32_t addr,
                            uint32_t size, uint64_t value) const {
         const uint32_t off = addr - kBase;
@@ -142,8 +204,8 @@ private:
 
     std::array<uint8_t, kSharedSize> shared_{};
     std::array<uint32_t, kChannelCount> ch_control_{};
-    std::array<uint32_t, kChannelCount> ch_config_{};
-    std::array<uint32_t, kChannelCount> ch_irq_{};
+    uint32_t cmd_select_    = 0;
+    uint32_t cmd_operation_ = 0;
 };
 
 }  /* namespace */
