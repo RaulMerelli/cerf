@@ -77,7 +77,7 @@ bool Thumb32Decoder::DecodeCoprocessorSimdFp(DecodedInsn* insn, uint32_t op) {
 }
 
 bool Thumb32Decoder::DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("store single data item (A6-242)", insn, op);
+    return load_store_->DecodeStoreSingleDataItem(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op) {
