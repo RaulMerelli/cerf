@@ -84,7 +84,7 @@ bool Thumb32Decoder::DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op) {
 }
 
 bool Thumb32Decoder::DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented("load byte, memory hints (A6-241)", insn, op);
+    return load_store_->DecodeLoadByteMemoryHints(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLoadHalfwordMemoryHints(DecodedInsn* insn,

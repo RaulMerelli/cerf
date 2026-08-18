@@ -329,3 +329,85 @@ bool Thumb32LoadStoreDecoder::DecodeStoreSingleDataItem(DecodedInsn* insn,
     }
     return DecodeStoreImmediate8(insn, op);
 }
+
+/* DDI 0406C.c A8.8.128 PLD, PLDW (register) encoding T1 (p. A8-528) and
+   A8.8.130 PLI (register) encoding T1 (p. A8-532): Rm = hw2[3:0], "if m IN
+   {13,15} then UNPREDICTABLE". A3.9.4 (p. A3-158): "The Preload instructions
+   are hints, and so implementations can treat them as NOPs". */
+bool Thumb32LoadStoreDecoder::DecodePreloadRegister(DecodedInsn* insn,
+                                                    uint32_t op) {
+    const uint32_t rm = op & 0xFu;
+    if (rm == 13u || rm == 0xFu) {
+        return false;
+    }
+    insn->place_fn = &PlaceNop;
+    return true;
+}
+
+/* DDI 0406C.c A6.3.9 Table A6-20 (p. A6-241): op1 = bits[24:23], Rn =
+   bits[19:16], Rt = hw2[15:12], op2 = hw2[11:6]; "Other encodings in this
+   space are UNDEFINED". A3.9.4 (p. A3-158): "The Preload instructions are
+   hints, and so implementations can treat them as NOPs". */
+bool Thumb32LoadStoreDecoder::DecodeLoadByteMemoryHints(DecodedInsn* insn,
+                                                        uint32_t op) {
+    const uint32_t op1 = (op >> 23) & 0x3u;
+    const uint32_t rn  = (op >> 16) & 0xFu;
+    const uint32_t rt  = (op >> 12) & 0xFu;
+    const uint32_t op2 = (op >>  6) & 0x3Fu;
+    const bool     signed_byte = op1 >= 0x2u;
+
+    if (rn == 0xFu) {
+        if (rt == 0xFu) {
+            insn->place_fn = &PlaceNop;
+            return true;
+        }
+        fatal_->Unimplemented(signed_byte
+                                  ? "load register signed byte, literal "
+                                    "(A6-241)"
+                                  : "load register byte, literal (A6-241)",
+                              insn, op);
+    }
+
+    if (op1 == 0x1u || op1 == 0x3u) {
+        if (rt == 0xFu) {
+            insn->place_fn = &PlaceNop;
+            return true;
+        }
+        fatal_->Unimplemented(signed_byte
+                                  ? "load register signed byte, immediate "
+                                    "(A6-241)"
+                                  : "load register byte, immediate (A6-241)",
+                              insn, op);
+    }
+
+    if (op2 == 0x00u) {
+        if (rt == 0xFu) {
+            return DecodePreloadRegister(insn, op);
+        }
+        fatal_->Unimplemented(signed_byte
+                                  ? "load register signed byte, register "
+                                    "(A6-241)"
+                                  : "load register byte, register (A6-241)",
+                              insn, op);
+    }
+    if ((op2 & 0x24u) == 0x24u || (op2 & 0x3Cu) == 0x30u) {
+        if (rt == 0xFu && (op2 & 0x3Cu) == 0x30u) {
+            insn->place_fn = &PlaceNop;
+            return true;
+        }
+        fatal_->Unimplemented(signed_byte
+                                  ? "load register signed byte, immediate "
+                                    "(A6-241)"
+                                  : "load register byte, immediate (A6-241)",
+                              insn, op);
+    }
+    if ((op2 & 0x3Cu) == 0x38u) {
+        fatal_->Unimplemented(signed_byte
+                                  ? "load register signed byte unprivileged "
+                                    "(A6-241)"
+                                  : "load register byte unprivileged "
+                                    "(A6-241)",
+                              insn, op);
+    }
+    return false;
+}
