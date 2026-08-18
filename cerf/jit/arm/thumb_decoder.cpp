@@ -25,6 +25,12 @@ bool ThumbDecoder::DecodeShiftByImmediate(DecodedInsn* insn, uint16_t op) {
     const uint32_t immed_5 = (op >>  6) & 0x1Fu;
     insn->op1      = 13u;
     insn->s        = 1u;
+    /* DDI 0406C.c A8.8.103 MOV (register) T2 (p. A8-486): "setflags = TRUE"
+       and "Not permitted in IT block", where A8.8.94 LSL (immediate)
+       (p. A8-468) carries "setflags = !InITBlock()". */
+    const bool mov_reg_t2 = shift_t == kSrLsl && immed_5 == 0u;
+    insn->s_outside_it = mov_reg_t2 ? 0u : 1u;
+    insn->und_in_it    = mov_reg_t2 ? 1u : 0u;
     insn->rn       = 0u;
     insn->rd       =  op       & 0x7u;
     insn->rm       = (op >> 3) & 0x7u;
@@ -40,6 +46,7 @@ bool ThumbDecoder::DecodeShiftByImmediate(DecodedInsn* insn, uint16_t op) {
 bool ThumbDecoder::DecodeAddSubtract(DecodedInsn* insn, uint16_t op) {
     insn->op1 = ((op >> 9) & 0x1u) != 0u ? 2u : 4u;
     insn->s   = 1u;
+    insn->s_outside_it = 1u;
     insn->rn  = (op >> 3) & 0x7u;
     insn->rd  =  op       & 0x7u;
     insn->rs  = 0u;
@@ -59,6 +66,7 @@ bool ThumbDecoder::DecodeAddSubtract(DecodedInsn* insn, uint16_t op) {
 bool ThumbDecoder::DecodeImmediateOperations(DecodedInsn* insn, uint16_t op) {
     const uint32_t reg = (op >> 8) & 0x7u;
     insn->s         = 1u;
+    insn->s_outside_it = 1u;
     insn->rs        = 0u;
     insn->immediate = op & 0xFFu;
     switch ((op >> 11) & 0x3u) {
@@ -67,8 +75,12 @@ bool ThumbDecoder::DecodeImmediateOperations(DecodedInsn* insn, uint16_t op) {
         insn->rd  = reg;
         break;
     case 1u:
+        /* DDI 0406C.c A8.8.37 CMP (immediate) (p. A8-370): "It updates the
+           condition flags based on the result, and discards the result" - T1
+           carries no setflags assignment. */
         insn->op1 = 10u;
         insn->rn  = reg;
+        insn->s_outside_it = 0u;
         break;
     case 2u:
         insn->op1 = 4u;
@@ -144,6 +156,7 @@ bool ThumbDecoder::DecodeShiftByRegister(DecodedInsn* insn, uint16_t op,
                                          uint32_t type) {
     insn->op1      = 13u;
     insn->s        = 1u;
+    insn->s_outside_it = 1u;
     insn->n        = type;
     insn->rd       =  op       & 0x7u;
     insn->rm       =  op       & 0x7u;
@@ -168,6 +181,7 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
     case 0xEu:
         insn->rn = reg;
         insn->rd = reg;
+        insn->s_outside_it = 1u;
         break;
     case 0x8u:
     case 0xAu:
@@ -176,11 +190,13 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
         break;
     case 0xFu:
         insn->rd = reg;
+        insn->s_outside_it = 1u;
         break;
     case 0x9u:
         /* ARM DDI 0100I A7.1.47 NEG, p. A7-80. */
         insn->op1       = 3u;
         insn->s         = 1u;
+        insn->s_outside_it = 1u;
         insn->rn        = (op >> 3) & 0x7u;
         insn->rd        = reg;
         insn->immediate = 0u;
@@ -193,6 +209,7 @@ bool ThumbDecoder::DecodeAluOperations(DecodedInsn* insn, uint16_t op) {
         if (rm == reg && !processor_config_->HasCp15V6()) return false;
         insn->op1      = 0u;
         insn->s        = 1u;
+        insn->s_outside_it = 1u;
         insn->rd       = reg;
         insn->rm       = reg;
         insn->rn       = rm;
@@ -278,6 +295,29 @@ bool ThumbDecoder::DecodeAdjustStackPointer(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0406C.c A8.8.54 IT encoding T1 (p. A8-390): firstcond = bits[7:4],
+   mask = bits[3:0]; "if mask == '0000' then SEE Related encodings"; "if
+   firstcond == '1111' || (firstcond == '1110' && BitCount(mask) != 1) then
+   UNPREDICTABLE". */
+bool ThumbDecoder::DecodeIfThen(DecodedInsn* insn, uint16_t op) {
+    const uint32_t firstcond = (op >> 4) & 0xFu;
+    const uint32_t mask      =  op       & 0xFu;
+    if (mask == 0u) {
+        return MarkArmUnimplemented(insn, op);
+    }
+    uint32_t set_bits = 0u;
+    for (uint32_t b = 0u; b < 4u; ++b) {
+        set_bits += (mask >> b) & 0x1u;
+    }
+    if (firstcond == 0xFu || (firstcond == 0xEu && set_bits != 1u)) {
+        return false;
+    }
+    insn->itstate       = (firstcond << 4) | mask;
+    insn->itstate_valid = 1u;
+    insn->place_fn      = &PlaceNop;
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
@@ -325,20 +365,25 @@ bool ThumbDecoder::DecodeMiscellaneous(DecodedInsn* insn, uint16_t op) {
     case 0x3u:
     case 0x9u:
     case 0xBu:
-    case 0xFu:
         /* ARM DDI 0406C.c Table A6-6 (A6.2.5, p. A6-228) allocates opcode
            0001xxx/0011xxx/1001xxx/1011xxx to CBNZ, CBZ (variant v6T2) and
            1111xxx to If-Then, and hints; "Other encodings in this space are
            UNDEFINED." */
         if (!processor_config_->HasThumb2()) return false;
         return MarkArmUnimplemented(insn, op);
+    case 0xFu:
+        if (!processor_config_->HasThumb2()) return false;
+        return DecodeIfThen(insn, op);
     case 0xAu:
         /* Figure A6-2 note 2, p. A6-5. */
         if (!processor_config_->HasRev()) return false;
         return MarkArmUnimplemented(insn, op);
     case 0xEu:
-        /* Figure A6-2 note 1, p. A6-5. */
+        /* Figure A6-2 note 1, p. A6-5. DDI 0406C.c A8.8.24 BKPT encoding T1
+           (p. A8-346): "Breakpoint is always unconditional, even when inside
+           an IT block." */
         if (!processor_config_->HasBlxReg()) return false;
+        insn->uncond_in_it = 1u;
         return MarkArmUnimplemented(insn, op);
     default:
         return false;

@@ -162,6 +162,10 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
     fetch_fault_ = false;
     wide_split_  = 0u;
 
+    uint32_t itstate     = thumb_ ? ArmItFromCpsr(*cpu_state_) : 0u;
+    tail_itstate_        = 0u;
+    tail_itstate_valid_  = false;
+
     uint32_t i = 0;
     for (; i < kMaxArmInsnPerBlock && folded_pc < page_end; ++i) {
         DecodedInsn& insn = block_ctx_.insns[i];
@@ -209,6 +213,44 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
             decoded     = decoder_->DecodeArm(&insn, op);
         }
 
+        if (ArmItInBlock(itstate)) {
+            const uint32_t next      = ArmItAdvance(itstate);
+            const bool     last_slot = next == 0u;
+            /* A8.8.54 IT (p. A8-390), A8.8.18 B (p. A8-334) and A8.8.103 MOV
+               (register, Thumb) T2 (p. A8-486): "if InITBlock() then
+               UNPREDICTABLE"; the branching encodings carry "if InITBlock() &&
+               !LastInITBlock() then UNPREDICTABLE". */
+            const bool unpredictable =
+                insn.itstate_valid != 0u || insn.cond != 14u ||
+                (insn.r15_modified && !last_slot) || insn.und_in_it != 0u;
+
+            if (insn.uncond_in_it == 0u) {
+                insn.cond = (itstate >> 4) & 0xFu;
+            }
+            insn.itstate             = itstate;
+            insn.itstate_valid       = 1u;
+            insn.itstate_after       = next;
+            insn.itstate_after_valid = last_slot ? 1u : 0u;
+            itstate                  = next;
+
+            if (unpredictable) {
+                insn.place_fn = &EmitRaiseUndAndReturn;
+                ++i;
+                break;
+            }
+            /* A8.8.6 (p. A8-310) and its 18 siblings: "setflags =
+               !InITBlock()". */
+            if (insn.s_outside_it != 0u) {
+                insn.s = 0u;
+            }
+        } else if (insn.itstate_valid != 0u) {
+            itstate            = insn.itstate;
+            insn.itstate_valid = 0u;
+        }
+
+        /* B1.9.2 "Conditional execution of undefined instructions"
+           (p. B1-1209): "The conditional execution rules ... apply to all
+           instructions. This includes undefined instructions". */
         if (!decoded) {
             insn.place_fn = &EmitRaiseUndAndReturn;
             ++i;
@@ -226,6 +268,8 @@ void ArmBlockCompiler::Decode(uint32_t guest_pc, uint32_t folded_pc) {
         folded_pc += insn.length;
     }
     block_ctx_.num_insns = i;
+    tail_itstate_        = itstate;
+    tail_itstate_valid_  = ArmItInBlock(itstate);
 }
 
 size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
@@ -249,6 +293,10 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
         }
         DecodedInsn& insn = block_ctx_.insns[i];
 
+        if (insn.itstate_valid != 0u) {
+            cursor = EmitItStateStore(cursor, insn.itstate);
+        }
+
         if (tm.HasPcTrace(insn.guest_address)) {
             EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
                                    insn.guest_address);
@@ -269,6 +317,9 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
         if (skip != nullptr) {
             FixupLabel32(skip, cursor);
         }
+        if (insn.itstate_after_valid != 0u) {
+            cursor = EmitItStateStore(cursor, insn.itstate_after);
+        }
 
         if (cursor > code_end) {
             LOG(Caution, "ArmBlockCompiler::GenerateCode: insn %u at 0x%08X "
@@ -278,6 +329,9 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     }
 
     const DecodedInsn& last = block_ctx_.insns[block_ctx_.num_insns - 1];
+    if (tail_itstate_valid_) {
+        cursor = EmitItStateStore(cursor, tail_itstate_);
+    }
     if (last.cond != 14u || !last.r15_modified) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
                                last.guest_address + last.length);

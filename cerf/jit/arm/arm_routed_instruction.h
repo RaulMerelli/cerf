@@ -26,7 +26,7 @@ public:
     void Complete(uint32_t guest_pc);
 
 private:
-    enum class Outcome { kNextInsn, kPcWritten, kAborted };
+    enum class Outcome { kNextInsn, kPcWritten, kExceptionEntered, kAborted };
 
     Outcome SingleTransfer(DecodedInsn* d);
     Outcome HalfwordTransfer(DecodedInsn* d);

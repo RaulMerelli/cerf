@@ -128,6 +128,36 @@ inline void ArmApplyCpsr(ArmCpuState& state, uint32_t word) {
     state.vf = static_cast<uint8_t>((word >> 28) & 1u);
 }
 
+/* ARM DDI 0406C.c A2.5.2 (pp. A2-51/A2-52): the condition code in use is
+   ITSTATE<7:4>; InITBlock() is ITSTATE<3:0> != '0000'; ITAdvance() clears
+   ITSTATE when ITSTATE<2:0> is '000', else shifts ITSTATE<4:0> left by one.
+   B1.3.3 (p. B1-1148) holds IT[7:2] in CPSR[15:10] and IT[1:0] in [26:25]. */
+constexpr uint32_t kArmCpsrItMask = 0x0600FC00u;
+
+inline uint32_t ArmItAdvance(uint32_t it) {
+    if ((it & 0x7u) == 0u) {
+        return 0u;
+    }
+    return (it & 0xE0u) | ((it << 1) & 0x1Fu);
+}
+
+inline bool ArmItInBlock(uint32_t it) {
+    return (it & 0xFu) != 0u;
+}
+
+inline uint32_t ArmItFromCpsr(const ArmCpuState& state) {
+    return (state.cpsr.bits.it_high << 2) | state.cpsr.bits.it_low;
+}
+
+inline uint32_t ArmItToCpsrBits(uint32_t it) {
+    return ((it >> 2) << 10) | ((it & 0x3u) << 25);
+}
+
+inline void ArmItStoreToCpsr(ArmCpuState& state, uint32_t it) {
+    state.cpsr.bits.it_high = it >> 2;
+    state.cpsr.bits.it_low  = it & 0x3u;
+}
+
 constexpr int32_t ArmNfDisp() {
     return static_cast<int32_t>(offsetof(ArmCpuState, nf));
 }

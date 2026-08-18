@@ -31,8 +31,8 @@ int32_t Thumb32BranchSystemDecoder::BranchOffset25(uint32_t op) const {
 }
 
 /* DDI 0406C.c A8.8.18 B encoding T3 (p. A8-334): cond = bits[25:22], imm32 =
-   SignExtend(S:J2:J1:imm6:imm11:'0', 32); "if InITBlock() then
-   UNPREDICTABLE" is vacuous while the 16-bit IT encoding cannot execute. */
+   SignExtend(S:J2:J1:imm6:imm11:'0', 32), and "if InITBlock() then
+   UNPREDICTABLE". */
 bool Thumb32BranchSystemDecoder::DecodeConditionalBranch(DecodedInsn* insn,
                                                          uint32_t op) {
     const uint32_t s     = (op >> 26) & 0x1u;

@@ -76,4 +76,30 @@ struct DecodedInsn {
     bool       r15_modified;
     bool       is_exception_return;
     bool       context_sync;
+
+    /* DDI 0406C.c B1.8.3 item 3 (p. B1-1171): "The value saved in SPSR.IT[7:0]
+       is always correct for the preferred return address", which Table B1-6
+       (p. B1-1172) gives as this instruction for the Undefined, Prefetch Abort
+       and Data Abort classes. */
+    uint32_t   itstate;
+    uint32_t   itstate_valid;
+
+    /* DDI 0406C.c A8.8.6 (p. A8-310) and its 18 siblings: "setflags =
+       !InITBlock()", assembled ADDS "Outside IT block" / ADD<c> "Inside IT
+       block". Set by the encodings whose S bit follows that rule. */
+    uint32_t   s_outside_it;
+
+    /* DDI 0406C.c A8.8.103 MOV (register, Thumb) T2 (p. A8-486): "if
+       InITBlock() then UNPREDICTABLE". */
+    uint32_t   und_in_it;
+
+    /* DDI 0406C.c A2.5.2 (p. A2-52): "When an instruction in an IT block
+       completes its execution normally, ITSTATE advances to the next line of
+       Table A2-2." */
+    uint32_t   itstate_after;
+    uint32_t   itstate_after_valid;
+
+    /* DDI 0406C.c A8.8.24 BKPT (p. A8-346): "Breakpoint is always
+       unconditional, even when inside an IT block." */
+    uint32_t   uncond_in_it;
 };

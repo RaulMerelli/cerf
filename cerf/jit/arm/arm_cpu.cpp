@@ -157,7 +157,12 @@ void ArmCpu::RaiseUndefinedException(uint32_t guest_pc) {
     EnterException(ArmMode::kUndefined, ReturnAddress(guest_pc, 2u, 4u), 4u, false);
 }
 
+/* ARM ARM DDI 0406C.c TakeSVCException() (p. B1-1211): "SPSR is to be the
+   current CPSR, after changing the IT[] bits to give them the correct values
+   for the following instruction", and its body runs "ITAdvance();" ahead of
+   "new_spsr_value = CPSR;". */
 void ArmCpu::RaiseSwiException(uint32_t guest_pc) {
+    ArmItStoreToCpsr(state_, ArmItAdvance(ArmItFromCpsr(state_)));
     EnterException(ArmMode::kSupervisor, ReturnAddress(guest_pc, 2u, 4u), 8u, false);
 }
 

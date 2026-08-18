@@ -48,6 +48,8 @@ private:
     uint32_t fetch_fault_pc_ = 0;
     uint32_t wide_split_     = 0;
     uint32_t wide_pa2_       = 0;
+    uint32_t tail_itstate_       = 0;
+    bool     tail_itstate_valid_ = false;
 
     void   BuildTrampolines();
     void   Decode(uint32_t guest_pc, uint32_t folded_pc);

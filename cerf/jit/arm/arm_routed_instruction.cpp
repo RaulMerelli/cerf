@@ -100,6 +100,12 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     if (outcome == Outcome::kNextInsn) {
         cpu_state_->gprs[ArmGpr::kR15] = guest_pc + (thumb ? 2u : 4u);
     }
+    /* DDI 0406C.c A2.5.2 (p. A2-52): "When an instruction in an IT block
+       completes its execution normally, ITSTATE advances to the next line of
+       Table A2-2." */
+    if (outcome == Outcome::kNextInsn || outcome == Outcome::kPcWritten) {
+        ArmItStoreToCpsr(*cpu_state_, ArmItAdvance(ArmItFromCpsr(*cpu_state_)));
+    }
 }
 
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::Abort(
@@ -148,7 +154,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::SingleTransfer(
                PC from a non-word-aligned address is UNPREDICTABLE. */
             if ((address & 3u) != 0u) {
                 cpu_->RaiseUndefinedException(d->guest_address);
-                return Outcome::kPcWritten;
+                return Outcome::kExceptionEntered;
             }
         } else if (!mmu_->UnalignedAccessesFault()) {
             rot      = (address & 3u) * 8u;
@@ -376,11 +382,14 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
     if (load && pc_in_list) {
         const uint32_t loaded = cpu_state_->gprs[ArmGpr::kR15];
         if (exc_return) {
+            /* DDI 0406C.c B9.3.5 LDM (exception return) (p. B9-1987):
+               CPSRWriteByInstr(SPSR[], '1111', TRUE), which B1.3.3
+               (p. B1-1148) places IT[7:0] inside. */
             cpu_state_->gprs[ArmGpr::kR15] =
                 ArmCpu::ExceptionReturnHelper(cpu_, loaded);
-        } else {
-            LoadWritePc(loaded);
+            return Outcome::kExceptionEntered;
         }
+        LoadWritePc(loaded);
         return Outcome::kPcWritten;
     }
     return Outcome::kNextInsn;
