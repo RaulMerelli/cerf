@@ -7,8 +7,9 @@ namespace {
 using cerf_vr41xx_dsiu_detail::Vr41xxDsiuBase;
 using cerf_vr41xx_dsiu_detail::Vr41xxDsiuModel;
 
-/* VR4121 DSIU registers PORTREG..DSIURESETREG at 0x0B0001A0-0x0B0001B8 (UM Table 23-1);
-   the RTC's TCLKLREG follows at 0x0B0001C0 (UM Table 1-7). */
+/* VR4121 UM Table 6-12 p178: DSIU decodes 0x0B0001A0-0x0B0001BF. Registers
+   PORTREG..DSIURESETREG at 0x0B0001A0-0x0B0001B8 (UM Table 23-1); the RTC's TCLKLREG
+   follows at 0x0B0001C0 (UM Table 1-7). */
 constexpr Vr41xxDsiuModel kModel = {
     /*base=*/0x0B0001A0u,
     /*size=*/0x20u,

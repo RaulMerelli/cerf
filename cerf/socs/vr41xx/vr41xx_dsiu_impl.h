@@ -54,8 +54,8 @@ constexpr uint16_t kIntCauses = 0x000Fu;
 
 /* The ICU's DSIUINTREG (0x0B00008A) carries the same four causes in D11:8 - D11 INTDCTS,
    D10 INTSER0, D9 INTSR0, D8 INTST0 - and MDSIUINTREG (0x0B000096) enables them in D11:8
-   (VR4121 UM 15.2.6 + 15.2.12, VR4102 UM 14.2.6), so INTR0REG's D3:0 shift by 8 into the
-   ICU's positions. */
+   (VR4111 UM 15.2.6 p335 + 15.2.12 p342, VR4121 UM 15.2.6 + 15.2.12, VR4102 UM 14.2.6), so
+   INTR0REG's D3:0 shift by 8 into the ICU's positions. */
 constexpr int kIcuCauseShift = 8;
 
 /* BPRM0REG D7 BRCE0 baud-rate-generator count enable and D2:0 BPR0(2:0) baud rate are R/W;
