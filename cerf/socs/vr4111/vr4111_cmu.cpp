@@ -9,10 +9,10 @@ using cerf_vr41xx_reg_window_detail::Vr41xxRegWindowBase;
 using cerf_vr41xx_reg_window_detail::Vr41xxRegWindowModel;
 using cerf_vr41xx_reg_window_detail::WriteKind;
 
-/* VR4121 UM Table 6-12 p178: CMU decodes 0x0B000060-0x0B00007F.
-   VR4121 CMUCLKMSK, 0x0B000060 (VR4121 UM Table 14-1). D10 MSKFFIR, D9 MSKSHSP,
-   D8 MSKSSIU, D5 MSKDSIU, D4 MSKFIR, D3 MSKKIU, D2 MSKAIU, D1 MSKSIU, D0 MSKPIU
-   are R/W; D15:11 and D7:6 reserved; both reset rows 0 (VR4121 UM 14.2.1). */
+/* VR4111 UM Table 6-10 p170: CMU decodes 0x0B000060-0x0B00007F. Table 14-1 p323: the unit has
+   one register, CMUCLKMSK at 0x0B000060. UM 14.2.1 p324: D10 MSKFFIR, D9 MSKSHSP, D8 MSKSSIU,
+   D5 MSKDSIU, D4 MSKFIR, D3 MSKKIU, D2 MSKAIU, D1 MSKSIU, D0 MSKPIU R/W; D15:11 and D7:6
+   reserved, write 0 and read 0; RTCRST and Other resets rows both 0. */
 constexpr Vr41xxRegWindowModel kModel = {
     /*base=*/0x0B000060u,
     /*size=*/0x20u,
@@ -23,11 +23,11 @@ constexpr Vr41xxRegWindowModel kModel = {
     },
 };
 
-class Vr4121Cmu : public Vr41xxRegWindowBase<SocFamily::VR4121, kModel> {
+class Vr4111Cmu : public Vr41xxRegWindowBase<SocFamily::VR4111, kModel> {
 public:
     using Vr41xxRegWindowBase::Vr41xxRegWindowBase;
 };
 
 }
 
-REGISTER_SERVICE(Vr4121Cmu);
+REGISTER_SERVICE(Vr4111Cmu);
