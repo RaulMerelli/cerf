@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class ArmProcessorConfig;
+class ThumbStackControlDecoder;
 class ThumbTransferDecoder;
 struct DecodedInsn;
 
@@ -20,20 +21,18 @@ public:
 private:
     bool DecodeAddSubtract(DecodedInsn* insn, uint16_t op);
     bool DecodeAddToPcOrSp(DecodedInsn* insn, uint16_t op);
-    bool DecodeAdjustStackPointer(DecodedInsn* insn, uint16_t op);
     bool DecodeAluOperations(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchExchange(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchLinkPrefix(DecodedInsn* insn, uint16_t op);
     bool DecodeBranchLinkSuffix(DecodedInsn* insn, uint16_t op);
     bool DecodeConditionalBranch(DecodedInsn* insn, uint16_t op);
     bool DecodeImmediateOperations(DecodedInsn* insn, uint16_t op);
-    bool DecodeMiscellaneous(DecodedInsn* insn, uint16_t op);
-    bool DecodeIfThen(DecodedInsn* insn, uint16_t op);
     bool DecodeShiftByImmediate(DecodedInsn* insn, uint16_t op);
     bool DecodeShiftByRegister(DecodedInsn* insn, uint16_t op, uint32_t type);
     bool DecodeSpecialDataProcessing(DecodedInsn* insn, uint16_t op);
     bool DecodeUnconditionalBranch(DecodedInsn* insn, uint16_t op);
 
-    ArmProcessorConfig*   processor_config_  = nullptr;
-    ThumbTransferDecoder* transfer_decoder_  = nullptr;
+    ArmProcessorConfig*       processor_config_ = nullptr;
+    ThumbStackControlDecoder* stack_control_    = nullptr;
+    ThumbTransferDecoder*     transfer_decoder_ = nullptr;
 };
