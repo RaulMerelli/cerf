@@ -30,6 +30,14 @@ constexpr uint32_t kOffButtons = 0x10u;
    is a pressed button; nk.exe @0x9E814BA0 (ori $t1, 0xF) forces all four to released. */
 constexpr uint16_t kButtonsAllReleased = 0x000Fu;
 
+constexpr uint32_t kOffVdet = 0x12u;
+
+/* casio_cassiopeia_e55 nk.exe sub_9E8144D4 @0x9E814A88 and @0x9E814BB0 mask +0x12 to bits 1:0;
+   on == 3 they set 0xA0002520 = 1 and clear 0xA000254C, whose bit 0 makes keybddr.dll
+   sub_14E37C4 @0x14E3D94 signal "VDETMessageEvent" (created @0x14E1D50, driver \Windows\kddrvdet
+   @0x14E1DA8); nk.exe @0x9E817A44 (in no IDA function) sets it entering hibernate. 3 = no event. */
+constexpr uint16_t kNoVdetEvent = 0x0003u;
+
 class CasioCassiopeiaE55Asic : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -46,8 +54,9 @@ public:
 
     uint16_t ReadHalf(uint32_t addr) override {
         switch (addr - kBase) {
-            case kOffButtons: return kButtonsAllReleased;
-            case kOffStrap:   return kStrapValue;
+            case kOffButtons:    return kButtonsAllReleased;
+            case kOffVdet:       return kNoVdetEvent;
+            case kOffStrap:      return kStrapValue;
             default: return Peripheral::ReadHalf(addr);
         }
     }
