@@ -29,6 +29,24 @@ bool ThumbStackControlDecoder::DecodeAdjustStackPointer(DecodedInsn* insn,
     return true;
 }
 
+/* ARM DDI 0406C.c A8.8.29 CBNZ, CBZ encoding T1 (p. A8-356): op = bit[11],
+   i = bit[9], imm5 = bits[7:3], Rn = bits[2:0]; "n = UInt(Rn); imm32 =
+   ZeroExtend(i:imm5:'0', 32); nonzero = (op == '1'); if InITBlock() then
+   UNPREDICTABLE". */
+bool ThumbStackControlDecoder::DecodeCompareAndBranch(DecodedInsn* insn,
+                                                      uint16_t op) {
+    insn->op1             = (op >> 11) & 0x1u;
+    insn->rn              =  op        & 0x7u;
+    insn->l               = 0u;
+    insn->offset          = static_cast<int32_t>((((op >> 9) & 0x1u) << 6) |
+                                                 (((op >> 3) & 0x1Fu) << 1));
+    insn->r15_modified    = true;
+    insn->r15_conditional = 1u;
+    insn->und_in_it       = 1u;
+    insn->place_fn        = &PlaceCbz;
+    return true;
+}
+
 /* ARM DDI 0406C.c A8.8.54 IT encoding T1 (p. A8-390): firstcond = bits[7:4],
    mask = bits[3:0]; "if mask == '0000' then SEE Related encodings"; "if
    firstcond == '1111' || (firstcond == '1110' && BitCount(mask) != 1) then
@@ -101,11 +119,9 @@ bool ThumbStackControlDecoder::DecodeStackControlGroup(DecodedInsn* insn,
     case 0x9u:
     case 0xBu:
         /* ARM DDI 0406C.c Table A6-6 (A6.2.5, p. A6-228) allocates opcode
-           0001xxx/0011xxx/1001xxx/1011xxx to CBNZ, CBZ (variant v6T2) and
-           1111xxx to If-Then, and hints; "Other encodings in this space are
-           UNDEFINED." */
+           0001xxx/0011xxx/1001xxx/1011xxx to CBNZ, CBZ, variant v6T2. */
         if (!processor_config_->HasThumb2()) return false;
-        return MarkArmUnimplemented(insn, op);
+        return DecodeCompareAndBranch(insn, op);
     case 0xFu:
         if (!processor_config_->HasThumb2()) return false;
         return DecodeIfThen(insn, op);

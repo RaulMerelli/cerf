@@ -102,4 +102,8 @@ struct DecodedInsn {
     /* DDI 0406C.c A8.8.24 BKPT (p. A8-346): "Breakpoint is always
        unconditional, even when inside an IT block." */
     uint32_t   uncond_in_it;
+
+    /* DDI 0406C.c A8.8.29 CBNZ, CBZ Operation (p. A8-357): "if nonzero !=
+       IsZero(R[n]) then BranchWritePC(PC + imm32);". */
+    uint32_t   r15_conditional;
 };

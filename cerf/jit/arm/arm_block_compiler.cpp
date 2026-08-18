@@ -332,7 +332,7 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     if (tail_itstate_valid_) {
         cursor = EmitItStateStore(cursor, tail_itstate_);
     }
-    if (last.cond != 14u || !last.r15_modified) {
+    if (last.cond != 14u || !last.r15_modified || last.r15_conditional != 0u) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
                                last.guest_address + last.length);
         cursor = EmitChainToBlock(cursor, &block_ctx_,

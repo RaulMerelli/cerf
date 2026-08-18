@@ -66,6 +66,7 @@ uint8_t* PlaceBlxReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBranch(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBx(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceBxImpl(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx, bool is_call);
+uint8_t* PlaceCbz(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceClz(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocDataOperation(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
