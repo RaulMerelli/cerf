@@ -12,10 +12,10 @@ using cerf_vr41xx_reg_window_detail::WriteKind;
 constexpr ReadKind  kRd = ReadKind::kStored;
 constexpr WriteKind kWr = WriteKind::kStored;
 
-/* DMAAU 0x0B000020-0x0B000037 (VR4102 UM Table 11-1). AIU base-low halves force D0=0
-   ("Write 0 to this bit", UM 11.2.1/11.2.3); AIU address-low and both FIR low halves are
-   R/W on all 16 bits (UM 11.2.2/11.2.5/11.2.6). High halves writable D[8:0] (UM 11.2.1).
-   Low halves reset 0xF800, high halves 0x01FF; RTCRST == After-reset (UM 11.2.1-11.2.6). */
+/* VR4102 UM Table 5-10 p139: DMAAU decodes 0x0B000020-0x0B00003F; Table 11-1 lists its
+   registers at 0x0B000020-0x0B000037. AIU base-low D0 read-only (UM 11.2.1/11.2.3); AIU
+   address-low and both FIR low halves all-16 R/W (UM 11.2.2/11.2.5/11.2.6); high halves
+   writable D[8:0]. Low reset 0xF800, high 0x01FF; RTCRST == Other resets (UM 11.2.1-11.2.6). */
 constexpr Vr41xxRegWindowModel kModel = {
     /*base=*/0x0B000020u,
     /*size=*/0x20u,
