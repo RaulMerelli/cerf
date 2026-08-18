@@ -17,14 +17,15 @@ namespace {
 
 constexpr wchar_t kClass[] = L"CerfKeyboardMappingDlg";
 
-constexpr int kUnit    = 36;
+constexpr int kUnitW   = 46;
+constexpr int kUnitH   = 36;
 constexpr int kGap     = 5;
 constexpr int kMargin  = 16;
 constexpr int kHeaderH = 58;   /* line 1: hint text; line 2: lock-layer checkbox */
 constexpr int kTop     = kMargin + kHeaderH;
 
-constexpr int kClientW = (int)(kPcKeyboardUnitsW * kUnit + 0.5f) + 2 * kMargin;
-constexpr int kClientH = kTop + (int)(kPcKeyboardUnitsH * kUnit + 0.5f) + kMargin;
+constexpr int kClientW = (int)(kPcKeyboardUnitsW * kUnitW + 0.5f) + 2 * kMargin;
+constexpr int kClientH = kTop + (int)(kPcKeyboardUnitsH * kUnitH + 0.5f) + kMargin;
 
 struct Palette {
     COLORREF bg, cap_mapped, cap_unmapped, border, text, accent, active, mod;
@@ -90,10 +91,10 @@ const KeyBinding* KeyboardMappingDialog::FindBinding(uint8_t vk,
 }
 
 RECT KeyboardMappingDialog::CapRect(const KeyCap& cap) const {
-    const int x = kMargin + (int)(cap.x * kUnit + 0.5f);
-    const int y = kTop    + (int)(cap.y * kUnit + 0.5f);
-    const int w = (int)(cap.w * kUnit + 0.5f) - kGap;
-    return { x, y, x + w, y + kUnit - kGap };
+    const int x = kMargin + (int)(cap.x * kUnitW + 0.5f);
+    const int y = kTop    + (int)(cap.y * kUnitH + 0.5f);
+    const int w = (int)(cap.w * kUnitW + 0.5f) - kGap;
+    return { x, y, x + w, y + kUnitH - kGap };
 }
 
 RECT KeyboardMappingDialog::ToggleRect(int index) const {
