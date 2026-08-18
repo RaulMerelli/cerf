@@ -63,7 +63,7 @@ public:
     /* Word-aligned VFP/NEON multi-byte loads may page-cross (ARM ARM DDI0406C A3.2 Table A3-1). */
     bool AccessPaged(ArmCpuState* cpu_state, uint32_t va,
                      uint8_t* host_buf, uint32_t n, bool is_load,
-                     bool force_user = false);
+                     bool force_user = false, uint32_t* completed = nullptr);
 
     uint32_t io_pending_address() const { return io_pending_address_; }
 

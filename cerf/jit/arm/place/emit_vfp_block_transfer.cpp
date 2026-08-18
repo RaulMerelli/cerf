@@ -20,7 +20,7 @@ uint8_t* EmitVfpBlockTransfer(uint8_t*      cursor,
     /* DDI 0406C.c A8.8.332 VLDM (p. A8-922) and A8.8.412 VSTM (p. A8-1080)
        close every encoding with "if n == 15 && (wback || CurrentInstrSet() !=
        InstrSet_ARM) then UNPREDICTABLE". */
-    if (d->rn == 15u && ctx->thumb) {
+    if (d->rn == 15u && (ctx->thumb || d->w)) {
         return EmitRaiseUndAndReturn(cursor, d, ctx);
     }
 

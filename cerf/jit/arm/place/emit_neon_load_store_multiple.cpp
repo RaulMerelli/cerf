@@ -28,7 +28,8 @@ uint8_t* PlaceNeonLoadStoreMultiple(uint8_t*      cursor,
 
     const uint32_t d_idx      = (d->n << 4) | d->crn;
     const uint32_t align_log2 = align ? (align + 2u) : 0u;
-    const uint32_t flags      = (d->l & 1u) | (regs << 1) | (align_log2 << 4);
+    const uint32_t flags      = (d->l & 1u) | (regs << 1) | (align_log2 << 4)
+                              | ((d->cp & 0x3u) << 7);
 
     /* __cdecl PUSH RTL: flags, rm, rn, d_idx, pc, neon_ptr. */
     EmitPush32(cursor, flags);

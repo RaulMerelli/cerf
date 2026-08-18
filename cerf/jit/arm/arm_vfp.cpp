@@ -7,6 +7,7 @@
 #include "../../core/fatal.h"
 #include "arm_cpu.h"
 #include "arm_mmu.h"
+#include "arm_routed_access.h"
 
 REGISTER_SERVICE(ArmVfp);
 
@@ -36,30 +37,38 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t pc_read,
 
     /* DDI 0406C.c A8.8.332 VLDM Operation (p. A8-923): "address = if add then
        R[n] else R[n]-imm32" - no Align(), unlike VLDR (p. A8-925). */
-    uint32_t addr = rn_idx == 15u ? pc_read : state->gprs[rn_idx];
-    if (pre_decrement) {
-        addr -= imm8 * 4u;
+    const uint32_t rn_value = rn_idx == 15u ? pc_read : state->gprs[rn_idx];
+    const uint32_t imm32    = imm8 * 4u;
+    uint32_t addr = pre_decrement ? (rn_value - imm32) : rn_value;
+
+    if (mmu.AlignMultiWordOrFault(addr, !is_load)) {
+        cpu.RaiseAbortDataException(pc);
+        return 1;
     }
 
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
 
     for (uint32_t i = 0; i < n_regs; i++) {
         const uint32_t off = is_dp ? ((vd + i) * 8u) : ((vd + i) * 4u);
-        if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes_per, is_load)) {
-            cpu.RaiseAbortDataException(pc);
-            return 1;
+        uint32_t done = 0;
+        if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes_per, is_load,
+                             false, &done)) {
+            if (!mmu.io_pending() ||
+                !emu_.Get<ArmRoutedAccess>().WideAccess(
+                    state, pc, addr + done, bytes_per - done,
+                    vfp_base + off + done, is_load)) {
+                cpu.RaiseAbortDataException(pc);
+                return 1;
+            }
         }
         addr += bytes_per;
     }
 
+    /* DDI 0406C.c A8.8.332 VLDM Operation, p. A8-923: "if wback then R[n] =
+       if add then R[n]+imm32 else R[n]-imm32". */
     if (writeback) {
-        if (pre_decrement) {
-            addr -= n_regs * bytes_per;
-        } else if (is_dp && (imm8 & 1u)) {
-            /* Odd imm8 DP encoding leaves an extra word of stride. */
-            addr += 4u;
-        }
-        state->gprs[rn_idx] = addr;
+        state->gprs[rn_idx] =
+            pre_decrement ? (rn_value - imm32) : (rn_value + imm32);
     }
     return 0;
 }
@@ -90,11 +99,23 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t pc_read,
     uint32_t addr = rn_idx == 15u ? (pc_read & ~3u) : state->gprs[rn_idx];
     addr += static_cast<uint32_t>(signed_off);
 
-    uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
-    const uint32_t off = is_dp ? (vd * 8u) : (vd * 4u);
-    if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes, is_load)) {
+    if (mmu.AlignMultiWordOrFault(addr, !is_load)) {
         cpu.RaiseAbortDataException(pc);
         return 1;
+    }
+
+    uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
+    const uint32_t off = is_dp ? (vd * 8u) : (vd * 4u);
+    uint32_t done = 0;
+    if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes, is_load,
+                         false, &done)) {
+        if (!mmu.io_pending() ||
+            !emu_.Get<ArmRoutedAccess>().WideAccess(
+                state, pc, addr + done, bytes - done,
+                vfp_base + off + done, is_load)) {
+            cpu.RaiseAbortDataException(pc);
+            return 1;
+        }
     }
     return 0;
 }

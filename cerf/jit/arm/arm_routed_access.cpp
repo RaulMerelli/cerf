@@ -114,6 +114,39 @@ bool ArmRoutedAccess::Load(ArmCpuState* cpu_state, uint32_t guest_pc,
     return true;
 }
 
+/* DDI 0406C.c A8.8.332 VLDM Operation, p. A8-923; A8.8.333 VLDR Operation,
+   p. A8-925. */
+bool ArmRoutedAccess::WideAccess(ArmCpuState* cpu_state, uint32_t guest_pc,
+                                 uint32_t va, uint32_t bytes, uint8_t* buf,
+                                 bool is_load) {
+    uint32_t chunk = 0;
+    switch (bytes) {
+    case 1u:
+    case 2u:
+    case 4u: chunk = bytes; break;
+    case 8u: chunk = 4u;    break;
+    default: HaltRoutedWidth(guest_pc, va, bytes, mmu_->io_pending_address(),
+                             is_load ? "load" : "store");
+    }
+
+    for (uint32_t done = 0; done < bytes; done += chunk) {
+        uint32_t word = 0;
+        if (is_load) {
+            if (!Load(cpu_state, guest_pc, va + done, chunk, &word, false)) {
+                return false;
+            }
+            std::memcpy(buf + done, &word, chunk);
+        } else {
+            std::memcpy(&word, buf + done, chunk);
+            if (!Store(cpu_state, guest_pc, va + done, chunk, word, false)) {
+                return false;
+            }
+        }
+    }
+    mmu_->ClearIoPending();
+    return true;
+}
+
 bool ArmRoutedAccess::Store(ArmCpuState* cpu_state, uint32_t guest_pc,
                             uint32_t va, uint32_t bytes, uint32_t value,
                             bool unpriv) {

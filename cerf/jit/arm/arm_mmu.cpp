@@ -317,7 +317,7 @@ void ArmMmu::SetIoPending(uint32_t pa) {
 
 bool ArmMmu::AccessPaged(ArmCpuState* cpu_state, uint32_t va,
                          uint8_t* host_buf, uint32_t n, bool is_load,
-                         bool force_user) {
+                         bool force_user, uint32_t* completed) {
     for (uint32_t done = 0; done < n; ) {
         const uint32_t va_cur = va + done;
         uint8_t* host;
@@ -328,7 +328,10 @@ bool ArmMmu::AccessPaged(ArmCpuState* cpu_state, uint32_t va,
             host = is_load ? walker_->TranslateRead (cpu_state, va_cur)
                            : walker_->TranslateWrite(cpu_state, va_cur);
         }
-        if (host == nullptr) return false;
+        if (host == nullptr) {
+            if (completed != nullptr) *completed = done;
+            return false;
+        }
         /* ARM DDI 0406C.c Table D15-10 (p. D15-2609): a Tiny page maps 1 KB. */
         const uint32_t page_left = 0x400u - (va_cur & 0x3FFu);
         const uint32_t chunk = (n - done < page_left) ? (n - done) : page_left;

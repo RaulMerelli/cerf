@@ -6,8 +6,23 @@
 #include "../../core/log.h"
 #include "arm_cpu.h"
 #include "arm_mmu.h"
+#include "arm_mmu_state.h"
+#include "arm_routed_access.h"
 
 REGISTER_SERVICE(ArmNeon);
+
+bool ArmNeon::AlignmentFaults(ArmMmu& mmu, uint32_t base, uint32_t alignment,
+                              uint32_t ebytes, bool is_load) {
+    const uint32_t required =
+        alignment > 1u
+            ? alignment
+            : (mmu.State()->effective_control_register.bits.a ? ebytes : 1u);
+    if (required > 1u && (base & (required - 1u)) != 0u) {
+        mmu.RaiseAlignmentFault(base, !is_load);
+        return true;
+    }
+    return false;
+}
 
 uint32_t ArmNeon::HandleVdup(uint32_t pc, uint32_t d_idx, uint32_t rt_idx,
                              uint32_t esize, uint32_t regs) {
@@ -50,6 +65,8 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
     const bool     is_load    = (flags & kLsLoad) != 0;
     const uint32_t regs       = (flags >> 1) & 0x7u;
     const uint32_t alignment  = 1u << ((flags >> 4) & 0x7u);
+    const uint32_t ebytes     = 1u << ((flags >> 7) & 0x3u);
+    const uint32_t granule    = ebytes == 8u ? 4u : ebytes;
 
     /* UNPREDICTABLE (A8.8.320/404): Rn==PC or list overruns D31. */
     if (rn_idx == 15u || (d_idx + regs) > 32u) {
@@ -58,8 +75,7 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
     }
 
     const uint32_t base = state->gprs[rn_idx];
-    if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
+    if (AlignmentFaults(mmu, base, alignment, ebytes, is_load)) {
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
@@ -67,9 +83,24 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
     uint8_t* vfp_base = reinterpret_cast<uint8_t*>(state->vfp_d);
     uint32_t addr = base;
     for (uint32_t r = 0; r < regs; ++r) {
-        if (!mmu.AccessPaged(state, addr, vfp_base + (d_idx + r) * 8u, 8u, is_load)) {
-            cpu.RaiseAbortDataException(pc);
-            return 1;
+        uint8_t* dst  = vfp_base + (d_idx + r) * 8u;
+        uint32_t done = 0;
+        if (!mmu.AccessPaged(state, addr, dst, 8u, is_load, false, &done)) {
+            if (!mmu.io_pending()) {
+                cpu.RaiseAbortDataException(pc);
+                return 1;
+            }
+            /* DDI 0406C.c A8.8.320 VLD1 Operation, p. A8-899: each element is a
+               separate MemU[address,ebytes] when ebytes != 8, and when
+               ebytes == 8 the element is MemU[address,4] and MemU[address+4,4]. */
+            for (uint32_t g = done / granule; g < 8u / granule; ++g) {
+                const uint32_t off = g * granule;
+                if (!emu_.Get<ArmRoutedAccess>().WideAccess(
+                        state, pc, addr + off, granule, dst + off, is_load)) {
+                    cpu.RaiseAbortDataException(pc);
+                    return 1;
+                }
+            }
         }
         addr += 8u;
     }
@@ -110,8 +141,7 @@ uint32_t ArmNeon::HandleLoadStoreInterleaved(uint32_t pc, uint32_t d_idx, uint32
     }
 
     const uint32_t base = state->gprs[rn_idx];
-    if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
+    if (AlignmentFaults(mmu, base, alignment, ebytes, is_load)) {
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
@@ -125,9 +155,16 @@ uint32_t ArmNeon::HandleLoadStoreInterleaved(uint32_t pc, uint32_t d_idx, uint32
         for (uint32_t e = 0; e < elements; ++e) {
             for (uint32_t k = 0; k < nstreams; ++k) {
                 uint8_t* lane = vfp_base + (d_idx + k * inc + r) * 8u + e * ebytes;
-                if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load)) {
-                    cpu.RaiseAbortDataException(pc);
-                    return 1;
+                uint32_t done = 0;
+                if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load,
+                                     false, &done)) {
+                    if (!mmu.io_pending() ||
+                        !emu_.Get<ArmRoutedAccess>().WideAccess(
+                            state, pc, addr + done, ebytes - done,
+                            lane + done, is_load)) {
+                        cpu.RaiseAbortDataException(pc);
+                        return 1;
+                    }
                 }
                 addr += ebytes;
             }
@@ -167,8 +204,7 @@ uint32_t ArmNeon::HandleLoadStoreSingleLane(uint32_t pc, uint32_t d_idx, uint32_
     }
 
     const uint32_t base = state->gprs[rn_idx];
-    if (alignment > 1u && (base & (alignment - 1u)) != 0u) {
-        mmu.RaiseAlignmentFault(base, /*is_write=*/!is_load);
+    if (AlignmentFaults(mmu, base, alignment, ebytes, is_load)) {
         cpu.RaiseAbortDataException(pc);
         return 1;
     }
@@ -178,9 +214,15 @@ uint32_t ArmNeon::HandleLoadStoreSingleLane(uint32_t pc, uint32_t d_idx, uint32_
     uint32_t addr = base;
     for (uint32_t k = 0; k < nstreams; ++k) {
         uint8_t* lane = vfp_base + (d_idx + k * inc) * 8u + index * ebytes;
-        if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load)) {
-            cpu.RaiseAbortDataException(pc);
-            return 1;
+        uint32_t done = 0;
+        if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load, false, &done)) {
+            if (!mmu.io_pending() ||
+                !emu_.Get<ArmRoutedAccess>().WideAccess(
+                    state, pc, addr + done, ebytes - done, lane + done,
+                    is_load)) {
+                cpu.RaiseAbortDataException(pc);
+                return 1;
+            }
         }
         addr += ebytes;
     }

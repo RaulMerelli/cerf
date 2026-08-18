@@ -4,6 +4,8 @@
 
 #include "../../core/service.h"
 
+class ArmMmu;
+
 /* NEON (Advanced SIMD) semantics. Operates on the shared VFP/NEON
    register file ArmCpuState::vfp_d[32] (D0..D31 aliased as Q0..Q15) -
    the same storage as ArmVfp, not a separate register array. */
@@ -82,4 +84,11 @@ public:
     static void __cdecl HandleSimd3SamePairwiseHelper(ArmNeon* neon, uint32_t op,
                                                       uint32_t d_idx, uint32_t n_idx,
                                                       uint32_t m_idx, uint32_t esize);
+
+private:
+    /* DDI0406C Table A3-1, p. A3-108: with :<align> the check is as specified
+       and faults under both SCTLR.A 0 and 1; with standard alignment the check
+       is Element size and faults only under SCTLR.A 1. */
+    bool AlignmentFaults(ArmMmu& mmu, uint32_t base, uint32_t alignment,
+                         uint32_t ebytes, bool is_load);
 };
