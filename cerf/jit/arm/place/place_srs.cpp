@@ -5,6 +5,7 @@
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 uint8_t* PlaceSrs(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
@@ -26,7 +27,9 @@ uint8_t* PlaceSrs(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 
     EmitCall(cursor, reinterpret_cast<void*>(&ArmExceptionFrame::SrsHelper));
 
-    /* SRS does not write PC - execution falls through to the next
-       instruction. No dispatch. */
+    EmitTestRegReg(cursor, kEax, kEax);
+    uint8_t* stored = EmitJzLabel32(cursor);
+    cursor = EmitAbortDataTail(cursor, d, ctx);
+    FixupLabel32(stored, cursor);
     return cursor;
 }

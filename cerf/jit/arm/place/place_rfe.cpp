@@ -5,6 +5,7 @@
 #include "../cpu_state.h"
 #include "../place_fns.h"
 #include "../../x86_emit.h"
+#include "../../x86_emit_alu.h"
 
 uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
     using namespace x86;
@@ -28,10 +29,9 @@ uint8_t* PlaceRfe(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 
     EmitCall(cursor, reinterpret_cast<void*>(&ArmExceptionFrame::RfeHelper));
 
-    /* MOV [ESI + gprs[15]], EAX */
-    EmitMovBaseDisp32Reg(cursor, kStateReg,
-        static_cast<int32_t>(offsetof(ArmCpuState, gprs) + 15u * 4u),
-        kEax);
-
-    return PlaceR15ModifiedHelper(cursor, d, ctx);
+    EmitTestRegReg(cursor, kEax, kEax);
+    uint8_t* aborted = EmitJnzLabel32(cursor);
+    cursor = PlaceR15ModifiedHelper(cursor, d, ctx);
+    FixupLabel32(aborted, cursor);
+    return EmitAbortDataTail(cursor, d, ctx);
 }

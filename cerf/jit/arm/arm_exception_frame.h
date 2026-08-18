@@ -24,8 +24,9 @@ public:
     static uint32_t __fastcall RfeHelper(uint32_t rn_value, uint32_t encoded,
                                          ArmExceptionFrame* frame);
 
-    static void __fastcall SrsHelper(uint32_t encoded, ArmExceptionFrame* frame,
-                                     uint32_t guest_pc);
+    static uint32_t __fastcall SrsHelper(uint32_t encoded,
+                                         ArmExceptionFrame* frame,
+                                         uint32_t guest_pc);
 
 private:
     ArmCpu*        cpu_       = nullptr;

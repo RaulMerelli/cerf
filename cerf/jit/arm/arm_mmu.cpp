@@ -27,6 +27,19 @@ bool ArmMmu::UnalignedAccessesFault() const {
             state_.effective_control_register.bits.u);
 }
 
+bool ArmMmu::AlignMultiWordOrFault(uint32_t& address, bool is_write) {
+    if (!UnalignedAccessesFault() &&
+        !state_.effective_control_register.bits.a) {
+        address &= 0xFFFFFFFCu;
+        return false;
+    }
+    if ((address & 3u) != 0u) {
+        RaiseAlignmentFault(address, is_write);
+        return true;
+    }
+    return false;
+}
+
 uint32_t ArmMmu::DoublewordAlignMask() const {
     return (processor_config_->HasCp15V6() && !processor_config_->HasCp15V7() &&
             !state_.effective_control_register.bits.u)

@@ -313,12 +313,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::BlockTransfer(
     }
     uint32_t address = cpu_state_->gprs[d->rn] + static_cast<uint32_t>(base_off);
 
-    const ArmSctlr sctlr        = mmu_->State()->effective_control_register;
-    const bool     always_fault = mmu_->UnalignedAccessesFault();
-    if (!always_fault && !sctlr.bits.a) {
-        address &= 0xFFFFFFFCu;
-    } else if ((address & 3u) != 0u) {
-        mmu_->RaiseAlignmentFault(address, !load);
+    if (mmu_->AlignMultiWordOrFault(address, !load)) {
         return Abort(d, do_wback, cpu_state_->gprs[d->rn] + delta);
     }
 

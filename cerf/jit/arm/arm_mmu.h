@@ -29,6 +29,12 @@ public:
     bool     UnalignedAccessesFault() const;
     uint32_t DoublewordAlignMask()    const;
 
+    /* DDI 0211I Table 4-2 (p. 4-17) puts LDC/LDM/RFE/SRS/STC/STM in the
+       Multi-word access type; Table 4-3 (pp. 4-19/4-20) gives A=0 U=0
+       Word[Align32(Addr)] "unaffected by Addr[1:0]", and Alignment fault
+       for unaligned Multi-word at A=0 U=1 and at A=1. */
+    bool     AlignMultiWordOrFault(uint32_t& address, bool is_write);
+
     /* Persistent cp15 registers only. TLBs + SMC bitmaps are derived;
        RestoreState flushes the TLBs, the JIT TC flush clears the rest. */
     void SaveState(StateWriter& w);

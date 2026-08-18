@@ -49,6 +49,10 @@ uint32_t __fastcall ArmExceptionFrame::RfeHelper(uint32_t           rn_value,
        step. */
     frame->mmu_->SynchronizeSctlr();
 
+    if (frame->mmu_->AlignMultiWordOrFault(address, /*is_write=*/false)) {
+        return 1u;
+    }
+
     uint8_t* host_pc_ptr = frame->walker_->TranslateRead(state, address);
     if (!host_pc_ptr) {
         LOG(Caution, "RfeHelper: TranslateRead failed for VA 0x%08X (new_pc slot) "
@@ -75,12 +79,14 @@ uint32_t __fastcall ArmExceptionFrame::RfeHelper(uint32_t           rn_value,
     /* ddi0406c B9.3.13 Operation (p. B9-2001):
          CPSRWriteByInstr(spsr_value, '1111', TRUE);
          ... else BranchWritePC(new_pc_value); */
-    return frame->cpu_->ReturnFromException(new_cpsr, new_pc);
+    state->gprs[ArmGpr::kR15] =
+        frame->cpu_->ReturnFromException(new_cpsr, new_pc);
+    return 0u;
 }
 
-void __fastcall ArmExceptionFrame::SrsHelper(uint32_t           encoded,
-                                             ArmExceptionFrame* frame,
-                                             uint32_t           guest_pc) {
+uint32_t __fastcall ArmExceptionFrame::SrsHelper(uint32_t           encoded,
+                                                 ArmExceptionFrame* frame,
+                                                 uint32_t           guest_pc) {
     const bool     p_bit       = (encoded & 0x80u) != 0u;
     const bool     u_bit       = (encoded & 0x40u) != 0u;
     const bool     w_bit       = (encoded & 0x20u) != 0u;
@@ -110,6 +116,10 @@ void __fastcall ArmExceptionFrame::SrsHelper(uint32_t           encoded,
         address += 4u;
     }
 
+    if (frame->mmu_->AlignMultiWordOrFault(address, /*is_write=*/true)) {
+        return 1u;
+    }
+
     uint8_t* host_lr = frame->walker_->TranslateWrite(state, address);
     if (!host_lr) {
         LOG(Caution, "SrsHelper pc=0x%08X: TranslateWrite failed for LR slot "
@@ -132,4 +142,5 @@ void __fastcall ArmExceptionFrame::SrsHelper(uint32_t           encoded,
     if (w_bit) {
         *base_ptr = u_bit ? (base + 8u) : (base - 8u);
     }
+    return 0u;
 }
