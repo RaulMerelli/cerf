@@ -113,10 +113,10 @@ bool ThumbDecoder::DecodeSpecialDataProcessing(DecodedInsn* insn,
         /* ARM DDI 0406C.c Table A6-4 (A6.2.3, p. A6-226): opcode 0000 is Add Low
            Registers, variant v6T2, footnote a "UNPREDICTABLE in earlier
            variants". */
-        if (low) {
-            if (!processor_config_->HasThumb2()) return false;
-            return MarkArmUnimplemented(insn, op);
-        }
+        if (low && !processor_config_->HasThumb2()) return false;
+        /* ARM DDI 0406C.c A8.8.6 ADD (register, Thumb) encoding T2
+           (p. A8-310): "if n == 15 && m == 15 then UNPREDICTABLE". */
+        if (reg == 15u && insn->rm == 15u) return false;
         insn->op1 = 4u;
         insn->s   = 0u;
         insn->rn  = reg;
