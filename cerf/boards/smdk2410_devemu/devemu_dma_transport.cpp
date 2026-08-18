@@ -14,6 +14,11 @@ namespace {
 constexpr uint32_t kBase = 0x500F0000u;
 constexpr uint32_t kSpan = 0x2120u;
 
+/* devemu_wm2003se dmatrans.dll sub_19111BC 0x19111BC maps the window from
+   0xB10F0000 over 0x2120 bytes and publishes each channel's flag dword as
+   that base + 0x2000 + 4n. */
+constexpr uint32_t kMappedWindowBase = 0xB10F0000u;
+
 constexpr uint32_t kSharedSize = 0x2080u;
 
 constexpr uint32_t kHostStatusBase = 0x2000u;
@@ -99,7 +104,8 @@ public:
                 return;
             }
             if (reg == kChannelConfig &&
-                value == kBase + kHostStatusBase + 4u * n) {
+                (value == kBase + kHostStatusBase + 4u * n ||
+                 value == kMappedWindowBase + kHostStatusBase + 4u * n)) {
                 ch_config_[n] = value;
                 return;
             }
