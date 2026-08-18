@@ -1,9 +1,8 @@
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/service.h"
 #include "../../host/host_widget_registry.h"
-#include "../../peripherals/pcmcia/pcmcia_card_catalog.h"
+#include "../../peripherals/pcmcia/pcmcia_auto_insert.h"
 #include "../../peripherals/pcmcia/pcmcia_slot.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
@@ -35,9 +34,7 @@ public:
         gpio.SetInputLevel(kGpioCd, true);     /* empty slot: CD idles high */
         gpio.SetInputLevel(kGpioReady, true);
 
-        if (emu_.Get<DeviceConfig>().network_enabled) {
-            slot_.InsertCard(emu_.Get<PcmciaCardCatalog>().Create("ne2000"));
-        }
+        emu_.Get<PcmciaAutoInsert>().InsertDefaultNetworkCard(slot_);
     }
 
     void OnShutdown() override { slot_.OnShutdown(); }

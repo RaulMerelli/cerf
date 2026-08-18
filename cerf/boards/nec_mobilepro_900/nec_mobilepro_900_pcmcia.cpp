@@ -1,9 +1,8 @@
 #include "nec_mobilepro_900_pcmcia.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../host/host_widget_registry.h"
-#include "../../peripherals/pcmcia/pcmcia_card_catalog.h"
+#include "../../peripherals/pcmcia/pcmcia_auto_insert.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
 #include "../board_context.h"
@@ -40,9 +39,7 @@ void NecMobilePro900Pcmcia::OnReady() {
         gpio.SetInputLevel(kGpioCardIrq[s], true);  /* IREQ idles high (active-low) */
     }
 
-    if (emu_.Get<DeviceConfig>().network_enabled) {
-        slot1_.InsertCard(emu_.Get<PcmciaCardCatalog>().Create("ne2000"));
-    }
+    emu_.Get<PcmciaAutoInsert>().InsertDefaultNetworkCard(slot1_);
 }
 
 void NecMobilePro900Pcmcia::OnShutdown() {

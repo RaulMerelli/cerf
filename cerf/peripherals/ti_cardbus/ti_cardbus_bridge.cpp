@@ -2,7 +2,7 @@
 #include "../pci/pci_host_bridge.h"
 #include "../pcic82365/pcic82365.h"
 #include "../pcmcia/pcmcia_slot.h"
-#include "../pcmcia/pcmcia_card_catalog.h"
+#include "../pcmcia/pcmcia_auto_insert.h"
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -69,7 +69,7 @@ public:
         socket_bar_ = { ~(kSocketBarSize - 1u), 0u };
         emu_.Get<PciHostBridge>().RegisterPciDevice(this);
         emu_.Get<HostWidgetRegistry>().Register(&slot_);
-        slot_.InsertCard(emu_.Get<PcmciaCardCatalog>().Create("ne2000"));
+        emu_.Get<PcmciaAutoInsert>().InsertDefaultNetworkCard(slot_);
     }
     void OnShutdown() override { slot_.OnShutdown(); }
 
