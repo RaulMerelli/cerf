@@ -24,6 +24,7 @@ private:
     bool DecodeBranch(DecodedInsn* insn, uint32_t op);
     bool DecodeBranchLink(DecodedInsn* insn, uint32_t op, bool exchange);
     bool DecodeConditionalBranch(DecodedInsn* insn, uint32_t op);
+    bool DecodeChangeProcessorState(DecodedInsn* insn, uint32_t op);
     bool DecodeCpsAndHints(DecodedInsn* insn, uint32_t op);
     bool DecodeExceptionReturn(DecodedInsn* insn, uint32_t op);
     bool DecodeControlInstructions(DecodedInsn* insn, uint32_t op);

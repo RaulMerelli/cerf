@@ -72,6 +72,7 @@ uint8_t* PlaceCoprocDataTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* 
 uint8_t* PlaceCoprocExtension(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocRegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceCoprocessorPermissionCheck(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceCps(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceDataProcessing(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceDataProcessingReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceDataProcessingShiftedReg(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);

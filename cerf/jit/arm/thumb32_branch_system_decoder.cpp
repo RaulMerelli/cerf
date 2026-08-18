@@ -130,6 +130,32 @@ bool Thumb32BranchSystemDecoder::DecodeMoveFromSpecial(DecodedInsn* insn,
     return true;
 }
 
+/* DDI 0406C.c B9.3.1 CPS (Thumb) encoding T2 (p. B9-1978): imod = hw2[10:9],
+   M = hw2[8], A:I:F = hw2[7:5], mode = hw2[4:0]; A, I and F occupy CPSR bits
+   8, 7 and 6 (CPSRWriteByInstr, p. B1-1153). */
+bool Thumb32BranchSystemDecoder::DecodeChangeProcessorState(DecodedInsn* insn,
+                                                            uint32_t op) {
+    const uint32_t imod = (op >> 9) & 0x3u;
+    const uint32_t m    = (op >> 8) & 0x1u;
+    const uint32_t aif  = (op >> 5) & 0x7u;
+    const uint32_t mode =  op       & 0x1Fu;
+
+    /* "if mode != '00000' && M == '0' then UNPREDICTABLE"; "if (imod<1> == '1'
+       && A:I:F == '000') || (imod<1> == '0' && A:I:F != '000') then
+       UNPREDICTABLE"; "if imod == '01' ... then UNPREDICTABLE". */
+    if (mode != 0u && m == 0u) return false;
+    if (((imod >> 1) != 0u) != (aif != 0u)) return false;
+    if (imod == 0x1u) return false;
+
+    const uint32_t aif_mask = aif << 6;
+    insn->op1       = aif_mask | (m != 0u ? 0x1Fu : 0u);
+    insn->immediate = (imod == 0x3u ? aif_mask : 0u) | (m != 0u ? mode : 0u);
+    /* "if ... InITBlock() then UNPREDICTABLE". */
+    insn->und_in_it = 1u;
+    insn->place_fn  = &PlaceCps;
+    return true;
+}
+
 /* DDI 0406C.c Table A6-14 p. A6-236: op1 = bits[10:8], op2 = bits[7:0];
    "Encodings with op1 set to 0b000 and a value of op2 that is not shown in
    the table are unallocated hints, and behave as if op2 is set to
@@ -139,7 +165,7 @@ bool Thumb32BranchSystemDecoder::DecodeCpsAndHints(DecodedInsn* insn,
     const uint32_t hint_op1 = (op >> 8) & 0x7u;
     const uint32_t hint_op2 =  op       & 0xFFu;
     if (hint_op1 != 0u) {
-        fatal_->Unimplemented("change processor state (A6-236)", insn, op);
+        return DecodeChangeProcessorState(insn, op);
     }
     switch (hint_op2) {
     case 0x00u:
