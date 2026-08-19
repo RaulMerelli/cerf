@@ -16,14 +16,12 @@ public:
     bool ShouldRegister() override;
     void OnReady() override;
 
-    bool DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadWord(DecodedInsn* insn, uint32_t op);
     bool DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op);
 
 private:
     Thumb32Fatal* fatal_ = nullptr;
 
-    bool DecodePreloadRegister(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadLiteral(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadImmediate12(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadImmediate8(DecodedInsn* insn, uint32_t op);

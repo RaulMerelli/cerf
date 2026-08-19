@@ -11,6 +11,7 @@
 #include "thumb32_branch_system_decoder.h"
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
+#include "thumb32_load_byte_decoder.h"
 #include "thumb32_load_store_decoder.h"
 #include "thumb32_load_store_dual_decoder.h"
 #include "thumb32_load_store_multiple_decoder.h"
@@ -30,6 +31,7 @@ void Thumb32Decoder::OnReady() {
     branch_system_  = &emu_.Get<Thumb32BranchSystemDecoder>();
     data_proc_      = &emu_.Get<Thumb32DataProcDecoder>();
     fatal_          = &emu_.Get<Thumb32Fatal>();
+    load_byte_      = &emu_.Get<Thumb32LoadByteDecoder>();
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 
@@ -85,7 +87,7 @@ bool Thumb32Decoder::DecodeStoreSingleDataItem(DecodedInsn* insn, uint32_t op) {
 }
 
 bool Thumb32Decoder::DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op) {
-    return load_store_->DecodeLoadByteMemoryHints(insn, op);
+    return load_byte_->DecodeLoadByteMemoryHints(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLoadHalfwordMemoryHints(DecodedInsn* insn,
