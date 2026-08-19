@@ -2,6 +2,7 @@
 
 #include "pr31x00_intc.h"
 #include "pr31x00_io_pins.h"
+#include "pr31x00_mfio_slave.h"
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
@@ -154,6 +155,7 @@ void Pr31x00Io::DriveIoInput(uint32_t pin, bool level) {
 void Pr31x00Io::NotifyMfioOut() {
     const uint32_t out_mask = mfio_direc_ & mfio_sel_;
     for (auto& cb : mfio_out_observers_) cb(mfio_dout_, out_mask);
+    if (auto* slave = emu_.TryGet<Pr31x00MfioSlave>()) slave->OnMfioOut(mfio_dout_, out_mask);
 }
 
 void Pr31x00Io::NotifyIoOut() {
@@ -182,6 +184,7 @@ void Pr31x00Io::SaveState(StateWriter& w) {
     w.Write(mfio_pd_);
     w.Write(mfio_din_.load());
     w.Write(io_din_.load());
+    if (auto* slave = emu_.TryGet<Pr31x00MfioSlave>()) slave->SaveState(w);
 }
 
 void Pr31x00Io::RestoreState(StateReader& r) {
@@ -194,6 +197,7 @@ void Pr31x00Io::RestoreState(StateReader& r) {
     uint32_t din = 0;
     r.Read(din); mfio_din_.store(din);
     r.Read(din); io_din_.store(din);
+    if (auto* slave = emu_.TryGet<Pr31x00MfioSlave>()) slave->RestoreState(r);
 }
 
 REGISTER_SERVICE(Pr31x00Io);

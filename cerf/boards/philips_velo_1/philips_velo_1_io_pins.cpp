@@ -7,22 +7,22 @@
 
 namespace {
 
-/* IO[0] M-Module attached, active high. nk.1.exe sub_9FB11194 ("Checking for
-   M-Module Attached") clears IODIREC[0] then takes the "No M-Module" branch on
-   (IODIN & 1) != 1; nk.exe sub_9F40F688 gates the whole Iceberg-ASIC bring-up on
-   the same bit. This board fits the M-Module, so its Iceberg answers CS2. */
+/* IO[0] M-Module attached, active high. philips_velo_1_ce1 nk.1.exe sub_9FB11194
+   ("Checking for M-Module Attached") branches "No M-Module" on (IODIN & 1) != 1, and
+   philips_velo_1_ce1 nk.exe sub_9F40F688 gates the Iceberg-ASIC bring-up on the same
+   bit. This board fits the M-Module, so its Iceberg answers CS2. */
 constexpr uint32_t kMModuleAttached = 1u << 0;
 
-/* IO[5] and IO[6] Miniature Card detect for slots 1 and 2, active low. nk.1.exe
-   sub_9FB1A0C4 returns IODIN & 0x20 for slot 1 and IODIN & 0x40 for slot 2, and
-   sub_9FB0F424 prints "No Mini Card in Slot N" when the bit is set. Both empty. */
-constexpr uint32_t kMiniCardSlot1 = 1u << 5;
+/* IO[6] Miniature Card detect for slot 2, active low, empty (philips_velo_1_ce1
+   nk.1.exe sub_9FB1A0C4, sub_9FB0F424 "No Mini Card in Slot N"). Slot 1's IO[5] is
+   absent: philips_velo_1_ce1 nk.exe sub_9F42453C abandons the DRAM card when it reads
+   IODIN & 0x20 set. */
 constexpr uint32_t kMiniCardSlot2 = 1u << 6;
 
-/* IO[1] carries an M-Module socket status line (nk.1.exe sub_9FB2BC6C) that only the
-   absent M-Module drives; IO[2] has no reader in the ROM. IO[3] is an output - the
-   serial DTR the guest drives and the UART observes (nk.exe sub_9F40E5E0 suspend
-   path: IO_CTL = 0x10080800, IODIREC = IODOUT = 0x08). */
+/* IO[1] carries an M-Module socket status line (philips_velo_1_ce1 nk.1.exe
+   sub_9FB2BC6C) that only the absent M-Module drives; IO[2] has no reader in the ROM.
+   IO[3] is the serial DTR output (philips_velo_1_ce1 nk.exe sub_9F40E5E0 suspend path:
+   IO_CTL = 0x10080800, IODIREC = IODOUT = 0x08). */
 
 /* IODIN ORs this level with the one Pr31x00Io drives, so a pin named here can only
    ever read high. Serial DCD on IO[4] is active low and driven through Pr31x00Io by
@@ -37,12 +37,12 @@ public:
     }
 
     uint32_t IoDin() const override {
-        return kMModuleAttached | kMiniCardSlot1 | kMiniCardSlot2;
+        return kMModuleAttached | kMiniCardSlot2;
     }
 
     /* The board itself holds no MFIO input high. The only pin the ROM reads is serial
-       CTS on MFIODIN<30> (serial.dll sub_1EB1F04, sub_1EB1DE0), and the UART wiring
-       drives its level through Pr31x00Io, so it is supplied there and not here. */
+       CTS on MFIODIN<30> (philips_velo_1_ce1 serial.dll sub_1EB1F04, sub_1EB1DE0), and
+       the UART wiring drives its level through Pr31x00Io, not here. */
     std::optional<uint32_t> MfioDin() const override { return 0u; }
 };
 

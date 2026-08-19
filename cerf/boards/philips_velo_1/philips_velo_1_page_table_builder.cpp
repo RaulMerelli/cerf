@@ -30,6 +30,15 @@ constexpr uint32_t kDramSize = 0x00400000u;
    aliases through the window, which is how sub_9F40EAE0 sizes it. */
 constexpr uint32_t kDramDecodeSpan = 0x02000000u;
 
+/* The 16 Mbyte DRAM Miniature Card fitted in slot 1. philips_velo_1_ce1 nk.exe
+   sub_9F42453C @0x9F42453C reports its base as 0x82000000 and the kernel takes it as a
+   second RAM region (sub_9F4155C0 @0x9F4155C0); PA 0x02000000 decodes DRAM BANK 1 over
+   32 MB while ENCS1DRAM is clear (TMPR3911 Table 4.2.1). */
+constexpr uint32_t kBank1VaBase     = 0x82000000u;
+constexpr uint32_t kBank1PaBase     = 0x02000000u;
+constexpr uint32_t kBank1Size       = 0x01000000u;
+constexpr uint32_t kBank1DecodeSpan = 0x02000000u;
+
 /* Internal Function Registers, 2 MB at PA 0x10C00000 (TMPR3911 Table 4.2.1). */
 constexpr uint32_t kRegsPaBase = 0x10C00000u;
 constexpr uint32_t kRegsVaBase = 0xB0C00000u;
@@ -111,19 +120,24 @@ public:
     }
 
     std::vector<DramRegion> CachedDramRegions() const override {
-        return { { kDramVaBase, kDramPaBase, kDramSize } };
+        return {
+            { kDramVaBase,  kDramPaBase,  kDramSize },
+            { kBank1VaBase, kBank1PaBase, kBank1Size },
+        };
     }
 
     std::vector<BackedRegion> BackedMemoryRegions() const override {
         return {
-            { kDramVaBase,  kDramPaBase,  kDramSize, PAGE_READWRITE, kDramDecodeSpan },
-            { rom_va_base_, rom_pa_base_, rom_size_, PAGE_EXECUTE_READ },
+            { kDramVaBase,  kDramPaBase,  kDramSize,  PAGE_READWRITE, kDramDecodeSpan },
+            { kBank1VaBase, kBank1PaBase, kBank1Size, PAGE_READWRITE, kBank1DecodeSpan },
+            { rom_va_base_, rom_pa_base_, rom_size_,  PAGE_EXECUTE_READ },
         };
     }
 
     std::vector<DramRegion> MappedVaSpans() const override {
         return {
             { kDramVaBase,  kDramPaBase,  kDramDecodeSpan },
+            { kBank1VaBase, kBank1PaBase, kBank1DecodeSpan },
             { rom_va_base_, rom_pa_base_, rom_size_ },
             { kRegsVaBase,  kRegsPaBase,  kRegsSize },
         };

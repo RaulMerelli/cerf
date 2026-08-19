@@ -287,14 +287,16 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
       <td>TBA</td>
       <td>
         <p><b>📱 Devices</b><br/>
-          🆕 Casio Toricomail: bezel touch buttons</p>
-        <p><b>💿 Emulator</b><br/>
-          🆕 Build number shown in the window title and the About box<br/>
-          🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
-          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.<br/>
+          🆕 Casio Toricomail: bezel touch buttons<br/>
+          ✅ Philips Velo 1: 16 MB DRAM Miniature Card permanently fitted - 20 MB total for the guest<br/>
           ✅ Device Emulator: keyboard no longer drops or repeats keys while typing<br/>
           ✅ Device Emulator: sound no longer stutters<br/>
           ✅ Device Emulator: Windows Mobile 2003 SE no longer freezes</p>
+        <p><b>💿 Emulator</b><br/>
+          🆕 Build number shown in the window title and the About box<br/>
+          🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
+          🆕 Bundled CompactFlash cards can be auto-inserted at launch<br/>
+          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>
