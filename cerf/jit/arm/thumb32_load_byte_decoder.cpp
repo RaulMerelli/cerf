@@ -4,16 +4,11 @@
 #include "../../core/cerf_emulator.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
-#include "thumb32_fatal.h"
 
 REGISTER_SERVICE(Thumb32LoadByteDecoder);
 
 bool Thumb32LoadByteDecoder::ShouldRegister() {
     return emu_.Get<BoardContext>().GetCpuArch() == CpuArch::Arm;
-}
-
-void Thumb32LoadByteDecoder::OnReady() {
-    fatal_ = &emu_.Get<Thumb32Fatal>();
 }
 
 /* DDI 0406C.c A8.8.128 PLD, PLDW (register) encoding T1 (p. A8-528) and
@@ -164,6 +159,60 @@ bool Thumb32LoadByteDecoder::DecodeByteUnprivileged(DecodedInsn* insn,
     return true;
 }
 
+/* DDI 0406C.c A8.8.85 LDRSB (literal) encoding T1 (p. A8-452): U = bit[23],
+   "imm32 = ZeroExtend(imm12, 32); add = (U == '1')", "if t == 13 then
+   UNPREDICTABLE"; Rt == '1111' is "SEE PLI". */
+bool Thumb32LoadByteDecoder::DecodeSignedByteLiteral(DecodedInsn* insn,
+                                                     uint32_t op) {
+    const uint32_t add   = (op >> 23) & 0x1u;
+    const uint32_t rt    = (op >> 12) & 0xFu;
+    const uint32_t imm12 =  op        & 0xFFFu;
+    if (rt == 13u) {
+        return false;
+    }
+
+    insn->n        = 1u;
+    insn->l        = 1u;
+    insn->op1      = 2u;
+    insn->p        = 1u;
+    insn->u        = add;
+    insn->w        = 0u;
+    insn->unpriv   = 0u;
+    insn->rn       = 15u;
+    insn->rd       = rt;
+    insn->offset   = add != 0u ? static_cast<int32_t>(imm12)
+                               : -static_cast<int32_t>(imm12);
+    insn->place_fn = &PlaceLoadStoreExtension;
+    return true;
+}
+
+/* DDI 0406C.c A8.8.86 LDRSB (register) encoding T2 (p. A8-454): imm2 =
+   hw2[5:4], Rm = hw2[3:0], "index = TRUE; add = TRUE; wback = FALSE;
+   (shift_t, shift_n) = (SRType_LSL, UInt(imm2))", "if t == 13 || m IN
+   {13,15} then UNPREDICTABLE". */
+bool Thumb32LoadByteDecoder::DecodeSignedByteRegister(DecodedInsn* insn,
+                                                      uint32_t op) {
+    const uint32_t rt = (op >> 12) & 0xFu;
+    const uint32_t rm =  op        & 0xFu;
+    if (rt == 13u || rm == 13u || rm == 0xFu) {
+        return false;
+    }
+
+    insn->n        = 0u;
+    insn->l        = 1u;
+    insn->op1      = 2u;
+    insn->p        = 1u;
+    insn->u        = 1u;
+    insn->w        = 0u;
+    insn->unpriv   = 0u;
+    insn->rn       = (op >> 16) & 0xFu;
+    insn->rd       = rt;
+    insn->rm       = rm;
+    insn->rs       = (op >> 4) & 0x3u;
+    insn->place_fn = &PlaceLoadStoreExtension;
+    return true;
+}
+
 /* DDI 0406C.c A8.8.84 LDRSB (immediate) encoding T1 (p. A8-450): "imm32 =
    ZeroExtend(imm12, 32); index = TRUE; add = TRUE; wback = FALSE", "if t == 13
    then UNPREDICTABLE"; Rt == '1111' is "SEE PLI" and Rn == '1111' is "SEE
@@ -260,11 +309,8 @@ bool Thumb32LoadByteDecoder::DecodeLoadByteMemoryHints(DecodedInsn* insn,
             insn->place_fn = &PlaceNop;
             return true;
         }
-        if (signed_byte) {
-            fatal_->Unimplemented("load register signed byte, literal "
-                                  "(A6-241)", insn, op);
-        }
-        return DecodeByteLiteral(insn, op);
+        return signed_byte ? DecodeSignedByteLiteral(insn, op)
+                           : DecodeByteLiteral(insn, op);
     }
 
     if (op1 == 0x1u || op1 == 0x3u) {
@@ -280,11 +326,8 @@ bool Thumb32LoadByteDecoder::DecodeLoadByteMemoryHints(DecodedInsn* insn,
         if (rt == 0xFu) {
             return DecodePreloadRegister(insn, op);
         }
-        if (signed_byte) {
-            fatal_->Unimplemented("load register signed byte, register "
-                                  "(A6-241)", insn, op);
-        }
-        return DecodeByteRegister(insn, op);
+        return signed_byte ? DecodeSignedByteRegister(insn, op)
+                           : DecodeByteRegister(insn, op);
     }
     if ((op2 & 0x24u) == 0x24u || (op2 & 0x3Cu) == 0x30u) {
         if (rt == 0xFu && (op2 & 0x3Cu) == 0x30u) {

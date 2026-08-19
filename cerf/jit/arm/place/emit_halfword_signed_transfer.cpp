@@ -17,6 +17,17 @@ constexpr int32_t GprDisp(uint32_t n) {
     return static_cast<int32_t>(offsetof(ArmCpuState, gprs) + n * 4u);
 }
 
+/* A8.8.82 LDRH (register) encoding T2 (p. A8-446): "(shift_t, shift_n) =
+   (SRType_LSL, UInt(imm2))". The T1 and A1 encodings of every register form
+   reaching here give "(SRType_LSL, 0)". */
+void EmitShiftedRmInto(uint8_t*& cursor, DecodedInsn* d, uint8_t reg) {
+    using namespace x86;
+    EmitMovRegBaseDisp32(cursor, reg, kStateReg, GprDisp(d->rm));
+    if (d->rs != 0u) {
+        EmitShlReg32Imm(cursor, reg, static_cast<uint8_t>(d->rs));
+    }
+}
+
 /* offset_addr = R[n] +/- imm/R[m] (A8.8.80 encoding-specific operations),
    recomputed from state into ECX; EAX is scratch. */
 void EmitOffsetAddr(uint8_t*& cursor, DecodedInsn* d) {
@@ -27,7 +38,7 @@ void EmitOffsetAddr(uint8_t*& cursor, DecodedInsn* d) {
             EmitAddRegImm32(cursor, kEcx, static_cast<uint32_t>(d->offset));
         }
     } else {
-        EmitMovRegBaseDisp32(cursor, kEax, kStateReg, GprDisp(d->rm));
+        EmitShiftedRmInto(cursor, d, kEax);
         if (d->u) {
             EmitAddReg32Reg32(cursor, kEcx, kEax);
         } else {
@@ -124,8 +135,12 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     if (d->p) {
         if (imm_form) {
             if (d->rn == 15) {
+                /* A8.8.81 LDRH (literal) Operation (p. A8-445): "base =
+                   Align(PC,4); address = if add then (base + imm32) else
+                   (base - imm32)". */
                 EmitMovRegImm32(cursor, kEcx,
-                    ArmPcReadValue(d, ctx) + static_cast<uint32_t>(d->offset));
+                    (ArmPcReadValue(d, ctx) & ~3u) +
+                        static_cast<uint32_t>(d->offset));
             } else {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
                 if (d->offset != 0) {
@@ -139,7 +154,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             } else {
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, GprDisp(d->rn));
             }
-            EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rm));
+            EmitShiftedRmInto(cursor, d, kEdx);
             if (d->u) {
                 EmitAddReg32Reg32(cursor, kEcx, kEdx);
             } else {

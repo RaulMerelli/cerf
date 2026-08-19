@@ -4,16 +4,11 @@
 #include "../../core/cerf_emulator.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
-#include "thumb32_fatal.h"
 
 REGISTER_SERVICE(Thumb32LoadStoreDecoder);
 
 bool Thumb32LoadStoreDecoder::ShouldRegister() {
     return emu_.Get<BoardContext>().GetCpuArch() == CpuArch::Arm;
-}
-
-void Thumb32LoadStoreDecoder::OnReady() {
-    fatal_ = &emu_.Get<Thumb32Fatal>();
 }
 
 /* DDI 0406C.c A8.8.64 LDR (literal) encoding T2 (p. A8-410): U = bit[23],
@@ -260,19 +255,18 @@ bool Thumb32LoadStoreDecoder::DecodeStoreRegister(DecodedInsn* insn,
         return false;
     }
 
-    insn->n        = 0u;
-    insn->s        = size == StoreSize::kByte ? 1u : 0u;
-    insn->l        = 0u;
-    insn->p        = 1u;
-    insn->u        = 1u;
-    insn->w        = 0u;
-    insn->unpriv   = 0u;
-    insn->rn       = (op >> 16) & 0xFu;
-    insn->rd       = rt;
-    insn->rm       = rm;
-    insn->op1      = kSrLsl;
-    insn->rs       = (op >> 4) & 0x3u;
-    insn->place_fn = &PlaceSingleDataTransfer;
+    insn->n      = 0u;
+    insn->l      = 0u;
+    insn->p      = 1u;
+    insn->u      = 1u;
+    insn->w      = 0u;
+    insn->unpriv = 0u;
+    insn->rn     = (op >> 16) & 0xFu;
+    insn->rd     = rt;
+    insn->rm     = rm;
+    insn->op1    = kSrLsl;
+    insn->rs     = (op >> 4) & 0x3u;
+    SetStoreTransfer(insn, size);
     return true;
 }
 
@@ -325,10 +319,6 @@ bool Thumb32LoadStoreDecoder::DecodeStoreSingleDataItem(DecodedInsn* insn,
     if (op2 == 0x00u) {
         /* A8.8.218 STRH (register) T2 (p. A8-702): "(shift_t, shift_n) =
            (SRType_LSL, UInt(imm2))". */
-        if (size == StoreSize::kHalfword) {
-            fatal_->Unimplemented("store register halfword, register (A6-242)",
-                                  insn, op);
-        }
         return DecodeStoreRegister(insn, op, size);
     }
     if ((op2 & 0x20u) == 0u) {
