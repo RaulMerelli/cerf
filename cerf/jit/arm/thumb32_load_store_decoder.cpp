@@ -180,18 +180,19 @@ bool Thumb32LoadStoreDecoder::DecodeLoadWord(DecodedInsn* insn, uint32_t op) {
     return DecodeLoadImmediate8(insn, op);
 }
 
-/* DDI 0406C.c A8.8.203 STR (immediate, Thumb) encoding T3 (p. A8-672):
-   "imm32 = ZeroExtend(imm12, 32); index = TRUE; add = TRUE; wback = FALSE",
-   "if t == 15 then UNPREDICTABLE". */
+/* DDI 0406C.c A8.8.203 STR (immediate, Thumb) T3 (p. A8-672): "index = TRUE;
+   add = TRUE; wback = FALSE", "if t == 15 then UNPREDICTABLE". A8.8.206 STRB
+   (immediate, Thumb) T2 (p. A8-678) shares it under "if t IN {13,15} then
+   UNPREDICTABLE". */
 bool Thumb32LoadStoreDecoder::DecodeStoreImmediate12(DecodedInsn* insn,
-                                                     uint32_t op) {
+                                                     uint32_t op, bool byte) {
     const uint32_t rt = (op >> 12) & 0xFu;
-    if (rt == 0xFu) {
+    if (rt == 0xFu || (byte && rt == 13u)) {
         return false;
     }
 
     insn->n        = 1u;
-    insn->s        = 0u;
+    insn->s        = byte ? 1u : 0u;
     insn->l        = 0u;
     insn->p        = 1u;
     insn->u        = 1u;
@@ -204,23 +205,23 @@ bool Thumb32LoadStoreDecoder::DecodeStoreImmediate12(DecodedInsn* insn,
     return true;
 }
 
-/* DDI 0406C.c A8.8.203 STR (immediate, Thumb) encoding T4 (p. A8-672):
-   hw2[10:8] = P:U:W, imm8 = hw2[7:0], "index = (P == '1'); add = (U == '1');
-   wback = (W == '1')", "if t == 15 || (wback && n == t) then
-   UNPREDICTABLE". */
+/* DDI 0406C.c A8.8.203 STR (immediate, Thumb) T4 (p. A8-672): hw2[10:8] =
+   P:U:W, "index = (P == '1'); add = (U == '1'); wback = (W == '1')", "if
+   t == 15 || (wback && n == t) then UNPREDICTABLE"; A8.8.206 STRB T3
+   (p. A8-678) shares it under "t IN {13,15}". */
 bool Thumb32LoadStoreDecoder::DecodeStoreImmediate8(DecodedInsn* insn,
-                                                    uint32_t op) {
+                                                    uint32_t op, bool byte) {
     const uint32_t add  = (op >>  9) & 0x1u;
     const uint32_t w    = (op >>  8) & 0x1u;
     const uint32_t rt   = (op >> 12) & 0xFu;
     const uint32_t rn   = (op >> 16) & 0xFu;
     const uint32_t imm8 =  op        & 0xFFu;
-    if (rt == 0xFu || (w != 0u && rn == rt)) {
+    if (rt == 0xFu || (byte && rt == 13u) || (w != 0u && rn == rt)) {
         return false;
     }
 
     insn->n        = 1u;
-    insn->s        = 0u;
+    insn->s        = byte ? 1u : 0u;
     insn->l        = 0u;
     insn->p        = (op >> 10) & 0x1u;
     insn->u        = add;
@@ -234,19 +235,20 @@ bool Thumb32LoadStoreDecoder::DecodeStoreImmediate8(DecodedInsn* insn,
     return true;
 }
 
-/* DDI 0406C.c A8.8.205 STR (register) encoding T2 (p. A8-676): imm2 =
-   hw2[5:4], Rm = hw2[3:0], "(shift_t, shift_n) = (SRType_LSL, UInt(imm2))",
-   "if t == 15 || m IN {13,15} then UNPREDICTABLE". */
+/* DDI 0406C.c A8.8.205 STR (register) T2 (p. A8-676): imm2 = hw2[5:4], Rm =
+   hw2[3:0], "(shift_t, shift_n) = (SRType_LSL, UInt(imm2))", "if t == 15 ||
+   m IN {13,15} then UNPREDICTABLE"; A8.8.208 STRB (register) T2 (p. A8-682)
+   shares it under "t IN {13,15}". */
 bool Thumb32LoadStoreDecoder::DecodeStoreRegister(DecodedInsn* insn,
-                                                  uint32_t op) {
+                                                  uint32_t op, bool byte) {
     const uint32_t rt = (op >> 12) & 0xFu;
     const uint32_t rm =  op        & 0xFu;
-    if (rt == 0xFu || rm == 13u || rm == 0xFu) {
+    if (rt == 0xFu || (byte && rt == 13u) || rm == 13u || rm == 0xFu) {
         return false;
     }
 
     insn->n        = 0u;
-    insn->s        = 0u;
+    insn->s        = byte ? 1u : 0u;
     insn->l        = 0u;
     insn->p        = 1u;
     insn->u        = 1u;
@@ -261,19 +263,19 @@ bool Thumb32LoadStoreDecoder::DecodeStoreRegister(DecodedInsn* insn,
     return true;
 }
 
-/* DDI 0406C.c A8.8.220 STRT encoding T1 (p. A8-706): "postindex = FALSE;
-   add = TRUE; register_form = FALSE; imm32 = ZeroExtend(imm8, 32)", "if t IN
-   {13,15} then UNPREDICTABLE"; the Thumb form "uses an offset addressing
-   mode ... and leaves the base register unchanged". */
+/* DDI 0406C.c A8.8.220 STRT T1 (p. A8-706) and A8.8.209 STRBT T1
+   (p. A8-684): "postindex = FALSE; add = TRUE", "if t IN {13,15} then
+   UNPREDICTABLE"; the Thumb form "uses an offset addressing mode ... and
+   leaves the base register unchanged". */
 bool Thumb32LoadStoreDecoder::DecodeStoreUnprivileged(DecodedInsn* insn,
-                                                      uint32_t op) {
+                                                      uint32_t op, bool byte) {
     const uint32_t rt = (op >> 12) & 0xFu;
     if (rt == 13u || rt == 0xFu) {
         return false;
     }
 
     insn->n        = 1u;
-    insn->s        = 0u;
+    insn->s        = byte ? 1u : 0u;
     insn->l        = 0u;
     insn->p        = 1u;
     insn->u        = 1u;
@@ -288,29 +290,28 @@ bool Thumb32LoadStoreDecoder::DecodeStoreUnprivileged(DecodedInsn* insn,
 
 /* DDI 0406C.c A6.3.10 and Table A6-21 p. A6-242: op1 = bits[23:21],
    op2 = hw2[11:6]; "Other encodings in this space are UNDEFINED". Every word
-   row carries "if Rn == '1111' then UNDEFINED" (pp. A8-672/676/706). */
+   and byte row carries "if Rn == '1111' then UNDEFINED" (pp. A8-672/676/706,
+   A8-678/682/684). */
 bool Thumb32LoadStoreDecoder::DecodeStoreSingleDataItem(DecodedInsn* insn,
                                                         uint32_t op) {
     const uint32_t op1 = (op >> 21) & 0x7u;
-    if (op1 == 0x0u || op1 == 0x4u) {
-        fatal_->Unimplemented("store register byte (A6-242)", insn, op);
-    }
     if (op1 == 0x1u || op1 == 0x5u) {
         fatal_->Unimplemented("store register halfword (A6-242)", insn, op);
     }
-    if (op1 != 0x2u && op1 != 0x6u) {
+    const bool byte = op1 == 0x0u || op1 == 0x4u;
+    if (!byte && op1 != 0x2u && op1 != 0x6u) {
         return false;
     }
     if (((op >> 16) & 0xFu) == 0xFu) {
         return false;
     }
-    if (op1 == 0x6u) {
-        return DecodeStoreImmediate12(insn, op);
+    if ((op1 & 0x4u) != 0u) {
+        return DecodeStoreImmediate12(insn, op, byte);
     }
 
     const uint32_t op2 = (op >> 6) & 0x3Fu;
     if (op2 == 0x00u) {
-        return DecodeStoreRegister(insn, op);
+        return DecodeStoreRegister(insn, op, byte);
     }
     if ((op2 & 0x20u) == 0u) {
         return false;
@@ -320,14 +321,14 @@ bool Thumb32LoadStoreDecoder::DecodeStoreSingleDataItem(DecodedInsn* insn,
     const uint32_t u = (op >>  9) & 0x1u;
     const uint32_t w = (op >>  8) & 0x1u;
     if (p != 0u && u != 0u && w == 0u) {
-        return DecodeStoreUnprivileged(insn, op);
+        return DecodeStoreUnprivileged(insn, op, byte);
     }
     /* A8.8.203 encoding T4 (p. A8-672): "if Rn == '1111' || (P == '0' &&
        W == '0') then UNDEFINED". */
     if (p == 0u && w == 0u) {
         return false;
     }
-    return DecodeStoreImmediate8(insn, op);
+    return DecodeStoreImmediate8(insn, op, byte);
 }
 
 /* DDI 0406C.c A8.8.128 PLD, PLDW (register) encoding T1 (p. A8-528) and

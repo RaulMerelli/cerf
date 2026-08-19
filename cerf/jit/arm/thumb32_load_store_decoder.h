@@ -27,8 +27,8 @@ private:
     bool DecodeLoadImmediate8(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadRegister(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadUnprivileged(DecodedInsn* insn, uint32_t op);
-    bool DecodeStoreImmediate12(DecodedInsn* insn, uint32_t op);
-    bool DecodeStoreImmediate8(DecodedInsn* insn, uint32_t op);
-    bool DecodeStoreRegister(DecodedInsn* insn, uint32_t op);
-    bool DecodeStoreUnprivileged(DecodedInsn* insn, uint32_t op);
+    bool DecodeStoreImmediate12(DecodedInsn* insn, uint32_t op, bool byte);
+    bool DecodeStoreImmediate8(DecodedInsn* insn, uint32_t op, bool byte);
+    bool DecodeStoreRegister(DecodedInsn* insn, uint32_t op, bool byte);
+    bool DecodeStoreUnprivileged(DecodedInsn* insn, uint32_t op, bool byte);
 };
