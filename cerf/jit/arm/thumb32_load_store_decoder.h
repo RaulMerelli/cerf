@@ -7,6 +7,8 @@
 class Thumb32Fatal;
 struct DecodedInsn;
 
+enum class StoreSize { kWord, kByte, kHalfword };
+
 class Thumb32LoadStoreDecoder : public Service {
 public:
     using Service::Service;
@@ -27,8 +29,9 @@ private:
     bool DecodeLoadImmediate8(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadRegister(DecodedInsn* insn, uint32_t op);
     bool DecodeLoadUnprivileged(DecodedInsn* insn, uint32_t op);
-    bool DecodeStoreImmediate12(DecodedInsn* insn, uint32_t op, bool byte);
-    bool DecodeStoreImmediate8(DecodedInsn* insn, uint32_t op, bool byte);
-    bool DecodeStoreRegister(DecodedInsn* insn, uint32_t op, bool byte);
-    bool DecodeStoreUnprivileged(DecodedInsn* insn, uint32_t op, bool byte);
+    bool DecodeStoreImmediate12(DecodedInsn* insn, uint32_t op, StoreSize size);
+    bool DecodeStoreImmediate8(DecodedInsn* insn, uint32_t op, StoreSize size);
+    bool DecodeStoreRegister(DecodedInsn* insn, uint32_t op, StoreSize size);
+    bool DecodeStoreUnprivileged(DecodedInsn* insn, uint32_t op, StoreSize size);
+    void SetStoreTransfer(DecodedInsn* insn, StoreSize size);
 };
