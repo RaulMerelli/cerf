@@ -308,7 +308,8 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ Crash when drawing off-screen (GiNi)<br/>
           ✅ Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering<br/>
           ✅ Colour corruption in 16bpp mode - alpha-blended elements rendered green/cyan<br/>
-          ✅ Gradients on Windows CE 4 - the taskbar and application backgrounds render again</p>
+          ✅ Gradients on Windows CE 4 - the taskbar and application backgrounds render again<br/>
+          ✅ Mouse and keyboard no longer stop working for the whole session when input arrives early during boot</p>
       </td>
     </tr>
     <tr>

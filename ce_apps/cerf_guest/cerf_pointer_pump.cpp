@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
+#include "cerf_gwes_ready.h"
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
@@ -30,9 +31,18 @@ static DWORD WINAPI CerfPointerPumpThread(LPVOID) {
         return 0;
     }
 
-    ULONG last_seq   = s_ptr_regs[CERF_PTR_SEQ / 4];
+    ULONG last_seq;
     ULONG last_btn   = 0;
-    LONG  last_wheel = (LONG)s_ptr_regs[CERF_PTR_WHEEL / 4];
+    LONG  last_wheel;
+
+    if (!CerfWaitGwesApiSet()) {
+        CERF_LOG_X("cerf_guest: ptrpump SH_WMGR never registered - no pointer injection",
+                   CerfShWmgrApiSet());
+        return 0;
+    }
+
+    last_seq   = s_ptr_regs[CERF_PTR_SEQ / 4];
+    last_wheel = (LONG)s_ptr_regs[CERF_PTR_WHEEL / 4];
 
     for (;;) {
         ULONG seq = s_ptr_regs[CERF_PTR_SEQ / 4];

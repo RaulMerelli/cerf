@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
+#include "cerf_gwes_ready.h"
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
@@ -57,7 +58,15 @@ static DWORD WINAPI CerfResizePumpThread(LPVOID) {
     ULONG base_bpp = g_FbBpp;
     ULONG applied_w = g_FbWidth, applied_h = g_FbHeight;
     int   cur = 0;
-    ULONG last_gen = s_rsz_regs[CERF_RSZ_WANT_GEN / 4];
+    ULONG last_gen;
+
+    if (!CerfWaitGwesApiSet()) {
+        CERF_LOG_X("cerf_guest: rszpump SH_WMGR never registered - no resize",
+                   CerfShWmgrApiSet());
+        return 0;
+    }
+
+    last_gen = s_rsz_regs[CERF_RSZ_WANT_GEN / 4];
 
     for (;;) {
         ULONG gen = s_rsz_regs[CERF_RSZ_WANT_GEN / 4];

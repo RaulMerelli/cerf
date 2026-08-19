@@ -1,6 +1,7 @@
 #include <windows.h>
 
 #include "cerf_regs_map.h"
+#include "cerf_gwes_ready.h"
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
@@ -11,17 +12,6 @@
 #define CERF_CW_POLL_MS    1000u
 #define CERF_CW_IDLE_POLLS 600u
 
-/* WINCE211 SDK KFUNCS.H:22 and WINCE500 SDK kfuncs.h:31: SH_WMGR 17.
-   WINCE600 kfuncs.h:41,65,68 and WINCE700 kfuncs.h:41,68,71 renumber it:
-   SH_FIRST_OS_API_SET 80, SH_LAST_NOTIFY = that, SH_WMGR = SH_LAST_NOTIFY+1. */
-#define CERF_CW_SH_WMGR_CE5 17u
-#define CERF_CW_SH_WMGR_CE6 81u
-
-typedef BOOL (WINAPI *PFN_IsAPIReady)(DWORD);
-
-extern ULONG g_OsMajor;
-
-static PFN_IsAPIReady   s_pIsAPIReady = NULL;
 static volatile ULONG*  s_cw_regs     = NULL;
 
 static BOOL CerfCwOwnerIsCalibrator(HWND w) {
@@ -82,11 +72,8 @@ static DWORD WINAPI CerfCwThread(LPVOID) {
     BOOL  present = FALSE;
     BOOL  cycled = FALSE;
     int   miss = 0;
-    HMODULE core;
-    DWORD wmgr = (g_OsMajor >= 6u) ? CERF_CW_SH_WMGR_CE6 : CERF_CW_SH_WMGR_CE5;
-
     CERF_LOG("cerf_guest: cwpump thread start");
-    CERF_LOG_X("cerf_guest: cwpump SH_WMGR", wmgr);
+    CERF_LOG_X("cerf_guest: cwpump SH_WMGR", CerfShWmgrApiSet());
 
     s_cw_regs = (volatile ULONG*)CerfMapRegsPage(
         g_CerfVirtBase + CerfVirt::kCalibSignalOffset,
@@ -96,16 +83,14 @@ static DWORD WINAPI CerfCwThread(LPVOID) {
         return 0;
     }
 
-    core = LoadLibraryW(L"coredll.dll");
-    if (core) s_pIsAPIReady = (PFN_IsAPIReady)GetProcAddressW(core, L"IsAPIReady");
-    if (!s_pIsAPIReady) {
+    if (!CerfIsApiReadyAvailable()) {
         CERF_LOG("cerf_guest: cwpump coredll has no IsAPIReady - teardown");
         return 0;
     }
 
     for (;;) {
         HWND cal;
-        if (!s_pIsAPIReady(wmgr)) {
+        if (!CerfGwesApiSetReady()) {
             if (++polls > CERF_CW_IDLE_POLLS) {
                 CERF_LOG("cerf_guest: cwpump wmgr never ready - teardown");
                 break;

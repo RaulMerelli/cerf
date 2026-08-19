@@ -1,6 +1,7 @@
 #include <windows.h>
 #include "cerf_regs_map.h"
 #include "cerf_debug_log.h"
+#include "cerf_gwes_ready.h"
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
@@ -36,7 +37,15 @@ static DWORD WINAPI CerfKeyboardPumpThread(LPVOID) {
         return 0;
     }
 
-    ULONG consumed = s_kb_regs[CERF_KB_WRITE_SEQ / 4];
+    ULONG consumed;
+
+    if (!CerfWaitGwesApiSet()) {
+        CERF_LOG_X("cerf_guest: kbpump SH_WMGR never registered - no key injection",
+                   CerfShWmgrApiSet());
+        return 0;
+    }
+
+    consumed = s_kb_regs[CERF_KB_WRITE_SEQ / 4];
 
     for (;;) {
         ULONG wseq = s_kb_regs[CERF_KB_WRITE_SEQ / 4];

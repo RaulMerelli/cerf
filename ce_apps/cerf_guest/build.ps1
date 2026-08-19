@@ -10,6 +10,7 @@ $sources = @("main.cpp","cerf_virt_base.cpp","cerf_regs_map.cpp","cerf_debug_log
              "cerf_ddhal.cpp","cerf_ddhal_ce5.cpp",
              "cerf_dma_arena.cpp",
              "cerf_gradient.cpp",
+             "cerf_gwes_ready.cpp",
              "cerf_pointer_pump.cpp","cerf_keyboard_pump.cpp","cerf_resize_pump.cpp","cerf_task_manager_pump.cpp",
              "cerf_calib_warning_pump.cpp","cerf_shell_watch.cpp",
              "cerf_power.cpp",

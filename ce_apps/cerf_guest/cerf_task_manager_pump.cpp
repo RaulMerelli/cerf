@@ -2,6 +2,7 @@
 #include <tlhelp32.h>
 
 #include "cerf_regs_map.h"
+#include "cerf_gwes_ready.h"
 
 #include "cerf/peripherals/cerf_virt/cerf_virt_addr_map.h"
 
@@ -335,6 +336,13 @@ static void CerfTmDoRun(DWORD gen) {
     CerfTmRespond(gen, ok ? 1u : 0u, err, 0, 0);
 }
 
+static BOOL CerfTmRequireGwes(DWORD gen) {
+    if (CerfGwesApiSetReady()) return TRUE;
+    CERF_LOG("cerf_guest: tmpump window op rejected - gwes api set not registered yet");
+    CerfTmRespond(gen, 0, ERROR_NOT_READY, 0, 0);
+    return FALSE;
+}
+
 static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
     ULONG last_gen;
 
@@ -357,10 +365,16 @@ static DWORD WINAPI CerfTaskManagerPumpThread(LPVOID) {
             switch (code) {
                 case CERF_TM_OP_LIST:        CerfTmDoList(gen);            break;
                 case CERF_TM_OP_KILL:        CerfTmDoKill(gen, pid);       break;
-                case CERF_TM_OP_SWITCHTO:    CerfTmDoSwitchTo(gen, pid);   break;
+                case CERF_TM_OP_SWITCHTO:
+                    if (CerfTmRequireGwes(gen)) CerfTmDoSwitchTo(gen, pid);
+                    break;
                 case CERF_TM_OP_RUN:         CerfTmDoRun(gen);             break;
-                case CERF_TM_OP_LISTWINDOWS: CerfTmDoListWindows(gen);     break;
-                case CERF_TM_OP_SWITCHTOWIN: CerfTmDoSwitchToWin(gen, pid); break;
+                case CERF_TM_OP_LISTWINDOWS:
+                    if (CerfTmRequireGwes(gen)) CerfTmDoListWindows(gen);
+                    break;
+                case CERF_TM_OP_SWITCHTOWIN:
+                    if (CerfTmRequireGwes(gen)) CerfTmDoSwitchToWin(gen, pid);
+                    break;
                 default:
                     CERF_LOG_X("cerf_guest: tmpump unknown cmd", code);
                     CerfTmRespond(gen, 0, ERROR_INVALID_PARAMETER, 0, 0);
