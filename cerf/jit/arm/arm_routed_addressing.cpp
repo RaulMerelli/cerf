@@ -57,12 +57,20 @@ uint32_t ArmRoutedAddressing::SingleOffsetAddr(const DecodedInsn* d) const {
 }
 
 uint32_t ArmRoutedAddressing::HalfwordOffsetAddr(const DecodedInsn* d) const {
+    if (d->n != 0u) {
+        if (d->rn == ArmGpr::kR15) {
+            /* A8.8.81 LDRH (literal) Operation (p. A8-445): "base =
+               Align(PC,4)". */
+            return (PcReadValue(d) & ~3u) + static_cast<uint32_t>(d->offset);
+        }
+        return cpu_state_->gprs[d->rn] + static_cast<uint32_t>(d->offset);
+    }
     const uint32_t base = (d->rn == ArmGpr::kR15)
         ? PcReadValue(d)
         : cpu_state_->gprs[d->rn];
-    if (d->n != 0u) {
-        return base + static_cast<uint32_t>(d->offset);
-    }
-    const uint32_t offset = cpu_state_->gprs[d->rm];
+    /* A8.8.82 LDRH (register) encoding T2 (p. A8-446): "(shift_t, shift_n) =
+       (SRType_LSL, UInt(imm2))"; T1 and A1 give "(SRType_LSL, 0)". */
+    const uint32_t v      = cpu_state_->gprs[d->rm];
+    const uint32_t offset = d->rs != 0u ? (v << d->rs) : v;
     return d->u != 0u ? base + offset : base - offset;
 }
