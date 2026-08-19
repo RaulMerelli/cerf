@@ -96,10 +96,16 @@ extern "C" BOOL APIENTRY CerfDrvGradientFill(SURFOBJ* pso, CLIPOBJ* pco,
                                               PVOID pMesh, ULONG nMesh,
                                               RECTL* ,
                                               POINTL* , ULONG ulMode) {
-    if (!pso || !pVertex || !pMesh) return FALSE;
+    if (!pso || !pVertex || !pMesh) {
+        CERF_LOG("cerf_guest: DrvGradientFill reject - null surface, vertex or mesh");
+        return FALSE;
+    }
     const ULONG op = ulMode & GRADIENT_FILL_OP_FLAG;
 
-    if (op != GRADIENT_FILL_RECT_H && op != GRADIENT_FILL_RECT_V) return FALSE;
+    if (op != GRADIENT_FILL_RECT_H && op != GRADIENT_FILL_RECT_V) {
+        CERF_LOG_X("cerf_guest: DrvGradientFill reject - unsupported op", op);
+        return FALSE;
+    }
     const bool horiz = (op == GRADIENT_FILL_RECT_H);
     const GRADIENT_RECT* mesh = (const GRADIENT_RECT*)pMesh;
 

@@ -281,6 +281,8 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
                                           PENGCALLBACKS pCallbacks) {
     CERF_LOG_INIT(CERF_LOG_CH_DISPLAY);
     CERF_LOG_X("cerf_guest: DrvEnableDriver iEngineVersion", iEngineVersion);
+    CERF_LOG_X("cerf_guest: DrvEnableDriver cj", cj);
+    CERF_LOG_X("cerf_guest: DrvEnableDriver slots", cj / sizeof(void*));
     CerfApplyColorScheme();
 
     if (pded == NULL || pCallbacks == NULL || cj < 26 * sizeof(void*)) return FALSE;
@@ -362,16 +364,10 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     pded->DrvStartPage          = DrvStartPage;
     if (cj >= 27 * sizeof(void*)) pded->DrvEscape = DrvEscape;
 
-    if (cj >= 30 * sizeof(void*)) {
-        pded->DrvGradientFill   = CerfDrvGradientFill;
-        pded->DrvAlphaBlend     = CerfDrvAlphaBlend;
-        pded->DrvExclusiveMode  = DrvExclusiveMode;
-    } else if (cj >= 29 * sizeof(void*)) {
-        pded->DrvGradientFill   = CerfDrvGradientFill;
-    }
-    if (cj >= 31 * sizeof(void*)) {
-        pded->DrvDisableDriver  = DrvDisableDriver;
-    }
+    if (cj >= 28 * sizeof(void*)) pded->DrvGradientFill  = CerfDrvGradientFill;
+    if (cj >= 29 * sizeof(void*)) pded->DrvAlphaBlend    = CerfDrvAlphaBlend;
+    if (cj >= 30 * sizeof(void*)) pded->DrvExclusiveMode = DrvExclusiveMode;
+    if (cj >= 31 * sizeof(void*)) pded->DrvDisableDriver = DrvDisableDriver;
     return TRUE;
 }
 
