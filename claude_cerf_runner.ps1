@@ -41,9 +41,9 @@ function ConvertTo-WindowsPath {
 
 function Format-RunnerSize {
     param([Parameter(Mandatory = $true)][long]$Bytes)
-    if ($Bytes -ge 1MB) { return "{0:N1} MB ({1} bytes)" -f ($Bytes / 1MB), $Bytes }
-    if ($Bytes -ge 1KB) { return "{0:N1} KB ({1} bytes)" -f ($Bytes / 1KB), $Bytes }
-    return "$Bytes bytes"
+    if ($Bytes -ge 1MB) { return "{0:N1} MB" -f ($Bytes / 1MB) }
+    if ($Bytes -ge 1KB) { return "{0:N1} KB" -f ($Bytes / 1KB) }
+    return "$Bytes B"
 }
 
 function Show-RunnerFileFact {
@@ -54,17 +54,19 @@ function Show-RunnerFileFact {
         [switch]$AgeFromNow
     )
     if (-not (Test-Path $Path)) {
-        Write-Host ("[RUNNER] {0,-14}: absent  ({1})" -f $Label, $Path)
+        Write-Host ("[RUNNER] {0,-14}: absent" -f $Label)
         return
     }
     $f = Get-Item -LiteralPath $Path
     $note = ""
     if ($AgeFromNow) {
-        $note = "  (built {0:N1} min ago)" -f ((Get-Date) - $f.LastWriteTime).TotalMinutes
+        $note = ", built {0:N1} min ago" -f ((Get-Date) - $f.LastWriteTime).TotalMinutes
     } elseif ($StaleBefore -ne [datetime]::MinValue -and $f.LastWriteTime -lt $StaleBefore) {
         $note = "  <-- older than this run"
     }
-    Write-Host ("[RUNNER] {0,-14}: {1}, mtime {2}{3}" -f $Label, (Format-RunnerSize $f.Length), $f.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"), $note)
+    $stamp = if ($f.LastWriteTime.Date -eq (Get-Date).Date) { $f.LastWriteTime.ToString("HH:mm:ss") }
+             else { $f.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") }
+    Write-Host ("[RUNNER] {0,-14}: {1}, {2}{3}" -f $Label, (Format-RunnerSize $f.Length), $stamp, $note)
 }
 
 $timeoutRaw = $null
@@ -136,14 +138,8 @@ function Stop-Runner {
 
 trap { Remove-RunnerSinks; Exit-CerfLock $cerfRunLock; break }
 
-Write-Host "[RUNNER] device   : $device"
-Write-Host "[RUNNER] timeout  : $timeout s, emergency kill at $emergencyKill s"
-if ($logFile -ne $logFileRaw) {
-    Write-Host "[RUNNER] log file : $logFile  (converted from '$logFileRaw')"
-} else {
-    Write-Host "[RUNNER] log file : $logFile"
-}
-Write-Host "[RUNNER] cerf args: $($forward -join ' ')"
+$logNote = if ($logFile -ne $logFileRaw) { " (converted from '$logFileRaw')" } else { "" }
+Write-Host "[RUNNER] $device, timeout $timeout s, emergency kill $emergencyKill s, log $logFile$logNote"
 
 while ($true) {
     Wait-CerfLock $buildLock
@@ -169,7 +165,7 @@ if (-not $proc) {
     Stop-Runner $RunnerExitMissing
 }
 $null = $proc.Handle
-Write-Host "[RUNNER] cerf.exe started (PID $($proc.Id))"
+Write-Host "[RUNNER] cerf.exe PID $($proc.Id): $argLine"
 
 $exitedOnOwn = $proc.WaitForExit($emergencyKill * 1000)
 $stopwatch.Stop()
@@ -192,24 +188,17 @@ if ($exitedOnOwn) {
 }
 Update-CerfLockStamp $cerfRunLock
 
-Write-Host "============================================================"
-Write-Host "[RUNNER] $reason"
-Write-Host "[RUNNER] run time  : $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1)) s of $timeout s limit"
-Write-Host "[RUNNER] exit code : $exitCode"
 Show-RunnerFileFact -Label "cerf.exe" -Path $exePath -AgeFromNow
 Show-RunnerFileFact -Label "live_state.png" -Path $liveState -StaleBefore $runStart
 Show-RunnerFileFact -Label "cerf.crash.log" -Path $crashLog -StaleBefore $runStart
 
 if (-not (Test-Path $logFile)) {
-    Write-Host ("[RUNNER] {0,-14}: absent  ({1}) -- cerf.exe wrote no log" -f "log file", $logFile)
+    Write-Host ("[RUNNER] {0,-14}: absent, cerf.exe wrote no log to {1}" -f "log file", $logFile)
 } else {
-    Show-RunnerFileFact -Label "log file" -Path $logFile
-    Write-Host "[RUNNER] --- first 5 log lines ---"
-    Get-Content -LiteralPath $logFile -TotalCount 5 | ForEach-Object { Write-Host "  $_" }
-    Write-Host "[RUNNER] --- last 5 log lines ---"
-    Get-Content -LiteralPath $logFile -Tail 5 | ForEach-Object { Write-Host "  $_" }
-    Write-Host "[RUNNER] full log: $logFile"
+    $li = Get-Item -LiteralPath $logFile
+    Write-Host ("[RUNNER] {0,-14}: {1} ({2}), last 3 lines:" -f "log file", $logFile, (Format-RunnerSize $li.Length))
+    Get-Content -LiteralPath $logFile -Tail 3 | ForEach-Object { Write-Host "  $_" }
 }
-Write-Host "============================================================"
+Write-Host "[RUNNER] exit $exitCode after $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1)) s of $timeout s - $reason"
 
 Stop-Runner $exitCode
