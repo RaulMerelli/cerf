@@ -38,8 +38,9 @@ enum MenuId : int {
     kIdVpStretch   = 112,
     kIdVpInteger2  = 113,
     kIdVpInteger3  = 114,
-    kIdAliasing    = 115,
-    kIdFullscreen  = 116,
+    kIdVpInteger5  = 115,
+    kIdAliasing    = 116,
+    kIdFullscreen  = 117,
     kIdSaveShot    = 120,
     kIdCopyShot    = 121,
     kIdMatchGuest  = 122,
@@ -71,6 +72,7 @@ HMENU HostMenu::Build() {
     AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
     AppendMenuW(view, MF_STRING, kIdVpInteger2, L"Integer scale 2x");
     AppendMenuW(view, MF_STRING, kIdVpInteger3, L"Integer scale 3x");
+    AppendMenuW(view, MF_STRING, kIdVpInteger5, L"Integer scale 5x");
     AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
     AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(view, MF_STRING, kIdFullscreen, L"Full screen\tRight Ctrl+F");
@@ -111,10 +113,12 @@ void HostMenu::Sync() {
         case HostCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
         case HostCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
         case HostCanvas::ViewportMode::Integer:
-            vp_id = canvas.IntegerFactor() >= 3 ? kIdVpInteger3 : kIdVpInteger2;
+            if (canvas.IntegerFactor() >= 5)      vp_id = kIdVpInteger5;
+            else if (canvas.IntegerFactor() >= 3) vp_id = kIdVpInteger3;
+            else                                  vp_id = kIdVpInteger2;
             break;
     }
-    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger3, vp_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger5, vp_id, MF_BYCOMMAND);
     CheckMenuItem(view, kIdAliasing,
                   MF_BYCOMMAND | (canvas.Antialias() ? MF_CHECKED : MF_UNCHECKED));
     CheckMenuItem(view, kIdFullscreen,
@@ -207,6 +211,8 @@ void HostMenu::HandleCommand(int id) {
         case kIdVpInteger2: canvas.SetIntegerScale(2);
                             emu_.Get<HostWindow>().RefitIfFollowingGuest(); break;
         case kIdVpInteger3: canvas.SetIntegerScale(3);
+                            emu_.Get<HostWindow>().RefitIfFollowingGuest(); break;
+        case kIdVpInteger5: canvas.SetIntegerScale(5);
                             emu_.Get<HostWindow>().RefitIfFollowingGuest(); break;
         case kIdAliasing:   canvas.SetAntialias(!canvas.Antialias()); break;
         case kIdFullscreen: emu_.Get<HostWindow>().ToggleFullscreen(); break;

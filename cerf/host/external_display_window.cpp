@@ -22,6 +22,7 @@ constexpr int kIdVpAspect   = 111;
 constexpr int kIdVpStretch  = 112;
 constexpr int kIdVpInteger2 = 113;
 constexpr int kIdVpInteger3 = 114;
+constexpr int kIdVpInteger5 = 115;
 constexpr int kIdAliasing   = 120;
 constexpr int kIdFullscreen = 121;
 constexpr int kIdSaveShot   = 130;
@@ -80,6 +81,7 @@ HMENU ExternalDisplayWindow::BuildMenu() {
     AppendMenuW(view, MF_STRING, kIdVpStretch,  L"Stretch");
     AppendMenuW(view, MF_STRING, kIdVpInteger2, L"Integer scale 2x");
     AppendMenuW(view, MF_STRING, kIdVpInteger3, L"Integer scale 3x");
+    AppendMenuW(view, MF_STRING, kIdVpInteger5, L"Integer scale 5x");
     AppendMenuW(view, MF_STRING, kIdAliasing,   L"Apply aliasing");
     AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(view, MF_STRING, kIdFullscreen, L"Full screen\tRight Ctrl+F");
@@ -100,10 +102,12 @@ void ExternalDisplayWindow::SyncMenuChecks() {
         case PresenterCanvas::ViewportMode::Aspect:   vp_id = kIdVpAspect;   break;
         case PresenterCanvas::ViewportMode::Stretch:  vp_id = kIdVpStretch;  break;
         case PresenterCanvas::ViewportMode::Integer:
-            vp_id = canvas_.IntegerFactor() >= 3 ? kIdVpInteger3 : kIdVpInteger2;
+            if (canvas_.IntegerFactor() >= 5)      vp_id = kIdVpInteger5;
+            else if (canvas_.IntegerFactor() >= 3) vp_id = kIdVpInteger3;
+            else                                   vp_id = kIdVpInteger2;
             break;
     }
-    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger3, vp_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdVpOriginal, kIdVpInteger5, vp_id, MF_BYCOMMAND);
     CheckMenuItem(view, kIdAliasing,
                   MF_BYCOMMAND | (canvas_.Antialias() ? MF_CHECKED : MF_UNCHECKED));
     CheckMenuItem(view, kIdFullscreen,
@@ -275,6 +279,10 @@ LRESULT ExternalDisplayWindow::WndProc(HWND hwnd, UINT msg,
                         break;
                     case kIdVpInteger3:
                         canvas_.SetIntegerScale(3);
+                        FitToSurface(canvas_.ContentWidth(), canvas_.ContentHeight());
+                        break;
+                    case kIdVpInteger5:
+                        canvas_.SetIntegerScale(5);
                         FitToSurface(canvas_.ContentWidth(), canvas_.ContentHeight());
                         break;
                     case kIdAliasing:
