@@ -1,6 +1,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/cerf_paths.h"
 #include "../core/device_config.h"
+#include "../core/run_timeout.h"
 #include "../core/string_utils.h"
 #include "host_canvas.h"
 #include "host_screenshot.h"
@@ -48,7 +49,7 @@ private:
         if (capture_done_) SetEvent(capture_done_);  /* unblock a pending wait */
         if (thread_.joinable()) thread_.join();
         if (capture_done_) { CloseHandle(capture_done_); capture_done_ = nullptr; }
-        if (!path_.empty()) {
+        if (!path_.empty() && !RunTimeout::IsActive()) {
             std::error_code ec;
             std::filesystem::remove(std::filesystem::path(path_), ec);
         }

@@ -62,17 +62,33 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 Output: `build/Release/Win32/cerf.exe`. Pre-commit hook rejects .cpp/.h files over 500 lines (see `.githooks/pre-commit`). The `.vcxproj` uses `**\*.cpp` glob - new .cpp files are automatically included in the build. No manual project file edits needed.
 
 - Build might take 5-10 minutes to complete on an already-set-up machine.
+- `build.ps1` uses the same two lock files as the runner. It waits for `.cerf_lock` (a run in progress). Then it holds `.build_lock` (stale after 5 minutes) until the build ends, and deletes it on every exit path. Each script refreshes its own lock during long steps, so a lock becomes stale only after its owner process dies.
 - **First build on a fresh machine takes 1+ hour** because vcpkg compiles dependencies from source before cerf links. This is automatic - msbuild restores them via manifest mode; no separate vcpkg command needed. Cached in `vcpkg_installed/` after; later builds are fast again. Do not cancel the first build assuming it's hung.
 - Prerequisite (once per machine): `vcpkg integrate install` from the VS-bundled vcpkg at `<VS install>\VC\vcpkg\vcpkg.exe`. `build.ps1` fails fast with a clear error if this is missing.
 - You can run it as a background task with GNU timeout in command itself in case if either you have parallel work to do or user insisted on this.
 
 ## Run
 
+**`claude_cerf_runner.ps1` is the only way to start cerf.exe. Never run `cerf.exe` directly.**
+
+```bash
+powershell -ExecutionPolicy Bypass -File claude_cerf_runner.ps1 --timeout=20 --log-file=/z/tmp/my_run.log --device=jornada720 [more cerf.exe args...]
+```
+
+The runner is the queue. It waits for `.build_lock`, so a run never starts during a build. It holds `.cerf_lock` (stale after 120 s), so `build.ps1` waits for the run to end, and so two agents do not run cerf.exe at the same time. It deletes the lock file on every exit path.
+
+- **Three flags are mandatory: `--timeout=SECONDS`, `--log-file=PATH`, `--device=NAME`.** The runner forwards every other argument to `cerf.exe` unchanged. Without `--device`, cerf boots stock cerfos.
+- **The runner replaces GNU `timeout`. Never wrap the runner in `timeout`.** An external kill stops the runner before it deletes `.cerf_lock`. That stale lock then blocks each build and each run for 120 s. Give the limit to `--timeout=`.
+- `cerf.exe` implements `--timeout` itself. It starts a wall-clock timer and exits with `CERF_FATAL_TIMEOUT` (124). That exit flushes the log file and keeps `live_state.png` on disk. The runner forwards the flag. If cerf.exe is still alive 10 s later, the runner stops the process and names that emergency kill in the exit reason. An emergency kill is a CERF bug.
+- The runner converts msys and mixed-slash log paths (`/z/tmp/x.log`, `Z:/tmp/x.log`) to `Z:\tmp\x.log`. Write the path in the form that is natural.
+- The runner exits with the exit code of cerf.exe. It exits `124` on timeout, `2` on a bad argument, `3` when cerf.exe is absent, and `125` when Windows withholds the exit code.
+- The runner prints the exit reason, the run time, and the size and mtime of `cerf.exe` (a stale binary is then obvious), of `devices/<device>/live_state.png`, and of `cerf.crash.log`. It marks the last two when they are older than the run. It prints the first 5 and the last 5 lines of the log file.
+- Take the timeout value from the logs. Use the smallest value that reaches the target. If nothing happens, do not increase the value by a large step - ask the user first. If a larger value does not help, the cause is a regression or a bug.
+
 Logs are written to `cerf.log` next to the executable (e.g. `build/Release/Win32/cerf.log`) - never delete cerf.log without a reason. A fatal crash additionally writes a snapshot of every other thread's register/stack state to `cerf.crash.log` next to it via a lock-free emergency writer  - always check both when investigating a crash. See `cerf.exe --help` for the full CLI.
 
 - **Never run cerf as a background task.** cerf is a GUI app; running it backgrounded hides the window and orphans the process. Always run it in the foreground. Unless there is a specific reason to do this - e.g. you want to do something in parallel.
-- **cerf stdout/stderr is flood-controlled and silently drops lines - it is NEVER a valid log source.** Every cerf run MUST pass `--log-file=<repo>/tmp/<unique>.log`; read logs ONLY from that file. Reading a run's terminal/stdout output is prohibited. After a run, confirm the log file was actually created before reading - if `--log-file` failed to produce it, re-run with a corrected path; never fall back to stdout.
-- **Always use GNU timeout for cerf.exe** prefer optimal timeout looking at logs, unless user has different purposes of this run. Dont increase timeout drastically if you found that nothing happens, first ask user if you can try. If increasing timeout didn't help - most likely this is a regression/bug. Never run cerf for inadequate amount of time when not proved by logs.
+- **cerf stdout/stderr is flood-controlled and silently drops lines - it is NEVER a valid log source.** The runner does not forward it at all. Every run MUST pass `--log-file=<repo>/tmp/<unique>.log`; read logs ONLY from that file. Reading a run's terminal/stdout output is prohibited. After a run, confirm the log file was actually created before reading - if `--log-file` failed to produce it, re-run with a corrected path; never fall back to stdout.
 - **Never pass `--log` filters when running cerf to debug** - dev builds already enable every log category by default; narrowing with `--log=CATEGORIES` only risks hiding the signal you're hunting and is a repeat time-sink. Touch `--log` only when debugging the logging mechanism itself; use `--log=none` solely for perf/benchmark runs.
 
 ## IDA MCP

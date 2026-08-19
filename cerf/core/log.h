@@ -151,5 +151,7 @@ inline constexpr int CERF_FATAL_RUNTIME_ERROR = 1;
    CERF bug: CerfFatalExit skips the crash-dump path for this code. */
 inline constexpr int CERF_FATAL_USER_ERROR    = 2;
 inline constexpr int CERF_FATAL_NORMAL_EXIT   = 0;
+/* GNU coreutils timeout(1), EXIT STATUS: 124 if the command times out. */
+inline constexpr int CERF_FATAL_TIMEOUT       = 124;
 
 [[noreturn]] void CerfFatalExit(int code = CERF_FATAL_RUNTIME_ERROR);

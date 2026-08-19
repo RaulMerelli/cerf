@@ -1,9 +1,11 @@
 #include "main_config.h"
 #include "log.h"
 #include "cli_usage.h"
+#include "run_timeout.h"
+#include <cstdlib>
 #include <cstring>
 
-bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
+ArgParseResult ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
     for (int i = 1; i < argc; i++) {
         if (strncmp(argv[i], "--log=", 6) == 0) {
             Log::SetEnabled(Log::ParseCategories(argv[i] + 6));
@@ -15,6 +17,14 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
             cfg.flush_outputs = true;
         } else if (strncmp(argv[i], "--device=", 9) == 0) {
             cfg.device_override = argv[i] + 9;
+        } else if (strncmp(argv[i], "--timeout=", 10) == 0) {
+            char* end = nullptr;
+            const long secs = strtol(argv[i] + 10, &end, 10);
+            if (!end || *end != '\0' || secs <= 0 || secs > 86400) {
+                LOG(Caution, "--timeout must be a whole number of seconds in 1..86400 (got '%s')\n", argv[i] + 10);
+                return ArgParseResult::BadArgument;
+            }
+            cfg.timeout_seconds = (int)secs;
         } else if (strcmp(argv[i], "--allow-flood") == 0) {
             Log::SetAllowFlood(true);
         } else if (strncmp(argv[i], kArgBoardId, sizeof(kArgBoardId) - 1) == 0 ||
@@ -40,10 +50,10 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
             Log::SetEnabled(Log::MASK_NONE);
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             PrintUsage(argv[0]);
-            return false;
+            return ArgParseResult::HelpShown;
         } else {
             LOG(Caution, "Unknown argument: %s (use --help)\n", argv[i]);
-            return false;
+            return ArgParseResult::BadArgument;
         }
     }
 
@@ -59,5 +69,7 @@ bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg) {
         Log::SetFile(cfg.log_file);
     }
 
-    return true;
+    RunTimeout::Start(cfg.timeout_seconds);
+
+    return ArgParseResult::Run;
 }

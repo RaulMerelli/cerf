@@ -10,8 +10,11 @@
 
 int main(int argc, char* argv[]) {
     CerfConfig cfg;
-    if (!ParseCerfArgs(argc, argv, cfg))
-        return 0;
+    switch (ParseCerfArgs(argc, argv, cfg)) {
+        case ArgParseResult::Run:         break;
+        case ArgParseResult::HelpShown:   return CERF_FATAL_NORMAL_EXIT;
+        case ArgParseResult::BadArgument: return CERF_FATAL_USER_ERROR;
+    }
 
     /* Without this, sub-ms cv_.wait_for/Sleep round to the 15.625 ms
        Windows default quantum - OST IRQ latency breaks audio + UI. */

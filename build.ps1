@@ -12,6 +12,19 @@ param(
 # D:\a\cerf\cerf on a GitHub Actions runner, anything in between).
 Set-Location $PSScriptRoot
 
+. (Join-Path $PSScriptRoot "tools\cerf_locks.ps1")
+
+$buildLock   = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "BUILD"
+$cerfRunLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".cerf_lock")  -StaleSeconds 120 -Label "BUILD"
+
+function Stop-Build {
+    param([int]$Code)
+    Exit-CerfLock $buildLock
+    [Environment]::Exit($Code)
+}
+
+trap { Exit-CerfLock $buildLock; break }
+
 # Refresh the clangd config so editor/agent C++ diagnostics match the real
 # build flags (vcpkg includes, MSVC STL, -std=c++20). Cheap and idempotent.
 $genClangd = Join-Path $PSScriptRoot "tools\gen_clangd.ps1"
@@ -24,8 +37,11 @@ if (Test-Path $genClangd) {
 # "<VS install>\VC\vcpkg\vcpkg.exe" (ships with the C++ desktop workload).
 if (-not (Test-Path "$env:LOCALAPPDATA\vcpkg\vcpkg.user.props")) {
     Write-Host "[BUILD] FAILED! vcpkg MSBuild integration missing. Run 'vcpkg integrate install' from the vcpkg that ships with Visual Studio (path is '<VS install>\VC\vcpkg\vcpkg.exe' inside the VS install -- comes with the C++ desktop workload)."
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
+
+Wait-CerfLock $cerfRunLock
+Enter-CerfLock $buildLock
 
 $waitDeadline = (Get-Date).AddMinutes(30)
 while ($true) {
@@ -48,7 +64,7 @@ while ($true) {
         Write-Host "[BUILD] FAILED! The user OR other agent has been building/running CERF for more than 30 minutes (processes: $names)."
         Write-Host "[BUILD] If you are 100% sure that this is yours stuck build, then re-run with: build.ps1 -ForceKill"
         Write-Host "[BUILD] Otherwise, WAIT for the process to be closed and +~1 minute (recommended). DONT CORRUPT SOMEONE'S WORK."
-        [Environment]::Exit(1)
+        Stop-Build 1
     }
 
     $remaining = [int]($waitDeadline - (Get-Date)).TotalSeconds
@@ -61,7 +77,10 @@ while ($true) {
     if ((Get-Date) -lt $waitDeadline) {
         Start-Sleep -Seconds 30
     }
+    Update-CerfLockStamp $buildLock
 }
+
+Update-CerfLockStamp $buildLock
 
 if ($Config -match "^d(ebug)?$") { $Config = "Debug" }
 
@@ -79,12 +98,12 @@ Write-Host "============================================================"
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path $vswhere)) {
     Write-Host "[BUILD] FAILED! vswhere.exe not found at $vswhere. Install Visual Studio with the C++ desktop workload."
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
 $msbuild = & $vswhere -latest -prerelease -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
 if (-not $msbuild -or -not (Test-Path $msbuild)) {
     Write-Host "[BUILD] FAILED! MSBuild.exe not found via vswhere. Ensure Visual Studio's C++ desktop workload is installed."
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
 
 # Reset $LASTEXITCODE so a stale value from outside the script can't
@@ -107,7 +126,7 @@ $vsRoot = & $vswhere -latest -prerelease -property installationPath | Select-Obj
 $toolsRoot = Join-Path $vsRoot 'VC\Tools\MSVC'
 if (-not (Test-Path $toolsRoot)) {
     Write-Host "[BUILD] FAILED! No MSVC toolsets found under $toolsRoot."
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
 
 $minToolsVersion = [version]'14.30'
@@ -121,7 +140,7 @@ if (-not $toolsVersion) {
     Write-Host "[BUILD] Requires >= $minToolsVersion (for /std:c++20) and not 14.51.*, which"
     Write-Host "[BUILD] miscompiles bit-mask dispatch loops on x86 /O2 /Oy- and would silently"
     Write-Host "[BUILD] produce a broken cerf.exe."
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
 Write-Host "[BUILD] MSVC toolset: $toolsVersion (installed: $($installed -join ', '))"
 
@@ -155,6 +174,8 @@ function Get-LauncherInputSignature {
         Sort-Object) -join "`n"
 }
 
+Update-CerfLockStamp $buildLock
+
 $launcherBuild = Join-Path $PSScriptRoot "launcher\build.ps1"
 $launcherStamp = Join-Path $PSScriptRoot "launcher\.launcher_timestamps"
 $launcherExe   = Join-Path $PSScriptRoot "bundled\launcher.exe"
@@ -171,6 +192,7 @@ if (Test-Path $launcherBuild) {
         Write-Host "[LAUNCHER]"
         & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherBuild -Config $Config
         $launcherExit = $LASTEXITCODE
+        Update-CerfLockStamp $buildLock
         if ($launcherExit -ne 0) {
             Write-Host "[LAUNCHER] build returned $launcherExit"
             $buildsFailed++
@@ -184,10 +206,13 @@ if (Test-Path $launcherBuild) {
     }
 }
 
+Update-CerfLockStamp $buildLock
+
 $cerfTarget = if ($Rebuild) { "/t:Rebuild" } else { "/t:Build" }
 if ($Rebuild) { Write-Host "[BUILD] Clean rebuild requested (/t:Rebuild)" }
 & $msbuild cerf.sln /p:Configuration=$Config /p:Platform=Win32 $cerfTarget /m /v:minimal /p:CerfExtraDefines=$cerfDefines /p:CerfMode=$Mode /p:VCToolsVersion=$toolsVersion
 $msbuildExit = $LASTEXITCODE
+Update-CerfLockStamp $buildLock
 $exePath = "build\$Config\Win32\cerf.exe"
 
 if ($msbuildExit -ne 0) {
@@ -211,8 +236,10 @@ $env:CE_APPS_MODE   = $Mode
 foreach ($appDir in (Get-ChildItem -Path "$PSScriptRoot/ce_apps" -Directory -ErrorAction SilentlyContinue)) {
     $appBuild = Join-Path $appDir.FullName "build.ps1"
     if (Test-Path $appBuild) {
+        Update-CerfLockStamp $buildLock
         Write-Host "[CE] $($appDir.Name)"
         & powershell -NoProfile -ExecutionPolicy Bypass -File $appBuild
+        Update-CerfLockStamp $buildLock
         if ($LASTEXITCODE -ne 0) {
             Write-Host "[CE] ce_apps/$($appDir.Name) build returned $LASTEXITCODE"
             $buildsFailed++
@@ -233,6 +260,6 @@ Write-Host "[BUILD] Summary: $buildsSucceeded succeeded, $buildsFailed failed, e
 # swallowed by `powershell.exe -File` in some invocation chains; the
 # Environment.Exit call goes straight to the Win32 terminator.
 if ($buildsFailed -gt 0) {
-    [Environment]::Exit(1)
+    Stop-Build 1
 }
-[Environment]::Exit(0)
+Stop-Build 0

@@ -7,6 +7,7 @@ struct CerfConfig {
     const char* log_file = nullptr;
     bool flush_outputs = false;
     uint64_t no_log_mask = 0;
+    int timeout_seconds = 0;
 };
 
 /* Device-config CLI flags. Owned by ConfigLoader, which applies them to
@@ -30,4 +31,10 @@ inline constexpr char kArgTab[]            = "--tab=";
 inline constexpr char kArgFullScreen[]     = "--full-screen";
 inline constexpr char kArgAbout[]          = "--about";
 
-bool ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg);
+enum class ArgParseResult {
+    Run,
+    HelpShown,
+    BadArgument,
+};
+
+ArgParseResult ParseCerfArgs(int argc, char* argv[], CerfConfig& cfg);
