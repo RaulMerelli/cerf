@@ -10,6 +10,7 @@ class Thumb32BranchSystemDecoder;
 class Thumb32DataProcDecoder;
 class Thumb32Fatal;
 class Thumb32LoadStoreDecoder;
+class Thumb32LoadStoreDualDecoder;
 class Thumb32LoadStoreMultipleDecoder;
 class Thumb32PlainImmDecoder;
 struct DecodedInsn;
@@ -42,8 +43,9 @@ private:
     Thumb32BranchSystemDecoder* branch_system_  = nullptr;
     Thumb32DataProcDecoder*     data_proc_      = nullptr;
     Thumb32Fatal*               fatal_          = nullptr;
-    Thumb32LoadStoreDecoder*    load_store_     = nullptr;
-    Thumb32PlainImmDecoder*     plain_imm_      = nullptr;
+    Thumb32LoadStoreDecoder*    load_store_      = nullptr;
+    Thumb32LoadStoreDualDecoder* load_store_dual_ = nullptr;
+    Thumb32PlainImmDecoder*     plain_imm_       = nullptr;
 
     Thumb32LoadStoreMultipleDecoder* load_store_multiple_ = nullptr;
 

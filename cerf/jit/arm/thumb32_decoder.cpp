@@ -12,6 +12,7 @@
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
 #include "thumb32_load_store_decoder.h"
+#include "thumb32_load_store_dual_decoder.h"
 #include "thumb32_load_store_multiple_decoder.h"
 #include "thumb32_plain_imm_decoder.h"
 
@@ -32,6 +33,7 @@ void Thumb32Decoder::OnReady() {
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 
+    load_store_dual_     = &emu_.Get<Thumb32LoadStoreDualDecoder>();
     load_store_multiple_ = &emu_.Get<Thumb32LoadStoreMultipleDecoder>();
 }
 
@@ -41,8 +43,7 @@ bool Thumb32Decoder::DecodeLoadStoreMultiple(DecodedInsn* insn, uint32_t op) {
 
 bool Thumb32Decoder::DecodeLoadStoreDualExclusiveTableBranch(DecodedInsn* insn,
                                                              uint32_t op) {
-    fatal_->Unimplemented("load/store dual, load/store exclusive, table branch "
-                          "(A6-238)", insn, op);
+    return load_store_dual_->Decode(insn, op);
 }
 
 /* DDI 0406C.c Table A6-30 (A6.3.18) p. A6-251, Table A5-22 (A5.6) p. A5-215;

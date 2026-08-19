@@ -155,6 +155,7 @@ uint8_t* PlaceStrex(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSvc(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxtb(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceSxth(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceTableBranchByte(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceThumbBlPrefix(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceThumbBlSuffix(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceThumbBlxImm(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
