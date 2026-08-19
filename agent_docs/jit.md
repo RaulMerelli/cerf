@@ -174,6 +174,30 @@ The record that carries the peripheral address holds one address. An
 access with more than one address therefore cannot complete inside the
 block.
 
+A peripheral access has a third outcome. The interrupt channel owns
+one gate over the interrupt line, the CPSR interrupt mask, and the
+sleep state. The dispatcher raises on that same gate, so one predicate
+serves both. When the gate passes, no access happens, and the channel
+sets the guest PC back to this instruction. Control then leaves the
+block.
+
+The guard takes two forms. Emitted code carries it at the peripheral
+branch of a translation, and clears the record itself. A load-store
+helper carries it at its own peripheral branch, and clears the record
+there. The helper form also applies only before the access moves any
+bytes.
+
+The dispatcher then re-reads the line. When the line is still high,
+the dispatcher raises the interrupt, and the instruction runs after
+the handler. A peripheral thread can clear the line first. The
+instruction then runs again with no interrupt. The back-out does not
+change the interrupt line.
+
+This path runs only when two conditions are true together. The
+translation resolved the access to peripheral space. The instruction
+commits no state before this point. Every other access keeps delivery
+at block boundaries.
+
 ---
 
 # MIPS engine

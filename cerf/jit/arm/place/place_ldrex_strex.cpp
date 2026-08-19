@@ -57,6 +57,7 @@ uint8_t* PlaceLdrex(uint8_t*      cursor,
 
     /* .abort: */
     FixupLabel32(abort_label, cursor);
+    cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
     cursor = EmitAbortDataTail(cursor, d, ctx);
 
     /* .done: */
@@ -103,6 +104,7 @@ uint8_t* PlaceStrex(uint8_t*      cursor,
 
     /* .abort: */
     FixupLabel32(abort_label, cursor);
+    cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
     cursor = EmitAbortDataTail(cursor, d, ctx);
 
     /* .done: */

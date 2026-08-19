@@ -189,11 +189,13 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     int      n_abort = 0;
     uint8_t* fault_labels[3];
     int      n_fault = 0;
+    uint8_t* io_fault_labels[3];
+    int      n_io_fault = 0;
 
     cursor = EmitTranslateAccess(cursor, ctx, access, unpriv);
     EmitTestRegReg(cursor, kEax, kEax);
     if (is_dual) {
-        fault_labels[n_fault++] = EmitJzLabel32(cursor);
+        io_fault_labels[n_io_fault++] = EmitJzLabel32(cursor);
     } else {
         abort_labels[n_abort++] = EmitJzLabel32(cursor);
     }
@@ -248,7 +250,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             EmitAddRegImm32(cursor, kEcx, 4u);
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
             EmitTestRegReg(cursor, kEax, kEax);
-            fault_labels[n_fault++] = EmitJzLabel32(cursor);
+            io_fault_labels[n_io_fault++] = EmitJzLabel32(cursor);
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdi);
@@ -313,7 +315,9 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             EmitAddRegImm32(cursor, kEsp, 12u);
         }
         EmitCmpRegImm32(cursor, kEax, 0xFFFFFFFFu);
-        fault_labels[n_fault++] = EmitJzLabel32(cursor);
+        uint8_t* unaligned_fault = EmitJzLabel32(cursor);
+        if (is_store) fault_labels[n_fault++]       = unaligned_fault;
+        else          io_fault_labels[n_io_fault++] = unaligned_fault;
         if (!is_store) {
             if (d->op1 == 3) {
                 EmitMovsxReg32Reg16(cursor, kEdx, kEax);
@@ -358,6 +362,8 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
         EmitTestRegReg(cursor, kEax, kEax);
         uint8_t* real_fault_label = EmitJzLabel32(cursor);
 
+        cursor = EmitIoIrqPreciseBackout(cursor, d, ctx);
+
         const uint32_t routed_imm = static_cast<uint32_t>(
             reinterpret_cast<uintptr_t>(ctx->emit->RoutedAccess()));
         const uint32_t io_bytes = (d->op1 == 2u) ? 1u : 2u;
@@ -400,6 +406,13 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
 
         FixupLabel32(real_fault_label, cursor);
     }
+    if (n_io_fault > 0) {
+        for (int i = 0; i < n_io_fault; ++i) {
+            FixupLabel32(io_fault_labels[i], cursor);
+        }
+        cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
+    }
+
     for (int i = 0; i < n_fault; ++i) {
         FixupLabel32(fault_labels[i], cursor);
     }

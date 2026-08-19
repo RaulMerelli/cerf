@@ -204,6 +204,8 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     int      n_abort = 0;
     uint8_t* fault_labels[2];
     int      n_fault = 0;
+    uint8_t* io_fault_labels[2];
+    int      n_io_fault = 0;
     uint8_t* done_labels[3];
     int      n_done = 0;
 
@@ -274,7 +276,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             cursor = EmitTranslateAccess(cursor, ctx, TlbAccess::kRead, unpriv);
             EmitPopReg(cursor, kEdx);
             EmitTestRegReg(cursor, kEax, kEax);
-            fault_labels[n_fault++] = EmitJzLabel32(cursor);
+            io_fault_labels[n_io_fault++] = EmitJzLabel32(cursor);
             /* MOV EAX, [EAX] - 8B /r (SDM Vol. 2B 4-35 MOV). */
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEax);
@@ -327,7 +329,7 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
                 &ArmMmu::UnalignedWordLoadHelper));
             EmitAddRegImm32(cursor, kEsp, 12u);
             EmitTestRegReg(cursor, kEdx, kEdx);
-            fault_labels[n_fault++] = EmitJzLabel32(cursor);
+            io_fault_labels[n_io_fault++] = EmitJzLabel32(cursor);
             EmitMovRegReg(cursor, kEdx, kEax);
             if (wback) {
                 EmitWritebackRecomputed(cursor, d, ctx);
@@ -389,6 +391,8 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
     EmitTestRegReg(cursor, kEax, kEax);
     uint8_t* real_fault_label = EmitJzLabel32(cursor);
 
+    cursor = EmitIoIrqPreciseBackout(cursor, d, ctx);
+
     const uint32_t routed_imm = static_cast<uint32_t>(
         reinterpret_cast<uintptr_t>(ctx->emit->RoutedAccess()));
     const uint32_t io_bytes = is_byte ? 1u : 4u;
@@ -430,6 +434,13 @@ uint8_t* PlaceSingleDataTransfer(uint8_t*      cursor,
             EmitWritebackRecomputed(cursor, d, ctx);
         }
         done_labels[n_done++] = EmitJmpLabel32(cursor);
+    }
+
+    if (n_io_fault > 0) {
+        for (int i = 0; i < n_io_fault; ++i) {
+            FixupLabel32(io_fault_labels[i], cursor);
+        }
+        cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
     }
 
     FixupLabel32(real_fault_label, cursor);

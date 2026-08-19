@@ -88,6 +88,8 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
 
     uint8_t* abort_labels[17];
     int      n_abort = 0;
+    uint8_t* io_fault_labels[1];
+    int      n_io_fault = 0;
 
     int32_t rn_word_off = 0;
     int32_t cur_off     = base_off;
@@ -109,7 +111,11 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
 
         cursor = EmitTlbFastPath(cursor, ctx, access);
         EmitTestRegReg(cursor, kEax, kEax);
-        abort_labels[n_abort++] = EmitJzLabel32(cursor);
+        {
+            uint8_t* lbl = EmitJzLabel32(cursor);
+            if (n_abort == 0 && n_io_fault == 0) io_fault_labels[n_io_fault++] = lbl;
+            else                                 abort_labels[n_abort++]       = lbl;
+        }
 
         if (load) {
             /* MOV EDX, [EAX] - 8B /r (SDM Vol. 2B 4-35 MOV). */
@@ -165,7 +171,11 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
         }
         cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kRead);
         EmitTestRegReg(cursor, kEax, kEax);
-        abort_labels[n_abort++] = EmitJzLabel32(cursor);
+        {
+            uint8_t* lbl = EmitJzLabel32(cursor);
+            if (n_abort == 0 && n_io_fault == 0) io_fault_labels[n_io_fault++] = lbl;
+            else                                 abort_labels[n_abort++]       = lbl;
+        }
         Emit8(cursor, 0x8B);
         EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
         if (user_regs) {
@@ -233,6 +243,13 @@ uint8_t* PlaceBlockDataTransfer(uint8_t*      cursor,
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rn), kEax);
             align_done_label = EmitJmpLabel32(cursor);
         }
+    }
+
+    if (n_io_fault > 0) {
+        for (int i = 0; i < n_io_fault; ++i) {
+            FixupLabel32(io_fault_labels[i], cursor);
+        }
+        cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
     }
 
     /* .abort: */

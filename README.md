@@ -293,7 +293,8 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
           ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.<br/>
           ✅ Device Emulator: keyboard no longer drops or repeats keys while typing<br/>
-          ✅ Device Emulator: sound no longer stutters</p>
+          ✅ Device Emulator: sound no longer stutters<br/>
+          ✅ Device Emulator: Windows Mobile 2003 SE no longer freezes</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>

@@ -54,6 +54,25 @@ void ArmInterruptChannel::Wake() {
     SetEvent(idle_event_);
 }
 
+ArmInterruptChannel::IrqGate ArmInterruptChannel::EvaluateGate() const {
+    IrqGate gate;
+    gate.level = Level();
+    gate.raise = gate.level != 0u && cpu_state_->cpsr.bits.irq_disable == 0u &&
+                 cpu_state_->deep_sleep == 0u;
+    return gate;
+}
+
+bool ArmInterruptChannel::BackOutForIrq(uint32_t guest_pc) {
+    if (!EvaluateGate().raise) return false;
+    cpu_state_->gprs[ArmGpr::kR15] = guest_pc;
+    return true;
+}
+
+uint32_t __cdecl ArmInterruptChannel::BackOutForIrqHelper(
+    ArmInterruptChannel* channel, uint32_t guest_pc) {
+    return channel->BackOutForIrq(guest_pc) ? 1u : 0u;
+}
+
 void __fastcall ArmInterruptChannel::WfiHelper(ArmInterruptChannel* channel) {
     ArmCpuState* state = channel->cpu_state_;
     if (state->reset_pending || state->deep_sleep) return;

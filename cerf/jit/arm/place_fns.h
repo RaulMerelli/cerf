@@ -35,6 +35,10 @@ uint8_t* EmitDpArithFlagTail(uint8_t* cursor, DecodedInsn* d);
 uint8_t* EmitDpLogicalFlagTail(uint8_t* cursor, DpLogicalCarry carry);
 uint8_t* EmitDpPcWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitHalfwordSignedTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* EmitIoIrqPreciseBackout(uint8_t* cursor, DecodedInsn* d,
+                                 BlockContext* ctx);
+uint8_t* EmitIoIrqPreciseBackoutIfIo(uint8_t* cursor, DecodedInsn* d,
+                                     BlockContext* ctx);
 uint8_t* EmitItStateStore(uint8_t* cursor, uint32_t itstate);
 uint8_t* EmitLoadedPcWrite(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);

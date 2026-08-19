@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "arm_cpu.h"
+#include "arm_interrupt_channel.h"
 #include "arm_mmu.h"
 #include "arm_mmu_state.h"
 #include "arm_routed_access.h"
@@ -90,6 +91,11 @@ uint32_t ArmNeon::HandleLoadStoreMultiple(uint32_t pc, uint32_t d_idx, uint32_t 
                 cpu.RaiseAbortDataException(pc);
                 return 1;
             }
+            if (r == 0u && done == 0u &&
+                emu_.Get<ArmInterruptChannel>().BackOutForIrq(pc)) {
+                mmu.ClearIoPending();
+                return 1;
+            }
             /* DDI 0406C.c A8.8.320 VLD1 Operation, p. A8-899: each element is a
                separate MemU[address,ebytes] when ebytes != 8, and when
                ebytes == 8 the element is MemU[address,4] and MemU[address+4,4]. */
@@ -158,6 +164,12 @@ uint32_t ArmNeon::HandleLoadStoreInterleaved(uint32_t pc, uint32_t d_idx, uint32
                 uint32_t done = 0;
                 if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load,
                                      false, &done)) {
+                    if (mmu.io_pending() && r == 0u && e == 0u && k == 0u &&
+                        done == 0u &&
+                        emu_.Get<ArmInterruptChannel>().BackOutForIrq(pc)) {
+                        mmu.ClearIoPending();
+                        return 1;
+                    }
                     if (!mmu.io_pending() ||
                         !emu_.Get<ArmRoutedAccess>().WideAccess(
                             state, pc, addr + done, ebytes - done,
@@ -216,6 +228,11 @@ uint32_t ArmNeon::HandleLoadStoreSingleLane(uint32_t pc, uint32_t d_idx, uint32_
         uint8_t* lane = vfp_base + (d_idx + k * inc) * 8u + index * ebytes;
         uint32_t done = 0;
         if (!mmu.AccessPaged(state, addr, lane, ebytes, is_load, false, &done)) {
+            if (mmu.io_pending() && k == 0u && done == 0u &&
+                emu_.Get<ArmInterruptChannel>().BackOutForIrq(pc)) {
+                mmu.ClearIoPending();
+                return 1;
+            }
             if (!mmu.io_pending() ||
                 !emu_.Get<ArmRoutedAccess>().WideAccess(
                     state, pc, addr + done, ebytes - done, lane + done,

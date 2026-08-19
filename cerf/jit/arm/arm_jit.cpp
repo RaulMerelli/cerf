@@ -142,10 +142,9 @@ void ArmJit::Run() {
         return;
     }
 
-    cpu_state_->irq_interrupt_pending = channel_->Level();
-    if (cpu_state_->irq_interrupt_pending != 0u &&
-        cpu_state_->cpsr.bits.irq_disable == 0u &&
-        cpu_state_->deep_sleep == 0u) {
+    const ArmInterruptChannel::IrqGate gate = channel_->EvaluateGate();
+    cpu_state_->irq_interrupt_pending = gate.level;
+    if (gate.raise) {
         cpu_->RaiseIrqException(cpu_state_->gprs[ArmGpr::kR15]);
     }
 

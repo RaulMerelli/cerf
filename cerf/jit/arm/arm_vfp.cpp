@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "arm_cpu.h"
+#include "arm_interrupt_channel.h"
 #include "arm_mmu.h"
 #include "arm_routed_access.h"
 
@@ -53,6 +54,11 @@ uint32_t ArmVfp::HandleBlockTransfer(uint32_t pc, uint32_t pc_read,
         uint32_t done = 0;
         if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes_per, is_load,
                              false, &done)) {
+            if (mmu.io_pending() && i == 0u && done == 0u &&
+                emu_.Get<ArmInterruptChannel>().BackOutForIrq(pc)) {
+                mmu.ClearIoPending();
+                return 1;
+            }
             if (!mmu.io_pending() ||
                 !emu_.Get<ArmRoutedAccess>().WideAccess(
                     state, pc, addr + done, bytes_per - done,
@@ -109,6 +115,11 @@ uint32_t ArmVfp::HandleSingleTransfer(uint32_t pc, uint32_t pc_read,
     uint32_t done = 0;
     if (!mmu.AccessPaged(state, addr, vfp_base + off, bytes, is_load,
                          false, &done)) {
+        if (mmu.io_pending() && done == 0u &&
+            emu_.Get<ArmInterruptChannel>().BackOutForIrq(pc)) {
+            mmu.ClearIoPending();
+            return 1;
+        }
         if (!mmu.io_pending() ||
             !emu_.Get<ArmRoutedAccess>().WideAccess(
                 state, pc, addr + done, bytes - done,

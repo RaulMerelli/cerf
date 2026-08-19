@@ -96,6 +96,7 @@ uint8_t* EmitSwap(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
 
     /* .abort: */
     FixupLabel32(abort_label, cursor);
+    cursor = EmitIoIrqPreciseBackoutIfIo(cursor, d, ctx);
     cursor = EmitAbortDataTail(cursor, d, ctx);
 
     /* .done: */
