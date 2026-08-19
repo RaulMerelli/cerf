@@ -12,6 +12,7 @@
 #include "thumb32_data_proc_decoder.h"
 #include "thumb32_fatal.h"
 #include "thumb32_load_byte_decoder.h"
+#include "thumb32_load_halfword_decoder.h"
 #include "thumb32_load_store_decoder.h"
 #include "thumb32_load_store_dual_decoder.h"
 #include "thumb32_load_store_multiple_decoder.h"
@@ -32,6 +33,7 @@ void Thumb32Decoder::OnReady() {
     data_proc_      = &emu_.Get<Thumb32DataProcDecoder>();
     fatal_          = &emu_.Get<Thumb32Fatal>();
     load_byte_      = &emu_.Get<Thumb32LoadByteDecoder>();
+    load_halfword_  = &emu_.Get<Thumb32LoadHalfwordDecoder>();
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 
@@ -92,7 +94,7 @@ bool Thumb32Decoder::DecodeLoadByteMemoryHints(DecodedInsn* insn, uint32_t op) {
 
 bool Thumb32Decoder::DecodeLoadHalfwordMemoryHints(DecodedInsn* insn,
                                                    uint32_t op) {
-    fatal_->Unimplemented("load halfword, memory hints (A6-240)", insn, op);
+    return load_halfword_->DecodeLoadHalfwordMemoryHints(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLoadWord(DecodedInsn* insn, uint32_t op) {

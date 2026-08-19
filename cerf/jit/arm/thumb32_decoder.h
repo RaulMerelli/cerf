@@ -10,6 +10,7 @@ class Thumb32BranchSystemDecoder;
 class Thumb32DataProcDecoder;
 class Thumb32Fatal;
 class Thumb32LoadByteDecoder;
+class Thumb32LoadHalfwordDecoder;
 class Thumb32LoadStoreDecoder;
 class Thumb32LoadStoreDualDecoder;
 class Thumb32LoadStoreMultipleDecoder;
@@ -45,6 +46,7 @@ private:
     Thumb32DataProcDecoder*     data_proc_      = nullptr;
     Thumb32Fatal*               fatal_          = nullptr;
     Thumb32LoadByteDecoder*     load_byte_       = nullptr;
+    Thumb32LoadHalfwordDecoder* load_halfword_   = nullptr;
     Thumb32LoadStoreDecoder*    load_store_      = nullptr;
     Thumb32LoadStoreDualDecoder* load_store_dual_ = nullptr;
     Thumb32PlainImmDecoder*     plain_imm_       = nullptr;
