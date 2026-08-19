@@ -110,6 +110,23 @@ bool ThumbStackControlDecoder::DecodeChangeProcessorState(DecodedInsn* insn,
     return true;
 }
 
+/* ARM DDI 0406C.c Table A6-6 (p. A6-228): opcode bits[11:5] = 001000x SXTH
+   (A8.8.235, p. A8-734), 001001x SXTB (A8.8.233, p. A8-730), 001010x UXTH
+   (A8.8.276, p. A8-816), 001011x UXTB (A8.8.274, p. A8-812). Every T1 is
+   "d = UInt(Rd); m = UInt(Rm); rotation = 0", Rm bits[5:3], Rd bits[2:0]. */
+bool ThumbStackControlDecoder::DecodeExtend(DecodedInsn* insn, uint16_t op) {
+    insn->rm  = (op >> 3) & 0x7u;
+    insn->rd  =  op       & 0x7u;
+    insn->op1 = 0u;
+    switch ((op >> 6) & 0x3u) {
+    case 0x0u: insn->place_fn = &PlaceSxth; break;
+    case 0x1u: insn->place_fn = &PlaceSxtb; break;
+    case 0x2u: insn->place_fn = &PlaceUxth; break;
+    default:   insn->place_fn = &PlaceUxtb; break;
+    }
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
@@ -121,7 +138,7 @@ bool ThumbStackControlDecoder::DecodeStackControlGroup(DecodedInsn* insn,
     case 0x2u:
         /* Figure A6-2 note 2, p. A6-5. */
         if (!processor_config_->HasExtendRotate()) return false;
-        return MarkArmUnimplemented(insn, op);
+        return DecodeExtend(insn, op);
     case 0x4u:
     case 0x5u:
     case 0xCu:

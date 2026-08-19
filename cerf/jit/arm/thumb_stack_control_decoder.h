@@ -22,6 +22,7 @@ private:
     bool DecodeIfThen(DecodedInsn* insn, uint16_t op);
     bool DecodeHint(DecodedInsn* insn, uint32_t opa);
     bool DecodeChangeProcessorState(DecodedInsn* insn, uint16_t op);
+    bool DecodeExtend(DecodedInsn* insn, uint16_t op);
 
     ArmProcessorConfig* processor_config_ = nullptr;
 };
