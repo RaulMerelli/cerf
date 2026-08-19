@@ -163,7 +163,7 @@ $argLine = ($forward | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } e
 $runStart = Get-Date
 $stopwatch = [Diagnostics.Stopwatch]::StartNew()
 $proc = Start-Process -FilePath $exePath -ArgumentList $argLine -WorkingDirectory $exeDir -PassThru `
-    -RedirectStandardOutput $stdoutSink -RedirectStandardError $stderrSink
+    -RedirectStandardOutput $stdoutSink -RedirectStandardError $stderrSink -NoNewWindow
 if (-not $proc) {
     Write-Host "[RUNNER] FAILED! cerf.exe did not start."
     Stop-Runner $RunnerExitMissing
