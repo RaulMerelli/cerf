@@ -105,6 +105,9 @@ bool Thumb32BranchSystemDecoder::DecodeMoveToSpecial(DecodedInsn* insn,
     insn->n        = (op >> 20) & 0x1u;
     insn->rm       = rn;
     insn->crn      = (op >>  8) & 0xFu;
+    /* QEMU target/arm/tcg/translate.c trans_MSR_reg -> gen_set_psr ->
+       gen_lookup_tb (DISAS_EXIT). */
+    insn->context_sync = true;
     insn->place_fn = &PlaceMRSorMSR;
     return true;
 }
@@ -152,6 +155,9 @@ bool Thumb32BranchSystemDecoder::DecodeChangeProcessorState(DecodedInsn* insn,
     insn->immediate = (imod == 0x3u ? aif_mask : 0u) | (m != 0u ? mode : 0u);
     /* "if ... InITBlock() then UNPREDICTABLE". */
     insn->und_in_it = 1u;
+    /* QEMU target/arm/tcg/translate.c trans_CPS -> gen_set_psr_im ->
+       gen_lookup_tb (DISAS_EXIT). */
+    insn->context_sync = true;
     insn->place_fn  = &PlaceCps;
     return true;
 }
@@ -167,26 +173,17 @@ bool Thumb32BranchSystemDecoder::DecodeCpsAndHints(DecodedInsn* insn,
     if (hint_op1 != 0u) {
         return DecodeChangeProcessorState(insn, op);
     }
-    switch (hint_op2) {
-    case 0x00u:
-        insn->place_fn = &PlaceNop;
-        return true;
-    case 0x03u:
+    if (hint_op2 == 0x03u) {
         /* A8.8.425 WFI p. A8-1106. */
         insn->place_fn = &PlaceWfi;
         return true;
-    case 0x01u:
-    case 0x02u:
-    case 0x04u:
-        fatal_->Unimplemented(
-            "yield / wait for event / send event hint (A6-236)", insn, op);
-    default:
-        if ((hint_op2 & 0xF0u) == 0xF0u) {
-            fatal_->Unimplemented("debug hint (A6-236)", insn, op);
-        }
-        insn->place_fn = &PlaceNop;
-        return true;
     }
+    /* A8.8.426 YIELD (p. A8-1108), A8.8.424 WFE (p. A8-1104), A8.8.168 SEV
+       (p. A8-606) and A8.8.42 DBG (p. A8-377) are hints: the Event Register is
+       read solely by WFE, which may complete "earlier if the implementation
+       chooses" (B1.8.13, p. B1-1202), and DBG's use is "(if any)". */
+    insn->place_fn = &PlaceNop;
+    return true;
 }
 
 /* DDI 0406C.c Table A6-15 p. A6-237: op = bits[7:4]; row 0000 carries

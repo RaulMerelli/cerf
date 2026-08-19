@@ -47,6 +47,23 @@ bool ThumbStackControlDecoder::DecodeCompareAndBranch(DecodedInsn* insn,
     return true;
 }
 
+/* ARM DDI 0406C.c Table A6-7 (p. A6-229): opA = bits[7:4]; opB == '0000'
+   allocates NOP / YIELD / WFE / WFI / SEV, and "Other encodings in this space
+   are unallocated hints. They execute as NOPs". */
+bool ThumbStackControlDecoder::DecodeHint(DecodedInsn* insn, uint32_t opa) {
+    if (opa == 0x3u) {
+        /* A8.8.425 WFI (p. A8-1106). */
+        insn->place_fn = &PlaceWfi;
+        return true;
+    }
+    /* A8.8.426 YIELD (p. A8-1108): hardware "can use this hint ... if it
+       supports the capability". A8.8.424 WFE (p. A8-1104) and A8.8.168 SEV
+       (p. A8-606): the Event Register is read only by WFE (B1.8.13,
+       p. B1-1202), which completes "earlier if the implementation chooses". */
+    insn->place_fn = &PlaceNop;
+    return true;
+}
+
 /* ARM DDI 0406C.c A8.8.54 IT encoding T1 (p. A8-390): firstcond = bits[7:4],
    mask = bits[3:0]; "if mask == '0000' then SEE Related encodings"; "if
    firstcond == '1111' || (firstcond == '1110' && BitCount(mask) != 1) then
@@ -55,7 +72,7 @@ bool ThumbStackControlDecoder::DecodeIfThen(DecodedInsn* insn, uint16_t op) {
     const uint32_t firstcond = (op >> 4) & 0xFu;
     const uint32_t mask      =  op       & 0xFu;
     if (mask == 0u) {
-        return MarkArmUnimplemented(insn, op);
+        return DecodeHint(insn, firstcond);
     }
     uint32_t set_bits = 0u;
     for (uint32_t b = 0u; b < 4u; ++b) {
@@ -67,6 +84,29 @@ bool ThumbStackControlDecoder::DecodeIfThen(DecodedInsn* insn, uint16_t op) {
     insn->itstate       = (firstcond << 4) | mask;
     insn->itstate_valid = 1u;
     insn->place_fn      = &PlaceNop;
+    return true;
+}
+
+/* ARM DDI 0406C.c B9.3.1 CPS (Thumb) encoding T1 (p. B9-1978): im = bit[4],
+   A:I:F = bits[2:0]; "if A:I:F == '000' then UNPREDICTABLE"; "disable =
+   (im == '1'); changemode = FALSE"; "if InITBlock() then UNPREDICTABLE". A, I
+   and F are CPSR bits 8, 7 and 6 (CPSRWriteByInstr, p. B1-1153). */
+bool ThumbStackControlDecoder::DecodeChangeProcessorState(DecodedInsn* insn,
+                                                          uint16_t op) {
+    const uint32_t disable = (op >> 4) & 0x1u;
+    const uint32_t aif     =  op       & 0x7u;
+    if (aif == 0u) {
+        return false;
+    }
+
+    const uint32_t aif_mask = aif << 6;
+    insn->op1          = aif_mask;
+    insn->immediate    = disable != 0u ? aif_mask : 0u;
+    insn->und_in_it    = 1u;
+    /* QEMU target/arm/tcg/translate.c trans_CPS -> gen_set_psr_im ->
+       gen_lookup_tb (DISAS_EXIT). */
+    insn->context_sync = true;
+    insn->place_fn     = &PlaceCps;
     return true;
 }
 
@@ -112,7 +152,8 @@ bool ThumbStackControlDecoder::DecodeStackControlGroup(DecodedInsn* insn,
         const bool cps    = (lo & 0xE0u) == 0x60u && (lo & 0x08u) == 0u;
         if (!setend && !cps) return false;
         if (!processor_config_->HasCp15V6()) return false;
-        return MarkArmUnimplemented(insn, op);
+        if (setend) return MarkArmUnimplemented(insn, op);
+        return DecodeChangeProcessorState(insn, op);
     }
     case 0x1u:
     case 0x3u:

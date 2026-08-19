@@ -439,24 +439,15 @@ bool ArmDataprocSpaceDecoder::DecodeMsrImmHints(DecodedInsn* insn,
     if (r == 0u && mask == 0u && processor_config_->HasCp15V7()) {
         const uint32_t hint = op.word & 0xFFu;
         switch (hint) {
-        case 0x00u:
-            /* NOP - DDI 0406C.c Table A5-13 (p. A5-206). */
-            insn->place_fn = &PlaceNop;
-            return true;
         case 0x03u:
             /* WFI - DDI 0406C.c A8.8.425 (p. A8-1106). */
             insn->place_fn = &PlaceWfi;
             return true;
-        case 0x01u:
-        case 0x02u:
-        case 0x04u:
-            /* YIELD / WFE / SEV rows of Table A5-13 (p. A5-206). */
-            return MarkArmUnimplemented(insn, op.word);
         default:
-            if ((hint & 0xF0u) == 0xF0u) {
-                /* DBG row of Table A5-13 (p. A5-206). */
-                return MarkArmUnimplemented(insn, op.word);
-            }
+            /* NOP and the YIELD / WFE / SEV / DBG rows of Table A5-13
+               (p. A5-206): A8.8.426 (p. A8-1108), A8.8.424 (p. A8-1104),
+               A8.8.168 (p. A8-606), A8.8.42 (p. A8-377); the Event Register is
+               read solely by WFE (B1.8.13, p. B1-1202). */
             insn->place_fn = &PlaceNop;
             return true;
         }
