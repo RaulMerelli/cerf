@@ -120,7 +120,6 @@ BOARDS_INFORMATION = [
         "notes": [
             "Stock video: don't exceed 640x480 on Windows Mobile 6.5 or newer.",
             "Stock video: don't exceed 800x600 on any OS.",
-            "Guest additions cause visual artifacts on WM2003SE",
         ],
     },
     {
@@ -164,6 +163,7 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
             "mic": True,
         },
+        "notes": [AUDIO_ARTIFACTS],
     },
     {
         "name": "HP Jornada 820",
@@ -220,7 +220,7 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
         },
         "notes": [
-            "Audio is currently crippled.",
+            AUDIO_ARTIFACTS,
             "Guest additions keyboard causes OS to HANG - switch to stock!",
         ],
     },
@@ -490,9 +490,4 @@ BOARDS_INFORMATION = [
 ]
 
 
-DYNAMIC_NOTES = [
-    DynamicNote(
-        applies=lambda rom: rom.board_is("devemu") and rom.os_contains("Smartphone"),
-        note="Guest additions break or cause visual artifacts on Smartphone OS.",
-    ),
-]
+DYNAMIC_NOTES = []
