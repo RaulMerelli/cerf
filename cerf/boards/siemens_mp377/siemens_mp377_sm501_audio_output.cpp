@@ -28,6 +28,8 @@ bool SiemensMp377Sm501AudioOutput::ShouldRegister() {
 
 void SiemensMp377Sm501AudioOutput::OnReady() {
     output_.Start("MP377SM501Audio", 0, 2, 16, true);
+    output_.SetPacketDurationMs(kHostPacketMs);
+    output_.SetStartupBlockCount(kHostStartupBlocks);
     StartPacer();
 }
 

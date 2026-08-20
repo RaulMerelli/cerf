@@ -50,6 +50,8 @@ private:
     static constexpr uint32_t kBufferB = 0x0C3600u;
     static constexpr uint32_t kBufferBytes = 0x00000600u;
     static constexpr uint32_t kDefaultRateHz = 48000u;
+    static constexpr uint32_t kHostPacketMs = 20u;
+    static constexpr uint32_t kHostStartupBlocks = 15u;
     static constexpr uint32_t kFramesPerFirmwareHalf = 192u;
     static constexpr uint32_t kHostPacketFrames = 576u;
     static constexpr uint32_t kHostPacketBytes = kHostPacketFrames * 4u;
