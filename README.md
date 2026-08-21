@@ -344,62 +344,6 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
       </td>
     </tr>
     <tr>
-      <td>v6.6</td>
-      <td>18 Jul 2026</td>
-      <td>
-        <p><b>📱 Devices</b><br/>
-          ✅ Fixed Device Emulator crash booting Windows Mobile 5.2 ROMs</p>
-        <p><b>💿 Emulator</b><br/>
-          ✅ Device names with spaces and absolute rom.* paths in cerf.json are now supported</p>
-        <p><b>🚀 Launcher</b><br/>
-          🆕 <b>New-device wizard</b>: create a device profile from your local ROM dump<br/>
-          🆕 Rename a device from its right-click menu</p>
-      </td>
-    </tr>
-    <tr>
-      <td>v6.5</td>
-      <td>17 Jul 2026</td>
-      <td>
-        <p><b>📱 Devices</b><br/>
-          🆕 Sharp Mobilon HC-4100 support (Handheld PC, Windows CE 2.0)<br/>
-          🆕 Casio Toricomail support</p>
-        <p><b>💿 Emulator</b><br/>
-          ✅ Fixed Integer scale 2x/3x not resizing the window under &quot;Match guest size&quot;<br/>
-          ✅ Fixed moving the window releasing the &quot;Match guest size&quot; lock (now only a resize does)</p>
-        <p><b>🚀 Launcher</b><br/>
-          🆕 Added downloads count sort</p>
-        <p><b>💾 CE Apps</b><br/>
-          ✅ Fixed bundled CE2 apps (ROM dumper and others) crashing on launch - their coredll imports were bound by version-specific ordinal instead of by name</p>
-        <p><b>✨ Guest Additions</b><br/>
-          ✅ Display driver unified onto a single mips1 build across MIPS devices</p>
-      </td>
-    </tr>
-    <tr>
-      <td>v6.4</td>
-      <td>15 Jul 2026</td>
-      <td>
-        <p><b>📱 Devices</b><br/>
-          ✅ Fixed NEC MP700 touch</p>
-      </td>
-    </tr>
-    <tr>
-      <td>v6.3</td>
-      <td>15 Jul 2026</td>
-      <td>
-        <p><b>📱 Devices</b><br/>
-          ✅ Fixed a crash when PC Card was re-inserted too fast in DevEmu boards</p>
-        <p><b>💿 Emulator</b><br/>
-          ✅ UI updates<br/>
-          ✅ Dev only: SDK/Build tools reorganization</p>
-        <p><b>🚀 Launcher</b><br/>
-          🆕 Added multiple bundle repositories configuration</p>
-        <p><b>✨ Guest Additions</b><br/>
-          ✅ Fixed IMGFS ROMs regression introduced in v6.0<br/>
-          ✅ Software rendering is fully removed and replaced with hardware rendering. Microsoft dependencies dropped.<br/>
-          ✅ Fixed incorrect hardware communication approach for display and shared storage. Now rendering and shared storage is stable.</p>
-      </td>
-    </tr>
-    <tr>
       <td colspan="3"><b>Previous versions</b> - see the <a href="https://cerf.cx/changelog/">full changelog</a>.</td>
     </tr>
   </tbody>
