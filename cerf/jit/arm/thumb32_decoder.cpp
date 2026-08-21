@@ -16,6 +16,7 @@
 #include "thumb32_load_store_decoder.h"
 #include "thumb32_load_store_dual_decoder.h"
 #include "thumb32_load_store_multiple_decoder.h"
+#include "thumb32_multiply_decoder.h"
 #include "thumb32_plain_imm_decoder.h"
 
 REGISTER_SERVICE(Thumb32Decoder);
@@ -35,6 +36,7 @@ void Thumb32Decoder::OnReady() {
     load_byte_      = &emu_.Get<Thumb32LoadByteDecoder>();
     load_halfword_  = &emu_.Get<Thumb32LoadHalfwordDecoder>();
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
+    multiply_       = &emu_.Get<Thumb32MultiplyDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 
     load_store_dual_     = &emu_.Get<Thumb32LoadStoreDualDecoder>();
@@ -109,8 +111,7 @@ bool Thumb32Decoder::DecodeSimdElementOrStructure(DecodedInsn* insn,
 
 bool Thumb32Decoder::DecodeMultiplyAbsoluteDifference(DecodedInsn* insn,
                                                       uint32_t op) {
-    fatal_->Unimplemented("multiply, multiply accumulate, absolute difference "
-                          "(A6-249)", insn, op);
+    return multiply_->DecodeMultiplyAbsoluteDifference(insn, op);
 }
 
 bool Thumb32Decoder::DecodeLongMultiplyDivide(DecodedInsn* insn, uint32_t op) {
