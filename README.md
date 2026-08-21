@@ -21,7 +21,7 @@
 
 ## Downloads
 
-To use the newest features, download the WIP build (6.8) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
+To use the newest features, download the WIP build (7.0) from the artifacts [![build](https://github.com/gweslab/cerf/actions/workflows/build.yml/badge.svg)](https://github.com/gweslab/cerf/actions/workflows/build.yml). For a stable version, go to the [latest release](https://github.com/gweslab/cerf/releases/latest).
 
 If you need any additional help, e.g. what to run and how to use the emulator - visit [cerf.cx](https://cerf.cx/articles).
 
@@ -283,7 +283,7 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
   </thead>
   <tbody>
     <tr>
-      <td>v6.8</td>
+      <td>v7.0</td>
       <td>TBA</td>
       <td>
         <p><b>📱 Devices</b><br/>

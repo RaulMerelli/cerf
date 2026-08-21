@@ -1,7 +1,7 @@
 #pragma once
 
-#define CERF_VERSION_MAJOR 6
-#define CERF_VERSION_MINOR 8
+#define CERF_VERSION_MAJOR 7
+#define CERF_VERSION_MINOR 0
 #define CERF_VERSION_PATCH 0
 
 #define CERF_VERSION_BUILD      0
