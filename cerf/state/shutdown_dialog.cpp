@@ -4,9 +4,10 @@
 #include "../core/cerf_emulator.h"
 #include "../core/config_loader.h"
 #include "../core/device_config.h"
-#include "../core/log.h"
 #include "../cpu/emulated_memory.h"
+#include "../host/dialog_band.h"
 #include "../host/host_dark_mode.h"
+#include "../host/host_dpi.h"
 #include "../host/host_window.h"
 
 #include <cstdio>
@@ -14,266 +15,288 @@
 REGISTER_SERVICE(ShutdownDialog);
 
 namespace {
-constexpr wchar_t kClass[]   = L"CerfShutdownDlg";
-constexpr UINT    kTimerId   = 1;
-constexpr int     kSeconds   = 15;
-constexpr int     kTotalMs   = kSeconds * 1000;
-constexpr UINT    kTickMs    = 15;
-constexpr int     kClientW   = 416;
-constexpr int     kClientH   = 212;
-constexpr int     kBarX      = 64;
-constexpr int     kBarY      = 100;
-constexpr int     kBarW      = 320;
-constexpr int     kBarH      = 16;
-enum : int { IDC_CHK = 3001, IDC_REMEMBER = 3002 };
+constexpr wchar_t kClass[] = L"CerfShutdownDlg";
+
+constexpr UINT kTimerId = 1;
+constexpr int  kSeconds = 15;
+constexpr int  kTotalMs = kSeconds * 1000;
+constexpr UINT kTickMs  = 15;
+
+constexpr int kContentH   = 244;
+constexpr int kIconX      = 16;
+constexpr int kIconDy     = 14;
+constexpr int kIconSize   = 32;
+constexpr int kTextX      = 60;
+constexpr int kIntroDy    = 16;
+constexpr int kAskDy      = 44;
+constexpr int kComboDy    = 64;
+constexpr int kComboH     = 26;
+constexpr int kBlockDy    = 96;
+constexpr int kRowH       = 22;
+constexpr int kDescH      = 92;
+constexpr int kBarDy      = 52;
+constexpr int kBarH       = 16;
+constexpr int kBtnW       = 88;
+constexpr int kBtnH       = 28;
+constexpr int kBtnGap     = 8;
+constexpr int kMarginR    = 20;
+constexpr int kBtnBottom  = 44;
+
+enum : int { IDC_ACTION = 3000, IDC_SAVE, IDC_REMEMBER, IDC_DESC };
+
+constexpr wchar_t kSoftText[] =
+    L"The guest operating system restarts and keeps everything in RAM, so the "
+    L"object store and any open data survive.\r\n\r\n"
+    L"A ROM that does not support a warm start can still clear that data itself.";
+
+constexpr wchar_t kHardText[] =
+    L"All guest RAM is wiped and the operating system starts with no earlier "
+    L"context, the same as a battery pull.\r\n\r\n"
+    L"Data that lives in persistent storage - flash, NAND or a disk image - is "
+    L"not touched.";
 }  /* namespace */
 
-void ShutdownDialog::OnReady() {
-    WNDCLASSEXW wc = {};
-    wc.cbSize        = sizeof(wc);
-    wc.lpfnWndProc   = &ShutdownDialog::WndProcStatic;
-    wc.hInstance     = GetModuleHandleW(nullptr);
-    wc.hIcon         = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(2));
-    wc.hCursor       = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    wc.lpszClassName = kClass;
-    RegisterClassExW(&wc);   /* ERROR_CLASS_ALREADY_EXISTS is benign */
+int ShutdownDialog::SelectedAction() const {
+    const LRESULT sel = SendMessageW(combo_, CB_GETCURSEL, 0, 0);
+    return sel == CB_ERR ? 0 : (int)sel;
 }
 
 int ShutdownDialog::BarFillWidth() const {
-    return (kBarW - 2) * remaining_ms_ / kTotalMs;
+    const RECT bar = BarRect();
+    return (bar.right - bar.left - 2) * remaining_ms_ / kTotalMs;
 }
 
 int ShutdownDialog::RemainingSeconds() const {
     return (remaining_ms_ + 999) / 1000;
 }
 
-void ShutdownDialog::StopTimer(HWND hwnd) {
-    if (!timer_on_) return;
-    KillTimer(hwnd, kTimerId);
-    timer_on_ = false;
-    InvalidateRect(hwnd, nullptr, TRUE);   /* repaint without bar / countdown */
+RECT ShutdownDialog::BarRect() const {
+    RECT rc;
+    GetClientRect(Hwnd(), &rc);
+    const int y = band_h_ + S(kBlockDy + kBarDy);
+    return { S(kTextX), y, rc.right - S(kMarginR), y + S(kBarH) };
 }
 
-void ShutdownDialog::Paint(HWND hwnd) {
-    auto& dm = emu_.Get<HostDarkMode>();
-    const bool dark = dm.IsDark();
+RECT ShutdownDialog::CountdownRect() const {
+    const RECT bar = BarRect();
+    return { bar.left, bar.bottom + S(4), bar.right, bar.bottom + S(22) };
+}
 
-    PAINTSTRUCT ps;
-    HDC  hdc = BeginPaint(hwnd, &ps);
+void ShutdownDialog::StopTimer() {
+    if (!timer_on_) return;
+    KillTimer(Hwnd(), kTimerId);
+    timer_on_ = false;
+    InvalidateRect(Hwnd(), nullptr, TRUE);
+}
+
+void ShutdownDialog::SyncActionBlock() {
+    const int action = SelectedAction();
+    const bool exiting = (action == 0);
+    ShowWindow(chk_save_, exiting ? SW_SHOW : SW_HIDE);
+    ShowWindow(chk_remember_, exiting ? SW_SHOW : SW_HIDE);
+    ShowWindow(desc_, exiting ? SW_HIDE : SW_SHOW);
+    if (!exiting)
+        SetWindowTextW(desc_, action == 1 ? kSoftText : kHardText);
+    InvalidateRect(Hwnd(), nullptr, TRUE);
+}
+
+void ShutdownDialog::CommitOk() {
+    switch (SelectedAction()) {
+        case 1: choice_ = ShutdownChoice::SoftReset; break;
+        case 2: choice_ = ShutdownChoice::HardReset; break;
+        default: {
+            const bool save =
+                SendMessageW(chk_save_, BM_GETCHECK, 0, 0) == BST_CHECKED;
+            if (SendMessageW(chk_remember_, BM_GETCHECK, 0, 0) == BST_CHECKED)
+                emu_.Get<ConfigLoader>().SaveLastSaveStateMode(save);
+            choice_ = save ? ShutdownChoice::ExitSave : ShutdownChoice::Exit;
+            break;
+        }
+    }
+    Finish();
+}
+
+void ShutdownDialog::BuildControls(HWND hwnd) {
+    HINSTANCE inst = GetModuleHandleW(nullptr);
     RECT rc;
     GetClientRect(hwnd, &rc);
-    FillRect(hdc, &rc, dark ? dm.BgBrush() : (HBRUSH)(COLOR_BTNFACE + 1));
+    const int cw = rc.right;
+    const int cb = band_h_;
 
-    if (HICON icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(2)))
-        DrawIconEx(hdc, 16, 18, icon, 32, 32, 0, nullptr, DI_NORMAL);
+    auto mk = [&](const wchar_t* cls, const wchar_t* text, DWORD style,
+                  int x, int y, int w, int h, int id) {
+        return CreateWindowExW(0, cls, text, WS_CHILD | WS_VISIBLE | style,
+                               x, y, w, h, hwnd, (HMENU)(INT_PTR)id, inst,
+                               nullptr);
+    };
 
-    SetBkMode(hdc, TRANSPARENT);
-    HFONT    font = dm.UiFont();
-    HGDIOBJ  old  = SelectObject(hdc, font ? font : GetStockObject(DEFAULT_GUI_FONT));
-    RECT trc = { 60, 18, rc.right - 12, 56 };
-    SetTextColor(hdc, dark ? dm.TextColor() : RGB(0, 0, 0));
-    const wchar_t* body = (trigger_ == ShutdownTrigger::DeepSleep)
-        ? L"Guest device is in deep sleep mode. Exit CERF?"
-        : L"Would you like to shut down CERF?";
-    DrawTextW(hdc, body, -1, &trc, DT_LEFT | DT_WORDBREAK);
+    const wchar_t* intro = (trigger_ == ShutdownTrigger::DeepSleep)
+        ? L"The guest OS has requested a shut down."
+        : L"You have requested a shut down.";
+    mk(L"STATIC", intro, SS_LEFT, S(kTextX), cb + S(kIntroDy),
+       cw - S(kTextX) - S(kMarginR), S(kRowH), -1);
 
-    if (timer_on_) {
-        RECT bar = { kBarX, kBarY, kBarX + kBarW, kBarY + kBarH };
-        FrameRect(hdc, &bar, (HBRUSH)GetStockObject(GRAY_BRUSH));
-        RECT fill = bar;
-        InflateRect(&fill, -1, -1);
-        painted_fill_w_ = BarFillWidth();
-        fill.right = fill.left + painted_fill_w_;
-        HBRUSH red = CreateSolidBrush(RGB(200, 30, 30));
-        FillRect(hdc, &fill, red);
-        DeleteObject(red);
+    mk(L"STATIC", L"What do you want to do?", SS_LEFT, S(kTextX),
+       cb + S(kAskDy), cw - S(kTextX) - S(kMarginR), S(kRowH), -1);
 
-        painted_secs_ = RemainingSeconds();
-        wchar_t cd[32];
-        swprintf(cd, 32, L"(%ds left)", painted_secs_);
-        RECT crc = { kBarX, kBarY + kBarH + 4, kBarX + kBarW, kBarY + kBarH + 22 };
-        SetTextColor(hdc, dark ? RGB(160, 160, 160) : RGB(96, 96, 96));
-        DrawTextW(hdc, cd, -1, &crc, DT_CENTER);
-    }
-    SelectObject(hdc, old);
-    EndPaint(hwnd, &ps);
-}
+    combo_ = mk(L"COMBOBOX", L"",
+                CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, S(kTextX),
+                cb + S(kComboDy), cw - S(kTextX) - S(kMarginR),
+                S(kComboH) + 3 * S(kRowH), IDC_ACTION);
+    SendMessageW(combo_, CB_ADDSTRING, 0, (LPARAM)L"Exit emulator");
+    SendMessageW(combo_, CB_ADDSTRING, 0, (LPARAM)L"Soft reset");
+    SendMessageW(combo_, CB_ADDSTRING, 0, (LPARAM)L"Hard reset");
+    SendMessageW(combo_, CB_SETCURSEL, 0, 0);
 
-LRESULT ShutdownDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    switch (msg) {
-        case WM_PAINT:
-            Paint(hwnd);
-            return 0;
-
-        case WM_LBUTTONDOWN:
-            StopTimer(hwnd);
-            return 0;
-
-        case WM_TIMER:
-            if (wp == kTimerId) {
-                const ULONGLONG now = GetTickCount64();
-                remaining_ms_ = (now >= deadline_tick_)
-                    ? 0 : static_cast<int>(deadline_tick_ - now);
-                if (remaining_ms_ <= 0) {
-                    save_ = (SendMessageW(chk_save_, BM_GETCHECK, 0, 0) == BST_CHECKED);
-                    KillTimer(hwnd, kTimerId);
-                    timer_on_ = false;
-                    decided_  = true;
-                } else {
-                    if (BarFillWidth() != painted_fill_w_) {
-                        RECT bar = { kBarX, kBarY, kBarX + kBarW, kBarY + kBarH };
-                        InvalidateRect(hwnd, &bar, FALSE);
-                    }
-                    if (RemainingSeconds() != painted_secs_) {
-                        RECT crc = { kBarX, kBarY + kBarH + 4,
-                                     kBarX + kBarW, kBarY + kBarH + 22 };
-                        InvalidateRect(hwnd, &crc, FALSE);
-                    }
-                }
-            }
-            return 0;
-
-        case WM_COMMAND: {
-            const int id = LOWORD(wp);
-            if (id == IDOK) {
-                save_    = (SendMessageW(chk_save_, BM_GETCHECK, 0, 0) == BST_CHECKED);
-                if (SendMessageW(chk_remember_, BM_GETCHECK, 0, 0) == BST_CHECKED)
-                    emu_.Get<ConfigLoader>().SaveLastSaveStateMode(save_);
-                decided_ = true;
-            } else if (id == IDCANCEL) {
-                cancelled_ = true;
-                decided_   = true;
-            } else {
-                StopTimer(hwnd);   /* checkbox toggle or other control */
-            }
-            return 0;
-        }
-
-        case WM_CLOSE:             /* the dialog's own X == Cancel */
-            cancelled_ = true;
-            decided_   = true;
-            return 0;
-
-        case WM_ERASEBKGND: {
-            if (emu_.Get<HostDarkMode>().EraseBackground((HDC)wp, hwnd))
-                return 1;
-            break;
-        }
-
-        case WM_CTLCOLORSTATIC:
-        case WM_CTLCOLORBTN: {
-            LRESULT br;
-            if (emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br))
-                return br;
-            break;
-        }
-    }
-    return DefWindowProcW(hwnd, msg, wp, lp);
-}
-
-LRESULT CALLBACK ShutdownDialog::WndProcStatic(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    if (msg == WM_NCCREATE) {
-        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
-                          reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
-    }
-    auto* self = reinterpret_cast<ShutdownDialog*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
-    if (self) return self->WndProc(hwnd, msg, wp, lp);
-    return DefWindowProcW(hwnd, msg, wp, lp);
-}
-
-void ShutdownDialog::DismissAsCancel() {
-    if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
-}
-
-ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
-    HWND owner = emu_.Get<HostWindow>().Hwnd();
-
-    const bool with_countdown = (trigger == ShutdownTrigger::WindowClose);
-    trigger_   = trigger;
-    decided_   = false;
-    cancelled_ = false;
-    save_      = false;
-    timer_on_  = with_countdown;
-    remaining_ms_    = kTotalMs;
-    painted_fill_w_  = -1;
-    painted_secs_    = -1;
-
+    const int block_y = cb + S(kBlockDy);
     const unsigned long long mb =
         emu_.Get<EmulatedMemory>().VolatileByteCount() >> 20;
-
-    const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
-    RECT wr = { 0, 0, kClientW, kClientH };
-    AdjustWindowRect(&wr, style, FALSE);
-    const int ww = wr.right - wr.left;
-    const int wh = wr.bottom - wr.top;
-    RECT orc = { 0, 0, 0, 0 };
-    GetWindowRect(owner, &orc);
-    const int x = orc.left + ((orc.right - orc.left) - ww) / 2;
-    const int y = orc.top + ((orc.bottom - orc.top) - wh) / 2;
-
-    EnableWindow(owner, FALSE);
-    hwnd_ = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass,
-                            L"Shut down - CE Runtime Foundation",
-                            style, x, y, ww, wh, owner, nullptr,
-                            GetModuleHandleW(nullptr), this);
-    if (!hwnd_) {
-        EnableWindow(owner, TRUE);
-        return ShutdownChoice::Exit;
-    }
-
-    HINSTANCE inst = GetModuleHandleW(nullptr);
-
-    wchar_t chk_text[64];
-    swprintf(chk_text, 64, L"Save the state (%llu MB)", mb);
-    chk_save_ = CreateWindowW(L"BUTTON", chk_text,
-                              WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-                              64, 60, kBarW, 22, hwnd_, (HMENU)(INT_PTR)IDC_CHK,
-                              inst, nullptr);
+    wchar_t save_text[64];
+    swprintf(save_text, 64, L"Save the state (%llu MB)", mb);
+    chk_save_ = mk(L"BUTTON", save_text, BS_AUTOCHECKBOX | WS_TABSTOP,
+                   S(kTextX), block_y, cw - S(kTextX) - S(kMarginR),
+                   S(kRowH), IDC_SAVE);
     SendMessageW(chk_save_, BM_SETCHECK,
                  emu_.Get<DeviceConfig>().last_save_state_mode
                      ? BST_CHECKED : BST_UNCHECKED, 0);
 
-    chk_remember_ = CreateWindowW(L"BUTTON", L"Remember choice",
-                                  WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-                                  16, kClientH - 41, 200, 22, hwnd_,
-                                  (HMENU)(INT_PTR)IDC_REMEMBER, inst, nullptr);
+    chk_remember_ = mk(L"BUTTON", L"Remember this choice",
+                       BS_AUTOCHECKBOX | WS_TABSTOP, S(kTextX),
+                       block_y + S(kRowH + 2),
+                       cw - S(kTextX) - S(kMarginR), S(kRowH), IDC_REMEMBER);
 
-    CreateWindowW(L"BUTTON", L"OK",
-                  WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
-                  kClientW - 184, kClientH - 44, 84, 28, hwnd_,
-                  (HMENU)(INT_PTR)IDOK, inst, nullptr);
-    CreateWindowW(L"BUTTON",
-                  trigger == ShutdownTrigger::DeepSleep ? L"Resume" : L"Cancel",
-                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                  kClientW - 92, kClientH - 44, 84, 28, hwnd_,
-                  (HMENU)(INT_PTR)IDCANCEL, inst, nullptr);
+    desc_ = mk(L"STATIC", kSoftText, SS_LEFT, S(kTextX), block_y,
+               cw - S(kTextX) - S(kMarginR), S(kDescH), IDC_DESC);
+    ShowWindow(desc_, SW_HIDE);
 
-    /* Dark title bar + dark-theme every child + modern UI font, one call. */
-    emu_.Get<HostDarkMode>().ApplyToDialog(hwnd_);
+    const int btn_y = rc.bottom - S(kBtnBottom);
+    mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
+       cw - S(kMarginR + kBtnGap) - 2 * S(kBtnW), btn_y, S(kBtnW), S(kBtnH),
+       IDOK);
+    mk(L"BUTTON", L"Cancel", BS_PUSHBUTTON | WS_TABSTOP,
+       cw - S(kMarginR) - S(kBtnW), btn_y, S(kBtnW), S(kBtnH), IDCANCEL);
 
-    ShowWindow(hwnd_, SW_SHOW);
-    SetForegroundWindow(hwnd_);
-    if (with_countdown) {
+    if (timer_on_) {
         deadline_tick_ = GetTickCount64() + kTotalMs;
-        SetTimer(hwnd_, kTimerId, kTickMs, nullptr);
+        SetTimer(hwnd, kTimerId, kTickMs, nullptr);
     }
+}
 
-    MSG msg;
-    while (!decided_ && GetMessageW(&msg, nullptr, 0, 0)) {
-        if (!IsDialogMessageW(hwnd_, &msg)) {
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+void ShutdownDialog::OnShown() {
+    SetFocus(combo_);
+}
+
+void ShutdownDialog::OnPaint(HDC dc) {
+    auto& dm = emu_.Get<HostDarkMode>();
+    const bool dark = dm.IsDark();
+
+    emu_.Get<DialogBand>().Paint(dc, Dpi(), 0, 0);
+
+    if (HICON icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(2)))
+        DrawIconEx(dc, S(kIconX), band_h_ + S(kIconDy), icon, S(kIconSize),
+                   S(kIconSize), 0, nullptr, DI_NORMAL);
+
+    if (!timer_on_ || SelectedAction() != 0) return;
+
+    const RECT bar = BarRect();
+    const RECT crc = CountdownRect();
+    RECT strip = { bar.left, bar.top, bar.right, crc.bottom };
+    FillRect(dc, &strip, dark ? dm.BgBrush() : GetSysColorBrush(COLOR_BTNFACE));
+
+    FrameRect(dc, &bar, (HBRUSH)GetStockObject(GRAY_BRUSH));
+    RECT fill = bar;
+    InflateRect(&fill, -1, -1);
+    painted_fill_w_ = BarFillWidth();
+    fill.right = fill.left + painted_fill_w_;
+    HBRUSH red = CreateSolidBrush(RGB(200, 30, 30));
+    FillRect(dc, &fill, red);
+    DeleteObject(red);
+
+    painted_secs_ = RemainingSeconds();
+    wchar_t cd[32];
+    swprintf(cd, 32, L"(%ds left)", painted_secs_);
+    RECT text_rc = crc;
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, dark ? RGB(160, 160, 160) : RGB(96, 96, 96));
+    HFONT   font = dm.UiFont();
+    HGDIOBJ old  = SelectObject(dc, font ? font : GetStockObject(DEFAULT_GUI_FONT));
+    DrawTextW(dc, cd, -1, &text_rc, DT_CENTER);
+    SelectObject(dc, old);
+}
+
+void ShutdownDialog::OnCommand(int id, int notify) {
+    if (id == IDOK) {
+        CommitOk();
+        return;
+    }
+    if (id == IDCANCEL) {
+        choice_ = ShutdownChoice::Cancel;
+        Finish();
+        return;
+    }
+    if (id == IDC_ACTION) {
+        if (notify == CBN_DROPDOWN) StopTimer();
+        if (notify == CBN_SELCHANGE) {
+            StopTimer();
+            SyncActionBlock();
         }
+        return;
     }
+    if ((id == IDC_SAVE || id == IDC_REMEMBER) && notify == BN_CLICKED)
+        StopTimer();
+}
 
-    if (timer_on_) KillTimer(hwnd_, kTimerId);
-    DestroyWindow(hwnd_);
-    hwnd_ = nullptr;
+bool ShutdownDialog::OnMessage(UINT msg, WPARAM wp, LPARAM lp) {
+    (void)lp;
+    if (msg == WM_LBUTTONDOWN) {
+        StopTimer();
+        return true;
+    }
+    if (msg != WM_TIMER || wp != kTimerId) return false;
 
-    EnableWindow(owner, TRUE);
-    SetForegroundWindow(owner);
-    if (cancelled_) return ShutdownChoice::Cancel;
-    return save_ ? ShutdownChoice::ExitSave : ShutdownChoice::Exit;
+    const ULONGLONG now = GetTickCount64();
+    remaining_ms_ = (now >= deadline_tick_)
+        ? 0 : (int)(deadline_tick_ - now);
+    if (remaining_ms_ <= 0) {
+        KillTimer(Hwnd(), kTimerId);
+        timer_on_ = false;
+        CommitOk();
+        return true;
+    }
+    if (BarFillWidth() != painted_fill_w_) {
+        const RECT bar = BarRect();
+        InvalidateRect(Hwnd(), &bar, FALSE);
+    }
+    if (RemainingSeconds() != painted_secs_) {
+        const RECT crc = CountdownRect();
+        InvalidateRect(Hwnd(), &crc, FALSE);
+    }
+    return true;
+}
+
+void ShutdownDialog::DismissAsCancel() {
+    PostDismiss();
+}
+
+ShutdownChoice ShutdownDialog::Show(ShutdownTrigger trigger) {
+    if (IsOpen()) return ShutdownChoice::Cancel;
+
+    HWND owner = emu_.Get<HostWindow>().Hwnd();
+    trigger_        = trigger;
+    choice_         = ShutdownChoice::Cancel;
+    timer_on_       = (trigger == ShutdownTrigger::WindowClose);
+    remaining_ms_   = kTotalMs;
+    painted_fill_w_ = -1;
+    painted_secs_   = -1;
+
+    const UINT dpi = emu_.Get<HostDpi>().ForWindow(owner);
+    auto& band = emu_.Get<DialogBand>();
+    band_h_ = band.PixelHeight(dpi);
+    const int client_w = band.PixelWidth(dpi);
+    const int client_h = band_h_ + MulDiv(kContentH, (int)dpi,
+                                          USER_DEFAULT_SCREEN_DPI);
+
+    RunModal(owner, kClass, L"Shut down - CE Runtime Foundation",
+             client_w, client_h);
+    return choice_;
 }

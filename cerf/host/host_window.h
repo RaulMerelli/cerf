@@ -14,8 +14,6 @@
 #include <string>
 #include <thread>
 
-enum class ShutdownChoice;
-
 class HostWindow : public Service {
 public:
     using Service::Service;
@@ -70,9 +68,7 @@ public:
     bool IsFullscreen() const  { return fullscreen_.IsActive(); }
     void ToggleFullscreen()    { if (hwnd_) fullscreen_.Toggle(hwnd_); }
 
-    /* UI thread. Execute a non-Cancel shutdown choice (exit, or save-then-exit);
-       shared by the window-close prompt and deep-sleep recovery. */
-    void PerformShutdownChoice(ShutdownChoice c);
+    void BeginShutdownTeardown();
 
 private:
     void StopUiThread();   /* idempotent: close window + join the UI thread */
@@ -86,7 +82,6 @@ private:
        message shows the dialog, the save runs async, and teardown starts from
        the save-completion callback. */
     void  RunShutdownPrompt();
-    void  BeginShutdownTeardown();
 
     /* Guest-additions: when adopt-resolution is enabled, size the guest surface
        to the work area of the monitor this window landed on, minus the exact

@@ -3,6 +3,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "../jit/guest_engine.h"
+#include "../state/shutdown_action.h"
 #include "../state/shutdown_dialog.h"
 #include "guest_power_notifier.h"
 #include "host_window.h"
@@ -122,5 +123,5 @@ void GuestDeepSleep::Recover() {
         if (!hw_resumed) DeliverWake();          /* wake = sleep-mode reset */
         return;
     }
-    emu_.Get<HostWindow>().PerformShutdownChoice(c);
+    emu_.Get<ShutdownAction>().Perform(c);
 }

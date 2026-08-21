@@ -4,6 +4,7 @@
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
 #include "host_dark_mode.h"
+#include "host_dpi.h"
 
 void ModalDialog::PostDismiss() {
     if (hwnd_) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
@@ -28,10 +29,11 @@ void ModalDialog::RunModal(HWND owner, const wchar_t* class_name,
     RegisterClassExW(&wc);
 
     done_ = false;
+    dpi_  = emu_.Get<HostDpi>().ForWindow(owner);
 
     const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
     RECT wr = { 0, 0, client_w, client_h };
-    AdjustWindowRect(&wr, style, FALSE);
+    emu_.Get<HostDpi>().AdjustForDpi(wr, style, FALSE, WS_EX_DLGMODALFRAME, dpi_);
     const int ww = wr.right - wr.left;
     const int wh = wr.bottom - wr.top;
     RECT orc = { 0, 0, 0, 0 };
@@ -50,8 +52,10 @@ void ModalDialog::RunModal(HWND owner, const wchar_t* class_name,
 
     BuildControls(hwnd_);
     emu_.Get<HostDarkMode>().ApplyToDialog(hwnd_);
+    ApplyDpiFont();
     ShowWindow(hwnd_, SW_SHOW);
     SetForegroundWindow(hwnd_);
+    OnShown();
 
     MSG msg;
     while (!done_ && GetMessageW(&msg, nullptr, 0, 0)) {
@@ -63,8 +67,23 @@ void ModalDialog::RunModal(HWND owner, const wchar_t* class_name,
 
     DestroyWindow(hwnd_);
     hwnd_ = nullptr;
+    if (dpi_font_) { DeleteObject(dpi_font_); dpi_font_ = nullptr; }
     EnableWindow(owner, TRUE);
     SetForegroundWindow(owner);
+}
+
+BOOL CALLBACK ModalDialog::SetChildFontProc(HWND child, LPARAM font) {
+    SendMessageW(child, WM_SETFONT, (WPARAM)font, TRUE);
+    return TRUE;
+}
+
+void ModalDialog::ApplyDpiFont() {
+    if (!DpiScaledLayout()) return;
+    NONCLIENTMETRICSW ncm = { sizeof(ncm) };
+    if (!emu_.Get<HostDpi>().NonClientMetricsForDpi(ncm, dpi_)) return;
+    dpi_font_ = CreateFontIndirectW(&ncm.lfMessageFont);
+    if (dpi_font_)
+        EnumChildWindows(hwnd_, &ModalDialog::SetChildFontProc, (LPARAM)dpi_font_);
 }
 
 LRESULT ModalDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -97,7 +116,8 @@ LRESULT ModalDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_CTLCOLORDLG:
         case WM_CTLCOLORSTATIC:
         case WM_CTLCOLORBTN:
-        case WM_CTLCOLOREDIT: {
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX: {
             LRESULT br;
             if (emu_.Get<HostDarkMode>().HandleCtlColor(msg, wp, br)) return br;
             break;

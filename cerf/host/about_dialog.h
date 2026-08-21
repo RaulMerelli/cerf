@@ -5,8 +5,6 @@
 #define NOMINMAX
 #include <windows.h>
 
-namespace Gdiplus { class Bitmap; }
-
 class AboutDialog : public Service {
 public:
     using Service::Service;
@@ -27,7 +25,6 @@ private:
     void CreateFonts();
     void BuildControls(HWND hwnd, bool with_device);
     void ApplyCustomFonts();      /* after HostDarkMode stomps the UI font */
-    void PaintBand(HDC dc, int origin_x, int origin_y);
 
     int S(int v) const;
 
@@ -39,7 +36,6 @@ private:
     UINT dpi_ = USER_DEFAULT_SCREEN_DPI;
     int  layout_drop_ = 0;
 
-    Gdiplus::Bitmap* band_ = nullptr;
     int  band_px_w_ = 0;
     int  band_px_h_ = 0;
 

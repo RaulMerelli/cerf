@@ -9,6 +9,7 @@
 #include "../core/log.h"
 #include "../jit/jit_runner.h"
 #include "../peripherals/cerf_virt/cerf_virt_framebuffer.h"
+#include "../state/shutdown_action.h"
 #include "../state/shutdown_dialog.h"
 #include "host_auto_resize.h"
 #include "frame_renderer.h"
@@ -21,7 +22,6 @@
 #include "host_widget_registry.h"
 #include "initial_window_size.h"
 #include "window_title.h"
-#include "../state/hibernation.h"
 
 REGISTER_SERVICE(HostWindow);
 
@@ -216,22 +216,9 @@ void HostWindow::RefitIfFollowingGuest() {
 
 void HostWindow::RunShutdownPrompt() {
     const ShutdownChoice c = emu_.Get<ShutdownDialog>().Show();
-    if (c == ShutdownChoice::Cancel) {
-        shutdown_pending_ = false;   /* user aborted close; allow a later one */
-        return;
-    }
-    PerformShutdownChoice(c);
-}
-
-void HostWindow::PerformShutdownChoice(ShutdownChoice c) {
-    if (c == ShutdownChoice::ExitSave) {
-        ShowHwScreenTab(false);          /* render the save-progress screen */
-        emu_.Get<Hibernation>().SaveAsync(L"", [this] {
-            RunOnUiThread([this] { BeginShutdownTeardown(); });
-        });
-        return;
-    }
-    BeginShutdownTeardown();
+    if (c != ShutdownChoice::Exit && c != ShutdownChoice::ExitSave)
+        shutdown_pending_ = false;
+    emu_.Get<ShutdownAction>().Perform(c);
 }
 
 void HostWindow::BeginShutdownTeardown() {

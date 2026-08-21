@@ -2,16 +2,15 @@
 #include "about_dialog.h"
 
 #include <commctrl.h>
-#include <gdiplus.h>
 
 #include "../boards/board_context.h"
 #include "../core/cerf_emulator.h"
 #include "../core/string_utils.h"
 #include "../version.h"
 #include "about_credits.h"
+#include "dialog_band.h"
 #include "host_dark_mode.h"
 #include "host_dpi.h"
-#include "host_gdiplus.h"
 #include "host_link_opener.h"
 #include "host_window.h"
 
@@ -26,10 +25,6 @@ AboutDialog::~AboutDialog() {
 namespace {
 
 constexpr wchar_t kClass[] = L"CerfAboutDlg";
-
-/* cerf/assets/icons_sources/about_band.svg */
-constexpr int kBandDipW = 400;
-constexpr int kBandDipH = 112;
 
 constexpr int kTitleDy   = 16;
 constexpr int kTitleH    = 28;
@@ -53,15 +48,6 @@ enum : int {
     IDC_COPYRIGHT,
     IDC_LINKS,
 };
-
-const wchar_t* BandResourceForDpi(UINT dpi) {
-    const int pct = MulDiv(100, (int)dpi, USER_DEFAULT_SCREEN_DPI);
-    if (pct <= 100) return L"ABOUT_BAND_100";
-    if (pct <= 125) return L"ABOUT_BAND_125";
-    if (pct <= 150) return L"ABOUT_BAND_150";
-    if (pct <= 200) return L"ABOUT_BAND_200";
-    return L"ABOUT_BAND_300";
-}
 
 }  /* namespace */
 
@@ -203,19 +189,6 @@ void AboutDialog::ApplyCustomFonts() {
         SendMessageW(build_, WM_SETFONT, (WPARAM)small_font_, TRUE);
 }
 
-void AboutDialog::PaintBand(HDC dc, int origin_x, int origin_y) {
-    if (!band_) return;
-    const UINT bw = band_->GetWidth(), bh = band_->GetHeight();
-    if (bw == 0 || bh == 0) return;
-
-    Gdiplus::Graphics g(dc);
-    g.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
-    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-
-    Gdiplus::Rect dst(-origin_x, -origin_y, (int)bw, (int)bh);
-    g.DrawImage(band_, dst, 0, 0, (int)bw, (int)bh, Gdiplus::UnitPixel);
-}
-
 void AboutDialog::Show() {
     Run(emu_.Get<HostWindow>().Hwnd(), true);
 }
@@ -234,13 +207,9 @@ void AboutDialog::Run(HWND owner, bool with_device) {
         with_device && emu_.Get<BoardContext>().GetBoard() != Board::Unknown;
     layout_drop_ = show_device ? 0 : kNoDeviceDrop;
 
-    band_ = emu_.Get<HostGdiPlus>().DecodeResourcePng(BandResourceForDpi(dpi_));
-    band_px_w_ = band_ ? (int)band_->GetWidth()  : 0;
-    band_px_h_ = band_ ? (int)band_->GetHeight() : 0;
-    if (band_px_w_ <= 0 || band_px_h_ <= 0) {
-        band_px_w_ = S(kBandDipW);
-        band_px_h_ = S(kBandDipH);
-    }
+    auto& band = emu_.Get<DialogBand>();
+    band_px_w_ = band.PixelWidth(dpi_);
+    band_px_h_ = band.PixelHeight(dpi_);
     const int clientH = band_px_h_ + S(kContentH - layout_drop_);
 
     const DWORD style = WS_CAPTION | WS_SYSMENU | WS_DLGFRAME | WS_POPUP;
@@ -261,7 +230,6 @@ void AboutDialog::Run(HWND owner, bool with_device) {
                             GetModuleHandleW(nullptr), this);
     if (!hwnd_) {
         EnableWindow(owner, TRUE);
-        delete band_; band_ = nullptr;
         return;
     }
 
@@ -282,7 +250,6 @@ void AboutDialog::Run(HWND owner, bool with_device) {
 
     DestroyWindow(hwnd_);
     hwnd_ = nullptr;
-    delete band_; band_ = nullptr;
     if (title_font_) { DeleteObject(title_font_); title_font_ = nullptr; }
     if (ui_font_)    { DeleteObject(ui_font_);    ui_font_ = nullptr; }
     if (small_font_) { DeleteObject(small_font_); small_font_ = nullptr; }
@@ -307,7 +274,7 @@ LRESULT AboutDialog::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                                         : GetSysColorBrush(COLOR_BTNFACE);
                 RECT fr = { 0, 0, w, h };
                 FillRect(mem, &fr, bg);
-                PaintBand(mem, rc.left, rc.top);
+                emu_.Get<DialogBand>().Paint(mem, dpi_, rc.left, rc.top);
                 BitBlt(dc, rc.left, rc.top, w, h, mem, 0, 0, SRCCOPY);
                 SelectObject(mem, ob);
                 DeleteObject(bmp);
