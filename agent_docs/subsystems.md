@@ -509,31 +509,6 @@ CERF uses `bundled/devices` locally, because the build syncs it into
 `build\release\win32\devices`. Regular users have the launcher inside the
 build directory and sync the devices folder there.
 
-## Launcher
-
-`launcher/` is a standalone Python/tkinter GUI (packaged to `launcher.exe`
-with PyInstaller). It is not a `CerfEmulator` service. It is a separate
-host-side tool.
-
-It syncs public ROM bundles into `bundled/devices/` from a remote manifest.
-It authors the `cerf.json` of each installed bundle from the `cerf_json` of
-the manifest and reconciles that file on refresh. It boots a selected device
-through `cerf.exe`. It runs a release self-update check against the repo-root
-`.last-release-version`. It owns the developer-editable supported-boards /
-board-quirk list (`supported_devices.py`). The per-board `notes` in that list
-appear in the side panel and extend the `cerf.json` notes of a ROM.
-
-**The launcher ships on CPython 3.7.9** (the newest that loads on its Windows
-Vista floor - see `launcher/build.ps1`). Every `launcher/*.py` must therefore
-stay 3.7-compatible. Use no 3.8+ stdlib or syntax (`Path.unlink(missing_ok=)`,
-`str.removeprefix`/`removesuffix`, `math.isqrt`, the walrus `:=`, …). A 3.8+
-call passes on the modern Python of a developer, but it crashes the shipped
-exe at runtime. Run the cached 3.7 interpreter of the repo
-(`references/python/cpython-3.7.9-x86/python.exe`) to verify.
-
-- `launcher/` (`launcher.py`, `bundles.py`, `operations.py`,
-`supported_devices.py`)
-
 ## CE Apps - CERF-built CE binaries
 
 The `ce_apps/<name>/` directories build small Windows CE EXEs and DLLs

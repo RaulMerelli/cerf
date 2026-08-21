@@ -21,9 +21,9 @@ public:
         return emu_.Get<DeviceConfig>().guest_additions;
     }
 
-    /* Seeds initial enabled/path from the --share-folder= flag (DeviceConfig);
-       the widget still toggles it live afterwards. */
     void OnReady() override;
+
+    void ApplyFromConfig();
 
     bool         Enabled()    const { return enabled_.load(std::memory_order_relaxed); }
     uint32_t     Generation() const { return generation_.load(std::memory_order_relaxed); }

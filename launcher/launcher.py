@@ -14,6 +14,7 @@ from app_paths import resolve_cerf_exe, resolve_devices_dir
 from cli_console import attach_parent_console
 from launcher_cli import run_cli
 from operations import BundleManager
+from transactional import TRANSACTIONAL_COMMAND, run_transactional
 from ui_theme import enable_dpi_awareness
 from upgrade_cli import (INSTALL_STAGE, POST_UPGRADE_STAGE, parse_stage,
                          run_install_stage, run_post_upgrade)
@@ -29,6 +30,10 @@ def main(argv: List[str]) -> int:
     if upgraded:
         enable_dpi_awareness()
         run_post_upgrade(wait_pid)
+
+    if bool(argv) and argv[0] == TRANSACTIONAL_COMMAND:
+        enable_dpi_awareness()
+        return run_transactional(argv[1:])
 
     cli = bool(argv) and argv[0] == "sync"
     if cli:

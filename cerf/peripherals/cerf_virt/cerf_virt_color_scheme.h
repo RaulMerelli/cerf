@@ -22,6 +22,8 @@ public:
     void RestoreState(StateReader& r) override;
 
 private:
+    void ApplyFromConfig();
+
     std::array<uint32_t, CerfVirt::kColorSchemeMax> entries_{};
     uint32_t count_ = 0;
     bool present_ = false;

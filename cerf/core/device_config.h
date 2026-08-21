@@ -42,6 +42,9 @@ enum class CanvasTab {
     MemoryVisualizer,/* dev memory visualizer */
 };
 
+constexpr uint32_t kDefaultConfigurableScreenWidth  = 800;
+constexpr uint32_t kDefaultConfigurableScreenHeight = 600;
+
 struct DeviceConfig : public Service {
     using Service::Service;
 
@@ -55,8 +58,8 @@ struct DeviceConfig : public Service {
 
     DeviceMeta meta;
 
-    uint32_t board_configurable_screen_width  = 800;
-    uint32_t board_configurable_screen_height = 600;
+    uint32_t board_configurable_screen_width  = kDefaultConfigurableScreenWidth;
+    uint32_t board_configurable_screen_height = kDefaultConfigurableScreenHeight;
 
     /* Guest-additions display DPI override (logical pixels/inch) from
        --screen-dpi / cerf.json board.configurable_screen_dpi. 0 = no override:

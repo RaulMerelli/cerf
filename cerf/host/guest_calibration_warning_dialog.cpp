@@ -3,7 +3,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
-#include "change_resolution_dialog.h"
+#include "customizations_transaction.h"
 #include "host_dark_mode.h"
 #include "host_icon_cache.h"
 #include "host_window.h"
@@ -161,7 +161,7 @@ void GuestCalibrationWarningDialog::OnCommand(int id, int) {
         choice_ = CalibWarningChoice::SwitchToStock;
         Finish();
     } else if (id == IDC_CHANGE_RES) {
-        if (emu_.Get<ChangeResolutionDialog>().Show(Hwnd(), true)) Finish();
+        if (emu_.Get<CustomizationsTransaction>().Open(Hwnd(), true)) Finish();
     } else if (id == IDCANCEL) {
         Finish();
     }

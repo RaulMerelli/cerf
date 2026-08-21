@@ -6,6 +6,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../socs/guest_cpu_reset.h"
 #include "../../state/state_stream.h"
 
 #include <string>
@@ -147,21 +148,29 @@ bool CerfVirtColorScheme::ShouldRegister() {
 }
 
 void CerfVirtColorScheme::OnReady() {
-    const std::string& key = emu_.Get<DeviceConfig>().guest_additions_color_scheme;
-    if (!key.empty()) {
-        SchemeTable st = ResolveTable(key);
-        if (!st.data) {
-            LOG(GuestAdditions, "unknown --ga-color-scheme key '%s'", key.c_str());
-            CerfFatalExit();
-        }
-        count_ = st.count;
-        for (uint32_t i = 0; i < count_ && i < CerfVirt::kColorSchemeMax; ++i)
-            entries_[i] = st.data[i];
-        present_ = true;
-        LOG(GuestAdditions, "color scheme override: '%s' published (%u entries)",
-            key.c_str(), count_);
-    }
+    ApplyFromConfig();
+    emu_.Get<GuestCpuReset>().RegisterResetListener(
+        [this](ResetLineKind) { ApplyFromConfig(); });
     emu_.Get<PeripheralDispatcher>().Register(this);
+}
+
+void CerfVirtColorScheme::ApplyFromConfig() {
+    const std::string& key = emu_.Get<DeviceConfig>().guest_additions_color_scheme;
+    count_   = 0;
+    present_ = false;
+    if (key.empty()) return;
+
+    SchemeTable st = ResolveTable(key);
+    if (!st.data) {
+        LOG(GuestAdditions, "unknown --ga-color-scheme key '%s'", key.c_str());
+        CerfFatalExit();
+    }
+    count_ = st.count;
+    for (uint32_t i = 0; i < count_ && i < CerfVirt::kColorSchemeMax; ++i)
+        entries_[i] = st.data[i];
+    present_ = true;
+    LOG(GuestAdditions, "color scheme override: '%s' published (%u entries)",
+        key.c_str(), count_);
 }
 
 uint32_t CerfVirtColorScheme::MmioBase() const {

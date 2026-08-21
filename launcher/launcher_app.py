@@ -67,7 +67,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         icon = resolve_icon()
         if icon is not None:
             try:
-                self.iconbitmap(str(icon))
+                self.iconbitmap(default=str(icon))
             except tk.TclError:
                 pass
 
@@ -77,6 +77,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         self.cancel_event = threading.Event()
         self.busy = False
         self.catalog_loading = False
+        self._was_running = False
 
         self._build_ui()
         theme.apply_titlebar(self)
@@ -238,7 +239,11 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
     def _poll_runtime(self) -> None:
         self.tree_panel.update_runtime()
         sel = self.tree_panel.selection()
-        self.split.set_running(self._running_status_for(sel.device) is not None)
+        running = self._running_status_for(sel.device) is not None
+        if self._was_running and not running and sel.device is not None:
+            self.launch_options.set_device(sel.device)
+        self._was_running = running
+        self.split.set_running(running)
         self.preview.refresh()
         self._refresh_selection_state()
         self.after(2500, self._poll_runtime)
@@ -248,9 +253,8 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         if sys.platform != "win32":
             return
         try:
-            self.update_idletasks()
             user32 = ctypes.windll.user32
-            hwnd = user32.GetParent(self.winfo_id()) or self.winfo_id()
+            hwnd = theme.window_hwnd(self)
             self._theme_hwnd = hwnd
             lresult = ctypes.c_ssize_t
             self._wndproc_type = ctypes.WINFUNCTYPE(
@@ -262,10 +266,7 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
             self._call_wndproc.argtypes = [
                 ctypes.c_void_p, wintypes.HWND, wintypes.UINT,
                 ctypes.c_size_t, ctypes.c_ssize_t]
-            set_long = user32.SetWindowLongPtrW
-            set_long.restype = ctypes.c_void_p
-            set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
-            self._old_wndproc = set_long(
+            self._old_wndproc = theme.set_window_long(
                 hwnd, _GWLP_WNDPROC,
                 ctypes.cast(self._wndproc, ctypes.c_void_p))
         except (OSError, AttributeError):
@@ -476,13 +477,9 @@ class LauncherApp(OperationsMixin, RefreshMixin, SpawnMixin, tk.Tk):
         old = getattr(self, "_old_wndproc", None)
         if old and sys.platform == "win32":
             try:
-                set_long = ctypes.windll.user32.SetWindowLongPtrW
-                set_long.restype = ctypes.c_void_p
-                set_long.argtypes = [wintypes.HWND, ctypes.c_int,
-                                     ctypes.c_void_p]
-                set_long(self._theme_hwnd, _GWLP_WNDPROC, old)
+                theme.set_window_long(self._theme_hwnd, _GWLP_WNDPROC, old)
                 self._old_wndproc = None
-            except OSError:
+            except (OSError, AttributeError):
                 pass
         self.cancel_event.set()
         self.manager.shutdown()

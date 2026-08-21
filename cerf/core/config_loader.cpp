@@ -1,6 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "config_loader.h"
 #include "cerf_emulator.h"
+#include "config_json.h"
+#include "config_mutable_fields.h"
 #include "main_config.h"
 #include "log.h"
 #include "cerf_paths.h"
@@ -16,64 +18,15 @@ REGISTER_SERVICE(ConfigLoader);
 
 namespace {
 
-[[noreturn]] void Fatal(const std::string& path, const std::string& msg) {
-    LOG(Caution, "FATAL: '%s' %s\n", path.c_str(), msg.c_str());
-    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-}
-
-json ReadJsonFile(const std::string& path) {
-    std::ifstream f(path);
-    if (!f.is_open()) return json();
-    json j;
-    try {
-        f >> j;
-    } catch (const std::exception& e) {
-        Fatal(path, std::string("JSON parse error: ") + e.what());
-    }
-    if (!j.is_object())
-        Fatal(path, "top-level value must be a JSON object");
-    return j;
-}
-
-std::string ReadOptString(const json& obj, const char* key,
-                          const std::string& path, const std::string& ctx) {
-    if (!obj.contains(key)) return {};
-    const auto& v = obj[key];
-    if (v.is_null()) return {};
-    if (!v.is_string())
-        Fatal(path, ctx + "." + key + " must be a string (or null)");
-    return v.get<std::string>();
-}
-
-int ReadOptInt(const json& obj, const char* key,
-               const std::string& path, const std::string& ctx) {
-    if (!obj.contains(key)) return 0;
-    const auto& v = obj[key];
-    if (v.is_null()) return 0;
-    if (!v.is_number_integer())
-        Fatal(path, ctx + "." + key + " must be an integer");
-    return v.get<int>();
-}
-
-bool ReadOptBool(const json& obj, const char* key,
-                 const std::string& path, const std::string& ctx) {
-    if (!obj.contains(key)) return false;
-    const auto& v = obj[key];
-    if (v.is_null()) return false;
-    if (!v.is_boolean())
-        Fatal(path, ctx + "." + key + " must be a boolean");
-    return v.get<bool>();
-}
-
 void SetMetaString(std::string& field, const json& obj, const char* key,
                    const std::string& path, const std::string& ctx) {
-    std::string v = ReadOptString(obj, key, path, ctx);
+    std::string v = CfgReadOptString(obj, key, path, ctx);
     if (!v.empty()) field = std::move(v);
 }
 
 void SetMetaInt(int& field, const json& obj, const char* key,
                 const std::string& path, const std::string& ctx) {
-    int v = ReadOptInt(obj, key, path, ctx);
+    int v = CfgReadOptInt(obj, key, path, ctx);
     if (v) field = v;
 }
 
@@ -81,7 +34,7 @@ void LoadMeta(const json& root, DeviceMeta& meta, const std::string& path) {
     if (!root.contains("meta")) return;
     const auto& m = root["meta"];
     if (!m.is_object())
-        Fatal(path, "'meta' must be an object");
+        CfgFatal(path, "'meta' must be an object");
 
     SetMetaString(meta.name,        m, "name",        path, "meta");
     SetMetaString(meta.device_name, m, "device_name", path, "meta");
@@ -90,7 +43,7 @@ void LoadMeta(const json& root, DeviceMeta& meta, const std::string& path) {
     if (m.contains("os")) {
         const auto& o = m["os"];
         if (!o.is_object())
-            Fatal(path, "'meta.os' must be an object");
+            CfgFatal(path, "'meta.os' must be an object");
         SetMetaString(meta.os_name,      o, "name",      path, "meta.os");
         SetMetaInt   (meta.os_ver_major, o, "ver_major", path, "meta.os");
         SetMetaInt   (meta.os_ver_minor, o, "ver_minor", path, "meta.os");
@@ -101,47 +54,16 @@ void LoadBoard(const json& root, DeviceConfig& config, const std::string& path) 
     if (!root.contains("board")) return;
     const auto& b = root["board"];
     if (!b.is_object())
-        Fatal(path, "'board' must be an object");
+        CfgFatal(path, "'board' must be an object");
 
     if (b.contains("id"))
-        config.board_id = ReadOptString(b, "id", path, "board");
+        config.board_id = CfgReadOptString(b, "id", path, "board");
 
-    if (b.contains("configurable_screen_width")) {
-        int n = ReadOptInt(b, "configurable_screen_width", path, "board");
-        if (n < 1)
-            Fatal(path, "board.configurable_screen_width must be >= 1");
-        config.board_configurable_screen_width = (uint32_t)n;
-        config.board_configurable_screen_explicit = true;
-    }
-    if (b.contains("configurable_screen_height")) {
-        int n = ReadOptInt(b, "configurable_screen_height", path, "board");
-        if (n < 1)
-            Fatal(path, "board.configurable_screen_height must be >= 1");
-        config.board_configurable_screen_height = (uint32_t)n;
-        config.board_configurable_screen_explicit = true;
-    }
-    if (b.contains("configurable_screen_dpi")) {
-        int n = ReadOptInt(b, "configurable_screen_dpi", path, "board");
-        if (n < 1)
-            Fatal(path, "board.configurable_screen_dpi must be >= 1");
-        config.screen_dpi = (uint32_t)n;
-    }
-    if (b.contains("configurable_screen_bpp")) {
-        int n = ReadOptInt(b, "configurable_screen_bpp", path, "board");
-        if (n < 1)
-            Fatal(path, "board.configurable_screen_bpp must be >= 1");
-        config.board_configurable_screen_bpp = (uint32_t)n;
-    }
+    CfgLoadMutableScreenFields(b, config, path);
 }
 
 void LoadFeatures(const json& root, DeviceConfig& config, const std::string& path) {
-    if (root.contains("share_folder")) {
-        const auto& v = root["share_folder"];
-        if (v.is_string())
-            config.share_folder = v.get<std::string>();
-        else if (!v.is_null())
-            Fatal(path, "'share_folder' must be a string (or null)");
-    }
+    CfgLoadShareFolder(root, config, path);
     if (root.contains("guest_additions")) {
         const auto& ga = root["guest_additions"];
         if (ga.is_boolean()) {
@@ -149,29 +71,23 @@ void LoadFeatures(const json& root, DeviceConfig& config, const std::string& pat
         } else if (ga.is_object()) {
             if (ga.contains("enabled")) {
                 if (!ga["enabled"].is_boolean())
-                    Fatal(path, "'guest_additions.enabled' must be a boolean");
+                    CfgFatal(path, "'guest_additions.enabled' must be a boolean");
                 config.guest_additions = ga["enabled"].get<bool>();
             }
-            if (ga.contains("override_color_scheme")) {
-                const auto& cs = ga["override_color_scheme"];
-                if (cs.is_string())
-                    config.guest_additions_color_scheme = cs.get<std::string>();
-                else if (!cs.is_null())
-                    Fatal(path, "'guest_additions.override_color_scheme' must be a string (or null)");
-            }
+            CfgLoadColorScheme(ga, config, path);
         } else {
-            Fatal(path, "'guest_additions' must be a boolean or an object");
+            CfgFatal(path, "'guest_additions' must be a boolean or an object");
         }
     }
     if (root.contains("full_screen")) {
         if (!root["full_screen"].is_boolean())
-            Fatal(path, "'full_screen' must be a boolean");
+            CfgFatal(path, "'full_screen' must be a boolean");
         config.start_fullscreen = root["full_screen"].get<bool>();
     }
     const char* k = "adopt_guest_additions_resolution_for_host_screen";
     if (root.contains(k)) {
         if (!root[k].is_boolean())
-            Fatal(path, std::string("'") + k + "' must be a boolean");
+            CfgFatal(path, std::string("'") + k + "' must be a boolean");
         config.adopt_guest_additions_resolution_for_host_screen = root[k].get<bool>();
     }
 }
@@ -180,32 +96,32 @@ void LoadNetwork(const json& root, DeviceConfig& config, const std::string& path
     if (!root.contains("network")) return;
     const auto& n = root["network"];
     if (!n.is_object())
-        Fatal(path, "'network' must be an object");
+        CfgFatal(path, "'network' must be an object");
 
     if (n.contains("enabled")) {
         if (!n["enabled"].is_boolean())
-            Fatal(path, "network.enabled must be a boolean");
+            CfgFatal(path, "network.enabled must be a boolean");
         config.network_enabled = n["enabled"].get<bool>();
     }
     if (n.contains("mac")) {
-        std::string v = ReadOptString(n, "mac", path, "network");
+        std::string v = CfgReadOptString(n, "mac", path, "network");
         unsigned b[6] = {};
         int got = std::sscanf(v.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X",
                               &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]);
         if (got != 6)
-            Fatal(path, "network.mac '" + v + "' must be XX:XX:XX:XX:XX:XX hex");
+            CfgFatal(path, "network.mac '" + v + "' must be XX:XX:XX:XX:XX:XX hex");
         config.network_mac = v;
     }
     if (n.contains("mtu")) {
-        int mtu = ReadOptInt(n, "mtu", path, "network");
+        int mtu = CfgReadOptInt(n, "mtu", path, "network");
         if (mtu < 64 || mtu > 9000)
-            Fatal(path, "network.mtu out of range (64..9000)");
+            CfgFatal(path, "network.mtu out of range (64..9000)");
         config.network_mtu = (uint32_t)mtu;
     }
     if (n.contains("forward_tcp"))
-        config.network_forward_tcp = ReadOptString(n, "forward_tcp", path, "network");
+        config.network_forward_tcp = CfgReadOptString(n, "forward_tcp", path, "network");
     if (n.contains("forward_udp"))
-        config.network_forward_udp = ReadOptString(n, "forward_udp", path, "network");
+        config.network_forward_udp = CfgReadOptString(n, "forward_udp", path, "network");
 }
 
 void SplitCommaList(const std::string& v, std::vector<std::string>& out) {
@@ -228,14 +144,14 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
     if (!root.contains("rom")) return;
     const auto& r = root["rom"];
     if (!r.is_object())
-        Fatal(path, "'rom' must be an object");
+        CfgFatal(path, "'rom' must be an object");
 
     if (r.contains("primary"))
-        config.rom_primary = ReadOptString(r, "primary", path, "rom");
+        config.rom_primary = CfgReadOptString(r, "primary", path, "rom");
     if (r.contains("eeprom"))
-        config.rom_eeprom = ReadOptString(r, "eeprom", path, "rom");
+        config.rom_eeprom = CfgReadOptString(r, "eeprom", path, "rom");
     if (r.contains("recovery"))
-        config.rom_recovery = ReadOptString(r, "recovery", path, "rom");
+        config.rom_recovery = CfgReadOptString(r, "recovery", path, "rom");
     if (r.contains("extensions")) {
         const auto& e = r["extensions"];
         config.rom_extensions.clear();
@@ -244,11 +160,11 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
         } else if (e.is_array()) {
             for (const auto& item : e) {
                 if (!item.is_string())
-                    Fatal(path, "rom.extensions[] entries must be strings");
+                    CfgFatal(path, "rom.extensions[] entries must be strings");
                 config.rom_extensions.push_back(item.get<std::string>());
             }
         } else if (!e.is_null()) {
-            Fatal(path, "rom.extensions must be a string or array of strings");
+            CfgFatal(path, "rom.extensions must be a string or array of strings");
         }
     }
 }
@@ -261,7 +177,7 @@ void LoadAdditionalPackages(const json& root, DeviceConfig& config,
     const auto& p = root["additional_packages"];
     if (p.is_null()) return;
     if (!p.is_object())
-        Fatal(path, "'additional_packages' must be an object");
+        CfgFatal(path, "'additional_packages' must be an object");
 
     const char* k = "compact_flash_cards";
     if (!p.contains(k)) return;
@@ -269,18 +185,18 @@ void LoadAdditionalPackages(const json& root, DeviceConfig& config,
     if (a.is_null()) return;
     const std::string ctx = std::string("additional_packages.") + k;
     if (!a.is_array())
-        Fatal(path, "'" + ctx + "' must be an array of "
+        CfgFatal(path, "'" + ctx + "' must be an array of "
                     "{ \"file\": ..., \"name\": ... } objects");
     config.bundled_compact_flash_cards.clear();
     for (const auto& e : a) {
         if (!e.is_object())
-            Fatal(path, ctx + "[] entries must be objects");
+            CfgFatal(path, ctx + "[] entries must be objects");
         BundledCompactFlashCard card;
-        card.file = ReadOptString(e, "file", path, ctx);
-        card.name = ReadOptString(e, "name", path, ctx);
-        card.insert_on_launch = ReadOptBool(e, "insert_on_launch", path, ctx);
+        card.file = CfgReadOptString(e, "file", path, ctx);
+        card.name = CfgReadOptString(e, "name", path, ctx);
+        card.insert_on_launch = CfgReadOptBool(e, "insert_on_launch", path, ctx);
         if (card.file.empty())
-            Fatal(path, ctx + "[].file is required");
+            CfgFatal(path, ctx + "[].file is required");
         if (card.name.empty()) card.name = card.file;
         config.bundled_compact_flash_cards.push_back(std::move(card));
     }
@@ -292,12 +208,12 @@ void LoadGlobalSubstitutions(const json& root, DeviceConfig& config,
     if (!root.contains(k)) return;
     const auto& a = root[k];
     if (!a.is_array())
-        Fatal(path, std::string("'") + k + "' must be an array of "
+        CfgFatal(path, std::string("'") + k + "' must be an array of "
                     "ROM display-driver module names");
     config.guest_additions_victims.clear();
     for (const auto& v : a) {
         if (!v.is_string())
-            Fatal(path, std::string(k) + "[] must be a string "
+            CfgFatal(path, std::string(k) + "[] must be a string "
                         "(ROM module name)");
         config.guest_additions_victims.push_back(v.get<std::string>());
     }
@@ -313,21 +229,21 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
     std::string device_name;
     const std::string top_path = GetCerfDir() + "cerf.json";
     {
-        json j = ReadJsonFile(top_path);
+        json j = CfgReadJsonFile(top_path);
         if (!j.is_null()) {
             if (j.contains("device")) {
                 if (!j["device"].is_string())
-                    Fatal(top_path, "'device' must be a string");
+                    CfgFatal(top_path, "'device' must be a string");
                 device_name = j["device"].get<std::string>();
             }
             if (j.contains("last_save_state_mode")) {
                 if (!j["last_save_state_mode"].is_boolean())
-                    Fatal(top_path, "'last_save_state_mode' must be a boolean");
+                    CfgFatal(top_path, "'last_save_state_mode' must be a boolean");
                 config.last_save_state_mode = j["last_save_state_mode"].get<bool>();
             }
             if (j.contains("discord_rich_presence")) {
                 if (!j["discord_rich_presence"].is_boolean())
-                    Fatal(top_path, "'discord_rich_presence' must be a boolean");
+                    CfgFatal(top_path, "'discord_rich_presence' must be a boolean");
                 config.discord_rich_presence = j["discord_rich_presence"].get<bool>();
             }
             LoadGlobalSubstitutions(j, config, top_path);
@@ -339,7 +255,7 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
     config.device_name = device_name;
 
     const std::string dev_path = GetDeviceDir(device_name) + "cerf.json";
-    json dev = ReadJsonFile(dev_path);
+    json dev = CfgReadJsonFile(dev_path);
     if (dev.is_null()) {
         LOG(Cfg, "No device config: %s (using DeviceConfig defaults)\n", dev_path.c_str());
     } else {
@@ -353,7 +269,7 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
     }
 
     const std::string user_path = GetDeviceDir(device_name) + "cerf-user.json";
-    json user = ReadJsonFile(user_path);
+    json user = CfgReadJsonFile(user_path);
     if (!user.is_null()) {
         LOG(Cfg, "Loading user device config: %s\n", user_path.c_str());
         LoadMeta    (user, config.meta, user_path);
@@ -382,28 +298,28 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             config.boot_in_recovery = true;
         } else if (strncmp(a, kArgScreenWidth, sizeof(kArgScreenWidth) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenWidth) - 1);
-            if (n < 1) Fatal("(command line)", "--screen-width must be >= 1");
+            if (n < 1) CfgFatal("(command line)", "--screen-width must be >= 1");
             config.board_configurable_screen_width = (uint32_t)n;
             config.board_configurable_screen_explicit = true;
             /* An explicit size is authoritative over the host-screen fit. */
             config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgScreenHeight, sizeof(kArgScreenHeight) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenHeight) - 1);
-            if (n < 1) Fatal("(command line)", "--screen-height must be >= 1");
+            if (n < 1) CfgFatal("(command line)", "--screen-height must be >= 1");
             config.board_configurable_screen_height = (uint32_t)n;
             config.board_configurable_screen_explicit = true;
             config.adopt_guest_additions_resolution_for_host_screen = false;
         } else if (strncmp(a, kArgScreenDpi, sizeof(kArgScreenDpi) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenDpi) - 1);
-            if (n < 1) Fatal("(command line)", "--screen-dpi must be >= 1");
+            if (n < 1) CfgFatal("(command line)", "--screen-dpi must be >= 1");
             config.screen_dpi = (uint32_t)n;
         } else if (strncmp(a, kArgScreenBpp, sizeof(kArgScreenBpp) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenBpp) - 1);
-            if (n < 1) Fatal("(command line)", "--screen-bpp must be >= 1");
+            if (n < 1) CfgFatal("(command line)", "--screen-bpp must be >= 1");
             config.board_configurable_screen_bpp = (uint32_t)n;
         } else if (strncmp(a, kArgScreenRefreshRate, sizeof(kArgScreenRefreshRate) - 1) == 0) {
             int n = atoi(a + sizeof(kArgScreenRefreshRate) - 1);
-            if (n < 1) Fatal("(command line)", "--screen-refresh-rate must be >= 1");
+            if (n < 1) CfgFatal("(command line)", "--screen-refresh-rate must be >= 1");
             config.screen_refresh_rate = (uint32_t)n;
         } else if (strncmp(a, kArgShareFolder, sizeof(kArgShareFolder) - 1) == 0) {
             config.share_folder = a + sizeof(kArgShareFolder) - 1;
@@ -416,13 +332,13 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             if      (strcmp(v, "resume") == 0) config.boot_mode = StateBootMode::Resume;
             else if (strcmp(v, "warm")   == 0) config.boot_mode = StateBootMode::Warm;
             else if (strcmp(v, "cold")   == 0) config.boot_mode = StateBootMode::Cold;
-            else Fatal("(command line)", "--boot must be resume, warm, or cold");
+            else CfgFatal("(command line)", "--boot must be resume, warm, or cold");
         } else if (strncmp(a, kArgTab, sizeof(kArgTab) - 1) == 0) {
             const char* v = a + sizeof(kArgTab) - 1;
             if      (strcmp(v, "boot") == 0) config.start_tab = CanvasTab::Boot;
             else if (strcmp(v, "hw")   == 0) config.start_tab = CanvasTab::Hw;
             else if (strcmp(v, "fb")   == 0) config.start_tab = CanvasTab::Framebuffer;
-            else Fatal("(command line)", "--tab must be boot, hw, or fb");
+            else CfgFatal("(command line)", "--tab must be boot, hw, or fb");
         }
     }
 }
@@ -430,7 +346,7 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
 void ConfigLoader::SaveLastSaveStateMode(bool save_state) {
     const std::string top_path = GetCerfDir() + "cerf.json";
 
-    json j = ReadJsonFile(top_path);   /* preserve every existing key */
+    json j = CfgReadJsonFile(top_path);   /* preserve every existing key */
     if (!j.is_object()) j = json::object();
     j["last_save_state_mode"] = save_state;
 

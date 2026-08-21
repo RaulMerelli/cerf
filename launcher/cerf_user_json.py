@@ -123,6 +123,9 @@ def _extract_persist_fields(obj) -> dict:
             out["color_scheme"] = cs
     if isinstance(obj.get("full_screen"), bool):
         out["full_screen"] = obj["full_screen"]
+    sf = obj.get("share_folder")
+    if isinstance(sf, str) and sf:
+        out["share_folder"] = sf
     board = obj.get("board")
     if isinstance(board, dict):
         w = board.get("configurable_screen_width")
@@ -183,6 +186,10 @@ def write_persist_overrides(device_dir: Path, fields: dict) -> None:
             obj["full_screen"] = fields["full_screen"]
         else:
             obj.pop("full_screen", None)
+        if fields.get("share_folder"):
+            obj["share_folder"] = fields["share_folder"]
+        else:
+            obj.pop("share_folder", None)
         board = obj.get("board") if isinstance(obj.get("board"), dict) else {}
         for field, json_key in _PERSIST_BOARD_KEYS.items():
             if field in fields:

@@ -156,14 +156,45 @@ def enable_dpi_awareness() -> None:
         pass
 
 
+GWLP_HWNDPARENT = -8
+
+
+def window_hwnd(window: tk.Misc) -> int:
+    window.update_idletasks()
+    hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
+    if hwnd == 0:
+        hwnd = window.winfo_id()
+    return hwnd
+
+
+def set_window_long(hwnd: int, index: int, value):
+    user32 = ctypes.windll.user32
+    try:
+        set_long = user32.SetWindowLongPtrW
+    except AttributeError:
+        set_long = user32.SetWindowLongW
+    set_long.restype = ctypes.c_void_p
+    set_long.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    return set_long(hwnd, index, value)
+
+
+def set_owner_window(window: tk.Misc, owner_hwnd: int) -> None:
+    if sys.platform != "win32" or not owner_hwnd:
+        return
+    try:
+        hwnd = window_hwnd(window)
+        if hwnd:
+            set_window_long(hwnd, GWLP_HWNDPARENT,
+                            ctypes.c_void_p(int(owner_hwnd)))
+    except (OSError, AttributeError, ValueError):
+        pass
+
+
 def apply_titlebar(window: tk.Misc) -> None:
     if sys.platform != "win32":
         return
     try:
-        window.update_idletasks()
-        hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
-        if hwnd == 0:
-            hwnd = window.winfo_id()
+        hwnd = window_hwnd(window)
         value = ctypes.c_int(1 if IS_DARK else 0)
         if ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, 20, ctypes.byref(value), ctypes.sizeof(value)) != 0:

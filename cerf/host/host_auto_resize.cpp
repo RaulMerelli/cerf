@@ -6,8 +6,9 @@
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
+#include "../core/user_config_writer.h"
 #include "../peripherals/cerf_virt/cerf_virt_resize.h"
-#include "change_resolution_dialog.h"
+#include "customizations_transaction.h"
 #include "guest_additions_ui_policy.h"
 #include "host_icon_cache.h"
 #include "host_widget_registry.h"
@@ -43,6 +44,8 @@ void HostAutoResize::OnUserResizeEnd(uint32_t canvas_w, uint32_t canvas_h) {
     last_w_ = canvas_w;
     last_h_ = canvas_h;
     emu_.Get<CerfVirtResize>().RequestResize(canvas_w, canvas_h);
+    emu_.Get<UserConfigWriter>().WriteConfigurableScreenSize(canvas_w,
+                                                             canvas_h);
 }
 
 std::wstring HostAutoResize::Tooltip() const {
@@ -71,10 +74,10 @@ std::vector<WidgetMenuItem> HostAutoResize::BuildMenu() {
     items.push_back(std::move(taskmgr));
 
     WidgetMenuItem chres;
-    chres.label    = L"Change resolution…";
+    chres.label    = L"Resolution / Customizations…";
     chres.on_click = [this] {
-        emu_.Get<ChangeResolutionDialog>().Show(emu_.Get<HostWindow>().Hwnd(),
-                                                false);
+        emu_.Get<CustomizationsTransaction>().Open(
+            emu_.Get<HostWindow>().Hwnd(), false);
     };
     items.push_back(std::move(chres));
 

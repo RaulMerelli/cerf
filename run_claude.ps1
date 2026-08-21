@@ -107,6 +107,7 @@ $files = @(
     @{ Name = 'agent_docs/debugging.md';             Path = 'agent_docs\debugging.md' }
     @{ Name = 'agent_docs/guest_additions.md';       Path = 'agent_docs\guest_additions.md' }
     @{ Name = 'agent_docs/deep_sleep.md';            Path = 'agent_docs\deep_sleep.md' }
+    @{ Name = 'agent_docs/launcher.md';              Path = 'agent_docs\launcher.md' }
     @{ Name = 'agent_docs/psychological_support.md'; Path = 'agent_docs\psychological_support.md' }
 )
 
