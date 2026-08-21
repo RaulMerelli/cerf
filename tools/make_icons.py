@@ -11,6 +11,8 @@
     wizard    launcher/assets/icons/<stem>.png     64x64 RGBA (New-device wizard pivots)
     toolbar   launcher/assets/icons/<stem>.png     48x48 RGBA (main-window toolbar buttons)
     badges    launcher/assets/icons/badge_<key>.png  CPU-arch badges (no SVG source)
+    band      cerf/assets/about_band_<pct>.png     About-box band, per DPI scale
+    logo      cerf/assets/cerf_1024.png            app mark, cerf.exe + launcher
 
 Each .ico carries every size as its own resvg-rendered frame (vector rendered
 natively at each pixel size, not one bitmap downscaled), so small sizes stay
@@ -67,8 +69,11 @@ CE2_ICO_DITHER = False
 BAND_STEM = "about_band"
 BAND_SCALES = (100, 125, 150, 200, 300)
 
+LOGO_STEM = "cerf"
+LOGO_PX = 1024
+
 TARGETS = ("ico", "ce_ico", "ce2_ico", "launcher", "wizard", "toolbar",
-           "badges", "band")
+           "badges", "band", "logo")
 
 
 def render_image(svg_path, size):
@@ -258,6 +263,22 @@ def build_band(names):
         print(f"{svg.name} -> {out.relative_to(REPO)}  ({w}x{h})")
 
 
+def build_logo(names):
+    """One large square PNG of the app mark.
+
+    Stays a raster: Tk's PhotoImage reads PNG but not SVG, and the launcher's
+    two shipped builds have no runtime SVG rasterizer."""
+    if names and LOGO_STEM not in {Path(n).stem for n in names}:
+        return
+    svg = SRC_DIR / f"{LOGO_STEM}.svg"
+    if not svg.exists():
+        sys.exit(f"source not found: {svg}")
+    ICO_DIR.mkdir(parents=True, exist_ok=True)
+    out = ICO_DIR / f"{LOGO_STEM}_{LOGO_PX}.png"
+    write_if_changed(out, render_png(svg, LOGO_PX))
+    print(f"{svg.name} -> {out.relative_to(REPO)}  ({LOGO_PX}x{LOGO_PX})")
+
+
 def build_launcher_pngs(names):
     stems = launcher_stems()
     if names:
@@ -424,6 +445,8 @@ def main():
         build_toolbar_pngs(args.names)
     if "band" in args.targets:
         build_band(args.names)
+    if "logo" in args.targets:
+        build_logo(args.names)
     if "badges" in args.targets and not args.names:
         build_badges()
 

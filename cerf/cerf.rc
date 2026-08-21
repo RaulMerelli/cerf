@@ -32,7 +32,7 @@ ICON_SERIAL_MODEM        ICON "assets/serial_modem.ico"
 ICON_USB                 ICON "assets/usb.ico"
 ICON_USB_FORD_FLASHER    ICON "assets/usb_ford_flasher.ico"
 
-CERF_LOGO        RCDATA "../gweslab.png"
+CERF_LOGO        RCDATA "assets/cerf_1024.png"
 
 FONT_PLEX_SANS           RCDATA "assets/fonts/IBMPlexSans-Regular.ttf"
 FONT_PLEX_SANS_BOLD      RCDATA "assets/fonts/IBMPlexSans-Bold.ttf"
