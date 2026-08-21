@@ -4,8 +4,7 @@
 #include "include/cerf_gpe.h"
 #include "include/cerf_ddi.h"
 #include "include/cerf_surfobj.h"
-
-#define CERF_CLIP_LIMIT 50
+#include "cerf_ddgpe.h"
 
 const BYTE kCerfMixToRop3[17] = {
     0xFF, 0x00, 0x05, 0x0A, 0x0F, 0x50, 0x55, 0x5A,
@@ -186,6 +185,18 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
     }
     prclTrg = &rclTrg;
 
+    RECTL rclSrcN;
+    if (prclSrc) {
+        rclSrcN = *prclSrc;
+        if (rclSrcN.right < rclSrcN.left) {
+            const LONG t = rclSrcN.right; rclSrcN.right = rclSrcN.left; rclSrcN.left = t;
+        }
+        if (rclSrcN.bottom < rclSrcN.top) {
+            const LONG t = rclSrcN.bottom; rclSrcN.bottom = rclSrcN.top; rclSrcN.top = t;
+        }
+        prclSrc = &rclSrcN;
+    }
+
     GPEBltParms parms;
     memset(&parms, 0, sizeof(parms));
     parms.pDst          = pDst;
@@ -259,11 +270,6 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
         parms.prclMask = &rclMask;
     }
 
-    if (parms.pSrc && parms.pSrc == parms.pDst && prclSrc) {
-        parms.xPositive = (prclSrc->left >= prclTrg->left) ? 1 : 0;
-        parms.yPositive = (prclSrc->top  >= prclTrg->top)  ? 1 : 0;
-    }
-
     SCODE sc = pGPE->BltPrepare(&parms);
     BOOL  ok = !FAILED(sc);
 
@@ -277,9 +283,18 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
             sc = (pGPE->*parms.pBlt)(&parms);
             ok = !FAILED(sc);
         } else {
+            GPESurf* snap = NULL;
+            if (((CerfDDGPE*)pGPE)->BltAliasKind(&parms) != kCerfAliasNone &&
+                !((CerfDDGPE*)pGPE)->SnapshotSource(&parms, &snap)) {
+                pGPE->BltComplete(&parms);
+                if (lookup_owned && parms.pLookup) delete[] parms.pLookup;
+                CerfReleaseSurfaceFormat(pDst);
+                CerfReleaseSurfaceFormat(pSrc);
+                return FALSE;
+            }
             ENUMRECTS ce;
             int more = 1;
-            CLIPOBJ_cEnumStart(pco, FALSE, CT_RECTANGLES, CD_ANY, CERF_CLIP_LIMIT);
+            CLIPOBJ_cEnumStart(pco, FALSE, CT_RECTANGLES, CD_ANY, 0);
             for (ce.c = 0; ce.c || more; ) {
                 if (ce.c == 0) {
                     more = CLIPOBJ_bEnum(pco, sizeof(ce), (ULONG*)&ce);
@@ -288,6 +303,11 @@ BOOL APIENTRY AnyBlt(SURFOBJ* psoTrg, SURFOBJ* psoSrc, SURFOBJ* psoMask,
                 parms.prclClip = &ce.arcl[--ce.c];
                 sc = (pGPE->*parms.pBlt)(&parms);
                 if (FAILED(sc)) { ok = FALSE; break; }
+            }
+            if (snap) {
+                parms.pSrc    = pSrc;
+                parms.prclSrc = prclSrc;
+                delete snap;
             }
         }
     }

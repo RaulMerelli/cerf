@@ -19,7 +19,7 @@ ULONG CerfSpanBytes(int x0, int y0, int x1, int y1, int stride, int bits) {
     return sp;
 }
 
-static int CerfSrcDyAt(int dst_len, int src_len, int k) {
+int CerfSrcDyAt(int dst_len, int src_len, int k) {
     int src_pos = 0, c;
     if (dst_len == src_len) return k;
     if (dst_len > src_len) {
@@ -56,8 +56,8 @@ static void CerfWindowHalt(const char* what, int x0, int y0, int x1, int y1,
     CERF_FATAL(what);
 }
 
-static void CerfClampWindow(int* x0, int* y0, int* x1, int* y1,
-                            const RECTL* bound) {
+void CerfClampWindow(int* x0, int* y0, int* x1, int* y1,
+                     const RECTL* bound) {
     RECTL r;
     r.left = *x0; r.top = *y0; r.right = *x1; r.bottom = *y1;
     CerfRectClamp(&r, bound);
@@ -146,6 +146,10 @@ SCODE CerfDDGPE::BltPrepare(GPEBltParms* p) {
         CERF_LOG_X("cerf_guest: BltPrepare no HW route, dst fmt",
                    (ULONG)(p->pDst ? p->pDst->Format() : 0));
         CERF_FATAL("cerf_guest: BltPrepare has no hardware route - halting");
+    }
+    if (BltAliasKind(p) == kCerfAliasGrid) {
+        p->xPositive = (p->prclSrc->left >= p->prclDst->left) ? 1 : 0;
+        p->yPositive = (p->prclSrc->top  >= p->prclDst->top)  ? 1 : 0;
     }
     p->pBlt = (SCODE (GPE::*)(GPEBltParms*))&CerfDDGPE::HwBlt;
     return S_OK;
@@ -291,6 +295,9 @@ void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1
     if (cgb != 2u) CERF_FATAL("cerf_guest: host blit did not complete - halting");
 }
 
+// Fun fact: touching this shit will cause INTERNAL COMPILER ERROR for mips1 with a 90% chance.
+// It was not a fun fact. There is nothing fun in fixing "ICE". 
+// This driver works on god's support and cosmical/alien energy. 
 SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     ULONG pa;
     if (!p->pDst || !p->prclDst || !CerfConvertibleFmt(p->pDst->Format())) {
@@ -324,6 +331,16 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     if (width  < 0) width  = -width;
     if (height <= 0 || width <= 0) return S_OK;
 
+    GPESurf* const orig_src  = p->pSrc;
+    RECTL*   const orig_rcl  = p->prclSrc;
+    GPESurf* snap = NULL;
+    CerfBandOrder order = kCerfBandDown;
+    if (FAILED(PlanAliasedBlt(p, &order, &snap))) return E_OUTOFMEMORY;
+    if (snap) {
+        src_fb  = false;
+        src_pal = (CerfFormatBpp(p->pSrc->Format()) <= 8) ? true : false;
+    }
+
     const int dl = p->prclDst->left, dt = p->prclDst->top, dr = p->prclDst->right;
     const int dst_stride = (int)p->pDst->Stride();
     const int dst_bits   = CerfFormatBpp(p->pDst->Format());
@@ -346,16 +363,6 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
         mask_bits   = CerfFormatBpp(p->pMask->Format());
     }
 
-    bool overlap = false;
-    if (has_src && !src_fb && !dst_fb &&
-        (ULONG_PTR)p->pSrc->Buffer() == (ULONG_PTR)p->pDst->Buffer()) {
-        const bool y_disjoint = p->prclSrc->bottom <= p->prclDst->top ||
-                                p->prclDst->bottom <= p->prclSrc->top;
-        const bool x_disjoint = p->prclSrc->right  <= p->prclDst->left ||
-                                p->prclDst->right  <= p->prclSrc->left;
-        overlap = !y_disjoint && !x_disjoint;
-    }
-
     ULONG lut_bytes = 0;
     if (has_src && src_pal && p->pLookup)
         lut_bytes = (1u << CerfFormatBpp(p->pSrc->Format())) * (ULONG)sizeof(ULONG);
@@ -374,37 +381,18 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
                          - (ULONG)sizeof(CerfVirt::CerfBltDescriptor)
                          - lut_bytes - brush_span - 64u;
 
-    const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt,
-                               height, src_h, bw, bh,
-                               has_src, has_mask, has_brush, src_pal, use_lut_y };
+    const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt, mr,
+                               height, width, src_h, bw, bh,
+                               dst_stride, dst_bits, src_stride, src_bits,
+                               mask_stride, mask_bits,
+                               has_src, has_mask, has_brush, src_pal, use_lut_y,
+                               dst_fb, src_fb };
 
-    RECTL bclip;
-    CerfEffectiveClip(&bclip, p->prclClip, p->pDst);
-    int cl = dl, cr = dl + width, ct = dt, cb = dt + height;
-    CerfClampWindow(&cl, &ct, &cr, &cb, &bclip);
-    if (cr <= cl || cb <= ct) return S_OK;
-
-    int r0 = 0;
-    while (r0 < height) {
-        int r1 = height;
-        while (!overlap && r1 > r0 + 1) {
-            ULONG t = 0;
-            if (!dst_fb)
-                t += CerfSpanBytes(cl, dt + r0, cr, dt + r1, dst_stride, dst_bits);
-            if (has_src && !src_fb) {
-                const int sy0 = use_lut_y ? CerfSrcDyAt(height, src_h, r0) : r0;
-                const int sy1 = use_lut_y ? CerfSrcDyAt(height, src_h, r1 - 1) : (r1 - 1);
-                t += CerfSpanBytes(sl, st + sy0, sr, st + sy1 + 1, src_stride, src_bits);
-            }
-            if (has_mask)
-                t += CerfSpanBytes(ml, mt + r0, mr, mt + r1, mask_stride, mask_bits);
-            if (t <= budget) break;
-            r1 = r0 + (r1 - r0) / 2;
-        }
-
-        EmitBltBand(band, p, r0, r1);
-
-        r0 = r1;
+    EmitBltBands(band, p, budget, order);
+    if (snap) {
+        p->pSrc    = orig_src;
+        p->prclSrc = orig_rcl;
+        delete snap;
     }
     return S_OK;
 }

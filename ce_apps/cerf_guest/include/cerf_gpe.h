@@ -198,6 +198,7 @@ struct GPEBltParms {
     BLENDFUNCTION blendFunction;
     int           toMono;
     COLOR         monoBg;
+    RECTL         srcSnapshot;
 };
 
 struct GPELineParms {

@@ -27,13 +27,27 @@ struct CerfStageWb { BOOL active; ULONG dst_va; void* arena_ptr; ULONG span; };
 struct CerfBltBand {
     int dl, dt, dr;
     int sl, st, sr;
-    int ml, mt;
-    int height, src_h;
+    int ml, mt, mr;
+    int height, width, src_h;
     int bw, bh;
+    int dst_stride, dst_bits;
+    int src_stride, src_bits;
+    int mask_stride, mask_bits;
     bool has_src, has_mask, has_brush, src_pal, use_lut_y;
+    bool dst_fb, src_fb;
 };
 
+enum CerfBandOrder { kCerfBandDown, kCerfBandUp };
+
+enum CerfAliasKind { kCerfAliasNone, kCerfAliasGrid, kCerfAliasOpaque };
+
 ULONG CerfSpanBytes(int x0, int y0, int x1, int y1, int stride, int bits);
+int   CerfSrcDyAt(int dst_len, int src_len, int k);
+void  CerfClampWindow(int* x0, int* y0, int* x1, int* y1, const RECTL* bound);
+ULONG CerfBandSpanBytes(const CerfBltBand& b, int cl, int cr, int r0, int r1);
+bool  CerfBandClip(const CerfBltBand& b, GPEBltParms* p, int* cl, int* cr);
+int   CerfBandEnd(const CerfBltBand& b, int cl, int cr, ULONG budget, int r0);
+int   CerfBandStart(const CerfBltBand& b, int cl, int cr, ULONG budget, int r1);
 
 inline bool CerfConvertibleFmt(EGPEFormat f) {
     return f == gpe1Bpp  || f == gpe2Bpp  || f == gpe4Bpp || f == gpe8Bpp ||
@@ -66,6 +80,9 @@ public:
     void GetVirtualVideoMemory(unsigned long* base, unsigned long* size,
                                unsigned long* freeBytes);
     bool SurfaceFbPa(GPESurf* s, ULONG* pa);
+    CerfAliasKind BltAliasKind(GPEBltParms* p);
+    BOOL  SnapshotSource(GPEBltParms* p, GPESurf** ppTemp);
+    SCODE PlanAliasedBlt(GPEBltParms* p, CerfBandOrder* order, GPESurf** ppTemp);
     SCODE ApplyFbMode();
 
     DDGPESurf* EnsurePrimaryShadow();
@@ -114,4 +131,10 @@ private:
     DDGPESurf*      m_pPrimaryShadow;
     int             m_currentRotation;
     void EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1);
+    void EmitBltBands(const CerfBltBand& b, GPEBltParms* p, ULONG budget,
+                      CerfBandOrder order);
+    void EmitBltBandsUp(const CerfBltBand& b, GPEBltParms* p, ULONG budget,
+                        int cl, int cr);
+    void EmitBltBandsDown(const CerfBltBand& b, GPEBltParms* p, ULONG budget,
+                          int cl, int cr);
 };

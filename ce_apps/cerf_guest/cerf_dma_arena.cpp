@@ -43,14 +43,20 @@ static BOOL CerfArenaEnsure(void) {
     return FALSE;
 }
 
+static int s_depth = 0;
+
 BOOL CerfArenaEnter(void) {
     if (!CerfArenaEnsure()) return FALSE;
     EnterCriticalSection(&s_cs);
+    if (s_depth != 0)
+        CERF_FATAL("cerf_guest: DMA arena re-entered - halting");
+    s_depth  = 1;
     s_cursor = CerfVirt::kDmaPartHdrSize;
     return TRUE;
 }
 
 void CerfArenaLeave(void) {
+    s_depth = 0;
     LeaveCriticalSection(&s_cs);
 }
 
