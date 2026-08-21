@@ -108,6 +108,9 @@ For the issues of each board, see the [board database of the launcher](launcher/
 
 ## Claude Development Environment
 
+> [!TIP]
+> Contributions made with AI are welcome - only if they correspond the quality level we maintain. The development involves a huge **human resouce** contribution. Do not turn this project into AI slop - we build a respectable emulator here.
+
 The environment includes several contraversional things you need to know before using it.
 
 - Full project **documentation is injected** into a system prompt - this eats tokens
