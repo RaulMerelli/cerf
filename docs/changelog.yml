@@ -31,6 +31,7 @@
     new: |
       Share folder settings and Guest Additions customizations are now unified with launcher UI and persisted even when changed at runtime
     fixed: |
+      Splash animations (stock framebuffer) are now displayed under guest additions mode too (stock framebuffer is displayed until GA framebuffer is used)
       Crash when drawing off-screen (GiNi)
       Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering
       Colour corruption in 16bpp mode - alpha-blended elements rendered green/cyan
