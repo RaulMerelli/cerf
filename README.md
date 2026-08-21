@@ -293,10 +293,11 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ Device Emulator: sound no longer stutters<br/>
           ✅ Device Emulator: Windows Mobile 2003 SE no longer freezes</p>
         <p><b>💿 Emulator</b><br/>
-          🆕 Build number shown in the window title and the About box<br/>
           🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
           🆕 Bundled CompactFlash cards can be auto-inserted at launch<br/>
-          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals optimizations. Expect new issues.</p>
+          🆕 Build number shown in the window title and the About box<br/>
+          ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals massive optimizations. However - this might regress something, the blast radius is whole ARM emulation.<br/>
+          ✅ Wall-clock timer instead of icount. Fixes guest OS clock extreme fast forwarding and consequent lags, bugs. For example, Jornada 720 had whole class of problems. Double clicks wouldn&#x27;t work because whole days passed in between two clicks. IE would time out on the same reason. Our model is based on QEMU and Dolphin models with own inventions.</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Copyright removal dialog listing each bundle repository&#x27;s abuse contact, reachable from the Download ROMs window and the download confirmation<br/>
           🆕 GitHub issues window (Bugs&amp;Requests)<br/>
