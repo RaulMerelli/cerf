@@ -296,6 +296,7 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           🆕 Configurable display colour depth for Guest Additions and Device Emulator<br/>
           🆕 Bundled CompactFlash cards can be auto-inserted at launch<br/>
           🆕 Build number shown in the window title and the About box<br/>
+          🆕 Thumb32 support. Windows Embedded Compact 2013 is now supported<br/>
           ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals massive optimizations. However - this might regress something, the blast radius is whole ARM emulation.<br/>
           ✅ Wall-clock timer instead of icount. Fixes guest OS clock extreme fast forwarding and consequent lags, bugs. For example, Jornada 720 had whole class of problems. Double clicks wouldn&#x27;t work because whole days passed in between two clicks. IE would time out on the same reason. Our model is based on QEMU and Dolphin models with own inventions.<br/>
           ✅ Shutdown dialog now has reboot options</p>
@@ -307,6 +308,7 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ Toolbar buttons that no longer fit a narrow window move into a chevron menu instead of being cut off<br/>
           ✅ The update check now understands build numbers in release tags</p>
         <p><b>✨ Guest Additions</b><br/>
+          🆕 Share folder settings and Guest Additions customizations are now unified with launcher UI and persisted even when changed at runtime<br/>
           ✅ Crash when drawing off-screen (GiNi)<br/>
           ✅ Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering<br/>
           ✅ Colour corruption in 16bpp mode - alpha-blended elements rendered green/cyan<br/>
