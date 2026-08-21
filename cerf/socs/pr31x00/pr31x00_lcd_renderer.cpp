@@ -4,9 +4,8 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -31,16 +30,21 @@ inline uint32_t RawPixel(const uint8_t* row, uint32_t x, uint32_t bpp) {
     return (byte >> shift) & ((1u << bpp) - 1u);
 }
 
-class Pr31x00LcdRenderer : public FrameRenderer {
+class Pr31x00LcdRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const SocFamily soc = bd->GetSoc();
         return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& lcd = emu_.Get<Pr31x00Lcd>();
+        w = lcd.GetGuestW();
+        h = lcd.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -94,4 +98,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Pr31x00LcdRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Pr31x00LcdRenderer, PanelFrameRenderer);

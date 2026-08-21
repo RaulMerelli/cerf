@@ -4,11 +4,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
-#include "../../host/host_window.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -24,19 +22,23 @@ bool IsRgb565(const Imx31Ipu::ChannelFormat& f) {
         && f.wid[2] == 5 && f.ofs[2] == 11;
 }
 
-class Imx31IpuRenderer : public FrameRenderer {
+class Imx31IpuRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::iMX31;
     }
 
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& ipu = emu_.Get<Imx31Ipu>();
+        w = ipu.GetGuestW();
+        h = ipu.GetGuestH();
+    }
+
     bool HasFrame() override {
         auto& ipu = emu_.Get<Imx31Ipu>();
-        ipu.OnHostTick();
         const bool enabled = ipu.IsEnabled();
         if (!enabled)             return false;
         if (latch_.Latched())     return true;
@@ -112,11 +114,8 @@ public:
         const Imx31Ipu::ChannelFormat fmt = ipu.GetSdcBgFormat();
         return FbLayout{ pa, fmt.stride, fmt.bpp_bits, IsRgb565(fmt) };
     }
-
-private:
-    bool dims_published_ = false;
 };
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Imx31IpuRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Imx31IpuRenderer, PanelFrameRenderer);

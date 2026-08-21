@@ -4,8 +4,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 #include <optional>
@@ -16,14 +15,19 @@ constexpr size_t kContentProbeStride = 251;
 
 /* ddi.dll DrvEnablePDEV reports bpp=16 w=320 h=240; nk.exe fill sub_9F0B7D20 @0x9F0B8184
    fills 0xF800 = RGB565 pure red - the framebuffer is 16bpp RGB565. */
-class CasioToricomailRenderer : public FrameRenderer {
+class CasioToricomailRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::CasioToricomail;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& asic = emu_.Get<CasioToricomailAsic>();
+        w = asic.GuestW();
+        h = asic.GuestH();
     }
 
     bool HasFrame() override {
@@ -72,4 +76,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(CasioToricomailRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(CasioToricomailRenderer, PanelFrameRenderer);

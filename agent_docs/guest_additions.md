@@ -172,6 +172,24 @@ path: host-framebuffer rendering, host-accelerated blits, a DirectDraw HAL,
 dynamic resolution, and the cursor / keyboard / shared-storage / task-manager
 transport.
 
+**Guest additions replaces the display driver. It does not switch off the
+panel of the board.** The board display controller keeps its full emulation,
+and the guest continues to drive it. Only the display driver changes. The
+bootloader and the OAL therefore program the panel and paint their splash into
+it. This occurs many seconds before the guest-additions driver starts.
+
+The host presents both layers. `PresentedFrameRenderer` (see
+[subsystems.md](subsystems.md) § Host window & presentation) composes the
+panel layer under the guest-additions layer. That splash therefore stays
+visible until the guest-additions driver renders its first frame.
+
+The content latch of each layer switches between them. The guest-additions
+layer must therefore not report content until it paints the visible primary
+surface. Its region also holds the offscreen surfaces. Its `MarkDirty` fires
+for a write anywhere in that region (the framebuffer write path, the blitter,
+the gradient and line drawers, the palette, and the `kFbRegPresent` doorbell).
+Without this rule, a first offscreen paint ends the splash early.
+
 **HW means HW.** The `cerf_guest` accelerator must handle every blit class
 (copy, fill, format-convert, palette, masked text, transparency, ROP, …)
 host-side through the virtual accelerator channel. A complex, format-converting,

@@ -76,7 +76,7 @@ void Omap3530Dss::HandleDispcControlWrite(uint32_t old_value,
     const bool lcd_on_edge =
         !(old_value & kCtrlLcdEnable) && (new_value & kCtrlLcdEnable);
     if (lcd_on_edge) {
-        emu_.Get<HostWindow>().OnLcdEnabled(GetGuestW(), GetGuestH());
+        emu_.Get<HostWindow>().OnLcdEnabled();
     }
 }
 

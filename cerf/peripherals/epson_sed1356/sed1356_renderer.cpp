@@ -4,9 +4,8 @@
 
 #include "sed1356_config.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -16,13 +15,18 @@ constexpr size_t kContentProbeStride = 251;
 
 /* S1D13506 LCD pipe -> host BGRA. Pixel formats per Technical Manual §11.1:
    16 bpp 5-6-5, 15 bpp 5-5-5, 4/8 bpp through the 4-bit LCD LUT. */
-class Sed1356Renderer : public FrameRenderer {
+class Sed1356Renderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         return emu_.TryGet<Sed1356Config>() != nullptr;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& sed = emu_.Get<Sed1356>();
+        w = sed.LcdGuestW();
+        h = sed.LcdGuestH();
     }
 
     bool HasFrame() override {
@@ -185,4 +189,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Sed1356Renderer, FrameRenderer);
+REGISTER_SERVICE_AS(Sed1356Renderer, PanelFrameRenderer);

@@ -184,7 +184,7 @@ void CasioCassiopeiaEm500Display::RunFill() {
 void CasioCassiopeiaEm500Display::MaybePublishDisplaySize() {
     if (size_published_ || !IsDisplayEnabled()) return;
     size_published_ = true;
-    emu_->Get<HostWindow>().OnLcdEnabled(GuestW(), GuestH());
+    emu_->Get<HostWindow>().OnLcdEnabled();
 }
 
 void CasioCassiopeiaEm500Display::SaveState(StateWriter& w) const {

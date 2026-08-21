@@ -4,10 +4,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstdint>
 #include <cstring>
@@ -18,14 +17,19 @@ constexpr uint32_t kFmtRgb16 = 0x6u;
 
 constexpr size_t kContentProbeStride = 251;
 
-class Omap3530DssRenderer : public FrameRenderer {
+class Omap3530DssRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == SocFamily::OMAP3530;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& dss = emu_.Get<Omap3530Dss>();
+        w = dss.GetGuestW();
+        h = dss.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -102,4 +106,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Omap3530DssRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Omap3530DssRenderer, PanelFrameRenderer);

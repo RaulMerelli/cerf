@@ -5,10 +5,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -52,14 +51,19 @@ inline uint32_t BlendLocalAlpha(uint32_t fg, uint32_t bg) {
    BACKGROUND plane (ch23, the synchronous display, RGB565) with a partial
    FOREGROUND graphic window (ch27, RGBA8888) per DP_COM_CONF_SYNC. Descriptors
    come from CPMEM; nothing is hardcoded. The SYNC2 panel is 800x480. */
-class Imx51IpuRenderer : public FrameRenderer {
+class Imx51IpuRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FordSyncGen2;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        const auto d = ActiveDisplay();
+        w = d.valid ? d.fw : 0u;
+        h = d.valid ? d.fh : 0u;
     }
 
     bool HasFrame() override {
@@ -206,4 +210,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Imx51IpuRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Imx51IpuRenderer, PanelFrameRenderer);

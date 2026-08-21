@@ -1,11 +1,10 @@
 #define NOMINMAX
 
 #include "../../peripherals/peripheral_base.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 #include "../../host/host_window.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
 #include "../../cpu/emulated_memory.h"
@@ -79,8 +78,6 @@ public:
 #if CERF_DEV_MODE
         LOG(Lcd, "Odo DISP write +0x%02X = 0x%04X\n", off, value);
 #endif
-        uint32_t panel_w     = 0;
-        uint32_t panel_h     = 0;
         bool     fire_enabled = false;
         {
             std::lock_guard<std::mutex> lk(state_mutex_);
@@ -89,8 +86,6 @@ public:
                 csr_ = value;
                 if (((old & kLcdOn) == 0u) && ((value & kLcdOn) != 0u)) {
                     fire_enabled = true;
-                    panel_w = (uint32_t)xsize_ + 1u;
-                    panel_h = (uint32_t)ysize_ + 1u;
                 }
             }
             else if (off == kSlotDispXSize) xsize_ = value;
@@ -98,7 +93,7 @@ public:
             else HaltUnsupportedAccess("WriteHalf", addr, value);
         }
         if (fire_enabled) {
-            emu_.Get<HostWindow>().OnLcdEnabled(panel_w, panel_h);
+            emu_.Get<HostWindow>().OnLcdEnabled();
         }
     }
 
@@ -191,14 +186,19 @@ private:
     uint16_t dma_high_ = 0;
 };
 
-class OdoArm720LcdRenderer : public FrameRenderer {
+class OdoArm720LcdRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::OdoArm720;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& regs = emu_.Get<OdoArm720DisplayRegs>();
+        w = regs.XSize();
+        h = regs.YSize();
     }
 
     bool HasFrame() override {
@@ -251,12 +251,10 @@ public:
         return FbLayout{ emu_.Get<OdoArm720DisplayDma>().GetEffectivePa(),
                          w / 4u, 2u, false };
     }
-
-private:
 };
 
 }  /* namespace */
 
 REGISTER_SERVICE   (OdoArm720DisplayRegs);
 REGISTER_SERVICE   (OdoArm720DisplayDma);
-REGISTER_SERVICE_AS(OdoArm720LcdRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(OdoArm720LcdRenderer, PanelFrameRenderer);

@@ -4,9 +4,8 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -30,12 +29,11 @@ inline uint32_t Expand565(uint16_t px) {
     return 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-class S3C2410LcdRenderer : public FrameRenderer {
+class S3C2410LcdRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         /* Board-gated, not SoC-gated: which display path a board uses
            is board wiring. Both these S3C2410 boards drive the on-die
            LCDC - DevEmu's guest programs it at runtime; P177's
@@ -44,6 +42,12 @@ public:
         if (!bd) return false;
         const Board b = bd->GetBoard();
         return b == Board::Smdk2410DevEmu || b == Board::SiemensP177;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& lcd = emu_.Get<S3C2410Lcd>();
+        w = lcd.GetGuestW();
+        h = lcd.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -113,4 +117,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(S3C2410LcdRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(S3C2410LcdRenderer, PanelFrameRenderer);

@@ -233,7 +233,7 @@ void Pr31x00Lcd::WriteWord(uint32_t addr, uint32_t value) {
                HORZVAL/LINEVAL before it sets ENVID (nk.exe sub_9F434078), so an
                earlier or per-write call would size the window from a stale CTL2. */
             if (!was_enabled && (reg_[kCtl1] & kEnVid)) {
-                emu_.Get<HostWindow>().OnLcdEnabled(GetGuestW(), GetGuestH());
+                emu_.Get<HostWindow>().OnLcdEnabled();
             }
             return;
         }

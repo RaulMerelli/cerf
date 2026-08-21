@@ -40,7 +40,7 @@ void S3C2410Lcd::WriteWord(uint32_t addr, uint32_t value) {
     if (slot == &ctrl_[kIdxLCDCON1]
         && ((old & 0x1u) == 0u)
         && ((value & 0x1u) != 0u)) {
-        emu_.Get<HostWindow>().OnLcdEnabled(GetGuestW(), GetGuestH());
+        emu_.Get<HostWindow>().OnLcdEnabled();
     }
 }
 

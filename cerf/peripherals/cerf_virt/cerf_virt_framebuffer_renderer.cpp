@@ -4,26 +4,40 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/guest_additions_frame_renderer.h"
 
 #include <algorithm>
 #include <cstring>
 
 namespace {
 
-class CerfVirtFramebufferRenderer : public FrameRenderer {
+constexpr size_t kContentProbeStride = 251;
+
+class CerfVirtFramebufferRenderer : public GuestAdditionsFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using GuestAdditionsFrameRenderer::GuestAdditionsFrameRenderer;
 
     bool ShouldRegister() override {
         return emu_.Get<DeviceConfig>().guest_additions;
     }
 
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& fb = emu_.Get<CerfVirtFramebuffer>();
+        w = fb.Width();
+        h = fb.Height();
+    }
+
     bool HasFrame() override {
-        return emu_.Get<CerfVirtFramebuffer>().HasContent();
+        auto& fb = emu_.Get<CerfVirtFramebuffer>();
+        if (!fb.HasContent()) return false;
+        if (latch_.Latched()) return true;
+        const size_t bytes = fb.SizeBytes();
+        if (bytes == 0 || bytes > fb.Capacity()) return false;
+        return latch_.ProbeAndLatch(fb.Bytes(), bytes, kContentProbeStride);
     }
 
     void RearmContentLatch() override {
+        GuestAdditionsFrameRenderer::RearmContentLatch();
         emu_.Get<CerfVirtFramebuffer>().ClearContentEdge();
     }
 
@@ -78,6 +92,6 @@ public:
     }
 };
 
-REGISTER_SERVICE_AS(CerfVirtFramebufferRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(CerfVirtFramebufferRenderer, GuestAdditionsFrameRenderer);
 
 }

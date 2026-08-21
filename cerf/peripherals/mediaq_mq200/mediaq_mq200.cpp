@@ -105,7 +105,7 @@ void MediaQMq200::PublishScreenSizeOnEnableEdge() {
     published_h_ = h;
     LOG(Lcd, "MediaQMq200: display enabled %ux%u %ubpp stride=%u fb_off=0x%X\n",
         w, h, Bpp(), Stride(), FbWindowOffset());
-    emu_.Get<HostWindow>().OnLcdEnabled(w, h);
+    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 /* Window layout: [0, kFbSize) framebuffer SRAM; [kRegWinOff, +kRegSize) the

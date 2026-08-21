@@ -269,8 +269,9 @@ concretes (strategy pattern, selected by `BoardContext`).
 
 - **`HostWindow`** - the top-level window. It owns the dedicated UI thread
   (window + message pump live there, not the main thread), the menu, and
-  auto-resize-to-guest. The SoC LCD service calls `OnLcdEnabled` on the
-  guest panel-enable edge to size the window to the guest surface.
+  auto-resize-to-guest. The SoC LCD service calls `OnLcdEnabled()` on the
+  guest panel-enable edge. The call carries no dimensions. The call tells the
+  host to read the new size from `FrameRenderer::PresentedSize`.
   - `cerf/host/host_window.{h,cpp}`
 
 - **`HostCanvas`** - the child window for the drawable area. It owns the
@@ -287,13 +288,75 @@ concretes (strategy pattern, selected by `BoardContext`).
   guest-surface dimensions that the touch sampler reads.
   - `cerf/host/host_canvas.{h,cpp}`
 
-- **`FrameRenderer`** (abstract) - `RenderInto(dib_bgra32, w, h)` fills a
-  BGRA32 guest-surface DIB. `HostSizeFor` lets a renderer that rotates the
-  image swap width and height. Concretes live with the hardware that
-  produces the frame: per-SoC LCD/DSS/IPU renderers under
-  `cerf/socs/<chip>/`, board renderers under `cerf/boards/<board>/`, and the
-  guest-additions virtual framebuffer under `cerf/peripherals/cerf_virt/`.
-  - `cerf/host/frame_renderer.h`
+- **`FrameRenderer`** (abstract) - one producer of guest frames.
+  `RenderInto(dib_bgra32, w, h)` fills a BGRA32 surface. `PresentedSize(w, h)`
+  gives the extent of the image that this producer renders. The extent is
+  already in presented orientation, so a renderer that rotates the image
+  reports the swapped extent.
+
+  **`PresentedSize` is the only authority on the panel-enable edge.**
+  `HostWindow::OnLcdEnabled()` carries no dimensions. It posts to the UI
+  thread, and the UI thread reads the size through `PresentedSize`. A
+  peripheral must never pass its own dimensions to the host. A renderer can
+  draw at a different extent than the panel timing. If a peripheral passes its
+  own dimensions, the window size disagrees with the image.
+
+  The size read stays on the UI thread by construction. A publisher usually
+  reaches `OnLcdEnabled()` with its own peripheral lock held, and
+  `PresentedSize` goes back into that same peripheral. A read on the
+  publishing thread therefore re-locks a non-recursive mutex. That wedges the
+  JIT thread and the UI thread together.
+
+  `PresentedSize` is not the only source of the guest-surface size.
+  `HostCanvas::SetGuestSurfaceSize` is the single entry point, and the
+  panel-enable edge is only one of its callers.
+  `HostWindow::SetGuestResolution` calls it for a guest re-mode and for the
+  resolution dialog. `HostAutoResize::OnUserResizeEnd` reaches it through that
+  same path, and is not a separate setter.
+  `Hibernation::RestorePresentation` calls it with the size from the state
+  image. A restore therefore installs a surface size that `PresentedSize`
+  never produced.
+
+  Three slots build on this base:
+
+  - **`PanelFrameRenderer`** - the physical panel scanout of the board. Every
+    hardware renderer registers here. Its `ShouldRegister` gates on hardware
+    presence only (board, SoC or part). It never gates on guest additions.
+    Concretes live with the hardware that produces the frame: per-SoC
+    LCD/DSS/IPU renderers under `cerf/socs/<chip>/`, board renderers under
+    `cerf/boards/<board>/`, off-chip display parts under
+    `cerf/peripherals/<vendor>_<part>/`.
+  - **`GuestAdditionsFrameRenderer`** - the guest-additions virtual
+    framebuffer under `cerf/peripherals/cerf_virt/`. It wins only on a
+    `--guest-additions` run.
+  - **`FrameRenderer`** itself - the presented surface. It has one candidate,
+    **`PresentedFrameRenderer`**, and `HostCanvas` binds it.
+
+  **`PresentedFrameRenderer`** is an ordered stack of the two layers above.
+  The panel layer renders under the guest-additions layer. A splash that the
+  bootloader or the kernel draws therefore stays visible until the
+  guest-additions display driver renders its first frame. The boot animation
+  of CERF is only the placeholder while the guest renders nothing.
+
+  The compositor scales a smaller layer up by the largest integer factor that
+  fits, and then centers it. One factor serves both axes, so the aspect ratio
+  stays exact. Nearest-neighbor sampling keeps each source pixel square.
+
+  The layers are opaque, and the compositor skips each covered layer. DO NOT
+  blend the layers per pixel. The guest-additions surface has areas that are
+  legitimately black, and a blend makes the panel layer visible through them.
+
+  The layer that covers the surface renders directly into the target DIB, so
+  it costs no copy. The scratch buffer and the scaled copy occur only while
+  the compositor presents a smaller layer.
+
+  `RearmContentLatch` goes to every layer, so a guest reset rearms all of
+  them.
+
+  To add a layer, register it on its own role slot. Then put the layer in the
+  order of the compositor.
+  - `cerf/host/frame_renderer.h`, `panel_frame_renderer.h`,
+    `guest_additions_frame_renderer.h`, `presented_frame_renderer.cpp`
 
 - **`HwScreen`** - the hardware text console behind the `Tab::Hw` tab. It is
   the bounded text-mode RX/TX line buffer for guest UART / OEM-debug output

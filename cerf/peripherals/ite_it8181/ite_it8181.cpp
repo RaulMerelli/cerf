@@ -25,7 +25,7 @@ void IteIt8181::PublishScreenSizeOnWriteEdge() {
     size_published_ = true;
     LOG(Lcd, "IteIt8181: splash surface %ux%u %ubpp stride=%u\n",
         GuestW(), GuestH(), Bpp(), StrideBytes());
-    emu_.Get<HostWindow>().OnLcdEnabled(GuestW(), GuestH());
+    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 uint8_t IteIt8181::ReadByte(uint32_t addr) {

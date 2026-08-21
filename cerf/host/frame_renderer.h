@@ -6,12 +6,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <utility>
-
-/* RenderInto MUST fill every byte of dib_bgra32[0..w*h-1] - the canvas
-   does not pre-clear it and it still holds the renderer's previous frame.
-   w/h are the native presented-surface size (HostSizeFor's result), the
-   guest-surface DIB - NOT the host window size. */
 
 class FrameRenderer : public Service, public FrameSource {
 public:
@@ -20,27 +14,14 @@ public:
 
     bool HasFrame() override = 0;
 
-    /* Guest reset: drop the "frame seen" evidence; stale evidence flips
-       the UART tab back to the old framebuffer on the next UI tick.
-       Override when HasFrame is backed by something other than latch_
-       (e.g. CerfVirtFramebuffer's write edge). */
     virtual void RearmContentLatch() { latch_.Rearm(); }
 
     void RenderInto(uint32_t* dib_bgra32,
                     uint32_t  width,
                     uint32_t  height) override = 0;
 
-    /* Translate guest-FB dimensions to the host-window dimensions
-       the renderer expects to draw into. Identity by default;
-       rotating renderers (e.g. Sa11xxLcdRenderer) override to swap. */
-    virtual std::pair<uint32_t, uint32_t>
-    HostSizeFor(uint32_t fb_w, uint32_t fb_h) const {
-        return {fb_w, fb_h};
-    }
+    virtual void PresentedSize(uint32_t& w, uint32_t& h) = 0;
 
-    /* Optional framebuffer locator for the MemoryVisualizer's
-       jump-to-framebuffer bookmark. Default nullopt: a renderer that doesn't
-       advertise one is simply not bookmarkable; nothing else depends on it. */
     struct FbLayout {
         uint32_t pa;
         uint32_t stride_bytes;
@@ -50,6 +31,5 @@ public:
     virtual std::optional<FbLayout> GetFbLayout() { return std::nullopt; }
 
 protected:
-    /* Content evidence for HasFrame, shared by every probing renderer. */
     LcdContentLatch latch_;
 };

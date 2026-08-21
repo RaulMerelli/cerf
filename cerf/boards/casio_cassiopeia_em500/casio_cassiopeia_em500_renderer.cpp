@@ -4,8 +4,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 #include <optional>
@@ -16,14 +15,19 @@ constexpr size_t kContentProbeStride = 251;
 
 /* ddi.dll @0xFC5458-0xFC546C (andi 0xF800/0x7E0/0x1F channel split): the 16bpp
    framebuffer is RGB565. */
-class CasioCassiopeiaEm500Renderer : public FrameRenderer {
+class CasioCassiopeiaEm500Renderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::CasioCassiopeiaEm500;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& asic = emu_.Get<CasioCassiopeiaEm500Companion>();
+        w = asic.GuestW();
+        h = asic.GuestH();
     }
 
     bool HasFrame() override {
@@ -71,4 +75,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(CasioCassiopeiaEm500Renderer, FrameRenderer);
+REGISTER_SERVICE_AS(CasioCassiopeiaEm500Renderer, PanelFrameRenderer);

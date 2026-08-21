@@ -3,8 +3,7 @@
 #include "ati_ragexl_display.h"
 
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -15,18 +14,24 @@ constexpr size_t kContentProbeStride = 251;
 /* Presents the Rage XL framebuffer at the CRTC-programmed geometry. The Mach64
    stores direct-colour pixels little-endian as B,G,R(,X); 16/15 bpp are 5-6-5 /
    5-5-5 (ati Programmer's Guide pixel formats). */
-class AtiRageXlRenderer : public FrameRenderer {
+class AtiRageXlRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         return emu_.TryGet<RageXlDisplay>() != nullptr;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        const auto f = emu_.Get<RageXlDisplay>().CurrentFrame();
+        w = f.on ? f.width  : 0u;
+        h = f.on ? f.height : 0u;
     }
 
     bool HasFrame() override {
         const auto f = emu_.Get<RageXlDisplay>().CurrentFrame();
-        if (!f.on || f.bpp == 0 || f.stride == 0 || f.height == 0) return false;
+        if (!f.on || f.bpp == 0 || f.stride == 0 || f.width == 0 || f.height == 0)
+            return false;
         const size_t bytes = (size_t)f.stride * f.height;
         if ((size_t)f.start + bytes > f.fb_size) return false;
         if (latch_.Latched()) return true;
@@ -109,4 +114,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(AtiRageXlRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(AtiRageXlRenderer, PanelFrameRenderer);

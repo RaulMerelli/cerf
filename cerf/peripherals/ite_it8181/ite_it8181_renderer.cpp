@@ -4,8 +4,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -14,14 +13,19 @@ namespace {
 constexpr size_t kContentProbeStride = 251;
 
 /* 2 bpp splash -> grayscale: MSB-first (pixel 0 in bits [7:6]), index 0 = dark. */
-class IteIt8181Renderer : public FrameRenderer {
+class IteIt8181Renderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::NecMobilePro700;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& lcd = emu_.Get<IteIt8181>();
+        w = lcd.GuestW();
+        h = lcd.GuestH();
     }
 
     bool HasFrame() override {
@@ -59,4 +63,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(IteIt8181Renderer, FrameRenderer);
+REGISTER_SERVICE_AS(IteIt8181Renderer, PanelFrameRenderer);

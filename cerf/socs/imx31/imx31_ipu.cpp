@@ -142,7 +142,7 @@ void Imx31Ipu::PublishSdcDimsLocked() {
     if (w == last_pub_w_ && h == last_pub_h_) return;
     last_pub_w_ = w;
     last_pub_h_ = h;
-    emu_.Get<HostWindow>().OnLcdEnabled(w, h);
+    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 void Imx31Ipu::RouteSdc3VsyncToAvicLocked() {

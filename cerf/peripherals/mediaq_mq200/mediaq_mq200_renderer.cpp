@@ -4,8 +4,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -16,16 +15,21 @@ constexpr size_t kContentProbeStride = 251;
 /* MQ-200 pixel decode: 16-bpp direct = RGB565 (Data Book Table 5-8 depth 0xC),
    <=8-bpp index the Color Palette (Table 5-32: R[7:0] G[15:8] B[23:16]). 24/32-bpp
    direct read the framebuffer in Windows CE DIB byte order (B,G,R[,X]). */
-class MediaQMq200Renderer : public FrameRenderer {
+class MediaQMq200Renderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
         const Board b = bd->GetBoard();
         return b == Board::SimpadSl4 || b == Board::SmartBookG138;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& mq = emu_.Get<MediaQMq200>();
+        w = mq.GetGuestW();
+        h = mq.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -108,4 +112,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(MediaQMq200Renderer, FrameRenderer);
+REGISTER_SERVICE_AS(MediaQMq200Renderer, PanelFrameRenderer);

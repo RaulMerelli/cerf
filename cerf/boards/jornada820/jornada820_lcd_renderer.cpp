@@ -4,9 +4,8 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -19,14 +18,19 @@ namespace {
 
 constexpr uint32_t kPaletteBytes = 512;  /* 256 entries x 2 bytes (8bpp) */
 
-class Jornada820LcdRenderer : public FrameRenderer {
+class Jornada820LcdRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::Jornada820;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& lcd = emu_.Get<Sa11xxLcd>();
+        w = lcd.GetGuestW();
+        h = lcd.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -93,4 +97,4 @@ public:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Jornada820LcdRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Jornada820LcdRenderer, PanelFrameRenderer);

@@ -104,7 +104,7 @@ private:
         auto* cp = emu_.TryGet<Imx51IpuCpmem>();
         if (!cp) return;
         const auto d = cp->DecodeChannel(kDisplayChannel);
-        if (d.valid) emu_.Get<HostWindow>().OnLcdEnabled(d.fw, d.fh);
+        if (d.valid) emu_.Get<HostWindow>().OnLcdEnabled();
     }
 
     std::vector<uint32_t> regs_;

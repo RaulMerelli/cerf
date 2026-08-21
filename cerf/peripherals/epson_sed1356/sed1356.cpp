@@ -87,7 +87,7 @@ void Sed1356::PublishOnLcdEnableEdge() {
     published_h_ = h;
     LOG(Lcd, "Sed1356: LCD enabled %ux%u %ubpp start=0x%X stride=%u\n",
         w, h, LcdBpp(), LcdStartByte(), LcdStrideBytes());
-    emu_.Get<HostWindow>().OnLcdEnabled(w, h);
+    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 namespace {

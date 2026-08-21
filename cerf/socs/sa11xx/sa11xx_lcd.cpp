@@ -19,7 +19,7 @@ void Sa11xxLcd::OnReady() {
 void Sa11xxLcd::PublishScreenSizeOnEnableEdge(uint32_t old_lccr0,
                                               uint32_t new_lccr0) {
     if (((old_lccr0 & 0x1u) == 0u) && ((new_lccr0 & 0x1u) != 0u)) {
-        emu_.Get<HostWindow>().OnLcdEnabled(GetGuestW(), GetGuestH());
+        emu_.Get<HostWindow>().OnLcdEnabled();
     }
 }
 

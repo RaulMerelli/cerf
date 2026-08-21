@@ -21,10 +21,7 @@ public:
     void OnReady() override;
     void OnShutdown() override;
 
-    /* SoC LCD service calls on guest panel-enable edge. fb_(w|h) are raw
-       LCD-controller dimensions; run through the FrameRenderer's HostSizeFor
-       so rotating renderers can swap. */
-    void OnLcdEnabled(uint32_t fb_w, uint32_t fb_h);
+    void OnLcdEnabled();
 
     /* CerfVirtResize calls this (JIT thread) when the guest acks a re-mode;
        marshals to the UI thread to repoint the framebuffer + canvas surface. */

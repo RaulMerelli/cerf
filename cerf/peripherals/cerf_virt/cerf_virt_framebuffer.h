@@ -40,6 +40,8 @@ public:
 
     void ClearContentEdge() { any_write_ = false; }
 
+    void ClearContent();
+
     void ApplyGuestMode(uint32_t w, uint32_t h);
 
     void ReapplyConfiguredDepth();

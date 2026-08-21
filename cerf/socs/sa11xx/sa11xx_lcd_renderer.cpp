@@ -4,10 +4,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -38,26 +37,23 @@ struct MonoLayout {
     uint32_t pal_entries;
 };
 
-class Sa11xxLcdRenderer : public FrameRenderer {
+class Sa11xxLcdRenderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         /* Board-gated, not SoC-gated: the frame source is board wiring.
            The Jornada 720 panel hangs off the external SED1356; its OAL
-           writes LCCR0=0 and this renderer must not win FrameRenderer
+           writes LCCR0=0 and this renderer must not win PanelFrameRenderer
            there. */
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::IpaqGen1;
     }
 
-    /* iPAQ panel is portrait; SA1110 LCD controller scans landscape.
-       Renderer rotates 90° CCW (see RenderInto), so host window must
-       receive swapped dims or the rotation math draws a square crop. */
-    std::pair<uint32_t, uint32_t>
-    HostSizeFor(uint32_t fb_w, uint32_t fb_h) const override {
-        return {fb_h, fb_w};
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& lcd = emu_.Get<Sa11xxLcd>();
+        w = lcd.GetGuestH();
+        h = lcd.GetGuestW();
     }
 
     bool HasFrame() override {
@@ -243,4 +239,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(Sa11xxLcdRenderer, FrameRenderer);
+REGISTER_SERVICE_AS(Sa11xxLcdRenderer, PanelFrameRenderer);

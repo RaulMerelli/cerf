@@ -76,23 +76,14 @@ void HostWindow::OnReady() {
     ui_ready_cv_.wait(lk, [&] { return ui_ready_.load(); });
 }
 
-void HostWindow::OnLcdEnabled(uint32_t fb_w, uint32_t fb_h) {
+void HostWindow::OnLcdEnabled() {
     if (emu_.Get<DeviceConfig>().guest_additions) {
-        LOG(Lcd, "HostWindow::OnLcdEnabled: guest additions on, ignoring "
-            "native %ux%u\n", fb_w, fb_h);
+        LOG(Lcd, "HostWindow::OnLcdEnabled: guest additions on, the panel "
+            "layer does not size the host surface\n");
         return;
     }
 
-    uint32_t host_w = fb_w, host_h = fb_h;
-    if (auto* fr = emu_.TryGet<FrameRenderer>()) {
-        const auto [w, h] = fr->HostSizeFor(fb_w, fb_h);
-        host_w = w;
-        host_h = h;
-    }
-    LOG(Lcd, "HostWindow::OnLcdEnabled: fb=%ux%u host=%ux%u\n",
-        fb_w, fb_h, host_w, host_h);
-    if (hwnd_)
-        PostMessageW(hwnd_, kLcdResizeMsg, (WPARAM)host_w, (LPARAM)host_h);
+    if (hwnd_) PostMessageW(hwnd_, kLcdResizeMsg, 0, 0);
 }
 
 void HostWindow::NotifyGuestRemoded(uint32_t guest_w, uint32_t guest_h) {
@@ -330,8 +321,9 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return dark_out;
 
     if (msg == kLcdResizeMsg) {
-        const uint32_t w = (uint32_t)wp;
-        const uint32_t h = (uint32_t)lp;
+        uint32_t w = 0, h = 0;
+        if (auto* fr = emu_.TryGet<FrameRenderer>()) fr->PresentedSize(w, h);
+        LOG(Lcd, "HostWindow: LCD resize, presented %ux%u\n", w, h);
         if (w != 0 && h != 0) {
             emu_.Get<HostCanvas>().SetGuestSurfaceSize(w, h);
             if (follow_guest_) AutoResizeToGuest();

@@ -207,7 +207,7 @@ private:
             if (f.width != signaled_w_ || f.height != signaled_h_) {
                 signaled_w_ = f.width;
                 signaled_h_ = f.height;
-                emu_.Get<HostWindow>().OnLcdEnabled(f.width, f.height);
+                emu_.Get<HostWindow>().OnLcdEnabled();
             }
         } else {
             signaled_w_ = signaled_h_ = 0;

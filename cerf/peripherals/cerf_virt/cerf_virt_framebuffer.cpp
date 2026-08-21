@@ -11,6 +11,8 @@
 #include "../../socs/guest_cpu_reset.h"
 #include "../../state/state_stream.h"
 
+#include <cstring>
+
 REGISTER_SERVICE(CerfVirtFramebuffer);
 
 bool CerfVirtFramebuffer::ShouldRegister() {
@@ -72,8 +74,10 @@ void CerfVirtFramebuffer::OnReady() {
     bpp_    = emu_.Get<BoardContext>().ResolveGuestAdditionsColorDepth();
     region_bytes_ = ComputeRegionBytes();
     bytes_.assign(region_bytes_, 0);
-    emu_.Get<GuestCpuReset>().RegisterResetListener(
-        [this](ResetLineKind) { ReapplyConfiguredDepth(); });
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+        ReapplyConfiguredDepth();
+        if (!emu_.Get<GuestCpuReset>().DeliveredResetWasResume()) ClearContent();
+    });
     LOG(Periph, "[CerfVirtFramebuffer] %ux%u %ubpp stride=%u "
                 "fb_size=%u region=%u bytes (offscreen=%u bytes)\n",
         width_, height_, bpp_, Stride(), SizeBytes(),
@@ -109,6 +113,11 @@ void CerfVirtFramebuffer::RestoreState(StateReader& r) {
         std::vector<uint8_t> discard(static_cast<size_t>(n));
         if (n) r.ReadBytes(discard.data(), static_cast<size_t>(n));
     }
+}
+
+void CerfVirtFramebuffer::ClearContent() {
+    if (!bytes_.empty()) std::memset(bytes_.data(), 0, bytes_.size());
+    any_write_ = false;
 }
 
 void CerfVirtFramebuffer::ReapplyConfiguredDepth() {

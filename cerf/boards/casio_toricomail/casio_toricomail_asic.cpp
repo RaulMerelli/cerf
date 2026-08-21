@@ -128,7 +128,7 @@ void CasioToricomailAsic::RunBlit7Locked() {
 void CasioToricomailAsic::MaybePublishDisplaySize() {
     if (size_published_ || !IsDisplayEnabled()) return;
     size_published_ = true;
-    emu_.Get<HostWindow>().OnLcdEnabled(GuestW(), GuestH());
+    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 void CasioToricomailAsic::SetSideButton(uint16_t mask, bool pressed) {

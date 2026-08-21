@@ -4,8 +4,7 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/device_config.h"
-#include "../../host/frame_renderer.h"
+#include "../../host/panel_frame_renderer.h"
 
 #include <cstring>
 
@@ -16,14 +15,19 @@ constexpr size_t kContentProbeStride = 251;
 /* Pixel formats from MediaQ doc 12-00026 Rev D: 16-bpp is RGB565 R[15:11]
    G[10:5] B[4:0] with the palette bypassed (Reg 4-31, p.4-56); palette-indexed
    modes look up Reg 4-58 entries laid out R[7:0] G[15:8] B[23:16] (p.4-71). */
-class MediaQMq1188Renderer : public FrameRenderer {
+class MediaQMq1188Renderer : public PanelFrameRenderer {
 public:
-    using FrameRenderer::FrameRenderer;
+    using PanelFrameRenderer::PanelFrameRenderer;
 
     bool ShouldRegister() override {
-        if (emu_.Get<DeviceConfig>().guest_additions) return false;
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::FalconPC3xx;
+    }
+
+    void PresentedSize(uint32_t& w, uint32_t& h) override {
+        auto& mq = emu_.Get<MediaQMq1188>();
+        w = mq.GetGuestW();
+        h = mq.GetGuestH();
     }
 
     bool HasFrame() override {
@@ -99,4 +103,4 @@ private:
 
 }  /* namespace */
 
-REGISTER_SERVICE_AS(MediaQMq1188Renderer, FrameRenderer);
+REGISTER_SERVICE_AS(MediaQMq1188Renderer, PanelFrameRenderer);
