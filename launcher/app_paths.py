@@ -59,9 +59,10 @@ def resolve_logo() -> Optional[Path]:
     meipass = getattr(sys, "_MEIPASS", None)
     candidates: List[Path] = []
     if meipass:
-        candidates.append(Path(meipass) / "assets" / "gweslab.png")
-    candidates.append(exe_dir() / "assets" / "gweslab.png")
-    candidates.append(Path(__file__).resolve().parent.parent / "gweslab.png")
+        candidates.append(Path(meipass) / "assets" / "cerf_1024.png")
+    candidates.append(exe_dir() / "assets" / "cerf_1024.png")
+    candidates.append(Path(__file__).resolve().parent.parent / "cerf"
+                      / "assets" / "cerf_1024.png")
     for path in candidates:
         if path.is_file():
             return path

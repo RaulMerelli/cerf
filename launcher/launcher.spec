@@ -7,6 +7,7 @@ THIS_DIR = Path(os.path.abspath(SPEC)).parent
 REPO_ROOT = THIS_DIR.parent
 ICON_PATH    = str(REPO_ROOT / "cerf" / "assets" / "launcher.ico")
 VERSION_PATH = str(REPO_ROOT / "cerf" / "version.h")
+LOGO_PATH    = str(REPO_ROOT / "cerf" / "assets" / "cerf_1024.png")
 
 NAME = os.environ.get("CERF_LAUNCHER_NAME", "launcher")
 
@@ -26,7 +27,7 @@ a = Analysis(
     binaries=UCRT_BINARIES,
     datas=[(ICON_PATH, "."), (VERSION_PATH, "."),
            (str(THIS_DIR / "assets" / "icons"), "assets/icons"),
-           (str(REPO_ROOT / "gweslab.png"), "assets")],
+           (LOGO_PATH, "assets")],
     hiddenimports=[],
     hookspath=[],
     runtime_hooks=[],
