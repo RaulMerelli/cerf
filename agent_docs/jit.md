@@ -144,9 +144,13 @@ None of these is visible from any single file.
   publish the current level. The engine folds that level on the JIT
   thread at the top of each iteration. A publisher that sends less
   than the full current level leaves a stuck bit, and the guest
-  re-enters its ISR forever. Two words carry that level across
-  threads: the line, and the chain-exit bit that returns a chained
-  block to the dispatcher. One channel owns the line and that bit.
+  re-enters its ISR forever. The line carries the level across
+  threads. The chain-exit bit is a ONE-SHOT kick: an assertion sets
+  it, and the dispatcher consumes it at the top of each pass. The
+  dispatcher consumes the bit even when the interrupt stays masked,
+  and then re-tests the line. A bit that stays set while the line is
+  high returns every chained block to the dispatcher across the whole
+  masked-pending span. One channel owns the line and that bit.
 - **A reset re-enters at a PHYSICAL address.** The reset must
   therefore turn the MMU off and clear the FCSE fold base. Otherwise
   the fetch folds that address and walks it through the page tables of

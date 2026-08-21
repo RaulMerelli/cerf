@@ -113,7 +113,7 @@ namespace Log {
 
     void Print(Cat cat, const char* fmt, ...);
 
-    void CopyRecentCautionsBeforeEmergencyStart(char* out, size_t out_size);
+    void CopyRecentCautionsPostFreeze(char* out, size_t out_size);
 
     /* Comma-separated slugs, plus the special tokens "ALL" and "NONE".
        Unknown tokens warn on stderr and contribute nothing to the mask. */
@@ -125,7 +125,9 @@ namespace Log {
     bool SymbolizeAddress(const void* addr, char* out, size_t out_size);
 
     void EmergencyStart();
+    bool IsEmergencyActive();
     void Emergency(const char* fmt, ...);
+    void EmergencyWriteBytes(const char* buf, size_t len);
     void EmergencyPrintNativeStack(const char* tag);
     void EmergencyDumpAllThreadStacks();
 

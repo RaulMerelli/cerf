@@ -142,6 +142,15 @@ void ArmJit::Run() {
         return;
     }
 
+    /* QEMU accel/tcg/cpu-exec.c cpu_handle_interrupt: "Clear the interrupt
+       flag now since we're processing cpu->interrupt_request and
+       cpu->exit_request." */
+    {
+        std::atomic_ref<uint32_t> word(cpu_state_->chain_exit_request);
+        if ((word.load(std::memory_order_acquire) & kChainExitIrq) != 0u) {
+            word.fetch_and(~kChainExitIrq, std::memory_order_acq_rel);
+        }
+    }
     const ArmInterruptChannel::IrqGate gate = channel_->EvaluateGate();
     cpu_state_->irq_interrupt_pending = gate.level;
     if (gate.raise) {

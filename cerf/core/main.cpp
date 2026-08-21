@@ -20,6 +20,18 @@ int main(int argc, char* argv[]) {
        Windows default quantum - OST IRQ latency breaks audio + UI. */
     timeBeginPeriod(1);
 
+    /* dolphin-emu Source/Core/Common/Timer.cpp Timer::IncreaseResolution;
+       https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessinformation:
+       ControlMask selects both mechanisms, StateMask 0 turns them off -
+       "Always honor Timer Resolution Requests" and HighQoS. */
+    PROCESS_POWER_THROTTLING_STATE throttling{};
+    throttling.Version     = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    throttling.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED |
+                             PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;
+    throttling.StateMask   = 0;
+    SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling,
+                          &throttling, sizeof(throttling));
+
     Log::InitDefaultLogFile();
     Log::InstallCrashHandler();
 

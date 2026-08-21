@@ -2,10 +2,16 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/fatal.h"
+#include "../core/host_thread_priority.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
+#include "../core/virtual_clock.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "guest_engine.h"
+
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 
 #include <chrono>
 #include <intrin.h>
@@ -80,6 +86,7 @@ void JitRunner::Resume() {
 }
 
 void JitRunner::RunLoop() {
+    emu_.Get<HostThreadPriority>().Elevate(HostThreadRole::GuestCpu);
     LOG(Jit, "JitRunner::RunLoop: entered, resolving engine\n");
     /* Resolve the guest engine lazily on the JIT thread - first Get<T> walks the
        OnReady dependency chain. A Get<> in JitRunner::OnReady is service
@@ -93,6 +100,8 @@ void JitRunner::RunLoop() {
        mask is seeded. Catch any peripheral placed above the addressable space
        before a single guest access silently aliases into it. */
     emu_.Get<PeripheralDispatcher>().ValidatePhysReachable(engine.PhysAddrMask());
+
+    auto& vclock = emu_.Get<VirtualClock>();
 
 #if CERF_DEV_MODE
     auto& probe = emu_.Get<RateProbe>();
@@ -119,6 +128,7 @@ void JitRunner::RunLoop() {
         if (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep()) {
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
+            vclock.Pause();
             pause_cv_.notify_all();
             LOG(SocReset, "[DEEPSLEEP] RunLoop: park enter ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
                 static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),
@@ -132,6 +142,7 @@ void JitRunner::RunLoop() {
                    (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep())) {
                 pause_cv_.wait_for(lk, std::chrono::milliseconds(20));
             }
+            vclock.Resume();
             paused_ = false;
             LOG(SocReset, "[DEEPSLEEP] RunLoop: park exit ds=%d reset_pending=%d pause=%d pc=0x%08X\n",
                 static_cast<int>(engine.DeepSleep()), static_cast<int>(engine.ResetPending()),

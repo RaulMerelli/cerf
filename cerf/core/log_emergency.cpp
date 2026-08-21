@@ -104,12 +104,25 @@ void Log::EmergencyDumpAllThreadStacks() {
     CloseHandle(snap);
 }
 
+bool Log::IsEmergencyActive() {
+    return g_emergency_started.load(std::memory_order_acquire);
+}
+
 void Log::EmergencyStart() {
     bool expected = false;
     if (!g_emergency_started.compare_exchange_strong(expected, true))
         return;  /* already in emergency - concurrent handler on another thread */
     FreezeAllOtherThreads();
-    g_emergency_file = CreateFileA("cerf.crash.log", GENERIC_WRITE,
+    char crash_path[MAX_PATH];
+    const DWORD mod_len = GetModuleFileNameA(NULL, crash_path, MAX_PATH);
+    int cut = 0;
+    if (mod_len > 0 && mod_len < MAX_PATH) {
+        for (int i = 0; i < (int)mod_len; ++i) {
+            if (crash_path[i] == '\\' || crash_path[i] == '/') cut = i + 1;
+        }
+    }
+    lstrcpynA(crash_path + cut, "cerf.crash.log", MAX_PATH - cut);
+    g_emergency_file = CreateFileA(crash_path, GENERIC_WRITE,
                                    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     SYSTEMTIME st;
@@ -141,6 +154,10 @@ void Log::Emergency(const char* fmt, ...) {
     if (n <= 0) return;
     if (n > (int)sizeof(buf)) n = sizeof(buf);
     EmergencyWriteRaw(buf, (unsigned)n);
+}
+
+void Log::EmergencyWriteBytes(const char* buf, size_t len) {
+    EmergencyWriteRaw(buf, (unsigned)len);
 }
 
 void Log::EmergencyPrintNativeStack(const char* tag) {
@@ -254,7 +271,17 @@ static void EmergencyWalkFaultingStack(const char* tag, CONTEXT* ctx_in) {
 }
 
 static LONG WINAPI CerfTopLevelExceptionFilter(EXCEPTION_POINTERS* ep) {
+    LOG(Cerf, "this run ends here; the crash tail is in cerf.crash.log\n");
+    Log::Close();
     Log::EmergencyStart();
+    char recent_cautions[4096];
+    Log::CopyRecentCautionsPostFreeze(recent_cautions,
+                                      sizeof(recent_cautions));
+    if (recent_cautions[0]) {
+        Log::Emergency("[UNHANDLED] recent cautions:\n");
+        EmergencyWriteRaw(recent_cautions,
+                          (unsigned)lstrlenA(recent_cautions));
+    }
     if (ep && ep->ExceptionRecord) {
         EXCEPTION_RECORD* er = ep->ExceptionRecord;
         Log::Emergency("[UNHANDLED] code=0x%08X flags=0x%X at 0x%p\n",
@@ -287,8 +314,8 @@ void Log::InstallCrashHandler() {
 /* ==== Terminal exits ===================================================== */
 
 void CerfFatalExit(int code) {
-    char recent_cautions[1024];
-    Log::CopyRecentCautionsBeforeEmergencyStart(recent_cautions, sizeof(recent_cautions));
+    char recent_cautions[4096];
+    recent_cautions[0] = '\0';
 
     if (code == CERF_FATAL_NORMAL_EXIT || code == CERF_FATAL_TIMEOUT)
         LOG(Cerf, "CERF is exiting (code = %d)\n", code);
@@ -303,34 +330,44 @@ void CerfFatalExit(int code) {
         ExitProcess((UINT)code);
     }
 
-    /* Freeze every other thread, open cerf.crash.log, stop using Log:: */
+    LOG(Cerf, "this run ends here; the crash tail is in cerf.crash.log\n");
+    Log::Close();
+
     Log::EmergencyStart();
+    Log::CopyRecentCautionsPostFreeze(recent_cautions,
+                                      sizeof(recent_cautions));
+    if (recent_cautions[0]) {
+        Log::Emergency("[FATAL] recent cautions:\n");
+        EmergencyWriteRaw(recent_cautions,
+                          (unsigned)lstrlenA(recent_cautions));
+    }
     Log::EmergencyDumpAllThreadStacks();
     Log::Emergency("[FATAL] CerfFatalExit(%d) tid=%lu stack trace:\n",
                    code, (unsigned long)GetCurrentThreadId());
     Log::EmergencyPrintNativeStack("[FATAL]");
-    Log::Close();  /* flush-only, doesn't close g_logfile */
+    Log::Close();
 
 #if !CERF_DEV_MODE
     if (code == CERF_FATAL_RUNTIME_ERROR) {
-        char detail[1280] = {};
-        if (recent_cautions[0])
-            snprintf(detail, sizeof(detail), "%s\n", recent_cautions);
-
-        char box[2560];
-        snprintf(box, sizeof(box),
-                 "Something inside CERF blew up and it has to close.\n\n"
-                 "%s"
+        char box[6144];
+        lstrcpynA(box,
+                  "Something inside CERF blew up and it has to close.\n\n",
+                  sizeof(box));
+        if (recent_cautions[0]) {
+            lstrcatA(box, recent_cautions);
+            lstrcatA(box, "\n");
+        }
+        lstrcatA(box,
                  "Two log files were written next to cerf.exe:\n"
                  "  - cerf.log         (full run log)\n"
-                 "  - cerf.crash.log   (thread snapshot at the crash)\n\n"
+                 "  - cerf.crash.log   (thread snapshot at the crash, the\n"
+                 "                      error text, and the final log lines)\n\n"
                  "The run log carries only a limited default set of channels; "
                  "full detail needs every channel on. "
                  "If the crash happens again, reproduce it with all log channels "
                  "enabled - the launcher has a tick for it - and keep both files.\n\n"
                  "To report it, open http://cerf.cx and search for "
-                 "\"Report a bug\".",
-                 detail);
+                 "\"Report a bug\".");
 
         MessageBoxA(nullptr, box, "Unexpected error - CE Runtime Foundation",
                     MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);

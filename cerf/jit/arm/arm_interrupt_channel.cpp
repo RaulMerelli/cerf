@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/arm_processor_config.h"
 
@@ -29,9 +30,9 @@ void ArmInterruptChannel::OnReady() {
 
     idle_event_ = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!idle_event_) {
-        LOG(Caution, "ArmInterruptChannel: CreateEventW(idle_event) failed "
-                "gle=%lu\n", GetLastError());
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        emu_.Get<Fatal>().Die(
+            "ArmInterruptChannel: CreateEventW(idle_event) failed gle=%lu",
+            GetLastError());
     }
 }
 

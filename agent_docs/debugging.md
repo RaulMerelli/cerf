@@ -197,10 +197,15 @@ branch is named.
   by default. Read it for every investigation. `--quiet` disables it
   for perf runs only.
 - **`cerf.crash.log`** comes from the lock-free emergency writer on
-  a fatal crash. It contains every other thread's RIP / RSP / RBP and a
-  16-slot stack snapshot at the time the dying thread aborted. Use it
-  when the FATAL message comes from a thread whose state you must
-  cross-reference with another thread.
+  a fatal crash. It contains three kinds of data:
+  - the recent `[CAUTION]` lines - the fatal reason and the guest
+    register dump
+  - every other thread's RIP / RSP / RBP with a 16-slot stack snapshot
+    at the time the dying thread aborted
+  - the last log lines, which `cerf.log` does not have
+
+  Use it when the FATAL message comes from a thread whose state you
+  must cross-reference with another thread.
 - Stdout / stderr is flood-controlled and silently drops lines - it is
   NEVER a valid log source, and to read it is prohibited. Pass
   `--log-file=<repo>/tmp/<unique>.log` on every run and read ONLY that

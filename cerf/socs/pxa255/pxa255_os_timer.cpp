@@ -25,6 +25,11 @@ protected:
         emu_.Get<Pxa255Intc>().SetSourceLevel(0xFu << kIntcOst0Bit,
                                               (level4 & 0xFu) << kIntcOst0Bit);
     }
+
+    void OnResetLine() override {
+        OsTimer::OnResetLine();
+        ResetRegistersToZero();
+    }
 };
 
 REGISTER_SERVICE(Pxa255OsTimer);

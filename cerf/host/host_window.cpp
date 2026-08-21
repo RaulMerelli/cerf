@@ -438,6 +438,7 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         "close; forcing process exit\n",
                         (unsigned long long)kCloseGraceMs);
                     KillTimer(hwnd, kCloseWatchdogTimer);
+                    Log::Close();
                     TerminateProcess(GetCurrentProcess(),
                                      CERF_FATAL_RUNTIME_ERROR);
                 }

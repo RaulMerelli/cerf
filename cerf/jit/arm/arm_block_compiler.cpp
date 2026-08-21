@@ -335,8 +335,13 @@ size_t ArmBlockCompiler::GenerateCode(uint8_t* code, uint8_t* code_end) {
     if (last.cond != 14u || !last.r15_modified || last.r15_conditional != 0u) {
         EmitMovBaseDisp32Imm32(cursor, kStateReg, kPcOff,
                                last.guest_address + last.length);
-        cursor = EmitChainToBlock(cursor, &block_ctx_,
-                                  last.guest_address + last.length, 1u);
+        /* QEMU target/arm/tcg/translate.c gen_lookup_tb: DISAS_EXIT ends the
+           TB without goto_tb chaining - arm_tr_tb_stop's default case emits
+           tcg_gen_exit_tb(NULL, 0). */
+        if (!last.context_sync) {
+            cursor = EmitChainToBlock(cursor, &block_ctx_,
+                                      last.guest_address + last.length, 1u);
+        }
         EmitRet(cursor);
     }
 

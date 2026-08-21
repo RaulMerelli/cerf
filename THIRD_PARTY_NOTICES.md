@@ -109,6 +109,8 @@ The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full licens
 - **[the Linux kernel](https://www.kernel.org/)** - StrongARM coprocessor behavior,
   the NE2000 PC card, the 8390 NIC, raw NAND, the S3C24xx IIS, and the S3C24xx
   touch screen.
+- **[Dolphin](https://dolphin-emu.org/)** - the precision timer wait and the
+  Windows process power-throttling opt-out.
 
 ## Trademarks
 

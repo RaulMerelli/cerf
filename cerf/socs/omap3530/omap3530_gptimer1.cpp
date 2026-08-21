@@ -163,9 +163,6 @@ private:
 
 bool Omap3530Gptimer1::MatchCrossed(uint32_t old_tcrr, uint32_t new_tcrr,
                                     uint32_t tmar) {
-    /* Distance from old_tcrr to TMAR (modulo 2^32). 0 means TMAR
-       sits at old_tcrr exactly - we don't fire on that because
-       the previous wake already would have. */
     const uint32_t to_match = tmar - old_tcrr;
     const uint32_t advanced = new_tcrr - old_tcrr;
     if (to_match == 0) return false;
@@ -203,9 +200,6 @@ void Omap3530Gptimer1::ApplySoftResetLocked(uint32_t cycles_now) {
     tmar_   = 0xFFFFFFFFu;
     tsicr_  = 0;
     SampleTcrrBaseLocked(0, cycles_now);
-    /* Don't clear irq_line_high_ - caller's RecomputeIrqLineLocked
-       needs its pre-reset value to detect the high→low edge and
-       issue DeAssertIrq(37); clearing it strands ITR[37] high. */
 }
 
 void Omap3530Gptimer1::RecomputeIrqLineLocked() {
@@ -257,9 +251,6 @@ void Omap3530Gptimer1::AdvanceStateLocked(uint32_t cycles_now) {
 void Omap3530Gptimer1::TickLoop() {
     auto& freeze = emu_.Get<EmulationFreeze>();
     while (!stop_thread_.load(std::memory_order_acquire)) {
-        /* 100 µs host poll cadence - matches Sa11xxOsTimer. State
-           advance uses guest_cycle_counter, so the answer is
-           deterministic per-run despite the host sleep's jitter. */
         std::this_thread::sleep_for(std::chrono::microseconds(100));
 
         auto frozen = freeze.WorkerSection();
