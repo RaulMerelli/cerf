@@ -14,6 +14,7 @@ class Thumb32LoadHalfwordDecoder;
 class Thumb32LoadStoreDecoder;
 class Thumb32LoadStoreDualDecoder;
 class Thumb32LoadStoreMultipleDecoder;
+class Thumb32LongMultiplyDecoder;
 class Thumb32MultiplyDecoder;
 class Thumb32PlainImmDecoder;
 struct DecodedInsn;
@@ -50,6 +51,7 @@ private:
     Thumb32LoadHalfwordDecoder* load_halfword_   = nullptr;
     Thumb32LoadStoreDecoder*    load_store_      = nullptr;
     Thumb32LoadStoreDualDecoder* load_store_dual_ = nullptr;
+    Thumb32LongMultiplyDecoder* long_multiply_   = nullptr;
     Thumb32MultiplyDecoder*     multiply_        = nullptr;
     Thumb32PlainImmDecoder*     plain_imm_       = nullptr;
 

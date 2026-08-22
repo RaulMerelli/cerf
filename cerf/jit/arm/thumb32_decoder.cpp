@@ -16,6 +16,7 @@
 #include "thumb32_load_store_decoder.h"
 #include "thumb32_load_store_dual_decoder.h"
 #include "thumb32_load_store_multiple_decoder.h"
+#include "thumb32_long_multiply_decoder.h"
 #include "thumb32_multiply_decoder.h"
 #include "thumb32_plain_imm_decoder.h"
 
@@ -36,6 +37,7 @@ void Thumb32Decoder::OnReady() {
     load_byte_      = &emu_.Get<Thumb32LoadByteDecoder>();
     load_halfword_  = &emu_.Get<Thumb32LoadHalfwordDecoder>();
     load_store_     = &emu_.Get<Thumb32LoadStoreDecoder>();
+    long_multiply_  = &emu_.Get<Thumb32LongMultiplyDecoder>();
     multiply_       = &emu_.Get<Thumb32MultiplyDecoder>();
     plain_imm_      = &emu_.Get<Thumb32PlainImmDecoder>();
 
@@ -115,8 +117,7 @@ bool Thumb32Decoder::DecodeMultiplyAbsoluteDifference(DecodedInsn* insn,
 }
 
 bool Thumb32Decoder::DecodeLongMultiplyDivide(DecodedInsn* insn, uint32_t op) {
-    fatal_->Unimplemented(
-        "long multiply, long multiply accumulate, divide (A6-250)", insn, op);
+    return long_multiply_->DecodeLongMultiplyDivide(insn, op);
 }
 
 /* ARM DDI 0406C.c Table A6-9 (A6.3, p. A6-230), keyed on op1 = bits[12:11] of
