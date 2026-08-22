@@ -60,18 +60,32 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     if (thumb) {
         uint16_t half = 0;
         std::memcpy(&half, host, sizeof(half));
+        /* DDI 0406C.c A6.1 (p. A6-220): a Thumb instruction is "either a
+           single 16-bit halfword in that stream, or a 32-bit instruction
+           consisting of two consecutive halfwords in that stream". */
         if (thumb32_->IsWide(half)) {
-            emu_.Get<Fatal>().Die(
-                "ArmRoutedInstruction: 32-bit Thumb instruction at guest PC "
-                "0x%08X completed a peripheral access\n", guest_pc);
+            uint8_t* hi = walker_->TranslateExecute(cpu_state_, guest_pc + 2u);
+            if (hi == nullptr) {
+                emu_.Get<Fatal>().Die(
+                    "ArmRoutedInstruction: guest PC 0x%08X second halfword is "
+                    "unmapped on re-fetch\n", guest_pc);
+            }
+            uint16_t lo = 0;
+            std::memcpy(&lo, hi, sizeof(lo));
+            d.length = 4u;
+            raw      = (static_cast<uint32_t>(half) << 16) | lo;
+            decoded  = thumb32_->DecodeThumb32(&d, raw);
+        } else {
+            d.length = 2u;
+            raw      = half;
+            decoded  = thumb_->DecodeThumb(&d, half);
         }
-        raw     = half;
-        decoded = thumb_->DecodeThumb(&d, half);
     } else {
         ArmOpcode op;
         std::memcpy(&op.word, host, sizeof(op.word));
-        raw     = op.word;
-        decoded = decoder_->DecodeArm(&d, op);
+        d.length = 4u;
+        raw      = op.word;
+        decoded  = decoder_->DecodeArm(&d, op);
     }
     if (!decoded) {
         LOG(Caution, "ArmRoutedInstruction: guest PC 0x%08X word 0x%08X no "
@@ -98,7 +112,7 @@ void ArmRoutedInstruction::Complete(uint32_t guest_pc) {
     }
 
     if (outcome == Outcome::kNextInsn) {
-        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + (thumb ? 2u : 4u);
+        cpu_state_->gprs[ArmGpr::kR15] = guest_pc + d.length;
     }
     /* DDI 0406C.c A2.5.2 (p. A2-52): "When an instruction in an IT block
        completes its execution normally, ITSTATE advances to the next line of
