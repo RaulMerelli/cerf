@@ -422,6 +422,9 @@ bool ArmDataprocSpaceDecoder::DecodeExtraLoadStore(DecodedInsn* insn,
     insn->rn  = (op.word >> 16) & 0xFu;
     insn->rd  = (op.word >> 12) & 0xFu;
     insn->rm  =  op.word        & 0xFu;
+    /* A8.8.72 LDRD (immediate) A1 (p. A8-426), A8.8.210 STRD (immediate) A1
+       (p. A8-686): "t2 = t+1". */
+    insn->rd2 = insn->rd + 1u;
     const bool is_dual = insn->l == 0u && (insn->op1 & 0x2u) != 0u;
     insn->unpriv = (!is_dual && insn->p == 0u && insn->w != 0u) ? 1u : 0u;
     const int32_t imm8 = static_cast<int32_t>(

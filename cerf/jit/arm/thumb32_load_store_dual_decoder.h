@@ -19,6 +19,7 @@ public:
 private:
     Thumb32Fatal* fatal_ = nullptr;
 
+    bool DecodeDual(DecodedInsn* insn, uint32_t op);
     bool DecodeExclusiveOrTableBranch(DecodedInsn* insn, uint32_t op);
     bool DecodeTableBranchByte(DecodedInsn* insn, uint32_t op);
 };

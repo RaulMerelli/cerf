@@ -81,6 +81,52 @@ bool Thumb32LoadStoreDualDecoder::DecodeExclusiveOrTableBranch(
     }
 }
 
+/* DDI 0406C.c A8.8.72 LDRD (immediate) T1 (p. A8-426), A8.8.73 LDRD (literal)
+   T1 (p. A8-428), A8.8.210 STRD (immediate) T1 (p. A8-686): "t = UInt(Rt);
+   t2 = UInt(Rt2); imm32 = ZeroExtend(imm8:'00', 32); add = (U == '1')". The
+   immediate forms add "n = UInt(Rn); index = (P == '1'); wback = (W == '1')". */
+bool Thumb32LoadStoreDualDecoder::DecodeDual(DecodedInsn* insn, uint32_t op) {
+    const uint32_t p    = (op >> 24) & 0x1u;
+    const uint32_t u    = (op >> 23) & 0x1u;
+    const uint32_t w    = (op >> 21) & 0x1u;
+    const bool     load = ((op >> 20) & 0x1u) != 0u;
+    const uint32_t rn   = (op >> 16) & 0xFu;
+    const uint32_t rt   = (op >> 12) & 0xFu;
+    const uint32_t rt2  = (op >>  8) & 0xFu;
+
+    /* "if t IN {13,15} || t2 IN {13,15} then UNPREDICTABLE" on all three;
+       "|| t == t2" on the two loads; STRD adds "if n == 15"; the literal adds
+       "if W == '1' then UNPREDICTABLE". */
+    if (rt == 13u || rt == 15u || rt2 == 13u || rt2 == 15u) {
+        return false;
+    }
+    if (load) {
+        if (rt == rt2 || (rn == 15u && w != 0u)) {
+            return false;
+        }
+    } else if (rn == 15u) {
+        return false;
+    }
+    /* "if wback && (n == t || n == t2) then UNPREDICTABLE". */
+    if (w != 0u && (rn == rt || rn == rt2)) {
+        return false;
+    }
+
+    const int32_t imm32 = static_cast<int32_t>((op & 0xFFu) * 4u);
+    insn->op1      = load ? 2u : 3u;
+    insn->l        = 0u;
+    insn->n        = 1u;
+    insn->p        = p;
+    insn->u        = u;
+    insn->w        = w;
+    insn->rn       = rn;
+    insn->rd       = rt;
+    insn->rd2      = rt2;
+    insn->offset   = u != 0u ? imm32 : -imm32;
+    insn->place_fn = &PlaceLoadStoreExtension;
+    return true;
+}
+
 /* DDI 0406C.c A6.3.6 and Table A6-17 (p. A6-238): op1 = bits[24:23],
    op2 = bits[21:20], op3 = hw2[7:4], Rn = bits[19:16]; "Other encodings in
    this space are UNDEFINED". */
@@ -97,11 +143,5 @@ bool Thumb32LoadStoreDualDecoder::Decode(DecodedInsn* insn, uint32_t op) {
     if (op1 == 0x1u && op2 <= 0x1u) {
         return DecodeExclusiveOrTableBranch(insn, op);
     }
-    if ((op2 & 0x1u) == 0u) {
-        fatal_->Unimplemented("store register dual (A6-238)", insn, op);
-    }
-    fatal_->Unimplemented(((op >> 16) & 0xFu) == 0xFu
-                              ? "load register dual, literal (A6-238)"
-                              : "load register dual, immediate (A6-238)",
-                          insn, op);
+    return DecodeDual(insn, op);
 }

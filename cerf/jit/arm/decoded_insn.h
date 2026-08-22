@@ -106,4 +106,9 @@ struct DecodedInsn {
     /* DDI 0406C.c A8.8.29 CBNZ, CBZ Operation (p. A8-357): "if nonzero !=
        IsZero(R[n]) then BranchWritePC(PC + imm32);". */
     uint32_t   r15_conditional;
+
+    /* DDI 0406C.c A8.8.72 LDRD (immediate) T1 (p. A8-426) and A8.8.210 STRD
+       (immediate) T1 (p. A8-686): "t2 = UInt(Rt2)", an independent field. Every
+       A1 encoding of those instructions instead gives "t2 = t+1". */
+    uint32_t   rd2;
 };

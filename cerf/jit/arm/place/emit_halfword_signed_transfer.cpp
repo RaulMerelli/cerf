@@ -101,17 +101,20 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
 
     bool unpredictable = false;
     if (is_dual) {
-        /* A8.8.72/74/210/211: Rt<0> == 1, t2 == 15, P == 0 && W == 1,
-           wback && n in {15, t, t2}, register form m in {15, t, t2}. */
-        unpredictable |= (d->rd & 1u) != 0 || d->rd == 14;
-        unpredictable |= !d->p && d->w;
+        /* A8.8.72 / A8.8.210 A1 (pp. A8-426 / A8-686): "if Rt<0> == '1' then
+           UNPREDICTABLE", "if t2 == 15 then UNPREDICTABLE", "if P == '0' &&
+           W == '1' then UNPREDICTABLE"; T1 gives "t2 = UInt(Rt2)" instead. */
+        if (!ctx->thumb) {
+            unpredictable |= (d->rd & 1u) != 0 || d->rd == 14;
+            unpredictable |= !d->p && d->w;
+        }
         if (wback) {
             unpredictable |= d->rn == 15 || d->rn == d->rd ||
-                             d->rn == d->rd + 1;
+                             d->rn == d->rd2;
         }
         if (!imm_form) {
             unpredictable |= d->rm == 15 || d->rm == d->rd ||
-                             d->rm == d->rd + 1;
+                             d->rm == d->rd2;
         }
     } else {
         /* A8.8.80/82/84/86/88/90/217/218: t == 15, register form m == 15,
@@ -269,7 +272,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             Emit8(cursor, 0x8B);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
             EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd), kEdi);
-            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd + 1), kEdx);
+            EmitMovBaseDisp32Reg(cursor, kStateReg, GprDisp(d->rd2), kEdx);
             if (wback) {
                 if (d->p) {
                     EmitAddRegImm32(cursor, kEcx, static_cast<uint32_t>(-4));
@@ -287,7 +290,7 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
             cursor = EmitTlbFastPath(cursor, ctx, TlbAccess::kWrite);
             EmitTestRegReg(cursor, kEax, kEax);
             fault_labels[n_fault++] = EmitJzLabel32(cursor);
-            EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd + 1));
+            EmitMovRegBaseDisp32(cursor, kEdx, kStateReg, GprDisp(d->rd2));
             Emit8(cursor, 0x89);
             EmitModRmReg(cursor, /*mod=*/0, /*rm=*/kEax, /*reg=*/kEdx);
             if (wback) {

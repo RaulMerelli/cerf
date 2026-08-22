@@ -262,8 +262,8 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
         if (!access_->Load(cpu_state_, pc, address + 4u, 4u, &value, unpriv)) {
             return Abort(d, wback, offset_addr);
         }
-        cpu_state_->gprs[d->rd]      = first;
-        cpu_state_->gprs[d->rd + 1u] = value;
+        cpu_state_->gprs[d->rd]   = first;
+        cpu_state_->gprs[d->rd2]  = value;
         if (wback) {
             cpu_state_->gprs[d->rn] = offset_addr;
         }
@@ -275,7 +275,7 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::HalfwordTransfer(
             return Abort(d, wback, offset_addr);
         }
         if (!access_->Store(cpu_state_, pc, address + 4u, 4u,
-                            cpu_state_->gprs[d->rd + 1u], unpriv)) {
+                            cpu_state_->gprs[d->rd2], unpriv)) {
             return Abort(d, wback, offset_addr);
         }
         if (wback) {
