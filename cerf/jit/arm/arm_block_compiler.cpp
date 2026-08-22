@@ -367,10 +367,10 @@ void* ArmBlockCompiler::Compile(uint32_t guest_pc) {
 
     if (walker_->TranslateExecute(cpu_state_, guest_pc) == nullptr) {
         if (mmu_->io_pending()) {
-            LOG(Caution, "ArmBlockCompiler::Compile: instruction fetch at 0x%08X "
-                    "resolves to peripheral PA 0x%08X\n",
+            emu_.Get<Fatal>().Die(
+                "ArmBlockCompiler::Compile: instruction fetch at 0x%08X "
+                "resolves to peripheral PA 0x%08X\n",
                 guest_pc, mmu_->io_pending_address());
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
         cpu_->RaiseAbortPrefetchException(guest_pc);
         return nullptr;
