@@ -127,6 +127,23 @@ bool ThumbStackControlDecoder::DecodeExtend(DecodedInsn* insn, uint16_t op) {
     return true;
 }
 
+/* ARM DDI 0406C.c Table A6-6 (p. A6-228): opcode bits[11:5] = 101000x REV
+   (A8.8.145, p. A8-562), 101001x REV16 (A8.8.146, p. A8-564), 101011x REVSH
+   (A8.8.147, p. A8-566); 101010x is absent and "Other encodings in this space
+   are UNDEFINED". T1: "d = UInt(Rd); m = UInt(Rm)", Rm[5:3], Rd[2:0]. */
+bool ThumbStackControlDecoder::DecodeByteReverse(DecodedInsn* insn,
+                                                 uint16_t op) {
+    insn->rm = (op >> 3) & 0x7u;
+    insn->rd =  op       & 0x7u;
+    switch ((op >> 6) & 0x3u) {
+    case 0x0u: insn->place_fn = &PlaceRev;   break;
+    case 0x1u: insn->place_fn = &PlaceRev16; break;
+    case 0x3u: insn->place_fn = &PlaceRevsh; break;
+    default:   return false;
+    }
+    return true;
+}
+
 /* ARM DDI 0100I Figure A6-2 (A6.2.1, p. A6-5), bits[15:12] == 0b1011, and its
    closing note: "Any instruction with bits[15:12] = 1011, and which is not
    shown in Figure A6-2, is an Undefined instruction." */
@@ -186,7 +203,7 @@ bool ThumbStackControlDecoder::DecodeStackControlGroup(DecodedInsn* insn,
     case 0xAu:
         /* Figure A6-2 note 2, p. A6-5. */
         if (!processor_config_->HasRev()) return false;
-        return MarkArmUnimplemented(insn, op);
+        return DecodeByteReverse(insn, op);
     case 0xEu:
         /* Figure A6-2 note 1, p. A6-5. DDI 0406C.c A8.8.24 BKPT encoding T1
            (p. A8-346): "Breakpoint is always unconditional, even when inside
