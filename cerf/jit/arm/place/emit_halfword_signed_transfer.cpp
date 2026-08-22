@@ -178,21 +178,8 @@ uint8_t* EmitHalfwordSignedTransfer(uint8_t*      cursor,
     uint8_t* cross_label       = nullptr;
 
     if (is_halfword) {
-        /* Table A3-1 (p. A3-108): halfword Alignment fault iff SCTLR.A == 1;
-           A == 0 unaligned proceeds (U == 1) or is UNPREDICTABLE (D15.3.1,
-           p. D15-2592). */
-        if (sctlr.bits.a) {
-            EmitTestRegImm32(cursor, kEcx, 1u);
-            align_fault_label = EmitJnzLabel32(cursor);
-        } else {
-            /* An access at a 1 KB boundary can span two mappings - Tiny
-               pages map 1 KB (Table D15-10, p. D15-2609; A3.2.3,
-               p. A3-109). */
-            EmitMovRegReg  (cursor, kEdx, kEcx);
-            EmitAndRegImm32(cursor, kEdx, 0x3FFu);
-            EmitCmpRegImm32(cursor, kEdx, 0x3FFu);
-            cross_label = EmitJzLabel32(cursor);
-        }
+        EmitHalfwordAlignCheck(cursor, sctlr.bits.a != 0u,
+                               &align_fault_label, &cross_label);
     } else if (is_dual) {
         /* Table A3-1 (p. A3-108): LDRD/STRD Alignment fault in both SCTLR.A
            columns; D12.3.1 (p. D12-2506): doubleword-aligned iff v6 U == 0;

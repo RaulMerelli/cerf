@@ -34,6 +34,8 @@ bool Thumb32LoadStoreDualDecoder::DecodeTableBranchByte(DecodedInsn* insn,
 
     insn->rn           = rn;
     insn->rm           = rm;
+    /* "is_tbh = (H == '1')", H at hw2[4] of the A8.8.236 T1 diagram. */
+    insn->op1          = (op >> 4) & 0x1u;
     insn->r15_modified = true;
     insn->place_fn     = &PlaceTableBranchByte;
     return true;
@@ -66,7 +68,7 @@ bool Thumb32LoadStoreDualDecoder::DecodeExclusiveOrTableBranch(
     case 0x0u:
         return DecodeTableBranchByte(insn, op);
     case 0x1u:
-        fatal_->Unimplemented("table branch halfword (A6-238)", insn, op);
+        return DecodeTableBranchByte(insn, op);
     case 0x4u:
         fatal_->Unimplemented("load register exclusive byte (A6-238)", insn,
                               op);

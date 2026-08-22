@@ -34,6 +34,9 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitDpArithFlagTail(uint8_t* cursor, DecodedInsn* d);
 uint8_t* EmitDpLogicalFlagTail(uint8_t* cursor, DpLogicalCarry carry);
 uint8_t* EmitDpPcWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+void EmitHalfwordAlignCheck(uint8_t*& cursor, bool sctlr_a,
+                            uint8_t** align_fault_label,
+                            uint8_t** cross_label);
 uint8_t* EmitHalfwordSignedTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitIoIrqPreciseBackout(uint8_t* cursor, DecodedInsn* d,
                                  BlockContext* ctx);
