@@ -441,15 +441,33 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Swap(DecodedInsn* d) {
 ArmRoutedInstruction::Outcome ArmRoutedInstruction::Exclusive(DecodedInsn* d,
                                                               bool is_store) {
     const uint32_t pc      = d->guest_address;
-    const uint32_t address = cpu_state_->gprs[d->rn];
+    const uint32_t address =
+        cpu_state_->gprs[d->rn] + static_cast<uint32_t>(d->offset);
+    const uint32_t bytes   = d->op1;
+    const uint32_t unit    = bytes == 8u ? 4u : bytes;
+
+    /* DDI 0406C.c Table A3-1 (p. A3-108): an Alignment fault in both SCTLR.A
+       columns for every exclusive except the byte forms. */
+    if (bytes > 1u && (address & (bytes - 1u)) != 0u) {
+        mmu_->RaiseAlignmentFault(address, is_store);
+        return Abort(d, false, 0u);
+    }
 
     if (!is_store) {
-        uint32_t value = 0;
-        if (!access_->Load(cpu_state_, pc, address, 4u, &value, false)) {
+        uint32_t first = 0;
+        if (!access_->Load(cpu_state_, pc, address, unit, &first, false)) {
             return Abort(d, false, 0u);
         }
-        cpu_state_->gprs[d->rd]        = value;
-        cpu_state_->ldrex_monitor_addr = address;
+        if (bytes == 8u) {
+            uint32_t second = 0;
+            if (!access_->Load(cpu_state_, pc, address + 4u, 4u, &second,
+                               false)) {
+                return Abort(d, false, 0u);
+            }
+            cpu_state_->gprs[d->rd2] = second;
+        }
+        cpu_state_->gprs[d->rd]         = first;
+        cpu_state_->ldrex_monitor_addr  = address;
         cpu_state_->ldrex_monitor_armed = 1u;
         return Outcome::kNextInsn;
     }
@@ -459,8 +477,13 @@ ArmRoutedInstruction::Outcome ArmRoutedInstruction::Exclusive(DecodedInsn* d,
         cpu_state_->gprs[d->rd] = 1u;
         return Outcome::kNextInsn;
     }
-    if (!access_->Store(cpu_state_, pc, address, 4u,
+    if (!access_->Store(cpu_state_, pc, address, unit,
                         cpu_state_->gprs[d->rm], false)) {
+        return Abort(d, false, 0u);
+    }
+    if (bytes == 8u &&
+        !access_->Store(cpu_state_, pc, address + 4u, 4u,
+                        cpu_state_->gprs[d->rd2], false)) {
         return Abort(d, false, 0u);
     }
     cpu_state_->gprs[d->rd]         = 0u;

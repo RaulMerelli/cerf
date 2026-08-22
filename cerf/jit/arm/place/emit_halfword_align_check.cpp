@@ -13,6 +13,9 @@ void EmitHalfwordAlignCheck(uint8_t*& cursor, bool sctlr_a,
                             uint8_t** cross_label) {
     using namespace x86;
 
+    *align_fault_label = nullptr;
+    *cross_label       = nullptr;
+
     if (sctlr_a) {
         EmitTestRegImm32(cursor, kEcx, 1u);
         *align_fault_label = EmitJnzLabel32(cursor);

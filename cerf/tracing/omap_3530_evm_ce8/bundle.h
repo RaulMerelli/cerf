@@ -2,4 +2,4 @@
 
 #include <cstdint>
 
-inline constexpr uint32_t kBundleCrc32 = 0x97B6DE21u;
+inline constexpr uint32_t kBundleCrc32 = 0x09F4CB62u;

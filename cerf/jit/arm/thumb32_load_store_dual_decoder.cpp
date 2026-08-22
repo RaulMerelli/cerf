@@ -2,9 +2,9 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../cpu/arm_processor_config.h"
 #include "decoded_insn.h"
 #include "place_fns.h"
-#include "thumb32_fatal.h"
 
 REGISTER_SERVICE(Thumb32LoadStoreDualDecoder);
 
@@ -13,7 +13,7 @@ bool Thumb32LoadStoreDualDecoder::ShouldRegister() {
 }
 
 void Thumb32LoadStoreDualDecoder::OnReady() {
-    fatal_ = &emu_.Get<Thumb32Fatal>();
+    has_cp15_v7_ = emu_.Get<ArmProcessorConfig>().HasCp15V7();
 }
 
 /* DDI 0406C.c A8.8.236 TBB, TBH encoding T1 (p. A8-736): Rn = bits[19:16],
@@ -41,8 +41,95 @@ bool Thumb32LoadStoreDualDecoder::DecodeTableBranchByte(DecodedInsn* insn,
     return true;
 }
 
+/* DDI 0406C.c A8.8.75 LDREX T1 (p. A8-432) "t = UInt(Rt); n = UInt(Rn);
+   imm32 = ZeroExtend(imm8:'00', 32)", A8.8.76 LDREXB T1 (p. A8-434), A8.8.78
+   LDREXH T1 (p. A8-438) and A8.8.77 LDREXD T1 (p. A8-436) "t2 = UInt(Rt2)";
+   Rn = bits[19:16], Rt = hw2[15:12], Rt2 = hw2[11:8], imm8 = hw2[7:0]. */
+bool Thumb32LoadStoreDualDecoder::DecodeLoadExclusive(DecodedInsn* insn,
+                                                      uint32_t op,
+                                                      uint32_t bytes) {
+    /* A8.8.76 LDREXB (p. A8-434), A8.8.77 LDREXD (p. A8-436) and A8.8.78
+       LDREXH (p. A8-438) give "Encoding T1 ARMv7"; A8.8.75 LDREX (p. A8-432)
+       gives "Encoding T1 ARMv6T2, ARMv7". */
+    if (bytes != 4u && !has_cp15_v7_) {
+        return false;
+    }
+
+    const uint32_t rn = (op >> 16) & 0xFu;
+    const uint32_t rt = (op >> 12) & 0xFu;
+    if (rt == 13u || rt == 15u || rn == 15u) {
+        return false;
+    }
+    if (bytes == 8u) {
+        const uint32_t rt2 = (op >> 8) & 0xFu;
+        if (rt2 == 13u || rt2 == 15u || rt2 == rt || (op & 0xFu) != 0xFu) {
+            return false;
+        }
+        insn->rd2 = rt2;
+    } else if (bytes == 4u) {
+        if (((op >> 8) & 0xFu) != 0xFu) {
+            return false;
+        }
+        insn->offset = static_cast<int32_t>((op & 0xFFu) * 4u);
+    } else if (((op >> 8) & 0xFu) != 0xFu || (op & 0xFu) != 0xFu) {
+        return false;
+    }
+    insn->op1      = bytes;
+    insn->rd       = rt;
+    insn->rn       = rn;
+    insn->place_fn = &PlaceLdrex;
+    return true;
+}
+
+/* DDI 0406C.c A8.8.212 STREX T1 (p. A8-690) with Rd = hw2[11:8] and
+   imm32 = ZeroExtend(imm8:'00', 32); A8.8.213 STREXB (p. A8-692), A8.8.215
+   STREXH (p. A8-696) and A8.8.214 STREXD (p. A8-694) with Rd = hw2[3:0].
+   "if d == n || d == t then UNPREDICTABLE", and STREXD adds d == t2. */
+bool Thumb32LoadStoreDualDecoder::DecodeStoreExclusive(DecodedInsn* insn,
+                                                       uint32_t op,
+                                                       uint32_t bytes) {
+    /* A8.8.213 STREXB (p. A8-692), A8.8.214 STREXD (p. A8-694) and A8.8.215
+       STREXH (p. A8-696) give "Encoding T1 ARMv7"; A8.8.212 STREX (p. A8-690)
+       gives "Encoding T1 ARMv6T2, ARMv7". */
+    if (bytes != 4u && !has_cp15_v7_) {
+        return false;
+    }
+
+    const uint32_t rn = (op >> 16) & 0xFu;
+    const uint32_t rt = (op >> 12) & 0xFu;
+    uint32_t       rd = 0;
+    if (bytes == 4u) {
+        rd           = (op >> 8) & 0xFu;
+        insn->offset = static_cast<int32_t>((op & 0xFFu) * 4u);
+    } else {
+        rd = op & 0xFu;
+        if (bytes != 8u && ((op >> 8) & 0xFu) != 0xFu) {
+            return false;
+        }
+    }
+    if (rd == 13u || rd == 15u || rt == 13u || rt == 15u || rn == 15u) {
+        return false;
+    }
+    if (rd == rn || rd == rt) {
+        return false;
+    }
+    if (bytes == 8u) {
+        const uint32_t rt2 = (op >> 8) & 0xFu;
+        if (rt2 == 13u || rt2 == 15u || rd == rt2) {
+            return false;
+        }
+        insn->rd2 = rt2;
+    }
+    insn->op1      = bytes;
+    insn->rd       = rd;
+    insn->rn       = rn;
+    insn->rm       = rt;
+    insn->place_fn = &PlaceStrex;
+    return true;
+}
+
 /* DDI 0406C.c Table A6-17 (p. A6-238), the op1 = 01 rows keyed on
-   op3 = hw2[7:4]. */
+   op3 = hw2[7:4]: 0100 byte, 0101 halfword, 0111 doubleword. */
 bool Thumb32LoadStoreDualDecoder::DecodeExclusiveOrTableBranch(
     DecodedInsn* insn, uint32_t op) {
     const uint32_t op2 = (op >> 20) & 0x3u;
@@ -50,36 +137,21 @@ bool Thumb32LoadStoreDualDecoder::DecodeExclusiveOrTableBranch(
 
     if (op2 == 0x0u) {
         switch (op3) {
-        case 0x4u:
-            fatal_->Unimplemented("store register exclusive byte (A6-238)",
-                                  insn, op);
-        case 0x5u:
-            fatal_->Unimplemented("store register exclusive halfword (A6-238)",
-                                  insn, op);
-        case 0x7u:
-            fatal_->Unimplemented(
-                "store register exclusive doubleword (A6-238)", insn, op);
-        default:
-            return false;
+        case 0x4u: return DecodeStoreExclusive(insn, op, 1u);
+        case 0x5u: return DecodeStoreExclusive(insn, op, 2u);
+        case 0x7u: return DecodeStoreExclusive(insn, op, 8u);
+        default:   return false;
         }
     }
 
     switch (op3) {
     case 0x0u:
-        return DecodeTableBranchByte(insn, op);
     case 0x1u:
         return DecodeTableBranchByte(insn, op);
-    case 0x4u:
-        fatal_->Unimplemented("load register exclusive byte (A6-238)", insn,
-                              op);
-    case 0x5u:
-        fatal_->Unimplemented("load register exclusive halfword (A6-238)",
-                              insn, op);
-    case 0x7u:
-        fatal_->Unimplemented("load register exclusive doubleword (A6-238)",
-                              insn, op);
-    default:
-        return false;
+    case 0x4u: return DecodeLoadExclusive(insn, op, 1u);
+    case 0x5u: return DecodeLoadExclusive(insn, op, 2u);
+    case 0x7u: return DecodeLoadExclusive(insn, op, 8u);
+    default:   return false;
     }
 }
 
@@ -137,10 +209,10 @@ bool Thumb32LoadStoreDualDecoder::Decode(DecodedInsn* insn, uint32_t op) {
     const uint32_t op2 = (op >> 20) & 0x3u;
 
     if (op1 == 0x0u && op2 == 0x0u) {
-        fatal_->Unimplemented("store register exclusive (A6-238)", insn, op);
+        return DecodeStoreExclusive(insn, op, 4u);
     }
     if (op1 == 0x0u && op2 == 0x1u) {
-        fatal_->Unimplemented("load register exclusive (A6-238)", insn, op);
+        return DecodeLoadExclusive(insn, op, 4u);
     }
     if (op1 == 0x1u && op2 <= 0x1u) {
         return DecodeExclusiveOrTableBranch(insn, op);

@@ -388,6 +388,7 @@ bool ArmDataprocSpaceDecoder::DecodeLdrexStrex(DecodedInsn* insn, ArmOpcode op) 
         if (rt != 0xFu) {
             return false;
         }
+        insn->op1      = 4u;
         insn->rd       = rd;   /* Rt destination */
         insn->rn       = rn;   /* address */
         insn->place_fn = &PlaceLdrex;
@@ -401,6 +402,7 @@ bool ArmDataprocSpaceDecoder::DecodeLdrexStrex(DecodedInsn* insn, ArmOpcode op) 
     if (rd == rt || rd == rn) {
         return false;
     }
+    insn->op1      = 4u;
     insn->rd       = rd;       /* status output (0 success, 1 fail) */
     insn->rn       = rn;       /* address */
     insn->rm       = rt;       /* source value */
