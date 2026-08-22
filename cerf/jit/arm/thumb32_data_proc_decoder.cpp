@@ -330,17 +330,18 @@ bool Thumb32DataProcDecoder::DecodeDataProcessingRegister(DecodedInsn* insn,
         }
         /* Table A6-24 (p. A6-245) rows 0000 / 0001 / 0100 / 0101 with
            Rn != 1111: A8.8.232 SXTAH (p. A8-728), A8.8.273 UXTAH (p. A8-810),
-           A8.8.230 SXTAB (p. A8-724), A8.8.271 UXTAB (p. A8-806). */
-        if (rn != 0xFu) {
-            fatal_->Unimplemented("signed / unsigned extend and add (A6-245)",
-                                  insn, op);
-        }
-        if (rd == 13u || rd == 0xFu || rm == 13u || rm == 0xFu) {
+           A8.8.230 SXTAB (p. A8-724), A8.8.271 UXTAB (p. A8-806): "if d IN
+           {13,15} || n == 13 || m IN {13,15} then UNPREDICTABLE". */
+        if (rd == 13u || rd == 0xFu || rm == 13u || rm == 0xFu || rn == 13u) {
             return false;
         }
         insn->rd  = rd;
         insn->rm  = rm;
         insn->op1 = (op >> 4) & 0x3u;
+        if (rn != 0xFu) {
+            insn->rn = rn;
+            insn->n  = 1u;
+        }
         switch (op1) {
         case 0x0u: insn->place_fn = &PlaceSxth; break;
         case 0x1u: insn->place_fn = &PlaceUxth; break;
