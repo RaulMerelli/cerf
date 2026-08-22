@@ -173,7 +173,9 @@ void ShutdownDialog::BuildControls(HWND hwnd) {
     mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP,
        cw - S(kMarginR + kBtnGap) - 2 * S(kBtnW), btn_y, S(kBtnW), S(kBtnH),
        IDOK);
-    mk(L"BUTTON", L"Cancel", BS_PUSHBUTTON | WS_TABSTOP,
+    mk(L"BUTTON",
+       trigger_ == ShutdownTrigger::DeepSleep ? L"Resume" : L"Cancel",
+       BS_PUSHBUTTON | WS_TABSTOP,
        cw - S(kMarginR) - S(kBtnW), btn_y, S(kBtnW), S(kBtnH), IDCANCEL);
 
     if (timer_on_) {
