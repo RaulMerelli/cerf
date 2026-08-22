@@ -29,13 +29,19 @@ struct CerfBltBand {
     int sl, st, sr;
     int ml, mt, mr;
     int height, width, src_h;
-    int bw, bh;
+    int bw, bh, brush_t;
     int dst_stride, dst_bits;
     int src_stride, src_bits;
     int mask_stride, mask_bits;
+    int brush_stride, brush_bits;
     bool has_src, has_mask, has_brush, src_pal, use_lut_y;
-    bool dst_fb, src_fb;
+    bool dst_fb, src_fb, brush_banded;
 };
+
+int  CerfBrushRowAt(const CerfBltBand& b, int row);
+void CerfBrushBandRows(const CerfBltBand& b, int r0, int r1, int* by0, int* by1);
+int  CerfBrushClampEnd(const CerfBltBand& b, int r0, int r1);
+int  CerfBrushClampStart(const CerfBltBand& b, int r0, int r1);
 
 enum CerfBandOrder { kCerfBandDown, kCerfBandUp };
 

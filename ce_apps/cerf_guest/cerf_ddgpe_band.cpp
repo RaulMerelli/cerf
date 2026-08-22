@@ -1,5 +1,31 @@
 #include "cerf_ddgpe.h"
 
+int CerfBrushRowAt(const CerfBltBand& b, int row) {
+    return (int)((ULONG)(b.brush_t + b.dt + row) % (ULONG)b.bh);
+}
+
+void CerfBrushBandRows(const CerfBltBand& b, int r0, int r1, int* by0, int* by1) {
+    const int count = r1 - r0;
+    if (count >= b.bh) { *by0 = 0; *by1 = b.bh; return; }
+    *by0 = CerfBrushRowAt(b, r0);
+    *by1 = *by0 + count;
+}
+
+int CerfBrushClampEnd(const CerfBltBand& b, int r0, int r1) {
+    if (!b.has_brush || !b.brush_banded) return r1;
+    const int allowed = b.bh - CerfBrushRowAt(b, r0);
+    if (r1 - r0 > allowed) r1 = r0 + allowed;
+    const int wrap = -(b.brush_t + b.dt);
+    if (wrap > r0 && wrap < r1) r1 = wrap;
+    return r1;
+}
+
+int CerfBrushClampStart(const CerfBltBand& b, int r0, int r1) {
+    if (!b.has_brush || !b.brush_banded) return r0;
+    const int lo = r1 - 1 - CerfBrushRowAt(b, r1 - 1);
+    return (r0 < lo) ? lo : r0;
+}
+
 bool CerfBandClip(const CerfBltBand& b, GPEBltParms* p, int* cl, int* cr) {
     RECTL bclip;
     CerfEffectiveClip(&bclip, p->prclClip, p->pDst);
@@ -23,11 +49,16 @@ ULONG CerfBandSpanBytes(const CerfBltBand& b, int cl, int cr, int r0, int r1) {
     if (b.has_mask)
         t += CerfSpanBytes(b.ml, b.mt + r0, b.mr, b.mt + r1,
                            b.mask_stride, b.mask_bits);
+    if (b.has_brush && b.brush_banded) {
+        int by0 = 0, by1 = 0;
+        CerfBrushBandRows(b, r0, r1, &by0, &by1);
+        t += CerfSpanBytes(0, by0, b.bw, by1, b.brush_stride, b.brush_bits);
+    }
     return t;
 }
 
 int CerfBandEnd(const CerfBltBand& b, int cl, int cr, ULONG budget, int r0) {
-    int r1 = b.height;
+    int r1 = CerfBrushClampEnd(b, r0, b.height);
     while (r1 > r0 + 1) {
         if (CerfBandSpanBytes(b, cl, cr, r0, r1) <= budget) break;
         r1 = r0 + (r1 - r0) / 2;
@@ -36,7 +67,7 @@ int CerfBandEnd(const CerfBltBand& b, int cl, int cr, ULONG budget, int r0) {
 }
 
 int CerfBandStart(const CerfBltBand& b, int cl, int cr, ULONG budget, int r1) {
-    int r0 = 0;
+    int r0 = CerfBrushClampStart(b, 0, r1);
     while (r0 < r1 - 1) {
         if (CerfBandSpanBytes(b, cl, cr, r0, r1) <= budget) break;
         r0 = r1 - (r1 - r0) / 2;

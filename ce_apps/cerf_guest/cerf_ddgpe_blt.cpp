@@ -278,7 +278,9 @@ void CerfDDGPE::EmitBltBand(const CerfBltBand& b, GPEBltParms* p, int r0, int r1
         d.has_brush    = 1u;
         d.brush_width  = (uint32_t)p->pBrush->Width();
         d.brush_height = (uint32_t)p->pBrush->Height();
-        FillSurface(&d.brush, p->pBrush, 0, 0, b.bw, b.bh, false, false);
+        int by0 = 0, by1 = b.bh;
+        if (b.brush_banded) CerfBrushBandRows(b, rr0, rr1, &by0, &by1);
+        FillSurface(&d.brush, p->pBrush, 0, by0, b.bw, by1, false, false);
         if (p->pptlBrush) {
             d.brush_has_ptl = 1u;
             d.brush_ptl_x   = p->pptlBrush->x;
@@ -366,27 +368,37 @@ SCODE CerfDDGPE::HwBlt(GPEBltParms* p) {
     ULONG lut_bytes = 0;
     if (has_src && src_pal && p->pLookup)
         lut_bytes = (1u << CerfFormatBpp(p->pSrc->Format())) * (ULONG)sizeof(ULONG);
-    int bw = 0, bh = 0;
-    ULONG brush_span = 0;
+    int bw = 0, bh = 0, brush_t = 0, brush_stride = 0, brush_bits = 0;
+    bool brush_fb = false;
     if (has_brush) {
         bw = p->pBrush->Width();
         bh = p->pBrush->Height();
         CerfRequireExtent(bw, kCerfExtentBrushWidth);
         CerfRequireExtent(bh, kCerfExtentBrushHeight);
-        if (!SurfaceFbPa(p->pBrush, &pa))
-            brush_span = CerfSpanBytes(0, 0, bw, bh, (int)p->pBrush->Stride(),
-                                       CerfFormatBpp(p->pBrush->Format()));
+        brush_stride = (int)p->pBrush->Stride();
+        brush_bits   = CerfFormatBpp(p->pBrush->Format());
+        brush_fb     = SurfaceFbPa(p->pBrush, &pa) ? true : false;
+        if (!brush_fb && !p->pBrush->Buffer())
+            CERF_FATAL("cerf_guest: HwBlt brush has no buffer - halting");
+        brush_t      = p->pptlBrush ? (bh - p->pptlBrush->y) : 0;
     }
-    const ULONG budget = CerfVirt::kDmaPartitionSize - CerfVirt::kDmaPartHdrSize
-                         - (ULONG)sizeof(CerfVirt::CerfBltDescriptor)
-                         - lut_bytes - brush_span - 64u;
+    ULONG budget = CerfVirt::kDmaPartitionSize - CerfVirt::kDmaPartHdrSize
+                   - (ULONG)sizeof(CerfVirt::CerfBltDescriptor)
+                   - lut_bytes - 64u;
+
+    bool brush_banded = false;
+    if (has_brush && !brush_fb) {
+        const ULONG brush_all = CerfSpanBytes(0, 0, bw, bh, brush_stride, brush_bits);
+        if (brush_all <= budget / 2u) budget -= brush_all;
+        else                          brush_banded = true;
+    }
 
     const CerfBltBand band = { dl, dt, dr, sl, st, sr, ml, mt, mr,
-                               height, width, src_h, bw, bh,
+                               height, width, src_h, bw, bh, brush_t,
                                dst_stride, dst_bits, src_stride, src_bits,
-                               mask_stride, mask_bits,
+                               mask_stride, mask_bits, brush_stride, brush_bits,
                                has_src, has_mask, has_brush, src_pal, use_lut_y,
-                               dst_fb, src_fb };
+                               dst_fb, src_fb, brush_banded };
 
     EmitBltBands(band, p, budget, order);
     if (snap) {
