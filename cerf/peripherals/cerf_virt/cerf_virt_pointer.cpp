@@ -1,6 +1,7 @@
 #include "cerf_virt_pointer.h"
 #include "cerf_virt_pointer_regs.h"
 #include "cerf_virt_addr_map.h"
+#include "cerf_guest_liveness.h"
 
 #include "../peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
@@ -97,6 +98,10 @@ public:
 
     void OnCaptureLost() override {
         emu_.Get<CerfVirtPointer>().ClearButtons();
+    }
+
+    bool SourceReady() const override {
+        return emu_.Get<CerfGuestLiveness>().IsAlive();
     }
 
 private:

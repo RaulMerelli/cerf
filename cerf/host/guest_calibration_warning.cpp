@@ -69,7 +69,13 @@ void GuestCalibrationWarning::EndCycle() {
     if (!switched_to_stock_) return;
     switched_to_stock_ = false;
 
-    emu_.Get<PointerRouter>().SetActive(&emu_.Get<PointerInput>());
+    auto& router = emu_.Get<PointerRouter>();
+    router.RearmAutoSelect();
+    if (router.Active() != &emu_.Get<PointerInput>()) {
+        LOG(GuestAdditions, "[CALIB] calibration over; the Guest Additions "
+            "pointer is not ready, keeping the stock device\n");
+        return;
+    }
     LOG(GuestAdditions, "[CALIB] switched back to the Guest Additions pointer\n");
     emu_.Get<HostBalloonHint>().ShowUnderWidget(
         &emu_.Get<PointerWidget>(),

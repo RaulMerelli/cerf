@@ -1,5 +1,6 @@
 #include "cerf_virt_keyboard.h"
 #include "cerf_virt_addr_map.h"
+#include "cerf_guest_liveness.h"
 
 #include "../peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
@@ -75,6 +76,10 @@ public:
     std::wstring   SourceName() const override { return L"Guest Additions keyboard"; }
     int            SourcePriority() const override { return 100; }
     const wchar_t* IconResourceName() const override { return L"ICON_GA_KEYBOARD"; }
+
+    bool SourceReady() const override {
+        return emu_.Get<CerfGuestLiveness>().IsAlive();
+    }
 
     void OnHostKey(uint8_t vk, bool key_up) override {
         emu_.Get<CerfVirtKeyboard>().PushKey(vk, key_up);

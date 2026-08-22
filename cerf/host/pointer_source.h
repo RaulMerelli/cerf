@@ -15,8 +15,7 @@ public:
     virtual std::wstring   SourceName()       const = 0;
     /* cerf.rc ICON resource the pointer widget draws while this source is active. */
     virtual const wchar_t* IconResourceName() const = 0;
-    /* Highest priority among registered sources becomes active at boot
-       (the GA absolute pointer outranks stock devices). */
     virtual int            SourcePriority()   const = 0;
     virtual PointerKind    Kind()             const = 0;
+    virtual bool           SourceReady()      const { return true; }
 };

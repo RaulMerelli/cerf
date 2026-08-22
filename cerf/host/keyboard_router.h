@@ -9,9 +9,6 @@
 
 class KeyboardInput;
 
-/* Registry + active-selection funnel for keyboard sources. Sources self-register
-   from OnReady; host-key consumers call OnHostKey, which forwards to the active
-   source. The keyboard widget reads Sources()/Active() and drives SetActive. */
 class KeyboardRouter : public Service {
 public:
     using Service::Service;
@@ -22,10 +19,19 @@ public:
     std::vector<KeyboardInput*> Sources();
     KeyboardInput*              Active();
     void                        SetActive(KeyboardInput* src);
-    void                        SetActiveByName(const std::wstring& name);
+    void                        RestoreActiveByName(const std::wstring& name);
+
+    void ReevaluateAuto();
+    void RearmAutoSelect();
+
+    bool UserPicked() const;
+    void RestoreUserPicked(bool picked);
 
 private:
-    std::mutex                  mtx_;
+    void SelectAutoLocked();
+
+    mutable std::mutex          mtx_;
     std::vector<KeyboardInput*> sources_;
     KeyboardInput*              active_ = nullptr;
+    bool                        user_picked_ = false;
 };

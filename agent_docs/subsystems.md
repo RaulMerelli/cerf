@@ -394,25 +394,38 @@ concretes (strategy pattern, selected by `BoardContext`).
   CERF models only the panel geometry, never the guest's button table.
 
 - **`KeyboardInput`** (abstract) - one keyboard source: `OnHostKey(vk, key_up)`
-  plus `SourceName` / `SourcePriority`. Concretes self-register with
-  `KeyboardRouter`. They are the keyboard of a board under
+  plus `SourceName` / `SourcePriority` / `SourceReady`. Concretes self-register
+  with `KeyboardRouter`. They are the keyboard of a board under
   `cerf/boards/<board>/` and the guest-additions keyboard under
   `cerf/peripherals/cerf_virt/`.
   - `cerf/host/keyboard_input.h`
 
 - **`KeyboardRouter`** - the keyboard-source registry and host-key funnel.
   `KeyboardInput` concretes self-register from `OnReady`. The router forwards
-  host keys to the single active source. At boot it selects that source by
-  the highest `SourcePriority`. When more than one source is registered, the
-  `KeyboardWidget` status-bar widget switches the active source and keeps
-  the choice across hibernation.
+  host keys to the single active source.
+
+  **The router selects the highest-priority source that reports
+  `SourceReady`.** When no source is ready, the router selects the highest
+  priority overall. A board with no stock keyboard must not have dead input.
+
+  `RearmAutoSelect` re-runs that selection and drops any manual choice. A guest
+  reset calls it, so the stock keyboard is active again until a source reports
+  `SourceReady`. `ReevaluateAuto` re-runs the selection and keeps a manual
+  choice.
+
+  When more than one source is registered, the `KeyboardWidget` status-bar
+  widget switches the active source. That switch is a manual choice, and it
+  suppresses automatic selection until the next reset. The widget keeps the
+  choice across hibernation.
   - `cerf/host/keyboard_router.{h,cpp}`
 
 - **`PointerRouter` / `PointerWidget`** - the pointer-source registry and
   host-mouse funnel. It mirrors `KeyboardRouter`. Pointing-device sources
   (the touch / mouse of a board, the guest-additions absolute pointer)
   self-register. The router forwards host mouse messages to the single
-  active source. At boot it selects that source by the highest priority.
+  active source. It selects by the same ready-then-priority rule as
+  `KeyboardRouter`, and it carries the same `RearmAutoSelect` /
+  `ReevaluateAuto` pair.
   When more than one is registered, the `PointerWidget` status-bar widget
   switches the active source and keeps the choice across hibernation. Some
   apps (calibrators) read the stock touch/mouse stream directly. On a board

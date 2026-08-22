@@ -8,10 +8,6 @@
 
 class PointerSource;
 
-/* Registry + active-selection funnel for pointing-device sources (mirror of
-   KeyboardRouter). Sources are discovered in OnReady; HostCanvasInput reads
-   Active()->Kind() to route host mouse messages, and PointerWidget reads
-   Sources()/Active() and drives SetActive / CycleNext. */
 class PointerRouter : public Service {
 public:
     using Service::Service;
@@ -23,11 +19,20 @@ public:
     std::vector<PointerSource*> Sources();
     PointerSource*              Active();
     void                        SetActive(PointerSource* src);
-    void                        SetActiveByName(const std::wstring& name);
+    void                        RestoreActiveByName(const std::wstring& name);
     void                        CycleNext();
 
+    void ReevaluateAuto();
+    void RearmAutoSelect();
+
+    bool UserPicked() const;
+    void RestoreUserPicked(bool picked);
+
 private:
-    std::mutex                  mtx_;
+    void SelectAutoLocked();
+
+    mutable std::mutex          mtx_;
     std::vector<PointerSource*> sources_;
     PointerSource*              active_ = nullptr;
+    bool                        user_picked_ = false;
 };

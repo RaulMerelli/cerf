@@ -66,6 +66,7 @@ void PointerWidget::SaveWidgetState(StateWriter& w) const {
     const std::wstring name = a ? a->SourceName() : std::wstring();
     w.Write<uint32_t>(static_cast<uint32_t>(name.size()));
     w.WriteBytes(name.data(), name.size() * sizeof(wchar_t));
+    w.Write<uint8_t>(emu_.Get<PointerRouter>().UserPicked() ? 1u : 0u);
 }
 
 void PointerWidget::RestoreWidgetState(StateReader& r) {
@@ -74,5 +75,8 @@ void PointerWidget::RestoreWidgetState(StateReader& r) {
     if (n > 1024u) return;   /* corrupt; outer section frame realigns */
     std::wstring name(n, L'\0');
     r.ReadBytes(name.data(), n * sizeof(wchar_t));
-    if (!name.empty()) emu_.Get<PointerRouter>().SetActiveByName(name);
+    if (!name.empty()) emu_.Get<PointerRouter>().RestoreActiveByName(name);
+    uint8_t picked = 0;
+    r.Read(picked);
+    emu_.Get<PointerRouter>().RestoreUserPicked(picked != 0);
 }

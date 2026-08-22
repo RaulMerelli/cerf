@@ -244,16 +244,31 @@ guest-installed driver.
 
 The guest-additions keyboard registers as one source in the host
 `KeyboardRouter` (`cerf/host/keyboard_router.{h,cpp}`) with the highest source
-priority. It is therefore the active source whenever guest additions are on.
+priority. It becomes the active source only after it reports `SourceReady`.
 The router is board-agnostic host input and is not itself part of guest
 additions - see `subsystems.md`.
 
+**Both guest-additions input sources report `SourceReady` from
+`CerfGuestLiveness`.** That liveness turns true when the guest first reads the
+`CerfVirtGuestBody` window. Until then the routers keep the stock devices,
+which board firmware reads directly. The Jornada 820 OEM cold-boot
+confirmation screen needs them.
+
+A guest reset clears the liveness and re-arms both routers. A deep-sleep resume
+does not. The liveness is hibernation state and round-trips through
+`CerfVirtGuestBody`.
+
+A guest reset clears the liveness and re-arms both routers, so the next
+firmware phase gets the stock devices again. A deep-sleep resume does not,
+because the driver stays loaded. The liveness is hibernation state and
+round-trips through `CerfVirtGuestBody`.
+
 The guest-additions mouse registers the same way: one source in the host
 `PointerRouter` (`cerf/host/pointer_router.{h,cpp}`) at the highest source
-priority. The GA absolute pointer is therefore the active device whenever guest
-additions are on. The `PointerWidget` switches it for the stock pointer or
-pointers of the board. That switch is necessary because some apps (for example
-calibrators) read the stock touch/mouse stream directly. On a board whose stock
+priority, gated by the same readiness. The `PointerWidget` switches it for the
+stock pointer or pointers of the board. That switch is necessary because some
+apps (for example calibrators) read the stock touch/mouse stream directly. On a
+board whose stock
 pointer is a relative mouse, the host-capture mouse lock engages only while
 that source is active. Router and widget are board-agnostic host input, not
 part of guest additions - see `subsystems.md`.

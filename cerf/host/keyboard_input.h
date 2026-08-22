@@ -16,8 +16,8 @@ public:
     virtual void OnHostKey(uint8_t vk, bool key_up) = 0;
 
     virtual std::wstring SourceName() const { return L"Stock keyboard"; }
-    /* Highest priority among registered sources becomes active at boot. */
     virtual int SourcePriority() const { return 0; }
+    virtual bool SourceReady() const { return true; }
     /* cerf.rc ICON resource the keyboard widget draws while this source is active. */
     virtual const wchar_t* IconResourceName() const { return L"ICON_KEYBOARD"; }
 };

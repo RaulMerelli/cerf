@@ -87,6 +87,7 @@ void KeyboardWidget::SaveWidgetState(StateWriter& w) const {
     const std::wstring name = a ? a->SourceName() : std::wstring();
     w.Write<uint32_t>(static_cast<uint32_t>(name.size()));
     w.WriteBytes(name.data(), name.size() * sizeof(wchar_t));
+    w.Write<uint8_t>(emu_.Get<KeyboardRouter>().UserPicked() ? 1u : 0u);
 }
 
 void KeyboardWidget::RestoreWidgetState(StateReader& r) {
@@ -95,5 +96,8 @@ void KeyboardWidget::RestoreWidgetState(StateReader& r) {
     if (n > 1024u) return;   /* corrupt; outer section frame realigns */
     std::wstring name(n, L'\0');
     r.ReadBytes(name.data(), n * sizeof(wchar_t));
-    if (!name.empty()) emu_.Get<KeyboardRouter>().SetActiveByName(name);
+    if (!name.empty()) emu_.Get<KeyboardRouter>().RestoreActiveByName(name);
+    uint8_t picked = 0;
+    r.Read(picked);
+    emu_.Get<KeyboardRouter>().RestoreUserPicked(picked != 0);
 }

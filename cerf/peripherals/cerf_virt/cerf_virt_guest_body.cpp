@@ -1,4 +1,5 @@
 #include "cerf_virt_addr_map.h"
+#include "cerf_guest_liveness.h"
 
 #include "../peripheral_base.h"
 #include "../peripheral_dispatcher.h"
@@ -7,6 +8,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
+#include "../../state/state_stream.h"
 
 #include <cstdint>
 #include <fstream>
@@ -43,6 +45,13 @@ public:
     FastReadFn  FastReader() override { return &FastReadThunk;  }
     FastWriteFn FastWriter() override { return &FastWriteThunk; }
 
+    void SaveState(StateWriter& w) override {
+        emu_.Get<CerfGuestLiveness>().SaveState(w);
+    }
+    void RestoreState(StateReader& r) override {
+        emu_.Get<CerfGuestLiveness>().RestoreState(r);
+    }
+
 private:
     void LoadBody() {
         const std::string path = emu_.Get<GuestAdditionsBinaries>().BodyPath();
@@ -75,6 +84,7 @@ private:
 
     static uint32_t FastReadThunk(void* ctx, uint32_t off, uint32_t width_bytes) {
         auto* self = static_cast<CerfVirtGuestBody*>(ctx);
+        self->emu_.Get<CerfGuestLiveness>().NotifyBodyFetch();
         if (off < CerfVirt::kGuestBodyHdrSize)
             return (off == 0) ? static_cast<uint32_t>(self->body_.size()) : 0u;
         const uint32_t boff = off - CerfVirt::kGuestBodyHdrSize;
