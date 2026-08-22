@@ -41,6 +41,8 @@ private:
     uint8_t* MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p);
 
     uint8_t* ServeInjectionBand(uint32_t va, ArmMmuAccess access);
+    void LogBandFault(uint32_t va, uint32_t l1_word, bool have_l2,
+                      uint32_t l2_word);
 
     ArmMmu*             mmu_              = nullptr;
     ArmMmuState*        state_p_          = nullptr;

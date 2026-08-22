@@ -261,14 +261,22 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     const uint32_t orig_vbase    = mem.ReadWord(orig_e32_pa + L.off_vbase);
     const uint16_t orig_imgflags = mem.ReadHalf(orig_e32_pa + L.off_imageflags);
     const uint16_t orig_objcnt   = mem.ReadHalf(orig_e32_pa + L.off_objcnt);
+    /* Guest-ROM observation (hmi_ktp400_mobile_v13, CE8): the kernel loader
+       rejects an XIP module whose e32 subsystem version differs from the
+       running OS - "Cannot load executables built for OS version 3.00"
+       printed while loading ddraw_ipu.dll - so the stub must inherit the
+       victim's e32_subsysmajor/subsysminor instead of the stub PE's own. */
+    const uint16_t orig_subsysmajor = mem.ReadHalf(orig_e32_pa + L.off_subsysmajor);
+    const uint16_t orig_subsysminor = mem.ReadHalf(orig_e32_pa + L.off_subsysminor);
     if (orig_objcnt == 0) {
         LOG(Caution, "%s victim has zero sections - no footprint to reuse for "
                 "the stub\n", victim_name);
         CerfFatalExit();
     }
     LOG(GuestAdditions, "orig %s e32 @KVA 0x%08X imageflags=0x%04X objcnt=%u "
-              "o32 @KVA 0x%08X\n",
-        victim_name, orig_e32_kva, orig_imgflags, orig_objcnt, orig_o32_kva);
+              "subsysver=%u.%02u o32 @KVA 0x%08X\n",
+        victim_name, orig_e32_kva, orig_imgflags, orig_objcnt,
+        orig_subsysmajor, orig_subsysminor, orig_o32_kva);
     for (uint32_t i = 0; i < orig_objcnt && i < 16; ++i) {
         const uint32_t off = orig_o32_pa + i * kO32RomSize;
         LOG(GuestAdditions, "  ORIG o32[%u] vsize=0x%05X rva=0x%05X psize=0x%05X "
@@ -387,6 +395,8 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     const uint32_t e32_pa = band_pa + (e32_va - band_va);
     const uint32_t o32_pa = band_pa + (o32_va - band_va);
     WriteE32Rom(e32_pa, pe, target_vbase);
+    mem.WriteHalf(e32_pa + L.off_subsysmajor, orig_subsysmajor);
+    mem.WriteHalf(e32_pa + L.off_subsysminor, orig_subsysminor);
     WriteO32Array(o32_pa, pe, dataptr, realaddr, flags);
     WriteSectionBytes(sec_pa, pe, patched_bytes);
 

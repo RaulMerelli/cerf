@@ -42,3 +42,19 @@ uint8_t* ArmPageWalker::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
     if (access == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
     return host;
 }
+
+void ArmPageWalker::LogBandFault(uint32_t va, uint32_t l1_word, bool have_l2,
+                                 uint32_t l2_word) {
+    if (injection_band_size_ == 0u ||
+        va - injection_band_va_ >= injection_band_size_) {
+        return;
+    }
+    const uint32_t ttbcr_n    = state_p_->ttbcr & 7u;
+    const bool     use_ttbr1  = ttbcr_n != 0u &&
+                                (va >> (32u - ttbcr_n)) != 0u;
+    LOG(Mmu, "fault on injection-band VA 0x%08X: L1=0x%08X%s"
+             " L2=0x%08X ttbr=%s ttbcr.n=%u asid=%02X\n",
+        va, l1_word, have_l2 ? "" : " (no L2)", l2_word,
+        use_ttbr1 ? "1" : "0", ttbcr_n,
+        static_cast<uint8_t>(state_p_->contextidr & 0xFFu));
+}

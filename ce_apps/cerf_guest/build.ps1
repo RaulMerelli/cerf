@@ -16,11 +16,21 @@ $sources = @("main.cpp","cerf_virt_base.cpp","cerf_regs_map.cpp","cerf_debug_log
              "cerf_cursor.cpp",
              "cerf_getversionexw.cpp",
              "cerf_driver_in_driver.cpp","cerf_fs_afs.cpp","cerf_fs_transport.cpp",
-             "cerf_fs_vol.cpp","cerf_fs_file.cpp","cerf_fs_find.cpp","cerf_fs_notify.cpp")
+             "cerf_fs_vol.cpp","cerf_fs_file.cpp","cerf_fs_find.cpp","cerf_fs_notify.cpp",
+             # Local CRT shim linked into EVERY target: no CE coredll exports
+             # operator new/delete under their MSVC-mangled names (verified:
+             # hmi_ktp400_mobile_v13 CE8 coredll.dll export table - 1747
+             # exports, zero mangled). ??2@YAPAXI@Z and ??3@YAXPAX@Z must be
+             # local or the stub's by-name manual-map fails.
+             "cerf_ce2_crt.cpp",
+             # Local ARM RTABI division helpers (__rt_sdiv/__rt_udiv): no CE
+             # coredll exports them by name and the import libs carry stubs
+             # for them, so they live in their own TU - see the file header.
+             "cerf_rt_div_arm.cpp")
 $libs    = @("coredll")
 $baseInc = @("$PSScriptRoot/include")
 
-$sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
+$sources_ce2 = $sources
 
 # Pure-ARMv4 (no-Thumb cores, e.g. SA-1110).
 & $build `

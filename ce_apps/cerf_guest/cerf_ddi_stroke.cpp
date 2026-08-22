@@ -37,13 +37,12 @@ typedef struct _CerfStrokeClipEnum {
 } CerfStrokeClipEnum;
 
 static SCODE CerfSafeCallLine(GPE* pGPE, GPELineParms* pParms) {
-    SCODE sc = E_FAIL;
-    __try {
-        sc = (pGPE->*(pParms->pLine))(pParms);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        sc = E_FAIL;
-    }
-    return sc;
+    /* Direct call: pLine is filled by CERF-owned GPE::Line(gpePrepare), and
+       SEH here would need __C_specific_handler, which no CE coredll exports
+       by name (verified: hmi_ktp400_mobile_v13 CE8 coredll.dll export table).
+       A faulting pLine must not kill gwes silently either way - the manual-map
+       contract requires every blit class host-side instead. */
+    return (pGPE->*(pParms->pLine))(pParms);
 }
 
 extern "C" BOOL APIENTRY DrvStrokePath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,

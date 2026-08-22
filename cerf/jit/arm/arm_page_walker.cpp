@@ -150,6 +150,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         switch (l1_pte.fault.type) {
         case ArmL1PteType::kFault:
             if (uint8_t* band = ServeInjectionBand(p, kAccess)) return band;
+            LogBandFault(p, l1_pte.word, false, 0);
             mmu_->RaiseAbort(p, ArmFaultStatus::kTranslationSection, 0u, kAccess);
             return nullptr;
 
@@ -167,6 +168,13 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
 
             switch (l2_pte.fault.type) {
             case 0:
+                /* The guest kernel reserves coarse tables over the static
+                   window with uncommitted entries - on CE8/i.MX6 one covers
+                   the injection band VA itself (L2 type=0). A translation
+                   fault at either level means "nothing mapped here", so the
+                   band overlay serves it the same as the L1-fault case. */
+                if (uint8_t* band = ServeInjectionBand(p, kAccess)) return band;
+                LogBandFault(p, l1_pte.word, true, l2_pte.word);
                 mmu_->RaiseAbort(p, ArmFaultStatus::kTranslationPage, domain, kAccess);
                 return nullptr;
             case 3:

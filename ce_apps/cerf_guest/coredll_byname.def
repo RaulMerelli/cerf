@@ -1537,12 +1537,10 @@ EXPORTS
     __negs
     __nes
     __report_gsfailure
-    __rt_sdiv
     __rt_sdiv10
     __rt_sdiv64by64
     __rt_srem64by64
     __rt_srsh
-    __rt_udiv
     __rt_udiv10
     __rt_udiv64by64
     __rt_urem64by64
