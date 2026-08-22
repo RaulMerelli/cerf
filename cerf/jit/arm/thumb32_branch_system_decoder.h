@@ -20,6 +20,7 @@ private:
     Thumb32Fatal* fatal_ = nullptr;
 
     int32_t BranchOffset25(uint32_t op) const;
+    bool MiscControlBitsValid(uint32_t op) const;
 
     bool DecodeBranch(DecodedInsn* insn, uint32_t op);
     bool DecodeBranchLink(DecodedInsn* insn, uint32_t op, bool exchange);

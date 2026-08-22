@@ -97,6 +97,12 @@ bool Thumb32BranchSystemDecoder::DecodeMoveToSpecial(DecodedInsn* insn,
     if (((op >> 5) & 0x1u) != 0u) {
         return false;
     }
+    /* B9.3.12 T1 (p. B9-1998) marks hw2[13], hw2[7:6] and hw2[4:0] (0);
+       A6.1.1 (p. A6-220) makes a marked (0) that is not 0 UNPREDICTABLE. */
+    if (((op >> 13) & 0x1u) != 0u || ((op >> 6) & 0x3u) != 0u ||
+        (op & 0x1Fu) != 0u) {
+        return false;
+    }
     const uint32_t rn = (op >> 16) & 0xFu;
     if (rn == 13u || rn == 0xFu) {
         return false;
@@ -120,6 +126,13 @@ bool Thumb32BranchSystemDecoder::DecodeMoveFromSpecial(DecodedInsn* insn,
     /* Table A6-13 p. A6-235: imm8 = xx1xxxxx is B9.3.9 MRS (Banked
        register) p. B9-1992, a Virtualization Extensions encoding. */
     if (((op >> 5) & 0x1u) != 0u) {
+        return false;
+    }
+    /* B9.3.8 T1 (p. B9-1990) marks hw1[3:0] (1) and hw2[13], hw2[7:6],
+       hw2[4:0] (0); A6.1.1 (p. A6-220) makes a violated marked bit
+       UNPREDICTABLE. */
+    if (((op >> 16) & 0xFu) != 0xFu || ((op >> 13) & 0x1u) != 0u ||
+        ((op >> 6) & 0x3u) != 0u || (op & 0x1Fu) != 0u) {
         return false;
     }
     const uint32_t rd = (op >> 8) & 0xFu;
@@ -168,6 +181,13 @@ bool Thumb32BranchSystemDecoder::DecodeChangeProcessorState(DecodedInsn* insn,
    0b00000000". */
 bool Thumb32BranchSystemDecoder::DecodeCpsAndHints(DecodedInsn* insn,
                                                     uint32_t op) {
+    /* B9.3.1 CPS T2 (p. B9-1978) and A8.8.119 NOP T2 (p. A8-510) both mark
+       hw1[3:0] (1) and hw2[13], hw2[11] (0); A6.1.1 (p. A6-220) makes a
+       violated marked bit UNPREDICTABLE. */
+    if (((op >> 16) & 0xFu) != 0xFu || ((op >> 13) & 0x1u) != 0u ||
+        ((op >> 11) & 0x1u) != 0u) {
+        return false;
+    }
     const uint32_t hint_op1 = (op >> 8) & 0x7u;
     const uint32_t hint_op2 =  op       & 0xFFu;
     if (hint_op1 != 0u) {
@@ -186,6 +206,16 @@ bool Thumb32BranchSystemDecoder::DecodeCpsAndHints(DecodedInsn* insn,
     return true;
 }
 
+/* DDI 0406C.c A6.1.1 (p. A6-220) makes a bit marked (0) that is not 0, or (1)
+   that is not 1, UNPREDICTABLE. A8.8.32 CLREX (p. A8-360), A8.8.43 DMB
+   (p. A8-378), A8.8.44 DSB (p. A8-380), A8.8.53 ISB (p. A8-389) and A9.3.1
+   ENTERX, LEAVEX (p. A9-1116) mark hw1[3:0] and hw2[11:8] (1), hw2[13] (0). */
+bool Thumb32BranchSystemDecoder::MiscControlBitsValid(uint32_t op) const {
+    return ((op >> 16) & 0xFu) == 0xFu &&
+           ((op >> 13) & 0x1u) == 0u   &&
+           ((op >>  8) & 0xFu) == 0xFu;
+}
+
 /* DDI 0406C.c Table A6-15 p. A6-237: op = bits[7:4]; row 0000 carries
    footnote a, "This instruction is a NOP in Thumb state"; other encodings in
    this space are UNDEFINED in ARMv7. */
@@ -193,20 +223,41 @@ bool Thumb32BranchSystemDecoder::DecodeControlInstructions(DecodedInsn* insn,
                                                            uint32_t op) {
     switch ((op >> 4) & 0xFu) {
     case 0x0u:
-        insn->place_fn = &PlaceNop;
+        /* A9.3.1 ENTERX, LEAVEX (p. A9-1116): "if InITBlock() then
+           UNPREDICTABLE", "Not permitted in IT block", hw2[3:0] marked (1);
+           Table A6-15 footnote a (p. A6-237) "This instruction is a NOP in
+           Thumb state". */
+        if (!MiscControlBitsValid(op) || (op & 0xFu) != 0xFu) {
+            return false;
+        }
+        insn->und_in_it = 1u;
+        insn->place_fn  = &PlaceNop;
         return true;
     case 0x1u:
         fatal_->Unimplemented("enter ThumbEE state (A6-237)", insn, op);
     case 0x2u:
-        fatal_->Unimplemented("clear-exclusive (A6-237)", insn, op);
+        /* A8.8.32 CLREX (p. A8-360) also marks hw2[3:0] (1); its Operation
+           (p. A8-361) is "ClearExclusiveLocal(ProcessorID())". */
+        if (!MiscControlBitsValid(op) || (op & 0xFu) != 0xFu) {
+            return false;
+        }
+        insn->place_fn = &PlaceClrex;
+        return true;
     case 0x4u:
     case 0x5u:
-        /* A8.8.44 DSB p. A8-380, A8.8.43 DMB p. A8-378. */
+        /* A8.8.44 DSB p. A8-380, A8.8.43 DMB p. A8-378, both with option at
+           hw2[3:0]. */
+        if (!MiscControlBitsValid(op)) {
+            return false;
+        }
         insn->place_fn = &PlaceNop;
         return true;
     case 0x6u:
         /* A8.8.53 ISB p. A8-389; Glossary "Context synchronization
            operation" names an ISB operation and excludes DSB and DMB. */
+        if (!MiscControlBitsValid(op)) {
+            return false;
+        }
         insn->context_sync = true;
         insn->place_fn     = &PlaceNop;
         return true;
@@ -221,6 +272,13 @@ bool Thumb32BranchSystemDecoder::DecodeControlInstructions(DecodedInsn* insn,
    Extensions. */
 bool Thumb32BranchSystemDecoder::DecodeExceptionReturn(DecodedInsn* insn,
                                                         uint32_t op) {
+    /* B9.3.19 T1 (p. B9-2010) marks hw1[3:0] (1)(1)(1)(0) and hw2[11:8] (1),
+       hw2[13] (0); A6.1.1 (p. A6-220) makes a violated marked bit
+       UNPREDICTABLE. */
+    if (((op >> 16) & 0xFu) != 0xEu || ((op >> 13) & 0x1u) != 0u ||
+        ((op >> 8) & 0xFu) != 0xFu) {
+        return false;
+    }
     insn->op1                 = 2u;
     insn->s                   = 1u;
     insn->rn                  = 14u;

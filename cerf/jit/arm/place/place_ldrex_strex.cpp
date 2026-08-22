@@ -32,6 +32,16 @@ uint8_t* EmitTranslatePrefix(uint8_t*& cursor, DecodedInsn* d,
 
 }  /* namespace */
 
+/* DDI 0406C.c A8.8.32 CLREX (p. A8-360) Operation (p. A8-361):
+   "ClearExclusiveLocal(ProcessorID())", Exceptions None. */
+uint8_t* PlaceClrex(uint8_t*      cursor,
+                    DecodedInsn*  /*d*/,
+                    BlockContext* /*ctx*/) {
+    using namespace x86;
+    EmitMovBaseDisp32Imm32(cursor, kStateReg, MonitorArmedDisp(), 0u);
+    return cursor;
+}
+
 uint8_t* PlaceLdrex(uint8_t*      cursor,
                     DecodedInsn*  d,
                     BlockContext* ctx) {
