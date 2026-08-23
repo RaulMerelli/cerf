@@ -309,6 +309,7 @@ This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/websit
           ✅ The update check now understands build numbers in release tags</p>
         <p><b>✨ Guest Additions</b><br/>
           🆕 Share folder settings and Guest Additions customizations are now unified with launcher UI and persisted even when changed at runtime<br/>
+          🆕 Windows CE 2013 support<br/>
           ✅ Splash animations (stock framebuffer) are now displayed under guest additions mode too (stock framebuffer is displayed until GA framebuffer is used). Input source is now stock until user-space library has accessed virtual IO. This fully fixes, for example, the Jornada RAM erase screen. It is now visible, it is now interactable without any additional manipulations.<br/>
           ✅ Crash when drawing off-screen (GiNi)<br/>
           ✅ Default colour depth is now 24bpp instead of 32bpp - fixes Device Emulator Windows Mobile 6.5 shell rendering<br/>
