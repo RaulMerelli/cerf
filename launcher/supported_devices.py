@@ -238,7 +238,6 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
         },
         "notes": [
-            "Some XAML surfaces do not render properly. Media/XAML apps (shell, media apps, keyboard), Internet Explorer",
             "ROMs with Compositor are slower",
         ],
     },
