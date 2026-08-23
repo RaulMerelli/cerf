@@ -16,8 +16,10 @@ REGISTER_SERVICE(ImgfsVictimRecomposer);
 
 namespace {
 
-constexpr uint32_t kE32ObjcntOff     = 0x00;
-constexpr uint32_t kE32VbaseOff      = 0x08;
+constexpr uint32_t kE32ObjcntOff      = 0x00;
+constexpr uint32_t kE32VbaseOff       = 0x08;
+constexpr uint32_t kE32SubsysMajorOff = 0x0C;
+constexpr uint32_t kE32SubsysMinorOff = 0x0E;
 constexpr uint32_t kE32HeaderO32Base = 0x70;
 constexpr uint32_t kO32Size          = 24;
 constexpr uint32_t kO32RvaOff        = 4;
@@ -60,6 +62,8 @@ ImgfsVictimRecomposer::Recompose(std::span<const uint8_t> orig_hdr,
     }
     const uint32_t orig_vbase  = Rd32(orig_hdr.data() + kE32VbaseOff);
     const uint16_t orig_objcnt = Rd16(orig_hdr.data() + kE32ObjcntOff);
+    const uint16_t orig_subsysmaj = Rd16(orig_hdr.data() + kE32SubsysMajorOff);
+    const uint16_t orig_subsysmin = Rd16(orig_hdr.data() + kE32SubsysMinorOff);
     if (orig_objcnt == 0
         || size_t(kE32HeaderO32Base) + size_t(orig_objcnt) * kO32Size > orig_hdr.size()) {
         LOG(Caution, "[GA recompose] victim objcnt=%u inconsistent with header "
@@ -115,9 +119,12 @@ ImgfsVictimRecomposer::Recompose(std::span<const uint8_t> orig_hdr,
     slot_realaddr.reserve(slots.size());
     for (const auto& s : slots) slot_realaddr.push_back(orig_vbase + slot_base + s.rva);
     auto new_hdr = cerf::ce_imgfs_patcher::BuildModuleHeader(
-        kE32RomCE5plus, pe, orig_vbase, slot_realaddr, slots);
+        kE32RomCE5plus, pe, orig_vbase, orig_subsysmaj, orig_subsysmin,
+        slot_realaddr, slots);
 
-    LOG(GuestAdditions, "[GA recompose] vbase=0x%08X slots=%zu hdr=%zu reloc=%u\n",
-        orig_vbase, slots.size(), new_hdr.size(), reloc_count);
+    LOG(GuestAdditions, "[GA recompose] vbase=0x%08X subsysver=%u.%02u slots=%zu "
+        "hdr=%zu reloc=%u\n",
+        orig_vbase, orig_subsysmaj, orig_subsysmin, slots.size(),
+        new_hdr.size(), reloc_count);
     return Result{std::move(new_hdr), std::move(slots)};
 }

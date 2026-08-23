@@ -38,6 +38,7 @@ param(
     # before the SDK's ordinal coredll.lib, so coredll imports bind by name (the
     # stable cross-version contract) rather than by per-version ordinal.
     [string]$CoreDllDef = "",
+    [string[]]$CoreDllDefLocal = @(),
     # Override the arch-default CRT import libs.
     [string[]]$CrtLibs = @(),
     # Stage under ce_apps/<OutSubdir> instead of the arch default (<MipsIsa> for
@@ -144,14 +145,20 @@ if ($CoreDllDef) {
     $LIBTOOL = Join-Path $BIN "lib.exe"
     if (-not (Test-Path $LIBTOOL)) { throw "WCE lib tool missing: $LIBTOOL" }
     $coreLib = Join-Path $ObjDir "coredll.lib"
-    & $LIBTOOL /nologo /machine:$Machine "/def:$((Resolve-Path $CoreDllDef).Path)" "/out:$coreLib"
+    $defPath = (Resolve-Path $CoreDllDef).Path
+    if ($CoreDllDefLocal.Count -gt 0) {
+        $trimmed = Join-Path $ObjDir "coredll_local_filtered.def"
+        Get-Content $defPath | Where-Object { $_.Trim() -notin $CoreDllDefLocal } |
+            Set-Content $trimmed -Encoding utf8
+        $defPath = (Resolve-Path $trimmed).Path
+    }
+    & $LIBTOOL /nologo /machine:$Machine "/def:$defPath" "/out:$coreLib"
     if ($LASTEXITCODE -ne 0) { throw "by-name coredll import lib build failed: $CoreDllDef" }
 }
 
-# Bust the compiled-artifact cache when CERF_DEV_MODE, the arch, or the MIPS ISA
-# changes - a timestamp check can't see a flag change.
 $modeMarker = Join-Path $ObjDir ".build_mode"
-$buildKey   = "$Mode-$Arch-$MipsIsa-$WceVersion-$SdkSub"
+$coreDllKey = if ($CoreDllDef) { (Get-FileHash -Path $defPath -Algorithm SHA256).Hash } else { "" }
+$buildKey   = "$Mode-$Arch-$MipsIsa-$WceVersion-$SdkSub-$coreDllKey"
 $cachedMode = if (Test-Path $modeMarker) { (Get-Content $modeMarker -Raw).Trim() } else { "" }
 if ($cachedMode -ne $buildKey) {
     Get-ChildItem -Path (Join-Path $ObjDir "*") -Include "*.obj", "*.res" -File -ErrorAction SilentlyContinue |

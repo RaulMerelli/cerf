@@ -24,8 +24,6 @@ public:
     uint32_t ImageSize()      const { return image_size_; }
     uint32_t StackReserve()   const { return stack_reserve_; }
     uint16_t Subsystem()      const { return subsystem_; }
-    uint16_t SubsysMajor()    const { return subsys_major_; }
-    uint16_t SubsysMinor()    const { return subsys_minor_; }
     uint16_t ImageFlags()     const { return image_flags_; }
 
     /* PE Optional Header DataDirectory[i] - fed into e32_rom's
@@ -47,8 +45,6 @@ private:
     uint32_t              image_size_    = 0;
     uint32_t              stack_reserve_ = 0;
     uint16_t              subsystem_     = 0;
-    uint16_t              subsys_major_  = 0;
-    uint16_t              subsys_minor_  = 0;
     uint16_t              image_flags_   = 0;
     Directory             dirs_[16]{};
     std::vector<Section>  sections_;

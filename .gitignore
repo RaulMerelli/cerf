@@ -14,6 +14,7 @@ bundled/launcher.exe
 ce_apps/**/*.obj
 ce_apps/**/*.exp
 ce_apps/**/*.lib
+ce_apps/**/coredll_local_filtered.def
 
 [Tt]mp/
 .mcp.json

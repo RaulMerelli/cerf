@@ -77,16 +77,41 @@ The trap: a coredll function that some target coredll does not export **by
 name** cannot be resolved. Such a function is exported by ordinal only, or it
 is absent entirely. The by-name manual-map then fails, and the whole body never
 loads. The coredll of Pocket PC 2000 exports `CeSetExtendedPdata` ordinal-only.
-The CE2.0 coredll lacks the CRT and the 64-bit compiler helpers entirely. Older
-coredlls are where this bites.
+The CE2.0 coredll lacks the CRT and the 64-bit compiler helpers entirely.
 
-Such a symbol must be **defined locally in cerf_guest** instead of imported. A
-local definition wins over the import-lib thunk, so the build emits no coredll
-import for it. `cerf_ce2_crt.cpp` does this for the CE2.0 target: `memset` /
-`memcpy` / `operator new` / `operator delete` and the compiler helpers
-`__ll_lshift` / `__ll_div`. That coredll exports none of them. Before you add a
-coredll import to `cerf_guest`, verify that the **oldest** target coredll
-exports it by name. If it does not, define it locally.
+**Both ends of the version range are a trap.** A CE8 coredll exports no mangled
+C++ name. It also exports no `memcpy`, `memset`, `_purecall`, and no compiler
+division helper. A CE7 coredll exports all of them. Every target coredll must
+export the name of a coredll import. Verify the oldest target and the newest
+target before you add one.
+
+Define such a symbol **locally in cerf_guest**. How that definition binds
+depends on how the compiler references the name.
+
+A direct call binds to the local definition, and the build emits no import. The
+name can stay in the shared def.
+
+An indirect reference does not bind to the local definition. The ARM compiler
+emits the `__imp_` form for its division helpers. The linker then pulls the
+thunk for that name out of the generated import lib. That thunk collides with
+the local definition. Filter the name out of the import lib of that one target.
+`tools/build_ce_app.ps1` takes the per-target list through `-CoreDllDefLocal`.
+
+**Never delete a name from `coredll_byname.def` to force a local definition.**
+Many `ce_apps/*/build.ps1` scripts share this file. The build makes
+`coredll.lib` from it, and puts that library before the SDK library. The CRT
+library of the SDK supplies none of these names. A deleted name is therefore an
+unresolved external in every other app that imports it.
+
+Keep an architecture-only compiler helper behind its own architecture guard. The
+file then compiles to an empty translation unit in every other target.
+
+A local `memcpy` or `memset` replaces the tuned routine of coredll on **every**
+board. Both are on the staging and write-back path of each blit. This path is
+hot-path guest code under the JIT. Align the destination, then run a word loop.
+When the source is not word-aligned, read aligned words and merge two of them
+into each output word. A byte loop over the whole span multiplies the
+instructions that the JIT translates for each row.
 
 ## Shared host storage (AFS FSD in device.exe)
 

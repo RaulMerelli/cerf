@@ -36,16 +36,6 @@ typedef struct _CerfStrokeClipEnum {
     RECTL arcl[CERF_STROKE_CLIP_LIMIT];
 } CerfStrokeClipEnum;
 
-static SCODE CerfSafeCallLine(GPE* pGPE, GPELineParms* pParms) {
-    SCODE sc = E_FAIL;
-    __try {
-        sc = (pGPE->*(pParms->pLine))(pParms);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        sc = E_FAIL;
-    }
-    return sc;
-}
-
 extern "C" BOOL APIENTRY DrvStrokePath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
                                        XFORMOBJ*, BRUSHOBJ* pbo, POINTL*,
                                        LINEATTRS* plineattrs, MIX mix) {
@@ -303,7 +293,7 @@ extern "C" BOOL APIENTRY DrvStrokePath(SURFOBJ* pso, PATHOBJ* ppo, CLIPOBJ* pco,
                 parms.iDir     = iDir;
                 parms.prclClip = prclCurr;
 
-                if (FAILED(CerfSafeCallLine(pGPE, &parms))) return FALSE;
+                if (FAILED((pGPE->*(parms.pLine))(&parms))) return FALSE;
 
                 parms.styleState = (parms.styleState + cStylePels) & 31;
             }

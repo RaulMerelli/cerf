@@ -103,7 +103,8 @@ private:
     bool FindVictim(const char* name, size_t& out_index, uint32_t& out_entry_kva);
     uint32_t DetectCeMajor();
 
-    void WriteE32Rom(uint32_t pa, const PeImage& pe, uint32_t target_vbase);
+    void WriteE32Rom(uint32_t pa, const PeImage& pe, uint32_t target_vbase,
+                     uint16_t subsys_major, uint16_t subsys_minor);
     void WriteO32Array(uint32_t pa, const PeImage& pe,
                        const std::vector<uint32_t>& dataptr_kva,
                        const std::vector<uint32_t>& realaddr,
@@ -148,7 +149,9 @@ bool GuestAdditionsInjector::FindVictim(const char* name, size_t& out_index,
 }
 
 void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
-                                          uint32_t target_vbase) {
+                                          uint32_t target_vbase,
+                                          uint16_t subsys_major,
+                                          uint16_t subsys_minor) {
     auto& mem = emu_.Get<EmulatedMemory>();
     const E32RomLayout& L = *layout_;
 
@@ -156,8 +159,8 @@ void GuestAdditionsInjector::WriteE32Rom(uint32_t pa, const PeImage& pe,
     mem.WriteHalf(pa + L.off_imageflags,  pe.ImageFlags());
     mem.WriteWord(pa + L.off_entryrva,    pe.EntryRva());
     mem.WriteWord(pa + L.off_vbase,       target_vbase);
-    mem.WriteHalf(pa + L.off_subsysmajor, pe.SubsysMajor());
-    mem.WriteHalf(pa + L.off_subsysminor, pe.SubsysMinor());
+    mem.WriteHalf(pa + L.off_subsysmajor, subsys_major);
+    mem.WriteHalf(pa + L.off_subsysminor, subsys_minor);
     if (L.off_stackmax >= 0) {
         mem.WriteWord(pa + uint32_t(L.off_stackmax), pe.StackReserve());
     }
@@ -252,8 +255,6 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     auto& mem = emu_.Get<EmulatedMemory>();
     const E32RomLayout& L = *layout_;
 
-    /* Fields read here (vbase/imgflags/objcnt) lie in the common prefix shared
-       by CE3 and CE5+ layouts. */
     const uint32_t orig_e32_kva  = primary_toc.modules[victim_idx].ulE32Offset;
     const uint32_t orig_e32_pa   = pt.VaToPa(orig_e32_kva);
     const uint32_t orig_o32_kva  = primary_toc.modules[victim_idx].ulO32Offset;
@@ -261,14 +262,17 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     const uint32_t orig_vbase    = mem.ReadWord(orig_e32_pa + L.off_vbase);
     const uint16_t orig_imgflags = mem.ReadHalf(orig_e32_pa + L.off_imageflags);
     const uint16_t orig_objcnt   = mem.ReadHalf(orig_e32_pa + L.off_objcnt);
+    const uint16_t orig_subsysmaj = mem.ReadHalf(orig_e32_pa + L.off_subsysmajor);
+    const uint16_t orig_subsysmin = mem.ReadHalf(orig_e32_pa + L.off_subsysminor);
     if (orig_objcnt == 0) {
         LOG(Caution, "%s victim has zero sections - no footprint to reuse for "
                 "the stub\n", victim_name);
         CerfFatalExit();
     }
     LOG(GuestAdditions, "orig %s e32 @KVA 0x%08X imageflags=0x%04X objcnt=%u "
-              "o32 @KVA 0x%08X\n",
-        victim_name, orig_e32_kva, orig_imgflags, orig_objcnt, orig_o32_kva);
+              "subsysver=%u.%02u o32 @KVA 0x%08X\n",
+        victim_name, orig_e32_kva, orig_imgflags, orig_objcnt,
+        orig_subsysmaj, orig_subsysmin, orig_o32_kva);
     for (uint32_t i = 0; i < orig_objcnt && i < 16; ++i) {
         const uint32_t off = orig_o32_pa + i * kO32RomSize;
         LOG(GuestAdditions, "  ORIG o32[%u] vsize=0x%05X rva=0x%05X psize=0x%05X "
@@ -386,7 +390,7 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
 
     const uint32_t e32_pa = band_pa + (e32_va - band_va);
     const uint32_t o32_pa = band_pa + (o32_va - band_va);
-    WriteE32Rom(e32_pa, pe, target_vbase);
+    WriteE32Rom(e32_pa, pe, target_vbase, orig_subsysmaj, orig_subsysmin);
     WriteO32Array(o32_pa, pe, dataptr, realaddr, flags);
     WriteSectionBytes(sec_pa, pe, patched_bytes);
 

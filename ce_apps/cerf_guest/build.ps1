@@ -2,6 +2,7 @@ Set-Location $PSScriptRoot
 
 $build   = "$PSScriptRoot/../../tools/build_ce_app.ps1"
 $sources = @("main.cpp","cerf_virt_base.cpp","cerf_regs_map.cpp","cerf_debug_log.cpp",
+             "cerf_ce2_crt.cpp","cerf_rt_div_arm.cpp",
              "cerf_eng_callbacks.cpp",
              "cerf_gpe.cpp","cerf_ddi_pdev.cpp","cerf_ddi_blt.cpp","cerf_ddi_device.cpp",
              "cerf_ddi_stroke.cpp","cerf_ddi_fill.cpp",
@@ -23,7 +24,9 @@ $sources = @("main.cpp","cerf_virt_base.cpp","cerf_regs_map.cpp","cerf_debug_log
 $libs    = @("coredll")
 $baseInc = @("$PSScriptRoot/include")
 
-$sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
+$localCrt = @("??2@YAPAXI@Z","??3@YAXPAX@Z","??_U@YAPAXI@Z","??_V@YAXPAX@Z",
+              "_purecall","memcpy","memmove","memset",
+              "__rt_sdiv","__rt_udiv","__ll_div","__ll_lshift")
 
 # Pure-ARMv4 (no-Thumb cores, e.g. SA-1110).
 & $build `
@@ -31,7 +34,7 @@ $sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
     -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes $baseInc `
     -Libs $libs `
-    -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
+    -CoreDllDef "$PSScriptRoot/coredll_byname.def" -CoreDllDefLocal $localCrt `
     -ForcedInclude "cerf_debug_log.h" `
     -LinkExtras "/MERGE:.rdata=.text"
 
@@ -41,7 +44,7 @@ $sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
     -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes $baseInc `
     -Libs $libs `
-    -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
+    -CoreDllDef "$PSScriptRoot/coredll_byname.def" -CoreDllDefLocal $localCrt `
     -ForcedInclude "cerf_debug_log.h" `
     -LinkExtras "/MERGE:.rdata=.text"
 
@@ -50,15 +53,15 @@ $sources_ce2 = $sources + @("cerf_ce2_crt.cpp")
     -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes $baseInc `
     -Libs $libs `
-    -CoreDllDef "$PSScriptRoot/coredll_byname.def" `
+    -CoreDllDef "$PSScriptRoot/coredll_byname.def" -CoreDllDefLocal $localCrt `
     -ForcedInclude "cerf_debug_log.h" `
     -LinkExtras "/MERGE:.rdata=.text"
 
 & $build `
     -Type dll -Target cerf_guest.dll -Arch mips -MipsIsa mips1 -ObjDir obj_mips1 -DefFile cerf_guest.def `
-    -Sources $sources_ce2 -Entry DllEntryPoint `
+    -Sources $sources -Entry DllEntryPoint `
     -ExtraIncludes $baseInc `
     -Libs $libs `
-    -CoreDllDef "$PSScriptRoot/coredll_ce2.def" `
+    -CoreDllDef "$PSScriptRoot/coredll_ce2.def" -CoreDllDefLocal $localCrt `
     -ForcedInclude "cerf_debug_log.h" `
     -LinkExtras "/MERGE:.rdata=.text"

@@ -96,6 +96,8 @@ std::vector<uint8_t> BuildIndexBlock(const std::vector<IndexRec>& records) {
 std::vector<uint8_t> BuildModuleHeader(const E32Layout&             L,
                                         const PeImage&              pe,
                                         uint32_t                    target_vbase,
+                                        uint16_t                    subsys_major,
+                                        uint16_t                    subsys_minor,
                                         const std::vector<uint32_t>& slot_realaddr,
                                         const std::vector<PackedSlot>& slots) {
     const size_t header_size = kHeaderO32Base + slots.size() * kO32RomSize;
@@ -105,8 +107,8 @@ std::vector<uint8_t> BuildModuleHeader(const E32Layout&             L,
     Wr16(hdr, L.off_imageflags,  pe.ImageFlags());
     Wr32(hdr, L.off_entryrva,    pe.EntryRva());
     Wr32(hdr, L.off_vbase,       target_vbase);
-    Wr16(hdr, L.off_subsysmajor, pe.SubsysMajor());
-    Wr16(hdr, L.off_subsysminor, pe.SubsysMinor());
+    Wr16(hdr, L.off_subsysmajor, subsys_major);
+    Wr16(hdr, L.off_subsysminor, subsys_minor);
     Wr32(hdr, L.off_stackmax,    pe.StackReserve());
     Wr32(hdr, L.off_vsize,       pe.ImageSize());
     Wr32(hdr, L.off_sect14rva,   0);

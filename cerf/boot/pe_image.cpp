@@ -15,8 +15,6 @@ constexpr size_t   kSecHdrSize     = 40;
 constexpr size_t kOptOffMagic            = 0;
 constexpr size_t kOptOffEntryPoint       = 16;
 constexpr size_t kOptOffImageBase        = 28;
-constexpr size_t kOptOffMajorSubsys      = 48;
-constexpr size_t kOptOffMinorSubsys      = 50;
 constexpr size_t kOptOffSizeOfImage      = 56;
 constexpr size_t kOptOffSubsystem        = 68;
 constexpr size_t kOptOffStackReserve     = 72;
@@ -87,8 +85,6 @@ PeImage::PeImage(std::vector<uint8_t> pe_bytes)
     image_size_     = RdU32(pe_bytes_.data(), opt_hdr_off + kOptOffSizeOfImage);
     subsystem_      = RdU16(pe_bytes_.data(), opt_hdr_off + kOptOffSubsystem);
     stack_reserve_  = RdU32(pe_bytes_.data(), opt_hdr_off + kOptOffStackReserve);
-    subsys_major_   = RdU16(pe_bytes_.data(), opt_hdr_off + kOptOffMajorSubsys);
-    subsys_minor_   = RdU16(pe_bytes_.data(), opt_hdr_off + kOptOffMinorSubsys);
 
     /* PE images can declare fewer than 16 data directories
        (NumberOfRvaAndSizes < 16); entries past that count must be
