@@ -105,10 +105,22 @@ bool Thumb32Decoder::DecodeLoadWord(DecodedInsn* insn, uint32_t op) {
     return load_store_->DecodeLoadWord(insn, op);
 }
 
+/* DDI 0406C.c A7.7 (p. A7-275): "The variable bits are in identical locations
+   in the two encodings, after adjusting for the fact that the ARM encoding is
+   held in memory as a single word and the Thumb encoding is held as two
+   consecutive halfwords". Thumb hw1[15:8] 11111001, ARM bits[31:24] 11110100. */
 bool Thumb32Decoder::DecodeSimdElementOrStructure(DecodedInsn* insn,
                                                   uint32_t op) {
-    fatal_->Unimplemented(
-        "Advanced SIMD element or structure load/store (A7-275)", insn, op);
+    if (!has_neon_) {
+        return false;
+    }
+    ArmOpcode arm{};
+    arm.word = 0xF4000000u | (op & 0x00FFFFFFu);
+    if (!neon_decoder_->DecodeLoadStore(insn, arm)) {
+        return false;
+    }
+    if (insn->place_fn == &PlaceNeonUnimplemented) insn->immediate = op;
+    return true;
 }
 
 bool Thumb32Decoder::DecodeMultiplyAbsoluteDifference(DecodedInsn* insn,
