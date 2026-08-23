@@ -238,9 +238,8 @@ BOARDS_INFORMATION = [
             "guest_additions": True,
         },
         "notes": [
-            "Don't open the XAML keyboard or Internet Explorer - they "
-            "render blank and hurt performance.",
-            "ROMs with Compositor are slower than regular",
+            "Some XAML surfaces do not render properly. Media/XAML apps (shell, media apps, keyboard), Internet Explorer",
+            "ROMs with Compositor are slower",
         ],
     },
     {
