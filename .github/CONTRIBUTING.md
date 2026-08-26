@@ -5,7 +5,7 @@
 A low-quality contribution might be one of these:
 
 - It damages the code quality or the emulator quality, suggesting that the author doesn't understand programming principles or doesn't want to respect those and the project rules
-- It leads to unhealthy communication patterns with a reviewer (e.g., psychological manipulation, etc.) and endless review cycles.
+- It leads to unhealthy communication patterns with a reviewer (e.g., psychological manipulation, persuading to merge shitty code into the tree, etc.) and endless review cycles.
 - The author doesn't understand the code he wrote, doesn't know what a code editor is (e.g., VS Code) or doesn't use one, and doesn't know how to use GitHub or Git itself. A general understanding is absent.
 - You want other contributors/reviewer to give you lessons and teach you how to code, or your failures form a shape where a reviewer has to teach you step by step. Programming lessons are paid.
 
