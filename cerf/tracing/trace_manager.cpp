@@ -34,15 +34,17 @@ std::optional<uint8_t> TraceContext::ReadVa8(uint32_t va) const {
 }
 
 std::optional<uint16_t> TraceContext::ReadVa16(uint32_t va) const {
-    auto host = emu.Get<GuestEngine>().PeekGuestVa(va);
-    if (!host) return std::nullopt;
-    return *reinterpret_cast<const uint16_t*>(*host);
+    auto lo = ReadVa8(va);
+    auto hi = ReadVa8(va + 1);
+    if (!lo || !hi) return std::nullopt;
+    return static_cast<uint16_t>(*lo | (*hi << 8));
 }
 
 std::optional<uint32_t> TraceContext::ReadVa32(uint32_t va) const {
-    auto host = emu.Get<GuestEngine>().PeekGuestVa(va);
-    if (!host) return std::nullopt;
-    return *reinterpret_cast<const uint32_t*>(*host);
+    auto lo = ReadVa16(va);
+    auto hi = ReadVa16(va + 2);
+    if (!lo || !hi) return std::nullopt;
+    return static_cast<uint32_t>(*lo) | (static_cast<uint32_t>(*hi) << 16);
 }
 
 void TraceManager::OnReady() {
