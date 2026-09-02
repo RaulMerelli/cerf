@@ -252,7 +252,15 @@ bool Thumb32DataProcDecoder::DecodeMiscellaneous(DecodedInsn* insn,
     }
 
     if (op1 == 0x1u && op2 == 0x2u) {
-        fatal_->Unimplemented("reverse bits (A6-248)", insn, op);
+        /* DDI 0406C.d A8.8.145 RBIT p. A8-561 encoding T1: same register layout as the
+           REV family below - Rm duplicated at bits[19:16] and bits[3:0],
+           "if !Consistent(Rm) then UNPREDICTABLE", d/m in {13,15} UNPREDICTABLE. */
+        if (rn != rm || rd == 13u || rd == 0xFu || rm == 13u || rm == 0xFu) {
+            return false;
+        }
+        insn->rd = rd; insn->rm = rm;
+        insn->place_fn = &PlaceRbit;
+        return true;
     }
     if (op1 == 0x2u) {
         if (op2 != 0x0u) {

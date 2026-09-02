@@ -9,12 +9,25 @@
 #include <vector>
 
 enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
+enum class ResetLineKind;
+
+enum class ResetBaselinePolicy {
+    EveryReset,
+    ColdResetOnly,
+};
 
 class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
 
+    void OnAllReady() override;
+
     void Register(Peripheral* p);
+    /* Register an MMIO peripheral and capture its initialized register/FIFO
+       state as the hardware reset baseline. The i.MX6 reset domain uses this
+       only for blocks reset by SRC; retention domains use Register(). */
+    void RegisterResettable(Peripheral* p,
+                            ResetBaselinePolicy policy = ResetBaselinePolicy::EveryReset);
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
@@ -32,6 +45,13 @@ public:
     void     WriteDword(uint32_t addr, uint64_t value);
 
 private:
+    struct ResetBaseline {
+        Peripheral* p;
+        ResetBaselinePolicy policy;
+        std::vector<uint8_t> state;
+    };
+
+    void RestoreResetBaselines(ResetLineKind reset_kind);
     struct Entry {
         uint32_t                base;
         uint32_t                end;      /* exclusive */
@@ -94,6 +114,9 @@ private:
     std::vector<std::unique_ptr<EntryTable>> tables_;
 
     mutable std::atomic<size_t> last_hit_{0};
+
+    std::vector<ResetBaseline> reset_baselines_;
+    bool reset_baseline_listener_registered_ = false;
 
     const Entry* LookupEntry(uint32_t addr) const;
 };

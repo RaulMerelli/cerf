@@ -2,6 +2,7 @@
 
 #include "../board_context.h"
 #include "../../boot/board_boot_placer.h"
+#include "../../boot/guest_cold_boot.h"
 #include "../../boot/rom_parser_queries.h"
 #include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
@@ -20,6 +21,10 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetBoard() == Board::SimpadSl4;
+    }
+
+    void OnReady() override {
+        emu_.Get<GuestColdBoot>().RegisterReplay([this] { PlaceAfterRom(); });
     }
 
     void PlaceAfterRom() override {

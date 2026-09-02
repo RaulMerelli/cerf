@@ -220,6 +220,7 @@ bool Hibernation::Save(const std::wstring& path_in) {
             section(StateSection::Reset, [&] {
                 emu_.Get<GuestCpuReset>().SaveState(w);
                 emu_.Get<GuestColdBoot>().SaveState(w);
+                emu_.Get<GuestDeepSleep>().SaveState(w);
             });
             ok = w.Ok() && w.Commit();
         }
@@ -327,6 +328,7 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                     case StateSection::Reset:
                         emu_.Get<GuestCpuReset>().RestoreState(r);
                         emu_.Get<GuestColdBoot>().RestoreState(r);
+                        emu_.Get<GuestDeepSleep>().RestoreState(r);
                         break;
                     default: break;
                 }

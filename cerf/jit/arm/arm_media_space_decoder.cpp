@@ -183,11 +183,23 @@ bool ArmMediaSpaceDecoder::DecodePackSatReverse(DecodedInsn* insn,
             return MarkArmUnimplemented(insn, op.word);
         }
         if (fop2 == 0x1u && fop1 == 0x7u) {
-            /* RBIT (111, 001), v6T2 - Table A5-19. */
+            /* RBIT (111, 001), v6T2 - Table A5-19.  DDI 0406C.d A8.8.145
+               (p. A8-561) encoding A1 carries the REV-family layout: SBO at
+               bits[19:16] and bits[11:8], "if d == 15 || m == 15 then
+               UNPREDICTABLE". */
             if (!processor_config_->HasBitField()) {
                 return false;
             }
-            return MarkArmUnimplemented(insn, op.word);
+            if((( op.word >> 16) & 0xFu) != 0xFu || bits11_8 != 0xFu) {
+                return false;
+            }
+            if (rd == ArmGpr::kR15 || rm == ArmGpr::kR15) {
+                return false;
+            }
+            insn->rd = rd;
+            insn->rm = rm;
+            insn->place_fn = &PlaceRbit;
+            return true;
         }
         if (fop2 == 0x5u && fop1 == 0x0u) {
             /* SEL (000, 101) - Table A5-19. */

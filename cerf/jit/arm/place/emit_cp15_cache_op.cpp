@@ -85,6 +85,25 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             }
             break;
 
+        case 1:
+            /* ARM DDI 0406C.c Figure B3-32 (p. B3-1475): ICIALLUIS is
+               c7,c1,0 and BPIALLIS is c7,c1,6. CERF models one guest CPU,
+               so ICIALLUIS has the same translation-cache effect as ICIALLU;
+               no branch predictor state is modeled for BPIALLIS. c7,c1 is
+               allocated only in that ARMv7 figure; the v4/v5/v6 rows
+               (Tables D15-22, D12-8) leave it unallocated. */
+            if (v7) {
+                if (d->cp == 0u) {
+                    EmitMovRegImm32(cursor, kEcx, icache_self);
+                    EmitCall(cursor, icache_helper);
+                    return cursor;
+                }
+                if (d->cp == 6u) {
+                    return cursor;
+                }
+            }
+            break;
+
         case 5:
             /* ICIALLU c5/0, ICIMVAU c5/1 (Figure B3-32); the v4/v5/v6 rows
                add c5/2 invalidate-by-set/way (Tables D15-22, D12-8). */

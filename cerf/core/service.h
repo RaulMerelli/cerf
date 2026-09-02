@@ -27,6 +27,10 @@ public:
     virtual ~Service() = default;
 
     virtual void OnReady() {}
+    /* Global-ready barrier. CerfEmulator calls this only after every selected
+       service completed OnReady, for state that depends on peer wiring being
+       final (for example reset baselines containing attached bus devices). */
+    virtual void OnAllReady() {}
     virtual bool ShouldRegister() { return true; }
 
     /* Runs for every service before any destructor: stop worker threads /

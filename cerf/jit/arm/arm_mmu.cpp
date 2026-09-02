@@ -8,6 +8,8 @@
 #include "../../cpu/arm_processor_config.h"
 #include "../../cpu/emulated_memory.h"
 #include "arm_cpu.h"
+#include "../../core/fatal.h"
+#include "arm_mmu_probe.h"
 #include "arm_page_walker.h"
 #include "arm_tlb_ops.h"
 #include "arm_translation_cache.h"
@@ -54,6 +56,7 @@ void ArmMmu::SaveState(StateWriter& w) {
     w.Write(state_.domain_access_control);
     w.Write(state_.fault_status);
     w.Write(state_.fault_address);
+    w.Write(state_.par);
     w.Write(state_.ifsr);
     w.Write(state_.ifar);
     w.Write(state_.process_id);
@@ -78,6 +81,7 @@ void ArmMmu::RestoreState(StateReader& r) {
     r.Read(state_.domain_access_control);
     r.Read(state_.fault_status);
     r.Read(state_.fault_address);
+    r.Read(state_.par);
     r.Read(state_.ifsr);
     r.Read(state_.ifar);
     r.Read(state_.process_id);
@@ -155,6 +159,42 @@ uint8_t* __fastcall ArmMmu::TranslateReadWriteHelper(uint32_t va, ArmMmu* mmu) {
 
 uint8_t* __fastcall ArmMmu::TranslateUserReadHelper(uint32_t va, ArmMmu* mmu) {
     return mmu->walker_->TranslateUserRead(mmu->cpu_state_, va);
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateHelper(uint32_t va, ArmMmu* mmu) {
+    const ArmDfsr saved_fsr = mmu->state_.fault_status;
+    const uint32_t saved_far = mmu->state_.fault_address;
+    const uint32_t saved_io_address = mmu->io_pending_address_;
+    const uint32_t saved_io_valid = mmu->io_pending_valid_;
+
+    mmu->ClearIoPending();
+    uint8_t* host = mmu->walker_->TranslateRead(mmu->cpu_state_, va);
+    uint32_t par;
+    if (host != nullptr || mmu->io_pending()) {
+        /* ARM DDI 0406C.d B4.1.112 (pp. B4-1659..B4-1660): successful
+           short-descriptor PAR returns PA[31:12], memory attributes in
+           [10:1], and F == 0. */
+        uint32_t pa = 0;
+        uint16_t attrs = 0;
+        ArmMmuProbe& probe = mmu->emu_.Get<ArmMmuProbe>();
+        if (!probe.TlbPar(va, &pa, &attrs) && !probe.WalkPar(va, &pa, &attrs)) {
+            /* The translation succeeded through a path with no architectural
+               descriptor behind it, so no truthful PAR exists for it. */
+            mmu->emu_.Get<Fatal>().Die("ATS1CPR: VA 0x%08X translates but has no page-table "
+                                       "descriptor to report in PAR",
+                                       va);
+        }
+        par = (pa & 0xFFFFF000u) | attrs;
+    } else {
+        const uint32_t fs = mmu->state_.fault_status.bits.status | (mmu->state_.fault_status.bits.fs4 << 4);
+        par = 1u | (fs << 1);
+    }
+
+    mmu->state_.fault_status = saved_fsr;
+    mmu->state_.fault_address = saved_far;
+    mmu->io_pending_address_ = saved_io_address;
+    mmu->io_pending_valid_ = saved_io_valid;
+    return par;
 }
 
 uint8_t* __fastcall ArmMmu::TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu) {

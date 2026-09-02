@@ -97,8 +97,11 @@ def build_supported_devices():
                 lines.append(f'      <td{rowspan} align="center">'
                              f'{badge_img(soc.cpu)}<br/><b>{soc.family}</b>'
                              f'<br/><sub>{soc.arch}</sub></td>')
-            cell = [f'{icon_img("board", "PDA", 16)} <b>{board["name"]}</b> '
-                    f'<code>{board["board_id"]}</code>']
+            board_label = (f'{icon_img("board", "PDA", 16)} '
+                           f'<b>{board["name"]}</b>')
+            if not board.get('board_ids'):
+                board_label += f' <code>{board["board_id"]}</code>'
+            cell = [board_label]
             cell += [guest_os.name for guest_os in board['operating_systems']]
             lines.append('      <td>')
             lines.append('        ' + '<br/>\n        '.join(cell))

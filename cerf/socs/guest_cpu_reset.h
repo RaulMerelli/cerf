@@ -49,10 +49,15 @@ public:
        thread, for every delivered reset regardless of source. */
     void RegisterResetListener(std::function<void(ResetLineKind)> fn);
 
+    /* OnReady-time only. Post listeners run after every reset-line device has
+       consumed the edge, so a reset domain can re-drive inter-device lines
+       only after interrupt controllers and DMA engines are reset. */
+    void RegisterPostResetListener(std::function<void(ResetLineKind)> fn);
+
     void SetPendingResume(bool is_resume);
 
-    /* JIT thread, reset-delivery branch only: runs the reset-line
-       listeners, then an armed GuestColdBoot hard reset. */
+    /* JIT thread, reset-delivery branch only: runs reset-line listeners,
+       an armed GuestColdBoot replay, then post-reset domain restoration. */
     void OnResetDelivered();
 
     bool DeliveredResetWasResume() const { return delivered_is_resume_; }
@@ -63,6 +68,7 @@ public:
 private:
     ResetCauseLatch*                                latch_ = nullptr;
     std::vector<std::function<void(ResetLineKind)>> reset_listeners_;
+    std::vector<std::function<void(ResetLineKind)>> post_reset_listeners_;
     std::atomic<ResetLineKind>                      pending_kind_{ResetLineKind::Other};
     std::atomic<bool>                               pending_is_resume_{false};
     bool                                            delivered_is_resume_ = false;

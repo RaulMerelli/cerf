@@ -3,7 +3,6 @@
 #include "../peripherals/peripheral_base.h"
 
 #include "../core/cerf_emulator.h"
-#include "../core/log.h"
 #include "../boards/board_context.h"
 #include "../tracing/kernel_debug_sink.h"
 #include "../peripherals/peripheral_dispatcher.h"
@@ -32,7 +31,10 @@ public:
         auto* bd = emu_.TryGet<BoardContext>();
         return bd && bd->GetSoc() == kSoc;
     }
-    void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
+    void OnReady() override {
+        if constexpr (kSoc == SocFamily::iMX6)
+            emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
+        else emu_.Get<PeripheralDispatcher>().Register(this); }
 
     uint32_t MmioBase() const override { return kBase; }
     uint32_t MmioSize() const override { return 0x4000u; }
@@ -56,12 +58,24 @@ public:
        so it is skipped. An attached endpoint (e.g. the VMCU peer) serializes
        its own guest-coupled state via the forward below. */
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(ctrl_, sizeof(ctrl_));
+        SaveControllerState(
+        w);
         if (endpoint_) endpoint_->SaveState(w);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(ctrl_, sizeof(ctrl_));
+        RestoreControllerState(
+        r);
         if (endpoint_) endpoint_->RestoreState(r);
+    }
+
+    void SaveResetState(StateWriter& w) override { SaveControllerState(w); }
+    void RestoreResetState(StateReader& r) override { RestoreControllerState(r); }
+
+    void PostRestore() override { UpdateRxIrq(); }
+
+    void PostReset(ResetLineKind kind) override {
+        if (endpoint_) endpoint_->OnUartReset(kind);
+        UpdateRxIrq();
     }
 
     /* A board wires an off-chip device (e.g. the SYNC2 VMCU) to this UART. */
@@ -93,6 +107,17 @@ public:
         UpdateRxIrq();
     }
 
+    /* Some board-identification protocols read their first bytes by polling
+       URXD before the stream driver switches to interrupt-driven I/O. Keep
+       that bootstrap data from being stolen by the driver's ISR; normal IRQ
+       delivery resumes as soon as the polled bytes have drained. */
+    void InjectRxPolled(const uint8_t* data, size_t n) {
+        suppress_rx_irq_ = true;
+        for (size_t i = 0; i < n; ++i)
+            rx_fifo_.push_back(data[i]);
+        UpdateRxIrq();
+    }
+
 protected:
     /* Per-SoC RX-interrupt line to the INTC; default no-op (UART has no RX
        consumer). i.MX51 UART2 -> Imx51Tzic source 32. */
@@ -100,6 +125,27 @@ protected:
     virtual void DeassertRxIrq() {}
 
 private:
+    void SaveControllerState(StateWriter& w) const {
+        w.WriteBytes(ctrl_, sizeof(ctrl_));
+        w.Write(static_cast<uint32_t>(rx_fifo_.size()));
+        for (uint8_t byte : rx_fifo_) w.Write(byte);
+        w.Write(static_cast<uint8_t>(suppress_rx_irq_ ? 1u : 0u));
+    }
+
+    void RestoreControllerState(StateReader& r) {
+        r.ReadBytes(ctrl_, sizeof(ctrl_));
+        rx_fifo_.clear();
+        uint32_t rx_count = 0;
+        r.Read(rx_count);
+        for (uint32_t i = 0; i < rx_count; ++i) {
+            uint8_t byte = 0;
+            r.Read(byte);
+            rx_fifo_.push_back(byte);
+        }
+        uint8_t suppress = 0;
+        r.Read(suppress);
+        suppress_rx_irq_ = suppress != 0u;
+    }
     static constexpr uint32_t kURXD = 0x00u, kUTXD = 0x40u;
     static constexpr uint32_t kUCR1 = 0x80u, kUCR2 = 0x84u;
     static constexpr uint32_t kUCR4 = 0x8Cu, kUFCR = 0x90u;
@@ -126,13 +172,15 @@ private:
     /* ONEMS (0xB0) is 24-bit only on i.MX51 (MCIMX51RM §59.3.1); on i.MX31 every
        UART register including ONEMS is 16 LSB (MCIMX31RM §31.3.2). */
     static constexpr uint32_t kOnemsMask =
-        (kSoc == SocFamily::iMX51) ? 0xFFFFFFu : 0xFFFFu;
+        (kSoc == SocFamily::iMX51 || kSoc == SocFamily::iMX6) ? 0xFFFFFFu : 0xFFFFu;
 
     /* §59.3.3 reset values that ARE the idle TX-ready/RX-empty status: USR1.TRDY
        (0x2040), USR2.TXDC+TXFE (0x4028), UTS.TXEMPTY (0x60, TXFULL clear). */
     static constexpr uint32_t kUsr1Idle = 0x2040u;
     static constexpr uint32_t kUsr2Idle = 0x4028u;
     static constexpr uint32_t kUtsIdle  = 0x0060u;
+    /* UTS_RXEMPTY = 1 << 5, references/linux/drivers/tty/serial/imx.c. */
+    static constexpr uint32_t kUtsRxEmpty = 1u << 5;
 
     /* Control/baud regs 0x80..0xB8 step 4, reset values (MCIMX51RM Table 59-3 /
        MCIMX31RM Table 31-2). ONEMS (0xB0) is the only 24-bit register. */
@@ -156,7 +204,7 @@ private:
            raises the interrupt regardless of the trigger level - assert on >=1
            byte whenever an RX-data interrupt source is enabled. */
         const bool rx_int_en = (ucr1 & kUcr1Rrdyen) || (ucr4 & kUcr4Rdren);
-        if (rx_int_en && !rx_fifo_.empty()) AssertRxIrq();
+        if (!suppress_rx_irq_ &&rx_int_en && !rx_fifo_.empty()) AssertRxIrq();
         else                                DeassertRxIrq();
     }
 
@@ -165,6 +213,7 @@ private:
             if (rx_fifo_.empty()) return 0u;   /* CHARRDY=0 */
             const uint8_t b = rx_fifo_.front();
             rx_fifo_.pop_front();
+            if (rx_fifo_.empty()) suppress_rx_irq_ = false;
             UpdateRxIrq();
             return b | kUrxdCharrdy;
         }
@@ -178,7 +227,7 @@ private:
         }
         if (off == kUSR2)
             return kUsr2Idle | (rx_fifo_.empty() ? 0u : kUsr2Rdr);
-        if (off == kUTS)  return kUtsIdle;
+        if (off == kUTS)  return rx_fifo_.empty() ? kUtsIdle : (kUtsIdle & ~kUtsRxEmpty);
         if (off >= kCtrlLo && off <= kCtrlHi && (off & 3u) == 0u) {
             uint32_t v = ctrl_[(off - kCtrlLo) / 4u];
             if (off == kUCR2) v |= kSrst;   /* SRST self-deasserts (reset instant) */
@@ -201,6 +250,7 @@ private:
             r = (r & ~m) | ((v << shift) & m);
             if (aligned == kUCR1 || aligned == kUCR4 || aligned == kUFCR)
                 UpdateRxIrq();   /* enable/threshold changed */
+            if (endpoint_) endpoint_->OnControlWrite(aligned, r);
             return;
         }
         HaltUnsupportedAccess("Write", kBase + off, v);
@@ -217,6 +267,7 @@ private:
     std::deque<uint8_t>  rx_fifo_;
     FreescaleSdmaBus*    sdma_bus_      = nullptr;
     uint32_t             rx_dma_event_  = 0;
+    bool suppress_rx_irq_ = false;
 };
 
 }  /* namespace cerf_freescale_uart_detail */

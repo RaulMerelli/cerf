@@ -58,5 +58,20 @@ constexpr uint32_t kBdExtd       = 1u << 23;
 constexpr uint32_t kCcbStride    = 16u;
 constexpr uint32_t kCcbBaseBdOff = 4u;
 constexpr uint32_t kMaxBdWalk    = 256u;
+/* Channel-0 command opcodes, references/linux/drivers/dma/imx-sdma.c:
+   C0_SETDM 0x01, C0_SETPM 0x04, C0_SETCTX 0x07. */
+constexpr uint32_t kC0SetDm = 0x01u;
+constexpr uint32_t kC0SetPm = 0x04u;
+constexpr uint32_t kC0SetCtx = 0x07u;
+/* MCIMX51RM Rev.1 Table 52-44 (p. 52-80): the instruction memory holds
+   16-bit words, ROM at 0x0000-0x07FF and RAM at 0x1000-0x1FFF, so 0x2000
+   words covers the populated space.  Section 52.13.5.2 (p. 52-81): "The
+   address range is 16 bits and the data width is 32 bits. Each address
+   corresponds to a 32-bit data word." */
+constexpr uint32_t kSdmaProgramWords = 0x2000u;
+constexpr uint32_t kSdmaDataWords = 0x10000u;
+/* references/linux/drivers/dma/imx-sdma.c sdma_load_context:
+   bd0->ext_buffer_addr = 2048 + (sizeof(*context) / 4) * channel. */
+constexpr uint32_t kSdmaContextBase = 0x0800u;
 
 }  /* namespace cerf_freescale_sdma_detail */

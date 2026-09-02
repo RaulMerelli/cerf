@@ -18,6 +18,7 @@ void GuestCpuReset::SetCauseLatch(ResetCauseLatch* latch) {
 }
 
 void GuestCpuReset::WarmReset() {
+    LOG(SocReset, "GuestCpuReset: host warm reset requested\n");
     if (latch_) latch_->LatchWarmReset();
     pending_kind_.store(ResetLineKind::Other, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
@@ -27,12 +28,14 @@ void GuestCpuReset::WarmReset() {
    RTC unit" (VR4102 UM 15.1.1(1); Table 15-1 "RTC reset" row: RTC = Reset). The RTC-and-PMU
    exemption is the RSTSW row's (UM 15.1.1(2)). */
 void GuestCpuReset::ColdReset() {
+    LOG(SocReset, "GuestCpuReset: host cold reset requested\n");
     if (latch_) latch_->LatchColdReset();
     pending_kind_.store(ResetLineKind::Rtc, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::WatchdogReset() {
+    LOG(SocReset, "GuestCpuReset: watchdog reset requested\n");
     if (latch_) latch_->LatchWatchdogReset();
     pending_kind_.store(ResetLineKind::Other, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
@@ -40,6 +43,10 @@ void GuestCpuReset::WatchdogReset() {
 
 void GuestCpuReset::RegisterResetListener(std::function<void(ResetLineKind)> fn) {
     reset_listeners_.push_back(std::move(fn));
+}
+
+void GuestCpuReset::RegisterPostResetListener(std::function<void(ResetLineKind)> fn) {
+    post_reset_listeners_.push_back(std::move(fn));
 }
 
 void GuestCpuReset::SetPendingResume(bool is_resume) {
@@ -73,4 +80,5 @@ void GuestCpuReset::OnResetDelivered() {
     delivered_is_resume_ = pending_is_resume_.exchange(false, std::memory_order_acq_rel);
     for (auto& fn : reset_listeners_) fn(kind);
     emu_.Get<GuestColdBoot>().ExecuteIfPending();
+    for (auto& fn : post_reset_listeners_) fn(kind);
 }

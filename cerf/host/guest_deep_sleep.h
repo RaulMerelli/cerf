@@ -9,6 +9,9 @@
 #include <mutex>
 #include <vector>
 
+class StateReader;
+class StateWriter;
+
 /* Deep-sleep recovery: a SoC power-down register write (e.g. SA-1110 PMCR.SF)
    calls Enter(), which halts the CPU and shows a no-timeout "Shut down CERF?"
    prompt - Cancel wakes via a sleep-mode reset (GuestCpuReset::SleepWakeReset),
@@ -73,6 +76,9 @@ public:
     void RegisterResumeVectorProvider(SleepResumeVectorProvider* p);
 
     void Enter();
+    /* Terminal rail power-off: Cancel in the recovery UI performs a fresh
+       hard boot rather than a sleep resume. */
+    void EnterPowerOff();
 
     void RequestHardwareWake();
 
@@ -81,7 +87,11 @@ public:
        action) - otherwise the JIT parks forever at "State restored". */
     void OnFullRestore();
 
+    void SaveState(StateWriter& w) const;
+    void RestoreState(StateReader& r);
+
 private:
+    void EnterImpl(bool power_off);
     void Recover();      /* UI thread: run the prompt and act on the choice. */
     void DeliverWake();
     void TearDownPromptForHardwareWake();
@@ -92,6 +102,7 @@ private:
     SleepResumeVectorProvider* resume_vector_provider_ = nullptr;
     std::atomic<bool>          active_{false};
     std::atomic<bool>          hw_resumed_{false};
+    std::atomic<bool>          power_off_{false};
     std::mutex                 resume_mtx_;
     std::condition_variable    resume_cv_;
 };

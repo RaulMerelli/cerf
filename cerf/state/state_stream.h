@@ -6,10 +6,12 @@
 #include <cstdint>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 class StateWriter {
 public:
     explicit StateWriter(const std::wstring& path);
+    explicit StateWriter(std::vector<uint8_t>& memory);
     ~StateWriter();
 
     StateWriter(const StateWriter&)            = delete;
@@ -41,6 +43,7 @@ private:
 
     std::wstring final_path_;
     std::wstring temp_path_;
+    std::vector<uint8_t>* memory_ = nullptr;
     HANDLE       file_          = INVALID_HANDLE_VALUE;
     uint64_t     bytes_written_ = 0;
     bool         ok_            = false;
@@ -52,6 +55,7 @@ public:
     /* Opens path for reading (OPEN_EXISTING, shared read). Ok() is false
        if the file is absent or unopenable. */
     explicit StateReader(const std::wstring& path);
+    explicit StateReader(const std::vector<uint8_t>& memory);
     ~StateReader();
 
     StateReader(const StateReader&)            = delete;
@@ -77,6 +81,7 @@ public:
     void     SeekTo(uint64_t offset); /* re-align to a section boundary */
 
 private:
+    const std::vector<uint8_t>* memory_ = nullptr;
     HANDLE   file_      = INVALID_HANDLE_VALUE;
     uint64_t bytes_read_ = 0;
     uint64_t file_size_  = 0;

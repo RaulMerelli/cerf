@@ -6,6 +6,7 @@
 
 class StateWriter;
 class StateReader;
+enum class ResetLineKind;
 
 class Peripheral : public Service {
 public:
@@ -15,11 +16,23 @@ public:
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
 
+    /* SoC reset snapshots normally match machine-state snapshots. Controllers
+       which serialize an attached off-chip device override these two hooks so
+       RESET_OUT clears only the controller and leaves the peer's persistent
+       state alone. */
+    virtual void SaveResetState(StateWriter& w) { SaveState(w); }
+    virtual void RestoreResetState(StateReader& r) { RestoreState(r); }
+
     /* Second pass, after every peripheral's RestoreState has run. Re-assert
        computed interrupt lines here (a source into its INTC, an INTC's JIT
        notify) - done in RestoreState the peer being driven may not be restored
        yet, so the assertion is clobbered. */
     virtual void PostRestore() {}
+
+    /* Reset-only second pass, after PostRestore re-established internal
+       derived state. Off-chip peers use this to observe that their SoC-side
+       controller was reset without rolling back persistent device storage. */
+    virtual void PostReset(ResetLineKind) {}
 
     /* MMIO range. Stable for the lifetime of the peripheral. Both
        must be set before OnReady runs, since OnReady is where

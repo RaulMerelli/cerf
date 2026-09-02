@@ -2,6 +2,8 @@
 
 #include "../core/log.h"
 
+#include <cstring>
+
 namespace {
 /* WriteFile / ReadFile take a DWORD length; a single RAM region can
    exceed that. Transfer in bounded chunks. */
@@ -20,9 +22,14 @@ StateWriter::StateWriter(const std::wstring& path)
     ok_ = true;
 }
 
+StateWriter::StateWriter(std::vector<uint8_t>& memory) : memory_(&memory) {
+    memory_->clear();
+    ok_ = true;
+}
+
 StateWriter::~StateWriter() {
     CloseHandle_();
-    if (!committed_)
+    if (!memory_ &&!committed_)
         DeleteFileW(temp_path_.c_str());
 }
 
@@ -35,6 +42,12 @@ void StateWriter::CloseHandle_() {
 
 void StateWriter::WriteBytes(const void* src, size_t n) {
     if (!ok_) return;
+    if (memory_) {
+        const auto* p = static_cast<const uint8_t*>(src);
+        memory_->insert(memory_->end(), p, p + n);
+        bytes_written_ += n;
+        return;
+    }
     const auto* p = static_cast<const uint8_t*>(src);
     while (n > 0) {
         const DWORD chunk = n > kIoChunk ? kIoChunk : static_cast<DWORD>(n);
@@ -53,6 +66,14 @@ void StateWriter::WriteBytes(const void* src, size_t n) {
 
 void StateWriter::PatchAt(uint64_t offset, const void* src, size_t n) {
     if (!ok_) return;
+    if (memory_) {
+        if (offset > memory_->size() || n > memory_->size() - static_cast<size_t>(offset)) {
+            ok_ = false;
+            return;
+        }
+        std::memcpy(memory_->data() + static_cast<size_t>(offset), src, n);
+        return;
+    }
     LARGE_INTEGER li;
     li.QuadPart = static_cast<LONGLONG>(offset);
     if (!SetFilePointerEx(file_, li, nullptr, FILE_BEGIN)) {
@@ -79,6 +100,10 @@ bool StateWriter::Commit() {
         DeleteFileW(temp_path_.c_str());
         return false;
     }
+    if (memory_) {
+        committed_ = true;
+        return true;
+    }
     CloseHandle_();
     if (!MoveFileExW(temp_path_.c_str(), final_path_.c_str(),
                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
@@ -102,6 +127,9 @@ StateReader::StateReader(const std::wstring& path) {
     ok_ = true;
 }
 
+StateReader::StateReader(const std::vector<uint8_t>& memory)
+    : memory_(&memory), file_size_(memory.size()), ok_(true) {}
+
 StateReader::~StateReader() {
     if (file_ != INVALID_HANDLE_VALUE)
         CloseHandle(file_);
@@ -109,6 +137,15 @@ StateReader::~StateReader() {
 
 void StateReader::ReadBytes(void* dst, size_t n) {
     if (!ok_) return;
+    if (memory_) {
+        if (bytes_read_ > memory_->size() || n > memory_->size() - static_cast<size_t>(bytes_read_)) {
+            ok_ = false;
+            return;
+        }
+        std::memcpy(dst, memory_->data() + static_cast<size_t>(bytes_read_), n);
+        bytes_read_ += n;
+        return;
+    }
     auto* p = static_cast<uint8_t*>(dst);
     while (n > 0) {
         const DWORD chunk = n > kIoChunk ? kIoChunk : static_cast<DWORD>(n);
@@ -127,6 +164,7 @@ void StateReader::ReadBytes(void* dst, size_t n) {
 
 uint64_t StateReader::Position() const {
     if (!ok_) return 0;
+    if (memory_) return bytes_read_;
     LARGE_INTEGER zero{}, cur{};
     if (!SetFilePointerEx(file_, zero, &cur, FILE_CURRENT)) return 0;
     return static_cast<uint64_t>(cur.QuadPart);
@@ -134,6 +172,14 @@ uint64_t StateReader::Position() const {
 
 void StateReader::SeekTo(uint64_t offset) {
     if (!ok_) return;
+    if (memory_) {
+        if (offset > memory_->size()) {
+            ok_ = false;
+            return;
+        }
+        bytes_read_ = offset;
+        return;
+    }
     LARGE_INTEGER li;
     li.QuadPart = static_cast<LONGLONG>(offset);
     if (!SetFilePointerEx(file_, li, nullptr, FILE_BEGIN)) {

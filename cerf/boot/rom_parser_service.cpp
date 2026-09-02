@@ -2,6 +2,8 @@
 
 #include "rom_parser_service.h"
 
+#include "fwf_oms_reader.h"
+
 #include "ce1_rom_parse.h"
 #include "ce_imgfs_walker.h"
 #include "rom_image_parse.h"
@@ -32,19 +34,19 @@ using cerf::rom_image_parse::FindAllEcec;
 using cerf::rom_image_parse::FindImgfsBase;
 using cerf::rom_image_parse::IpaqNbfLocateOsXip;
 using cerf::rom_image_parse::IpaqNbfOsXip;
-using cerf::rom_image_parse::ParseModulesAndFiles;
+using cerf::rom_image_parse::kArnoldSignature;
+using cerf::rom_image_parse::kB000FFSignature;
+using cerf::rom_image_parse::kIpaqNbfSignature;
+using cerf::rom_image_parse::kNosajSignature;
 using cerf::rom_image_parse::NosajLocateOsXip;
 using cerf::rom_image_parse::NosajOsXip;
+using cerf::rom_image_parse::ParseModulesAndFiles;
 using cerf::rom_image_parse::ResolveNextStructuralXip;
 using cerf::rom_image_parse::ResolveRomhdrAtEcec;
 using cerf::rom_image_parse::ResolveRomhdrStructural;
 using cerf::rom_image_parse::SymbolFlashLocateOsXip;
 using cerf::rom_image_parse::SymbolFlashOsXip;
 using cerf::rom_image_parse::U32;
-using cerf::rom_image_parse::kArnoldSignature;
-using cerf::rom_image_parse::kB000FFSignature;
-using cerf::rom_image_parse::kIpaqNbfSignature;
-using cerf::rom_image_parse::kNosajSignature;
 
 std::vector<uint8_t> ReadWholeFile(const std::string& path) {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
@@ -93,6 +95,24 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 
     rom.is_b000ff = rom.raw.size() >= 7
                  && std::memcmp(rom.raw.data(), kB000FFSignature, 7) == 0;
+
+    if (cerf::fwf_oms::IsOmsStream(rom.raw.data(), rom.raw.size())) {
+        size_t slices = 0;
+        if (!cerf::fwf_oms::AssembleOsImage(rom.raw.data(), rom.raw.size(), rom.flat_storage, &slices)) {
+            LOG(Caution,
+                "RomParser %s: OMS+ container but no streamed OS "
+                "image assembled\n",
+                rom.filename.c_str());
+            return false;
+        }
+        rom.is_fwf = true;
+        rom.flat = std::span<const uint8_t>(rom.flat_storage);
+        rom.flat_base_va = 0;
+        LOG(Boot,
+            "RomParser %s: Siemens FWF container - OS image assembled "
+            "from %zu streamed slices, %.1f MB\n",
+            rom.filename.c_str(), slices, double(rom.flat.size()) / 1024.0 / 1024.0);
+    } else
 
     if (rom.is_b000ff) {
         if (!AssembleB000FFFlat(rom.raw, rom.flat_storage,

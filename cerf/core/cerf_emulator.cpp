@@ -43,6 +43,7 @@ void CerfEmulator::Bootstrap() {
     ResolveAllSlots();      /* run ShouldRegister, pick winners, drop losers */
 
     for (auto& svc : owned_) svc->EnsureReady();
+    for (auto& svc : owned_) svc->OnAllReady();
 }
 
 void CerfEmulator::ResolveSlot(int slot, const char* requester_type_name) {

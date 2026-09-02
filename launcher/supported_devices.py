@@ -1,9 +1,11 @@
 """Local, developer-editable knowledge about device boards.
 
 This list is the launcher's own opinion about which boards cerf.exe can
-actually run, keyed on the ``board.id`` a bundle's cerf.json carries. Edit it
-by hand when a new board lands in cerf.exe's BoardContext (see
-``cerf/boards/board_context.h``) or when a board's quirks change.
+actually run, keyed on the ``board.id`` a bundle's cerf.json carries. An entry
+may declare ``board_ids`` aliases when several BSP identities describe the
+same hardware family. Edit it by hand when a new board lands in cerf.exe's
+BoardContext (see ``cerf/boards/board_context.h``) or when a board's quirks
+change.
 compile_readme.py renders the same data into README.md's "Supported boards"
 table, so the launcher and the README never drift apart.
 
@@ -60,6 +62,7 @@ from board_catalog_schema import (
     POCKET_PC_2002,
     SOC_IMX31L,
     SOC_IMX51,
+    SOC_IMX6SOLO,
     SOC_ODO,
     SOC_OMAP3530,
     SOC_PR31500,
@@ -82,6 +85,7 @@ from board_catalog_schema import (
     WINDOWS_CE_5,
     WINDOWS_CE_6,
     WINDOWS_CE_7,
+    WINDOWS_CE_8,
     WINDOWS_CE_NET,
     WINDOWS_MOBILE_2003SE,
     WINDOWS_MOBILE_5,
@@ -431,6 +435,28 @@ BOARDS_INFORMATION = [
             "network": True,
             "sound": True,
             "serial": True,
+        },
+    },
+    {
+        "name": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation",
+        "board_id": "hmi_ktp400f_mobile",
+        "board_ids": [
+            "hmi_ktp700_mobile",
+            "hmi_ktp700f_mobile",
+            "hmi_ktp900_mobile",
+            "hmi_ktp900f_mobile",
+            "hmi_ktp700f_hw_mobile",
+            "hmi_ktp700f_arctic_mobile",
+            "hmi_tp1000f_mobile",
+        ],
+        "supported": True,
+        "soc": SOC_IMX6SOLO,
+        "operating_systems": [WINDOWS_CE_8],
+        "features": {
+            "display": True,
+            "touch": True,
+            "guest_additions": True,
+            "network": False,
         },
     },
     {

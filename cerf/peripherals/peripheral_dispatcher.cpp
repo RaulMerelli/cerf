@@ -2,8 +2,11 @@
 
 #include "peripheral_base.h"
 #include "../core/cerf_emulator.h"
+#include "../core/fatal.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
+#include "../socs/guest_cpu_reset.h"
+#include "../state/state_stream.h"
 
 #include <algorithm>
 #include <typeinfo>
@@ -58,6 +61,44 @@ void PeripheralDispatcher::Register(Peripheral* p) {
     live_.store(published, std::memory_order_release);
 
     LOG(Periph, "Register 0x%08X..0x%08X\n", base, end);
+}
+
+void PeripheralDispatcher::RegisterResettable(Peripheral* p, ResetBaselinePolicy policy) {
+    Register(p);
+    reset_baselines_.push_back(ResetBaseline{p, policy, {}});
+
+    if (!reset_baseline_listener_registered_) {
+        emu_.Get<GuestCpuReset>().RegisterPostResetListener(
+            [this](ResetLineKind kind) { RestoreResetBaselines(kind); });
+        reset_baseline_listener_registered_ = true;
+    }
+}
+
+void PeripheralDispatcher::OnAllReady() {
+    for (auto& baseline : reset_baselines_) {
+        StateWriter writer(baseline.state);
+        baseline.p->SaveResetState(writer);
+        if (!writer.Ok())
+            emu_.Get<Fatal>().Die("PeripheralDispatcher: failed to capture reset baseline at 0x%08X",
+                                  baseline.p->MmioBase());
+    }
+}
+
+void PeripheralDispatcher::RestoreResetBaselines(ResetLineKind reset_kind) {
+    const bool cold = reset_kind == ResetLineKind::Rtc;
+    for (auto& baseline : reset_baselines_) {
+        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
+        StateReader reader(baseline.state);
+        baseline.p->RestoreResetState(reader);
+        if (!reader.Ok() || reader.Position() != reader.FileSize())
+            emu_.Get<Fatal>().Die("PeripheralDispatcher: failed to restore reset baseline at 0x%08X",
+                                  baseline.p->MmioBase());
+    }
+    for (auto& baseline : reset_baselines_) {
+        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
+        baseline.p->PostRestore();
+        baseline.p->PostReset(reset_kind);
+    }
 }
 
 bool PeripheralDispatcher::IsPeripheralAddress(uint32_t addr) const {

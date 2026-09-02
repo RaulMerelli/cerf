@@ -111,6 +111,8 @@ The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full licens
   touch screen.
 - **[Dolphin](https://dolphin-emu.org/)** - the precision timer wait and the
   Windows process power-throttling opt-out.
+- **[etnaviv](https://github.com/etnaviv/etna_viv)** - the Vivante GC 2D register
+  layout and command semantics, from `rnndb/state_2d.xml` and `doc/2d.md`.
 
 ## Trademarks
 

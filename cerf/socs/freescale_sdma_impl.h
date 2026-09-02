@@ -9,12 +9,14 @@
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 #include "freescale_sdma_bus.h"
+#include "freescale_sdma_channel0.h"
 #include "freescale_sdma_regs.h"
+#include "freescale_sdma_soc_channel.h"
+#include "guest_cpu_reset.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <functional>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -35,8 +37,16 @@ public:
         return bd && bd->GetSoc() == kSoc;
     }
     void OnReady() override {
+        channel0_ = &emu_.Get<FreescaleSdmaChannel0>();
+        if constexpr (kSoc == SocFamily::iMX6)
+            soc_channel_ = &emu_.Get<FreescaleSdmaSocChannel>();
         ResetCore();
         emu_.Get<PeripheralDispatcher>().Register(this);
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+                std::lock_guard<std::recursive_mutex> lk(state_mu_);
+                ResetCore();
+                DeassertIrqLine();
+            });
     }
 
     uint32_t MmioBase() const override { return kBase; }
@@ -92,7 +102,7 @@ public:
             case kOffIntr:
                 intr_ &= ~value; RefreshIrq(); return;
             /* HSTART bit N starts channel N: signal completion of its BDs. */
-            case kOffHstart:    if (value != 0) CompleteChannels(value); return;
+            case kOffHstart:    if (value != 0) StartHostChannels(value); return;
             /* STOP_STAT is w1c: writing 1 to bit N clears HE[N]/HSTART[N]. CERF
                completes channels synchronously on HSTART, so this clears idle bits. */
             case kOffStopStat:  ReleaseClaims(value);
@@ -127,6 +137,7 @@ public:
         }
         uint32_t idx = 0;
         if (ChnenblIndex(off, idx)) { chnenbl_[idx] = value; return; }
+        if (WriteExtra(off, value)) return;
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
 
@@ -141,6 +152,8 @@ public:
         w.WriteBytes(chnpri_, sizeof(chnpri_));
         w.WriteBytes(chnenbl_, sizeof(chnenbl_));
         w.WriteBytes(rx_cursor_, sizeof(rx_cursor_));
+        channel0_->SaveState(w);
+        SaveExtra(w);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::recursive_mutex> lk(state_mu_);
@@ -153,6 +166,8 @@ public:
         r.ReadBytes(chnpri_, sizeof(chnpri_));
         r.ReadBytes(chnenbl_, sizeof(chnenbl_));
         r.ReadBytes(rx_cursor_, sizeof(rx_cursor_));
+        channel0_->RestoreState(r);
+        RestoreExtra(r);
         /* No host sink survives a restore, so no channel is claimed: leaving a
            claim set would make CompleteChannels skip the channel forever. The
            guest's next HSTART re-offers it and a sink re-claims. */
@@ -168,21 +183,17 @@ public:
 
     void RegisterSdmaEvent(uint32_t event, FreescaleSdmaPeripheral* p,
                            bool is_tx) override {
-        if (event < kMaxDmaEvents) dma_events_[event] = DmaEventBinding{p, is_tx, true};
+        if (event < kMaxDmaEvents) { dma_events_[event] = FreescaleSdmaEventBinding{p, is_tx, true};
+            if constexpr (kSoc == SocFamily::iMX6)
+                LOG(Board, "IMX6_SDMA_BIND event=%u tx=%u\n", event, is_tx ? 1u : 0u);
+        }
     }
 
     /* Channel config offered to sinks at the HSTART edge. A sink that claims the
        channel becomes its data mover: CompleteChannels stops walking its BDs and
        the owner drives completion via SignalChannelBdDone at real transfer pace. */
-    struct ChannelStart {
-        uint32_t channel;
-        int      event;        /* CHNENBL DMA-request event, or -1 if unbound. */
-        uint32_t base_bd_pa;   /* CCB base_bd_ptr. */
-        uint32_t stride;       /* BD slot stride. */
-    };
-    using ChannelClaim = std::function<bool(const ChannelStart&)>;
-    using ChannelStop  = std::function<void(uint32_t channel)>;
-    void RegisterChannelSink(ChannelClaim claim, ChannelStop stop) {
+    void RegisterChannelSink(FreescaleSdmaChannelClaim claim,
+                             FreescaleSdmaChannelStop stop) {
         sinks_.emplace_back(std::move(claim), std::move(stop));
     }
 
@@ -268,6 +279,10 @@ protected:
     /* Per-SoC read-only divergent registers (EVT_MIRROR, and the i.MX51-only
        SDMA_LOCK / EVT_MIRROR2 / OTB / profile registers). True if handled. */
     virtual bool ReadExtra(uint32_t /*off*/, uint32_t& /*out*/) { return false; }
+    virtual bool WriteExtra(uint32_t /*off*/, uint32_t /*value*/) { return false; }
+    virtual void SaveExtra(StateWriter&)    {}
+    virtual void RestoreExtra(StateReader&) {}
+    virtual void ResetExtra() {}
 
     /* CHNENBL RAM window: MCIMX31RM Table 40-10 (0x080, n=0..31),
        MCIMX51RM Table 52-9 (0x200, n=0..47). */
@@ -294,6 +309,15 @@ private:
         return true;
     }
 
+    /* Signal BD completion + raise the SDMA AP IRQ; no bytes are moved. */
+    void StartHostChannels(uint32_t channels) {
+        const uint32_t already_enabled = stop_stat_ & channels;
+        const uint32_t newly_enabled = channels & ~stop_stat_;
+        stop_stat_ |= newly_enabled;        /* HE[i]: channel is host-enabled. */
+        hstart_   |= already_enabled;       /* HSTART[i]: one queued restart. */
+        CompleteChannels(channels);
+    }
+
     void CompleteChannels(uint32_t channels) {
         if (mc0ptr_ == 0)
             HaltUnsupportedAccess("HSTART before MC0PTR set", kBase + kOffHstart, channels);
@@ -309,7 +333,9 @@ private:
             if (ev >= 0 && dma_events_[ev].used) {
                 if (!dma_events_[ev].is_tx) continue;   /* bound RX: completes only via SdmaRxDeliver */
                 tx = dma_events_[ev].p;                 /* bound TX: drain mem->peripheral below */
-            } else if (n != 0) {
+            } else if (n != 0 &&
+                       (soc_channel_ == nullptr ||
+                        !soc_channel_->Handles(n, ev))) {
                 /* Channel n runs an SDMA script this core does not model: it is
                    neither channel 0 (the bootload script, MCIMX51RM Sec 52.23.1.2)
                    nor a channel CHNENBL-bound to an emulated peripheral. */
@@ -323,6 +349,7 @@ private:
             uint8_t* ccb = mem.TryTranslateWrite(mc0ptr_ + n * kCcbStride + kCcbBaseBdOff);
             if (ccb == nullptr) continue;
             uint32_t bd_pa = *reinterpret_cast<uint32_t*>(ccb);
+            bool completed_any = false;
             for (uint32_t i = 0; i < kMaxBdWalk; ++i) {
                 uint8_t* bd = mem.TryTranslateWrite(bd_pa);
                 if (bd == nullptr) break;
@@ -331,6 +358,7 @@ private:
                 const uint32_t stride = BdStride(*word);
                 const bool want_irq = (*word & kBdIntr) != 0;
                 const bool wrap     = (*word & kBdWrap) != 0;
+                const bool extd     = stride >= 12u;
                 if (tx != nullptr) {
                     const uint32_t count = *word & 0xFFFFu;
                     const uint32_t buf_pa = word[1];
@@ -339,14 +367,32 @@ private:
                         if (src == nullptr) break;
                         tx->SdmaTxByte(*src);
                     }
+                } else if (n == 0) {
+                    channel0_->Execute(
+                        word[0], word[1],
+                        extd ? word[2] : channel0_->CurrentAddress(), kBase);
+                } else {
+                    soc_channel_->Complete(n, word[0], word[1]);
                 }
                 *word &= ~(kBdDone | kBdError);
+                completed_any = true;
+                /* MCIMX51RM section 52.23.1 (p. 52-228), BD mode word bit 19 I:
+                   "When SDMA has finished to process data transfer attached to
+                   this buffer descriptor, send an interrupt to the AP.
+                   0 No Interrupt." */
                 if (want_irq) intr_ |= (1u << n);
                 /* W marks the ring's last BD (MCIMX51RM Table 52-96); the BD after
                    it is the base, whose Done this walk already cleared. */
                 if (wrap) break;
                 bd_pa += stride;
             }
+            hstart_ &= ~(1u << n);
+            stop_stat_ &= ~(1u << n);
+            /* MCIMX51RM section 52.11: "Wait for Channel 0 to finish running.
+               This is indicated by HI[0]=1 in the SDMA_INTR register" - the
+               boot channel signals completion without an I flag. */
+            if (completed_any && n == 0u)
+                intr_ |= (1u << n);
         }
         RefreshIrq();
     }
@@ -358,7 +404,7 @@ private:
         const uint32_t base_bd_pa = *reinterpret_cast<uint32_t*>(ccb);
         uint8_t* bd = emu_.Get<EmulatedMemory>().TryTranslateWrite(base_bd_pa);
         if (bd == nullptr) return false;
-        const ChannelStart info{n, ev, base_bd_pa,
+        const FreescaleSdmaChannelStart info{n, ev, base_bd_pa,
                                 BdStride(*reinterpret_cast<uint32_t*>(bd))};
         for (auto& s : sinks_)
             if (s.first && s.first(info)) return true;
@@ -401,6 +447,8 @@ private:
             if (claimed_[i]) { claimed_[i] = false; for (auto& s : sinks_) if (s.second) s.second(i); }
         }
         for (uint32_t i = 0; i < kMaxDmaEvents; ++i) chnenbl_[i] = 0;
+        channel0_->Reset();
+        ResetExtra();
     }
 
     uint32_t mc0ptr_      = 0;
@@ -430,23 +478,21 @@ private:
     uint32_t chnenbl_[kMaxDmaEvents] = {};
     uint32_t rx_cursor_[kChannelCount] = {};   /* per-channel RX BD ring fill position (0 = uninit -> base) */
 
-    struct DmaEventBinding {
-        FreescaleSdmaPeripheral* p     = nullptr;
-        bool                     is_tx = false;
-        bool                     used  = false;
-    };
-    DmaEventBinding dma_events_[kMaxDmaEvents] = {};
+    FreescaleSdmaEventBinding dma_events_[kMaxDmaEvents] = {};
 
     /* Host-side sink coupling, not guest state: neither is serialized. sinks_ are
        re-registered by their owner's OnReady; claimed_ is cleared on restore. */
     bool claimed_[kChannelCount] = {};
-    std::vector<std::pair<ChannelClaim, ChannelStop>> sinks_;
+    std::vector<std::pair<FreescaleSdmaChannelClaim,
+                          FreescaleSdmaChannelStop>> sinks_;
 
     /* intr_ / claimed_ / the INTC line are mutated by the JIT thread (MMIO), by
        peripheral threads (SdmaRxDeliver) and by a sink's playback thread
        (SignalChannelBdDone). Recursive because CompleteChannels re-enters through
        RefreshIrq while already held. */
     mutable std::recursive_mutex state_mu_;
+    FreescaleSdmaChannel0* channel0_ = nullptr;
+    FreescaleSdmaSocChannel* soc_channel_ = nullptr;
 };
 
 }  /* namespace cerf_freescale_sdma_detail */

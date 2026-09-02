@@ -60,6 +60,10 @@ public:
     static uint8_t* __fastcall TranslateUserReadHelper(uint32_t va, ArmMmu* mmu);
     static uint8_t* __fastcall TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu);
 
+    /* ARM DDI 0406C.d B4.1.10/B4.1.112: ATS1CPR performs a privileged
+       stage-1 read translation and publishes the result in PAR. */
+    static uint32_t __fastcall AddressTranslateHelper(uint32_t va, ArmMmu* mmu);
+
     /* Word-aligned VFP/NEON multi-byte loads may page-cross (ARM ARM DDI0406C A3.2 Table A3-1). */
     bool AccessPaged(ArmCpuState* cpu_state, uint32_t va,
                      uint8_t* host_buf, uint32_t n, bool is_load,

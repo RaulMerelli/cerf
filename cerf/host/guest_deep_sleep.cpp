@@ -2,9 +2,11 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/log.h"
+#include "../boot/guest_cold_boot.h"
 #include "../jit/guest_engine.h"
 #include "../state/shutdown_action.h"
 #include "../state/shutdown_dialog.h"
+#include "../state/state_stream.h"
 #include "guest_power_notifier.h"
 #include "host_window.h"
 
@@ -41,6 +43,7 @@ void GuestDeepSleep::RegisterPowerUpListener(std::function<void()> fn) {
 }
 
 void GuestDeepSleep::ClearWakeCause() {
+    power_off_.store(false, std::memory_order_release);
     if (waker_) waker_->ClearSleepWakeCause();
 }
 
@@ -49,6 +52,14 @@ void GuestDeepSleep::RegisterResumeVectorProvider(SleepResumeVectorProvider* p) 
 }
 
 void GuestDeepSleep::Enter() {
+    EnterImpl(false);
+}
+
+void GuestDeepSleep::EnterPowerOff() {
+    EnterImpl(true);
+}
+
+void GuestDeepSleep::EnterImpl(bool power_off) {
     /* A pending reset is a wake/reboot in flight, and the wake itself is a reset;
        entering sleep here lets the woken guest re-execute its sleep write before
        the poll delivers the reset, posting a spurious second recovery prompt and
@@ -61,6 +72,7 @@ void GuestDeepSleep::Enter() {
         LOG(SocReset, "[DEEPSLEEP] Enter: already active, skip\n");
         return;   /* one prompt per sleep */
     }
+    power_off_.store(power_off, std::memory_order_release);
     LOG(SocReset, "[DEEPSLEEP] Enter: sleep begin\n");
     emu_.Get<GuestPowerNotifier>().NotifyPowerDown();
     emu_.Get<GuestEngine>().EnterDeepSleep();
@@ -100,7 +112,20 @@ void GuestDeepSleep::DeliverWake() {
 
 void GuestDeepSleep::OnFullRestore() {
     /* A machine restored mid-deep-sleep wakes the same way Cancel does, no prompt. */
-    if (emu_.Get<GuestEngine>().DeepSleep()) DeliverWake();
+    if (!emu_.Get<GuestEngine>().DeepSleep()) return;
+    if (power_off_.exchange(false, std::memory_order_acq_rel))
+        emu_.Get<GuestColdBoot>().RequestHardReset();
+    else DeliverWake();
+}
+
+void GuestDeepSleep::SaveState(StateWriter& w) const {
+    w.Write<uint8_t>(power_off_.load(std::memory_order_acquire) ? 1u : 0u);
+}
+
+void GuestDeepSleep::RestoreState(StateReader& r) {
+    uint8_t power_off = 0u;
+    r.Read(power_off);
+    power_off_.store(power_off != 0u, std::memory_order_release);
 }
 
 void GuestDeepSleep::Recover() {
@@ -120,7 +145,11 @@ void GuestDeepSleep::Recover() {
     const bool hw_resumed = hw_resumed_.exchange(false);
     active_.store(false);
     if (c == ShutdownChoice::Cancel) {
-        if (!hw_resumed) DeliverWake();          /* wake = sleep-mode reset */
+        if (!hw_resumed) {
+            if (power_off_.exchange(false, std::memory_order_acq_rel))
+                emu_.Get<GuestColdBoot>().RequestHardReset();
+            else DeliverWake();          /* wake = sleep-mode reset */
+        }
         return;
     }
     emu_.Get<ShutdownAction>().Perform(c);

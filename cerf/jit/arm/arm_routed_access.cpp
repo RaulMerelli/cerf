@@ -5,6 +5,7 @@
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../core/rate_probe.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "arm_mmu.h"
 #include "arm_page_walker.h"
@@ -19,6 +20,9 @@ void ArmRoutedAccess::OnReady() {
     mmu_        = &emu_.Get<ArmMmu>();
     walker_     = &emu_.Get<ArmPageWalker>();
     dispatcher_ = &emu_.Get<PeripheralDispatcher>();
+#if CERF_DEV_MODE
+    rate_probe_ = &emu_.Get<RateProbe>();
+#endif
 }
 
 void ArmRoutedAccess::HaltUnalignedRouted(uint32_t guest_pc, uint32_t va,
@@ -41,6 +45,9 @@ void ArmRoutedAccess::HaltRoutedWidth(uint32_t guest_pc, uint32_t va,
 
 uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
                                        uint32_t guest_pc, uint32_t va) {
+#if CERF_DEV_MODE
+    rate_probe_->RecordMmioPc(guest_pc, pa);
+#endif
     switch (bytes) {
     case 1u: return dispatcher_->Read(pa, MmioWidth::kByte);
     case 2u: return dispatcher_->Read(pa, MmioWidth::kHalf);
@@ -51,6 +58,9 @@ uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
 
 void ArmRoutedAccess::DispatchWrite(uint32_t pa, uint32_t bytes, uint32_t value,
                                     uint32_t guest_pc, uint32_t va) {
+#if CERF_DEV_MODE
+    rate_probe_->RecordMmioPc(guest_pc, pa);
+#endif
     switch (bytes) {
     case 1u: dispatcher_->Write(pa, value, MmioWidth::kByte); return;
     case 2u: dispatcher_->Write(pa, value, MmioWidth::kHalf); return;

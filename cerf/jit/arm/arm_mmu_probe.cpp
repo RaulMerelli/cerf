@@ -5,6 +5,7 @@
 #include "../../cpu/arm_processor_config.h"
 #include "../../cpu/emulated_memory.h"
 #include "arm_mmu.h"
+#include "arm_par_attributes.h"
 #include "arm_pte.h"
 
 REGISTER_SERVICE(ArmMmuProbe);
@@ -90,8 +91,8 @@ bool ArmMmuProbe::ExecPageGlobal(uint32_t folded_va) const {
     const int w = ArmTlbMatchWay(&state_.instruction_tlb, base,
                                  folded_va & 0xFFFFF000u, current_asid,
                                  /*need_write=*/false);
-    return w >= 0 &&
-           state_.instruction_tlb.entries[base + static_cast<uint32_t>(w)].global != 0u;
+    return w >= 0 && ArmTlbGlobal(
+           state_.instruction_tlb.entries[base + static_cast<uint32_t>(w)]);
 }
 
 uint8_t* ArmMmuProbe::PeekVaToHost(uint32_t va) {
@@ -127,4 +128,64 @@ bool ArmMmuProbe::PeekVaToPa(uint32_t va, uint32_t* pa) {
     if (!walked) return false;
     *pa = *walked;
     return true;
+}
+
+bool ArmMmuProbe::TlbPar(uint32_t va, uint32_t* pa, uint16_t* attrs) const {
+    const ArmMmuState& state_ = *state_p_;
+    const uint32_t p = ArmFcseFold(va, state_.process_id);
+    if (!state_.effective_control_register.bits.m) {
+        *pa = p;
+        *attrs = ArmMmuDisabledDataParAttributes();
+        return true;
+    }
+    const uint8_t asid = static_cast<uint8_t>(state_.contextidr & 0xFFu);
+    const uint32_t base = ArmTlbSetBase(p);
+    const uint32_t page = p & 0xFFFFF000u;
+    int w = ArmTlbMatchWay(&state_.data_tlb, base, page, asid, false);
+    if (w < 0) w = ArmTlbMatchIoWay(&state_.data_tlb, base, page, asid, false);
+    if (w < 0) return false;
+    const ArmTlbEntry& e = state_.data_tlb.entries[base + static_cast<uint32_t>(w)];
+    *pa = e.pa_page | (p & 0x0FFFu);
+    *attrs = ArmTlbParAttributes(e);
+    return true;
+}
+
+bool ArmMmuProbe::WalkPar(uint32_t va, uint32_t* pa, uint16_t* attrs) const {
+    const ArmMmuState& state_ = *state_p_;
+    const uint32_t p = ArmFcseFold(va, state_.process_id);
+    const uint32_t ttbcr_n = state_.ttbcr & 7u;
+    const uint32_t ttbr0_mask = ~((1u << (14u - ttbcr_n)) - 1u);
+    const bool use_ttbr1 = ttbcr_n != 0u && (p >> (32u - ttbcr_n)) != 0u;
+    const uint32_t l1_base =
+        use_ttbr1 ? (state_.ttbr1 & 0xFFFFC000u) : (state_.translation_table_base.word & ttbr0_mask);
+
+    uint8_t* l1_host = memory_->TryTranslateWrite(l1_base | ((p >> 20) << 2));
+    if (!l1_host) return false;
+    ArmL1Pte l1_pte;
+    l1_pte.word = *reinterpret_cast<uint32_t*>(l1_host);
+    const bool modern = processor_config_->HasCp15V6() && state_.effective_control_register.bits.xp;
+
+    if (l1_pte.fault.type == ArmL1PteType::kSection) {
+        *pa = (l1_pte.section.section_base << 20) | (p & 0x000FFFFFu);
+        *attrs = ArmSectionParAttributes(state_, l1_pte.word, modern);
+        return true;
+    }
+    if (l1_pte.fault.type != ArmL1PteType::kCoarse) return false;
+
+    uint8_t* l2_host = memory_->TryTranslateWrite((l1_pte.coarse.page_table_base << 10) | (((p >> 12) & 0xFFu) << 2));
+    if (!l2_host) return false;
+    ArmL2Pte l2_pte;
+    l2_pte.word = *reinterpret_cast<uint32_t*>(l2_host);
+
+    switch (l2_pte.fault.type) {
+    case ArmL2PteType::kSmallPage:
+        *pa = (l2_pte.small_page.small_page_base << 12) | (p & 0x0FFFu);
+        *attrs = ArmSmallPageParAttributes(state_, l2_pte.word, l1_pte.word, modern);
+        return true;
+    case ArmL2PteType::kLargePage:
+        *pa = (l2_pte.large_page.large_page_base << 16) | (p & 0x0000FFFFu);
+        *attrs = ArmLargePageParAttributes(state_, l2_pte.word, l1_pte.word, modern);
+        return true;
+    default: return false;
+    }
 }
