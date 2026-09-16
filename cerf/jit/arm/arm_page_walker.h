@@ -32,6 +32,7 @@ public:
     uint32_t LastExecPa() const { return last_exec_pa_; }
 
     void SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size);
+    bool InjectionBandPa(uint32_t folded_va, uint32_t* pa) const;
 
 private:
     template <ArmMmuAccess kAccess, bool kForceUser = false>

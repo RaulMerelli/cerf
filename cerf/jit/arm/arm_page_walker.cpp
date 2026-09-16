@@ -31,15 +31,21 @@ void ArmPageWalker::SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_
 }
 
 uint8_t* ArmPageWalker::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
-    if (injection_band_size_ == 0u) return nullptr;
-    const uint32_t off = va - injection_band_va_;
-    if (off >= injection_band_size_) return nullptr;
-    const uint32_t pa = injection_band_pa_ + off;
+    uint32_t pa = 0;
+    if (!InjectionBandPa(va, &pa)) return nullptr;
     const bool is_write = (access == ArmMmuAccess::kWrite || access == ArmMmuAccess::kReadWrite);
     uint8_t* host = is_write ? memory_->TryTranslateWrite(pa) : memory_->TryTranslate(pa);
     if (!host) return nullptr;
     if (access == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
     return host;
+}
+
+bool ArmPageWalker::InjectionBandPa(uint32_t folded_va, uint32_t* pa) const {
+    if (injection_band_size_ == 0u) return false;
+    const uint32_t off = folded_va - injection_band_va_;
+    if (off >= injection_band_size_) return false;
+    *pa = injection_band_pa_ + off;
+    return true;
 }
 
 template <ArmMmuAccess kAccess, bool kForceUser>
@@ -141,11 +147,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         ArmL1Pte l1_pte;
         l1_pte.word = *reinterpret_cast<uint32_t*>(l1_host);
 
-        struct {
-            uint32_t span_bytes    = 0x1000u;
-            bool     global        = false;
-            bool     fast_fillable = true;
-        } new_slot{};
+        ArmTlbFillSlot new_slot{};
 
         switch (l1_pte.fault.type) {
         case ArmL1PteType::kFault:
@@ -221,8 +223,9 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     return nullptr;
                 }
                 /* ARM DDI 0406C.c B3.5 Fig B3-5: L2 small page nG at bit[11]. */
-                new_slot.global         = !((l2_pte.word >> 11) & 1u);
-                effective_address       = (l2_pte.small_page.small_page_base << 12) | (p & 0x0FFFu);
+                new_slot.global          = !((l2_pte.word >> 11) & 1u);
+                new_slot.par_attrs = ArmSmallPageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
+                effective_address        = (l2_pte.small_page.small_page_base << 12) | (p & 0x0FFFu);
                 break;
             }
             case 1: {
@@ -248,6 +251,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     }
                     new_slot.span_bytes = 0x10000u;
                     new_slot.global     = !((l2_pte.word >> 11) & 1u);
+                    new_slot.par_attrs = ArmLargePageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
                     effective_address   =
                         (l2_pte.large_page.large_page_base << 16) | (p & 0xFFFFu);
                     break;
@@ -309,6 +313,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             new_slot.span_bytes = translation.span_bytes;
             /* ARM DDI 0406C.c B3.5 Fig B3-4: L1 Section nG at bit[17]. */
             new_slot.global          = !((l1_pte.word >> 17) & 1u);
+            new_slot.par_attrs = ArmSectionParAttributes(state_, l1_pte.word, modern_v6_fmt);
             break;
         }
         case ArmL1PteType::kFine: {
@@ -413,8 +418,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             uint8_t* host_ptr = memory_->TryTranslateWrite(effective_address);
             if (host_ptr) {
                 if (uniform) {
-                    FillFastTlb(tlb_unit, p, host_ptr, effective_address, current_asid, 
-					            new_slot.global, /*writable=*/true, new_slot.span_bytes);
+                    FillFastTlb(tlb_unit, p, host_ptr, effective_address,
+                                current_asid, new_slot, true);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return host_ptr;
@@ -425,7 +430,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                then resolves the page's reads to MMIO. */
             if (new_slot.fast_fillable && !memory_->TryTranslate(effective_address)) {
                 FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
-                              new_slot.global, /*writable=*/true, new_slot.span_bytes);
+                              new_slot, true);
             }
             mmu_->SetIoPending(effective_address);
             return nullptr;
@@ -438,7 +443,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                        store re-walks once to verify write perm and set writable. */
                     const bool writable = (kAccess == ArmMmuAccess::kReadWrite);
                     FillFastTlb(tlb_unit, p, ram_host, effective_address,
-                                current_asid, new_slot.global, writable, new_slot.span_bytes);
+                                current_asid, new_slot, writable);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return ram_host;
@@ -450,17 +455,17 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                    on the TLB retaining the rest; not caching here re-walks every
                    access and faults whenever that entry was oscillated away. */
                 if (uniform) {
-                    FillFastTlb(tlb_unit, p, flash_host, effective_address, current_asid,
-					            new_slot.global, /*writable=*/false, new_slot.span_bytes);
+                    FillFastTlb(tlb_unit, p, flash_host, effective_address,
+                                current_asid, new_slot, false);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return flash_host;
             }
             if constexpr (kAccess != ArmMmuAccess::kExecute) {
                 if (new_slot.fast_fillable) {
-                    FillFastTlbIo(tlb_unit, p, effective_address, current_asid, new_slot.global, 
-					              /*writable=*/kAccess == ArmMmuAccess::kReadWrite,
-                                  new_slot.span_bytes);
+                    FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
+                                  new_slot,
+                                  kAccess == ArmMmuAccess::kReadWrite);
                 }
             }
             mmu_->SetIoPending(effective_address);

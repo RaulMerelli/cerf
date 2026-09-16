@@ -33,7 +33,7 @@ private:
         bool                 in_flight = false;
     };
 
-    bool OnChannelClaim(const Imx31Sdma::ChannelStart& s);
+    bool OnChannelClaim(const FreescaleSdmaChannelStart& s);
     void OnChannelStop(uint32_t channel);
     void OnThreadMessage(const MSG& msg);
     void StartStream();

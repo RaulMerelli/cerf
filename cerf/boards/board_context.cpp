@@ -21,6 +21,14 @@ constexpr BoardIdEntry kBoardIds[] = {
     {"siemens_p177",      Board::SiemensP177},
     {"smartbook_g138",    Board::SmartBookG138},
     {"siemens_mp377",     Board::SiemensMP377},
+    {"hmi_ktp400f_mobile",  Board::HmiKtp400FMobile},
+    {"hmi_ktp700_mobile",   Board::HmiKtp700Mobile},
+    {"hmi_ktp700f_mobile",  Board::HmiKtp700FMobile},
+    {"hmi_ktp900_mobile",   Board::HmiKtp900Mobile},
+    {"hmi_ktp900f_mobile",  Board::HmiKtp900FMobile},
+    {"hmi_tp1000f_mobile",  Board::HmiTp1000fMobile},
+    {"hmi_ktp700f_hw_mobile", Board::HmiKtp700FHwMobile},
+    {"hmi_ktp700f_arctic_mobile", Board::HmiKtp700FArcticMobile},
     {"nec_rockhopper",    Board::NecRockhopper},
     {"nec_mobilepro_700", Board::NecMobilePro700},
     {"casio_toricomail",  Board::CasioToricomail},
@@ -72,6 +80,14 @@ const char* BoardContext::BoardName(Board b) {
         case Board::SiemensP177:      return "Siemens SIMATIC TP177B 4\"";
         case Board::SmartBookG138:    return "SmartBook G138";
         case Board::SiemensMP377:     return "Siemens SIMATIC MP 377";
+        case Board::HmiKtp400FMobile:      return "Siemens SIMATIC HMI KTP400F Mobile";
+        case Board::HmiKtp700Mobile:       return "Siemens SIMATIC HMI KTP700 Mobile";
+        case Board::HmiKtp700FMobile:      return "Siemens SIMATIC HMI KTP700F Mobile";
+        case Board::HmiKtp900Mobile:       return "Siemens SIMATIC HMI KTP900 Mobile";
+        case Board::HmiKtp900FMobile:      return "Siemens SIMATIC HMI KTP900F Mobile";
+        case Board::HmiTp1000fMobile:      return "Siemens SIMATIC HMI TP1000F Mobile";
+        case Board::HmiKtp700FHwMobile:    return "Siemens SIMATIC HMI KTP700F Mobile HW";
+        case Board::HmiKtp700FArcticMobile: return "Siemens SIMATIC HMI KTP700F Mobile Arctic";
         case Board::NecRockhopper:    return "NEC Rockhopper (DDB-VR5500A)";
         case Board::NecMobilePro700:  return "NEC MobilePro 700";
         case Board::CasioToricomail:  return "Casio Toricomail";
@@ -103,6 +119,14 @@ const char* BoardContext::ShortBoardName(Board b) {
         case Board::SiemensP177:      return "SIMATIC TP177B";
         case Board::SmartBookG138:    return "SmartBook G138";
         case Board::SiemensMP377:     return "SIMATIC MP 377";
+        case Board::HmiKtp400FMobile:       return "KTP400F Mobile";
+        case Board::HmiKtp700Mobile:        return "KTP700 Mobile";
+        case Board::HmiKtp700FMobile:       return "KTP700F Mobile";
+        case Board::HmiKtp900Mobile:        return "KTP900 Mobile";
+        case Board::HmiKtp900FMobile:       return "KTP900F Mobile";
+        case Board::HmiTp1000fMobile:       return "TP1000F Mobile";
+        case Board::HmiKtp700FHwMobile:     return "KTP700F Mobile HW";
+        case Board::HmiKtp700FArcticMobile: return "KTP700F Mobile Arctic";
         case Board::NecRockhopper:    return "Rockhopper";
         case Board::NecMobilePro700:  return "MobilePro 700";
         case Board::CasioToricomail:  return "Toricomail";
@@ -131,6 +155,7 @@ const char* BoardContext::SocFamilyName(SocFamily f) {
         case SocFamily::iMX31:     return "iMX31";
         case SocFamily::iMX32:     return "iMX32";
         case SocFamily::iMX51:     return "iMX51";
+        case SocFamily::iMX6:      return "iMX6";
         case SocFamily::TegraAPX:  return "TegraAPX";
         case SocFamily::VR5500:    return "VR5500";
         case SocFamily::VR4102:    return "VR4102";

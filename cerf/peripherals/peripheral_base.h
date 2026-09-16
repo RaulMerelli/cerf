@@ -6,6 +6,7 @@
 
 class StateWriter;
 class StateReader;
+enum class ResetLineKind;
 
 class Peripheral : public Service {
 public:
@@ -15,11 +16,16 @@ public:
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
 
+    virtual void SaveResetState(StateWriter& w) { SaveState(w); }
+    virtual void RestoreResetState(StateReader& r) { RestoreState(r); }
+
     /* Second pass, after every peripheral's RestoreState has run. Re-assert
        computed interrupt lines here (a source into its INTC, an INTC's JIT
        notify) - done in RestoreState the peer being driven may not be restored
        yet, so the assertion is clobbered. */
     virtual void PostRestore() {}
+
+    virtual void PostReset(ResetLineKind) {}
 
     /* MMIO range. Stable for the lifetime of the peripheral. Both
        must be set before OnReady runs, since OnReady is where

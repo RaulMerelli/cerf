@@ -20,6 +20,7 @@ enum class SocFamily {
     iMX31,
     iMX32,
     iMX51,
+    iMX6,
     TegraAPX,
     VR5500,
     VR4102,
@@ -51,6 +52,11 @@ enum class Board {
     SiemensP177,
     SmartBookG138,
     SiemensMP377,
+    HmiKtp400FMobile,
+    HmiKtp700Mobile,
+    HmiTp1000fMobile,
+    HmiKtp700FHwMobile,
+    HmiKtp700FArcticMobile,
     NecRockhopper,
     NecMobilePro700,
     CasioToricomail,
@@ -61,6 +67,9 @@ enum class Board {
     CasioCassiopeiaE55,
     SymbolMk500,
     NokiaLumia800,
+    HmiKtp700FMobile,
+    HmiKtp900Mobile,
+    HmiKtp900FMobile,
 };
 
 /* A board's fixed host-window open size, in guest-surface pixels. */
@@ -100,4 +109,10 @@ public:
 
     static std::span<const BoardIdEntry> BoardIds();
     static Board                         BoardFromId(const std::string& id);
+
+    static bool IsKtpMobile(Board b) {
+        return b == Board::HmiKtp400FMobile || b == Board::HmiKtp700Mobile || b == Board::HmiKtp700FMobile ||
+               b == Board::HmiKtp900Mobile || b == Board::HmiKtp900FMobile || b == Board::HmiTp1000fMobile ||
+               b == Board::HmiKtp700FHwMobile || b == Board::HmiKtp700FArcticMobile;
+    }
 };

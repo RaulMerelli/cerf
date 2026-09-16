@@ -3,7 +3,6 @@
 #include "../peripherals/peripheral_base.h"
 
 #include "../core/cerf_emulator.h"
-#include "../core/log.h"
 #include "../boards/board_context.h"
 #include "../tracing/kernel_debug_sink.h"
 #include "../peripherals/peripheral_dispatcher.h"
@@ -56,12 +55,24 @@ public:
        so it is skipped. An attached endpoint (e.g. the VMCU peer) serializes
        its own guest-coupled state via the forward below. */
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(ctrl_, sizeof(ctrl_));
+        SaveControllerState(
+        w);
         if (endpoint_) endpoint_->SaveState(w);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(ctrl_, sizeof(ctrl_));
+        RestoreControllerState(
+        r);
         if (endpoint_) endpoint_->RestoreState(r);
+    }
+
+    void SaveResetState(StateWriter& w) override { SaveControllerState(w); }
+    void RestoreResetState(StateReader& r) override { RestoreControllerState(r); }
+
+    void PostRestore() override { UpdateRxIrq(); }
+
+    void PostReset(ResetLineKind kind) override {
+        if (endpoint_) endpoint_->OnUartReset(kind);
+        UpdateRxIrq();
     }
 
     /* A board wires an off-chip device (e.g. the SYNC2 VMCU) to this UART. */
@@ -100,6 +111,23 @@ protected:
     virtual void DeassertRxIrq() {}
 
 private:
+    void SaveControllerState(StateWriter& w) const {
+        w.WriteBytes(ctrl_, sizeof(ctrl_));
+        w.Write(static_cast<uint32_t>(rx_fifo_.size()));
+        for (uint8_t byte : rx_fifo_) w.Write(byte);
+    }
+
+    void RestoreControllerState(StateReader& r) {
+        r.ReadBytes(ctrl_, sizeof(ctrl_));
+        rx_fifo_.clear();
+        uint32_t rx_count = 0;
+        r.Read(rx_count);
+        for (uint32_t i = 0; i < rx_count; ++i) {
+            uint8_t byte = 0;
+            r.Read(byte);
+            rx_fifo_.push_back(byte);
+        }
+    }
     static constexpr uint32_t kURXD = 0x00u, kUTXD = 0x40u;
     static constexpr uint32_t kUCR1 = 0x80u, kUCR2 = 0x84u;
     static constexpr uint32_t kUCR4 = 0x8Cu, kUFCR = 0x90u;
@@ -126,13 +154,15 @@ private:
     /* ONEMS (0xB0) is 24-bit only on i.MX51 (MCIMX51RM §59.3.1); on i.MX31 every
        UART register including ONEMS is 16 LSB (MCIMX31RM §31.3.2). */
     static constexpr uint32_t kOnemsMask =
-        (kSoc == SocFamily::iMX51) ? 0xFFFFFFu : 0xFFFFu;
+        (kSoc == SocFamily::iMX51 || kSoc == SocFamily::iMX6) ? 0xFFFFFFu : 0xFFFFu;
 
     /* §59.3.3 reset values that ARE the idle TX-ready/RX-empty status: USR1.TRDY
        (0x2040), USR2.TXDC+TXFE (0x4028), UTS.TXEMPTY (0x60, TXFULL clear). */
     static constexpr uint32_t kUsr1Idle = 0x2040u;
     static constexpr uint32_t kUsr2Idle = 0x4028u;
     static constexpr uint32_t kUtsIdle  = 0x0060u;
+    /* Linux imx.c: UTS_RXEMPTY = 1 << 5. */
+    static constexpr uint32_t kUtsRxEmpty = 1u << 5;
 
     /* Control/baud regs 0x80..0xB8 step 4, reset values (MCIMX51RM Table 59-3 /
        MCIMX31RM Table 31-2). ONEMS (0xB0) is the only 24-bit register. */
@@ -178,7 +208,7 @@ private:
         }
         if (off == kUSR2)
             return kUsr2Idle | (rx_fifo_.empty() ? 0u : kUsr2Rdr);
-        if (off == kUTS)  return kUtsIdle;
+        if (off == kUTS)  return rx_fifo_.empty() ? kUtsIdle : (kUtsIdle & ~kUtsRxEmpty);
         if (off >= kCtrlLo && off <= kCtrlHi && (off & 3u) == 0u) {
             uint32_t v = ctrl_[(off - kCtrlLo) / 4u];
             if (off == kUCR2) v |= kSrst;   /* SRST self-deasserts (reset instant) */
@@ -201,6 +231,7 @@ private:
             r = (r & ~m) | ((v << shift) & m);
             if (aligned == kUCR1 || aligned == kUCR4 || aligned == kUFCR)
                 UpdateRxIrq();   /* enable/threshold changed */
+            if (endpoint_) endpoint_->OnControlWrite(aligned, r);
             return;
         }
         HaltUnsupportedAccess("Write", kBase + off, v);

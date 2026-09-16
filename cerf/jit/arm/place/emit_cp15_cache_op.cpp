@@ -85,6 +85,20 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             }
             break;
 
+        case 1:
+            /* ARM DDI 0406C.c Figure B3-32 assigns ICIALLUIS and BPIALLIS to c7,c1. */
+            if (v7) {
+                if (d->cp == 0u) {
+                    EmitMovRegImm32(cursor, kEcx, icache_self);
+                    EmitCall(cursor, icache_helper);
+                    return cursor;
+                }
+                if (d->cp == 6u) {
+                    return cursor;
+                }
+            }
+            break;
+
         case 5:
             /* ICIALLU c5/0, ICIMVAU c5/1 (Figure B3-32); the v4/v5/v6 rows
                add c5/2 invalidate-by-set/way (Tables D15-22, D12-8). */

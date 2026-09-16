@@ -2,8 +2,11 @@
 
 #include "peripheral_base.h"
 #include "../core/cerf_emulator.h"
+#include "../core/fatal.h"
 #include "../core/log.h"
 #include "../cpu/emulated_memory.h"
+#include "../socs/guest_cpu_reset.h"
+#include "../state/state_stream.h"
 
 #include <algorithm>
 #include <typeinfo>
@@ -26,7 +29,7 @@ void PeripheralDispatcher::Register(Peripheral* p) {
     }
     const uint32_t base = p->MmioBase();
     const uint32_t size = p->MmioSize();
-    const uint32_t end  = base + size;
+    const uint64_t end  = static_cast<uint64_t>(base) + size;
     if (size == 0) {
         LOG(Caution, "PeripheralDispatcher::Register peripheral has "
                 "zero-size MMIO range (base 0x%08X)\n", base);
@@ -36,10 +39,12 @@ void PeripheralDispatcher::Register(Peripheral* p) {
     const EntryTable* prev = live_.load(std::memory_order_acquire);
     if (prev) {
         for (const auto& e : *prev) {
-            if (base < e.end && e.base < end) {
+            const uint64_t existing_end = static_cast<uint64_t>(e.base) + e.size;
+            if (static_cast<uint64_t>(base) < existing_end && static_cast<uint64_t>(e.base) < end) {
                 LOG(Caution, "PeripheralDispatcher::Register overlap: "
-                        "new [0x%08X..0x%08X) vs existing [0x%08X..0x%08X)\n",
-                        base, end, e.base, e.end);
+                        "new [0x%08X..0x%llX) vs existing [0x%08X..0x%llX)\n",
+                        base, static_cast<unsigned long long>(end), e.base,
+                        static_cast<unsigned long long>(existing_end));
                 CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
             }
         }
@@ -47,7 +52,7 @@ void PeripheralDispatcher::Register(Peripheral* p) {
 
     auto next = prev ? std::make_unique<EntryTable>(*prev)
                      : std::make_unique<EntryTable>();
-    Entry entry{base, end, p->FastReader(), p->FastWriter(), p, p};
+    Entry entry{base, size, p->FastReader(), p->FastWriter(), p, p};
     auto pos = std::lower_bound(next->begin(), next->end(), base,
         [](const Entry& e, uint32_t b) { return e.base < b; });
     next->insert(pos, entry);
@@ -57,7 +62,44 @@ void PeripheralDispatcher::Register(Peripheral* p) {
     last_hit_.store(0, std::memory_order_relaxed);
     live_.store(published, std::memory_order_release);
 
-    LOG(Periph, "Register 0x%08X..0x%08X\n", base, end);
+    LOG(Periph, "Register 0x%08X..0x%llX\n", base,
+        static_cast<unsigned long long>(end));
+}
+
+void PeripheralDispatcher::RegisterResettable(Peripheral* p, ResetBaselinePolicy policy) {
+    Register(p);
+    ResetBaseline baseline{p, policy, {}};
+    StateWriter writer(baseline.state);
+    p->SaveResetState(writer);
+    if (!writer.Ok())
+        emu_.Get<Fatal>().Die("PeripheralDispatcher: failed to capture reset baseline at 0x%08X",
+                              p->MmioBase());
+    reset_baselines_.push_back(std::move(baseline));
+
+    if (!reset_baseline_listener_registered_) {
+        emu_.Get<GuestCpuReset>().RegisterPostResetKindListener(
+            [this](ResetKind kind) { RestoreResetBaselines(kind); });
+        reset_baseline_listener_registered_ = true;
+    }
+}
+
+void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
+    const bool cold = reset_kind == ResetKind::Cold;
+    const ResetLineKind legacy_kind =
+        cold ? ResetLineKind::Rtc : ResetLineKind::Other;
+    for (auto& baseline : reset_baselines_) {
+        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
+        StateReader reader(baseline.state);
+        baseline.p->RestoreResetState(reader);
+        if (!reader.Ok() || reader.Position() != reader.FileSize())
+            emu_.Get<Fatal>().Die("PeripheralDispatcher: failed to restore reset baseline at 0x%08X",
+                                  baseline.p->MmioBase());
+    }
+    for (auto& baseline : reset_baselines_) {
+        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
+        baseline.p->PostRestore();
+        baseline.p->PostReset(legacy_kind);
+    }
 }
 
 bool PeripheralDispatcher::IsPeripheralAddress(uint32_t addr) const {
@@ -69,13 +111,14 @@ void PeripheralDispatcher::ValidatePhysReachable(uint32_t phys_addr_mask) const 
     const EntryTable* t = live_.load(std::memory_order_acquire);
     if (!t) return;
     for (const auto& e : *t) {
-        if ((e.end - 1u) > phys_addr_mask) {
-            LOG(Caution, "PeripheralDispatcher: %s at [0x%08X..0x%08X) is above "
+        const uint64_t end = static_cast<uint64_t>(e.base) + e.size;
+        if ((end - 1u) > phys_addr_mask) {
+            LOG(Caution, "PeripheralDispatcher: %s at [0x%08X..0x%llX) is above "
                     "the SoC physical space (mask 0x%08X); it aliases to "
                     "0x%08X and is unreachable/shadowed - relocate it into the "
                     "addressable range\n",
-                    typeid(*e.p).name(), e.base, e.end, phys_addr_mask,
-                    e.base & phys_addr_mask);
+                    typeid(*e.p).name(), e.base, static_cast<unsigned long long>(end),
+                    phys_addr_mask, e.base & phys_addr_mask);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
     }
@@ -97,7 +140,7 @@ const PeripheralDispatcher::Entry* PeripheralDispatcher::LookupSlow(
         [](uint32_t a, const Entry& e) { return a < e.base; });
     if (it == t->begin()) return nullptr;
     --it;
-    if (addr >= it->base && addr < it->end) {
+    if (addr - it->base < it->size) {
         last_hit_.store(static_cast<size_t>(it - t->begin()),
                         std::memory_order_relaxed);
         return &(*it);
@@ -177,4 +220,3 @@ void PeripheralDispatcher::WriteDword(uint32_t addr, uint64_t value) {
     }
     emu_.Get<EmulatedMemory>().WriteDword(addr, value);
 }
-

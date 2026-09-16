@@ -58,5 +58,17 @@ constexpr uint32_t kBdExtd       = 1u << 23;
 constexpr uint32_t kCcbStride    = 16u;
 constexpr uint32_t kCcbBaseBdOff = 4u;
 constexpr uint32_t kMaxBdWalk    = 256u;
+/* Linux imx-sdma.c channel-0 command opcodes:
+   C0_SETDM 0x01, C0_SETPM 0x04, C0_SETCTX 0x07. */
+constexpr uint32_t kC0SetDm = 0x01u;
+constexpr uint32_t kC0SetPm = 0x04u;
+constexpr uint32_t kC0SetCtx = 0x07u;
+/* MCIMX51RM Rev.1 Table 52-44 and section 52.13.5.2 define the SDMA ROM/RAM
+   ranges, 16-bit address space, and 32-bit data words. */
+constexpr uint32_t kSdmaProgramWords = 0x2000u;
+constexpr uint32_t kSdmaDataWords = 0x10000u;
+/* Linux imx-sdma.c::sdma_load_context:
+   bd0->ext_buffer_addr = 2048 + (sizeof(*context) / 4) * channel. */
+constexpr uint32_t kSdmaContextBase = 0x0800u;
 
 }  /* namespace cerf_freescale_sdma_detail */

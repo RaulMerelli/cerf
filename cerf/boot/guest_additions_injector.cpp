@@ -317,16 +317,14 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         CerfFatalExit();
     }
 
-    /* Acquire the CERF-owned injection band (lazy; halts if this board's OAT
-       leaves no static-window hole). The stub's records + section bytes live
-       here, never the victim's section; the TOC is repointed at band VAs the
-       MMU walker overlay serves. */
     auto& region = emu_.Get<CerfInjectionRegion>();
     const uint32_t band_va   = region.BandVaBase();
     const uint32_t band_pa   = region.BandPaBase();
     const uint32_t band_size = region.BandSize();
 
-    const bool in_place = (ce_major_ >= 6);
+    const bool in_place = (ce_major_ >= 6)
+                       && !BoardContext::IsKtpMobile(
+                           emu_.Get<BoardContext>().GetBoard());
 
     uint32_t target_vbase = band_va;
     uint32_t run_base     = band_va;   /* base the section bytes are relocated for */
@@ -338,9 +336,6 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         run_base = target_vbase + slot_base;
     }
 
-    /* RVA layout in the band: section i bytes at band+rva, so an in-place
-       module runs correctly at vbase=band_va with section i at band_va+rva.
-       dataptr is always the band VA (overlay-served source). */
     const size_t nsec = pe.Sections().size();
     std::vector<uint32_t> sec_pa(nsec), dataptr(nsec), realaddr(nsec), flags(nsec);
     for (size_t i = 0; i < nsec; ++i) {
@@ -353,7 +348,6 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
             : (s.flags | kImgScnMemWrite | kImgScnMemShared);
     }
 
-    /* Records after the full virtual image (overlay-served reads of e32/o32). */
     const uint32_t e32_va    = band_va + AlignPage(pe.ImageSize());
     const uint32_t o32_va    = Align4(e32_va + L.size);
     const uint32_t band_used = (o32_va + uint32_t(nsec) * kO32RomSize) - band_va;

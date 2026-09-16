@@ -32,7 +32,10 @@ def _board_entry(board_id: str) -> Optional[dict]:
         return None
     key = board_id.strip()
     for entry in BOARDS_INFORMATION:
-        if entry.get("board_id") == key:
+        aliases = entry.get("board_ids", [])
+        if entry.get("board_id") == key or (
+            isinstance(aliases, list) and key in aliases
+        ):
             return entry
     return None
 

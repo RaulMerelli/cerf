@@ -56,7 +56,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
 
     /* entry.global || entry.asid == CONTEXTIDR[7:0]. */
     EmitMovRegBaseDisp32      (cursor, kEax, kMmuReg, ctxid);   /* AL = current ASID */
-    EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_glob, 0xFF);
+    EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_glob, 0x01);
     uint8_t* ctx_ok = EmitJnzLabel(cursor);
     EmitCmpReg8BaseDisp32     (cursor, kAl, kEdx, e_asid);
     miss[nmiss++] = EmitJnzLabel32(cursor);
@@ -64,7 +64,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
 
     if (is_write) {
         /* Read-only cached page → slow path re-checks write permission. */
-        EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_wr, 0xFF);
+        EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_wr, 0x01);
         miss[nmiss++] = EmitJzLabel32(cursor);
 
         /* Inline SMC (mirrors NoteCodeTracking<kWrite>): if PA is a marked code
@@ -126,7 +126,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
 
     /* entry.global || entry.asid == CONTEXTIDR[7:0]. */
     EmitMovRegBaseDisp32      (cursor, kEax, kMmuReg, ctxid);   /* AL = current ASID */
-    EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_glob, 0xFF);
+    EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_glob, 0x01);
     uint8_t* io_ctx_ok = EmitJnzLabel(cursor);
     EmitCmpReg8BaseDisp32     (cursor, kAl, kEdx, e_asid);
     io_miss[n_io_miss++] = EmitJnzLabel32(cursor);
@@ -136,7 +136,7 @@ uint8_t* EmitTlbFastPath(uint8_t* cursor, BlockContext* ctx, TlbAccess access) {
         /* Device write needs the entry's install-time write permission
            (ArmTlbMatchIoWay need_write); a read-only device page falls to the
            helper, which does the full permission check. */
-        EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_wr, 0xFF);
+        EmitTestByteBaseDisp32Imm8(cursor, kEdx, e_wr, 0x01);
         io_miss[n_io_miss++] = EmitJzLabel32(cursor);
     }
 

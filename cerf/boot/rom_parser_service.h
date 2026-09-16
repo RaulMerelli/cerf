@@ -113,6 +113,7 @@ struct ParsedRom {
     bool                         is_nbf       = false;
     bool                         is_ce1       = false;
     bool                         is_symbol_flash = false;
+    bool is_fwf = false;
     uint32_t                     whole_flash_va  = 0;
     bool                         has_imgfs        = false;
     bool                         imgfs_is_ftl     = false;

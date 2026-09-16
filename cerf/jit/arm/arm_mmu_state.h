@@ -129,6 +129,26 @@ struct ArmTlbSpanTracker {
     uint32_t active_region_bits[kArmTlbRegionBitWords]{};
     std::vector<uint16_t> active_regions;
 };
+inline bool ArmTlbGlobal(const ArmTlbEntry& entry) {
+    return (entry.global & 1u) != 0u;
+}
+
+inline bool ArmTlbWritable(const ArmTlbEntry& entry) {
+    return (entry.writable & 1u) != 0u;
+}
+
+inline uint16_t ArmTlbParAttributes(const ArmTlbEntry& entry) {
+    return static_cast<uint16_t>(entry.global & 0xFEu) |
+           static_cast<uint16_t>((entry.writable & 0x0Eu) << 7);
+}
+
+inline void ArmTlbSetFlags(ArmTlbEntry& entry, bool global, bool writable,
+                           uint16_t par_attrs) {
+    entry.global = static_cast<uint8_t>((global ? 1u : 0u) |
+                                        (par_attrs & 0xFEu));
+    entry.writable = static_cast<uint8_t>((writable ? 1u : 0u) |
+                                          ((par_attrs >> 7) & 0x0Eu));
+}
 
 struct ArmTlbUnit {
     ArmTlbEntry entries[kArmTlbSets * kArmTlbWays];
@@ -144,8 +164,8 @@ inline int ArmTlbMatchWay(const ArmTlbUnit* unit, uint32_t base,
     for (uint32_t w = 0; w < kArmTlbWays; ++w) {
         const ArmTlbEntry& e = unit->entries[base + w];
         if (e.tag != tag) continue;
-        if (!e.global && e.asid != asid) continue;
-        if (need_write && !e.writable) continue;
+        if (!ArmTlbGlobal(e) && e.asid != asid) continue;
+        if (need_write && !ArmTlbWritable(e)) continue;
         return static_cast<int>(w);
     }
     return -1;
@@ -199,6 +219,7 @@ struct ArmMmuState {
     uint32_t  domain_access_control = 0;   /* DACR (B4.1.43) */
     ArmDfsr   fault_status{};
     uint32_t  fault_address         = 0;
+    uint32_t  par                   = 0;   /* B4.1.112 PAR, written by ATS* */
     uint32_t  ifsr                  = 0;   /* IFSR: FS[3:0], no Domain/WnR
                                               (B4.1.96, short-descriptor) */
     uint32_t  ifar                  = 0;   /* IFAR (B4.1.95) */
@@ -210,6 +231,7 @@ struct ArmMmuState {
        not zero when the MMU is disabled". Kept by ArmMmu::RefreshFcseFold. */
     uint32_t  fcse_fold_id          = 0;
     uint32_t  coprocessor_access    = 0;   /* CPACR */
+    uint32_t  cortex_a9_diagnostic_control = 0;
     uint32_t  cssel_register        = 0;   /* CSSELR */
     uint32_t  ttbr1                 = 0;
     uint32_t  ttbcr                 = 0;   /* N = bits[2:0] (B4.1.153) */

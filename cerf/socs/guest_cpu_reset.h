@@ -24,6 +24,10 @@ public:
    23.2.3: LEDCNTREG RTCRST = 0x0002, other resets "Previous value is retained"). */
 enum class ResetLineKind { Rtc, Other };
 
+/* i.MX6DQRM Rev.2 §60.1: SRC distinguishes POR, WARM, and COLD reset
+   sources and resets domains according to the source and reset type. */
+enum class ResetKind { Cold, Warm, Watchdog };
+
 /* Routes CERF-initiated CPU resets through the SoC's reset-cause latch
    before pending the reset. On cause-tracking SoCs a causeless reset
    hangs the guest: the SA-1110 PPC2002 boot path reads RCSR==0 as
@@ -49,10 +53,12 @@ public:
        thread, for every delivered reset regardless of source. */
     void RegisterResetListener(std::function<void(ResetLineKind)> fn);
 
+    void RegisterResetKindListener(std::function<void(ResetKind)> fn);
+
+    void RegisterPostResetKindListener(std::function<void(ResetKind)> fn);
+
     void SetPendingResume(bool is_resume);
 
-    /* JIT thread, reset-delivery branch only: runs the reset-line
-       listeners, then an armed GuestColdBoot hard reset. */
     void OnResetDelivered();
 
     bool DeliveredResetWasResume() const { return delivered_is_resume_; }
@@ -63,7 +69,9 @@ public:
 private:
     ResetCauseLatch*                                latch_ = nullptr;
     std::vector<std::function<void(ResetLineKind)>> reset_listeners_;
-    std::atomic<ResetLineKind>                      pending_kind_{ResetLineKind::Other};
+    std::vector<std::function<void(ResetKind)>>     reset_kind_listeners_;
+    std::vector<std::function<void(ResetKind)>>     post_reset_kind_listeners_;
+    std::atomic<ResetKind>                          pending_kind_{ResetKind::Cold};
     std::atomic<bool>                               pending_is_resume_{false};
     bool                                            delivered_is_resume_ = false;
 };

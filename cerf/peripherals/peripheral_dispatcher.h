@@ -9,12 +9,21 @@
 #include <vector>
 
 enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
+enum class ResetKind;
+enum class ResetLineKind;
+
+enum class ResetBaselinePolicy {
+    EveryReset,
+    ColdResetOnly,
+};
 
 class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
 
     void Register(Peripheral* p);
+    void RegisterResettable(Peripheral* p,
+                            ResetBaselinePolicy policy = ResetBaselinePolicy::EveryReset);
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
@@ -32,9 +41,16 @@ public:
     void     WriteDword(uint32_t addr, uint64_t value);
 
 private:
+    struct ResetBaseline {
+        Peripheral* p;
+        ResetBaselinePolicy policy;
+        std::vector<uint8_t> state;
+    };
+
+    void RestoreResetBaselines(ResetKind reset_kind);
     struct Entry {
         uint32_t                base;
-        uint32_t                end;      /* exclusive */
+        uint32_t                size;
         Peripheral::FastReadFn  read;
         Peripheral::FastWriteFn write;
         void*                   ctx;
@@ -80,7 +96,7 @@ private:
         const size_t cached = last_hit_.load(std::memory_order_relaxed);
         if (cached >= t->size()) return nullptr;
         const Entry& hit = (*t)[cached];
-        if (addr < hit.base || addr >= hit.end) return nullptr;
+        if (addr - hit.base >= hit.size) return nullptr;
         return &hit;
     }
 
@@ -94,6 +110,9 @@ private:
     std::vector<std::unique_ptr<EntryTable>> tables_;
 
     mutable std::atomic<size_t> last_hit_{0};
+
+    std::vector<ResetBaseline> reset_baselines_;
+    bool reset_baseline_listener_registered_ = false;
 
     const Entry* LookupEntry(uint32_t addr) const;
 };

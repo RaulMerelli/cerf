@@ -39,6 +39,12 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             mva_helper = reinterpret_cast<void*>(
                 &ArmTranslationCache::DtlbInvalidateMvaHelper);
             break;
+        case 3:
+            /* ARM DDI 0406C.c Figure B3-34: c8,c3, inner-shareable unified TLB. */
+            if (!emit->ProcessorConfig()->HasCp15V7()) {
+                return EmitRaiseUndAndReturn(cursor, d, ctx);
+            }
+            [[fallthrough]];
         case 7:
             all_helper = reinterpret_cast<void*>(
                 &ArmTranslationCache::UtlbInvalidateAllHelper);
