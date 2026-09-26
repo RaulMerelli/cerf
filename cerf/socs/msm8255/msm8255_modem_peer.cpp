@@ -1,6 +1,7 @@
 #include "msm8255_modem_peer.h"
 
 #include "msm8255_dal_remote_server.h"
+#include "msm8255_qmux_peer.h"
 #include "msm8255_rpc_router_peer.h"
 #include "msm8255_smd_stage.h"
 #include "msm8255_smem.h"
@@ -8,11 +9,14 @@
 #include "../../boards/board_context.h"
 #include "msm8255_id.h"
 #include "../../boot/guest_cold_boot.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
+#include "../irq_controller.h"
 
 #include <cstdint>
+#include <cstring>
 
 namespace {
 
@@ -42,6 +46,12 @@ constexpr uint32_t kSmsmModemUp = 0x129u;
 constexpr uint32_t kA2mSmdModem = 1u << 0;
 constexpr uint32_t kA2mSmsm     = 1u << 5;
 constexpr uint32_t kA2mProcComm = 1u << 6;
+
+/* Linux arch/arm/mach-msm irqs-7x30.h INT_A9_M2A_0 and INT_A9_M2A_5, which
+   smd.c smd_core_init requests IRQF_TRIGGER_RISING for smd_modem_irq_handler
+   and smsm_irq_handler. */
+constexpr int kVicM2aSmd  = 22;
+constexpr int kVicM2aSmsm = 27;
 
 /* Linux arch/arm/mach-msm smd_private.h: SMEM_CHANNEL_ALLOC_TBL,
    SMEM_SMD_BASE_ID and SMEM_SMD_FIFO_BASE_ID evaluated over its enum with
@@ -92,9 +102,25 @@ constexpr uint32_t kSmdSsOpened       = 2u;
 constexpr uint32_t kSmdTypeMask       = 0xFFu;
 constexpr uint32_t kSmdTypeAppsModem  = 0x00u;
 
+/* Linux arch/arm/mach-msm smd_private.h: SMD_KIND_MASK, SMD_KIND_UNKNOWN,
+   SMD_KIND_STREAM and SMD_KIND_PACKET. */
+constexpr uint32_t kSmdKindMask    = 0xF00u;
+constexpr uint32_t kSmdKindUnknown = 0x000u;
+constexpr uint32_t kSmdKindStream  = 0x100u;
+constexpr uint32_t kSmdKindPacket  = 0x200u;
+
+/* Linux arch/arm/mach-msm smd.c smd_packet_write: hdr[0] = len and
+   hdr[1..4] = 0 ahead of the payload. */
+constexpr uint32_t kSmdPacketHeaderBytes = 20u;
+
+constexpr uint32_t kAppsWriterSlackBytes = 4u;
+
 constexpr uint32_t kRpcRouterCid = 2u;
 
 constexpr char kDalPortName[] = "DAL0";
+
+constexpr const char* kQmuxControlPorts[] = {"DATA5_CNTL", "DATA6_CNTL",
+                                             "DATA7_CNTL"};
 
 }
 
@@ -104,6 +130,7 @@ bool Msm8255ModemPeer::ShouldRegister() {
 }
 
 void Msm8255ModemPeer::OnReady() {
+    irq_ = &emu_.Get<IrqController>();
     SeedProcCommReady();
     emu_.Get<GuestColdBoot>().RegisterReplay([this] { SeedProcCommReady(); });
 }
@@ -136,6 +163,7 @@ void Msm8255ModemPeer::PublishModemState() {
     }
     emu_.Get<EmulatedMemory>().WriteWord(state + 4u * kSmsmStateModem,
                                          kSmsmModemUp);
+    irq_->PulseIrq(kVicM2aSmsm);
 }
 
 void Msm8255ModemPeer::NotifySmd() {
@@ -221,12 +249,23 @@ void Msm8255ModemPeer::ConsumeAppsSmdFlags(uint32_t cid, uint32_t rec,
     }
 }
 
-bool Msm8255ModemPeer::ChannelNameIsDal(uint32_t rec) {
+bool Msm8255ModemPeer::ChannelNameIs(uint32_t rec, const char* name,
+                                     uint32_t bytes) {
     auto& mem = emu_.Get<EmulatedMemory>();
-    for (uint32_t i = 0; i < sizeof(kDalPortName) - 1u; ++i) {
-        if (mem.ReadByte(rec + i) != (uint8_t)kDalPortName[i]) return false;
+    for (uint32_t i = 0; i < bytes; ++i) {
+        if (mem.ReadByte(rec + i) != (uint8_t)name[i]) return false;
     }
     return true;
+}
+
+bool Msm8255ModemPeer::ChannelIsQmuxControl(uint32_t rec) {
+    for (const char* port : kQmuxControlPorts) {
+        if (ChannelNameIs(rec, port,
+                          static_cast<uint32_t>(std::strlen(port)) + 1u)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void Msm8255ModemPeer::HaltUnroutedSmdChannel(uint32_t cid, uint32_t rec) {
@@ -239,17 +278,30 @@ void Msm8255ModemPeer::HaltUnroutedSmdChannel(uint32_t cid, uint32_t rec) {
 
     emu_.Get<Fatal>().Die(
         "msm8255 modem peer: smd channel %u \"%s\" carries data, and only the "
-        "rpc router channel %u and the \"%s\" ports are modeled",
-        cid, name, kRpcRouterCid, kDalPortName);
+        "rpc router channel %u, the \"%s\" ports and the qmux control ports "
+        "are modeled", cid, name, kRpcRouterCid, kDalPortName);
 }
 
 void Msm8255ModemPeer::ServiceSmdData(uint32_t cid, uint32_t rec,
                                       uint32_t apps_half_pa) {
     const bool to_router = cid == kRpcRouterCid;
-    const bool to_dal    = !to_router && ChannelNameIsDal(rec);
-    if (!to_router && !to_dal) HaltUnroutedSmdChannel(cid, rec);
+    const bool to_dal    = !to_router &&
+                        ChannelNameIs(rec, kDalPortName,
+                                      sizeof(kDalPortName) - 1u);
+    const bool to_qmux   = !to_router && !to_dal && ChannelIsQmuxControl(rec);
+    if (!to_router && !to_dal && !to_qmux) HaltUnroutedSmdChannel(cid, rec);
 
     auto& mem = emu_.Get<EmulatedMemory>();
+    const uint32_t kind =
+        mem.ReadWord(rec + kAllocElmCtypeOff) & kSmdKindMask;
+    const bool kind_matches =
+        to_qmux ? kind == kSmdKindPacket
+                : kind == kSmdKindStream || kind == kSmdKindUnknown;
+    if (!kind_matches) {
+        emu_.Get<Fatal>().Die(
+            "msm8255 modem peer: smd channel %u carries kind 0x%03X, and its "
+            "route reads %s", cid, kind, to_qmux ? "packets" : "a stream");
+    }
     uint32_t fifo_pa    = 0u;
     uint32_t fifo_bytes = 0u;
     if (!emu_.Get<Msm8255Smem>().ItemPaAndSize(kIdSmdFifoBase + cid, fifo_pa,
@@ -300,13 +352,19 @@ void Msm8255ModemPeer::ServiceSmdData(uint32_t cid, uint32_t rec,
         const uint32_t out_pos = out_head % half;
         const uint32_t out_cap = SmdWriteAvail(half, out_pos, out_tail);
         uint32_t consumed = 0u;
-        const uint32_t sent =
-            to_router ? emu_.Get<Msm8255RpcRouterPeer>().Answer(
-                            in_pa, in_avail, out_stage.WriteBasePa(), out_cap,
-                            consumed)
-                      : emu_.Get<Msm8255DalRemoteServer>().Answer(
-                            in_pa, in_avail, out_stage.WriteBasePa(), out_cap,
-                            consumed);
+        uint32_t sent     = 0u;
+        if (to_router) {
+            sent = emu_.Get<Msm8255RpcRouterPeer>().Answer(
+                in_pa, in_avail, out_stage.WriteBasePa(), out_cap, consumed);
+        } else if (to_dal) {
+            sent = emu_.Get<Msm8255DalRemoteServer>().Answer(
+                in_pa, in_avail, out_stage.WriteBasePa(), out_cap, consumed);
+        } else {
+            sent = AnswerQmuxControlPacket(in_pa, in_avail, half,
+                                           out_stage.WriteBasePa(), out_cap,
+                                           consumed);
+        }
+        if (consumed == 0u) break;
         if (sent != 0u) {
             out_stage.Scatter(fifo_pa + half, half, out_pos, sent);
         }
@@ -316,12 +374,68 @@ void Msm8255ModemPeer::ServiceSmdData(uint32_t cid, uint32_t rec,
         produced += sent;
     }
 
-    mem.WriteWord(apps_half_pa + kHcTailOff, cursor);
-    mem.WriteByte(modem_half + kHcFTailOff, 1u);
+    if (cursor != tail) {
+        mem.WriteWord(apps_half_pa + kHcTailOff, cursor);
+        mem.WriteByte(modem_half + kHcFTailOff, 1u);
+    }
     if (produced != 0u) {
         mem.WriteWord(modem_half + kHcHeadOff, out_head % half);
         mem.WriteByte(modem_half + kHcFHeadOff, 1u);
     }
+    if (cursor != tail || produced != 0u) irq_->PulseIrq(kVicM2aSmd);
+}
+
+uint32_t Msm8255ModemPeer::AnswerQmuxControlPacket(uint32_t in_pa,
+                                                   uint32_t in_avail,
+                                                   uint32_t ring_bytes,
+                                                   uint32_t out_pa,
+                                                   uint32_t out_cap,
+                                                   uint32_t& consumed) {
+    consumed = 0u;
+    if (in_avail < kSmdPacketHeaderBytes) return 0u;
+
+    auto& mem = emu_.Get<EmulatedMemory>();
+    uint8_t hdr[kSmdPacketHeaderBytes] = {};
+    mem.CopyOut(in_pa, hdr, kSmdPacketHeaderBytes);
+    const uint32_t len = cerf::le::U32(hdr, 0u);
+    for (uint32_t off = 4u; off < kSmdPacketHeaderBytes; off += 4u) {
+        if (cerf::le::U32(hdr, off) != 0u) {
+            emu_.Get<Fatal>().Die(
+                "msm8255 modem peer: smd packet header word +%u carries "
+                "0x%08X, and only zero is modeled", off,
+                cerf::le::U32(hdr, off));
+        }
+    }
+    const uint32_t queued_max = ring_bytes - kAppsWriterSlackBytes;
+    if (len > queued_max - kSmdPacketHeaderBytes) {
+        emu_.Get<Fatal>().Die(
+            "msm8255 modem peer: a %u-byte smd packet and its %u-byte header "
+            "exceed the %u bytes the apps writer keeps queued in a %u-byte fifo",
+            len, kSmdPacketHeaderBytes, queued_max, ring_bytes);
+    }
+    if (len > Msm8255SmdStage::ReadCapacity() - kSmdPacketHeaderBytes) {
+        emu_.Get<Fatal>().Die(
+            "msm8255 modem peer: a %u-byte smd packet exceeds the %u-byte read "
+            "stage", len, Msm8255SmdStage::ReadCapacity());
+    }
+    if (in_avail < kSmdPacketHeaderBytes + len) return 0u;
+
+    if (out_cap < kSmdPacketHeaderBytes) {
+        emu_.Get<Fatal>().Die(
+            "msm8255 modem peer: an smd packet reply needs its %u-byte header "
+            "and the window at 0x%08X has %u", kSmdPacketHeaderBytes, out_pa,
+            out_cap);
+    }
+    const uint32_t reply = emu_.Get<Msm8255QmuxPeer>().Answer(
+        in_pa + kSmdPacketHeaderBytes, len, out_pa + kSmdPacketHeaderBytes,
+        out_cap - kSmdPacketHeaderBytes);
+
+    uint8_t out_hdr[kSmdPacketHeaderBytes] = {};
+    cerf::le::Put32(out_hdr, reply);
+    mem.CopyIn(out_pa, out_hdr, kSmdPacketHeaderBytes);
+
+    consumed = kSmdPacketHeaderBytes + len;
+    return kSmdPacketHeaderBytes + reply;
 }
 
 void Msm8255ModemPeer::OpenModemSmdHalf(uint32_t modem_half_pa) {
@@ -331,6 +445,7 @@ void Msm8255ModemPeer::OpenModemSmdHalf(uint32_t modem_half_pa) {
     mem.WriteByte(modem_half_pa + kHcFCdOff, 1u);
     mem.WriteWord(modem_half_pa, kSmdSsOpened);
     mem.WriteByte(modem_half_pa + kHcFStateOff, 1u);
+    irq_->PulseIrq(kVicM2aSmd);
 }
 
 void Msm8255ModemPeer::RunProcComm() {
