@@ -202,14 +202,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the announcement dependencies
+        run: python -m pip install --quiet --disable-pip-version-check pillow pyyaml
+
       - name: Announce the build in the QA channel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_SECRET: ${{ secrets.DISCORD_SECRET }}
         run: >-
-          python3 tools/announce_build.py
+          python tools/announce_build.py
           --run-id=${{ github.run_id }}
-          --build=${{ github.run_number }}
           ${{ contains(github.event.head_commit.message, '[rc]') && '--rc' || '' }}
 
   release:
@@ -220,6 +226,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the release dependencies
+        run: python -m pip install --quiet --disable-pip-version-check pillow pyyaml
+
       - name: Settle the artifact API
         run: sleep 60
 
@@ -227,4 +240,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DISCORD_SECRET: ${{ secrets.DISCORD_SECRET }}
-        run: python3 tools/deploy.py --yes --sha=${{ github.sha }}
+        run: python tools/deploy.py --yes --sha=${{ github.sha }}

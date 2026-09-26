@@ -45,14 +45,16 @@ def load():
             for sub_key, sub_emoji in SUBCATS:
                 lines = _lines(sub.get(sub_key))
                 if lines:
-                    subcats.append({'emoji': sub_emoji, 'lines': lines})
+                    subcats.append({'key': sub_key, 'emoji': sub_emoji,
+                                    'lines': lines})
             if subcats:
                 groups.append({'heading': heading, 'emoji': emoji,
                                'subcats': subcats})
         legacy = _lines(item.get(LEGACY[0]))
         if legacy:
             groups.append({'heading': LEGACY[1], 'emoji': LEGACY[2],
-                           'subcats': [{'emoji': None, 'lines': legacy}]})
+                           'subcats': [{'key': None, 'emoji': None,
+                                        'lines': legacy}]})
         entries.append({'version': str(item['version']),
                         'date': str(item.get('date', '')),
                         'groups': groups})

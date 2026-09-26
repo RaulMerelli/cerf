@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Announce a CI build in the Discord QA channel: run from the repo root as
-`python tools\\announce_build.py --run-id=<id> [--build=<n>] [--rc]`.
-
-  --run-id=<id>  the workflow run whose artifact is announced (required)
-  --build=<n>    the build number shown in the message
-  --rc           announce a release candidate: pings @here and asks for a sweep
-
-The release announcement is tools/deploy.py. This one announces an artifact
-that is not a release, so the changelog it carries is whatever has landed for
-the version so far."""
 from __future__ import annotations
 
 import os
@@ -16,37 +6,31 @@ import sys
 from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ci_release import (Artifact, CiError, changelog_markdown, compose,
-                        load_credentials, post_discord, run_artifact)
+from changelog_card import artifact_card
+from ci_release import (Artifact, CiError, load_credentials, post_discord,
+                        run_artifact)
 
 QA_CHANNEL_ID = "1537263681228771349"
 QA_ROLE_ID = "1537262210118852708"
 
 
-def header(artifact: Artifact, build: str, release_candidate: bool) -> str:
-    title = f"CE Runtime Foundation {artifact.series}"
+def message(artifact: Artifact, release_candidate: bool) -> str:
+    title = f"**v{artifact.series} build {artifact.run_number}**"
     if release_candidate:
-        return (f"<@&{QA_ROLE_ID}>\n"
-                f"[**{title} release candidate - build {build}**]"
-                f"({artifact.download_url})\n"
-                "!!! RELEASE CANDIDATE !!!!")
-    return (f"[**{title} - CI build {build}**]({artifact.download_url})")
-
-
-def footer(artifact: Artifact) -> str:
-    return (f"[Download]({artifact.download_url}) (needs a GitHub account) - "
-            f"[CI build]({artifact.run_url}) - "
+        headline = f"{title} [release candidate] available <@&{QA_ROLE_ID}>"
+    else:
+        headline = f"{title} [unstable] available"
+    return (f"{headline}\n"
+            f"[Download]({artifact.download_url}) (needs a GitHub account) · "
+            f"[CI build]({artifact.run_url}) · "
             f"[`{artifact.sha[:7]}`]({artifact.commit_url})")
 
 
 def main(argv: List[str]) -> int:
-    def value(flag: str) -> str:
-        return next((a.partition("=")[2] for a in argv if a.startswith(flag)), "")
-
-    run_id = value("--run-id=")
+    run_id = next((a.partition("=")[2] for a in argv
+                   if a.startswith("--run-id=")), "")
     if not run_id.isdigit():
         raise CiError("--run-id=<id> is required")
-    build = value("--build=") or "?"
     release_candidate = "--rc" in argv
 
     token, secret = load_credentials()
@@ -56,13 +40,13 @@ def main(argv: List[str]) -> int:
     print(f"  branch / sha  : {artifact.branch} / {artifact.sha[:7]}")
     print(f"  download      : {artifact.download_url}")
 
-    empty = f"Nothing recorded in the {artifact.series} changelog yet."
-    content = compose(header(artifact, build, release_candidate),
-                      changelog_markdown(artifact.series, empty),
-                      footer(artifact))
-    print(f"\n{content}\n")
+    kind = "candidate" if release_candidate else "unstable"
+    card = artifact_card(token, artifact, kind)
+    content = message(artifact, release_candidate)
+    print(f"\n{content}\n  card: {len(card) // 1024} KB\n")
     post_discord(secret, QA_CHANNEL_ID, content,
-                 ping_role=QA_ROLE_ID if release_candidate else None)
+                 ping_role=QA_ROLE_ID if release_candidate else None,
+                 image=card)
     print(f"Announced {artifact.name} in channel {QA_CHANNEL_ID}.")
     return 0
 
