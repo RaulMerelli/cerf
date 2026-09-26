@@ -1,8 +1,7 @@
 #pragma once
 
+#include "emmc_register_encoding.h"
 #include "mmc_card.h"
-
-#include "../../core/sd_card_cid.h"
 
 #include <cstdint>
 #include <span>
@@ -23,6 +22,8 @@ constexpr uint8_t kCmdStopTransmission = 12u;
 constexpr uint8_t kCmdSendStatus       = 13u;
 constexpr uint8_t kCmdReadSingleBlock  = 17u;
 constexpr uint8_t kCmdReadMultiBlock   = 18u;
+constexpr uint8_t kCmdWriteBlock       = 24u;
+constexpr uint8_t kCmdWriteMultiBlock  = 25u;
 constexpr uint8_t kCmdSetWriteProt     = 28u;
 constexpr uint8_t kCmdIoRwDirect       = 52u;
 constexpr uint8_t kCmdAppCmd           = 55u;
@@ -39,6 +40,7 @@ enum class MmcState : uint32_t {
     Stby  = 3u,
     Tran  = 4u,
     Data  = 5u,
+    Rcv   = 6u,
 };
 
 constexpr uint32_t kOcrBusy         = 0x80000000u;
@@ -73,28 +75,6 @@ constexpr uint8_t  kErasedMemContOnes   = 1u;
 
 }  // namespace cerf_mmc
 
-struct EmmcCsdFields {
-    uint8_t  csd_structure;
-    uint8_t  spec_vers;
-    uint8_t  taac;
-    uint8_t  nsac;
-    uint8_t  tran_speed;
-    uint16_t ccc;
-    uint8_t  read_bl_len;
-    uint16_t c_size;
-    uint8_t  vdd_r_curr_min;
-    uint8_t  vdd_r_curr_max;
-    uint8_t  vdd_w_curr_min;
-    uint8_t  vdd_w_curr_max;
-    uint8_t  c_size_mult;
-    uint8_t  erase_grp_size;
-    uint8_t  erase_grp_mult;
-    uint8_t  wp_grp_size;
-    uint8_t  wp_grp_enable;
-    uint8_t  r2w_factor;
-    uint8_t  write_bl_len;
-};
-
 struct EmmcExtCsdByte {
     uint16_t offset;
     uint8_t  value;
@@ -115,6 +95,8 @@ public:
 
     void EndDataPhase() override;
 
+    void ReceiveBlock(const uint8_t* data, uint32_t bytes) override;
+
     void Reset() override;
 
     void SaveState(StateWriter& w) override;
@@ -127,6 +109,7 @@ protected:
     virtual uint32_t                        SectorCount() const = 0;
     virtual uint8_t                         ErasedMemCont() const = 0;
     virtual void ReadBlock(uint32_t sector, uint8_t* out) = 0;
+    virtual void WriteBlock(uint32_t sector, const uint8_t* data) = 0;
 
     uint8_t ErasedByte() const;
 
@@ -134,12 +117,11 @@ private:
     uint8_t  CheckedErasedMemCont() const;
     uint32_t WpGroupSectors() const;
     uint32_t StatusWord(cerf_mmc::MmcState before) const;
-    void     BuildCsd(uint32_t out[4]) const;
-    void     BuildCid(uint32_t out[4]) const;
     void     BuildExtCsd();
     void     ApplySwitch(uint32_t argument);
     void     ApplyUserWp(uint32_t access, uint32_t value);
     void     SetWriteProtect(uint32_t sector);
+    void     RequireWritable(uint32_t sector) const;
     uint32_t WpGroupCount() const;
     [[noreturn]] void HaltUnmodelledCommand(uint8_t index, uint32_t argument);
 
@@ -148,6 +130,7 @@ private:
     uint8_t              hs_timing_   = 0u;
     uint8_t              user_wp_     = 0u;
     bool                 multi_read_  = false;
+    bool                 multi_write_ = false;
     uint32_t             next_sector_ = 0u;
     std::vector<uint8_t> power_on_wp_;
     std::vector<uint8_t> read_data_;

@@ -21,43 +21,6 @@ bool IsCardOwnedExtCsdByte(uint32_t offset) {
            (offset >= kExtCsdSecCount && offset < kExtCsdSecCount + kSecCountBytes);
 }
 
-void PutBits(uint32_t out[4], uint32_t start, uint32_t width, uint32_t value) {
-    const uint32_t mask  = (width < 32u) ? ((1u << width) - 1u) : 0xFFFFFFFFu;
-    const uint32_t off   = 3u - (start / 32u);
-    const uint32_t shift = start & 31u;
-    value &= mask;
-    out[off] |= value << shift;
-    if (width + shift > 32u) {
-        out[off - 1u] |= value >> (32u - shift);
-    }
-}
-
-// JEDEC JESD84-A43 section 10.2
-uint8_t Crc7(const uint8_t* data, uint32_t length) {
-    uint8_t crc = 0u;
-    for (uint32_t i = 0; i < length; ++i) {
-        uint8_t byte = data[i];
-        for (uint32_t bit = 0; bit < 8u; ++bit) {
-            const uint8_t in = static_cast<uint8_t>((byte >> 7) & 1u);
-            const uint8_t out = static_cast<uint8_t>((crc >> 6) & 1u);
-            crc = static_cast<uint8_t>((crc << 1) & 0x7Fu);
-            if (in ^ out) crc ^= 0x09u;
-            byte = static_cast<uint8_t>(byte << 1);
-        }
-    }
-    return crc;
-}
-
-// JEDEC JESD84-A43 Table 32, Table 34
-void SealCrc7(uint32_t out[4]) {
-    uint8_t bytes[15];
-    for (uint32_t i = 0; i < 15u; ++i) {
-        bytes[i] = static_cast<uint8_t>(out[i / 4u] >> (8u * (3u - (i % 4u))));
-    }
-    out[3] = (out[3] & 0xFFFFFF00u) |
-             static_cast<uint32_t>((Crc7(bytes, 15u) << 1) | 1u);
-}
-
 }  // namespace
 
 void EmmcCardBase::OnReady() {
@@ -76,7 +39,8 @@ MmcCommandResult EmmcCardBase::Command(uint8_t index, uint32_t argument,
     switch (index) {
     case kCmdGoIdleState:
         if (argument != kGoIdleArgument) break;
-        multi_read_ = false;
+        multi_read_  = false;
+        multi_write_ = false;
         state_     = MmcState::Idle;
         rca_       = 0u;
         hs_timing_ = 0u;
@@ -104,7 +68,7 @@ MmcCommandResult EmmcCardBase::Command(uint8_t index, uint32_t argument,
     case kCmdAllSendCid:
         if (before != MmcState::Ready) break;
         state_ = MmcState::Ident;
-        BuildCid(response);
+        EncodeEmmcCid(Cid(), response);
         return MmcCommandResult::Long;
 
     case kCmdSetRelativeAddr:
@@ -117,13 +81,13 @@ MmcCommandResult EmmcCardBase::Command(uint8_t index, uint32_t argument,
     case kCmdSendCsd:
         if (before != MmcState::Stby) break;
         if (arg_rca != rca_) return MmcCommandResult::NoResponse;
-        BuildCsd(response);
+        EncodeEmmcCsd(Csd(), response);
         return MmcCommandResult::Long;
 
     case kCmdSendCid:
         if (before != MmcState::Stby) break;
         if (arg_rca != rca_) return MmcCommandResult::NoResponse;
-        BuildCid(response);
+        EncodeEmmcCid(Cid(), response);
         return MmcCommandResult::Long;
 
     case kCmdSelectCard:
@@ -177,17 +141,34 @@ MmcCommandResult EmmcCardBase::Command(uint8_t index, uint32_t argument,
         response[0]  = StatusWord(before);
         return MmcCommandResult::Short;
 
+    case kCmdWriteBlock:
+    case kCmdWriteMultiBlock:
+        if (before != MmcState::Tran) break;
+        if (argument >= SectorCount()) {
+            response[0] = StatusWord(before) | kR1AddressOutOfRange;
+            return MmcCommandResult::Short;
+        }
+        multi_write_ = (index == kCmdWriteMultiBlock);
+        next_sector_ = argument;
+        state_       = MmcState::Rcv;
+        response[0]  = StatusWord(before);
+        return MmcCommandResult::Short;
+
     case kCmdStopTransmission:
-        if (before != MmcState::Data) break;
+        if (before != MmcState::Data &&
+            !(before == MmcState::Rcv && multi_write_)) {
+            break;
+        }
         if ((argument & kStopHpi) != 0u) {
             emu_.Get<Fatal>().Die(
                 "eMMC card in slot %u: STOP_TRANSMISSION argument 0x%08X sets "
                 "the high priority interrupt bit, which is not modeled",
                 SlotIndex(), argument);
         }
-        multi_read_ = false;
-        state_      = MmcState::Tran;
-        response[0] = StatusWord(before);
+        multi_read_  = false;
+        multi_write_ = false;
+        state_       = MmcState::Tran;
+        response[0]  = StatusWord(before);
         return MmcCommandResult::Short;
 
     case kCmdSetWriteProt:
@@ -235,12 +216,32 @@ void EmmcCardBase::NextBlock() {
     ++next_sector_;
 }
 
+void EmmcCardBase::ReceiveBlock(const uint8_t* data, uint32_t bytes) {
+    if (state_ != MmcState::Rcv) {
+        emu_.Get<Fatal>().Die(
+            "eMMC card in slot %u: the host sent a %u byte data block while the "
+            "card is in state %u", SlotIndex(), bytes,
+            static_cast<unsigned>(state_));
+    }
+    if (bytes != kBlockBytes) {
+        emu_.Get<Fatal>().Die(
+            "eMMC card in slot %u: the host sent a %u byte data block, and a "
+            "write block length other than %u is not modeled", SlotIndex(),
+            bytes, kBlockBytes);
+    }
+    RequireWritable(next_sector_);
+    WriteBlock(next_sector_, data);
+    ++next_sector_;
+    if (!multi_write_) state_ = MmcState::Tran;
+}
+
 void EmmcCardBase::Reset() {
     state_     = MmcState::Idle;
     rca_       = 0u;
     hs_timing_ = 0u;
     user_wp_   = 0u;
     multi_read_  = false;
+    multi_write_ = false;
     next_sector_ = 0u;
     power_on_wp_.assign(power_on_wp_.size(), 0u);
     read_data_.clear();
@@ -276,6 +277,21 @@ void EmmcCardBase::SetWriteProtect(uint32_t sector) {
     power_on_wp_[sector / group] = 1u;
 }
 
+void EmmcCardBase::RequireWritable(uint32_t sector) const {
+    if (sector >= SectorCount()) {
+        emu_.Get<Fatal>().Die(
+            "eMMC card in slot %u: a multiple block write runs past the last "
+            "sector into sector %u, and the error reported to the stop command "
+            "is not modeled", SlotIndex(), sector);
+    }
+    if (power_on_wp_[sector / WpGroupSectors()] != 0u) {
+        emu_.Get<Fatal>().Die(
+            "eMMC card in slot %u: a write to sector %u lands inside a power-on "
+            "write protected group, and the write protect violation is not "
+            "modeled", SlotIndex(), sector);
+    }
+}
+
 void EmmcCardBase::BuildExtCsd() {
     read_data_.assign(kExtCsdBytes, 0u);
     for (const EmmcExtCsdByte& property : ExtCsdProperties()) {
@@ -287,11 +303,7 @@ void EmmcCardBase::BuildExtCsd() {
         }
         read_data_[property.offset] = property.value;
     }
-    const uint32_t sectors = SectorCount();
-    for (uint32_t i = 0; i < kSecCountBytes; ++i) {
-        read_data_[kExtCsdSecCount + i] =
-            static_cast<uint8_t>(sectors >> (8u * i));
-    }
+    cerf::le::Put32(read_data_.data() + kExtCsdSecCount, SectorCount());
     read_data_[kExtCsdHsTiming]      = hs_timing_;
     read_data_[kExtCsdUserWp]        = user_wp_;
     read_data_[kExtCsdErasedMemCont] = CheckedErasedMemCont();
@@ -314,37 +326,6 @@ uint8_t EmmcCardBase::ErasedByte() const {
 
 uint32_t EmmcCardBase::StatusWord(MmcState before) const {
     return kR1ReadyForData | (static_cast<uint32_t>(before) << kR1StateShift);
-}
-
-void EmmcCardBase::BuildCid(uint32_t out[4]) const {
-    const SdCardCid cid = Cid();
-    for (uint32_t i = 0; i < 4u; ++i) out[i] = cerf::be::U32(cid.data(), i * 4u);
-    SealCrc7(out);
-}
-
-void EmmcCardBase::BuildCsd(uint32_t out[4]) const {
-    const EmmcCsdFields csd = Csd();
-    out[0] = out[1] = out[2] = out[3] = 0u;
-    PutBits(out, 126u, 2u,  csd.csd_structure);
-    PutBits(out, 122u, 4u,  csd.spec_vers);
-    PutBits(out, 112u, 8u,  csd.taac);
-    PutBits(out, 104u, 8u,  csd.nsac);
-    PutBits(out,  96u, 8u,  csd.tran_speed);
-    PutBits(out,  84u, 12u, csd.ccc);
-    PutBits(out,  80u, 4u,  csd.read_bl_len);
-    PutBits(out,  62u, 12u, csd.c_size);
-    PutBits(out,  59u, 3u,  csd.vdd_r_curr_min);
-    PutBits(out,  56u, 3u,  csd.vdd_r_curr_max);
-    PutBits(out,  53u, 3u,  csd.vdd_w_curr_min);
-    PutBits(out,  50u, 3u,  csd.vdd_w_curr_max);
-    PutBits(out,  47u, 3u,  csd.c_size_mult);
-    PutBits(out,  42u, 5u,  csd.erase_grp_size);
-    PutBits(out,  37u, 5u,  csd.erase_grp_mult);
-    PutBits(out,  32u, 5u,  csd.wp_grp_size);
-    PutBits(out,  31u, 1u,  csd.wp_grp_enable);
-    PutBits(out,  26u, 3u,  csd.r2w_factor);
-    PutBits(out,  22u, 4u,  csd.write_bl_len);
-    SealCrc7(out);
 }
 
 void EmmcCardBase::ApplySwitch(uint32_t argument) {
@@ -416,11 +397,12 @@ void EmmcCardBase::HaltUnmodelledCommand(uint8_t index, uint32_t argument) {
 }
 
 void EmmcCardBase::SaveState(StateWriter& w) {
-    w.Write<uint32_t>("state", static_cast<uint32_t>(state_));
+    w.Write<uint32_t>("card_state", static_cast<uint32_t>(state_));
     w.Write<uint32_t>("rca", rca_);
     w.Write<uint32_t>("hs_timing", hs_timing_);
     w.Write<uint32_t>("user_wp", user_wp_);
     w.Write<uint32_t>("multi_read", multi_read_ ? 1u : 0u);
+    w.Write<uint32_t>("multi_write", multi_write_ ? 1u : 0u);
     w.Write<uint32_t>("next_sector", next_sector_);
     w.WriteBytes("power_on_wp", power_on_wp_.data(), power_on_wp_.size());
 }
@@ -431,21 +413,28 @@ void EmmcCardBase::RestoreState(StateReader& r) {
     uint32_t hs_timing = 0u;
     uint32_t user_wp   = 0u;
     uint32_t multi     = 0u;
+    uint32_t multi_w   = 0u;
     uint32_t next      = 0u;
-    r.Read("state", state);
+    r.Read("card_state", state);
     r.Read("rca", rca);
     r.Read("hs_timing", hs_timing);
     r.Read("user_wp", user_wp);
     r.Read("multi_read", multi);
+    r.Read("multi_write", multi_w);
     r.Read("next_sector", next);
-    if (multi > 1u || next > SectorCount() ||
-        (multi == 1u && state != static_cast<uint32_t>(MmcState::Data))) {
+    const bool     receiving = state == static_cast<uint32_t>(MmcState::Rcv);
+    const uint32_t last_next =
+        (receiving && multi_w == 0u) ? SectorCount() - 1u : SectorCount();
+    if (multi > 1u || multi_w > 1u || next > last_next ||
+        (multi == 1u && state != static_cast<uint32_t>(MmcState::Data)) ||
+        (multi_w == 1u && !receiving)) {
         r.Reject(
-            "eMMC card in slot %u: restored multiple block read %u at sector %u "
-            "in state %u is not a read this card can hold", SlotIndex(), multi,
-            next, state);
+            "eMMC card in slot %u: restored multiple block read %u, multiple "
+            "block write %u at sector %u in state %u is not a transfer this card "
+            "can hold", SlotIndex(), multi, multi_w, next, state);
     }
     multi_read_  = (multi == 1u);
+    multi_write_ = (multi_w == 1u);
     next_sector_ = next;
     r.ReadBytes("power_on_wp", power_on_wp_.data(), power_on_wp_.size());
     for (const uint8_t group : power_on_wp_) {
@@ -468,7 +457,7 @@ void EmmcCardBase::RestoreState(StateReader& r) {
             "this card can hold", SlotIndex(), hs_timing);
     }
     hs_timing_ = static_cast<uint8_t>(hs_timing);
-    if (state > static_cast<uint32_t>(MmcState::Data) || rca > 0xFFFFu) {
+    if (state > static_cast<uint32_t>(MmcState::Rcv) || rca > 0xFFFFu) {
         r.Reject(
             "eMMC card in slot %u: restored state %u rca 0x%X is not a state "
             "this card can reach", SlotIndex(), state, rca);

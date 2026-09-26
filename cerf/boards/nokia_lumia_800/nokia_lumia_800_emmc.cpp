@@ -75,6 +75,21 @@ protected:
         }
     }
 
+    void WriteBlock(uint32_t sector, const uint8_t* data) override {
+        if (sector >= kHoleMarkerSector && sector < hole_end_) {
+            emu_.Get<Fatal>().Die(
+                "eMMC card in slot %u: a write to sector %u lands in [%u, %u), "
+                "which the seed of storage.emmc %s marks as not modeled, and a "
+                "write there is not modeled", kEmmcSlotIndex, sector,
+                kHoleMarkerSector, hole_end_, store_path_.c_str());
+        }
+        if (!store_.WriteSectors(sector, 1u, data)) {
+            emu_.Get<Fatal>().Die(
+                "eMMC card in slot %u: sector %u cannot be written to %s",
+                kEmmcSlotIndex, sector, store_path_.c_str());
+        }
+    }
+
 private:
     const ParsedRom& PackagePrimary() {
         const RomParserService& parser = emu_.Get<RomParserService>();

@@ -29,6 +29,8 @@ public:
 
     virtual void EndDataPhase() = 0;
 
+    virtual void ReceiveBlock(const uint8_t* data, uint32_t bytes) = 0;
+
     virtual void Reset() = 0;
 
     virtual void SaveState(StateWriter&) {}
