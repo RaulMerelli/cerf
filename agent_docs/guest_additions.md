@@ -290,9 +290,9 @@ The guest side runs two permanent pump threads. `DrvEnablePDEV` starts both.
   the only pump that can block on `CerfWaitGwesApiSet()`, because it shares its
   thread with nothing.
 - **Service pump** (`ce_apps/cerf_guest/cerf_service_pump.cpp`) - one 250 ms
-  loop that calls each housekeeping task in turn. The tick profiler runs on
-  each tick. The task manager runs on each second tick. The resize, shell watch
-  and calibration watch run on each fourth tick.
+  loop that calls each housekeeping task in turn. The task manager runs on each
+  second tick. The resize, shell watch and calibration watch run on each fourth
+  tick.
 
 Each housekeeping task is a `CerfXxxTick()` function in its own module. The
 header of that module declares it. Three rules hold for every task.
@@ -312,9 +312,9 @@ header of that module declares it. Three rules hold for every task.
   no-user-API-before-full-boot rule in § Task manager.
 
 The folder-share mount watch (`cerf_fs_afs.cpp`) has its own thread, because it
-runs in device.exe and the service pump runs in gwes.exe. `CerfTmTitleWorker`,
-the tick-profiler window and the SYNC 2 shell replacement also own threads.
-`CerfTmTitleWorker` waits on an event. The other two threads are one-shot.
+runs in device.exe and the service pump runs in gwes.exe. `CerfTmTitleWorker`
+and the SYNC 2 shell replacement also own threads. `CerfTmTitleWorker` waits on
+an event. The shell replacement thread is one-shot.
 
 ## Keyboard injection
 

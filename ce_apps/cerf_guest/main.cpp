@@ -191,7 +191,6 @@ static VOID CerfNoPoolReleasePalette(ULONG, ULONG* pPalette, int) { delete[] pPa
 
 extern "C" void CerfStartInputPump(void);
 extern "C" void CerfStartServicePump(void);
-extern "C" void CerfStartTickProfiler(HMODULE self);
 extern "C" void CerfStartDriverInDriver(void);
 extern "C" void CerfAdvertiseDisplayPower(void);
 extern "C" void CerfStartSync2ShellReplace(void);
@@ -206,7 +205,6 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
                                    cjCaps, pdevcaps, cjDevInfo, pdi,
                                    hdev, pwszDeviceName, hDriver);
     if (result) CerfStartInputPump();
-    if (result) CerfStartTickProfiler(Mn()->hinst);
     if (result) CerfStartDriverInDriver();
     if (result) CerfAdvertiseDisplayPower();
     if (result) CerfStartSync2ShellReplace();

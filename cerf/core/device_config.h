@@ -121,8 +121,6 @@ struct DeviceConfig : public Service {
     int32_t guest_additions_font_size = 0;
     bool    guest_additions_font_size_set = false;
 
-    bool ga_tick_profiler = false;
-
     /* Startup tab. Dev builds default to the hardware console so debug output
        shows instantly; production defaults to the boot screen. --tab overrides. */
     CanvasTab start_tab =

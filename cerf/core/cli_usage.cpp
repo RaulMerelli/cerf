@@ -35,8 +35,6 @@ void CliUsage::Print(const char* prog) {
     printf("                           (needs --guest-additions)\n");
     printf("  --ga-autorun=PATH        Start PATH in the guest once its shell is up (repeatable;\n");
     printf("                           needs --guest-additions)\n");
-    printf("  --ga-tick-profiler       Show the guest tick-rate overlay and log tick samples\n");
-    printf("                           (needs --guest-additions)\n");
     printf("  --ga-share-folder=PATH   Mount the host directory PATH into the guest at boot\n");
     printf("                           (relative to the cerf.exe directory; needs --guest-additions)\n");
     printf("  --recovery               Boot the device's recovery ROM (rom.recovery) instead of primary\n");
