@@ -1,6 +1,22 @@
 #include "omap3530_prcm_stub_block.h"
 
+#include "../../core/fatal.h"
+#include "../guest_cpu_reset.h"
+#include "omap3530_board_clock_setup.h"
+
 namespace {
+
+constexpr uint32_t kOffClksrcCtrl = 0x70u;
+
+/* SPRUF98Y Table 4-456 (printed p. 596): PRM_CLKSRC_CTRL SYSCLKDIV [7:6] reset
+   0x1, "0x1: Syst_clk is external clock / 1"; AUTOEXTCLKMODE [4:3] RW;
+   SYSCLKSEL [1:0] R, 0x0 bypass (external square clock), 0x1 oscillator. */
+constexpr uint32_t kSysClkDivMask      = 3u << 6;
+constexpr uint32_t kSysClkDivBy1       = 1u << 6;
+constexpr uint32_t kAutoExtClkModeMask = 3u << 3;
+constexpr uint32_t kSysClkSelMask      = 3u;
+constexpr uint32_t kSysClkSelBypass    = 0u;
+constexpr uint32_t kSysClkSelOsc       = 1u;
 
 class Omap3530PrmGlobal : public Omap3530PrcmStubBlock {
 public:
@@ -8,6 +24,57 @@ public:
 
     uint32_t MmioBase() const override { return 0x48307200u; }
     uint32_t MmioSize() const override { return 0x00000100u; }
+
+    void OnReady() override {
+        Omap3530PrcmStubBlock::OnReady();
+        sysclksel_ = emu_.Get<Omap3530BoardClockSetup>().SysXtalinIsSquareClock()
+                         ? kSysClkSelBypass
+                         : kSysClkSelOsc;
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            regs_[kOffClksrcCtrl / 4u] = kSysClkDivBy1 | sysclksel_;
+        }
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            if (kind != ResetLineKind::Rtc) return;
+            std::lock_guard<std::mutex> lk(mu_);
+            regs_[kOffClksrcCtrl / 4u] = kSysClkDivBy1 | sysclksel_;
+        });
+    }
+
+    void WriteWord(uint32_t addr, uint32_t value) override {
+        if (addr - MmioBase() != kOffClksrcCtrl) {
+            Omap3530PrcmStubBlock::WriteWord(addr, value);
+            return;
+        }
+        if ((value & kSysClkDivMask) != kSysClkDivBy1) {
+            emu_.Get<Fatal>().Die("omap3530 PRM_CLKSRC_CTRL write 0x%08X sets SYSCLKDIV %u; "
+                                  "only the divide-by-1 SYS_CLK is modelled",
+                                  value, (value & kSysClkDivMask) >> 6);
+        }
+        std::lock_guard<std::mutex> lk(mu_);
+        uint32_t& reg = regs_[kOffClksrcCtrl / 4u];
+        reg = (reg & ~kAutoExtClkModeMask) | (value & kAutoExtClkModeMask);
+    }
+
+    void WriteHalf(uint32_t addr, uint16_t value) override {
+        if ((addr - MmioBase()) / 4u == kOffClksrcCtrl / 4u) {
+            HaltUnsupportedAccess("WriteHalf(PRM_CLKSRC_CTRL)", addr, value);
+        }
+        Omap3530PrcmStubBlock::WriteHalf(addr, value);
+    }
+
+    void RestoreState(StateReader& r) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        RestoreRegsLocked(r);
+        if ((regs_[kOffClksrcCtrl / 4u] & kSysClkDivMask) != kSysClkDivBy1) {
+            r.Reject("omap3530 PRM_CLKSRC_CTRL: restored SYSCLKDIV is not divide-by-1");
+        }
+        if ((regs_[kOffClksrcCtrl / 4u] & kSysClkSelMask) != sysclksel_) {
+            r.Reject("omap3530 PRM_CLKSRC_CTRL: restored SYSCLKSEL %u is not the "
+                     "board's %u", regs_[kOffClksrcCtrl / 4u] & kSysClkSelMask,
+                     sysclksel_);
+        }
+    }
 
 protected:
     const char* Label() const override { return "PRM_GLOBAL"; }
@@ -49,8 +116,11 @@ protected:
         }
         return nullptr;
     }
+
+private:
+    uint32_t sysclksel_ = 0;
 };
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE(Omap3530PrmGlobal);

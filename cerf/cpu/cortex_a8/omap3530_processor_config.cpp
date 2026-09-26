@@ -1,8 +1,12 @@
 #include "cortex_a8_processor_config.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../boards/board_context.h"
+#include "../../socs/omap3530/omap3530_cm_mpu.h"
 #include "../../socs/omap3530/omap3530_id.h"
+
+#include <cstdint>
 
 namespace {
 
@@ -17,8 +21,15 @@ public:
 
     uint32_t Midr() const override { return 0x410fc080u; }
 
-    /* 720 MHz Cortex-A8 max MPU clock per OMAP3530 TRM §1.4.1. */
-    uint32_t CpuClockHz() const override { return 720000000u; }
+    uint32_t CpuClockHz() const override {
+        const uint64_t hz = emu_.Get<Omap3530CmMpu>().ArmFclkHz();
+        if (hz > UINT32_MAX) {
+            emu_.Get<Fatal>().Die("omap3530: the DPLL1 ARM_FCLK of %llu Hz does not fit the "
+                                  "32-bit CPU clock rate",
+                                  static_cast<unsigned long long>(hz));
+        }
+        return static_cast<uint32_t>(hz);
+    }
 
     uint32_t Clidr() const override { return 0x0A000003u; }
 
