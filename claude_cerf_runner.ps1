@@ -6,8 +6,11 @@ $RunnerExitMissing = 3
 $RunnerExitTimeout = 124
 $RunnerExitUnknown = 125
 
+$buildLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "RUNNER"
+$runLocks  = @(New-CerfRunLocks -Root $PSScriptRoot -Label "RUNNER")
+
 function Show-RunnerUsage {
-    Write-Host "claude_cerf_runner.ps1 - run cerf.exe under a time limit and the CERF run lock"
+    Write-Host "claude_cerf_runner.ps1 - run cerf.exe under a time limit and a CERF run slot"
     Write-Host ""
     Write-Host "Usage:"
     Write-Host "  powershell -ExecutionPolicy Bypass -File claude_cerf_runner.ps1 --timeout=SECONDS --log-file=PATH --device=NAME [cerf.exe args...]"
@@ -16,13 +19,14 @@ function Show-RunnerUsage {
     Write-Host "  --timeout=SECONDS   Forwarded to cerf.exe. cerf.exe stops the run and exits with code $RunnerExitTimeout."
     Write-Host "                      If cerf.exe is still alive 10 s later, the runner stops it."
     Write-Host "                      This replaces GNU timeout. Do not wrap this script in timeout."
-    Write-Host "                      An external kill leaves .cerf_lock behind."
+    Write-Host "                      An external kill leaves its .cerf_lock.N slot behind."
     Write-Host "  --log-file=PATH     Forwarded to cerf.exe. It keeps the stock cerf.log intact."
     Write-Host "                      msys and mixed-slash paths (/z/tmp/x.log, Z:/tmp/x.log) become Z:\tmp\x.log."
     Write-Host "  --device=NAME       Forwarded to cerf.exe. Without it, cerf boots stock cerfos."
     Write-Host ""
     Write-Host "The runner forwards every other argument to cerf.exe unchanged."
-    Write-Host "It waits for .build_lock, and it holds .cerf_lock while cerf.exe runs."
+    Write-Host "It waits for .build_lock, and it holds one run slot (.cerf_lock.1 to .cerf_lock.$($runLocks.Count)) while cerf.exe runs."
+    Write-Host "At most $($runLocks.Count) runs occur at the same time. When every slot is held, the next run waits for a free slot."
     Write-Host ""
     Write-Host "Exit codes: the exit code of cerf.exe, $RunnerExitTimeout on timeout, $RunnerExitUsage on a bad argument,"
     Write-Host "            $RunnerExitMissing when cerf.exe is absent, $RunnerExitUnknown when the exit code is not available."
@@ -132,9 +136,6 @@ $exePath   = Join-Path $exeDir "cerf.exe"
 $crashLog  = Join-Path $exeDir "cerf.crash.log"
 $liveState = Join-Path $exeDir "devices\$device\live_state.png"
 
-$buildLock   = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "RUNNER"
-$cerfRunLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".cerf_lock")  -StaleSeconds 120 -Label "RUNNER"
-
 $stdoutSink = Join-Path ([IO.Path]::GetTempPath()) "cerf_runner_out_$PID.tmp"
 $stderrSink = Join-Path ([IO.Path]::GetTempPath()) "cerf_runner_err_$PID.tmp"
 
@@ -147,22 +148,23 @@ function Remove-RunnerSinks {
 function Stop-Runner {
     param([int]$Code)
     Remove-RunnerSinks
-    Exit-CerfLock $cerfRunLock
+    Exit-CerfLockSlot $runLocks
     [Environment]::Exit($Code)
 }
 
-trap { Remove-RunnerSinks; Exit-CerfLock $cerfRunLock; break }
+trap { Remove-RunnerSinks; Exit-CerfLockSlot $runLocks; break }
 
 $logNote = if ($logFile -ne $logFileRaw) { " (converted from '$logFileRaw')" } else { "" }
 Write-Host "[RUNNER] $device, timeout $timeout s, emergency kill $emergencyKill s, log $logFile$logNote"
 
 while ($true) {
     Wait-CerfLock $buildLock
-    Enter-CerfLock $cerfRunLock
+    $runSlot = Enter-CerfLockSlot $runLocks
     if (-not (Get-CerfLockHolder $buildLock)) { break }
-    Write-Host "[RUNNER] a build took .build_lock: releasing .cerf_lock and waiting for the build"
-    Exit-CerfLock $cerfRunLock
+    Write-Host "[RUNNER] a build took .build_lock: releasing $(Split-Path -Leaf $runSlot.Path) and waiting for the build"
+    Exit-CerfLock $runSlot
 }
+Write-Host "[RUNNER] run slot $(Split-Path -Leaf $runSlot.Path)"
 
 if (-not (Test-Path $exePath)) {
     Write-Host "[RUNNER] FAILED! cerf.exe is absent at $exePath. Build it first."
@@ -201,7 +203,7 @@ if ($exitedOnOwn) {
     $exitCode = $RunnerExitTimeout
     $reason   = "EMERGENCY KILL: cerf.exe did not exit at its own --timeout of $timeout s. The runner stopped it after $emergencyKill s. This is a CERF bug."
 }
-Update-CerfLockStamp $cerfRunLock
+Update-CerfLockStamp $runSlot
 
 Show-RunnerFileFact -Label "cerf.exe" -Path $exePath -AgeFromNow
 Show-RunnerFileFact -Label "live_state.png" -Path $liveState -StaleBefore $runStart

@@ -14,8 +14,8 @@ Set-Location $PSScriptRoot
 
 . (Join-Path $PSScriptRoot "tools\cerf_locks.ps1")
 
-$buildLock   = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "BUILD"
-$cerfRunLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".cerf_lock")  -StaleSeconds 120 -Label "BUILD"
+$buildLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "BUILD"
+$runLocks  = @(New-CerfRunLocks -Root $PSScriptRoot -Label "BUILD")
 
 function Stop-Build {
     param([int]$Code)
@@ -40,8 +40,8 @@ if (-not (Test-Path "$env:LOCALAPPDATA\vcpkg\vcpkg.user.props")) {
     Stop-Build 1
 }
 
-Wait-CerfLock $cerfRunLock
 Enter-CerfLock $buildLock
+foreach ($l in $runLocks) { Wait-CerfLock $l }
 
 $waitDeadline = (Get-Date).AddMinutes(30)
 while ($true) {

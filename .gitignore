@@ -314,7 +314,7 @@ cerf/tracing/*/**
 .env
 
 .build_lock
-.cerf_lock
+.cerf_lock*
 
 # Site assets synced from launcher/ and cerf/ by tools/build_site.py
 docs/website/content/assets/icons/

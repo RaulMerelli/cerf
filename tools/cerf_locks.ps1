@@ -17,6 +17,16 @@ function New-CerfLock {
     }
 }
 
+function New-CerfRunLocks {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    foreach ($slot in 1..4) {
+        New-CerfLock -Path (Join-Path $Root ".cerf_lock.$slot") -StaleSeconds 120 -Label $Label
+    }
+}
+
 function Read-CerfLockState {
     param([Parameter(Mandatory = $true)]$Lock)
     if (-not (Test-Path $Lock.Path)) { return $null }
@@ -95,24 +105,45 @@ function Wait-CerfLock {
     }
 }
 
+function Enter-CerfLockNoWait {
+    param([Parameter(Mandatory = $true)]$Lock)
+    try {
+        $stream = [IO.File]::Open($Lock.Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        $stream.Close()
+    } catch [IO.IOException] {
+        return $false
+    }
+    $Lock.Held = $true
+    Update-CerfLockStamp $Lock
+    Start-CerfLockHeartbeat $Lock
+    return $true
+}
+
 function Enter-CerfLock {
     param([Parameter(Mandatory = $true)]$Lock)
-    while ($true) {
-        try {
-            $stream = [IO.File]::Open($Lock.Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-            $stream.Close()
-            $Lock.Held = $true
-            Update-CerfLockStamp $Lock
-            Start-CerfLockHeartbeat $Lock
-            return
-        } catch [IO.IOException] {
-        }
-
+    while (-not (Enter-CerfLockNoWait $Lock)) {
         $holder = Get-CerfLockHolder $Lock
         if ($holder) {
             Write-Host "[$($Lock.Label)] waiting for $(Split-Path -Leaf $Lock.Path) held by PID $($holder.OwnerPid) (refreshed $($holder.AgeSeconds) s ago, stale at $($Lock.StaleSeconds) s)..."
             Start-Sleep -Seconds $Lock.PollSeconds
         }
+    }
+}
+
+function Enter-CerfLockSlot {
+    param([Parameter(Mandatory = $true)][object[]]$Locks)
+    while ($true) {
+        foreach ($l in $Locks) {
+            if (Enter-CerfLockNoWait $l) { return $l }
+        }
+        $held = @()
+        foreach ($l in $Locks) {
+            $holder = Get-CerfLockHolder $l
+            if ($holder) { $held += "$(Split-Path -Leaf $l.Path) PID $($holder.OwnerPid)" }
+        }
+        if ($held.Count -lt $Locks.Count) { continue }
+        Write-Host "[$($Locks[0].Label)] waiting for a free run slot, all $($Locks.Count) are held: $($held -join ', ')..."
+        Start-Sleep -Seconds $Locks[0].PollSeconds
     }
 }
 
@@ -127,4 +158,9 @@ function Exit-CerfLock {
     $state = Read-CerfLockState $Lock
     if ($state -and $state.OwnerPid -ne $PID) { return }
     Remove-Item $Lock.Path -Force -ErrorAction SilentlyContinue
+}
+
+function Exit-CerfLockSlot {
+    param([Parameter(Mandatory = $true)][object[]]$Locks)
+    foreach ($l in $Locks) { Exit-CerfLock $l }
 }
