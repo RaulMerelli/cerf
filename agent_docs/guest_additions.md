@@ -41,12 +41,21 @@ Only **the placement of the stub into the ROM** differs by ROM class:
   of the victim module (its e32/o32/load offsets) to repoint it at the stub.
   The e32/o32 records and section bytes of the stub live in a CERF-owned PA
   band in the `cerf_virt` window (`cerf/boot/cerf_injection_region.{h,cpp}`).
-  The ARM walker serves the band only when the live L1 descriptor is a
-  translation fault; a valid L1 or TLB translation always wins. ATS/PAR uses
-  the same condition. KTP Mobile puts the source at its `cerf_virt` window VA
-  and makes the CE8 loader copy it to the victim's existing DLL `realaddr`.
-  CE3/4/5 also use the loader copy path through
-  `GuestModulePlacer::ComputeVbase`.
+  `PageTableBuilder::GuestAdditionsBandPlacement` chooses the band VA and says
+  whether the stub runs in place. The default is a guest-unmapped static-window
+  VA, a hole that `PageTableBuilder::StaticWindowHole` finds over the
+  `MappedVaSpans()` of the board, with the stub run in place. An MMU-walker
+  overlay serves the band (`ServeInjectionBand` at the L1-fault site), never
+  the section bytes of the victim. A valid L1 or TLB translation always wins,
+  and ATS/PAR uses the same condition. On CE6/7/8 an in-place stub runs from
+  the band, because a kernel-VA base makes the loader skip its section copy.
+  A board whose guest installs L1 descriptors over the static window overrides
+  the placement. KTP Mobile uses VA `0xF0000000`, which its process L1 tables
+  leave as a translation fault, and has the loader copy the stub. On CE3/4/5,
+  and for a copied stub, the loader copies the stub to the vbase from
+  `GuestModulePlacer::ComputeVbase`. The sections of a copied stub are flagged
+  MEM_WRITE|SHARED, so the loader takes the overlay-servable memcpy with no
+  per-process slot-base fold on the device.exe carrier load.
 - **IMGFS** (WM6+, `cerf/boot/imgfs_injector.cpp` + `ce_imgfs_patcher.{h,cpp}`)
   - IMGFS is a flash filesystem (an FTL over the NOR/NAND image), not an XIP
   TOC. There is therefore no slot to overwrite. The injector allocates fresh

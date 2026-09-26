@@ -23,7 +23,13 @@ inline constexpr std::size_t kApplicationFlashBytes =
 inline constexpr std::size_t kUpdateContainerPrefixBytes = 0x7Cu;
 inline constexpr std::size_t kMaxUpdateContainerBytes =
     kUpdateContainerPrefixBytes + kApplicationFlashBytes;
-inline constexpr std::uint32_t kStateSchemaVersion = 2u;
+
+/* hmi_ktp400_mobile_v13 FModuleService.dll sub_EF1F9534 returns 271 and the SPI
+   transaction is (271 + 4) >> 2 words. */
+static_assert(kWireTransactionBytes == ((kLogicalFrameBytes + 4u) / 4u) * 4u);
+/* hmi_ktp400_mobile_v13 FModuleFirmwareUpdater.exe sub_14A7C @ VA 0x00014A7C: an 8-byte
+   header ahead of each block. */
+static_assert(kFirmwareUpdateRequestBytes == kFirmwareUpdateBlockBytes + 8u);
 
 enum class Status : std::uint8_t {
     Ok = 0,
@@ -34,9 +40,7 @@ enum class Status : std::uint8_t {
     IncompleteTransaction,
     ProtocolRejected,
     QueueFull,
-    StateVersionMismatch,
     InvalidSnapshot,
-    TimeOverflow,
 };
 
 enum class ResetKind : std::uint8_t {
@@ -47,7 +51,6 @@ enum class ResetKind : std::uint8_t {
 enum class ModulePhase : std::uint8_t {
     Startup = 0,
     Service,
-    Fault,
     Bootloader,
 };
 
@@ -104,8 +107,6 @@ struct FirmwareInfo {
 };
 
 struct State {
-    std::uint32_t schema_version = kStateSchemaVersion;
-
     ResetKind last_reset = ResetKind::Cold;
     ModulePhase module_phase = ModulePhase::Startup;
     UpdatePhase update_phase = UpdatePhase::Inactive;
@@ -114,8 +115,6 @@ struct State {
     std::uint8_t gpio6_ack = 0;
     std::uint8_t chip_select_asserted = 0;
     std::uint8_t startup_exchange_pending = 0;
-
-    std::uint64_t deterministic_time_us = 0;
 
     std::uint16_t spi_bytes_transferred = 0;
     std::uint16_t reserved_spi = 0;
@@ -138,11 +137,6 @@ struct State {
     std::uint16_t staged_module_record_bytes = 0;
     std::uint16_t reserved_relay = 0;
     std::array<std::uint8_t, kRelayRecordBytes> staged_module_records{};
-
-    std::uint8_t fault_active = 0;
-    std::uint8_t reserved_fault0 = 0;
-    std::uint16_t fault_payload_size = 0;
-    std::array<std::uint8_t, 58> fault_payload{};
 
     FirmwareInfo firmware{};
     std::array<std::uint8_t, kApplicationFlashBytes> application_flash{};
@@ -171,8 +165,6 @@ public:
 
     KtpMobileFModule(const KtpMobileFModule&) = delete;
     KtpMobileFModule& operator=(const KtpMobileFModule&) = delete;
-    KtpMobileFModule(KtpMobileFModule&&) noexcept;
-    KtpMobileFModule& operator=(KtpMobileFModule&&) noexcept;
 
     void ColdReset() noexcept;
     void WarmModuleReset() noexcept;
@@ -192,19 +184,14 @@ public:
 
     bool ModuleGpio5DataReady() const noexcept;
 
-    Status AdvanceTime(std::uint64_t delta_microseconds) noexcept;
-
     void CaptureState(State& out) const noexcept;
     Status RestoreState(const State& snapshot) noexcept;
 
-    ModulePhase Phase() const noexcept;
-    UpdatePhase FirmwareUpdatePhase() const noexcept;
     FirmwareInfo InstalledFirmware() const noexcept;
-    bool FaultActive() const noexcept;
 
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace ktp_mobile
+}

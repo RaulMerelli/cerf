@@ -5,11 +5,9 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/virtual_clock.h"
 #include "../../core/virtual_timer_list.h"
-#include "../../host/guest_deep_sleep.h"
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
 #include "imx6_gic.h"
-#include "imx6_wdog_configuration.h"
 
 #include <mutex>
 
@@ -24,7 +22,6 @@ using cerf_freescale_wdog_detail::kWrsr;
 using cerf_freescale_wdog_detail::kWsr;
 
 constexpr uint16_t kWicrReset = 0x0004u;
-constexpr uint16_t kWmcrReset = 0x0001u;
 
 constexpr uint16_t kWrsrPor = 0x0010u;
 
@@ -37,12 +34,6 @@ public:
         Parent::OnReady();
         interrupt_timer_ = this->emu_.Get<VirtualTimerList>().Add([this] { OnInterrupt(); });
         timer_ = this->emu_.Get<VirtualTimerList>().Add([this] { OnTimeout(); });
-        powerdown_timer_ = this->emu_.Get<VirtualTimerList>().Add([this] { OnPowerDown(); });
-        {
-            std::lock_guard<std::mutex> lock(mtx_);
-            ApplyBootConfiguration();
-            ArmPowerDownCounter();
-        }
         this->emu_.Get<GuestCpuReset>().RegisterResetKindListener(
             [this](ResetKind kind) { ResetRegisters(kind); });
     }
@@ -92,21 +83,19 @@ public:
         w.Write(wcr_);
         w.Write(wsr_);
         w.Write(wicr_);
-        w.Write(wmcr_);
         w.Write(wrsr_);
         w.Write(service_phase_);
         w.Write(static_cast<uint8_t>(wcr_policy_locked_ ? 1u : 0u));
         w.Write(static_cast<uint8_t>(wicr_policy_locked_ ? 1u : 0u));
-        w.Write(timer_->DeadlineNs());
-        w.Write(interrupt_timer_->DeadlineNs());
-        w.Write(powerdown_timer_->DeadlineNs());
+        const int64_t now = this->emu_.Get<VirtualClock>().NowNs();
+        w.Write(timer_->RemainingNs(now));
+        w.Write(interrupt_timer_->RemainingNs(now));
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lock(mtx_);
         r.Read(wcr_);
         r.Read(wsr_);
         r.Read(wicr_);
-        r.Read(wmcr_);
         r.Read(wrsr_);
         r.Read(service_phase_);
         uint8_t policy_locked = 0u;
@@ -114,17 +103,16 @@ public:
         wcr_policy_locked_ = policy_locked != 0u;
         r.Read(policy_locked);
         wicr_policy_locked_ = policy_locked != 0u;
-        r.Read(restored_deadline_ns_);
-        r.Read(restored_interrupt_deadline_ns_);
-        r.Read(restored_powerdown_deadline_ns_);
+        r.Read(restored_remaining_ns_);
+        r.Read(restored_interrupt_remaining_ns_);
         reset_requested_ = false;
     }
 
     void PostRestore() override {
         std::lock_guard<std::mutex> lock(mtx_);
-        timer_->Arm(restored_deadline_ns_);
-        interrupt_timer_->Arm(restored_interrupt_deadline_ns_);
-        powerdown_timer_->Arm(restored_powerdown_deadline_ns_);
+        const int64_t now = this->emu_.Get<VirtualClock>().NowNs();
+        timer_->Arm(VirtualTimerList::DeadlineFromRemainingNs(now, restored_remaining_ns_));
+        interrupt_timer_->Arm(VirtualTimerList::DeadlineFromRemainingNs(now, restored_interrupt_remaining_ns_));
         UpdateInterrupt();
     }
 
@@ -135,7 +123,7 @@ protected:
         case kWsr: return wsr_;
         case kWrsr: return wrsr_;
         case kWicr: return wicr_;
-        case kWmcr: return wmcr_;
+        case kWmcr: return 0u;
         }
         this->HaltUnsupportedAccess("ReadReg16", Base + off, 0);
     }
@@ -192,13 +180,10 @@ protected:
             return;
         }
         case kWmcr:
-            LOG(SocWdt, "i.MX6 WDOG%u WMCR 0x%04X -> 0x%04X at %lld ns\n",
-                Base == 0x020BC000u ? 1u : 2u, wmcr_, value,
-                static_cast<long long>(this->emu_.Get<VirtualClock>().NowNs()));
-            if ((wmcr_ & 1u) != 0u && (value & 1u) == 0u) {
-                wmcr_ = 0u;
-                powerdown_timer_->Arm(VirtualTimerList::kNoDeadline);
-            }
+            /* IMX6DQRM Rev.2 §70.7.5: bits 15:1 are reserved and read as zero, and once PDE[0] has
+               been cleared "this counter cannot be enabled again", so a later write cannot revive it.
+               u-boot imx_wdog_disable_powerdown() clears it before the kernel on every i.MX6. */
+            if ((value & ~1u) != 0u) this->HaltUnsupportedAccess("WriteReg16", Base + off, value);
             return;
         }
         this->HaltUnsupportedAccess("WriteReg16", Base + off, value);
@@ -243,22 +228,6 @@ private:
             gic.DeAssertSpi(kSpi);
     }
 
-    void ArmPowerDownCounter() {
-        if ((wmcr_ & 1u) != 0u)
-            powerdown_timer_->Arm(this->emu_.Get<VirtualClock>().NowNs() + 16000000000ll);
-        else
-            powerdown_timer_->Arm(VirtualTimerList::kNoDeadline);
-    }
-
-    void OnPowerDown() {
-        bool power_down = false;
-        {
-            std::lock_guard<std::mutex> lock(mtx_);
-            power_down = (wmcr_ & 1u) != 0u;
-        }
-        if (power_down) this->emu_.Get<GuestDeepSleep>().EnterPowerOff();
-    }
-
     void OnTimeout() {
         bool reset = false;
         {
@@ -298,8 +267,6 @@ private:
         if (kind == ResetKind::Cold) wrsr_ = kWrsrPor;
         wsr_ = 0u;
         wicr_ = kWicrReset;
-        wmcr_ = kWmcrReset;
-        ApplyBootConfiguration();
         service_phase_ = 0u;
         wcr_policy_locked_ = false;
         wicr_policy_locked_ = false;
@@ -307,29 +274,20 @@ private:
         timer_->Arm(VirtualTimerList::kNoDeadline);
         interrupt_timer_->Arm(VirtualTimerList::kNoDeadline);
         UpdateInterrupt();
-        ArmPowerDownCounter();
-    }
-
-    void ApplyBootConfiguration() {
-        if (!this->emu_.Get<Imx6WdogConfiguration>().PowerDownCounterEnabledAfterBoot())
-            wmcr_ = 0u;
     }
 
     uint16_t wcr_ = kWcrReset;
     uint16_t wsr_ = 0;
     uint16_t wicr_ = kWicrReset;
-    uint16_t wmcr_ = kWmcrReset;
     uint16_t wrsr_ = kWrsrPor;
     uint8_t service_phase_ = 0u;
     bool wcr_policy_locked_ = false;
     bool wicr_policy_locked_ = false;
     bool reset_requested_ = false;
-    int64_t restored_deadline_ns_ = VirtualTimerList::kNoDeadline;
-    int64_t restored_interrupt_deadline_ns_ = VirtualTimerList::kNoDeadline;
-    int64_t restored_powerdown_deadline_ns_ = VirtualTimerList::kNoDeadline;
+    int64_t restored_remaining_ns_ = VirtualTimerList::kNoDeadline;
+    int64_t restored_interrupt_remaining_ns_ = VirtualTimerList::kNoDeadline;
     VirtualTimerList::Entry* timer_ = nullptr;
     VirtualTimerList::Entry* interrupt_timer_ = nullptr;
-    VirtualTimerList::Entry* powerdown_timer_ = nullptr;
     std::mutex mtx_;
 };
 

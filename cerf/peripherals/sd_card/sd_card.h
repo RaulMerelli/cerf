@@ -35,7 +35,6 @@ public:
     void SaveState(StateWriter& w) const;
     void RestoreState(StateReader& r);
 
-    bool present() const { return present_; }
 
 private:
     enum class State : uint8_t { Idle, Ready, Ident, Stby, Tran, Data, Rcv };
@@ -45,26 +44,22 @@ private:
     void ApplyMmcSwitch(uint32_t arg);
     uint32_t Status() const;
 
-    bool present_ = true;
     State state_ = State::Idle;
     uint16_t rca_ = 0;
     mutable uint32_t card_status_ = 0;
-    uint32_t blk_len_ = 512;
     bool high_capacity_ = false;
     uint64_t xfer_addr_ = 0;
-    bool acmd41_done_ = false;
     uint8_t cid_[16] = {0};
     uint8_t csd_[16] = {0};
     uint8_t scr_[8] = {0};
     uint8_t ext_csd_[512] = {0};
     bool xfer_scr_ = false;
     bool xfer_switch_status_ = false;
+    uint32_t switch_status_arg_ = 0;
     bool mmc_mode_ = false;
     bool mmc_layout_ready_ = false;
     bool xfer_ext_csd_ = false;
-    uint8_t mmc_partition_access_ = 0;
     uint32_t mmc_predefined_block_count_ = 0;
-    bool mmc_reliable_write_ = false;
     uint64_t erase_start_addr_ = 0;
     uint64_t erase_end_addr_ = 0;
     bool erase_start_valid_ = false;

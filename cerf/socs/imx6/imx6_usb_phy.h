@@ -1,15 +1,15 @@
+#pragma once
+
 #include "../../core/cerf_emulator.h"
 #include "../../state/state_stream.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
-#pragma once
-
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../core/service.h"
 #include "imx6_mmio_lane.h"
 
-namespace {
+namespace cerf_imx6_usb_phy_detail {
 
 /* Linux imx6qdl.dtsi and QEMU fsl-imx6.c map USBPHY1/2 at 0x020C9000
    and 0x020CA000 as separate 4 KiB blocks. */
@@ -23,12 +23,17 @@ public:
     }
 
     void OnReady() override {
-        regs_[kRegPwd >> 4] = 0x00000000u;
+        /* IMX6DQRM Rev.2 §66.3 USBPHY memory map: PWD 001E_1C00h, TX 1006_0607h, RX 0000_0000h,
+           CTRL C020_0000h, STATUS 0000_0000h, DEBUG 7F18_0000h, DEBUG0_STATUS 0000_0000h read-only
+           and DEBUG1 0000_1000h. */
+        regs_[kRegPwd >> 4] = 0x001E1C00u;
         regs_[kRegTx >> 4] = 0x10060607u;
         regs_[kRegRx >> 4] = 0x00000000u;
-        regs_[kRegCtrl >> 4] = 0x00000000u;
+        regs_[kRegCtrl >> 4] = 0xC0200000u;
         regs_[kRegStatus >> 4] = 0x00000000u;
         regs_[kRegDebug >> 4] = 0x7F180000u;
+        regs_[kRegDebug0Status >> 4] = 0x00000000u;
+        regs_[kRegDebug1 >> 4] = 0x00001000u;
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
     }
 
@@ -71,6 +76,9 @@ private:
         if (!IsModelledRegister(off)) HaltUnsupportedAccess("imx6-usbphy write32 unmodelled register", addr, value);
 
         const uint32_t reg = off & ~0xFu;
+        /* IMX6DQRM Rev.2 §66.3 lists DEBUG0_STATUS as access R. */
+        if (reg == kRegDebug0Status)
+            HaltUnsupportedAccess("imx6-usbphy write to the read-only DEBUG0_STATUS", addr, value);
         uint32_t& slot = regs_[reg >> 4];
         switch (off & 0xCu) {
         case 0x0: slot = value; break;
@@ -110,6 +118,8 @@ private:
             HaltUnsupportedAccess("imx6-usbphy write lane unmodelled register",
                                   lane.address, lane.value);
         const uint32_t reg = off & ~0xFu;
+        if (reg == kRegDebug0Status)
+            HaltUnsupportedAccess("imx6-usbphy write to the read-only DEBUG0_STATUS", lane.address, lane.value);
         uint32_t& slot = regs_[reg >> 4];
         switch (off & 0xCu) {
         case 0x0: slot = lane.Merge(slot); break;
@@ -124,3 +134,5 @@ private:
 };
 
 }
+
+using cerf_imx6_usb_phy_detail::Imx6UsbPhy;

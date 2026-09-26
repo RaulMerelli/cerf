@@ -223,7 +223,6 @@ bool Hibernation::Save(const std::wstring& path_in) {
                 emu_.Get<GuestColdBoot>().SaveState(w);
                 if (auto* c = emu_.TryGet<CerfVirtCustomizationsReset>())
                     c->SaveState(w);
-                emu_.Get<GuestDeepSleep>().SaveState(w);
             });
             ok = w.Ok() && w.Commit();
         }
@@ -333,7 +332,6 @@ bool Hibernation::Restore(const std::wstring& path_in, bool ram_only,
                         emu_.Get<GuestColdBoot>().RestoreState(r);
                         if (auto* c = emu_.TryGet<CerfVirtCustomizationsReset>())
                             c->RestoreState(r);
-                        emu_.Get<GuestDeepSleep>().RestoreState(r);
                         break;
                     default: break;
                 }

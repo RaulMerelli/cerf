@@ -95,4 +95,4 @@ struct AATextContext {
     }
 };
 
-} // namespace CerfVirt
+}

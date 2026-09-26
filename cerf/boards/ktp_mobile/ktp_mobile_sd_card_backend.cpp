@@ -1,6 +1,7 @@
 #include "ktp_mobile_sd_card_backend.h"
 
 #include "../../boot/fwf_oms_reader.h"
+#include "../../core/log.h"
 #include "ktp_mobile_factory_layout.h"
 #include "ktp_mobile_fwf_fsf_container.h"
 #include "ktp_mobile_pdcfs_layout.h"
@@ -44,14 +45,14 @@ bool IsValidBacking(const std::vector<uint8_t>& data) {
            bpb[510] == 0x55u && bpb[511] == 0xAAu;
 }
 
-} // namespace
+}
 
 KtpMobileSdCardBackend::KtpMobileSdCardBackend(
     std::string device_dir, std::string container_name, KtpMobileOpType op_type,
-    KtpMobilePanel panel, std::array<uint8_t, 6> mac)
+    std::array<uint8_t, 6> mac)
     : backing_path_(device_dir + "ktp400_pdcfs_autobacking.bin"),
       fwf_container_(ktp_mobile_emmc::LoadFwfContainer(device_dir, container_name)),
-      op_type_(op_type), panel_(panel), hardware_mac_(mac) {}
+      op_type_(op_type), hardware_mac_(mac) {}
 
 void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
     if (data.size() < 4096u) return;
@@ -96,7 +97,7 @@ void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
 
 void KtpMobileSdCardBackend::EnsureHardwareInfo(std::vector<uint8_t>& data) {
     ktp_mobile_emmc::EnsureFactoryLayout(
-        data, fwf_container_, hardware_mac_, op_type_, panel_);
+        data, fwf_container_, hardware_mac_, op_type_);
 }
 
 void KtpMobileSdCardBackend::PersistHardwareInfo(
@@ -150,7 +151,10 @@ void KtpMobileSdCardBackend::Flush(const std::vector<uint8_t>& data) {
         out.open(backing_path_, std::ios::binary | std::ios::in |
                                     std::ios::out);
     }
-    if (!out.good()) return;
+    if (!out.good()) {
+        LOG(Caution, "KTP Mobile SD card: cannot open the backing file %s\n", backing_path_.c_str());
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     std::sort(dirty_ranges_.begin(), dirty_ranges_.end());
     for (const auto& range : dirty_ranges_) {
         const uint64_t begin = std::min<uint64_t>(range.first, data.size());
@@ -159,6 +163,12 @@ void KtpMobileSdCardBackend::Flush(const std::vector<uint8_t>& data) {
         out.seekp(static_cast<std::streamoff>(begin));
         out.write(reinterpret_cast<const char*>(data.data() + begin),
                   static_cast<std::streamsize>(end - begin));
+        if (!out.good()) {
+            LOG(Caution, "KTP Mobile SD card: write of 0x%llX bytes at 0x%llX to %s failed\n",
+                static_cast<unsigned long long>(end - begin), static_cast<unsigned long long>(begin),
+                backing_path_.c_str());
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
     }
     dirty_ranges_.clear();
     dirty_bytes_pending_ = 0u;

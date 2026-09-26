@@ -12,7 +12,6 @@
 #include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../jit/arm/arm_mmu_probe.h"
 #include "../../peripherals/peripheral_base.h"
 #include "imx6_gic.h"
 #include "imx6_vivante_mmu.h"
@@ -23,16 +22,14 @@ namespace imx6_vivante {
 
 class VivanteMem {
 public:
-    VivanteMem(VivanteState& s, CerfEmulator& emu, Peripheral& owner, VivanteCore core, int irq_spi)
-        : s_(s), emu_(emu), owner_(owner), core_(core), irq_spi_(irq_spi),
-          mmu_(s, emu, irq_spi), state_registers_(s, mmu_, *this) {}
+    VivanteMem(VivanteState& s, CerfEmulator& emu, VivanteCore core, int irq_spi)
+        : s_(s), emu_(emu), core_(core), irq_spi_(irq_spi),
+          mmu_(s, emu), state_registers_(s, *this) {}
 
     struct MaskedStateGroup {
         uint32_t field_mask;
         uint32_t preserve_mask;
     };
-
-    void InvalidateTranslationCache() const;
 
     const char* CoreName() const {
         switch (core_) {
@@ -48,7 +45,7 @@ public:
     }
 
     bool SupportsTileStatus() const {
-        return core_ == VivanteCore::Gc8803d;
+        return core_ == VivanteCore::Gc20003d;
     }
 
     bool SupportsFastClear() const { return SupportsTileStatus(); }
@@ -64,8 +61,7 @@ public:
         return value;
     }
 
-    void FlushEngineCaches(uint32_t mask) const {
-        (void)mask;
+    void FlushEngineCaches() const {
         std::atomic_thread_fence(std::memory_order_seq_cst);
     }
 
@@ -76,7 +72,9 @@ public:
 
     bool DetectIdleRing(uint32_t pc, FeCommandAddressSpace address_space, IdleRingInfo& info) const;
 
-    static bool IsGpuStateOffset(uint32_t off) { return off < kMaxStateBytes && (off & 3u) == 0u; }
+    static bool IsGpuStateOffset(uint32_t off) {
+        return VivanteStateRegisters::SupportsOffset(off);
+    }
 
     void EnsureStateSize() {
         if (s_.state_.empty()) s_.state_.resize(kMaxStateBytes / 4u);
@@ -113,9 +111,6 @@ public:
     }
 
     void StoreStateReg(uint32_t byte_off, uint32_t value);
-    void WriteMmuv2Configuration(uint32_t value);
-    void WriteMmuv2SafeAddress(uint32_t value);
-    void ResetMmuv2State();
 
     const uint8_t* TranslateCommandToHost(uint32_t address, FeCommandAddressSpace address_space) const;
     bool ReadCommandBytes(uint32_t address, void* out_buffer, size_t count, FeCommandAddressSpace address_space) const;
@@ -143,7 +138,6 @@ public:
 
     const uint8_t* TranslateGpuToHost(uint32_t gpu_addr, MmuClient client = MmuClient::Texture) const;
     uint8_t* TranslateGpuToHostWrite(uint32_t gpu_addr, MmuClient client = MmuClient::PixelEngine) const;
-    bool TranslateGpuViaMmu(uint32_t gpu_addr, bool write, MmuClient client, uint32_t& phys) const;
 
     void RaiseInterrupt(uint32_t bits) const {
         s_.intr_status_ |= bits;
@@ -164,11 +158,10 @@ public:
 private:
     VivanteState& s_;
     CerfEmulator& emu_;
-    Peripheral& owner_;
     VivanteCore core_;
     int irq_spi_;
     VivanteMmu mmu_;
     VivanteStateRegisters state_registers_;
 };
 
-} // namespace imx6_vivante
+}

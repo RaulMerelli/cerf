@@ -11,7 +11,7 @@
 
 #include <cstdint>
 
-namespace {
+namespace cerf_imx6_i2c_detail {
 
 template <uint32_t kBase> class Imx6I2c : public Peripheral {
 public:
@@ -34,7 +34,11 @@ private:
     }
     uint16_t ReadHalf(uint32_t addr) override {
         switch (addr - kBase) {
+        /* IMX6DQRM Rev.2 §35.7.1: IADR "holds the address to which the I2C responds when addressed
+           as a slave"; this model drives the bus as master, where the RM says it takes no part. */
         case 0x00u: return iadr_;
+        /* IMX6DQRM Rev.2 §35.7.2: IFDR divides the source clock to produce SCL, a rate this
+           untimed transfer model does not reproduce. */
         case 0x04u: return ifdr_;
         case 0x08u: return i2cr_;
         case 0x0Cu:
@@ -113,6 +117,12 @@ private:
         emu_.Get<Imx6I2cBus>().RestoreDevices(kBase, r);
     }
 
+    /* The bus restores its devices after the controller, so the slave the transfer was
+       addressing is re-resolved once they are back. */
+    void PostRestore() override {
+        if (!expecting_addr_) device_ = emu_.Get<Imx6I2cBus>().Find(kBase, slave_addr_);
+    }
+
     void SaveResetState(StateWriter& w) override { SaveControllerState(w); }
     void RestoreResetState(StateReader& r) override { RestoreControllerState(r); }
 
@@ -123,6 +133,11 @@ private:
         w.Write(i2cr_);
         w.Write(i2sr_);
         w.Write(i2dr_);
+        w.Write(slave_addr_);
+        w.Write(rx_shift_);
+        w.Write<uint8_t>(static_cast<uint8_t>((expecting_addr_ ? 1u : 0u) | (read_phase_ ? 2u : 0u) |
+                                              (rx_dummy_ ? 4u : 0u) | (stop_pending_final_read_ ? 8u : 0u) |
+                                              (tx_complete_pending_ ? 16u : 0u)));
     }
 
     void RestoreControllerState(StateReader& r) {
@@ -131,12 +146,16 @@ private:
         r.Read(i2cr_);
         r.Read(i2sr_);
         r.Read(i2dr_);
+        r.Read(slave_addr_);
+        r.Read(rx_shift_);
+        uint8_t flags = 0;
+        r.Read(flags);
+        expecting_addr_ = (flags & 1u) != 0u;
+        read_phase_ = (flags & 2u) != 0u;
+        rx_dummy_ = (flags & 4u) != 0u;
+        stop_pending_final_read_ = (flags & 8u) != 0u;
+        tx_complete_pending_ = (flags & 16u) != 0u;
         device_ = nullptr;
-        expecting_addr_ = true;
-        read_phase_ = false;
-        rx_dummy_ = false;
-        stop_pending_final_read_ = false;
-        tx_complete_pending_ = false;
     }
 
     static constexpr uint16_t kMsta = 0x20u;
@@ -154,10 +173,7 @@ private:
             slave_addr_ = static_cast<uint8_t>(value >> 1);
             read_phase_ = (value & 1u) != 0;
             device_ = emu_.Get<Imx6I2cBus>().Find(kBase, slave_addr_);
-            if (!device_) {
-                i2sr_ |= kRxak;
-                FaultUnknownSlave();
-            }
+            if (!device_) FaultUnknownSlave();
             device_->StartTransfer(read_phase_);
             if (read_phase_) {
                 rx_dummy_ = true;
@@ -216,3 +232,5 @@ private:
 };
 
 }
+
+using cerf_imx6_i2c_detail::Imx6I2c;

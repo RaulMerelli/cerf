@@ -293,18 +293,30 @@ uint8_t* EmitCp15RegisterTransfer(uint8_t*      cursor,
     }
 
     case 7:
-        if (emit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 0 && d->cp == 0 &&
-            ((!d->l && d->crm == 8) || (d->l && d->crm == 4))) {
+        if (emit->ProcessorConfig()->HasCp15V7() && d->cp_opc == 0 &&
+            ((d->crm == 4 && d->cp == 0) || (!d->l && d->crm == 8 && d->cp <= 3))) {
             const int32_t par_disp = static_cast<int32_t>(offsetof(ArmMmuState, par));
-            if (d->l) {
-                /* ARM DDI 0406C.d B4.1.112 (p. B4-1658): MRC p15,0,Rt,c7,c4,0 reads PAR. */
-                EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, par_disp);
-                EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
+            if (d->crm == 4) {
+                /* ARM DDI 0406C.d B4.1.112 (p. B4-1658): p15,0,Rt,c7,c4,0 is the R/W PAR. */
+                if (d->l) {
+                    EmitMovRegBaseDisp32(cursor, kEax, kMmuReg, par_disp);
+                    EmitMovBaseDisp32Reg(cursor, kStateReg, rd_disp, kEax);
+                } else {
+                    EmitMovRegBaseDisp32(cursor, kEax, kStateReg, rd_disp);
+                    EmitMovBaseDisp32Reg(cursor, kMmuReg, par_disp, kEax);
+                }
             } else {
-                /* ARM DDI 0406C.d B4.1.10 (p. B4-1522): MCR p15,0,Rt,c7,c8,0 is ATS1CPR. */
+                /* ARM DDI 0406C.d B4.1.10 (p. B4-1522): MCR p15,0,Rt,c7,c8,{0..3} is
+                   ATS1CPR, ATS1CPW, ATS1CUR, ATS1CUW. */
+                static constexpr uint32_t (__fastcall *kAtsHelpers[4])(uint32_t, ArmMmu*) = {
+                    &ArmMmu::AddressTranslateHelper,
+                    &ArmMmu::AddressTranslateWriteHelper,
+                    &ArmMmu::AddressTranslateUserReadHelper,
+                    &ArmMmu::AddressTranslateUserWriteHelper,
+                };
                 EmitMovRegBaseDisp32(cursor, kEcx, kStateReg, rd_disp);
                 EmitMovRegImm32(cursor, kEdx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emit->Mmu())));
-                EmitCall(cursor, reinterpret_cast<void*>(&ArmMmu::AddressTranslateHelper));
+                EmitCall(cursor, reinterpret_cast<void*>(kAtsHelpers[d->cp]));
                 EmitMovBaseDisp32Reg(cursor, kMmuReg, par_disp, kEax);
             }
         } else {

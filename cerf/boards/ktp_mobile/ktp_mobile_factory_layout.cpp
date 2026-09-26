@@ -42,7 +42,7 @@ std::vector<uint8_t> ReadWholeFile(const std::string& path, size_t max_size) {
     return {};
 }
 
-} // namespace
+}
 
 namespace ktp_mobile_emmc {
 
@@ -60,7 +60,7 @@ std::vector<uint8_t> LoadFwfContainer(const std::string& device_dir, const std::
 }
 
 void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>& fwf_container,
-                         const std::array<uint8_t, 6>& hardware_mac, KtpMobileOpType op_type, KtpMobilePanel panel) {
+                         const std::array<uint8_t, 6>& hardware_mac, KtpMobileOpType op_type) {
     /* hmi_ktp400_mobile_v13 bspio.dll @0x41885AC0 reads the eMMC factory table
        at 0x101000; @0x41886264 decodes its HWF offset, size, CRC, and OMS stream. */
     constexpr uint32_t kSectorTableOff = kKtp400FactoryTableOff;
@@ -77,7 +77,6 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     const std::vector<uint8_t> ktp400_oms_root = BuildKtpMobileInstalledHardwareDescriptionOms(hardware_mac, op_type);
     std::vector<uint8_t> installed_firmware;
     cerf::fwf_oms::ExtractInstalledFirmwareSummary(fwf_container.data(), fwf_container.size(), installed_firmware);
-    (void)panel;
     const uint32_t kHwfSize = static_cast<uint32_t>(ktp400_oms_root.size());
 
     const auto seed_at = [&](uint32_t table_off, uint32_t hwf_off, uint32_t boot_state_off, uint32_t pa_header_off,
@@ -114,9 +113,8 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
         uint8_t* hwf = data.data() + hwf_off;
         std::memset(hwf, 0, kHwfAreaSize);
         Put32(hwf + 0x00u, kHwfSize);
-        /* DeviceManager.exe 0x14B9E skips the OMS version byte before calling
-           Object::import_from_blob.  BSPIO.dll 0x41886DC0 likewise starts its
-           object parser at HWF+9. */
+        /* hmi_ktp400_mobile_v13 DeviceManager.exe 0x14B9E skips the OMS version byte;
+           hmi_ktp400_mobile_v13 BSPIO.dll 0x41886DC0 starts its object parser at HWF+9. */
         std::memcpy(hwf + 0x08u, ktp400_oms_root.data(), ktp400_oms_root.size());
         /* hmi_ktp400_mobile_v13 dmosapi.dll 0x418AD4A0 validates the
            CDmOsLinearStoreBin header before exposing /hwf. */
@@ -140,4 +138,4 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     seed_at(kSectorTableOff + kPartLbaBytes, kHwfOff, kBootStateOff, kPaHeaderOff, kFwfInfoOff);
 }
 
-} // namespace ktp_mobile_emmc
+}

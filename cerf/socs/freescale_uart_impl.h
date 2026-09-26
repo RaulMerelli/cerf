@@ -231,7 +231,6 @@ private:
             r = (r & ~m) | ((v << shift) & m);
             if (aligned == kUCR1 || aligned == kUCR4 || aligned == kUFCR)
                 UpdateRxIrq();   /* enable/threshold changed */
-            if (endpoint_) endpoint_->OnControlWrite(aligned, r);
             return;
         }
         HaltUnsupportedAccess("Write", kBase + off, v);

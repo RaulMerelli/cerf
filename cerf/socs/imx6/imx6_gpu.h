@@ -22,12 +22,10 @@
 #include <mutex>
 #include <thread>
 
-namespace {
-
-using namespace imx6_vivante;
+namespace imx6_vivante {
 
 /* Linux imx6qdl.dtsi defines GPU3D at 0x00130000/SPI9 and GPU2D at
-   0x00134000/SPI10; IMX6SDLRM Rev.4 Table 2-1 defines the apertures. */
+   0x00134000/SPI10; IMX6DQRM Rev.2 Table 2-1 defines the apertures. */
 template <uint32_t kBase, VivanteCore kCore, int kIrqSpi> class Imx6Gpu : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -37,8 +35,8 @@ public:
         return bd && bd->GetSoc() == SocFamily::iMX6;
     }
     void OnReady() override {
-        mem_ = std::make_unique<VivanteMem>(st_, emu_, *this, Core(), IrqSpi());
-        blit_ = std::make_unique<VivanteBlit>(st_, *mem_, emu_);
+        mem_ = std::make_unique<VivanteMem>(st_, emu_, Core(), IrqSpi());
+        blit_ = std::make_unique<VivanteBlit>(st_, *mem_);
         fe_ = std::make_unique<VivanteFe>(st_, *mem_, *blit_);
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
         fe_worker_ = std::thread([this] { FeLoop(); });
@@ -60,9 +58,15 @@ public:
     int IrqSpi() const { return kIrqSpi; }
 
     uint8_t ReadByte(uint32_t addr) override {
+        const uint32_t word_off = (addr - MmioBase()) & ~3u;
+        if (word_off == 0x0DCu || word_off == 0x100u)
+            HaltUnsupportedAccess("read8 Vivante strict probe", addr, 0u);
         return Imx6ReadMmioByte(addr, [this](uint32_t a) { return ReadWord(a); });
     }
     uint16_t ReadHalf(uint32_t addr) override {
+        const uint32_t word_off = (addr - MmioBase()) & ~3u;
+        if (word_off == 0x0DCu || word_off == 0x100u)
+            HaltUnsupportedAccess("read16 Vivante strict probe", addr, 0u);
         return Imx6ReadMmioHalf(addr, [this](uint32_t a) { return ReadWord(a); });
     }
     uint32_t ReadWord(uint32_t addr) override {
@@ -111,14 +115,7 @@ public:
             break;
         case 0x014:  value = st_.intr_enable_; break;
         case 0x108:  value = 0u; break;
-        case 0x188:  value = st_.regs_[off >> 2]; break;
-        case 0x190:
-        case 0x194:
-        case 0x198:
-        case 0x19c:  value = st_.regs_[off >> 2]; break;
         case 0x384:  value = 0u; break;
-        case 0x180:  value = st_.regs_[off >> 2]; break;
-        case 0x18c:  value = st_.regs_[off >> 2] & 1u; break;
         case 0x018:  value = identity.chip_identity; break;
         case 0x01c:  value = identity.features; break;
         case 0x020:  value = identity.model; break;
@@ -140,8 +137,18 @@ public:
         case 0x094:  value = identity.minor[4]; break;
         case 0x09c:  value = identity.specs[3]; break;
         case 0x0a0:  value = identity.minor[5]; break;
-        case 0x0a8:
+        case 0x0a8:  value = 0u; break;
+        case 0x0dc:
+            /* hmi_ktp400_mobile_v17 GALCORE probes HI +0xDC on the i.MX6 Vivante cores;
+               etnaviv state_hi.xml HI omits this offset, so only this read32 probe is stubbed. */
+            value = 0u;
+            break;
         case 0x0e8:  value = 0u; break;
+        case 0x100:
+            /* etnaviv state_hi.xml PM.POWER_CONTROLS bit 0 enables module clock gating;
+               etnaviv_gpu.c resets it to 0, then enable_mlcg() sets bit 0. */
+            value = st_.regs_[off >> 2];
+            break;
         case 0x104:
         case 0x10c:  value = st_.regs_[off >> 2]; break;
         case 0x400:
@@ -191,10 +198,14 @@ public:
         return value;
     }
     void WriteByte(uint32_t addr, uint8_t value) override {
+        if (((addr - MmioBase()) & ~3u) == 0x100u)
+            HaltUnsupportedAccess("write8 Vivante PM.POWER_CONTROLS", addr, value);
         Imx6ForEachMmioLane(addr, value, 1u,
                             [this](const Imx6MmioLane& lane) { WriteLane(lane); });
     }
     void WriteHalf(uint32_t addr, uint16_t value) override {
+        if (((addr - MmioBase()) & ~3u) == 0x100u)
+            HaltUnsupportedAccess("write16 Vivante PM.POWER_CONTROLS", addr, value);
         Imx6ForEachMmioLane(addr, value, 2u,
                             [this](const Imx6MmioLane& lane) { WriteLane(lane); });
     }
@@ -203,8 +214,13 @@ public:
         const uint32_t off = addr - MmioBase();
         switch (off) {
         case 0x000:
-            if ((value & 0x00001000u) != 0u) mem_->ResetMmuv2State();
             st_.regs_[off >> 2] = value & ~0x00001000u;
+            break;
+        case 0x008:
+            /* etnaviv state_hi.xml HI.AXI_CONFIG defines AWID/ARID/AWCACHE/ARCACHE in bits 0..15. */
+            if ((value & 0xFFFF0000u) != 0u)
+                HaltUnsupportedAccess("Vivante HI.AXI_CONFIG reserved bits", addr, value);
+            st_.regs_[off >> 2] = value;
             break;
         case 0x010:
             st_.intr_status_ &= ~value;
@@ -217,8 +233,11 @@ public:
             break;
         case 0x038:
         case 0x03c:  st_.regs_[off >> 2] = value; break;
-        case 0x184:  mem_->WriteMmuv2Configuration(value); break;
-        case 0x180:  mem_->WriteMmuv2SafeAddress(value); break;
+        case 0x100:
+            if ((value & ~1u) != 0u)
+                HaltUnsupportedAccess("Vivante PM.POWER_CONTROLS", addr, value);
+            st_.regs_[off >> 2] = value;
+            break;
         case 0x104:
         case 0x10c:
         case 0x400:
@@ -240,29 +259,17 @@ public:
         case 0x47c:
         case 0x480:
             st_.regs_[off >> 2] = value;
-            if (off >= 0x400u && off <= 0x410u) mem_->InvalidateTranslationCache();
             break;
         case 0x430:
-            mem_->FlushEngineCaches(value);
+            mem_->FlushEngineCaches();
             st_.regs_[off >> 2] = 0u;
             break;
-        case 0x18c: {
-            const uint32_t old = st_.regs_[off >> 2];
-            st_.regs_[off >> 2] |= value & 1u;
-            if (st_.regs_[off >> 2] != old) mem_->InvalidateTranslationCache();
-            break;
-        }
         case 0x654:  st_.regs_[off >> 2] = value; break;
         case 0x658:
             st_.regs_[off >> 2] = value & ~0x00010000u;
             if (value & kFeCommandEnable) {
                 fe_->RunFrontend(value);
             }
-            break;
-        case 0x188:
-            st_.regs_[off >> 2] = 0u;
-            st_.intr_status_ &= ~kMmuv2Interrupt;
-            mem_->UpdateIrq();
             break;
         case 0x384:  st_.regs_[off >> 2] = 0u; break;
         default:
@@ -285,8 +292,6 @@ public:
         w.Write(st_.intr_enable_);
         uint32_t b = st_.irq_asserted_ ? 1u : 0u;
         w.Write(b);
-        b = st_.mmu_safe_address_written_ ? 1u : 0u;
-        w.Write(b);
         b = st_.fe_live_ ? 1u : 0u;
         w.Write(b);
         b = st_.fe_idle_ring_ ? 1u : 0u;
@@ -302,7 +307,6 @@ public:
         w.Write(st_.fe_call_depth_);
         w.WriteBytes(st_.fe_call_stack_, sizeof(st_.fe_call_stack_));
         w.WriteBytes(st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
-        w.Write(st_.chip_select_mask_);
         w.WriteBytes(st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
         w.Write(st_.de_pattern_latch_config_);
         w.Write(st_.de_pattern_latch_address_);
@@ -322,8 +326,6 @@ public:
         uint32_t b = 0;
         r.Read(b);
         st_.irq_asserted_ = b != 0u;
-        r.Read(b);
-        st_.mmu_safe_address_written_ = b != 0u;
         r.Read(b);
         st_.fe_live_ = b != 0u;
         r.Read(b);
@@ -345,7 +347,6 @@ public:
         if (st_.fe_call_depth_ > kFeCallStackDepth) st_.fe_call_depth_ = 0u;
         r.ReadBytes(st_.fe_call_stack_, sizeof(st_.fe_call_stack_));
         r.ReadBytes(st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
-        r.Read(st_.chip_select_mask_);
         r.ReadBytes(st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
         r.Read(st_.de_pattern_latch_config_);
         r.Read(st_.de_pattern_latch_address_);
@@ -361,7 +362,6 @@ public:
     void PostRestore() override {
         std::lock_guard<std::recursive_mutex> lk(fe_mutex_);
         st_.fe_in_advance_ = false;
-        mem_->InvalidateTranslationCache();
         mem_->UpdateIrq();
         if (st_.fe_live_) {
             std::lock_guard<std::mutex> g(fe_cv_mtx_);

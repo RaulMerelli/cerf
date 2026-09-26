@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/log.h"
+
 #include <cstdint>
 
 struct Imx6MmioLane {
@@ -28,6 +30,10 @@ uint16_t Imx6ReadMmioHalf(uint32_t address, ReadWord read_word) {
 
 inline Imx6MmioLane Imx6DecodeMmioLane(uint32_t address, uint32_t value,
                                        uint32_t width) {
+    if (width != 1u && width != 2u) {
+        LOG(Caution, "i.MX6 MMIO lane: width %u is not modelled\n", width);
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     const uint32_t shift = (address & 3u) * 8u;
     const uint32_t lane_mask = width == 1u ? 0xFFu : 0xFFFFu;
     return {address & ~3u, (value & lane_mask) << shift, lane_mask << shift};

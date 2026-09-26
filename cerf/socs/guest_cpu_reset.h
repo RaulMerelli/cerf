@@ -71,7 +71,7 @@ private:
     std::vector<std::function<void(ResetLineKind)>> reset_listeners_;
     std::vector<std::function<void(ResetKind)>>     reset_kind_listeners_;
     std::vector<std::function<void(ResetKind)>>     post_reset_kind_listeners_;
-    std::atomic<ResetKind>                          pending_kind_{ResetKind::Cold};
+    std::atomic<ResetKind>                          pending_kind_{ResetKind::Warm};
     std::atomic<bool>                               pending_is_resume_{false};
     bool                                            delivered_is_resume_ = false;
 };

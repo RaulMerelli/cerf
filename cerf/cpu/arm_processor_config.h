@@ -104,6 +104,9 @@ public:
     virtual bool     HasVmsav7()                  const { return false; }
     virtual ArmSupersectionFormat SupersectionFormat() const { return ArmSupersectionFormat::kNone; }
     virtual bool     HasSecurityExtensions()      const { return false; }
+    /* ARM DDI 0406C.d B4.2.2: TLBIALLIS, TLBIMVAIS, TLBIASIDIS, TLBIMVAAIS and TLBIMVAA
+       exist only with the Multiprocessing Extensions. */
+    virtual bool     HasMultiprocessingExtensions() const { return false; }
 
     /* c9,c0,2 op1=1 L2 Cache Auxiliary Control Register present (Cortex-A8). */
     virtual bool     HasL2CacheAuxControl()       const { return false; }

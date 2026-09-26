@@ -6,7 +6,7 @@
 namespace imx6_vivante {
 
 enum class VivanteCore : uint8_t {
-    Gc8803d,
+    Gc20003d,
     Gc3202d,
     Gc355Vg,
 };
@@ -46,32 +46,6 @@ inline constexpr uint32_t FeAlignedCommandWords(uint32_t semantic_words) {
 inline constexpr uint32_t FeDraw2dPacketWords(uint32_t rectangle_count, uint32_t data_count) {
     return 2u + rectangle_count * 2u + FeAlignedCommandWords(data_count);
 }
-inline constexpr uint32_t kMmuv2SafeAddress = 0x180u;
-inline constexpr uint32_t kMmuv2Configuration = 0x184u;
-inline constexpr uint32_t kMmuv2Status = 0x188u;
-inline constexpr uint32_t kMmuv2Control = 0x18Cu;
-inline constexpr uint32_t kMmuv2ExceptionAddress = 0x190u;
-inline constexpr uint32_t kMmuv2Interrupt = 1u << 30;
-inline constexpr uint32_t kMmuv2Mode1k = 1u << 0;
-inline constexpr uint32_t kMmuv2Mtlb4kMask = 0xFFC00000u;
-inline constexpr uint32_t kMmuv2Mtlb4kShift = 22u;
-inline constexpr uint32_t kMmuv2Mtlb1kMask = 0xFF000000u;
-inline constexpr uint32_t kMmuv2Mtlb1kShift = 24u;
-inline constexpr uint32_t kMmuv2MtlbMask = kMmuv2Mtlb4kMask;
-inline constexpr uint32_t kMmuv2MtlbShift = kMmuv2Mtlb4kShift;
-inline constexpr uint32_t kMmuv2StlbMask = 0x003FF000u;
-inline constexpr uint32_t kMmuv2StlbShift = 12u;
-inline constexpr uint32_t kMmuv2PtePresent = 1u << 0;
-inline constexpr uint32_t kMmuv2PteException = 1u << 1;
-inline constexpr uint32_t kMmuv2PteWriteable = 1u << 2;
-inline constexpr uint32_t kMmuv2MtlbPageSizeMask = 3u << 2;
-inline constexpr uint32_t kMmuv2MtlbPage4k = 0u << 2;
-inline constexpr uint32_t kMmuv2MtlbPage64k = 1u << 2;
-inline constexpr uint32_t kMmuv2MtlbPage1m = 2u << 2;
-inline constexpr uint32_t kMmuv2MtlbPage16m = 3u << 2;
-inline constexpr uint32_t kMmuv2StlbAddressMask = 0xFFFFFFC0u;
-inline constexpr uint32_t kMmuv2PageMask = 0xFFFFF000u;
-
 /* Linux etnaviv_iommu.c defines one shared MMUv1 raw-PA page table; etnaviv
    state_hi.xml defines the MC page-table registers. */
 inline constexpr uint32_t kMmuv1GpuMemStart = 0x80000000u;
@@ -79,12 +53,10 @@ inline constexpr uint32_t kMmuv1PageMask = 0xFFFFF000u;
 inline constexpr uint32_t kMmuv1FePageTable = 0x400u;
 inline constexpr uint32_t kMmuv1TxPageTable = 0x404u;
 inline constexpr uint32_t kMmuv1PePageTable = 0x408u;
-inline constexpr uint32_t kMmuv1PezPageTable = 0x40Cu;
 inline constexpr uint32_t kMmuv1RaPageTable = 0x410u;
 inline constexpr uint32_t kMmuv1MemoryBaseRa = 0x418u;
 inline constexpr uint32_t kMmuv1MemoryBaseFe = 0x41Cu;
 inline constexpr uint32_t kMmuv1MemoryBaseTx = 0x420u;
-inline constexpr uint32_t kMmuv1MemoryBasePez = 0x424u;
 inline constexpr uint32_t kMmuv1MemoryBasePe = 0x428u;
 
 enum class MmuClient : uint8_t {
@@ -94,24 +66,7 @@ enum class MmuClient : uint8_t {
     Rasterizer = 3,
 };
 
-enum class MmuException : uint32_t {
-    None = 0,
-    SlaveNotPresent = 1,
-    PageNotPresent = 2,
-    WriteViolation = 3,
-    OutOfBound = 4,
-    ReadSecurityViolation = 5,
-    WriteSecurityViolation = 6,
-};
-
 struct FeStats {
-    uint32_t commands = 0;
-    uint32_t load_state = 0;
-    uint32_t draw_2d = 0;
-    uint32_t draw_3d = 0;
-    uint32_t links = 0;
-    uint32_t waits = 0;
-    uint32_t events = 0;
     bool idle_ring = false;
     bool stopped = false;
     bool blocked = false;
@@ -139,7 +94,6 @@ struct VivanteState {
     uint32_t intr_status_ = 0;
     uint32_t intr_enable_ = 0;
     bool irq_asserted_ = false;
-    bool mmu_safe_address_written_ = false;
     bool fe_live_ = false;
     bool fe_idle_ring_ = false;
     bool fe_in_advance_ = false;
@@ -152,7 +106,6 @@ struct VivanteState {
     FeCallFrame fe_call_stack_[kFeCallStackDepth]{};
     uint32_t fe_call_depth_ = 0;
     uint32_t semaphore_tokens_[32]{};
-    uint32_t chip_select_mask_ = 0;
     uint8_t de_pattern_latch_[256]{};
     uint32_t de_pattern_latch_config_ = 0;
     uint32_t de_pattern_latch_address_ = 0;
@@ -161,4 +114,4 @@ struct VivanteState {
     std::vector<uint32_t> state_;
 };
 
-} // namespace imx6_vivante
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../core/log.h"
 #include "imx6_vivante_state.h"
 
 #include <cstdint>
@@ -28,15 +29,15 @@ inline constexpr VivanteIdentityProfile kGc320Identity = {
     {0xA4410A61u, 0x01000008u, 0x00000081u, 0u},
 };
 
-inline constexpr VivanteIdentityProfile kGc880Identity = {
+inline constexpr VivanteIdentityProfile kGc2000Identity = {
     0u,
-    0x0880u,
-    0x5106u,
+    0x2000u,
+    0x5108u,
     0x20120617u,
     0u,
-    0xE02864ADu,
-    {0xC1F99EFFu, 0xEEFBF2D9u, 0x02100284u, 0u, 0u, 0u},
-    {0x92108868u, 0x01000000u, 0x000000C1u, 0u},
+    0xE0296CADu,
+    {0xC9799EFFu, 0x2EFBF2D9u, 0u, 0u, 0u, 0u},
+    {0x94410A68u, 0u, 0x000000C1u, 0u},
 };
 
 inline constexpr VivanteIdentityProfile kGc355Identity = {
@@ -44,15 +45,21 @@ inline constexpr VivanteIdentityProfile kGc355Identity = {
 };
 
 static_assert((kGc320Identity.features & (1u << 9)) != 0u);
-static_assert((kGc880Identity.features & (1u << 9)) == 0u);
+static_assert((kGc2000Identity.features & (1u << 9)) == 0u);
 static_assert((kGc355Identity.features & (1u << 9)) == 0u);
+/* etnaviv common.xml chipMinorFeatures1 bit 28 is MMU_VERSION. */
+static_assert((kGc320Identity.minor[1] & (1u << 28)) == 0u);
+static_assert((kGc2000Identity.minor[1] & (1u << 28)) == 0u);
+static_assert((kGc355Identity.minor[1] & (1u << 28)) == 0u);
 
 inline const VivanteIdentityProfile& IdentityFor(VivanteCore core) {
     switch (core) {
+    case VivanteCore::Gc20003d: return kGc2000Identity;
     case VivanteCore::Gc3202d: return kGc320Identity;
     case VivanteCore::Gc355Vg: return kGc355Identity;
-    default: return kGc880Identity;
     }
+    LOG(Caution, "imx6-vivante: no identity profile for core %u\n", static_cast<unsigned>(core));
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
-} // namespace imx6_vivante
+}

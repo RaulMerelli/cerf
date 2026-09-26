@@ -1,5 +1,5 @@
 #include "../../boards/board_context.h"
-#include "../../boot/rom_placer.h"
+#include "../../boot/guest_cold_boot.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/service.h"
 #include "../../cpu/emulated_memory.h"
@@ -10,6 +10,8 @@
 
 namespace {
 
+/* IMX6DQRM Rev.2 §8.4.1 Figure 8-3: the internal ROM occupies
+   0x00000000..0x00017FFF. */
 class Imx6BootRom final : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -20,8 +22,8 @@ public:
     }
 
     void OnReady() override {
-        emu_.Get<RomPlacer>();
         SeedVersion();
+        emu_.Get<GuestColdBoot>().RegisterReplay([this] { SeedVersion(); });
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
     void PostRestore() override { SeedVersion(); }
@@ -44,9 +46,12 @@ public:
     }
 
 private:
+    /* IMX6DQRM Rev.2 §8.4.1 Figure 8-3: "ROM Version and Copyright Information"
+       at 0x00000048. hmi_ktp700_mobile_v13 nk.exe OEMInit sub_8030E69C rejects
+       below 0x15. */
     void SeedVersion() {
-        constexpr uint32_t kRomVersion = 0x00000015u;
-        emu_.Get<EmulatedMemory>().CopyIn(0x00000048u, &kRomVersion, sizeof(kRomVersion));
+        constexpr uint32_t kRomVersionGateStub = 0x00000015u;
+        emu_.Get<EmulatedMemory>().CopyIn(0x00000048u, &kRomVersionGateStub, sizeof(kRomVersionGateStub));
     }
 };
 

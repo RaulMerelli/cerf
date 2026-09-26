@@ -8,6 +8,8 @@ struct KtpMobileBoardProfile {
     KtpMobileOpType op_type;
     KtpMobilePanel panel;
     const char* touch_size_suffix;
+    bool has_f_module;
 };
 
+const KtpMobileBoardProfile* TryKtpMobileBoardProfileFor(Board board);
 const KtpMobileBoardProfile& KtpMobileBoardProfileFor(Board board);

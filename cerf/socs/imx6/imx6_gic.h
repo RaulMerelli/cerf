@@ -23,4 +23,7 @@ public:
     virtual void RestoreGicState(StateReader& reader) = 0;
     virtual void PostRestoreGicState() = 0;
     virtual bool Tick() = 0;
+
+    /* How long the sampler may wait before the next private-timer expiry can be missed. */
+    virtual int64_t NextSampleNs() = 0;
 };

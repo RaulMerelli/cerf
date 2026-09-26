@@ -12,11 +12,12 @@
 
 namespace {
 
-/* IMX6SDLRM Rev.1 Table 2-2. */
+/* IMX6DQRM Rev.2 Table 2-1: Boot ROM 0x00000000 (96 KB), OCRAM 0x00900000 (256 KB). */
 constexpr uint32_t kBootRomPa = 0x00000000u;
 constexpr uint32_t kBootRomSize = 0x00018000u;
 constexpr uint32_t kOcramPa = 0x00900000u;
-constexpr uint32_t kOcramSize = 0x00020000u;
+constexpr uint32_t kOcramSize = 0x00040000u;
+constexpr uint32_t kGuestAdditionsBandVa = 0xF0000000u;
 
 class KtpMobilePageTableBuilder : public PageTableBuilder {
 public:
@@ -31,7 +32,11 @@ public:
     uint32_t VaToPa(uint32_t va) const override;
     std::vector<DramRegion> CachedDramRegions() const override;
     std::vector<BackedRegion> BackedMemoryRegions() const override;
+    uint32_t DramChipSelectBytes() const override { return kDdrChipSelectSize; }
     std::vector<DramRegion> MappedVaSpans() const override;
+    InjectionBandPlacement GuestAdditionsBandPlacement(uint32_t) const override {
+        return {kGuestAdditionsBandVa, false};
+    }
 private:
     const std::vector<KtpMobileOatEntry>& RomSpans() const;
 
@@ -67,10 +72,8 @@ std::vector<DramRegion> KtpMobilePageTableBuilder::CachedDramRegions() const {
 
 std::vector<BackedRegion> KtpMobilePageTableBuilder::BackedMemoryRegions() const {
     std::vector<BackedRegion> regions;
-    regions.push_back({kDram.va_base, kDram.pa_base, kDram.size, PAGE_READWRITE});
+    regions.push_back({kDram.va_base, kDram.pa_base, kDdrSize, PAGE_READWRITE});
 
-    /* IMX6SDLRM Rev.4 Table 2-1 maps boot ROM at PA 0 and OCRAM at 0x00900000;
-       QEMU fsl-imx6.c exposes the OCRAM and its alias as one backing store. */
     const auto back_on_chip = [&](uint32_t pa, uint32_t size) {
         for (const auto& e : RomSpans()) {
             if (pa < e.pa || pa - e.pa >= e.size) continue;

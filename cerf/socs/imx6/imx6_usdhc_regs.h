@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-/* QEMU sdhci-internal.h and IMX6SDLRM §67.8. */
+/* QEMU sdhci-internal.h and IMX6DQRM Rev.2 §67.8. */
 inline constexpr uint32_t kDS_ADDR = 0x00u;
 inline constexpr uint32_t kBLK_ATT = 0x04u;
 inline constexpr uint32_t kCMD_ARG = 0x08u;
@@ -17,8 +17,8 @@ inline constexpr uint32_t kPROT_CTRL = 0x28u;
 inline constexpr uint32_t kSYS_CTRL = 0x2Cu;
 inline constexpr uint32_t kIRQSTAT = 0x30u;
 inline constexpr uint32_t kIRQSTATEN = 0x34u;
-inline constexpr uint32_t kIRQSIGEN = 0x38u;
 inline constexpr uint32_t kAUTOCMD12 = 0x3Cu;
+inline constexpr uint32_t kIRQSIGEN = 0x38u;
 inline constexpr uint32_t kHOST_CAP = 0x40u;
 inline constexpr uint32_t kWTMK_LVL = 0x44u;
 inline constexpr uint32_t kMIX_CTRL = 0x48u;
@@ -32,7 +32,22 @@ inline constexpr uint32_t kDINT = 0x00000008u;
 inline constexpr uint32_t kBWR = 0x00000010u;
 inline constexpr uint32_t kBRR = 0x00000020u;
 inline constexpr uint32_t kERRI = 0x00008000u;
+inline constexpr uint32_t kAC12E = 0x01000000u;
+inline constexpr uint32_t kAc12NotExecuted = 0x00000001u;
 inline constexpr uint32_t kCTOE = 0x00010000u;
+/* IMX6DQRM Rev.2 §67.8.6: PROT_CTRL EMODE[5:4] b10 is little endian, DMASEL[9:8] b01 is ADMA1
+   and b11 reserved, and bits 30, 20..16 and 7 are the SDIO and card-detect-test controls. */
+inline constexpr uint32_t kProtEndianMask = 0x00000030u;
+inline constexpr uint32_t kProtEndianLittle = 0x00000020u;
+inline constexpr uint32_t kProtDmaSelMask = 0x00000300u;
+inline constexpr uint32_t kProtDmaSelAdma1 = 0x00000100u;
+inline constexpr uint32_t kProtUnmodelledMask = 0x401F0080u;
+
+/* IMX6DQRM Rev.2 §67.8.26: VEND_SPEC resets to 0x20007809, and VSELECT[1] drives the pad
+   voltage of the external card through a control circuit outside the uSDHC. */
+inline constexpr uint32_t kVendSpecReset = 0x20007809u;
+inline constexpr uint32_t kVendVselect = 0x00000002u;
+
 inline constexpr uint32_t kErrorSpecificMask = 0x117F0000u;
 
 inline constexpr uint32_t kCLK_INT_EN = 0x00000001u;
@@ -61,5 +76,4 @@ inline constexpr uint32_t kHostVersion = 0x24010000u;
 inline constexpr uint32_t kMixDmaEn = 0x00000001u;
 inline constexpr uint32_t kMixBlkCntEn = 0x00000002u;
 inline constexpr uint32_t kMixAutoCmd12 = 0x00000004u;
-inline constexpr uint32_t kMixDataRead = 0x00000010u;
 inline constexpr uint32_t kMixMultiBlk = 0x00000020u;

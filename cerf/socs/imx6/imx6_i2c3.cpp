@@ -6,5 +6,5 @@ public:
     using Imx6I2c::Imx6I2c;
 
 };
-} // namespace
+}
 REGISTER_SERVICE(Imx6I2c3);

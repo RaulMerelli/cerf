@@ -129,14 +129,12 @@ uint8_t* ArmMmuProbe::PeekVaToHost(uint32_t va) {
 
     if (std::optional<uint8_t*> tlb = PeekDataTlb(va)) return *tlb;
 
-    uint32_t band_pa = 0;
-    if (InjectionBandPa(va, &band_pa)) {
-        uint8_t* ram = memory_->TryTranslateWrite(band_pa);
-        return ram ? ram : memory_->TryTranslate(band_pa);
-    }
-
     std::optional<uint32_t> pa = WalkVaToPa(va);
-    if (!pa) return nullptr;
+    if (!pa) {
+        uint32_t band_pa = 0;
+        if (!InjectionBandPa(va, &band_pa)) return nullptr;
+        pa = band_pa;
+    }
     uint8_t* ram = memory_->TryTranslateWrite(*pa);
     return ram ? ram : memory_->TryTranslate(*pa);
 }
@@ -154,10 +152,8 @@ bool ArmMmuProbe::PeekVaToPa(uint32_t va, uint32_t* pa) {
         return true;
     }
 
-    if (InjectionBandPa(va, pa)) return true;
-
     std::optional<uint32_t> walked = WalkVaToPa(va);
-    if (!walked) return false;
+    if (!walked) return InjectionBandPa(va, pa);
     *pa = *walked;
     return true;
 }
@@ -181,11 +177,7 @@ bool ArmMmuProbe::TlbPar(uint32_t va, uint32_t* pa, uint16_t* attrs) const {
         *attrs = ArmTlbParAttributes(e);
         return true;
     }
-    if (!InjectionBandPa(va, pa)) return false;
-    /* ARM DDI 0406C.d B4.1.112: zero PAR attributes encode Normal,
-       non-cacheable, non-shareable memory for this CERF-owned band. */
-    *attrs = 0u;
-    return true;
+    return false;
 }
 
 bool ArmMmuProbe::WalkPar(uint32_t va, uint32_t* pa, uint16_t* attrs) const {

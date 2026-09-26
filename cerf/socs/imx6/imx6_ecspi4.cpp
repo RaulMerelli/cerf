@@ -8,6 +8,6 @@ public:
 
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(Imx6Ecspi4);

@@ -99,8 +99,8 @@ def build_supported_devices():
                              f'<br/><sub>{soc.arch}</sub></td>')
             board_label = (f'{icon_img("board", "PDA", 16)} '
                            f'<b>{board["name"]}</b>')
-            if not board.get('board_ids'):
-                board_label += f' <code>{board["board_id"]}</code>'
+            ids = [board["board_id"]] + list(board.get('board_ids', []))
+            board_label += ' ' + ' '.join(f'<code>{i}</code>' for i in ids)
             cell = [board_label]
             cell += [guest_os.name for guest_os in board['operating_systems']]
             lines.append('      <td>')

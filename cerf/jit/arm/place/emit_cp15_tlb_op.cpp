@@ -40,8 +40,8 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                 &ArmTranslationCache::DtlbInvalidateMvaHelper);
             break;
         case 3:
-            /* ARM DDI 0406C.c Figure B3-34: c8,c3, inner-shareable unified TLB. */
-            if (!emit->ProcessorConfig()->HasCp15V7()) {
+            /* ARM DDI 0406C.d Table B3-50: c8,c3 is the Inner Shareable unified TLB. */
+            if (!emit->ProcessorConfig()->HasMultiprocessingExtensions()) {
                 return EmitRaiseUndAndReturn(cursor, d, ctx);
             }
             [[fallthrough]];
@@ -80,6 +80,20 @@ uint8_t* EmitCp15TlbOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
                     static_cast<uint32_t>(
                     reinterpret_cast<uintptr_t>(emit->TranslationCache())));
                 EmitCall(cursor, all_helper);
+                return cursor;
+            }
+            return EmitRaiseUndAndReturn(cursor, d, ctx);
+        case 3:
+            /* ARM DDI 0406C.d Table B3-50 (p. B3-1492): TLBIMVAA c7,3 and
+               TLBIMVAAIS c3,3 invalidate by MVA for all ASIDs; B4.2.2 lists
+               them as Multiprocessing Extensions operations. */
+            if (emit->ProcessorConfig()->HasMultiprocessingExtensions() && (d->crm == 7 || d->crm == 3)) {
+                EmitMovRegBaseDisp32(cursor, kEcx, kStateReg,
+                    static_cast<int32_t>(offsetof(ArmCpuState, gprs) + d->rd * 4u));
+                EmitMovRegImm32(cursor, kEdx,
+                    static_cast<uint32_t>(
+                        reinterpret_cast<uintptr_t>(emit->TranslationCache())));
+                EmitCall(cursor, mva_helper);
                 return cursor;
             }
             return EmitRaiseUndAndReturn(cursor, d, ctx);

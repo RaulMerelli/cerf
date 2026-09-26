@@ -3,7 +3,7 @@
 #include "imx6_uart.h"
 #include "imx6_gic.h"
 
-/* IMX6SDLRM Rev.4 Table 2-3 maps UART2 at 0x021E8000. */
+/* IMX6DQRM Rev.2 Table 2-3 maps UART2 at 0x021E8000. */
 class Imx6Uart2 : public Imx6Uart<0x021E8000u, 2> {
 public:
     using Imx6Uart::Imx6Uart;

@@ -28,10 +28,13 @@ struct CommandSchema {
     std::uint32_t payload_length;
 };
 
-inline constexpr std::array<CommandSchema, 11> kHostReachableSchemas{{
+/* hmi_ktp400_mobile_v13 FModuleService.dll sub_EF1F79F8 and sub_EF1F5E34 @ 0xEF1F5E34 take
+   command 240 with at most 54 bytes; when payload[0] is 0xFD and payload[1] is 0x01,
+   sub_EF1F81EC routes it to a second callback and sub_EF1F7010 parses 46 big-endian bytes. */
+inline constexpr std::array<CommandSchema, 14> kHostReachableSchemas{{
     {201u, 205u}, {131u, 2u}, {132u, 7u}, {133u, 7u}, {134u, 1u},
-    {135u, 1u}, {138u, 20u}, {240u, 54u}, {239u, 240u}, {128u, 14u},
-    {130u, 2u},
+    {135u, 1u}, {138u, 20u}, {251u, 22u}, {242u, 33u}, {256u, 1u},
+    {240u, 54u}, {239u, 240u}, {128u, 14u}, {130u, 2u},
 }};
 
 inline constexpr std::array<CommandSchema, 19> kModuleSchemas{{

@@ -21,7 +21,7 @@ uint32_t Get32(const uint8_t* p) {
     return uint32_t(p[0]) | (uint32_t(p[1]) << 8u) | (uint32_t(p[2]) << 16u) | (uint32_t(p[3]) << 24u);
 }
 
-} // namespace
+}
 
 namespace ktp_mobile_emmc {
 
@@ -393,4 +393,4 @@ void EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
     ensure_fsinfo();
 }
 
-} // namespace ktp_mobile_emmc
+}

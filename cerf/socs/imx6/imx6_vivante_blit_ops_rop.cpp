@@ -101,4 +101,4 @@ uint32_t VivanteBlitRopOps::ReadStreamMonoBit(const uint8_t* stream, uint32_t x,
     return (w >> (31u - in_word)) & 1u;
 }
 
-} // namespace imx6_vivante
+}

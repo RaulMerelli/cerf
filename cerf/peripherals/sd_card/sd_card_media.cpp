@@ -17,7 +17,7 @@ void Put32(uint8_t* p, uint32_t value) {
     p[3] = static_cast<uint8_t>(value >> 24u);
 }
 
-} // namespace
+}
 
 SdCardMedia::SdCardMedia(uint64_t size_bytes) {
     const uint64_t blocks = (size_bytes + 511u) / 512u;
@@ -80,7 +80,7 @@ void SdCardMedia::BuildMinimalFat16() {
     Put32(bpb + 32, part_blocks >= 65536u ? part_blocks : 0u);
     bpb[36] = 0x80;
     bpb[38] = 0x29;
-    Put32(bpb + 39, 0x43455246u); /* volume serial: "FREC" LE */
+    Put32(bpb + 39, 0x43455246u);
     std::memcpy(bpb + 43, "CERFSD     ", 11);
     std::memcpy(bpb + 54, "FAT16   ", 8);
     bpb[510] = 0x55;

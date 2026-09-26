@@ -18,28 +18,6 @@ uint32_t VivanteBlitFormatOps::BppFromDeFormat(uint32_t fmt) {
     }
 }
 
-const char* VivanteBlitFormatOps::DeFormatName(uint32_t fmt) {
-    switch (fmt & 0x1Fu) {
-    case 0: return "X4R4G4B4";
-    case 1: return "A4R4G4B4";
-    case 2: return "X1R5G5B5";
-    case 3: return "A1R5G5B5";
-    case 4: return "R5G6B5";
-    case 5: return "X8R8G8B8";
-    case 6: return "A8R8G8B8";
-    case 7: return "YUY2";
-    case 8: return "UYVY";
-    case 9: return "INDEX8";
-    case 10: return "MONOCHROME";
-    case 15: return "YV12";
-    case 16: return "A8";
-    case 17: return "NV12";
-    case 18: return "NV16";
-    case 19: return "RG16";
-    default: return "unsupported";
-    }
-}
-
 uint32_t VivanteBlitFormatOps::YuvToArgb(uint32_t y, uint32_t u, uint32_t v, bool bt709) {
     const int32_t a = static_cast<int32_t>(y) - 16;
     const int32_t b = static_cast<int32_t>(u) - 128;
@@ -53,27 +31,6 @@ uint32_t VivanteBlitFormatOps::YuvToArgb(uint32_t y, uint32_t u, uint32_t v, boo
         return static_cast<uint32_t>(value);
     };
     return 0xFF000000u | (clip(r) << 16) | (clip(g) << 8) | clip(blue);
-}
-
-uint32_t VivanteBlitFormatOps::AlphaOver(uint32_t src, uint32_t dst) {
-    const uint32_t sa = (src >> 24) & 0xFFu;
-    const uint32_t da = (dst >> 24) & 0xFFu;
-    if (sa == 0u) return dst;
-    if (sa == 255u) return src;
-
-    const uint32_t inv = 255u - sa;
-    const uint32_t out_a = sa + Scale8(da, inv);
-    if (out_a == 0u) return 0u;
-
-    auto compose = [&](uint32_t sc, uint32_t dc) -> uint32_t {
-        const uint32_t premul = sc * sa + Scale8(dc * da, inv);
-        const uint32_t out = (premul + out_a / 2u) / out_a;
-        return out > 255u ? 255u : out;
-    };
-    const uint32_t r = compose((src >> 16) & 0xFFu, (dst >> 16) & 0xFFu);
-    const uint32_t g = compose((src >> 8) & 0xFFu, (dst >> 8) & 0xFFu);
-    const uint32_t b = compose(src & 0xFFu, dst & 0xFFu);
-    return (out_a << 24) | (r << 16) | (g << 8) | b;
 }
 
 VivanteBlitFormatOps::ArgbChannels VivanteBlitFormatOps::BlendFactor(uint32_t mode, const ArgbChannels& reference,
@@ -125,18 +82,15 @@ uint32_t VivanteBlitFormatOps::BlendPePixel(uint32_t src_argb, uint32_t dst_argb
     }
 
     if (pe20) {
-        switch ((color_multiply_modes >> 8) & 3u) {
-        case 1u:
+        const uint32_t global_premultiply = (color_multiply_modes >> 8) & 3u;
+        if (global_premultiply == 1u) {
             src.r = Scale8(src.r, global_src.a);
             src.g = Scale8(src.g, global_src.a);
             src.b = Scale8(src.b, global_src.a);
-            break;
-        case 2u:
+        } else if (global_premultiply == 2u) {
             src.r = Scale8(src.r, global_src.r);
             src.g = Scale8(src.g, global_src.g);
             src.b = Scale8(src.b, global_src.b);
-            break;
-        default: break;
         }
     }
 
@@ -240,74 +194,6 @@ bool VivanteBlitFormatOps::NativeColorKeyMatch(uint32_t packed, uint32_t low, ui
     return true;
 }
 
-bool VivanteBlitFormatOps::ReadVrYuvPixel(const uint8_t* y_plane, uint32_t y_stride, const uint8_t* u_plane,
-                                    uint32_t u_stride, const uint8_t* v_plane, uint32_t v_stride, uint32_t x,
-                                    uint32_t y, uint32_t fmt, uint32_t endian, bool uv_swizzle, bool bt709,
-                                    uint32_t& argb) {
-    if (!y_plane || y_stride == 0u) return false;
-
-    uint32_t yy = 0u;
-    uint32_t uu = 128u;
-    uint32_t vv = 128u;
-    switch (fmt & 0x1Fu) {
-    case 7u: {
-        const size_t pair = static_cast<size_t>(y) * y_stride + static_cast<size_t>(x >> 1) * 4u;
-        const uint32_t packed = ReadPackedEndian(y_plane, pair, 4u, endian);
-        yy = (packed >> ((x & 1u) ? 16u : 0u)) & 0xFFu;
-        uu = (packed >> 8) & 0xFFu;
-        vv = (packed >> 24) & 0xFFu;
-        break;
-    }
-    case 8u: {
-        const size_t pair = static_cast<size_t>(y) * y_stride + static_cast<size_t>(x >> 1) * 4u;
-        const uint32_t packed = ReadPackedEndian(y_plane, pair, 4u, endian);
-        yy = (packed >> ((x & 1u) ? 24u : 8u)) & 0xFFu;
-        uu = packed & 0xFFu;
-        vv = (packed >> 16) & 0xFFu;
-        break;
-    }
-    case 15u: {
-        if (!u_plane || !v_plane || u_stride == 0u || v_stride == 0u) return false;
-        yy = y_plane[EndianByteOffset(static_cast<size_t>(y) * y_stride + x, endian)];
-        const size_t ux = x >> 1;
-        const size_t uy = y >> 1;
-        uu = u_plane[EndianByteOffset(uy * u_stride + ux, endian)];
-        vv = v_plane[EndianByteOffset(uy * v_stride + ux, endian)];
-        break;
-    }
-    case 17u:
-    case 18u: {
-        if (!u_plane || u_stride == 0u) return false;
-        yy = y_plane[EndianByteOffset(static_cast<size_t>(y) * y_stride + x, endian)];
-        const size_t chroma_y = ((fmt & 0x1Fu) == 17u) ? (y >> 1) : y;
-        const size_t uv = chroma_y * u_stride + (x & ~1u);
-        uu = u_plane[EndianByteOffset(uv, endian)];
-        vv = u_plane[EndianByteOffset(uv + 1u, endian)];
-        break;
-    }
-    default: return false;
-    }
-
-    if (uv_swizzle) {
-        const uint32_t tmp = uu;
-        uu = vv;
-        vv = tmp;
-    }
-    argb = YuvToArgb(yy, uu, vv, bt709);
-    return true;
-}
-
-void VivanteBlitFormatOps::ApplyPe10ClearBytes(uint8_t* base, size_t offset, uint32_t pixel_bytes, uint32_t low,
-                                         uint32_t high, uint32_t byte_mask, uint32_t endian) {
-    if (!base || pixel_bytes == 0u) return;
-    const uint64_t pattern = static_cast<uint64_t>(low) | (static_cast<uint64_t>(high) << 32);
-    for (uint32_t byte = 0u; byte < pixel_bytes; ++byte) {
-        const uint32_t slot = static_cast<uint32_t>((offset + byte) & 7u);
-        if ((byte_mask & (1u << slot)) == 0u) continue;
-        base[EndianByteOffset(offset + byte, endian)] = static_cast<uint8_t>(pattern >> (slot * 8u));
-    }
-}
-
 uint32_t VivanteBlitFormatOps::UnpackSurfaceColor(uint32_t packed, uint32_t fmt, uint32_t swizzle) {
     switch (fmt & 0x1Fu) {
     case 0: return Rgba4444ToArgb(static_cast<uint16_t>(packed), false);
@@ -338,4 +224,4 @@ uint32_t VivanteBlitFormatOps::PackSurfaceColor(uint32_t argb, uint32_t fmt, uin
     }
 }
 
-} // namespace imx6_vivante
+}

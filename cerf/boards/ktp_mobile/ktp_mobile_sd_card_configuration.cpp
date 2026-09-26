@@ -23,12 +23,14 @@ public:
         return board && BoardContext::IsKtpMobile(board->GetBoard());
     }
 
+    uint64_t MediaSizeBytes() const override { return 128ull * 1024u * 1024u; }
+
     void Configure(SdCard& card) override {
         const auto& config = emu_.Get<DeviceConfig>();
         const auto& profile = KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoard());
         card.ConfigureMedia(std::make_unique<KtpMobileSdCardBackend>(
             GetDeviceDir(config.device_name), config.rom_primary,
-            profile.op_type, profile.panel,
+            profile.op_type,
             emu_.Get<NetworkBackend>().MacForReceiver(
                 kImx6FecReceiverId, NetworkBackend::ReceiverKind::Ethernet)));
     }

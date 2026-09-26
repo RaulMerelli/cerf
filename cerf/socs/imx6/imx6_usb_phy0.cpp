@@ -6,5 +6,5 @@ public:
     using Imx6UsbPhy::Imx6UsbPhy;
 
 };
-} // namespace
+}
 REGISTER_SERVICE(Imx6UsbPhy0);

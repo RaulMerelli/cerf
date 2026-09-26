@@ -3,6 +3,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../boards/board_context.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -13,7 +14,9 @@
 #include <cstdint>
 #include <deque>
 
-namespace {
+namespace cerf_imx6_ecspi_detail {
+
+inline constexpr uint32_t kTestLoopBack = 0x80000000u;
 
 template <uint32_t kBase> class Imx6Ecspi : public Peripheral {
 public:
@@ -37,11 +40,10 @@ private:
     uint32_t ReadWord(uint32_t addr) override {
         switch (addr - kBase) {
         case 0x00u: {
-            uint32_t v = 0xFFFFFFFFu;
-            if (!rx_fifo_.empty()) {
-                v = rx_fifo_.front();
-                rx_fifo_.pop_front();
-            }
+            if (rx_fifo_.empty())
+                HaltUnsupportedAccess("imx6-ecspi RXDATA read with an empty receive FIFO", addr, 0);
+            const uint32_t v = rx_fifo_.front();
+            rx_fifo_.pop_front();
             RecomputeStatus();
             return v;
         }
@@ -50,8 +52,10 @@ private:
         case 0x10u: return Enabled() ? intreg_ : 0u;
         case 0x14u: return Enabled() ? dmareg_ : 0u;
         case 0x18u: RecomputeStatus(); return statreg_;
-        case 0x1Cu: return periodreg_;
-        case 0x20u: return testreg_;
+        /* IMX6DQRM Rev.2 §21.7.9: TESTREG RXCNT[14:8] and TXCNT[6:0] report the number of words
+           in each FIFO, and LBC[31] connects the transmitter to the receiver internally. */
+        case 0x20u:
+            return (static_cast<uint32_t>(rx_fifo_.size()) << 8) | static_cast<uint32_t>(tx_fifo_.size());
         }
         HaltUnsupportedAccess("ReadWord", addr, 0);
     }
@@ -59,8 +63,11 @@ private:
     void WriteWord(uint32_t addr, uint32_t value) override {
         switch (addr - kBase) {
         case 0x04u:
-            if (!Enabled()) return;
-            if (tx_fifo_.size() < kFifoDepth) tx_fifo_.push_back(value);
+            if (!Enabled())
+                HaltUnsupportedAccess("imx6-ecspi TXDATA write with the block disabled", addr, value);
+            if (tx_fifo_.size() >= kFifoDepth)
+                HaltUnsupportedAccess("imx6-ecspi TXDATA write with a full transmit FIFO", addr, value);
+            tx_fifo_.push_back(value);
             RecomputeStatus();
             return;
         case 0x08u:
@@ -81,9 +88,13 @@ private:
             statreg_ &= ~(value & (kStRo | kStTc));
             UpdateIrq();
             return;
-        case 0x1Cu: periodreg_ = value; return;
-        case 0x20u: testreg_ = value; return;
-        case 0x24u: return;
+        /* IMX6DQRM Rev.2 §21.7.8: PERIODREG sets the delay inserted between consecutive SPI
+           bursts, which this untimed transfer model does not reproduce. */
+        case 0x1Cu: return;
+        case 0x20u:
+            if ((value & kTestLoopBack) != 0u)
+                HaltUnsupportedAccess("imx6-ecspi TESTREG loop back is not modelled", addr, value);
+            return;
         }
         HaltUnsupportedAccess("WriteWord", addr, value);
     }
@@ -94,8 +105,6 @@ private:
         w.Write(intreg_);
         w.Write(dmareg_);
         w.Write(statreg_);
-        w.Write(periodreg_);
-        w.Write(testreg_);
         w.Write(static_cast<uint32_t>(tx_fifo_.size()));
         for (uint32_t v : tx_fifo_)
             w.Write(v);
@@ -109,8 +118,6 @@ private:
         r.Read(intreg_);
         r.Read(dmareg_);
         r.Read(statreg_);
-        r.Read(periodreg_);
-        r.Read(testreg_);
         tx_fifo_.clear();
         rx_fifo_.clear();
         uint32_t n = 0, v = 0;
@@ -132,22 +139,16 @@ private:
 
 private:
     void DoExchange() {
-        if constexpr (kBase == 0x02010000u) {
-            if (auto* endpoint = emu_.TryGet<Imx6EcspiEndpoint>();
-                endpoint && endpoint->EcspiBase() == kBase) {
-                tx_fifo_.clear();
-                if (!endpoint->Exchange(conreg_, configreg_)) statreg_ |= kStRo;
-                statreg_ |= kStTc;
-                return;
-            }
+        if (auto* endpoint = emu_.TryGet<Imx6EcspiEndpoint>();
+            endpoint && endpoint->EcspiBase() == kBase) {
+            tx_fifo_.clear();
+            if (!endpoint->Exchange(conreg_, configreg_)) statreg_ |= kStRo;
+            statreg_ |= kStTc;
+            return;
         }
-        while (!tx_fifo_.empty()) {
-            tx_fifo_.pop_front();
-            if (rx_fifo_.size() < kFifoDepth)
-                rx_fifo_.push_back(0xFFFFFFFFu);
-            else
-                statreg_ |= kStRo;
-        }
+        if (!tx_fifo_.empty())
+            emu_.Get<Fatal>().Die("i.MX6 ECSPI 0x%08X: exchange with no device wired to this instance",
+                                  kBase);
         statreg_ |= kStTc;
     }
     void RecomputeStatus() {
@@ -160,11 +161,9 @@ private:
         const uint32_t tx_threshold = dmareg_ & 0x3Fu;
         const uint32_t rx_threshold = (dmareg_ >> 16) & 0x3Fu;
         bool staged_transmit = false;
-        if constexpr (kBase == 0x02010000u) {
-            if (const auto* endpoint = emu_.TryGet<Imx6EcspiEndpoint>();
-                endpoint && endpoint->EcspiBase() == kBase)
-                staged_transmit = endpoint->HasStagedTransmit();
-        }
+        if (const auto* endpoint = emu_.TryGet<Imx6EcspiEndpoint>();
+            endpoint && endpoint->EcspiBase() == kBase)
+            staged_transmit = endpoint->HasStagedTransmit();
         if (tx_fifo_.empty() && !staged_transmit) s |= kStTe;
         if (!staged_transmit && tx_fifo_.size() <= tx_threshold) s |= kStTdr;
         if (tx_fifo_.size() >= kFifoDepth) s |= kStTf;
@@ -214,10 +213,11 @@ private:
 
     uint32_t conreg_ = 0, configreg_ = 0, intreg_ = 0, dmareg_ = 0;
     uint32_t statreg_ = kStTe | kStTdr;
-    uint32_t periodreg_ = 0, testreg_ = 0;
     bool irq_level_ = false;
     std::deque<uint32_t> tx_fifo_;
     std::deque<uint32_t> rx_fifo_;
 };
 
 }
+
+using cerf_imx6_ecspi_detail::Imx6Ecspi;

@@ -206,4 +206,4 @@ bool ParseContainerStructure(const std::uint8_t* data, std::size_t length,
 }
 
 
-}  // namespace ktp_mobile::detail
+}

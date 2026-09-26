@@ -1,14 +1,13 @@
-#include "../../socs/imx6/imx6_i2c_bus.h"
 #include "../../socs/imx6/imx6_i2c_device.h"
-#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
+#include "epson_rx8571_sa_wiring.h"
 
 #include <cstdint>
 #include <ctime>
 
 namespace {
 
-constexpr uint8_t kRegSeconds = 0x00u;
 constexpr uint8_t kRegYear = 0x06u;
 constexpr uint8_t kRegFlag = 0x0Eu;
 constexpr uint8_t kRegControl = 0x0Fu;
@@ -44,18 +43,12 @@ class EpsonRx8571Sa final : public Imx6I2cDevice {
 public:
     using Imx6I2cDevice::Imx6I2cDevice;
 
-    bool ShouldRegister() override {
-        auto* board = emu_.TryGet<BoardContext>();
-        return board && BoardContext::IsKtpMobile(board->GetBoard());
-    }
+    bool ShouldRegister() override { return emu_.TryGet<EpsonRx8571SaWiring>() != nullptr; }
 
     void OnReady() override {
         MaterializeClockRegisters();
-        emu_.Get<Imx6I2cBus>().Register(this);
+        emu_.Get<EpsonRx8571SaWiring>().Attach(this);
     }
-
-    uint32_t I2cControllerBase() const override { return 0x021A8000u; }
-    uint8_t SlaveAddress() const override { return 0x32u; }
 
     void StartTransfer(bool read) override {
         expecting_pointer_ = !read;
@@ -115,7 +108,7 @@ private:
             !BcdToBin(registers_[2], 0x3F, 23, hour) || !BcdToBin(registers_[4], 0x3F, 31, day) || day < 1 ||
             !BcdToBin(registers_[5], 0x1F, 12, month) || month < 1 ||
             !BcdToBin(registers_[kRegYear], 0xFFu, 99, year2)) {
-            return;
+            emu_.Get<Fatal>().Die("RX-8571SA clock registers hold a value that is not BCD");
         }
         std::tm target{};
         target.tm_sec = second;
@@ -136,6 +129,6 @@ private:
     int64_t epoch_delta_seconds_ = 0;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(EpsonRx8571Sa);

@@ -30,6 +30,7 @@ public:
             inputs &= ~kPenIrqMask;
         return inputs;
     }
+    uint32_t DrivenPins() const override { return kPenIrqMask; }
     uint32_t PendingIsr() override { return emu_.Get<Tsc2017HostState>().PenIrqPending() ? kPenIrqMask : 0u; }
     void OnIsrClear(uint32_t value) override {
         if (value & kPenIrqMask) emu_.Get<Tsc2017HostState>().ClearPenIrqPending();
@@ -41,6 +42,6 @@ private:
     static void OnPenChanged(void* ctx) { static_cast<KtpMobileTouchGpio*>(ctx)->Reevaluate(); }
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(KtpMobileTouchGpio);

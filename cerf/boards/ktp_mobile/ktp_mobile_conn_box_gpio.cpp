@@ -18,7 +18,7 @@ public:
     }
     void OnReady() override { emu_.Get<Imx6GpioBus>().RegisterSource(this); }
 
-    // i.MX 6Solo/6DualLite Reference Manual Rev.4 Table 2-2 maps GPIO1 at 0x0209C000.
+    // IMX6DQRM Rev.2 Table 2-2 maps GPIO1 at 0x0209C000.
     uint32_t GpioBase() const override { return 0x0209C000u; }
 
     // hmi_ktp400_mobile_v13, ConnBox.dll: sub_EF492B54 @ VA 0xEF492B54 toggles GPIO bit 0x80,
@@ -67,6 +67,6 @@ private:
     bool box_id_sent_ = false;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(KtpMobileConnBoxGpio);

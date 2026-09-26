@@ -69,7 +69,7 @@ void FillAxis(std::vector<int32_t>& lut, int32_t dst_len, int32_t src_len) {
         }
     }
 }
-} // namespace
+}
 
 bool CerfVirtBlitter::Execute(const CerfBltDescriptor& d) {
     if (d.magic != kCerfBltMagic) {
@@ -444,4 +444,4 @@ bool CerfVirtBlitter::BlendAAText(const CerfBltDescriptor& d, Surface& dst,
     return true;
 }
 
-} // namespace CerfVirt
+}

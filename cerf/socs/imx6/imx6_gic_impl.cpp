@@ -1,10 +1,12 @@
 #include "imx6_gic.h"
+#include "../../cpu/arm_processor_config.h"
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../jit/arm/arm_jit.h"
+#include "../../jit/arm/arm_mmu.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
@@ -37,7 +39,7 @@ public:
                 line_level_[w] |= bit;
                 if (!IsEdgeTriggeredLocked(gic_id) || !was_high) pending_[w] |= bit;
             }
-            deliver = (active_irq_ == 1023u) && AnySpiPendingLocked();
+            deliver = DeliverPendingLocked();
         }
         if (deliver) emu_.Get<ArmJit>().SetInterruptPending();
     }
@@ -56,41 +58,22 @@ public:
         switch (off) {
         case 0x100: return cpu_control_;
         case 0x104: return priority_mask_;
-        case 0x108: return binary_point_;
+
         case 0x10C: {
             std::lock_guard<std::mutex> lk(timer_mutex_);
-            AdvancePrivateTimerLocked(GuestCycles());
-            if (active_irq_ == 1023u && PrivateTimerIrqPendingLocked()) {
-                active_irq_ = 29u;
-                emu_.Get<ArmJit>().ClearInterruptPending();
-                return 29u;
-            }
-            aux_.AdvanceGlobalTimer(GuestCycles(), kPeriphDiv);
-            if (active_irq_ == 1023u && GlobalTimerIrqPendingLocked()) {
-                active_irq_ = 27u;
-                emu_.Get<ArmJit>().ClearInterruptPending();
-                return 27u;
-            }
-            if (active_irq_ == 1023u && (distributor_control_ & 1u) && (cpu_control_ & 1u)) {
-                RefreshLevelPendingLocked();
-                for (int w = 1; w < 5; ++w) {
-                    const uint32_t bits = pending_[w] & enabled_[w];
-                    if (!bits) continue;
-                    for (int b = 0; b < 32; ++b) {
-                        if (!(bits & (1u << b))) continue;
-                        active_irq_ = static_cast<uint32_t>(w * 32 + b);
-                        pending_[w] &= ~(1u << b);
-                        emu_.Get<ArmJit>().ClearInterruptPending();
-                        return active_irq_;
-                    }
-                }
-            }
-            return 1023u;
+            const uint32_t now = GuestCycles();
+            AdvancePrivateTimerLocked(now);
+            aux_.AdvanceGlobalTimer(now, kPeriphDiv);
+            if (active_irq_ != 1023u) return 1023u;
+            RefreshLevelPendingLocked();
+            const uint32_t id = HighestPriorityPendingLocked();
+            if (id == 1023u) return 1023u;
+            active_irq_ = id;
+            if (id >= 32u) pending_[id >> 5] &= ~(1u << (id & 31));
+            emu_.Get<ArmJit>().ClearInterruptPending();
+            return id;
         }
-        case 0x114: return 0xFFu;
-        case 0x118: return 1023u;
-        /* QEMU 99d6a324 hw/arm/fsl-imx6.c, hw/cpu/a9mpcore.c,
-           hw/intc/arm_gic_common.c, and hw/intc/arm_gic.c. */
+        /* QEMU i.MX6/A9MPCore GIC model. */
         case 0x1FC: return 0x0001043Bu;
         case 0x200:
         case 0x204: {
@@ -116,16 +99,19 @@ public:
         case 0x1008: return 0x0000043Bu;
         default: break;
         }
-        if (off >= 0x1080u && off < 0x1094u) return groups_[(off - 0x1080u) >> 2];
+
         if (off >= 0x1100u && off < 0x1114u) return enabled_[(off - 0x1100u) >> 2];
         if (off >= 0x1180u && off < 0x1194u) return enabled_[(off - 0x1180u) >> 2];
         if (off >= 0x1200u && off < 0x1214u) return pending_[(off - 0x1200u) >> 2];
         if (off >= 0x1280u && off < 0x1294u) return pending_[(off - 0x1280u) >> 2];
         if (off >= 0x1400u && off < 0x14A0u) return priorities_[(off - 0x1400u) >> 2];
-        if (off >= 0x1800u && off < 0x18A0u) return targets_[(off - 0x1800u) >> 2];
+        /* ARM DDI 0407F §3.3.3: for systems that support only one Cortex-A9 processor the
+           ICDIPTR registers read as zero and writes are ignored; ICDICTR above reports one. */
+        if (off >= 0x1800u && off < 0x18A0u) return 0u;
         if (off >= 0x1C00u && off < 0x1C28u) return configuration_[(off - 0x1C00u) >> 2];
         {
             uint32_t value = 0u;
+            if (aux_.ScuRead(off, emu_.Get<ArmMmu>().State()->aux_control_register, value)) return value;
             if (aux_.ReadMmio(off, value)) return value;
         }
         emu_.Get<Fatal>().Die("[GIC] unsupported read32 at 0x%08X", kMmioBase + off);
@@ -135,7 +121,7 @@ public:
         switch (off) {
         case 0x100: cpu_control_ = value; return;
         case 0x104: priority_mask_ = value & 0xFFu; return;
-        case 0x108: binary_point_ = value & 7u; return;
+
         case 0x110: {
             bool deliver = false;
             {
@@ -143,8 +129,7 @@ public:
                 if ((value & 0x3FFu) == active_irq_) active_irq_ = 1023u;
                 RefreshLevelPendingLocked();
                 aux_.AdvanceGlobalTimer(GuestCycles(), kPeriphDiv);
-                deliver = (active_irq_ == 1023u) &&
-                          (PrivateTimerIrqPendingLocked() || AnySpiPendingLocked() || GlobalTimerIrqPendingLocked());
+                deliver = DeliverPendingLocked();
             }
             if (deliver) emu_.Get<ArmJit>().SetInterruptPending();
             return;
@@ -199,8 +184,11 @@ public:
         case 0x1000: distributor_control_ = value & 3u; return;
         default: break;
         }
+        /* ARM IHI 0048B §3.9.2: every interrupt belongs to Group 0 at reset, and an assignment to
+           Group 1 routes it away from the Group 0 exception this model delivers. */
         if (off >= 0x1080u && off < 0x1094u) {
-            groups_[(off - 0x1080u) >> 2] = value;
+            if (value != 0u)
+                emu_.Get<Fatal>().Die("[GIC] interrupt grouping is not modelled (0x%08X at 0x%08X)", value, kMmioBase + off);
             return;
         }
         if (off >= 0x1100u && off < 0x1114u) {
@@ -210,8 +198,7 @@ public:
                 enabled_[(off - 0x1100u) >> 2] |= value;
                 RefreshLevelPendingLocked();
                 aux_.AdvanceGlobalTimer(GuestCycles(), kPeriphDiv);
-                deliver = (active_irq_ == 1023u) &&
-                          (PrivateTimerIrqPendingLocked() || AnySpiPendingLocked() || GlobalTimerIrqPendingLocked());
+                deliver = DeliverPendingLocked();
             }
             if (deliver) emu_.Get<ArmJit>().SetInterruptPending();
             return;
@@ -235,15 +222,20 @@ public:
             priorities_[(off - 0x1400u) >> 2] = value;
             return;
         }
-        if (off >= 0x1800u && off < 0x18A0u) {
-            targets_[(off - 0x1800u) >> 2] = value;
-            return;
-        }
+        if (off >= 0x1800u && off < 0x18A0u) return;
         if (off >= 0x1C00u && off < 0x1C28u) {
             std::lock_guard<std::mutex> lk(timer_mutex_);
             configuration_[(off - 0x1C00u) >> 2] = value;
             RefreshLevelPendingLocked();
             return;
+        }
+        {
+            const char* unmodelled = nullptr;
+            if (aux_.ScuWrite(off, value, unmodelled)) {
+                if (unmodelled != nullptr)
+                    emu_.Get<Fatal>().Die("[GIC] %s is not modelled (0x%08X)", unmodelled, value);
+                return;
+            }
         }
         if (aux_.WriteMmio(off, value)) return;
         emu_.Get<Fatal>().Die("[GIC] unsupported write32 at 0x%08X val=0x%08X", kMmioBase + off, value);
@@ -255,18 +247,15 @@ public:
         w.Write(active_irq_);
         w.Write(cpu_control_);
         w.Write(priority_mask_);
-        w.Write(binary_point_);
         w.Write(private_timer_load_);
         w.Write(private_timer_counter_);
         w.Write(private_timer_control_);
         w.Write(private_timer_status_);
         w.Write(distributor_control_);
         aux_.SaveState(w);
-        w.WriteBytes(groups_, sizeof(groups_));
         w.WriteBytes(enabled_, sizeof(enabled_));
         w.WriteBytes(pending_, sizeof(pending_));
         w.WriteBytes(line_level_, sizeof(line_level_));
-        w.WriteBytes(targets_, sizeof(targets_));
         w.WriteBytes(priorities_, sizeof(priorities_));
         w.WriteBytes(configuration_, sizeof(configuration_));
     }
@@ -276,18 +265,15 @@ public:
         r.Read(active_irq_);
         r.Read(cpu_control_);
         r.Read(priority_mask_);
-        r.Read(binary_point_);
         r.Read(private_timer_load_);
         r.Read(private_timer_counter_);
         r.Read(private_timer_control_);
         r.Read(private_timer_status_);
         r.Read(distributor_control_);
         aux_.RestoreState(r);
-        r.ReadBytes(groups_, sizeof(groups_));
         r.ReadBytes(enabled_, sizeof(enabled_));
         r.ReadBytes(pending_, sizeof(pending_));
         r.ReadBytes(line_level_, sizeof(line_level_));
-        r.ReadBytes(targets_, sizeof(targets_));
         r.ReadBytes(priorities_, sizeof(priorities_));
         r.ReadBytes(configuration_, sizeof(configuration_));
         PublishPrivateTimerFastLocked();
@@ -295,7 +281,7 @@ public:
     void PostRestoreGicState() override {
         std::lock_guard<std::mutex> lk(timer_mutex_);
         RefreshLevelPendingLocked();
-        if (active_irq_ != 1023u || PrivateTimerIrqPendingLocked() || AnySpiPendingLocked())
+        if (active_irq_ != 1023u || HighestPriorityPendingLocked() != 1023u)
             emu_.Get<ArmJit>().SetInterruptPending();
     }
 
@@ -315,17 +301,14 @@ private:
         active_irq_ = 1023u;
         cpu_control_ = 0;
         priority_mask_ = 0;
-        binary_point_ = 0;
         private_timer_load_ = 0;
         private_timer_counter_ = 0;
         private_timer_control_ = 0;
         private_timer_status_ = 0;
         distributor_control_ = 0;
-        std::fill(std::begin(groups_), std::end(groups_), 0u);
         std::fill(std::begin(enabled_), std::end(enabled_), 0u);
         std::fill(std::begin(pending_), std::end(pending_), 0u);
         std::fill(std::begin(line_level_), std::end(line_level_), 0u);
-        std::fill(std::begin(targets_), std::end(targets_), 0u);
         std::fill(std::begin(priorities_), std::end(priorities_), 0u);
         std::fill(std::begin(configuration_), std::end(configuration_), 0u);
         aux_.Reset();
@@ -333,6 +316,8 @@ private:
     }
 
     static constexpr uint32_t kPeriphDiv = 2u;
+    static constexpr int64_t kMinSampleNs = 1000;       /* one microsecond */
+    static constexpr int64_t kIdleSampleNs = 1000000;   /* one millisecond, timer disabled */
     uint32_t GuestCycles() const { return emu_.Get<ArmJit>().CpuState()->guest_cycle_counter; }
 
     void AdvancePrivateTimerLocked(uint32_t cycles_now) {
@@ -420,12 +405,54 @@ private:
         }
     }
 
-    bool AnySpiPendingLocked() const {
+    bool PendingEnabledLocked(uint32_t id) const {
+        if (id == 27u) return GlobalTimerIrqPendingLocked();
+        if (id == 29u) return PrivateTimerIrqPendingLocked();
+        if (id < 32u) return false;
         if ((distributor_control_ & cpu_control_ & 1u) == 0) return false;
-        for (int w = 1; w < 5; ++w) {
-            if (pending_[w] & enabled_[w]) return true;
+        return (pending_[id >> 5] & enabled_[id >> 5] & (1u << (id & 31))) != 0u;
+    }
+
+    uint32_t PriorityOfLocked(uint32_t id) const {
+        return (priorities_[id >> 2] >> ((id & 3u) * 8u)) & 0xFFu;
+    }
+
+    /* ARM IHI 0048B §3.7.2 HighestPriorityPendingInterrupt() replaces the candidate only on a
+       strictly higher priority, and PriorityIsHigher(pr1, pr2) is UInt(pr1) < UInt(pr2); §3.3.2
+       signals an interrupt only while its priority is higher than GICC_PMR. */
+    uint32_t HighestPriorityPendingLocked() const {
+        uint32_t best = 1023u;
+        uint32_t best_priority = 0x100u;
+        for (uint32_t id = 0; id < 160u; ++id) {
+            if (!PendingEnabledLocked(id)) continue;
+            const uint32_t priority = PriorityOfLocked(id);
+            if (priority < best_priority) {
+                best_priority = priority;
+                best = id;
+            }
         }
-        return false;
+        if (best_priority >= priority_mask_) return 1023u;
+        return best;
+    }
+
+    bool DeliverPendingLocked() const {
+        return active_irq_ == 1023u && HighestPriorityPendingLocked() != 1023u;
+    }
+
+    /* ARM DDI 0407F §4.1: the private timer counts down at PERIPHCLK/(prescaler+1), and this
+       model anchors it to the guest cycle counter, which arm_interrupt_channel.cpp advances at
+       ArmProcessorConfig::CpuClockHz(). The sampler therefore waits the time the timer itself
+       still needs, so its resolution follows the period the guest programmed. */
+    int64_t NextSampleNs() override {
+        std::lock_guard<std::mutex> lk(timer_mutex_);
+        if ((private_timer_control_ & 1u) == 0u) return kIdleSampleNs;
+        const uint32_t presc = ((private_timer_control_ >> 8) & 0xFFu) + 1u;
+        const uint64_t cycles_per_tick = static_cast<uint64_t>(presc) * kPeriphDiv;
+        const uint64_t ticks_left = ComputePrivateCounterLocked(GuestCycles()) + 1u;
+        const uint64_t cpu_hz = emu_.Get<ArmProcessorConfig>().CpuClockHz();
+        if (cpu_hz == 0u) return kIdleSampleNs;
+        const int64_t ns = static_cast<int64_t>((ticks_left * cycles_per_tick * 1000000000ull) / cpu_hz);
+        return ns < kMinSampleNs ? kMinSampleNs : (ns > kIdleSampleNs ? kIdleSampleNs : ns);
     }
 
     bool Tick() override {
@@ -436,8 +463,7 @@ private:
             AdvancePrivateTimerLocked(now);
             aux_.AdvanceGlobalTimer(now, kPeriphDiv);
             RefreshLevelPendingLocked();
-            deliver = (active_irq_ == 1023u) &&
-                      (PrivateTimerIrqPendingLocked() || AnySpiPendingLocked() || GlobalTimerIrqPendingLocked());
+            deliver = DeliverPendingLocked();
         }
         return deliver;
     }
@@ -448,7 +474,6 @@ private:
     uint32_t active_irq_ = 1023u;
     uint32_t cpu_control_ = 0;
     uint32_t priority_mask_ = 0;
-    uint32_t binary_point_ = 0;
     uint32_t private_timer_load_ = 0;
     uint32_t private_timer_counter_ = 0;
     uint32_t private_timer_control_ = 0;
@@ -458,11 +483,9 @@ private:
     std::atomic<uint32_t> private_timer_control_fast_{0};
     std::atomic<uint32_t> pt_anchor_cycles_fast_{0};
     uint32_t distributor_control_ = 0;
-    uint32_t groups_[5]{};
     uint32_t enabled_[5]{};
     uint32_t pending_[5]{};
     uint32_t line_level_[5]{};
-    uint32_t targets_[40]{};
     uint32_t priorities_[40]{};
     uint32_t configuration_[10]{};
 };

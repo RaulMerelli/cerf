@@ -65,6 +65,6 @@ public:
     }
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE_AS(Imx6EcspiSdmaBridge, FreescaleSdmaSocChannel);

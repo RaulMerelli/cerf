@@ -10,7 +10,6 @@ namespace ktp_mobile_fwf {
 namespace {
 
 constexpr size_t kHeaderLen = 0x14u;
-constexpr size_t kHeaderDataSumOff = 0x0Cu;
 constexpr size_t kHeaderRecordCountOff = 0x10u;
 constexpr size_t kDescLen = 9u;
 
@@ -93,8 +92,10 @@ void MakeShortName(const std::string& name, uint32_t ordinal, uint8_t out[11]) {
 
 /* FAT32 spec 1.03 § 6, Table "Long Directory Entry Structure": the thirteen
    UTF-16 units of one slot sit at these byte offsets. */
+constexpr uint32_t kLfnCharOffsets[kLfnCharsPerSlot] =
+    {1u, 3u, 5u, 7u, 9u, 14u, 16u, 18u, 20u, 22u, 24u, 28u, 30u};
+
 void WriteLfnSlot(uint8_t* slot, const std::string& name, uint32_t index, uint32_t count, uint8_t checksum) {
-    static const uint32_t kAt[kLfnCharsPerSlot] = {1u, 3u, 5u, 7u, 9u, 14u, 16u, 18u, 20u, 22u, 24u, 28u, 30u};
     std::memset(slot, 0, kDirEntryBytes);
     slot[0] = static_cast<uint8_t>((index == count ? 0x40u : 0u) | index);
     slot[11] = 0x0Fu;
@@ -103,11 +104,11 @@ void WriteLfnSlot(uint8_t* slot, const std::string& name, uint32_t index, uint32
     for (uint32_t i = 0; i < kLfnCharsPerSlot; ++i) {
         const size_t pos = static_cast<size_t>(index - 1u) * kLfnCharsPerSlot + i;
         if (pos < name.size())
-            Put16(slot + kAt[i], static_cast<uint8_t>(name[pos]));
+            Put16(slot + kLfnCharOffsets[i], static_cast<uint8_t>(name[pos]));
         else if (pos == name.size())
-            Put16(slot + kAt[i], 0u);
+            Put16(slot + kLfnCharOffsets[i], 0u);
         else
-            Put16(slot + kAt[i], 0xFFFFu);
+            Put16(slot + kLfnCharOffsets[i], 0xFFFFu);
     }
 }
 
@@ -240,10 +241,9 @@ std::string EntryName(const uint8_t* dir, uint32_t at) {
     for (uint32_t k = at; k >= kDirEntryBytes; k -= kDirEntryBytes) {
         const uint8_t* e = dir + k - kDirEntryBytes;
         if (e[11] != 0x0Fu) break;
-        static const uint32_t kAt[kLfnCharsPerSlot] = {1u, 3u, 5u, 7u, 9u, 14u, 16u, 18u, 20u, 22u, 24u, 28u, 30u};
         std::string part;
         for (uint32_t i = 0; i < kLfnCharsPerSlot; ++i) {
-            const uint16_t ch = static_cast<uint16_t>(e[kAt[i]] | (e[kAt[i] + 1u] << 8u));
+            const uint16_t ch = static_cast<uint16_t>(e[kLfnCharOffsets[i]] | (e[kLfnCharOffsets[i] + 1u] << 8u));
             if (ch == 0u || ch == 0xFFFFu) break;
             part.push_back(static_cast<char>(ch));
         }

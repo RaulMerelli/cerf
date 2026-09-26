@@ -57,6 +57,12 @@ int64_t VirtualTimerList::Entry::DeadlineNs() const {
     return deadline_ns_;
 }
 
+int64_t VirtualTimerList::Entry::RemainingNs(int64_t now_ns) const {
+    std::lock_guard<std::mutex> lk(owner_->mtx_);
+    if (deadline_ns_ == kNoDeadline) return kNoDeadline;
+    return deadline_ns_ > now_ns ? deadline_ns_ - now_ns : 0;
+}
+
 void VirtualTimerList::ArmEntry(Entry* e, int64_t deadline_ns) {
     bool wake;
     {

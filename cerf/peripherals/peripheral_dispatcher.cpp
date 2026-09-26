@@ -66,9 +66,9 @@ void PeripheralDispatcher::Register(Peripheral* p) {
         static_cast<unsigned long long>(end));
 }
 
-void PeripheralDispatcher::RegisterResettable(Peripheral* p, ResetBaselinePolicy policy) {
+void PeripheralDispatcher::RegisterResettable(Peripheral* p) {
     Register(p);
-    ResetBaseline baseline{p, policy, {}};
+    ResetBaseline baseline{p, {}};
     StateWriter writer(baseline.state);
     p->SaveResetState(writer);
     if (!writer.Ok())
@@ -88,7 +88,6 @@ void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
     const ResetLineKind legacy_kind =
         cold ? ResetLineKind::Rtc : ResetLineKind::Other;
     for (auto& baseline : reset_baselines_) {
-        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
         StateReader reader(baseline.state);
         baseline.p->RestoreResetState(reader);
         if (!reader.Ok() || reader.Position() != reader.FileSize())
@@ -96,7 +95,6 @@ void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
                                   baseline.p->MmioBase());
     }
     for (auto& baseline : reset_baselines_) {
-        if (baseline.policy == ResetBaselinePolicy::ColdResetOnly && !cold) continue;
         baseline.p->PostRestore();
         baseline.p->PostReset(legacy_kind);
     }

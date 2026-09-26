@@ -86,8 +86,10 @@ uint8_t* EmitCp15CacheOp(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) {
             break;
 
         case 1:
-            /* ARM DDI 0406C.c Figure B3-32 assigns ICIALLUIS and BPIALLIS to c7,c1. */
-            if (v7) {
+            /* ARM DDI 0406C Table B3-49 (p. B3-1491) puts ICIALLUIS at c7,0,c1,0 and BPIALLIS
+               at c7,0,c1,6 under footnote b, "Introduced in the Multiprocessing Extensions,
+               UNPREDICTABLE in earlier ARMv7 implementations". */
+            if (v7 && emit->ProcessorConfig()->HasMultiprocessingExtensions()) {
                 if (d->cp == 0u) {
                     EmitMovRegImm32(cursor, kEcx, icache_self);
                     EmitCall(cursor, icache_helper);

@@ -9,6 +9,7 @@
 #include "../../core/virtual_clock.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../state/state_stream.h"
+#include "ktp_mobile_board_profile.h"
 #include "ktp_mobile_fwf_fsf_container.h"
 #include "ktp_mobile_f_module_state_io.h"
 
@@ -18,25 +19,11 @@
 #include <type_traits>
 #include <vector>
 
-namespace {
-
-bool IsFModuleBoard(Board board) {
-    switch (board) {
-    case Board::HmiKtp400FMobile:
-    case Board::HmiKtp700FMobile:
-    case Board::HmiKtp900FMobile:
-    case Board::HmiKtp700FHwMobile:
-    case Board::HmiKtp700FArcticMobile:
-    case Board::HmiTp1000fMobile: return true;
-    default: return false;
-    }
-}
-
-} // namespace
-
 bool KtpMobileFModuleDevice::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && IsFModuleBoard(board->GetBoard());
+    if (!board) return false;
+    const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+    return profile && profile->has_f_module;
 }
 
 void KtpMobileFModuleDevice::OnReady() {
@@ -253,11 +240,14 @@ void KtpMobileFModuleDevice::ObservePanelAcknowledge(bool high) {
     NotifyIfReadyChanged(old_ready);
 }
 
+/* komp2 firmware 0x0803423A..0x080342A0 programs TIM3 with PSC=0, ARR=0xEA60 and
+   CR1=CEN|ARPE; RCC_PLLCFGR at 0x08034A12 is 0x04413C18, so the timer clock is
+   60 MHz and the update period is 1 ms. */
 void KtpMobileFModuleDevice::ArmCyclicReady() {
-    constexpr int64_t kCyclicDelayNs = 1'000'000;
+    constexpr int64_t kCyclicPeriodNs = 1'000'000;
     cyclic_ready_suppressed_ = true;
     cyclic_ready_deadline_ns_ =
-        emu_.Get<VirtualClock>().NowNs() + kCyclicDelayNs;
+        emu_.Get<VirtualClock>().NowNs() + kCyclicPeriodNs;
     cyclic_ready_timer_->Arm(cyclic_ready_deadline_ns_);
 }
 
@@ -324,7 +314,8 @@ void KtpMobileFModuleDevice::SaveState(StateWriter& w) {
         static_cast<uint8_t>(cyclic_ready_suppressed_),
     };
     w.WriteBytes(flags, sizeof(flags));
-    w.Write(cyclic_ready_deadline_ns_);
+    const int64_t now = emu_.Get<VirtualClock>().NowNs();
+    w.Write(cyclic_ready_timer_->RemainingNs(now));
 }
 
 void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
@@ -340,8 +331,8 @@ void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
     r.Read(dma_rx_bytes);
     uint8_t flags[10]{};
     r.ReadBytes(flags, sizeof(flags));
-    int64_t cyclic_ready_deadline_ns = VirtualTimerList::kNoDeadline;
-    r.Read(cyclic_ready_deadline_ns);
+    int64_t cyclic_ready_remaining_ns = VirtualTimerList::kNoDeadline;
+    r.Read(cyclic_ready_remaining_ns);
 
     if (!r.Ok())
         emu_.Get<Fatal>().Die("KTP Mobile F-module: truncated saved state");
@@ -373,8 +364,8 @@ void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
         (!reset_low_seen || reset_held) && receive_address_valid;
     const bool timer_valid =
         cyclic_ready_suppressed
-            ? cyclic_ready_deadline_ns != VirtualTimerList::kNoDeadline
-            : cyclic_ready_deadline_ns == VirtualTimerList::kNoDeadline;
+            ? cyclic_ready_remaining_ns != VirtualTimerList::kNoDeadline
+            : cyclic_ready_remaining_ns == VirtualTimerList::kNoDeadline;
     if (!lengths_valid || !transaction_valid || !timer_valid) {
         emu_.Get<Fatal>().Die("KTP Mobile F-module: invalid saved adapter state");
     }
@@ -401,14 +392,21 @@ void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
     reset_low_seen_ = reset_low_seen;
     adapter_error_ = flags[8] != 0u;
     cyclic_ready_suppressed_ = cyclic_ready_suppressed;
-    cyclic_ready_deadline_ns_ = cyclic_ready_deadline_ns;
+    restored_cyclic_ready_remaining_ns_ = cyclic_ready_remaining_ns;
+    cyclic_ready_deadline_ns_ = VirtualTimerList::kNoDeadline;
 }
 
 void KtpMobileFModuleDevice::PostRestore() {
     FlushDmaReceive();
-    cyclic_ready_timer_->Arm(cyclic_ready_suppressed_
-                                 ? cyclic_ready_deadline_ns_
-                                 : VirtualTimerList::kNoDeadline);
+    if (cyclic_ready_suppressed_) {
+        const int64_t now = emu_.Get<VirtualClock>().NowNs();
+        cyclic_ready_deadline_ns_ = VirtualTimerList::DeadlineFromRemainingNs(
+            now, restored_cyclic_ready_remaining_ns_);
+    } else {
+        cyclic_ready_deadline_ns_ = VirtualTimerList::kNoDeadline;
+    }
+    cyclic_ready_timer_->Arm(cyclic_ready_deadline_ns_);
+    restored_cyclic_ready_remaining_ns_ = VirtualTimerList::kNoDeadline;
     if (ready_changed_) ready_changed_(ready_changed_context_);
 }
 

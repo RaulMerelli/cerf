@@ -13,7 +13,7 @@
 
 namespace {
 
-/* IMX6SDLRM Rev.4 Chapter 65 defines the USB core and USBNC register windows. */
+/* IMX6DQRM Rev.2 Chapter 65 defines the USB core and USBNC register windows. */
 class Imx6Usb : public Peripheral {
 public:
     using Peripheral::Peripheral;
@@ -25,17 +25,16 @@ public:
     void OnReady() override {
         for (uint32_t core = 0; core < kNonCore; core += kCoreSpan) {
             regs_[(core + kOffCaplen) >> 2] = kCapReset;
+            /* IMX6DQRM Rev.2 §65.6 USB core memory map: CAPLENGTH 40h with HCIVERSION 0100h,
+               HCSPARAMS 0001_0011h, HCCPARAMS 0000_0006h, DCIVERSION 0001h, DCCPARAMS 0000_0188h
+               and PORTSC1 1000_0000h. */
             regs_[(core + kOffHcsparams) >> 2] = 0x00010011u;
             regs_[(core + kOffHccparams) >> 2] = 0x00000006u;
             regs_[(core + kOffDciversion) >> 2] = 0x00000001u;
             regs_[(core + kOffDccparams) >> 2] = 0x00000188u;
             regs_[(core + kOffUsbsts) >> 2] = kStsHch;
-            regs_[(core + kOffPortsc1) >> 2] = 0x00001000u;
+            regs_[(core + kOffPortsc1) >> 2] = 0x10000000u;
         }
-        phy_[0] = 0x24u;
-        phy_[1] = 0x04u;
-        phy_[2] = 0x06u;
-        phy_[3] = 0x00u;
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
     }
 
@@ -80,7 +79,9 @@ public:
             return;
         }
         if (core == 0u && coff == kOffUlpiview) {
-            regs_[off >> 2] = UlpiTransfer(value);
+            /* IMX6DQRM Rev.2 §65.6: ULPIVIEW drives an external ULPI transceiver; this SoC's ports
+               are wired to the internal UTMI PHY and no ROM reaches this viewport. */
+            HaltUnsupportedAccess("imx6-usb ULPI viewport", addr, value);
             return;
         }
         regs_[off >> 2] = value;
@@ -88,16 +89,14 @@ public:
 
     void SaveState(StateWriter& w) override {
         w.WriteBytes(regs_, sizeof(regs_));
-        w.WriteBytes(phy_, sizeof(phy_));
     }
 
     void RestoreState(StateReader& r) override {
         r.ReadBytes(regs_, sizeof(regs_));
-        r.ReadBytes(phy_, sizeof(phy_));
     }
 
 private:
-    /* IMX6SDLRM Rev.4 Chapter 65 maps four USB cores at 0x200 strides from
+    /* IMX6DQRM Rev.2 Chapter 65 maps four USB cores at 0x200 strides from
        0x02184000 and USBNC_USB_OTG_CTRL at 0x02184800. */
     static constexpr uint32_t kCoreSpan = 0x200u;
     static constexpr uint32_t kNonCore = 0x800u;
@@ -131,9 +130,6 @@ private:
     static constexpr uint32_t kStsPss = 1u << 14;
     static constexpr uint32_t kStsAss = 1u << 15;
     static constexpr uint32_t kUsbstsRoMask = kStsHch | (1u << 13) | kStsPss | kStsAss;
-    static constexpr uint32_t kUlpiWu = 1u << 31;
-    static constexpr uint32_t kUlpiRun = 1u << 30;
-    static constexpr uint32_t kUlpiRw = 1u << 29;
 
     static bool IsEndpointOffset(uint32_t off) { return off >= 0x1ACu && off <= 0x1DCu && (off & 3u) == 0; }
 
@@ -194,16 +190,6 @@ private:
         regs_[(core + kOffUsbsts) >> 2] = s;
     }
 
-    uint32_t UlpiTransfer(uint32_t value) {
-        if (value & kUlpiWu) return value & ~kUlpiWu;
-        if (!(value & kUlpiRun)) return value;
-        const uint8_t reg = static_cast<uint8_t>(value >> 16) & 0x3Fu;
-        if (value & kUlpiRw) {
-            phy_[reg] = static_cast<uint8_t>(value);
-            return value & ~kUlpiRun;
-        }
-        return (value & ~kUlpiRun & ~0xFF00u) | (static_cast<uint32_t>(phy_[reg]) << 8);
-    }
 
     void WriteLane(const Imx6MmioLane& lane) {
         const uint32_t off = lane.address - MmioBase();
@@ -218,7 +204,6 @@ private:
     }
 
     uint32_t regs_[0x4000u / 4u]{};
-    uint8_t phy_[0x40u]{};
 };
 }
 

@@ -14,8 +14,10 @@ public:
         return bd && bd->GetSoc() == SocFamily::iMX6;
     }
     void OnReady() override {
+        /* ARM DDI 0246F Table 3-2: reg1_aux_control resets to 0x02020000. The tag and data RAM
+           latency resets in the same table are implementation defined ("0x00000nnn"), and neither
+           the ARM TRM nor IMX6DQRM fixes them for this die, so they are left at the array default. */
         regs_[0x104u >> 2] = 0x02020000u;
-        regs_[0x108u >> 2] = regs_[0x10Cu >> 2] = 0x111u;
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
     }
     uint32_t MmioBase() const override { return 0x00A02000u; }
@@ -30,7 +32,7 @@ public:
         const uint32_t offset = address - MmioBase();
         if (offset == 0u) return 0x410000C8u;
         if (offset == 4u) return 0x1C100100u;
-        if (IsRegister(offset)) return regs_[offset >> 2];
+        if (IsReadRegister(offset)) return regs_[offset >> 2];
         HaltUnsupportedAccess("imx6-pl310 read32 unmodelled register", address, 0);
     }
     void WriteByte(uint32_t address, uint8_t value) override {
@@ -43,16 +45,15 @@ public:
     }
     void WriteWord(uint32_t address, uint32_t value) override {
         const uint32_t offset = address - MmioBase();
-        if (!IsRegister(offset)) HaltUnsupportedAccess("imx6-pl310 write32 unmodelled register", address, value);
+        if (!IsWriteRegister(offset)) HaltUnsupportedAccess("imx6-pl310 write32 unmodelled register", address, value);
         if (offset == 0x100u) value &= 1u;
         if (IsMaintenanceOperation(offset)) {
             /* ARM DDI 0246F sections 3.1.1 and 3.3.10 define atomic Cache Sync and
                by-Way maintenance with selected Way bits clearing on completion. */
             regs_[offset >> 2] = 0u;
-        } else if (offset == 0x21Cu)
-            regs_[offset >> 2] &= ~value;
-        else
+        } else if (IsReadRegister(offset)) {
             regs_[offset >> 2] = value;
+        }
     }
     void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
     void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
@@ -64,55 +65,38 @@ private:
         case 0x770u:
         case 0x77Cu:
         case 0x7B0u:
-        case 0x7B8u:
         case 0x7BCu:
         case 0x7F0u:
-        case 0x7F8u:
-        case 0x7FCu:  return true;
+        case 0x7FCu: return true;
         default: return false;
         }
     }
 
-    static bool IsRegister(uint32_t offset) {
+    static bool IsReadRegister(uint32_t offset) {
         switch (offset) {
         case 0x100u:
         case 0x104u:
-        case 0x108u:
-        case 0x10Cu:
-        case 0x200u:
-        case 0x204u:
-        case 0x208u:
-        case 0x20Cu:
-        case 0x210u:
-        case 0x214u:
-        case 0x218u:
-        case 0x21Cu:
-        case 0x220u:
-        case 0x730u:
-        case 0x740u:
-        case 0x770u:
-        case 0x77Cu:
-        case 0x7B0u:
-        case 0x7B8u:
-        case 0x7BCu:
-        case 0x7F0u:
-        case 0x7F8u:
-        case 0x7FCu:
-        case 0xF40u:
-        case 0xF60u:
-        case 0xF80u: return true;
-        default: return false;
+        case 0xF60u: return true;
+        default: return IsMaintenanceOperation(offset) && offset != 0x770u;
         }
     }
+
+    static bool IsWriteRegister(uint32_t offset) {
+        switch (offset) {
+        case 0x108u:
+        case 0x10Cu:
+        case 0x220u: return true;
+        default: return IsReadRegister(offset) || offset == 0x770u;
+        }
+    }
+
     void WriteLane(const Imx6MmioLane& lane) {
         const uint32_t offset = lane.address - MmioBase();
-        if (!IsRegister(offset))
+        if (!IsWriteRegister(offset))
             HaltUnsupportedAccess("imx6-pl310 write lane unmodelled register",
                                   lane.address, lane.value);
         if (IsMaintenanceOperation(offset)) {
             regs_[offset >> 2] = 0u;
-        } else if (offset == 0x21Cu) {
-            regs_[offset >> 2] &= ~lane.value;
         } else {
             WriteWord(lane.address, lane.Merge(ReadWord(lane.address)));
         }
@@ -120,4 +104,4 @@ private:
     uint32_t regs_[0x1000u / 4u]{};
 };
 REGISTER_SERVICE(Imx6Pl310);
-} // namespace
+}

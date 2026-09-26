@@ -24,6 +24,7 @@ public:
             owner_->ArmEntry(this, deadline_ns);
         }
         int64_t DeadlineNs() const;
+        int64_t RemainingNs(int64_t now_ns) const;
 
     private:
         friend class VirtualTimerList;
@@ -37,6 +38,11 @@ public:
     ~VirtualTimerList() override;
 
     Entry* Add(std::function<void()> fn);
+
+    static int64_t DeadlineFromRemainingNs(int64_t now_ns, int64_t remaining_ns) {
+        if (remaining_ns == kNoDeadline) return kNoDeadline;
+        return now_ns + remaining_ns;
+    }
 
 private:
     void RunExpired();

@@ -9,6 +9,7 @@
 #include "../page_table_builder.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../net/network_backend.h"
@@ -37,26 +38,17 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
 
     /* nk.exe OEMAddressTable terminator: zero entry, 0x87654321, then table VA. */
     auto& parser = emu_.Get<RomParserService>();
-    if (!parser.Ok()) {
-        LOG(Caution, "%s: ROM not parsed; OAL handoff skipped\n", oal.log_tag);
-        return;
-    }
+    if (!parser.Ok())
+        emu_.Get<Fatal>().Die("%s: ROM not parsed; the OAL handoff cannot be placed", oal.log_tag);
     const KtpMobileRomOat rom_oat = FindKtpMobileOatInRom(parser.Primary().flat);
-    if (!rom_oat.valid()) {
-        LOG(Caution, "%s: no OAL OEMAddressTable found in the ROM\n", oal.log_tag);
-        return;
-    }
+    if (!rom_oat.valid())
+        emu_.Get<Fatal>().Die("%s: no OAL OEMAddressTable found in the ROM", oal.log_tag);
     const uint32_t oat_pa = ptb.VaToPa(rom_oat.table_va);
     const uint32_t oat_magic_pa = ptb.VaToPa(rom_oat.magic_va);
 
     const KtpMobileRomOalWords words = FindKtpMobileOalWordsInRom(parser.Primary().flat, rom_oat.base_va);
-    if (!words.valid()) {
-        LOG(Caution,
-            "%s: the OAL hardware-info reader was not found in the "
-            "ROM; the MicroOMS handoff is skipped\n",
-            oal.log_tag);
-        return;
-    }
+    if (!words.valid())
+        emu_.Get<Fatal>().Die("%s: the OAL hardware-info reader was not found in the ROM", oal.log_tag);
 
     /* nk.exe OEMAddressTable body ends immediately before its 0x87654321 header. */
     uint32_t old_words[4];
@@ -90,7 +82,7 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
     for (uint32_t i = 0; i < kHwInfoSeedClear; ++i)
         mem.WriteByte(kHwInfoHandoffPa + i, 0u);
 
-    /* bspio.dll @0x41885AC0 reads IOCTL 0x01014090 before reloading hardware info. */
+    /* hmi_ktp400_mobile_v13 bspio.dll @0x41885AC0 reads IOCTL 0x01014090 before reloading hardware info. */
     const std::vector<uint8_t> oms_root =
         BuildKtpMobileHardwareInfoOms(
             emu_.Get<NetworkBackend>().MacForReceiver(kImx6FecReceiverId,

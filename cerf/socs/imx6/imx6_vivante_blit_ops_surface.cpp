@@ -17,8 +17,6 @@ bool VivanteBlitCoordinateOps::ResolveSourceCoordinate(uint32_t origin_field, bo
 bool VivanteBlitCoordinateOps::ResolveMonoStreamCoordinate(uint32_t origin_field, bool relative, uint32_t destination_coordinate,
                                                  uint32_t rectangle_offset, uint32_t& stream_coordinate) {
     if (relative) {
-        (void)origin_field;
-        (void)destination_coordinate;
         stream_coordinate = rectangle_offset;
         return true;
     }
@@ -125,7 +123,7 @@ VivanteBlitSurfaceOps::DeCoord VivanteBlitSurfaceOps::TransformDeCoord(uint32_t 
                                                          uint32_t rot, uint32_t mirror) {
     if (width == 0u || height == 0u) return {x, y};
 
-    rot = ValidDeRot(rot);
+    rot &= 7u;
     mirror &= 3u;
 
     uint32_t tx = x;
@@ -155,4 +153,4 @@ VivanteBlitSurfaceOps::DeCoord VivanteBlitSurfaceOps::TransformDeCoord(uint32_t 
     return {tx, ty};
 }
 
-} // namespace imx6_vivante
+}

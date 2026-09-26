@@ -1,7 +1,7 @@
 #include "tsc2017_host_state.h"
 
-#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "ti_tsc2017_wiring.h"
 
 REGISTER_SERVICE(Tsc2017HostState);
 
@@ -14,11 +14,10 @@ constexpr uint16_t kPenDownZ2 = 0xB00u;
 constexpr uint16_t kPenUpZ1 = 0x010u;
 constexpr uint16_t kPenUpZ2 = 0xFFFu;
 
-} // namespace
+}
 
 bool Tsc2017HostState::ShouldRegister() {
-    auto* bd = emu_.TryGet<BoardContext>();
-    return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+    return emu_.TryGet<TiTsc2017Wiring>() != nullptr;
 }
 
 void Tsc2017HostState::SetPen(bool down, uint16_t raw_x, uint16_t raw_y) {

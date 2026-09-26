@@ -270,4 +270,4 @@ std::vector<uint8_t> Decompress(const uint8_t* src, size_t src_size, size_t out_
     return out;
 }
 
-} // namespace cerf::zlib_inflate
+}

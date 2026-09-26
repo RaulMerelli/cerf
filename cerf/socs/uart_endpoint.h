@@ -16,10 +16,6 @@ public:
     /* Called on the guest (JIT) thread when the guest writes UTXD. */
     virtual void OnGuestTx(uint8_t byte) = 0;
 
-    virtual void OnControlWrite(uint32_t reg_off, uint32_t value) {
-        (void)reg_off;
-        (void)value;
-    }
 
     /* Hibernation: an endpoint holding mutable guest-coupled state (e.g. the
        VMCU peer's IPC handshake phase) serializes it here; the owning UART

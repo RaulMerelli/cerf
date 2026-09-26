@@ -1,6 +1,8 @@
 #include "imx6_ipu.h"
 
-using Imx6Ipu = imx6_ipu_detail::Imx6Ipu;
+#include "../../boards/board_context.h"
+#include "../../core/cerf_emulator.h"
+#include "../../host/lcd_scan_tick.h"
 
 namespace {
 class Imx6IpuScanTick final : public LcdScanTick {
@@ -12,5 +14,5 @@ public:
     }
     void OnHostTick() override { emu_.Get<Imx6Ipu>().AdvanceScanTick(); }
 };
-} // namespace
+}
 REGISTER_SERVICE_AS(Imx6IpuScanTick, LcdScanTick);

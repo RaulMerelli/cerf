@@ -58,6 +58,6 @@ private:
     }
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(Imx6GicMmio);

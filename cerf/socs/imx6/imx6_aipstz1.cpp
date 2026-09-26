@@ -5,5 +5,5 @@ public:
     using Imx6Aipstz::Imx6Aipstz;
 
 };
-} // namespace
+}
 REGISTER_SERVICE(Imx6Aipstz1);

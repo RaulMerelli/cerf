@@ -75,8 +75,7 @@ bool ValidateUpdateState(const State& state) noexcept {
 }
 
 bool ValidateSnapshot(const State& state) noexcept {
-    if (state.schema_version != kStateSchemaVersion ||
-        !IsValidResetKind(state.last_reset) ||
+    if (!IsValidResetKind(state.last_reset) ||
         !IsValidModulePhase(state.module_phase) ||
         !IsValidUpdatePhase(state.update_phase)) {
         return false;
@@ -86,12 +85,12 @@ bool ValidateSnapshot(const State& state) noexcept {
         !IsBoolByte(state.chip_select_asserted) ||
         !IsBoolByte(state.startup_exchange_pending) ||
         !IsBoolByte(state.startup_control_acknowledged) ||
-        !IsBoolByte(state.fault_active) || !IsBoolByte(state.update_final_seen)) {
+        !IsBoolByte(state.update_final_seen)) {
         return false;
     }
 
     if (state.reserved_spi != 0u || state.reserved_outer != 0u ||
-        state.reserved_relay != 0u || state.reserved_fault0 != 0u) {
+        state.reserved_relay != 0u) {
         return false;
     }
 
@@ -141,23 +140,6 @@ bool ValidateSnapshot(const State& state) noexcept {
         return false;
     }
 
-    if (state.fault_payload_size > state.fault_payload.size()) {
-        return false;
-    }
-    if (!AllZero(state.fault_payload.data() + state.fault_payload_size,
-                 state.fault_payload.size() - state.fault_payload_size)) {
-        return false;
-    }
-    if (state.fault_active != 0u) {
-        if (state.fault_payload_size < 2u || state.fault_payload[0] != 0xFDu ||
-            state.fault_payload[1] != 0x01u ||
-            state.module_phase != ModulePhase::Fault) {
-            return false;
-        }
-    } else if (state.module_phase == ModulePhase::Fault) {
-        return false;
-    }
-
     if (!ValidateFirmwareInfo(state.firmware)) {
         return false;
     }
@@ -177,7 +159,6 @@ bool ValidateSnapshot(const State& state) noexcept {
 }
 
 void ResetVolatile(State& state, ResetKind kind) noexcept {
-    state.schema_version = kStateSchemaVersion;
     state.last_reset = kind;
     state.module_phase = ModulePhase::Startup;
     state.update_phase = UpdatePhase::Inactive;
@@ -186,7 +167,6 @@ void ResetVolatile(State& state, ResetKind kind) noexcept {
     state.gpio6_ack = 0u;
     state.chip_select_asserted = 0u;
     state.startup_exchange_pending = 1u;
-    state.deterministic_time_us = 0u;
 
     state.spi_bytes_transferred = 0u;
     state.reserved_spi = 0u;
@@ -201,11 +181,6 @@ void ResetVolatile(State& state, ResetKind kind) noexcept {
     state.reserved_outer = 0u;
 
     ResetRelayState(state);
-
-    state.fault_active = 0u;
-    state.reserved_fault0 = 0u;
-    state.fault_payload_size = 0u;
-    state.fault_payload.fill(0u);
 
     state.update_expected_sequence = 0u;
     state.update_staging_size = 0u;
@@ -365,4 +340,4 @@ Status CommitWireRequest(State& state,
 }
 
 
-}  // namespace ktp_mobile::detail
+}

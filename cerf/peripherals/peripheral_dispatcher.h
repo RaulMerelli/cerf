@@ -12,18 +12,12 @@ enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
 enum class ResetKind;
 enum class ResetLineKind;
 
-enum class ResetBaselinePolicy {
-    EveryReset,
-    ColdResetOnly,
-};
-
 class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
 
     void Register(Peripheral* p);
-    void RegisterResettable(Peripheral* p,
-                            ResetBaselinePolicy policy = ResetBaselinePolicy::EveryReset);
+    void RegisterResettable(Peripheral* p);
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
@@ -43,7 +37,6 @@ public:
 private:
     struct ResetBaseline {
         Peripheral* p;
-        ResetBaselinePolicy policy;
         std::vector<uint8_t> state;
     };
 

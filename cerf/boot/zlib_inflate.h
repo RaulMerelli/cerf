@@ -12,4 +12,4 @@ std::vector<uint8_t> Decompress(const uint8_t* src, size_t src_size, size_t out_
 /* RFC 1951 §3.2.3. */
 std::vector<uint8_t> DecompressGrowing(const uint8_t* src, size_t src_size, size_t max_out);
 
-} // namespace cerf::zlib_inflate
+}

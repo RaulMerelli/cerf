@@ -10,8 +10,7 @@ public:
     using FreescaleSdmaBase::FreescaleSdmaBase;
 
 protected:
-    /* SDMA AP interrupt = GIC SPI 2. Linux arch/arm/boot/dts/nxp/imx/imx6sl.dtsi
-       sdma node: interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>. */
+    /* Linux imx6qdl.dtsi sdma node: interrupts = <0 2 IRQ_TYPE_LEVEL_HIGH>. */
     void AssertIrqLine() override { emu_.Get<Imx6Gic>().AssertSpi(2); }
     void DeassertIrqLine() override { emu_.Get<Imx6Gic>().DeAssertSpi(2); }
 
@@ -51,4 +50,4 @@ private:
 
 REGISTER_SERVICE(Imx6Sdma);
 
-} // namespace
+}

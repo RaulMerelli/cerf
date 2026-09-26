@@ -26,4 +26,4 @@ bool ExtractInstalledFirmwareSummary(const uint8_t* src, size_t size, std::vecto
 
 bool AssembleFsfVolume(const uint8_t* src, size_t size, std::vector<uint8_t>& out);
 
-} // namespace cerf::fwf_oms
+}

@@ -1,6 +1,7 @@
 #include "imx6_gic.h"
 
 #include "imx6_fec.h"
+#include "../../core/crc32.h"
 #include "imx6_fec_legacy_ring.h"
 #include "imx6_mmio_lane.h"
 
@@ -20,7 +21,7 @@
 
 namespace {
 
-/* Linux imx6qdl.dtsi fec: ethernet@2188000, reg <0x02188000 0x4000>, GIC SPI 118. IMX6SDLRM 23.5:
+/* Linux imx6qdl.dtsi fec: ethernet@2188000, reg <0x02188000 0x4000>, GIC SPI 118. IMX6DQRM Rev.2 §23.5:
    EIR 0x004, EIMR 0x008, RDAR 0x010, TDAR 0x014, ECR 0x024, MMFR 0x040, MSCR 0x044,
    PALR 0x0E4, PAUR 0x0E8. */
 class Imx6Fec final : public Peripheral {
@@ -80,22 +81,19 @@ public:
         w.Write(tcr_);
         w.Write(mmfr_);
         w.Write(mscr_);
-        w.Write(mibc_);
         w.Write(iaur_);
         w.Write(ialr_);
         w.Write(gaur_);
         w.Write(galr_);
         w.Write(palr_);
         w.Write(paur_);
-        w.Write(opd_);
         w.Write(tfwr_);
-        w.Write(frbr_);
-        w.Write(frsr_);
         w.Write(emrbr_);
         w.Write(erdsr_);
         w.Write(etdsr_);
-        w.Write(emrbr2_);
         w.Write(phy_bmcr_);
+        w.Write(phy_gbcr_);
+        w.Write(phy_ext_address_);
         rings_.SaveState(w);
     }
 
@@ -108,22 +106,19 @@ public:
         r.Read(tcr_);
         r.Read(mmfr_);
         r.Read(mscr_);
-        r.Read(mibc_);
         r.Read(iaur_);
         r.Read(ialr_);
         r.Read(gaur_);
         r.Read(galr_);
         r.Read(palr_);
         r.Read(paur_);
-        r.Read(opd_);
         r.Read(tfwr_);
-        r.Read(frbr_);
-        r.Read(frsr_);
         r.Read(emrbr_);
         r.Read(erdsr_);
         r.Read(etdsr_);
-        r.Read(emrbr2_);
         r.Read(phy_bmcr_);
+        r.Read(phy_gbcr_);
+        r.Read(phy_ext_address_);
         rings_.RestoreState(r);
     }
 
@@ -152,20 +147,22 @@ private:
     static constexpr uint32_t kTdar = 0x014u;
     static constexpr uint32_t kEcr = 0x024u;
     static constexpr uint32_t kMmfr = 0x040u;
+    static constexpr uint32_t kMscrSpeedMask = 0x0000003Eu;
+    static constexpr uint32_t kTfwrStoreAndForward = 0x00000100u;
     static constexpr uint32_t kMscr = 0x044u;
-    static constexpr uint32_t kMibc = 0x064u;
     static constexpr uint32_t kRcr = 0x084u;
+    /* IMX6DQRM Rev.2 §23.5.9: RCR PROM is bit 3 and BC_REJ bit 4. */
+    static constexpr uint32_t kRcrProm = 1u << 3;
+    static constexpr uint32_t kRcrBcRej = 1u << 4;
     static constexpr uint32_t kTcr = 0x0C4u;
+    static constexpr uint32_t kTcrFden = 1u << 2;
     static constexpr uint32_t kPalr = 0x0E4u;
     static constexpr uint32_t kPaur = 0x0E8u;
-    static constexpr uint32_t kOpd = 0x0ECu;
     static constexpr uint32_t kIaur = 0x118u;
     static constexpr uint32_t kIalr = 0x11Cu;
     static constexpr uint32_t kGaur = 0x120u;
     static constexpr uint32_t kGalr = 0x124u;
     static constexpr uint32_t kTfwr = 0x144u;
-    static constexpr uint32_t kFrbr = 0x14Cu;
-    static constexpr uint32_t kFrsr = 0x150u;
     static constexpr uint32_t kErdSr = 0x180u;
     static constexpr uint32_t kEtdSr = 0x184u;
     static constexpr uint32_t kEmrbr = 0x188u;
@@ -183,19 +180,15 @@ private:
         case kEcr: return ecr_ & ~kEcrReset;
         case kMmfr: return mmfr_;
         case kMscr: return mscr_;
-        case kMibc: return mibc_;
         case kRcr: return rcr_;
         case kTcr: return tcr_;
         case kPalr: return palr_;
         case kPaur: return paur_;
-        case kOpd: return opd_;
         case kIaur: return iaur_;
         case kIalr: return ialr_;
         case kGaur: return gaur_;
         case kGalr: return galr_;
         case kTfwr: return tfwr_;
-        case kFrbr: return frbr_;
-        case kFrsr: return frsr_;
         case kErdSr: return erdsr_;
         case kEtdSr: return etdsr_;
         case kEmrbr: return emrbr_;
@@ -232,24 +225,28 @@ private:
             CompleteMiiTransaction();
             return;
         case kMscr: mscr_ = value; return;
-        case kMibc:
-            if (value & 0x20000000u) {
-                value &= ~0x20000000u;
-            }
-            mibc_ = value;
-            return;
         case kRcr: rcr_ = value; return;
-        case kTcr: tcr_ = value; return;
+        /* IMX6DQRM Rev.2 §23.5.10: GTS and TFC_PAUSE stop transmission and set EIR[GRA], ADDINS
+           overwrites the source MAC address, CRCFWD suppresses the appended CRC, and FDEN makes
+           frames transmit independent of carrier sense and collision inputs. */
+        case kTcr:
+            if ((value & ~kTcrFden) != 0u)
+                emu_.Get<Fatal>().Die("[FEC] TCR 0x%08X beyond FDEN is not modelled", value);
+            tcr_ = value;
+            return;
         case kPalr: palr_ = value; return;
         case kPaur: paur_ = (value | 0x0000FFFFu) & 0xFFFF8808u; return;
-        case kOpd: opd_ = (value & 0x0000FFFFu) | 0x00010000u; return;
         case kIaur: iaur_ = value; return;
         case kIalr: ialr_ = value; return;
         case kGaur: gaur_ = value; return;
         case kGalr: galr_ = value; return;
-        case kTfwr: tfwr_ = value; return;
-        case kFrbr: frbr_ = value; return;
-        case kFrsr: frsr_ = value; return;
+        /* IMX6DQRM Rev.2 §23.5.18: with STRFWD clear the MAC starts transmission once the FIFO
+           reaches TFWR, before the end of frame is available; this model hands whole frames over. */
+        case kTfwr:
+            if ((value & kTfwrStoreAndForward) == 0u)
+                emu_.Get<Fatal>().Die("[FEC] TFWR cut-through is not modelled (0x%08X)", value);
+            tfwr_ = value;
+            return;
         case kErdSr:
             erdsr_ = value & ~7u;
             rings_.SetRxDescriptorBase(erdsr_);
@@ -260,7 +257,6 @@ private:
             return;
         case kEmrbr:
             emrbr_ = value & 0x00003FF0u;
-            emrbr2_ = emrbr_;
             return;
         default: HaltUnsupportedAccess("imx6-fec write32 unmodelled register", kBase + off, value);
         }
@@ -274,17 +270,11 @@ private:
         tcr_ = 0u;
         mmfr_ = 0u;
         mscr_ = 0u;
-        mibc_ = 0xC0000000u;
         paur_ = (paur_ & 0xFFFF0000u) | 0x00008808u;
-        opd_ = 0x00010000u;
         tfwr_ = 0u;
-        frbr_ = 0x00000600u;
-        frsr_ = 0x00000500u;
         erdsr_ = 0u;
         etdsr_ = 0u;
         emrbr_ = 0u;
-        emrbr2_ = 0u;
-        phy_bmcr_ = 0x1140u;
         rings_.Reset();
         UpdateIrq();
     }
@@ -306,17 +296,34 @@ private:
         }
     }
 
+    /* IMX6DQRM Rev.2 §23.6.4.3.2: the six most significant bits of the CRC-32 of the destination
+       address index the 64-bit table, the top one choosing the upper half; Table 23-126 accepts a
+       broadcast unless BC_REJ is set without PROM. */
     bool AcceptFrame(const uint8_t* frame, std::size_t len) const {
         if (len < 14u) return false;
+        const bool promiscuous = (rcr_ & kRcrProm) != 0u;
         const bool broadcast = frame[0] == 0xFFu && frame[1] == 0xFFu && frame[2] == 0xFFu && frame[3] == 0xFFu &&
                                frame[4] == 0xFFu && frame[5] == 0xFFu;
+        if (broadcast) return promiscuous || (rcr_ & kRcrBcRej) == 0u;
+        if (promiscuous) return true;
         const bool multicast = (frame[0] & 1u) != 0u;
-        const bool unicast = std::equal(guest_mac_.begin(), guest_mac_.end(), frame);
-        if (broadcast || multicast || unicast) return true;
-        return (rcr_ & (1u << 3)) != 0u;
+        /* IMX6DQRM Rev.2 §23.6.4.3.4 names the node address as PALR[PADDR1] and PAUR[PADDR2]. */
+        const uint32_t da_lo = (static_cast<uint32_t>(frame[0]) << 24) | (static_cast<uint32_t>(frame[1]) << 16) |
+                               (static_cast<uint32_t>(frame[2]) << 8) | static_cast<uint32_t>(frame[3]);
+        const uint32_t da_hi = (static_cast<uint32_t>(frame[4]) << 24) | (static_cast<uint32_t>(frame[5]) << 16);
+        if (!multicast && da_lo == palr_ && da_hi == (paur_ & 0xFFFF0000u)) return true;
+        /* IMX6DQRM Rev.2 §23.6.4.3.2 takes the hash index from the upper six bits of the CRC over
+           the destination address; Linux fec_main.c feeds ether_crc_le, which is the accumulator
+           before the final inversion, into the same six bits. */
+        const uint32_t index = cerf::Crc32Accumulator(frame, 6u) >> 26u;
+        const uint32_t table = (index & 0x20u) != 0u ? (multicast ? gaur_ : iaur_) : (multicast ? galr_ : ialr_);
+        return ((table >> (index & 0x1Fu)) & 1u) != 0u;
     }
 
+    /* IMX6DQRM Rev.2 §23.5.7: "The MII_SPEED must be set to a non-zero value to source a read or
+       write management frame", and the register may be cleared afterwards to turn off MDC. */
     void CompleteMiiTransaction() {
+        if ((mscr_ & kMscrSpeedMask) == 0u) return;
         const uint32_t op = (mmfr_ >> 28) & 3u;
         const uint32_t phy = (mmfr_ >> 23) & 0x1Fu;
         const uint32_t reg = (mmfr_ >> 18) & 0x1Fu;
@@ -324,11 +331,17 @@ private:
         /* QEMU hw/arm/fsl-imx6.c: fec-phy-num; KSZ9021RL/RN DS00003050A section 4.1. */
         if (op == 2u) {
             mmfr_ = (mmfr_ & 0xFFFF0000u) | ReadPhyRegister(phy, reg);
-        } else if (op == 1u && phy == kPhyAddr) {
-            WritePhyRegister(reg, static_cast<uint16_t>(mmfr_));
+        } else if (op == 1u) {
+            if (phy == kPhyAddr) WritePhyRegister(reg, static_cast<uint16_t>(mmfr_));
+        } else {
+            emu_.Get<Fatal>().Die("[FEC] MII operation %u is not modelled (MMFR 0x%08X)", op, mmfr_);
         }
         eir_ |= kEirMii;
         UpdateIrq();
+    }
+
+    bool MasterSlaveResolution() const {
+        return (phy_gbcr_ & 0x1000u) ? ((phy_gbcr_ & 0x0800u) != 0u) : ((phy_gbcr_ & 0x0400u) != 0u);
     }
 
     uint16_t ReadPhyRegister(uint32_t phy, uint32_t reg) const {
@@ -337,31 +350,71 @@ private:
         case 0x00: return phy_bmcr_;
         case 0x01:
             return LinkIsUp() ? 0x796Du : 0x7949u;
-        /* hmi_ktp400_mobile_v13 enet.dll file offset 0x82A0: ID and "KSZ9021";
-           KSZ9021RL/RN DS00003050A section 4.1. */
+        /* KSZ9021RL/RN DS00003050A §4.1: registers 2 and 3 carry the Kendin OUI 0010A1, model
+           number 100001b and a silicon revision. */
         case 0x02: return 0x0022u;
         case 0x03: return 0x1611u;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 4: 100Base-TX and 10Base-T, full and half duplex,
+           with the IEEE 802.3 selector field. */
         case 0x04: return 0x01E1u;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 5: acknowledge, asymmetric pause and the same four
+           speed abilities are what the modelled link partner answers with. */
         case 0x05:
             return LinkIsUp() ? 0x45E1u : 0x0000u;
-        case 0x1F: return 0x0000u;
-        /* Linux mii.h: MII_CTRL1000 0x09 and MII_STAT1000 0x0a are
-           present only with BMSR_ESTATEN (0x0100), which the BMSR above leaves clear. */
-        case 0x09:
-        case 0x0A: return 0x0000u;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 31: Enable Jabber defaults to 1, and 31.5 and 31.3
+           report the resolved speed and duplex, which for the modelled link partner is
+           100Base-TX full duplex. */
+        case 0x1F: return LinkIsUp() ? 0x0228u : 0x0200u;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 9: bits 7:0 are reserved, "write as 0, ignore on read". */
+        case 0x09: return static_cast<uint16_t>(phy_gbcr_ & 0xFF00u);
+        /* KSZ9021RL/RN DS00003050A §4.1 register 10: 10.14 resolves to MASTER from 9.11 when 9.12
+           enables the manual configuration and from the port-type preference in 9.10 otherwise;
+           10.11 and 10.10 report the link partner's 1000Base-T abilities. */
+        case 0x0A: return MasterSlaveResolution() ? 0x4000u : 0x0000u;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 15: 1000Base-T full and half duplex, which is the
+           Extended Status that BMSR bit 8 advertises. */
+        case 0x0F: return 0x3000u;
+        case 0x0D:
+            emu_.Get<Fatal>().Die("[FEC] MDIO read of extended register 0x%03X is not modelled", phy_ext_address_);
         default: emu_.Get<Fatal>().Die("[FEC] MDIO read of unmodelled PHY register %u", reg);
         }
     }
 
+    /* KSZ9021RL/RN DS00003050A §4.1: register 11 is Extended Register Control with bit 15
+       selecting a write, 12 is Data Write and 13 Data Read; 260..262 are the RGMII pad skews.
+       The same map lists 14, 29 and 30 as Reserved. */
     void WritePhyRegister(uint32_t reg, uint16_t value) {
-        if (reg == 0x00) {
-            if (value & 0x8000u) {
-                phy_bmcr_ = 0x1140u;
-            } else {
-                phy_bmcr_ = value;
-            }
+        switch (reg) {
+        case 0x00: phy_bmcr_ = (value & 0x8000u) ? 0x1140u : value; return;
+        /* KSZ9021RL/RN DS00003050A §4.1 register 9: bits 15:13 select the transmitter test modes. */
+        case 0x09:
+            if ((value & 0xE000u) != 0u)
+                emu_.Get<Fatal>().Die("[FEC] PHY 1000Base-T test mode 0x%04X is not modelled", value);
+            phy_gbcr_ = value;
+            return;
+        case 0x0B: phy_ext_address_ = value & 0x0FFFu; return;
+        case 0x0C: WriteExtendedRegister(phy_ext_address_, value); return;
+        case 0x0D:
+        case 0x0E:
+        case 0x1D:
+        case 0x1E: return;
+        default:
+            emu_.Get<Fatal>().Die("[FEC] MDIO write of unmodelled PHY register %u value 0x%04X", reg, value);
         }
     }
+
+    void WriteExtendedRegister(uint32_t reg, uint16_t value) {
+        switch (reg) {
+        /* KSZ9021RL/RN DS00003050A §4.1: 260..262 are the RGMII clock and data pad skews, PCB
+           timing that an emulated link does not reproduce. */
+        case 0x104:
+        case 0x105:
+        case 0x106: return;
+        default:
+            emu_.Get<Fatal>().Die("[FEC] MDIO write of unmodelled extended register 0x%03X value 0x%04X", reg, value);
+        }
+    }
+
 
     bool LinkIsUp() const { return rx_installed_; }
 
@@ -382,29 +435,28 @@ private:
     uint32_t tcr_ = 0u;
     uint32_t mmfr_ = 0u;
     uint32_t mscr_ = 0u;
-    uint32_t mibc_ = 0xC0000000u;
     uint32_t iaur_ = 0u;
     uint32_t ialr_ = 0u;
     uint32_t gaur_ = 0u;
     uint32_t galr_ = 0u;
     uint32_t palr_ = 0x02000000u;
     uint32_t paur_ = 0x00008808u;
-    uint32_t opd_ = 0x00010000u;
     uint32_t tfwr_ = 0u;
-    uint32_t frbr_ = 0x00000600u;
-    uint32_t frsr_ = 0x00000500u;
     uint32_t erdsr_ = 0u;
     uint32_t etdsr_ = 0u;
     uint32_t emrbr_ = 0u;
-    uint32_t emrbr2_ = 0u;
     Imx6FecLegacyRing rings_;
     std::array<uint8_t, 6> guest_mac_{};
     bool rx_installed_ = false;
     mutable std::mutex mtx_;
     static constexpr uint32_t kPhyAddr = 0u;
     uint16_t phy_bmcr_ = 0x1140u;
+    /* KSZ9021RL/RN DS00003050A §4.1 register 9: the 1000Base-T full-duplex advertisement
+       defaults to 1. */
+    uint16_t phy_gbcr_ = 0x0200u;
+    uint32_t phy_ext_address_ = 0u;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(Imx6Fec);

@@ -5,5 +5,5 @@ public:
     using Imx6Pwm::Imx6Pwm;
 
 };
-} // namespace
+}
 REGISTER_SERVICE(Imx6Pwm4);

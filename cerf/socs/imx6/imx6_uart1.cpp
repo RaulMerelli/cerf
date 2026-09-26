@@ -7,7 +7,7 @@
 
 namespace {
 
-/* IMX6SDLRM memory map: UART1 at 0x0202_0000. The i.MX6 UART register layout is
+/* IMX6DQRM Rev.2 Table 2-2: UART1 at 0x0202_0000. The i.MX6 UART register layout is
    the same Freescale block already shared by i.MX31/i.MX51. */
 class Imx6Uart1 : public Imx6Uart<0x02020000u, 1> {
     using Imx6Uart::Imx6Uart;

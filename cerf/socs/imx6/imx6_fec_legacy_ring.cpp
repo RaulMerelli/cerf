@@ -28,7 +28,7 @@ uint32_t NextDescriptor(uint32_t current, uint16_t status, uint32_t base) {
     return (status & kDescriptorWrap) ? base : current + kDescriptorStride;
 }
 
-} // namespace
+}
 
 void Imx6FecLegacyRing::Reset() {
     rdar_ = 0u;
@@ -134,7 +134,7 @@ uint32_t Imx6FecLegacyRing::Receive(EmulatedMemory& memory, const uint8_t* frame
                                     uint32_t max_receive_buffer) {
     if (rdar_ == 0u || max_receive_buffer == 0u) return 0u;
 
-    /* IMX6SDLRM Rev.4 Table 23-6. */
+    /* IMX6DQRM Rev.2 Table 23-106. */
     std::vector<uint8_t> packet(frame, frame + length);
     const uint32_t crc = cerf::Crc32(frame, length);
     packet.push_back(static_cast<uint8_t>(crc));
@@ -162,7 +162,7 @@ uint32_t Imx6FecLegacyRing::Receive(EmulatedMemory& memory, const uint8_t* frame
 
         const bool last = offset == packet.size();
         const uint16_t descriptor_length = static_cast<uint16_t>(copy_length);
-        /* QEMU hw/net/imx_fec.c:imx_fec_receive clears only ENET_BD_E and sets ENET_BD_L on the
+        /* QEMU i.MX FEC model (imx_fec_receive) clears only ENET_BD_E and sets ENET_BD_L on the
            last descriptor; hmi_ktp400_mobile_v13 enet.dll sub_EF4B45F4 needs the 0x4000 marker kept. */
         status &= static_cast<uint16_t>(~kDescriptorOwned);
         if (last) status |= kDescriptorLast;

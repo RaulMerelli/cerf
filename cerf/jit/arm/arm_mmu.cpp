@@ -176,38 +176,61 @@ uint8_t* __fastcall ArmMmu::TranslateUserReadHelper(uint32_t va, ArmMmu* mmu) {
     return mmu->walker_->TranslateUserRead(mmu->cpu_state_, va);
 }
 
-uint32_t __fastcall ArmMmu::AddressTranslateHelper(uint32_t va, ArmMmu* mmu) {
-    const ArmDfsr saved_fsr = mmu->state_.fault_status;
-    const uint32_t saved_far = mmu->state_.fault_address;
-    const uint32_t saved_io_address = mmu->io_pending_address_;
-    const uint32_t saved_io_valid = mmu->io_pending_valid_;
+uint32_t ArmMmu::AddressTranslate(uint32_t va, AtsWalk walk) {
+    const ArmDfsr saved_fsr = state_.fault_status;
+    const uint32_t saved_far = state_.fault_address;
+    const uint32_t saved_io_address = io_pending_address_;
+    const uint32_t saved_io_valid = io_pending_valid_;
 
-    mmu->ClearIoPending();
-    uint8_t* host = mmu->walker_->TranslateRead(mmu->cpu_state_, va);
+    ClearIoPending();
+    uint8_t* host = nullptr;
+    const char* op = "ATS1CPR";
+    switch (walk) {
+    case AtsWalk::PrivilegedRead: host = walker_->TranslateRead(cpu_state_, va); break;
+    case AtsWalk::PrivilegedWrite: host = walker_->TranslateReadWrite(cpu_state_, va); op = "ATS1CPW"; break;
+    case AtsWalk::UserRead: host = walker_->TranslateUserRead(cpu_state_, va); op = "ATS1CUR"; break;
+    case AtsWalk::UserWrite: host = walker_->TranslateUserWrite(cpu_state_, va); op = "ATS1CUW"; break;
+    }
     uint32_t par;
-    if (host != nullptr || mmu->io_pending()) {
+    if (host != nullptr || io_pending()) {
         /* ARM DDI 0406C.d B4.1.112 (pp. B4-1659..B4-1660): PA[31:12], or with SS
            PA[31:24], PAR[23:16] = PA[39:32] and PAR[15:12] = 0; attributes in [10:1]. */
         constexpr uint16_t kParSs = 1u << 1;
         uint32_t pa = 0;
         uint16_t attrs = 0;
-        ArmMmuProbe& probe = mmu->emu_.Get<ArmMmuProbe>();
+        ArmMmuProbe& probe = emu_.Get<ArmMmuProbe>();
         if (!probe.TlbPar(va, &pa, &attrs) && !probe.WalkPar(va, &pa, &attrs)) {
-            mmu->emu_.Get<Fatal>().Die("ATS1CPR: VA 0x%08X translates but has no page-table "
-                                       "descriptor to report in PAR",
-                                       va);
+            emu_.Get<Fatal>().Die("%s: VA 0x%08X translates but has no page-table "
+                                  "descriptor to report in PAR",
+                                  op, va);
         }
         par = (pa & ((attrs & kParSs) != 0u ? 0xFF000000u : 0xFFFFF000u)) | attrs;
     } else {
-        const uint32_t fs = mmu->state_.fault_status.bits.status | (mmu->state_.fault_status.bits.fs4 << 4);
+        const uint32_t fs = state_.fault_status.bits.status | (state_.fault_status.bits.fs4 << 4);
         par = 1u | (fs << 1);
     }
 
-    mmu->state_.fault_status = saved_fsr;
-    mmu->state_.fault_address = saved_far;
-    mmu->io_pending_address_ = saved_io_address;
-    mmu->io_pending_valid_ = saved_io_valid;
+    state_.fault_status = saved_fsr;
+    state_.fault_address = saved_far;
+    io_pending_address_ = saved_io_address;
+    io_pending_valid_ = saved_io_valid;
     return par;
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->AddressTranslate(va, AtsWalk::PrivilegedRead);
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateWriteHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->AddressTranslate(va, AtsWalk::PrivilegedWrite);
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateUserReadHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->AddressTranslate(va, AtsWalk::UserRead);
+}
+
+uint32_t __fastcall ArmMmu::AddressTranslateUserWriteHelper(uint32_t va, ArmMmu* mmu) {
+    return mmu->AddressTranslate(va, AtsWalk::UserWrite);
 }
 
 uint8_t* __fastcall ArmMmu::TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu) {

@@ -1,7 +1,6 @@
-﻿#include "../../socs/imx6/imx6_i2c_bus.h"
-#include "../../socs/imx6/imx6_i2c_device.h"
+﻿#include "../../socs/imx6/imx6_i2c_device.h"
+#include "ti_tsc2017_wiring.h"
 #include "tsc2017_host_state.h"
-#include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 
@@ -11,14 +10,8 @@ class TiTsc2017 : public Imx6I2cDevice {
 public:
     using Imx6I2cDevice::Imx6I2cDevice;
 
-    bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
-    }
-    void OnReady() override { emu_.Get<Imx6I2cBus>().Register(this); }
-
-    uint32_t I2cControllerBase() const override { return 0x021A8000u; }
-    uint8_t SlaveAddress() const override { return 0x49u; }
+    bool ShouldRegister() override { return emu_.TryGet<TiTsc2017Wiring>() != nullptr; }
+    void OnReady() override { emu_.Get<TiTsc2017Wiring>().Attach(this); }
 
     void StartTransfer(bool read) override {
         expecting_command_ = !read;
@@ -38,6 +31,11 @@ public:
         const bool eight_bit = (command_ & 0x02u) != 0;
         const uint16_t sample = Clamp12(last_value_);
         const uint8_t index = read_index_++;
+        /* SBAS472 section 8.5.2: a conversion result is one byte in 8-bit mode and two in
+           12-bit mode; the device has nothing further to hand out. */
+        const uint8_t result_bytes = eight_bit ? 1u : 2u;
+        if (index >= result_bytes)
+            emu_.Get<Fatal>().Die("TSC2017 read byte %u past the %u-byte conversion result", index, result_bytes);
 
         uint8_t out = 0;
         if (eight_bit) {
@@ -97,15 +95,21 @@ private:
         }
     }
 
+    /* SBAS472: TEMP0 and TEMP1 are the two internal diode voltages and AUX the auxiliary input
+       pin; their codes follow die temperature and a board rail, neither of which CERF carries. */
+    static constexpr uint16_t kTemp0AbsentStub = 0x300u;
+    static constexpr uint16_t kAuxAbsentStub = 0x800u;
+    static constexpr uint16_t kTemp1AbsentStub = 0x300u;
+
     /* Converter function select, SBAS472 Table 3 (p. 25): C3-C0 selects
        0000 TEMP0, 0010 AUX, 0100 TEMP1, 1000/1001/1010 driver activation,
        1100 X position, 1101 Y position, 1110 Z1 position, 1111 Z2 position. */
     uint16_t SampleForFunction(uint8_t function) {
         const auto touch = FrameSample();
         switch (function & 0x0Fu) {
-        case 0x0u: return 0x300u;
-        case 0x2u: return 0x800u;
-        case 0x4u: return 0x300u;
+        case 0x0u: return kTemp0AbsentStub;
+        case 0x2u: return kAuxAbsentStub;
+        case 0x4u: return kTemp1AbsentStub;
         case 0x8u:
         case 0x9u:
         case 0xAu: return 0x000u;
@@ -142,6 +146,6 @@ private:
     bool pending_completion_ = false;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(TiTsc2017);

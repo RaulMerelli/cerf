@@ -1,6 +1,7 @@
 #include "ktp_mobile_f_module_device.h"
 
 #include "../board_context.h"
+#include "ktp_mobile_board_profile.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/imx6/imx6_gpio_bus.h"
 #include "../../socs/imx6/imx6_gpio_source.h"
@@ -19,15 +20,8 @@ public:
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
         if (!board) return false;
-        switch (board->GetBoard()) {
-        case Board::HmiKtp400FMobile:
-        case Board::HmiKtp700FMobile:
-        case Board::HmiKtp900FMobile:
-        case Board::HmiKtp700FHwMobile:
-        case Board::HmiKtp700FArcticMobile:
-        case Board::HmiTp1000fMobile: return true;
-        default: return false;
-        }
+        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+        return profile && profile->has_f_module;
     }
 
     void OnReady() override { emu_.Get<Imx6GpioBus>().RegisterSource(this); }
@@ -65,6 +59,6 @@ private:
     bool line_high_ = true;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(KtpMobileFModuleResetGpio);

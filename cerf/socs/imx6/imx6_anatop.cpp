@@ -41,10 +41,10 @@ public:
     }
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - MmioBase();
-        /* IMX6SDLRM Rev.4 section 66.4.11: 0x00610001 is i.MX6Solo/DualLite revision 1.1. */
-        if (off == 0x260u) return 0x00610001u;
+        /* NXP AN12263 Rev.0, Table 2 note 1: i.MX6D/Q Rev 1.3 USB_ANALOG_DIGPROG = 0x00630005. */
+        if (off == 0x260u) return 0x00630005u;
         /* hmi_ktp400_mobile_v17, nk.exe: sub_80318660 @ VA 0x80318660 probes +0x280 for SL then +0x260.
-           Linux arch/arm/mach-imx/anatop.c names +0x280 ANADIG_DIGPROG_IMX6SL; IMX6SDLRM Rev.4 §66.4 omits it. */
+           Linux arch/arm/mach-imx/anatop.c names +0x280 ANADIG_DIGPROG_IMX6SL; IMX6DQRM Rev.2 §66.4 omits it. */
         if (off == 0x280u) return kImx6SlDigprogAbsentStub;
         if (IsRegister(off)) return regs_[(off & ~0xFu) / 0x10u];
         HaltUnsupportedAccess("read32", addr, 0);
@@ -103,7 +103,7 @@ private:
 
     static void UpdatePllLockAfterWrite(uint32_t base, uint32_t& reg) {
         if (!IsPllControl(base)) return;
-        /* IMX6SDLRM Rev.4 §§18.5.1.5.3, 18.7.1-18.7.15: LOCK is status; USB1/2 bit12=POWER,
+        /* IMX6DQRM Rev.2 §§18.5.1.5.3, 18.7.1-18.7.15: LOCK is status; USB1/2 bit12=POWER,
            other powered PLLs bit12=POWERDOWN, and BYPASS selects the reference output. hmi_ktp400_mobile_v13
            cspddk.dll sub_EF5AC3C8 @ 0xEF5AC4F0..0xEF5AC540 clears VIDEO POWERDOWN then polls LOCK. */
         reg &= ~kPllLock;
@@ -147,7 +147,7 @@ private:
 
     void ResetRegisters() {
         std::fill(std::begin(regs_), std::end(regs_), 0u);
-        /* IMX6SDLRM Rev.4 §18.7 and §66.4. */
+        /* IMX6DQRM Rev.2 §18.7 and §66.4. */
         regs_[0x000u / 0x10u] = 0x00013042u;
         regs_[0x010u / 0x10u] = 0x00012000u;
         regs_[0x020u / 0x10u] = 0x00012000u;

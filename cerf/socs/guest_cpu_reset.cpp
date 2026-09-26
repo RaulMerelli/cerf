@@ -81,7 +81,7 @@ void GuestCpuReset::RestoreState(StateReader& r) {
 
 void GuestCpuReset::OnResetDelivered() {
     const ResetKind kind =
-        pending_kind_.exchange(ResetKind::Cold, std::memory_order_acq_rel);
+        pending_kind_.exchange(ResetKind::Warm, std::memory_order_acq_rel);
     const ResetLineKind legacy_kind =
         kind == ResetKind::Cold ? ResetLineKind::Rtc : ResetLineKind::Other;
     delivered_is_resume_ = pending_is_resume_.exchange(false, std::memory_order_acq_rel);

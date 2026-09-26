@@ -21,7 +21,7 @@ void PushUintProperty(std::vector<uint8_t>& out, uint8_t id_hi, uint8_t id_lo, u
     PushVarint(out, value);
 }
 
-} // namespace
+}
 
 namespace {
 
@@ -75,7 +75,7 @@ std::vector<uint8_t> BuildHardwareInfo(const std::array<uint8_t, 6>& mac, KtpMob
     return oms;
 }
 
-} // namespace
+}
 
 std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
                                                    KtpMobilePanel panel) {

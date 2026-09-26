@@ -3,9 +3,8 @@
 #include "ktp_mobile_f_module_protocol.h"
 #include "ktp_mobile_f_module_state.h"
 
+#include <limits>
 #include <memory>
-#include <new>
-#include <utility>
 
 namespace ktp_mobile {
 using namespace detail;
@@ -20,26 +19,17 @@ struct KtpMobileFModule::Impl {
 
 KtpMobileFModule::KtpMobileFModule() : impl_(std::make_unique<Impl>()) {}
 KtpMobileFModule::~KtpMobileFModule() = default;
-KtpMobileFModule::KtpMobileFModule(KtpMobileFModule&&) noexcept = default;
-KtpMobileFModule& KtpMobileFModule::operator=(KtpMobileFModule&&) noexcept = default;
 
 void KtpMobileFModule::ColdReset() noexcept {
-    if (impl_ != nullptr) {
-        ResetVolatile(impl_->state, ResetKind::Cold);
-    }
+    ResetVolatile(impl_->state, ResetKind::Cold);
 }
 
 void KtpMobileFModule::WarmModuleReset() noexcept {
-    if (impl_ != nullptr) {
-        ResetVolatile(impl_->state, ResetKind::WarmModule);
-    }
+    ResetVolatile(impl_->state, ResetKind::WarmModule);
 }
 
 Status KtpMobileFModule::ConfigureFirmwareContainer(
     const std::uint8_t* container, std::size_t length, bool install) noexcept {
-    if (impl_ == nullptr) {
-        return Status::InvalidState;
-    }
     State& state = impl_->state;
     ParsedContainer parsed{};
     if (!ParseContainerStructure(container, length, parsed)) {
@@ -67,9 +57,6 @@ Status KtpMobileFModule::ConfigureFirmwareContainer(
 }
 
 Status KtpMobileFModule::SetChipSelect(bool asserted) noexcept {
-    if (impl_ == nullptr) {
-        return Status::InvalidState;
-    }
     State& state = impl_->state;
 
     if (asserted) {
@@ -119,10 +106,6 @@ SpiTransferResult KtpMobileFModule::TransferSpi(
     std::size_t byte_count,
     SpiTransferFormat format) noexcept {
     SpiTransferResult result{};
-    if (impl_ == nullptr) {
-        result.status = Status::InvalidState;
-        return result;
-    }
     State& state = impl_->state;
 
     if (byte_count != 0u && (panel_tx == nullptr || panel_rx == nullptr)) {
@@ -153,9 +136,6 @@ SpiTransferResult KtpMobileFModule::TransferSpi(
 }
 
 Status KtpMobileFModule::SetPanelGpio6(bool high) noexcept {
-    if (impl_ == nullptr) {
-        return Status::InvalidState;
-    }
     State& state = impl_->state;
     const std::uint8_t desired = high ? 1u : 0u;
     if (state.gpio6_ack == desired) {
@@ -179,39 +159,14 @@ Status KtpMobileFModule::SetPanelGpio6(bool high) noexcept {
 }
 
 bool KtpMobileFModule::ModuleGpio5DataReady() const noexcept {
-    return impl_ != nullptr && impl_->state.gpio5_ready != 0u;
-}
-
-Status KtpMobileFModule::AdvanceTime(std::uint64_t delta_microseconds) noexcept {
-    if (impl_ == nullptr) {
-        return Status::InvalidState;
-    }
-    State& state = impl_->state;
-    if (delta_microseconds >
-        std::numeric_limits<std::uint64_t>::max() -
-            state.deterministic_time_us) {
-        return Status::TimeOverflow;
-    }
-    state.deterministic_time_us += delta_microseconds;
-    return Status::Ok;
+    return impl_->state.gpio5_ready != 0u;
 }
 
 void KtpMobileFModule::CaptureState(State& out) const noexcept {
-    if (impl_ == nullptr) {
-        out.~State();
-        ::new (static_cast<void*>(&out)) State();
-        return;
-    }
     out = impl_->state;
 }
 
 Status KtpMobileFModule::RestoreState(const State& snapshot) noexcept {
-    if (impl_ == nullptr) {
-        return Status::InvalidState;
-    }
-    if (snapshot.schema_version != kStateSchemaVersion) {
-        return Status::StateVersionMismatch;
-    }
     if (!ValidateSnapshot(snapshot)) {
         return Status::InvalidSnapshot;
     }
@@ -219,20 +174,8 @@ Status KtpMobileFModule::RestoreState(const State& snapshot) noexcept {
     return Status::Ok;
 }
 
-ModulePhase KtpMobileFModule::Phase() const noexcept {
-    return impl_ != nullptr ? impl_->state.module_phase : ModulePhase::Startup;
-}
-
-UpdatePhase KtpMobileFModule::FirmwareUpdatePhase() const noexcept {
-    return impl_ != nullptr ? impl_->state.update_phase : UpdatePhase::Inactive;
-}
-
 FirmwareInfo KtpMobileFModule::InstalledFirmware() const noexcept {
-    return impl_ != nullptr ? impl_->state.firmware : FirmwareInfo{};
+    return impl_->state.firmware;
 }
 
-bool KtpMobileFModule::FaultActive() const noexcept {
-    return impl_ != nullptr && impl_->state.fault_active != 0u;
 }
-
-}  // namespace ktp_mobile

@@ -70,4 +70,4 @@ constexpr uint32_t kD2dMultiSrcExConfig = 0x12960u;
 constexpr uint32_t kD2dMultiSrcExAddress = 0x12970u;
 constexpr uint32_t kD2dIndexColorTable32 = 0x03400u;
 
-} // namespace imx6_vivante
+}

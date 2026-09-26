@@ -66,6 +66,7 @@ private:
     bool selected_container_valid_ = false;
     std::array<uint8_t, 32> selected_container_sha256_{};
     int64_t cyclic_ready_deadline_ns_ = VirtualTimerList::kNoDeadline;
+    int64_t restored_cyclic_ready_remaining_ns_ = VirtualTimerList::kNoDeadline;
     VirtualTimerList::Entry* cyclic_ready_timer_ = nullptr;
 
     ReadyChangedFn ready_changed_ = nullptr;

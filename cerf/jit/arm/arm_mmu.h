@@ -63,9 +63,12 @@ public:
     static uint8_t* __fastcall TranslateUserReadHelper(uint32_t va, ArmMmu* mmu);
     static uint8_t* __fastcall TranslateUserWriteHelper(uint32_t va, ArmMmu* mmu);
 
-    /* ARM DDI 0406C.d B4.1.10/B4.1.112: ATS1CPR performs a privileged
-       stage-1 read translation and publishes the result in PAR. */
+    /* ARM DDI 0406C.d B4.1.10/B4.1.112: ATS1CPR, ATS1CPW, ATS1CUR and ATS1CUW
+       perform a stage-1 translation and publish the result in PAR. */
     static uint32_t __fastcall AddressTranslateHelper(uint32_t va, ArmMmu* mmu);
+    static uint32_t __fastcall AddressTranslateWriteHelper(uint32_t va, ArmMmu* mmu);
+    static uint32_t __fastcall AddressTranslateUserReadHelper(uint32_t va, ArmMmu* mmu);
+    static uint32_t __fastcall AddressTranslateUserWriteHelper(uint32_t va, ArmMmu* mmu);
 
     /* Word-aligned VFP/NEON multi-byte loads may page-cross (ARM ARM DDI0406C A3.2 Table A3-1). */
     bool AccessPaged(ArmCpuState* cpu_state, uint32_t va,
@@ -124,6 +127,9 @@ public:
     void SetIoPending(uint32_t pa);
 
 private:
+    enum class AtsWalk : uint8_t { PrivilegedRead, PrivilegedWrite, UserRead, UserWrite };
+    uint32_t AddressTranslate(uint32_t va, AtsWalk walk);
+
     ArmMmuState         state_{};
     ArmPageWalker*      walker_           = nullptr;
     EmulatedMemory*     memory_           = nullptr;

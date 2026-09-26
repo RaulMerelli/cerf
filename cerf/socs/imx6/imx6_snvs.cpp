@@ -46,8 +46,6 @@ public:
         case 0x4Cu: return lpsr_;
         case 0x50u: return static_cast<uint32_t>(RtcCounterLocked() >> 32);
         case 0x54u: return static_cast<uint32_t>(RtcCounterLocked());
-        case 0x58u: return lptar_;
-        case 0x64u: return lppgdr_;
         }
         HaltUnsupportedAccess("read32", addr, 0);
     }
@@ -64,6 +62,8 @@ public:
         const uint32_t off = addr - MmioBase();
         switch (off) {
         case 0x38u:
+            if ((value & ~kSrtcEnable) != 0u)
+                HaltUnsupportedAccess("imx6-snvs LPCR alarm, wake and power-off control", addr, value);
             RebaseCounterLocked();
             lpcr_ = value;
             return;
@@ -75,8 +75,6 @@ public:
         case 0x54u:
             if ((lpcr_ & kSrtcEnable) == 0) rtc_base_ = (rtc_base_ & 0x7FFF00000000ull) | value;
             return;
-        case 0x58u:  lptar_ = value; return;
-        case 0x64u:  lppgdr_ = value; return;
         }
         HaltUnsupportedAccess("write32", addr, value);
     }
@@ -86,8 +84,6 @@ public:
         w.Write(RtcCounterLocked());
         w.Write(lpcr_);
         w.Write(lpsr_);
-        w.Write(lptar_);
-        w.Write(lppgdr_);
     }
 
     void RestoreState(StateReader& r) override {
@@ -96,12 +92,11 @@ public:
         rtc_baseline_ns_ = NowNs();
         r.Read(lpcr_);
         r.Read(lpsr_);
-        r.Read(lptar_);
-        r.Read(lppgdr_);
     }
 
 private:
-    /* IMX6DQ6SDLSRM Rev.D §6.10.15: LPCR bit 0 is SRTC_ENV. */
+    /* IMX6DQ6SDLSRM Rev. D §6.10.15: LPCR SRTC_ENV[0] enables the secure real time counter;
+       LPTA_EN[1] arms the time alarm and TOP[6] signals the PMIC to turn the system off. */
     static constexpr uint32_t kSrtcEnable = 1u;
     static constexpr uint64_t kCounterMask = 0x7FFFFFFFFFFFull;
     static constexpr uint64_t kCyclesPerSecond = 32768u;
@@ -137,9 +132,8 @@ private:
 
     mutable std::mutex mtx_;
     uint32_t lpcr_ = 0;
+    /* IMX6DQ6SDLSRM Rev. D §6.10.20: LPSR resets with PGD[3] set. */
     uint32_t lpsr_ = 0x00000008u;
-    uint32_t lptar_ = 0;
-    uint32_t lppgdr_ = 0;
     uint64_t rtc_base_ = 0;
     int64_t rtc_baseline_ns_ = 0;
 };

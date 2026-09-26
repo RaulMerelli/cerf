@@ -48,13 +48,19 @@ public:
             if (d->l && d->cp_opc == 0 && d->crn == 0) {
                 uint32_t value = 0;
                 bool handled = true;
-                if (d->crm == 0 && (d->cp == 2 || d->cp == 3)) {
+                if (d->crm == 0 && d->cp == 2) {
+                    /* ARM DDI 0388I Table 4-2: TCMTR resets to 0x00000000. */
                     value = 0u;
+                } else if (d->crm == 0 && d->cp == 3) {
+                    /* ARM DDI 0388I Table 4-29: DLsize=4, nU=0, TLB_size b01 = 128 entries;
+                       IMX6DQRM Rev.2 Table 12-4 gives this die TLBSIZE 128. */
+                    value = 0x00000402u;
                 } else if (d->crm == 0 && d->cp == 6) {
-                    /* ARM DDI 0388I §4.3.4: REVIDR is implementation-specific and its reset
-                       value is implementation-defined; CERF has no source for the i.MX6 value. */
+                    /* ARM DDI 0388I §4.3.4: REVIDR reset value is implementation-defined. */
                     value = kRevidrStub;
                 } else if (d->crm == 0 && d->cp == 5) {
+                    /* ARM DDI 0388I Table 4-30: bit 31 set, U=0 for an MPCore cluster, cluster 0, CPU 0;
+                       IMX6DQIEC Rev.6 Table 2: Cortex-A9 MPCore platform. */
                     value = 0x80000000u;
                 } else if (d->crm == 1) {
                     /* ARM DDI 0388I Table 4-16. */

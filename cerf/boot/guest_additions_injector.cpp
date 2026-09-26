@@ -322,9 +322,7 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     const uint32_t band_pa   = region.BandPaBase();
     const uint32_t band_size = region.BandSize();
 
-    const bool in_place = (ce_major_ >= 6)
-                       && !BoardContext::IsKtpMobile(
-                           emu_.Get<BoardContext>().GetBoard());
+    const bool in_place = (ce_major_ >= 6) && region.BandRunsInPlace();
 
     uint32_t target_vbase = band_va;
     uint32_t run_base     = band_va;   /* base the section bytes are relocated for */

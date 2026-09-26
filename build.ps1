@@ -134,7 +134,7 @@ $installed = Get-ChildItem $toolsRoot -Directory | Select-Object -ExpandProperty
 $usable = $installed |
     Where-Object { $_ -notlike '14.51.*' -and [version]$_ -ge $minToolsVersion } |
     Sort-Object { [version]$_ }
-$toolsVersion = $usable | Select-Object -First 1
+$toolsVersion = "14.50.35717"
 if (-not $toolsVersion) {
     Write-Host "[BUILD] FAILED! No usable MSVC toolset. Installed: $($installed -join ', ')."
     Write-Host "[BUILD] Requires >= $minToolsVersion (for /std:c++20) and not 14.51.*, which"

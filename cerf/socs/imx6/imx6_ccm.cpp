@@ -81,7 +81,7 @@ private:
         regs_[0x08u >> 2] = 0x00000010u;
         regs_[0x0Cu >> 2] = 0x00000100u;
         regs_[0x14u >> 2] = 0x00018D00u;
-        regs_[0x18u >> 2] = 0x00820324u;
+        regs_[0x18u >> 2] = 0x00020324u;
         regs_[0x1Cu >> 2] = 0x00F00000u;
         regs_[0x20u >> 2] = 0x02B92F06u;
         regs_[0x24u >> 2] = 0x00490B00u;
@@ -89,9 +89,9 @@ private:
         regs_[0x2Cu >> 2] = 0x000736C1u;
         regs_[0x30u >> 2] = 0x33F71F92u;
         regs_[0x34u >> 2] = 0x0002A150u;
-        regs_[0x38u >> 2] = 0x00029B48u;
+        regs_[0x38u >> 2] = 0x0002A150u;
         regs_[0x3Cu >> 2] = 0x00010841u;
-        /* QEMU 99d6a324 hw/misc/imx6_ccm.c:CCM_CTOR; hmi_ktp400_mobile_v17
+        /* QEMU i.MX6 CCM model resets CCM_CTOR to 0; hmi_ktp400_mobile_v17
            nk.exe 0x803187C2 clears bits 7:4 then sets bit 13. */
         regs_[0x50u >> 2] = 0x00000000u;
         regs_[0x54u >> 2] = 0x00000079u;

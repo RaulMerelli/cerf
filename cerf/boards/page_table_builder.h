@@ -20,6 +20,11 @@ struct DramRegion {
     uint32_t size;
 };
 
+struct InjectionBandPlacement {
+    uint32_t va;
+    bool     run_in_place;
+};
+
 struct BackedRegion {
     uint32_t va_base;
     uint32_t pa_base;
@@ -52,6 +57,8 @@ public:
        anything not listed here is either a peripheral
        (PeripheralDispatcher) or unmapped (faults). */
     virtual std::vector<BackedRegion> BackedMemoryRegions() const = 0;
+
+    virtual uint32_t DramChipSelectBytes() const { return 0u; }
 
     /* Every VA span the OAT maps - DRAM, flash AND peripheral. MUST include
        MMIO spans (unlike BackedMemoryRegions): StaticWindowHole picks a band
@@ -101,4 +108,7 @@ public:
         return 0u;
     }
 
+    virtual InjectionBandPlacement GuestAdditionsBandPlacement(uint32_t size) const {
+        return {StaticWindowHole(size), true};
+    }
 };

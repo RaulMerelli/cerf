@@ -5,6 +5,7 @@
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
+#include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/panel_frame_renderer.h"
 
@@ -43,9 +44,6 @@ public:
     bool HasFrame() override {
         const auto d = ActiveDisplay();
         if (!d.valid) return false;
-        if (!scanout_latched_) {
-            scanout_latched_ = true;
-        }
         return true;
     }
 
@@ -55,7 +53,8 @@ public:
         if (!d.valid) return;
 
         const uint8_t* src = emu_.Get<EmulatedMemory>().TryTranslate(d.eba);
-        if (!src) return;
+        if (!src)
+            emu_.Get<Fatal>().Die("i.MX6 IPU: display channel EBA 0x%08X is not backed memory", d.eba);
         const uint32_t cw = std::min<uint32_t>(d.fw, host_w);
         const uint32_t ch = std::min<uint32_t>(d.fh, host_h);
 
@@ -72,6 +71,9 @@ public:
                 uint32_t* drow = dib_bgra32 + static_cast<size_t>(y) * host_w;
                 std::memcpy(drow, srow, static_cast<size_t>(cw) * 4u);
             }
+        } else {
+            emu_.Get<Fatal>().Die("i.MX6 IPU: display channel bits per pixel %u is not modelled",
+                                  d.bits_per_pixel);
         }
     }
 
@@ -97,7 +99,6 @@ private:
         return {};
     }
 
-    bool scanout_latched_ = false;
 };
 
 }

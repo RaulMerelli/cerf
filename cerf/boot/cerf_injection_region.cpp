@@ -27,12 +27,10 @@ uint32_t CerfInjectionRegion::BandSize() const {
 uint32_t CerfInjectionRegion::BandVaBase() {
     if (va_base_) return va_base_;
 
-    const bool ktp_mobile = BoardContext::IsKtpMobile(
-        emu_.Get<BoardContext>().GetBoard());
-    const uint32_t va = ktp_mobile
-        ? emu_.Get<BoardContext>().GuestAdditionsWindowBase()
-        : emu_.Get<PageTableBuilder>().StaticWindowHole(
+    const InjectionBandPlacement placement =
+        emu_.Get<PageTableBuilder>().GuestAdditionsBandPlacement(
             CerfVirt::kInjectionBandSize);
+    const uint32_t va = placement.va;
     if (!va) {
         LOG(Caution, "guest-additions injection band: this board's OAT fills the "
                 "kernel static window [0x80000000,0xA0000000) with no 0x%X-byte "
@@ -47,7 +45,13 @@ uint32_t CerfInjectionRegion::BandVaBase() {
     emu_.Get<GuestEngine>().SetInjectionBand(va, BandPaBase(),
                                              CerfVirt::kInjectionBandSize);
     va_base_ = va;
+    run_in_place_ = placement.run_in_place;
     LOG(GuestAdditions, "injection band: VA 0x%08X -> PA 0x%08X size 0x%X\n",
         va, BandPaBase(), CerfVirt::kInjectionBandSize);
     return va_base_;
+}
+
+bool CerfInjectionRegion::BandRunsInPlace() {
+    BandVaBase();
+    return run_in_place_;
 }

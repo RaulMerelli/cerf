@@ -51,7 +51,6 @@ bool IsValidModulePhase(ModulePhase value) noexcept {
     switch (value) {
         case ModulePhase::Startup:
         case ModulePhase::Service:
-        case ModulePhase::Fault:
         case ModulePhase::Bootloader:
             return true;
     }
@@ -335,9 +334,7 @@ Status RejectUpdate(State& state,
                     std::uint32_t request_sequence,
                     bool final_seen) noexcept {
     state.update_phase = UpdatePhase::Aborted;
-    if (state.module_phase != ModulePhase::Fault) {
-        state.module_phase = ModulePhase::Service;
-    }
+    state.module_phase = ModulePhase::Service;
     state.update_final_seen = final_seen ? 1u : 0u;
     return QueueUpdateResponse(state, 2u, request_sequence);
 }
@@ -360,8 +357,7 @@ Status ProcessUpdateRequest(State& state,
 
     if (opcode == 9u) {
         if (final_flag != 0u || data_length != 0u || sequence != 0u ||
-            state.update_phase != UpdatePhase::Inactive ||
-            state.module_phase == ModulePhase::Fault) {
+            state.update_phase != UpdatePhase::Inactive) {
             return RejectUpdate(state, sequence, final_flag != 0u);
         }
         state.module_phase = ModulePhase::Bootloader;
@@ -483,4 +479,4 @@ Status DispatchIncomingRecords(State& state, const std::uint8_t* relay) noexcept
 
 
 
-}  // namespace ktp_mobile::detail
+}

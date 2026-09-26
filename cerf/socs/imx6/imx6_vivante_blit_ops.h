@@ -29,7 +29,6 @@ struct VivanteBlitCoordinateOps {
 
 struct VivanteBlitFormatOps {
     static uint32_t BppFromDeFormat(uint32_t fmt);
-    static const char* DeFormatName(uint32_t fmt);
 
     static bool IsKnownDeFormat(uint32_t fmt) {
         switch (fmt & 0x1Fu) {
@@ -122,8 +121,6 @@ struct VivanteBlitFormatOps {
 
     static uint32_t Scale8(uint32_t a, uint32_t b) { return (a * b + 127u) / 255u; }
 
-    static uint32_t AlphaOver(uint32_t src, uint32_t dst);
-
     struct ArgbChannels {
         uint32_t a = 0u;
         uint32_t r = 0u;
@@ -139,13 +136,17 @@ struct VivanteBlitFormatOps {
         return ((c.a & 0xFFu) << 24) | ((c.r & 0xFFu) << 16) | ((c.g & 0xFFu) << 8) | (c.b & 0xFFu);
     }
 
+    /* references/etna_viv/rnndb/state_2d.xml 2D_ALPHA_MODES assigns 0, 1 and 2 to GLOBAL_SRC_ALPHA_MODE
+       (9:8) and GLOBAL_DST_ALPHA_MODE (13:12); 3 is unassigned and halts where the register is read. */
+    static bool IsValidGlobalAlphaModes(uint32_t alpha_modes) {
+        return ((alpha_modes >> 8) & 3u) != 3u && ((alpha_modes >> 12) & 3u) != 3u;
+    }
+
     static uint32_t EffectiveAlpha(uint32_t pixel_alpha, uint32_t global_alpha, bool inverse, uint32_t global_mode) {
-        uint32_t alpha = inverse ? (255u - pixel_alpha) : pixel_alpha;
-        switch (global_mode & 3u) {
-        case 1u: return global_alpha;
-        case 2u: return Scale8(alpha, global_alpha);
-        default: return alpha;
-        }
+        const uint32_t alpha = inverse ? (255u - pixel_alpha) : pixel_alpha;
+        if ((global_mode & 3u) == 1u) return global_alpha;
+        if ((global_mode & 3u) == 2u) return Scale8(alpha, global_alpha);
+        return alpha;
     }
 
     static ArgbChannels BlendFactor(uint32_t mode, const ArgbChannels& reference, uint32_t source_alpha,
@@ -155,39 +156,32 @@ struct VivanteBlitFormatOps {
                                  bool pe20);
     static bool NativeColorKeyMatch(uint32_t packed, uint32_t low, uint32_t high, uint32_t fmt);
 
+    /* references/etna_viv/rnndb/common.xml ENDIAN_MODE assigns 0, 1 and 2; 3 is unassigned and halts
+       where the register is read. */
+    static bool IsValidEndian(uint32_t endian) { return (endian & 3u) != 3u; }
+
+    /* references/etna_viv/rnndb/state_2d.xml 2D_COLOR_MULTIPLY_MODES assigns 0, 1 and 2 to
+       SRC_GLOBAL_PREMULTIPLY (9:8); 3 is unassigned and halts where the register is read. */
+    static bool IsValidColorMultiplyModes(uint32_t modes) { return ((modes >> 8) & 3u) != 3u; }
+
+    /* references/etna_viv/rnndb/state_2d.xml 2D_TRANSPARENCY_KIND assigns 0, 1 and 2 to SOURCE
+       (1:0), PATTERN (5:4) and DESTINATION (9:8), with KEY reserved for PATTERN and MASK for
+       DESTINATION, and 2D_TRANSPARENCY_OVERRIDE assigns 0, 1 and 2 to the three override fields. */
+    static bool IsValidPeTransparency(uint32_t value) {
+        const uint32_t pattern = (value >> 4) & 3u;
+        const uint32_t destination = (value >> 8) & 3u;
+        if ((value & 3u) == 3u || pattern == 3u || pattern == 2u) return false;
+        if (destination == 3u || destination == 1u) return false;
+        return ((value >> 16) & 3u) != 3u && ((value >> 20) & 3u) != 3u && ((value >> 24) & 3u) != 3u;
+    }
+
     static size_t EndianByteOffset(size_t offset, uint32_t endian) {
         const size_t word = offset & ~static_cast<size_t>(3u);
         size_t lane = offset & 3u;
-        switch (endian & 3u) {
-        case 1u: lane ^= 1u; break;
-        case 2u: lane ^= 3u; break;
-        default: break;
-        }
+        if ((endian & 3u) == 1u) lane ^= 1u;
+        if ((endian & 3u) == 2u) lane ^= 3u;
         return word + lane;
     }
-
-    static uint32_t ReadPackedEndian(const uint8_t* base, size_t offset, uint32_t byte_count, uint32_t endian) {
-        uint32_t packed = 0u;
-        if (!base || byte_count == 0u || byte_count > 4u) return packed;
-        for (uint32_t byte = 0u; byte < byte_count; ++byte) {
-            packed |= static_cast<uint32_t>(base[EndianByteOffset(offset + byte, endian)]) << (byte * 8u);
-        }
-        return packed;
-    }
-
-    static bool ReadVrYuvPixel(const uint8_t* y_plane, uint32_t y_stride, const uint8_t* u_plane, uint32_t u_stride,
-                               const uint8_t* v_plane, uint32_t v_stride, uint32_t x, uint32_t y, uint32_t fmt,
-                               uint32_t endian, bool uv_swizzle, bool bt709, uint32_t& argb);
-
-    static void WritePackedEndian(uint8_t* base, size_t offset, uint32_t byte_count, uint32_t endian, uint32_t packed) {
-        if (!base || byte_count == 0u || byte_count > 4u) return;
-        for (uint32_t byte = 0u; byte < byte_count; ++byte) {
-            base[EndianByteOffset(offset + byte, endian)] = static_cast<uint8_t>(packed >> (byte * 8u));
-        }
-    }
-
-    static void ApplyPe10ClearBytes(uint8_t* base, size_t offset, uint32_t pixel_bytes, uint32_t low, uint32_t high,
-                                    uint32_t byte_mask, uint32_t endian = 0u);
 
     static uint32_t ApplyReadSwizzle(uint32_t argb, uint32_t swizzle) {
         const uint32_t a = (argb >> 24) & 0xFFu;
@@ -233,18 +227,6 @@ struct VivanteBlitSurfaceOps {
         uint32_t plane = 0u;
         size_t offset = 0u;
     };
-
-    static const char* SurfaceLayoutName(SurfaceLayout layout) {
-        switch (layout) {
-        case SurfaceLayout::Linear: return "LINEAR";
-        case SurfaceLayout::Tiled: return "TILED";
-        case SurfaceLayout::SuperTiled: return "SUPERTILED";
-        case SurfaceLayout::MultiTiled: return "MULTI_TILED";
-        case SurfaceLayout::MultiSuperTiled: return "MULTI_SUPERTILED";
-        case SurfaceLayout::MinorTiled: return "MINOR_TILED";
-        default: return "INVALID";
-        }
-    }
 
     static bool IsMultiLayout(SurfaceLayout layout) {
         return layout == SurfaceLayout::MultiTiled || layout == SurfaceLayout::MultiSuperTiled;
@@ -301,9 +283,10 @@ struct VivanteBlitSurfaceOps {
         uint32_t y = 0;
     };
 
-    static uint32_t ValidDeRot(uint32_t rot) {
-        rot &= 7u;
-        return (rot == 0u || rot == 1u || rot == 2u || rot == 4u || rot == 5u || rot == 6u) ? rot : 0u;
+    /* references/etna_viv/rnndb/state_2d.xml DE_ROT_MODE assigns 0, 1, 2, 4, 5 and 6; 3 and 7 are
+       unassigned, so coercing them to "no rotation" would paint an unrotated blit instead. */
+    static bool IsValidDeRot(uint32_t rot) {
+        return rot == 0u || rot == 1u || rot == 2u || rot == 4u || rot == 5u || rot == 6u;
     }
 
     static DeCoord TransformDeCoord(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t rot,
@@ -353,8 +336,7 @@ struct VivanteBlitRopOps {
     }
 
     static uint32_t PatternPixel(uint32_t x, uint32_t y, uint32_t pat_cfg, uint32_t pat_low, uint32_t pat_high,
-                                 uint32_t pat_bg, uint32_t pat_fg, uint32_t fallback) {
-        (void)fallback;
+                                 uint32_t pat_bg, uint32_t pat_fg) {
         const bool pattern_mode = (pat_cfg & (1u << 4)) != 0u;
         const uint32_t fg = pat_fg;
         const uint32_t bg = pat_bg;
@@ -378,4 +360,4 @@ struct VivanteBlitOps : VivanteBlitCoordinateOps,
                         VivanteBlitSurfaceOps,
                         VivanteBlitRopOps {};
 
-} // namespace imx6_vivante
+}

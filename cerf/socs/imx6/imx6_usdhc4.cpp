@@ -6,5 +6,5 @@ public:
     using Imx6UsdhcPort::Imx6UsdhcPort;
 
 };
-} // namespace
+}
 REGISTER_SERVICE(Imx6Usdhc4);

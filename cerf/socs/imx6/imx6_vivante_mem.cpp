@@ -6,22 +6,6 @@ void VivanteMem::StoreStateReg(uint32_t byte_off, uint32_t value) {
     state_registers_.Store(byte_off, value);
 }
 
-void VivanteMem::WriteMmuv2Configuration(uint32_t value) {
-    mmu_.WriteConfiguration(value);
-}
-
-void VivanteMem::WriteMmuv2SafeAddress(uint32_t value) {
-    mmu_.WriteSafeAddress(value);
-}
-
-void VivanteMem::ResetMmuv2State() {
-    mmu_.Reset();
-}
-
-void VivanteMem::InvalidateTranslationCache() const {
-    mmu_.InvalidateTranslationCache();
-}
-
 const uint8_t* VivanteMem::TranslateGpuToHost(uint32_t gpu_addr,
                                               MmuClient client) const {
     return mmu_.TranslateToHost(gpu_addr, client);
@@ -30,11 +14,6 @@ const uint8_t* VivanteMem::TranslateGpuToHost(uint32_t gpu_addr,
 uint8_t* VivanteMem::TranslateGpuToHostWrite(uint32_t gpu_addr,
                                              MmuClient client) const {
     return mmu_.TranslateToHostWrite(gpu_addr, client);
-}
-
-bool VivanteMem::TranslateGpuViaMmu(uint32_t gpu_addr, bool write,
-                                    MmuClient client, uint32_t& phys) const {
-    return mmu_.TranslateToPhysical(gpu_addr, write, client, phys);
 }
 
 bool VivanteMem::DetectIdleRing(uint32_t pc, FeCommandAddressSpace address_space, IdleRingInfo& info) const {
@@ -133,10 +112,8 @@ bool VivanteMem::ReadGpuBytes(uint32_t address, void* out_buffer, size_t count, 
     if ((!out && count != 0u)) return false;
     while (count != 0u) {
         const size_t page_left = 0x1000u - (address & 0xFFFu);
-        const size_t safe_left = 0x40u - (address & 0x3Fu);
         size_t chunk = count;
         if (chunk > page_left) chunk = page_left;
-        if (chunk > safe_left) chunk = safe_left;
         const uint8_t* src = TranslateGpuToHost(address, client);
         if (!src) return false;
         std::memcpy(out, src, chunk);
@@ -190,4 +167,4 @@ void VivanteMem::DumpCommandWords(uint32_t address, uint32_t prefetch, FeCommand
     }
 }
 
-} // namespace imx6_vivante
+}

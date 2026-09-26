@@ -35,12 +35,14 @@ public:
     bool HasCp15V7() const override { return true; }
     bool HasVmsav7() const override { return true; }
     bool HasSecurityExtensions() const override { return true; }
+    /* ARM DDI 0388I Table 4-30: MPIDR bit 31 uses the multiprocessor format. */
+    bool HasMultiprocessingExtensions() const override { return true; }
     bool HasL2CacheAuxControl() const override { return true; }
     bool HasAuxControlRegister() const override { return true; }
 
     bool HasVfp() const override { return true; }
     bool HasNeon() const override { return true; }
-    /* QEMU v11.0.0 target/arm/tcg/cpu32.c:cortex_a9_initfn. */
+    /* QEMU Cortex-A9 CPU model (cortex_a9_initfn). */
     uint32_t Fpsid() const override { return 0x41033090u; }
     uint32_t Mvfr0() const override { return 0x11110222u; }
     uint32_t Mvfr1() const override { return 0x01111111u; }

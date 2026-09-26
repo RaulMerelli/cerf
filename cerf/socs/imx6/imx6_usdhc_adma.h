@@ -19,4 +19,7 @@ public:
 
     void Read(SdCard& card, const Transfer& transfer, uint8_t* block_buffer);
     void Write(SdCard& card, const Transfer& transfer, uint8_t* block_buffer);
+
+private:
+    void Walk(SdCard& card, const Transfer& transfer, uint8_t* block_buffer, bool write);
 };

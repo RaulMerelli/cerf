@@ -13,6 +13,8 @@
 
 namespace {
 
+constexpr uint32_t kScrSelfClearingMask = 0x003FF01Eu;
+
 class Imx6Src : public Peripheral, public ResetCauseLatch {
 public:
     using Peripheral::Peripheral;
@@ -71,7 +73,10 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - MmioBase();
         if (off == 0x00u) {
-            regs_[0] = value & ~0x0000E00Eu;
+            /* IMX6DQRM Rev.2 §60.7 SRC_SCR: every software reset bit is "a self clearing bit ...
+               once it finishes, this bit will be self cleared" - the debug resets at 21:17, the
+               core resets at 16:13, and sw_ipu2, sw_open_vg, sw_ipu1, sw_vpu and sw_gpu. */
+            regs_[0] = value & ~kScrSelfClearingMask;
             return;
         }
         if (off == 0x08u) {
@@ -110,7 +115,7 @@ private:
 
     void ResetRegisters() {
         std::fill(std::begin(regs_), std::end(regs_), 0u);
-        /* IMX6SDLRM Rev.4 §60.7. */
+        /* IMX6DQRM Rev.2 §60.7. */
         regs_[0x00u >> 2] = 0x00000521u;
         regs_[0x18u >> 2] = 0x0000001Fu;
     }

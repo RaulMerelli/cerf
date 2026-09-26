@@ -35,7 +35,7 @@ private:
         auto& jit = emu_.Get<ArmJit>();
         auto& gic = emu_.Get<Imx6Gic>();
         while (!stop_.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::microseconds(250));
+            std::this_thread::sleep_for(std::chrono::nanoseconds(gic.NextSampleNs()));
             auto frozen = freeze.WorkerSection();
             if (gic.Tick()) jit.SetInterruptPending();
         }
@@ -45,6 +45,6 @@ private:
     std::atomic<bool> stop_{false};
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(Imx6GicTick);

@@ -102,7 +102,7 @@ bool BlobSpan(const uint8_t* d, size_t n, size_t value_at, size_t& off, size_t& 
     return true;
 }
 
-} // namespace
+}
 
 std::vector<Blob> WalkBlobs(const uint8_t* src, size_t size) {
     if (!src || size < 2u || src[0] != kStreamStart) return {};
@@ -336,4 +336,4 @@ bool AssembleFsfVolume(const uint8_t* src, size_t size, std::vector<uint8_t>& ou
     return !out.empty();
 }
 
-} // namespace cerf::fwf_oms
+}

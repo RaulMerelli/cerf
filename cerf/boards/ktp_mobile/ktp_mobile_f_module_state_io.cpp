@@ -20,7 +20,6 @@ void ReadEnum(StateReader& r, E& value) {
 }
 
 void Write(StateWriter& w, const ktp_mobile::State& s) {
-    w.Write(s.schema_version);
     WriteEnum(w, s.last_reset);
     WriteEnum(w, s.module_phase);
     WriteEnum(w, s.update_phase);
@@ -28,7 +27,6 @@ void Write(StateWriter& w, const ktp_mobile::State& s) {
     w.Write(s.gpio6_ack);
     w.Write(s.chip_select_asserted);
     w.Write(s.startup_exchange_pending);
-    w.Write(s.deterministic_time_us);
     w.Write(s.spi_bytes_transferred);
     w.Write(s.reserved_spi);
     w.WriteBytes(s.spi_rx.data(), s.spi_rx.size());
@@ -47,10 +45,6 @@ void Write(StateWriter& w, const ktp_mobile::State& s) {
     w.Write(s.staged_module_record_bytes);
     w.Write(s.reserved_relay);
     w.WriteBytes(s.staged_module_records.data(), s.staged_module_records.size());
-    w.Write(s.fault_active);
-    w.Write(s.reserved_fault0);
-    w.Write(s.fault_payload_size);
-    w.WriteBytes(s.fault_payload.data(), s.fault_payload.size());
     w.Write(s.firmware.valid);
     w.Write(s.firmware.flash_materialized);
     w.Write(s.firmware.reserved);
@@ -70,7 +64,6 @@ void Write(StateWriter& w, const ktp_mobile::State& s) {
 }
 
 void Read(StateReader& r, ktp_mobile::State& s) {
-    r.Read(s.schema_version);
     ReadEnum(r, s.last_reset);
     ReadEnum(r, s.module_phase);
     ReadEnum(r, s.update_phase);
@@ -78,7 +71,6 @@ void Read(StateReader& r, ktp_mobile::State& s) {
     r.Read(s.gpio6_ack);
     r.Read(s.chip_select_asserted);
     r.Read(s.startup_exchange_pending);
-    r.Read(s.deterministic_time_us);
     r.Read(s.spi_bytes_transferred);
     r.Read(s.reserved_spi);
     r.ReadBytes(s.spi_rx.data(), s.spi_rx.size());
@@ -97,10 +89,6 @@ void Read(StateReader& r, ktp_mobile::State& s) {
     r.Read(s.staged_module_record_bytes);
     r.Read(s.reserved_relay);
     r.ReadBytes(s.staged_module_records.data(), s.staged_module_records.size());
-    r.Read(s.fault_active);
-    r.Read(s.reserved_fault0);
-    r.Read(s.fault_payload_size);
-    r.ReadBytes(s.fault_payload.data(), s.fault_payload.size());
     r.Read(s.firmware.valid);
     r.Read(s.firmware.flash_materialized);
     r.Read(s.firmware.reserved);
@@ -119,4 +107,4 @@ void Read(StateReader& r, ktp_mobile::State& s) {
     r.ReadBytes(s.update_staging.data(), s.update_staging.size());
 }
 
-} // namespace ktp_mobile_f_module_state_io
+}

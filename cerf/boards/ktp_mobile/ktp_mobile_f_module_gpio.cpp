@@ -2,6 +2,7 @@
 #include "../../socs/imx6/imx6_gpio_bus.h"
 #include "../../socs/imx6/imx6_gpio_source.h"
 #include "../board_context.h"
+#include "ktp_mobile_board_profile.h"
 #include "ktp_mobile_f_module_device.h"
 
 #include <cstdint>
@@ -18,15 +19,8 @@ public:
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
         if (!board) return false;
-        switch (board->GetBoard()) {
-        case Board::HmiKtp400FMobile:
-        case Board::HmiKtp700FMobile:
-        case Board::HmiKtp900FMobile:
-        case Board::HmiKtp700FHwMobile:
-        case Board::HmiKtp700FArcticMobile:
-        case Board::HmiTp1000fMobile: return true;
-        default: return false;
-        }
+        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+        return profile && profile->has_f_module;
     }
 
     void OnReady() override {
@@ -44,6 +38,8 @@ public:
     }
 
     uint32_t ApplyDataRead(uint32_t data) override { return ApplyReady(data); }
+
+    uint32_t DrivenPins() const override { return kReadyMask; }
 
     uint32_t PendingIsr() override {
         return ready_rise_pending_ ? kReadyMask : 0u;
@@ -106,6 +102,6 @@ private:
     bool ready_rise_pending_ = false;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(KtpMobileFModuleGpio);

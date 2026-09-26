@@ -145,6 +145,6 @@ private:
     std::vector<uint8_t> rx_payload_;
 };
 
-} // namespace
+}
 
 REGISTER_SERVICE(KtpMobileConnBox);

@@ -1,15 +1,97 @@
+"""Local, developer-editable knowledge about device boards.
+
+This list is the launcher's own opinion about which boards cerf.exe can
+actually run, keyed on the ``board.id`` a bundle's cerf.json carries. Edit it
+by hand when a new board lands in cerf.exe's BoardContext (see
+``cerf/boards/board_context.h``) or when a board's quirks change.
+compile_readme.py renders the same data into README.md's "Supported boards"
+table, so the launcher and the README never drift apart.
+
+Semantics (matched on ``board_id``):
+  * ``supported: True``  -> cerf.exe runs this board; shown by default.
+  * ``supported: False`` -> early WIP: cerf.exe has the board_id but it is
+                            not user-ready; hidden by the "Hide unsupported"
+                            filter and absent from the README.
+  * a board.id with no entry here -> unsupported; hidden by "Hide unsupported".
+
+``notes`` here EXTEND (do not replace) the per-ROM ``meta.notes`` shown in
+the side panel. Use them for board-wide quirks that apply to every ROM on
+the board.
+
+``DYNAMIC_NOTES`` (bottom of this file) extends the side panel further with
+predicate-gated additional notes: each entry's lambda runs against the
+selected ROM's cerf.json metadata plus the board's feature map, so a note
+can target e.g. "any networked board running Windows Mobile 4+". Add an
+entry there when a note applies to a ROM-metadata predicate rather than one
+whole board; grow ``RomContext`` with more metadata fields as new
+predicates need them.
+
+``features`` is an optional dict of capability -> bool the side panel shows
+as icons. Three states per capability:
+  * True  -> hardware present and working (colour icon)
+  * False -> hardware present but unsupported in CERF (greyed icon)
+  * key absent -> the board has no such hardware (icon hidden entirely)
+Recognised keys are the first column of ``FEATURE_SPECS``.
+
+``storage`` names the ROM input the board boots from - what the New-device
+wizard asks the user for. Absent means ``STORAGE_FLAT`` (a flat storage
+container: NK/XIP/NB0/etc, the CERF default). ``STORAGE_SEC_CONTAINER`` is
+the Ford SYNC 2 factory-recovery ``.sec`` package.
+
+``configurable_screen: True`` marks a board whose OAL accepts a configurable
+stock-video screen size (cerf.exe --screen-width/height without guest
+additions). Absent means fixed-LCD.
+
+Supported entries also carry the board's silicon + OS coverage, shown in
+the README table (and available to the launcher):
+  * ``soc``               -> a ``Soc`` constant (family + microarchitecture).
+  * ``operating_systems`` -> list of ``OperatingSystem`` constants the board
+                             boots in this cerf version.
+"""
+
 from __future__ import annotations
 
 from board_catalog_schema import (
-    DynamicNote, HANDHELD_PC_2000, HANDHELD_PC_PRO, LINUX_BASED_OS,
-    PALM_SIZE_PC, POCKET_PC_2000, POCKET_PC_2002, SOC_IMX31L, SOC_IMX51,
-    SOC_IMX6SOLO, SOC_IOP13XX, SOC_ODO, SOC_OMAP3530, SOC_PR31500,
-    SOC_PR31700, SOC_PXA255, SOC_PXA270, SOC_S3C2410, SOC_SA1100,
-    SOC_SA1110, SOC_VR4102, SOC_VR4111, SOC_VR4121, SOC_VR4122, SOC_VR5500,
-    STORAGE_SEC_CONTAINER, WINDOWS_CE_1, WINDOWS_CE_2, WINDOWS_CE_211,
-    WINDOWS_CE_212, WINDOWS_CE_3, WINDOWS_CE_5, WINDOWS_CE_6, WINDOWS_CE_7,
-    WINDOWS_CE_8, WINDOWS_CE_NET, WINDOWS_MOBILE_2003SE, WINDOWS_MOBILE_5,
-    WINDOWS_MOBILE_6, ZUNE_OS_5,
+    DynamicNote,
+    HANDHELD_PC_2000,
+    HANDHELD_PC_PRO,
+    PALM_SIZE_PC,
+    POCKET_PC_2000,
+    POCKET_PC_2002,
+    SOC_IMX31L,
+    SOC_IMX51,
+    SOC_IMX6DUAL,
+    SOC_IOP13XX,
+    SOC_ODO,
+    SOC_OMAP3530,
+    SOC_PR31500,
+    SOC_PR31700,
+    SOC_PXA255,
+    SOC_PXA270,
+    SOC_S3C2410,
+    SOC_SA1100,
+    SOC_SA1110,
+    SOC_VR4102,
+    SOC_VR4111,
+    SOC_VR4121,
+    SOC_VR4122,
+    SOC_VR5500,
+    STORAGE_SEC_CONTAINER,
+    WINDOWS_CE_1,
+    WINDOWS_CE_2,
+    WINDOWS_CE_211,
+    WINDOWS_CE_212,
+    WINDOWS_CE_3,
+    WINDOWS_CE_5,
+    WINDOWS_CE_6,
+    WINDOWS_CE_7,
+    WINDOWS_CE_8,
+    WINDOWS_CE_NET,
+    WINDOWS_MOBILE_2003SE,
+    WINDOWS_MOBILE_5,
+    WINDOWS_MOBILE_6,
+    ZUNE_OS_5,
+    LINUX_BASED_OS,
 )
 
 AUDIO_ARTIFACTS = "Audio has artifacts/glitches"
@@ -405,13 +487,13 @@ BOARDS_INFORMATION = [
             "hmi_tp1000f_mobile",
         ],
         "supported": True,
-        "soc": SOC_IMX6SOLO,
+        "soc": SOC_IMX6DUAL,
         "operating_systems": [WINDOWS_CE_8],
         "features": {
             "display": True,
             "touch": True,
             "guest_additions": True,
-            "network": False,
+            "network": True,
         },
     },
     {
