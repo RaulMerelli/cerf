@@ -10,7 +10,11 @@ import _hookpath
 MAX_LINES = 3
 C_EXTS = (".cpp", ".c", ".h", ".hpp", ".cc", ".cxx")
 PY_EXTS = (".py",)
-PROJECT_DIRS = ("cerf/", "ce_apps/", "launcher/", "tools/", "docs/", ".claude/")
+PROJECT_PATH_RE = re.compile(
+    r"\b(?:cerf|ce_apps|launcher|tools|docs|agent_docs|bundled|\.claude)"
+    r"/[\w./-]*",
+    re.IGNORECASE,
+)
 
 CITATION_RE = re.compile(
     r"\bARM ARM\b|§"
@@ -21,7 +25,7 @@ CITATION_RE = re.compile(
     r"|(?i:\b(?:ddi|ihi|den|prd|arm)\s*0*\d{3,}|\bjesd\s*\d|\brfc\s*\d)"
     r"|\b[A-Z]\d+\.\d+(?:\.\d+)+\b"
     r"|(?i:\bvol(?:ume)?\.?\s*\d)"
-    r"|\b[\w.-]+/[\w./-]*\.(?:c|h|cc|cpp|cxx|s|S|py)\b"
+    r"|\b[\w][\w.-]*\.(?:c|h|cc|cpp|cxx|s|S|py)\b"
     r"|\b\w+\.(?:exe|dll)\b"
     r"|\b(?:sub|loc|off|unk|byte|word|dword|qword|stru|jpt)_[0-9A-Fa-f]{3,}\b"
     r"|0x[0-9A-Fa-f]{4,}"
@@ -29,12 +33,7 @@ CITATION_RE = re.compile(
 
 
 def cited(text):
-    for m in CITATION_RE.finditer(text):
-        token = m.group(0)
-        if "/" in token and token.lower().startswith(PROJECT_DIRS):
-            continue
-        return True
-    return False
+    return bool(CITATION_RE.search(PROJECT_PATH_RE.sub(" ", text)))
 
 
 def c_block_comments(lines):
