@@ -27,6 +27,11 @@ constexpr uint32_t kMdpVsyncClock = 43u;
    rate other than the ground source is the low-power crystal's. */
 constexpr uint32_t kMdpVsyncHz = 24576000u;
 
+constexpr uint32_t kDalI2cBus0Clock = 78u;
+constexpr uint32_t kDalI2cBus1Clock = 79u;
+
+constexpr uint32_t kI2cCoreHz = 19200000u;
+
 /* Linux arch/arm/mach-msm clock-7x30-vendor.c: the driving rates of
    clk_tbl_mdh, the table both pmdh_clk and emdh_clk carry. */
 constexpr uint32_t kMdhRatesHz[] = {49150000u,  92160000u,  122880000u,
@@ -79,6 +84,9 @@ uint32_t Msm8255ClockRates::ReportClockFreqKhz(uint32_t clock) {
     }
     if (clock == kMdpVsyncClock) {
         return kMdpVsyncHz / kHzPerKhz;
+    }
+    if (clock == kDalI2cBus0Clock || clock == kDalI2cBus1Clock) {
+        return kI2cCoreHz / kHzPerKhz;
     }
     if (clock == kPmdhClock) {
         const uint32_t khz =
