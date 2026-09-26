@@ -3,7 +3,7 @@
 #include <cstdint>
 
 enum class PanelPixelFormat : uint8_t {
-    kGray2Msb,
+    kGray2MsbInverted,
     kRgb565Le,
 };
 

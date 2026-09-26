@@ -94,7 +94,10 @@ public:
     void WriteHalf(uint32_t addr, uint16_t value) override {
         const uint32_t i = RegIndex(addr, "WriteHalf", value);
         if (value & M.reg[i].fatal_on_set) {
-            HaltUnsupportedAccess("WriteHalf sets an unmodeled trigger bit", addr, value);
+            HaltUnsupportedAccess((value & M.reg[i].fatal_on_set & M.reg[i].wmask) != 0u
+                                      ? "WriteHalf sets an unmodeled trigger bit"
+                                      : "WriteHalf sets a write-0 RFU bit",
+                                  addr, value);
         }
         switch (M.reg[i].write) {
             case WriteKind::kStored:
@@ -127,15 +130,17 @@ public:
     void WriteByte(uint32_t addr, uint8_t v) override { HaltUnsupportedAccess("WriteByte", addr, v); }
 
     void SaveState(StateWriter& w) override {
-        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write("reg", reg_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write(RegStateName(), reg_[i]);
         for (uint32_t i = 0; i < M.num_regs; ++i) w.Write("undefined", undefined_[i]);
     }
     void RestoreState(StateReader& r) override {
-        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read("reg", reg_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read(RegStateName(), reg_[i]);
         for (uint32_t i = 0; i < M.num_regs; ++i) r.Read("undefined", undefined_[i]);
     }
 
 protected:
+    virtual const char* RegStateName() const { return "reg"; }
+
     virtual uint16_t ResetValue(uint32_t i, bool rtc) const {
         (void)rtc;
         return M.reg[i].reset;

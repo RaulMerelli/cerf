@@ -43,7 +43,7 @@ public:
     }
 
 private:
-    PanelScanout scanout_{PanelPixelFormat::kGray2Msb};
+    PanelScanout scanout_{PanelPixelFormat::kGray2MsbInverted};
 };
 
 }  /* namespace */

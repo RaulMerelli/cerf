@@ -64,13 +64,13 @@ void IteIt8181::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void IteIt8181::SaveState(StateWriter& w) {
-    w.WriteBytes("fb", fb_.data(), fb_.size());
+    w.WriteBytes("fb_pin", fb_.data(), fb_.size());
     w.Write<uint8_t>("fb_written", fb_written_ ? 1u : 0u);
     size_latch_.SaveState(w);
 }
 
 void IteIt8181::RestoreState(StateReader& r) {
-    r.ReadBytes("fb", fb_.data(), fb_.size());
+    r.ReadBytes("fb_pin", fb_.data(), fb_.size());
     uint8_t b = 0;
     r.Read("fb_written", b); fb_written_     = (b != 0);
     size_latch_.RestoreState(r);

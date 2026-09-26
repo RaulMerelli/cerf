@@ -4,6 +4,7 @@
 #include "../core/fatal.h"
 #include "../core/log.h"
 #include "../boards/page_table_builder.h"
+#include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 
 #include <cstring>
@@ -28,6 +29,11 @@ void EmulatedMemory::AddRegion(uint32_t base, uint32_t size,
         LOG(Caution, "EmulatedMemory::AddRegion invalid region: base=0x%08X "
                 "size=0x%X span=0x%X\n", base, size, span);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    if (emu_.Get<PeripheralDispatcher>().OverlapsDataInversion(base, span)) {
+        emu_.Get<Fatal>().Die("EmulatedMemory::AddRegion [0x%08X..0x%llX) overlaps a bus "
+                              "data inversion range", base,
+                              static_cast<unsigned long long>(base) + span);
     }
     const uint32_t wrap_mask = (span == size) ? 0xFFFFFFFFu : (size - 1u);
 
@@ -66,6 +72,18 @@ void EmulatedMemory::AddRegion(uint32_t base, uint32_t size,
 
     LOG(Mem, "AddRegion 0x%08X size 0x%X span 0x%X protect 0x%X (slot %zu)\n",
         base, size, span, page_protect, n);
+}
+
+bool EmulatedMemory::OverlapsRegion(uint32_t base, uint32_t size) const {
+    const size_t n = count_.load(std::memory_order_acquire);
+    for (size_t i = 0; i < n; ++i) {
+        const Region& r = regions_[i];
+        if (uint64_t(base) < uint64_t(r.base) + r.span &&
+            uint64_t(r.base) < uint64_t(base) + size) {
+            return true;
+        }
+    }
+    return false;
 }
 
 EmulatedMemory::Region* EmulatedMemory::FindRegion(uint32_t vaddr) {

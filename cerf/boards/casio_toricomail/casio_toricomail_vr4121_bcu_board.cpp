@@ -23,7 +23,7 @@ public:
 
     /* casio_toricomail_ce212 nk.exe (XIP[1] boot image) 0xBFC08568..0xBFC08620, the last
        store to each register; identical in casio_messagecam_ce212 / casio_pocketpostpet_ce212. */
-    std::vector<Vr4121BcuBootWrite> KernelEntryWrites() const override {
+    std::vector<Vr41xxBcuBootWrite> KernelEntryWrites() const override {
         return {
             { 0x00u, 0xE414u },
             { 0x02u, 0x0001u },

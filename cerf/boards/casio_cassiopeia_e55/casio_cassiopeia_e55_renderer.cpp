@@ -54,7 +54,7 @@ private:
        *(a2+12) pels along the octant at *(a2+28). Its 2bpp mask (2 << (bpp+31))-1 is 3 and its
        shift (idx*bpp) ^ (8-bpp) puts pixel 0 at bits 7:6; its op table runs in ROP2 order, so
        case 1's 0 is black and case 16's ~0 is white. */
-    PanelScanout scanout_{PanelPixelFormat::kGray2Msb};
+    PanelScanout scanout_{PanelPixelFormat::kGray2MsbInverted};
 };
 
 }  /* namespace */

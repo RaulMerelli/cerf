@@ -4,7 +4,6 @@
 
 namespace vr4121_bcu {
 
-constexpr uint32_t kOffCnt1    = 0x00u;
 constexpr uint32_t kOffRamSize = 0x06u;
 constexpr uint32_t kOffCnt3    = 0x16u;
 

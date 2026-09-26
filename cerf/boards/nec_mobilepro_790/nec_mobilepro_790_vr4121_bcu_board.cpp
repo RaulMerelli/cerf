@@ -1,6 +1,7 @@
 #include "../../socs/vr4121/vr4121_bcu_board.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../socs/vr41xx/vr41xx_bcu_regs.h"
 #include "../../socs/vr4121/vr4121_bcu_regs.h"
 #include "../board_context.h"
 #include "nec_mobilepro_790_id.h"
@@ -27,9 +28,9 @@ public:
         return Vr4121DramWiring{ true, { kBank0ChipBytes, 0u, 0u, 0u } };
     }
 
-    std::vector<Vr4121BcuBootWrite> KernelEntryWrites() const override {
+    std::vector<Vr41xxBcuBootWrite> KernelEntryWrites() const override {
         return {
-            { vr4121_bcu::kOffCnt1, vr4121_bcu::kCnt1Dram64 | vr4121_bcu::kCnt1Rd64d },
+            { vr41xx_bcu::kOffCnt1, vr4121_bcu::kCnt1Dram64 | vr4121_bcu::kCnt1Rd64d },
             { vr4121_bcu::kOffRamSize, kBootRamSize },
         };
     }

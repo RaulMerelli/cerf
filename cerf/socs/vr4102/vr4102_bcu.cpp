@@ -1,12 +1,16 @@
-#include "../vr41xx/vr41xx_reg_window_impl.h"
+#include "../vr41xx/vr41xx_bcu_impl.h"
+
+#include "../../core/cerf_emulator.h"
+#include "vr4102_bcu_board.h"
 
 #include <cstdint>
+#include <vector>
 #include "vr4102_id.h"
 
 namespace {
 
 using cerf_vr41xx_reg_window_detail::ReadKind;
-using cerf_vr41xx_reg_window_detail::Vr41xxRegWindowBase;
+using cerf_vr41xx_reg_window_detail::Vr41xxBcuBase;
 using cerf_vr41xx_reg_window_detail::Vr41xxRegWindowModel;
 using cerf_vr41xx_reg_window_detail::WriteKind;
 
@@ -18,11 +22,10 @@ constexpr Vr41xxRegWindowModel kModel = {
     /*word_pairs=*/false,
     {
         /* 0x00 BCUCNTREG1 (UM 10.2.1, p236): reserved D11/9/7/5/3/2 read 0; RTCRST
-           and Other-resets rows are 0. CNTREG1 DRAM64=0 is the MobilePro 700's
-           16-Mbit/8-MB config. */
-        { ReadKind::kStored, WriteKind::kStored, 0xF553u, 0x0000u, 0u },
+           and Other-resets rows are 0. */
+        { ReadKind::kStored, WriteKind::kStored, 0xF553u, 0x0000u, 0x0AACu },
         /* 0x02 BCUCNTREG2 (UM 10.2.2, p238): only GMODE (D0) is R/W; both rows 0. */
-        { ReadKind::kStored, WriteKind::kStored, 0x0001u, 0x0000u, 0u },
+        { ReadKind::kStored, WriteKind::kStored, 0x0001u, 0x0000u, 0xFFFEu },
         {},
         {},
         {},
@@ -38,9 +41,14 @@ constexpr Vr41xxRegWindowModel kModel = {
     },
 };
 
-class Vr4102Bcu : public Vr41xxRegWindowBase<SocId::Vr4102, kModel> {
+class Vr4102Bcu : public Vr41xxBcuBase<SocId::Vr4102, kModel> {
 public:
-    using Vr41xxRegWindowBase::Vr41xxRegWindowBase;
+    using Vr41xxBcuBase::Vr41xxBcuBase;
+
+protected:
+    std::vector<Vr41xxBcuBootWrite> KernelEntryWrites() const override {
+        return emu_.Get<Vr4102BcuBoard>().KernelEntryWrites();
+    }
 };
 
 }

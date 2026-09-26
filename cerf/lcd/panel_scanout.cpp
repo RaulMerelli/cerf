@@ -18,9 +18,10 @@ void PanelScanout::Blit(const PanelSurface& src, uint32_t* dib,
         const uint8_t* line = src.fb + static_cast<size_t>(y) * src.stride;
         uint32_t*      dst  = dib + static_cast<size_t>(y) * host_w;
         switch (format_) {
-            case PanelPixelFormat::kGray2Msb:
+            case PanelPixelFormat::kGray2MsbInverted:
                 for (uint32_t x = 0; x < cw; ++x) {
-                    const uint32_t g = lcd_pixel::PackedIndexMsbFirst(line, x, 2u) * kGray2Step;
+                    const uint32_t g =
+                        (3u - lcd_pixel::PackedIndexMsbFirst(line, x, 2u)) * kGray2Step;
                     dst[x] = lcd_pixel::PackXrgb(g, g, g);
                 }
                 break;

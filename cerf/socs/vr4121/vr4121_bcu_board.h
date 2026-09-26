@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/service.h"
+#include "../vr41xx/vr41xx_bcu_boot_write.h"
 
 #include <array>
 #include <cstdint>
@@ -12,11 +13,6 @@ struct Vr4121DramWiring {
     std::array<uint32_t, 4> bank_chip_bytes{};
 };
 
-struct Vr4121BcuBootWrite {
-    uint32_t offset = 0;
-    uint16_t value  = 0;
-};
-
 class Vr4121BcuBoard : public Service {
 public:
     using Service::Service;
@@ -25,5 +21,5 @@ public:
 
     virtual std::optional<Vr4121DramWiring> DramWiring() const = 0;
 
-    virtual std::vector<Vr4121BcuBootWrite> KernelEntryWrites() const = 0;
+    virtual std::vector<Vr41xxBcuBootWrite> KernelEntryWrites() const = 0;
 };

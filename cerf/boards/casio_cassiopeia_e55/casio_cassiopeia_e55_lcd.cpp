@@ -57,8 +57,9 @@ void CasioCassiopeiaE55Lcd::WriteByte(uint32_t addr, uint8_t value) {
         return;
     }
     if (InCtrl(off)) {
-        const uint32_t i = off - kCtrlOffset;
-        if (value != kCtrlSeq84[i] && value != kCtrlSeqC4[i]) {
+        const uint32_t i     = off - kCtrlOffset;
+        const uint8_t  guest = static_cast<uint8_t>(~value);
+        if (guest != kCtrlSeq84[i] && guest != kCtrlSeqC4[i]) {
             HaltUnsupportedAccess("WriteByte", addr, value);
         }
         ctrl_[i] = value;
@@ -94,15 +95,15 @@ void CasioCassiopeiaE55Lcd::MaybePublishDisplaySize() {
 }
 
 void CasioCassiopeiaE55Lcd::SaveState(StateWriter& w) {
-    for (uint32_t i = 0; i < kCtrlCount; ++i) w.Write("ctrl", ctrl_[i]);
+    for (uint32_t i = 0; i < kCtrlCount; ++i) w.Write("ctrl_pin", ctrl_[i]);
     size_latch_.SaveState(w);
-    w.WriteBytes("fb", fb_.data(), fb_.size());
+    w.WriteBytes("fb_pin", fb_.data(), fb_.size());
 }
 
 void CasioCassiopeiaE55Lcd::RestoreState(StateReader& r) {
-    for (uint32_t i = 0; i < kCtrlCount; ++i) r.Read("ctrl", ctrl_[i]);
+    for (uint32_t i = 0; i < kCtrlCount; ++i) r.Read("ctrl_pin", ctrl_[i]);
     size_latch_.RestoreState(r);
-    r.ReadBytes("fb", fb_.data(), fb_.size());
+    r.ReadBytes("fb_pin", fb_.data(), fb_.size());
 }
 
 REGISTER_SERVICE(CasioCassiopeiaE55Lcd);

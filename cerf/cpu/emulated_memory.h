@@ -28,6 +28,8 @@ public:
                    DWORD page_protect = PAGE_READWRITE,
                    uint32_t decode_span = 0);
 
+    bool OverlapsRegion(uint32_t base, uint32_t size) const;
+
     uint8_t* Translate(uint32_t vaddr);
 
     uint8_t* TryTranslate(uint32_t paddr);
