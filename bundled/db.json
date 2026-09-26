@@ -786,7 +786,7 @@
         },
         {
           "feature_id": "suspend",
-          "supported": false
+          "supported": true
         }
       ],
       "notes": [
