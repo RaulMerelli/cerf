@@ -79,14 +79,6 @@ public:
             }
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<Pr31x00Lcd>();
-        const uint32_t pa = lcd.GetFbPa();
-        if (pa == 0) return std::nullopt;
-        const uint32_t bpp = lcd.GetBitsPerPixel();
-        return FbLayout{ pa, lcd.GetGuestW() * bpp / 8u, bpp, false };
-    }
 };
 
 }  /* namespace */

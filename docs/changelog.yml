@@ -25,11 +25,16 @@
       ARM JIT and JIT core full rewrite. ARM JIT/peripherals massive performance optimizations
       Media instructions for Zune 30 - music is now playable
       System clock improvements
+      Keyboard input no longer stops working after switching to another window and back
+    deleted: |
+      Memory visualizer
   launcher:
     new: |
       Feedback window listing GitHub issues
       Copyright issues contact window
       Configurable update channel
+      UI revamp and optimizations
+      Configurable board types, ROM and storage sources
     fixed: |
       Launcher does not wait depend on internet connection and it's speed to let you use it
       Toolbar buttons are now properly trimmed when not enough width

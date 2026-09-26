@@ -10,7 +10,6 @@
 #include "host_input_capture.h"
 #include "host_key_binding.h"
 #include "keyboard_router.h"
-#include "memory_visualizer.h"
 #include "pointer_input.h"
 #include "pointer_router.h"
 #include "pointer_source.h"
@@ -199,10 +198,6 @@ bool HostCanvasInput::Handle(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LRESULT&
         }
         return false;
     }
-
-    if (hc.CurrentTab() == HostCanvas::Tab::MemoryVisualizer)
-        if (auto* mv = emu_.TryGet<MemoryVisualizer>())
-            if (mv->HandleInput(hwnd, msg, wp, lp)) return true;
 
     /* Absolute GA pointer: free host cursor mapped to guest pixels. */
     if (kind == PointerKind::Absolute && RoutePointerInput(hwnd, msg, wp, lp))

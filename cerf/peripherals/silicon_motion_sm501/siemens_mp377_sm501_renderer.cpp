@@ -22,7 +22,6 @@ namespace {
 using siemens_mp377::kFbHeight;
 using siemens_mp377::kFbWidth;
 using siemens_mp377::kSm501FbBytes;
-using siemens_mp377::Sm501FbOffsetToPa;
 
 void BuildRgb565ToXrgbLut(std::array<uint32_t, 65536>& lut) {
     for (uint32_t p = 0; p < 65536u; ++p) {
@@ -78,14 +77,6 @@ public:
             }
             OverlayCursorLine(video, drow, fb_w, y, vram);
         }
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& video = emu_.Get<siemens_mp377::SiemensMp377Sm501Video>();
-        const auto scanout = ResolveScanout(video);
-        if (!scanout) return std::nullopt;
-        const uint32_t bpp = scanout->bytes_per_pixel * 8u;
-        return FbLayout{Sm501FbOffsetToPa(scanout->offset), scanout->pitch, bpp, bpp == 16u};
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {

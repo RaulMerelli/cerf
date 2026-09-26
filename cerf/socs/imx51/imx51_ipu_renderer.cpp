@@ -109,14 +109,6 @@ public:
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    std::optional<FbLayout> GetFbLayout() override {
-        const auto d = ActiveDisplay();
-        if (!d.valid) return std::nullopt;
-        const uint32_t bits = (d.bpp == 0u) ? 32u : (d.bpp == 1u) ? 24u
-                            : (d.bpp == 3u) ? 16u : 8u;
-        return FbLayout{ d.eba, d.sl, bits, d.bpp == kBppRgb565 };
-    }
-
 private:
     Imx51IpuChannelDesc ActiveDisplay() {
         auto* cp = emu_.TryGet<Imx51IpuCpmem>();

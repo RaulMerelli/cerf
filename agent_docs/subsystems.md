@@ -306,17 +306,13 @@ concretes (strategy pattern, selected by `BoardContext`).
   CERF default.
 
 - **`HostCanvas`** - the child window for the drawable area. It owns the
-  **tabs** (`Tab::Boot` = boot screen, `Tab::Hw` = hardware text console,
-  `Tab::Framebuffer` = the live guest framebuffer, `Tab::MemoryVisualizer` =
-  dev), the viewport mode (Original / Aspect / Stretch, optional antialias),
-  and the scrollbars. It also owns the single host-pixel↔guest-surface
-  coordinate transform (`HostToGuest`), so taps land on the rendered image.
-  The startup tab is `DeviceConfig.start_tab` (`--tab=boot|hw|fb`). On the
-  first presented guest frame the canvas auto-switches to `Tab::Framebuffer`,
-  unless the user already picked a tab. `Tab` is an alias of the core
-  `CanvasTab` enum, so core configuration can name the startup tab with no
-  dependency on the host layer. The canvas publishes the atomic
-  guest-surface dimensions that the touch sampler reads.
+  tabs, the viewport mode and the scrollbars. It also owns the single
+  host-pixel↔guest-surface coordinate transform (`HostToGuest`), so taps land
+  on the rendered image. On the first presented guest frame the canvas
+  switches to the framebuffer tab, unless the user already picked a tab.
+  `Tab` is an alias of the core `CanvasTab` enum, so core configuration can
+  name the startup tab with no dependency on the host layer. The
+  guest-surface dimensions are atomic, so any thread can read them.
   - `cerf/host/host_canvas.{h,cpp}`
 
 - **`FrameRenderer`** (abstract) - one producer of guest frames.

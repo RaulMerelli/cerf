@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <optional>
 #include <vector>
 
 namespace {
@@ -66,14 +65,6 @@ public:
             ga->RearmContentLatch();
         if (auto* panel = emu_.TryGet<PanelFrameRenderer>())
             panel->RearmContentLatch();
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto* ga = emu_.TryGet<GuestAdditionsFrameRenderer>();
-        if (ga && ga->HasFrame()) return ga->GetFbLayout();
-        if (auto* panel = emu_.TryGet<PanelFrameRenderer>())
-            return panel->GetFbLayout();
-        return std::nullopt;
     }
 
 private:

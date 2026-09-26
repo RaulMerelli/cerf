@@ -108,24 +108,6 @@ public:
         }
     }
 
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<Sa11xxLcd>();
-        const uint32_t pa = lcd.GetFbPa();
-        if (pa == 0) return std::nullopt;
-        if (!lcd.IsColor()) {
-            const uint8_t* fb_base =
-                emu_.Get<EmulatedMemory>().TryTranslate(pa);
-            if (!fb_base) return std::nullopt;
-            const MonoLayout ml = ResolveMonoLayout(fb_base);
-            return FbLayout{ pa + ml.data_off,
-                             lcd.GetGuestW() * ml.bits_per_px / 8u,
-                             ml.bits_per_px, false };
-        }
-        /* Pixel data follows the 32-byte dummy palette buffer (§11.7.1.2). */
-        return FbLayout{ pa + kDummyPaletteBytes,
-                         lcd.GetGuestW() * kBytesPerGuestPixel, 16u, true };
-    }
-
 private:
     uint32_t PanelH() {
         return std::min(emu_.Get<Sa11xxLcd>().GetGuestH(), kPanelLines);

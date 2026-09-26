@@ -83,18 +83,6 @@ public:
             }
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<S3C2410Lcd>();
-        const uint32_t pa = lcd.GetFbPa();
-        if (pa == 0) return std::nullopt;
-        const uint32_t bpp = lcd.GetBytesPerPixel();
-        /* rgb565 flags a direct 5:6:5 framebuffer; the 8bpp path is
-           palette-indexed, not 565 pixels. */
-        return FbLayout{ pa, lcd.GetGuestW() * bpp, bpp * 8u, !lcd.IsPalettized() };
-    }
-
-private:
 };
 
 }  /* namespace */

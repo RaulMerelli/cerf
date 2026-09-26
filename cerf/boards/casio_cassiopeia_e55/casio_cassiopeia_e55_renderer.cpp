@@ -8,8 +8,6 @@
 #include "../board_context.h"
 #include "casio_cassiopeia_e55_id.h"
 
-#include <optional>
-
 namespace {
 
 class CasioCassiopeiaE55Renderer : public PanelFrameRenderer {
@@ -42,11 +40,6 @@ public:
                                .width  = lcd.GuestW(),
                                .height = lcd.GuestH()};
         scanout_.Blit(src, dib, host_w, host_h);
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<CasioCassiopeiaE55Lcd>();
-        return FbLayout{lcd.FbPa(), lcd.StrideBytes(), CasioCassiopeiaE55Lcd::kBpp, false};
     }
 
 private:

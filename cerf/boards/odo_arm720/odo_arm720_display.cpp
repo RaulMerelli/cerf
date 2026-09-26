@@ -241,16 +241,6 @@ public:
             }
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& regs = emu_.Get<OdoArm720DisplayRegs>();
-        const uint32_t w = regs.XSize();
-        if (w == 0) return std::nullopt;
-        /* 2-bpp packed grayscale, 4 px/byte (same packing RenderInto unpacks),
-           so the row pitch is w/4 bytes. */
-        return FbLayout{ emu_.Get<OdoArm720DisplayDma>().GetEffectivePa(),
-                         w / 4u, 2u, false };
-    }
 };
 
 }  /* namespace */

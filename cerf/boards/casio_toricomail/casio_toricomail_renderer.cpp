@@ -8,8 +8,6 @@
 #include "../../host/panel_frame_renderer.h"
 #include "../../lcd/panel_scanout.h"
 
-#include <optional>
-
 namespace {
 
 /* ddi.dll DrvEnablePDEV reports bpp=16 w=320 h=240; nk.exe fill sub_9F0B7D20 @0x9F0B8184
@@ -44,11 +42,6 @@ public:
                                .width  = asic.GuestW(),
                                .height = asic.GuestH()};
         scanout_.Blit(src, dib, host_w, host_h);
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& asic = emu_.Get<CasioToricomailAsic>();
-        return FbLayout{asic.FbPa(), asic.StrideBytes(), 16u, true};
     }
 
 private:

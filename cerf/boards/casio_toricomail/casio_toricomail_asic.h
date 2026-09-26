@@ -43,7 +43,6 @@ public:
     uint32_t GuestW()      const { return kVisibleW; }
     uint32_t GuestH()      const { return kVisibleH; }
     uint32_t StrideBytes() const { return kPitchBytes; }
-    uint32_t FbPa()        const { return kBase + kFbOffset; }
     const uint8_t* FbBytes() const { return fb_.data(); }
 
 private:

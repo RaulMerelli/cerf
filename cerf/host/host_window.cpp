@@ -400,6 +400,14 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (auto* cap = emu_.TryGet<HostInputCapture>()) cap->OnFocusLost();
             break;
 
+        case WM_SETFOCUS: {
+            const HWND canvas = emu_.Get<HostCanvas>().Hwnd();
+            LOG(Lcd, "HostWindow: keyboard focus %p -> canvas %p\n", (void*)wp,
+                (void*)canvas);
+            SetFocus(canvas);
+            return 0;
+        }
+
         case WM_TIMER:
             if (wp == kCloseWatchdogTimer) {
                 auto* jit = emu_.TryGet<JitRunner>();

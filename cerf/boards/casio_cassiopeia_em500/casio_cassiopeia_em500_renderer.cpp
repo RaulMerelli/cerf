@@ -8,8 +8,6 @@
 #include "../../host/panel_frame_renderer.h"
 #include "../../lcd/panel_scanout.h"
 
-#include <optional>
-
 namespace {
 
 /* ddi.dll @0xFC5458-0xFC546C (andi 0xF800/0x7E0/0x1F channel split): the 16bpp
@@ -44,11 +42,6 @@ public:
                                .width  = asic.GuestW(),
                                .height = asic.GuestH()};
         scanout_.Blit(src, dib, host_w, host_h);
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& asic = emu_.Get<CasioCassiopeiaEm500Companion>();
-        return FbLayout{asic.FbPa(), asic.StrideBytes(), 16u, true};
     }
 
 private:

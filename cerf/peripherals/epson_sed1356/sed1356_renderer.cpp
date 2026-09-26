@@ -83,14 +83,6 @@ public:
         ComposeInkCursor(sed, dib, host_w, cw, ch, gw, gh);
     }
 
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& sed = emu_.Get<Sed1356>();
-        const uint32_t bpp = sed.LcdBpp();
-        if (!sed.LcdDisplayOn() || bpp == 0) return std::nullopt;
-        return FbLayout{ sed.MmioBase() + 0x200000u + sed.LcdStartByte(),
-                         sed.LcdStrideBytes(), bpp, bpp == 16u };
-    }
-
 private:
     static uint32_t FromLut(Sed1356& sed, uint32_t index) {
         uint8_t r4, g4, b4;

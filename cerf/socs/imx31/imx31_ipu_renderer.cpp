@@ -96,14 +96,6 @@ public:
                 dst_row[x] = lcd_pixel::Expand565(cerf::le::U16(src_row, (size_t)x * 2u));
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& ipu = emu_.Get<Imx31Ipu>();
-        const uint32_t pa = ipu.GetSdcBgFbPa();
-        if (pa == 0) return std::nullopt;
-        const Imx31Ipu::ChannelFormat fmt = ipu.GetSdcBgFormat();
-        return FbLayout{ pa, fmt.stride, fmt.bpp_bits, IsRgb565(fmt) };
-    }
 };
 
 }  /* namespace */

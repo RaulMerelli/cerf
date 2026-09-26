@@ -85,16 +85,6 @@ public:
         }
     }
 
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<Pxa27xLcd>();
-        const uint32_t pa = lcd.GetChannelSrcPa(0);
-        if (pa == 0) return std::nullopt;
-        return FbLayout{ pa,
-                         lcd.GetGuestW() * kBytesPerPixel16Bpp,
-                         kBytesPerPixel16Bpp * 8u,
-                         true };
-    }
-
 private:
     /* Intel PXA27x Developer's Manual 280000-001 Section 7.5.2: all bits in the
        control registers must be programmed before setting LCCR0[ENB]. */

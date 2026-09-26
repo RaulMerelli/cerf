@@ -39,15 +39,10 @@ enum class StateBootMode {
     Cold,     /* ignore state.img, cold boot */
 };
 
-/* The host canvas tabs. The startup / reboot / resume tab (--tab=boot|hw|fb)
-   selects one; MemoryVisualizer is a dev-only tab, not a startup choice.
-   Defined here (not in HostCanvas) so core config can name it without core
-   depending on the host layer; HostCanvas aliases it as HostCanvas::Tab. */
 enum class CanvasTab {
-    Boot,            /* CERF/OEM logo boot screen */
-    Hw,              /* hardware text console (UART / debug output) */
-    Framebuffer,     /* live guest framebuffer */
-    MemoryVisualizer,/* dev memory visualizer */
+    Boot,
+    Hw,
+    Framebuffer,
 };
 
 constexpr uint32_t kDefaultConfigurableScreenWidth  = 800;

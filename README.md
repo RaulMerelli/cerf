@@ -175,7 +175,7 @@ run_claude.cmd
         Handheld PC 2000<br/>
         Windows CE .NET
       </td>
-      <td><img src="cerf/assets/icons_sources/stylus.svg" width="32" height="32" title="Touch" alt="Touch"/> <img src="cerf/assets/icons_sources/keyboard.svg" width="32" height="32" title="Keyboard" alt="Keyboard"/> <img src="cerf/assets/icons_sources/ga_autoresize.svg" width="32" height="32" title="Guest Additions" alt="Guest Additions"/> <img src="cerf/assets/icons_sources/speaker_active.svg" width="32" height="32" title="Sound" alt="Sound"/> <img src="cerf/assets/icons_sources/pcmcia_enabled.svg" width="32" height="32" title="PCMCIA" alt="PCMCIA"/> <img src="cerf/assets/icons_sources/internet.svg" width="32" height="32" title="Network" alt="Network"/></td>
+      <td><img src="cerf/assets/icons_sources/stylus.svg" width="32" height="32" title="Touch" alt="Touch"/> <img src="cerf/assets/icons_sources/keyboard.svg" width="32" height="32" title="Keyboard" alt="Keyboard"/> <img src="cerf/assets/icons_sources/suspend.svg" width="32" height="32" title="Suspend / Resume" alt="Suspend / Resume"/> <img src="cerf/assets/icons_sources/ga_autoresize.svg" width="32" height="32" title="Guest Additions" alt="Guest Additions"/> <img src="cerf/assets/icons_sources/speaker_active.svg" width="32" height="32" title="Sound" alt="Sound"/> <img src="cerf/assets/icons_sources/pcmcia_enabled.svg" width="32" height="32" title="PCMCIA" alt="PCMCIA"/> <img src="cerf/assets/icons_sources/internet.svg" width="32" height="32" title="Network" alt="Network"/></td>
     </tr>
     <tr>
       <td align="center"><img src="launcher/assets/icons/badge_arm.png" align="middle" title="ARM" alt="ARM"/><br/><b>Freescale i.MX51</b><br/><sub>Cortex-A8</sub></td>
@@ -365,11 +365,15 @@ run_claude.cmd
           🆕 Host key is now reassignable<br/>
           ✅ ARM JIT and JIT core full rewrite. ARM JIT/peripherals massive performance optimizations<br/>
           ✅ Media instructions for Zune 30 - music is now playable<br/>
-          ✅ System clock improvements</p>
+          ✅ System clock improvements<br/>
+          ✅ Keyboard input no longer stops working after switching to another window and back<br/>
+          ❌ Memory visualizer</p>
         <p><b>🚀 Launcher</b><br/>
           🆕 Feedback window listing GitHub issues<br/>
           🆕 Copyright issues contact window<br/>
           🆕 Configurable update channel<br/>
+          🆕 UI revamp and optimizations<br/>
+          🆕 Configurable board types, ROM and storage sources<br/>
           ✅ Launcher does not wait depend on internet connection and it&#x27;s speed to let you use it<br/>
           ✅ Toolbar buttons are now properly trimmed when not enough width</p>
         <p><b>✨ Guest Additions</b><br/>

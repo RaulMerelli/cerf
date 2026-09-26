@@ -80,15 +80,6 @@ public:
                 dst_row[x] = lcd_pixel::Expand565(cerf::le::U16(src_row, (size_t)x * 2u));
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& dss = emu_.Get<Omap3530Dss>();
-        const uint32_t pa = dss.GetFbPa();
-        if (pa == 0) return std::nullopt;
-        return FbLayout{ pa, dss.GetGuestW() * 2u, 16u, true };
-    }
-
-private:
 };
 
 }  /* namespace */

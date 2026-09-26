@@ -84,13 +84,6 @@ public:
             for (uint32_t x = 0; x < copy_w; ++x) dst_row[x] = lut[src_row[x]];
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<Sa11xxLcd>();
-        const uint32_t dbar1 = lcd.GetFbPa();
-        if (dbar1 == 0) return std::nullopt;
-        return FbLayout{ dbar1 + kPaletteBytes, lcd.GetGuestW(), 8u, false };
-    }
 };
 
 }  /* namespace */

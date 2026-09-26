@@ -5,7 +5,6 @@
 #include "frame_source.h"
 
 #include <cstdint>
-#include <optional>
 
 class FrameRenderer : public Service, public FrameSource {
 public:
@@ -21,14 +20,6 @@ public:
                     uint32_t  height) override = 0;
 
     virtual void PresentedSize(uint32_t& w, uint32_t& h) = 0;
-
-    struct FbLayout {
-        uint32_t pa;
-        uint32_t stride_bytes;
-        uint32_t bpp_bits;
-        bool     rgb565;
-    };
-    virtual std::optional<FbLayout> GetFbLayout() { return std::nullopt; }
 
 protected:
     LcdContentLatch latch_;
