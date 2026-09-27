@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "jornada_820_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 namespace {
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoardId() == BoardId::Jornada820;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

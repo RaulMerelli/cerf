@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro900;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
     }
 
     uint32_t HostWindowBase()        const override { return 0x0C000000u; }

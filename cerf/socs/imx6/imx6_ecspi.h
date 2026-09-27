@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <deque>
+#include "imx6_id.h"
 
 namespace cerf_imx6_ecspi_detail {
 
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
@@ -100,35 +101,35 @@ private:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(conreg_);
-        w.Write(configreg_);
-        w.Write(intreg_);
-        w.Write(dmareg_);
-        w.Write(statreg_);
-        w.Write(static_cast<uint32_t>(tx_fifo_.size()));
+        w.Write("conreg", conreg_);
+        w.Write("configreg", configreg_);
+        w.Write("intreg", intreg_);
+        w.Write("dmareg", dmareg_);
+        w.Write("statreg", statreg_);
+        w.Write("tx_fifo_count", static_cast<uint32_t>(tx_fifo_.size()));
         for (uint32_t v : tx_fifo_)
-            w.Write(v);
-        w.Write(static_cast<uint32_t>(rx_fifo_.size()));
+            w.Write("v", v);
+        w.Write("rx_fifo_count", static_cast<uint32_t>(rx_fifo_.size()));
         for (uint32_t v : rx_fifo_)
-            w.Write(v);
+            w.Write("v", v);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(conreg_);
-        r.Read(configreg_);
-        r.Read(intreg_);
-        r.Read(dmareg_);
-        r.Read(statreg_);
+        r.Read("conreg", conreg_);
+        r.Read("configreg", configreg_);
+        r.Read("intreg", intreg_);
+        r.Read("dmareg", dmareg_);
+        r.Read("statreg", statreg_);
         tx_fifo_.clear();
         rx_fifo_.clear();
         uint32_t n = 0, v = 0;
-        r.Read(n);
+        r.Read("tx_fifo_count", n);
         for (uint32_t i = 0; i < n; ++i) {
-            r.Read(v);
+            r.Read("v", v);
             tx_fifo_.push_back(v);
         }
-        r.Read(n);
+        r.Read("rx_fifo_count", n);
         for (uint32_t i = 0; i < n; ++i) {
-            r.Read(v);
+            r.Read("v", v);
             rx_fifo_.push_back(v);
         }
     }

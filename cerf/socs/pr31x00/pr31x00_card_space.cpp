@@ -1,6 +1,8 @@
 #include "pr31x00_card_space.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/pcmcia/pcmcia_slot.h"
 #include "../../state/state_stream.h"
@@ -27,8 +29,8 @@ constexpr uint32_t kMemOffMask = 0x03FFFFFFu;
 bool Pr31x00CardSpace::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00CardSpace::ProvideSockets(PcmciaSlot* socket0, PcmciaSlot* socket1) {
@@ -139,20 +141,21 @@ void Pr31x00CardSpace::WriteMem16(uint32_t off, uint16_t value) {
     slot->WriteCommon16(o, value);
 }
 
-/* Socket wiring is board-deterministic, so the present/absent pattern is symmetric
-   across save and restore. */
 void Pr31x00CardSpace::SaveState(StateWriter& w) {
     for (int i = 0; i < 2; ++i) {
         PcmciaSlot* s = sockets_[i];
-        w.Write<uint8_t>(s ? 1u : 0u);
+        w.Write<uint8_t>("socket_present", s ? 1u : 0u);
         if (s) s->SaveSlotState(w);
     }
 }
 
 void Pr31x00CardSpace::RestoreState(StateReader& r) {
     for (int i = 0; i < 2; ++i) {
-        uint8_t present = 0; r.Read(present);
-        if (present && sockets_[i]) sockets_[i]->RestoreSlotState(r);
+        uint8_t present = 0; r.Read("socket_present", present);
+        if ((present != 0u) != (sockets_[i] != nullptr))
+            r.Reject("socket %d is %s in the image and %s in this build", i,
+                     present ? "wired" : "absent", sockets_[i] ? "wired" : "absent");
+        if (sockets_[i]) sockets_[i]->RestoreSlotState(r);
     }
 }
 

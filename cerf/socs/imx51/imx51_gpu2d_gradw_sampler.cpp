@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../cpu/emulated_memory.h"
 #include "imx51_gpu2d_blend.h"
 
@@ -33,7 +34,7 @@ REGISTER_SERVICE(Imx51Gpu2dGradwSampler);
 
 bool Imx51Gpu2dGradwSampler::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX51;
+    return bd && bd->GetSocId() == SocId::Imx51;
 }
 
 /* GRADW ISA (vgenums_z160.h:188-193 G2D_GRAD_OP; vgregs_z160.h:928-937 INST

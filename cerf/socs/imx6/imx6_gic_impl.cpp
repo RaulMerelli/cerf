@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <mutex>
+#include "imx6_id.h"
 namespace {
 
 using imx6_gic_detail::Imx6GicAux;
@@ -25,7 +26,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void AssertSpi(int spi) override {
         const int gic_id = spi + 32;
@@ -243,39 +244,39 @@ public:
 
     void SaveGicState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(timer_mutex_);
-        w.Write(pt_anchor_cycles_);
-        w.Write(active_irq_);
-        w.Write(cpu_control_);
-        w.Write(priority_mask_);
-        w.Write(private_timer_load_);
-        w.Write(private_timer_counter_);
-        w.Write(private_timer_control_);
-        w.Write(private_timer_status_);
-        w.Write(distributor_control_);
+        w.Write("pt_anchor_cycles", pt_anchor_cycles_);
+        w.Write("active_irq", active_irq_);
+        w.Write("cpu_control", cpu_control_);
+        w.Write("priority_mask", priority_mask_);
+        w.Write("private_timer_load", private_timer_load_);
+        w.Write("private_timer_counter", private_timer_counter_);
+        w.Write("private_timer_control", private_timer_control_);
+        w.Write("private_timer_status", private_timer_status_);
+        w.Write("distributor_control", distributor_control_);
         aux_.SaveState(w);
-        w.WriteBytes(enabled_, sizeof(enabled_));
-        w.WriteBytes(pending_, sizeof(pending_));
-        w.WriteBytes(line_level_, sizeof(line_level_));
-        w.WriteBytes(priorities_, sizeof(priorities_));
-        w.WriteBytes(configuration_, sizeof(configuration_));
+        w.WriteBytes("enabled", enabled_, sizeof(enabled_));
+        w.WriteBytes("pending", pending_, sizeof(pending_));
+        w.WriteBytes("line_level", line_level_, sizeof(line_level_));
+        w.WriteBytes("priorities", priorities_, sizeof(priorities_));
+        w.WriteBytes("configuration", configuration_, sizeof(configuration_));
     }
     void RestoreGicState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(timer_mutex_);
-        r.Read(pt_anchor_cycles_);
-        r.Read(active_irq_);
-        r.Read(cpu_control_);
-        r.Read(priority_mask_);
-        r.Read(private_timer_load_);
-        r.Read(private_timer_counter_);
-        r.Read(private_timer_control_);
-        r.Read(private_timer_status_);
-        r.Read(distributor_control_);
+        r.Read("pt_anchor_cycles", pt_anchor_cycles_);
+        r.Read("active_irq", active_irq_);
+        r.Read("cpu_control", cpu_control_);
+        r.Read("priority_mask", priority_mask_);
+        r.Read("private_timer_load", private_timer_load_);
+        r.Read("private_timer_counter", private_timer_counter_);
+        r.Read("private_timer_control", private_timer_control_);
+        r.Read("private_timer_status", private_timer_status_);
+        r.Read("distributor_control", distributor_control_);
         aux_.RestoreState(r);
-        r.ReadBytes(enabled_, sizeof(enabled_));
-        r.ReadBytes(pending_, sizeof(pending_));
-        r.ReadBytes(line_level_, sizeof(line_level_));
-        r.ReadBytes(priorities_, sizeof(priorities_));
-        r.ReadBytes(configuration_, sizeof(configuration_));
+        r.ReadBytes("enabled", enabled_, sizeof(enabled_));
+        r.ReadBytes("pending", pending_, sizeof(pending_));
+        r.ReadBytes("line_level", line_level_, sizeof(line_level_));
+        r.ReadBytes("priorities", priorities_, sizeof(priorities_));
+        r.ReadBytes("configuration", configuration_, sizeof(configuration_));
         PublishPrivateTimerFastLocked();
     }
     void PostRestoreGicState() override {

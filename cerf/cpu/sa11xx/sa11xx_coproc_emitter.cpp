@@ -13,6 +13,8 @@
 #include "../../jit/arm/place_fns.h"
 #include "../../jit/x86_emit.h"
 #include "../../boards/board_context.h"
+#include "../../socs/sa11xx/sa1110_id.h"
+#include "../../socs/sa11xx/sa1100_id.h"
 
 namespace {
 
@@ -22,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
 
     /* SA-110 Data Sheet §3.3: cp15 is the only coprocessor on
@@ -38,9 +40,10 @@ public:
            0x80020000 here - without the intercept the shared dispatch
            fatals on c15. */
         if (d->crn == 15) {
-            /* MCR p15, 0, Rd, c15, c2, 2 - SA-1110 "Wait for Interrupt"
-               (Dev Man §5.3.4). */
-            if (!d->l && d->crm == 2 && d->cp == 2 && d->cp_opc == 0) {
+            /* SA-1110 Dev Man §9.5.2.1: idle mode is entered by "mcr p15, 0, r0,
+               c15, c2, 2" (disable clock switching), an uncached load, then
+               "mcr p15, 0, r0, c15, c8, 2" - the wait for interrupt. */
+            if (!d->l && d->crm == 8 && d->cp == 2 && d->cp_opc == 0) {
                 using namespace x86;
                 EmitMovRegImm32(cursor, kEcx,
                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(

@@ -1,6 +1,8 @@
 #include "usb_state.h"
 #include "usb_hub.h"
 
+#include "../../core/byte_order.h"
+#include "../../core/log.h"
 #include "../../state/state_stream.h"
 
 namespace {
@@ -31,17 +33,8 @@ UsbHub::UsbHub(int num_ports) {
 }
 
 std::vector<uint8_t> UsbHub::BuildDeviceDescriptor() const {
-    return {
-        18u, kDescDevice,
-        0x00u, 0x02u,
-        kHubClassCode, 0u, kHubDeviceProtocolSingleTt,
-        64u,
-        static_cast<uint8_t>(kHubIdVendor & 0xFFu), static_cast<uint8_t>(kHubIdVendor >> 8),
-        static_cast<uint8_t>(kHubIdProduct & 0xFFu), static_cast<uint8_t>(kHubIdProduct >> 8),
-        static_cast<uint8_t>(kHubBcdDevice & 0xFFu), static_cast<uint8_t>(kHubBcdDevice >> 8),
-        0u, 0u, 0u,
-        1u,
-    };
+    return StandardDeviceDescriptor(kHubClassCode, 0u, kHubDeviceProtocolSingleTt,
+                                    kHubIdVendor, kHubIdProduct, kHubBcdDevice);
 }
 
 std::vector<uint8_t> UsbHub::BuildConfigurationDescriptor() const {
@@ -95,8 +88,9 @@ bool UsbHub::HandleClassRequest(const SetupPacket& setup,
         if (port < 0 || port >= NumPorts()) return false;
         const uint16_t status = port_status_[static_cast<size_t>(port)];
         const uint16_t change = port_change_[static_cast<size_t>(port)];
-        data_stage = {static_cast<uint8_t>(status & 0xFFu), static_cast<uint8_t>(status >> 8),
-                      static_cast<uint8_t>(change & 0xFFu), static_cast<uint8_t>(change >> 8)};
+        data_stage.clear();
+        cerf::le::Append16(data_stage, status);
+        cerf::le::Append16(data_stage, change);
         return true;
     }
     if (setup.bRequest == kHubReqSetFeature && recip == 3u) {
@@ -179,18 +173,15 @@ UsbDevice* UsbHub::FindByAddress(uint8_t addr) {
 
 void UsbHub::SaveState(StateWriter& w) {
     UsbDevice::SaveState(w);
-    w.Write<uint32_t>(static_cast<uint32_t>(ports_.size()));
-    for (auto v : port_status_) w.Write(v);
-    for (auto v : port_change_) w.Write(v);
+    for (auto v : port_status_) w.Write("port_status", v);
+    for (auto v : port_change_) w.Write("port_change", v);
     for (auto& p : ports_) p.SaveState(w);
 }
 
 void UsbHub::RestoreState(StateReader& r) {
     UsbDevice::RestoreState(r);
-    uint32_t ports = 0; r.Read(ports);
-    UsbState::Require(r.Ok() && ports == ports_.size(), "hub topology mismatch");
-    for (auto& v : port_status_) r.Read(v);
-    for (auto& v : port_change_) r.Read(v);
+    for (auto& v : port_status_) r.Read("port_status", v);
+    for (auto& v : port_change_) r.Read("port_change", v);
     for (auto& p : ports_) p.RestoreState(r);
 }
 

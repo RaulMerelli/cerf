@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 #include "../jornada/jornada_keyboard_layers.h"
 
 #include <cstdint>
@@ -36,7 +37,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
 
     void OnReady() override { jornada_kbd::BuildBindings(kVkToScancode, bindings_); }

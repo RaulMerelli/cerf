@@ -74,10 +74,14 @@ that contains it. That block jumps to its own entry and does not
 return.
 
 A chained block never reaches the dispatcher, so it observes nothing
-that the dispatcher delivers. Emitted code polls one word in CPU state
-before each chained jump. When that word is not zero, the block
-returns to the dispatcher. Every signal that must stop a chained block
-therefore owns a bit in that word.
+that the dispatcher delivers. Emitted code polls two things in CPU
+state before each chained jump: the chain-exit word, and the guest
+cycle counter against the published deadline of the next timer event.
+When the word is not zero, or the counter reaches the deadline, the
+block returns to the dispatcher. Every signal that must stop a chained
+block therefore owns a bit in that word. Every timer event is a cycle
+count that the deadline carries - see
+[agent_docs/timers_clocks.md](timers_clocks.md).
 
 ## The `place_fn` contract
 

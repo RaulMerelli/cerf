@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -181,7 +182,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetSoc() == SocFamily::MSM8255;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -247,14 +248,14 @@ public:
             for (uint32_t i = 0; i < kStateChunkWords; ++i) {
                 chunk[i] = regs_[base + i].load(std::memory_order_acquire);
             }
-            w.WriteBytes(chunk, sizeof(chunk));
+            w.WriteBytes("chunk", chunk, sizeof(chunk));
         }
     }
 
     void RestoreState(StateReader& r) override {
         uint32_t chunk[kStateChunkWords];
         for (uint32_t base = 0; base < kWordCount; base += kStateChunkWords) {
-            r.ReadBytes(chunk, sizeof(chunk));
+            r.ReadBytes("chunk", chunk, sizeof(chunk));
             for (uint32_t i = 0; i < kStateChunkWords; ++i) {
                 regs_[base + i].store(chunk[i], std::memory_order_release);
             }

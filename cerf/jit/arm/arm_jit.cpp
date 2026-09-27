@@ -13,10 +13,12 @@
 #include "../../socs/guest_cpu_reset.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../host/guest_power_notifier.h"
+#include "../guest_cycle_clock.h"
 #include "../jit_code_arena.h"
 #include "arm_block_compiler.h"
 #include "arm_cpu.h"
 #include "arm_interrupt_channel.h"
+#include "arm_injection_band.h"
 #include "arm_mmu.h"
 #include "arm_mmu_probe.h"
 #include "arm_mmu_state.h"
@@ -101,6 +103,7 @@ void ArmJit::OnReady() {
     cache_     = &emu_.Get<ArmTranslationCache>();
     compiler_  = &emu_.Get<ArmBlockCompiler>();
     channel_   = &emu_.Get<ArmInterruptChannel>();
+    clock_     = &emu_.Get<GuestCycleClock>();
 
     BootMode&      boot       = emu_.Get<BootMode>();
     const uint32_t cold_entry = boot.ColdEntryPa();
@@ -141,6 +144,8 @@ void ArmJit::Run() {
         cache_->Flush();
         return;
     }
+
+    clock_->OnDispatch();
 
     /* QEMU accel/tcg/cpu-exec.c cpu_handle_interrupt: "Clear the interrupt
        flag now since we're processing cpu->interrupt_request and
@@ -189,6 +194,7 @@ void ArmJit::SetHostChainExit(bool requested) {
 
 void ArmJit::SetInterruptPending()   { channel_->SetInterruptPending(); }
 void ArmJit::ClearInterruptPending() { channel_->ClearInterruptPending(); }
+void ArmJit::SetIdleWake(bool level) { channel_->SetIdleWake(level); }
 
 void ArmJit::EnterDeepSleep() {
     /* SA-1110 §9.5.3: PMCR.SF halts the CPU until a wake reset. */
@@ -199,6 +205,8 @@ void ArmJit::ExitDeepSleep() {
     cpu_state_->deep_sleep = 0;
     channel_->Wake();
 }
+
+void ArmJit::EnterIdleWait() { channel_->WaitForInterrupt(); }
 
 void ArmJit::SetResetPending(bool is_resume) {
     emu_.Get<GuestCpuReset>().SetPendingResume(is_resume);
@@ -224,14 +232,17 @@ void ArmJit::PrintFatalDump() {
 }
 
 void ArmJit::SaveCpuState(StateWriter& w)    { cpu_->SaveState(w); }
-void ArmJit::RestoreCpuState(StateReader& r) { cpu_->RestoreState(r); }
+void ArmJit::RestoreCpuState(StateReader& r) {
+    cpu_->RestoreState(r);
+    clock_->OnCyclesRestored();
+}
 void ArmJit::SaveMmuState(StateWriter& w)    { mmu_->SaveState(w); }
 void ArmJit::RestoreMmuState(StateReader& r) { mmu_->RestoreState(r); }
 
 void ArmJit::FlushTranslationCache() { cache_->Flush(); }
 
 void ArmJit::SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) {
-    walker_->SetInjectionBand(va, pa, size);
+    emu_.Get<ArmInjectionBand>().Set(va, pa, size);
 }
 
 void ArmJit::SetDmaRegion(uint32_t /*pa*/, uint32_t /*size*/) {}

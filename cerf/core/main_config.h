@@ -22,13 +22,11 @@ inline constexpr char kArgGuestAdditions[] = "--guest-additions";
 inline constexpr char kArgGaColorScheme[]  = "--ga-color-scheme=";
 inline constexpr char kArgGaFontSize[]     = "--ga-font-size=";
 inline constexpr char kArgGaAutorun[]      = "--ga-autorun=";
-inline constexpr char kArgGaTickProfiler[] = "--ga-tick-profiler";
 inline constexpr char kArgRecovery[]       = "--recovery";
 inline constexpr char kArgGaShareFolder[]  = "--ga-share-folder=";
 inline constexpr char kArgBoot[]           = "--boot=";
 inline constexpr char kArgTab[]            = "--tab=";
 inline constexpr char kArgFullScreen[]     = "--full-screen";
-inline constexpr char kArgAbout[]          = "--about";
 
 enum class ArgParseResult {
     Run,

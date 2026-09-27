@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "../../core/service.h"
@@ -23,6 +24,9 @@ public:
     bool ShouldRegister() override;
 
     ArmMmuState* State() { return &state_; }
+
+    void RegisterControlRegisterListener(std::function<void()> fn);
+    void SetControlRegister(uint32_t value);
 
     /* Table A3-1 (p. A3-108) and Table D12-1 (D12.3.1, p. D12-2506) give the
        alignment model by architecture version and SCTLR.U; D15.3.1
@@ -131,6 +135,7 @@ private:
     uint32_t AddressTranslate(uint32_t va, AtsWalk walk);
 
     ArmMmuState         state_{};
+    std::vector<std::function<void()>> control_register_listeners_;
     ArmPageWalker*      walker_           = nullptr;
     EmulatedMemory*     memory_           = nullptr;
     ArmProcessorConfig* processor_config_ = nullptr;

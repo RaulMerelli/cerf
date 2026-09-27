@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "ford_sync_2_id.h"
 #include "../../socs/imx51/imx51_ecspi1.h"
 #include "../../socs/imx51/imx51_gpio4.h"
 #include "../../state/state_stream.h"
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
 
     void OnReady() override {
@@ -45,10 +46,10 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(reg_); w.Write(len_); w.Write(data_idx_); w.Write(phase_);
+        w.Write("reg", reg_); w.Write("len", len_); w.Write("data_idx", data_idx_); w.Write("phase", phase_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(reg_); r.Read(len_); r.Read(data_idx_); r.Read(phase_);
+        r.Read("reg", reg_); r.Read("len", len_); r.Read("data_idx", data_idx_); r.Read("phase", phase_);
     }
 
 private:

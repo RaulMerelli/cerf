@@ -1,6 +1,7 @@
 #include "s3c2410_lcd.h"
 
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_window.h"
@@ -9,7 +10,7 @@
 
 bool S3C2410Lcd::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::S3C2410;
+    return bd && bd->GetSocId() == SocId::S3c2410;
 }
 
 void S3C2410Lcd::OnReady() {
@@ -102,13 +103,13 @@ uint32_t S3C2410Lcd::GetGuestH() {
 }
 
 void S3C2410Lcd::SaveState(StateWriter& w) {
-    w.WriteBytes(ctrl_, sizeof(ctrl_));
-    w.WriteBytes(pal_,  sizeof(pal_));
+    w.WriteBytes("ctrl", ctrl_, sizeof(ctrl_));
+    w.WriteBytes("pal", pal_,  sizeof(pal_));
 }
 
 void S3C2410Lcd::RestoreState(StateReader& r) {
-    r.ReadBytes(ctrl_, sizeof(ctrl_));
-    r.ReadBytes(pal_,  sizeof(pal_));
+    r.ReadBytes("ctrl", ctrl_, sizeof(ctrl_));
+    r.ReadBytes("pal", pal_,  sizeof(pal_));
 }
 
 REGISTER_SERVICE(S3C2410Lcd);

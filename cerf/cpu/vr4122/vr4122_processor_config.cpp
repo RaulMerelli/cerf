@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/vr4122/vr4122_id.h"
 
 namespace {
 
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4122;
+        return bd && bd->GetSocId() == SocId::Vr4122;
     }
 
     /* PRId (CP0 r15): Imp 0x0C | Rev 0x70 (Linux arch/mips/include/asm/cpu.h

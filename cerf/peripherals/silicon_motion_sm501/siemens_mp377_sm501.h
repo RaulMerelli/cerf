@@ -33,15 +33,10 @@ inline bool Sm501RegsPaToOffset(uint32_t pa, uint32_t& off) {
     return Sm501BusToOffset(pa, kSm501RegsBarPa, kSm501RegsBytes, off);
 }
 
-inline constexpr uint32_t Sm501FbOffsetToPa(uint32_t off) {
-    return kSm501FbBarPa + off;
-}
-
 inline constexpr uint32_t Sm501RegsOffsetToPa(uint32_t off) {
     return kSm501RegsBarPa + off;
 }
 
-static_assert(Sm501FbOffsetToPa(0u) == kSm501FbBarPa, "SM501 BAR0 helper mismatch");
 static_assert(Sm501RegsOffsetToPa(0u) == kSm501RegsBarPa, "SM501 BAR1 helper mismatch");
 
 inline constexpr uint32_t kSm501PciVendorId = 0x126Fu;

@@ -7,18 +7,39 @@
 
 #include "ford_sync2_ilp_channel.h"
 #include "ford_sync2_vmcu_diag_channel.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
+#include "../../core/string_utils.h"
 #include "../../boards/board_context.h"
+#include "ford_sync_2_id.h"
+#include "../../socs/imx51/imx51_nand_store.h"
 #include "../../socs/imx51/imx51_uart2.h"
 #include "../../state/state_stream.h"
 
 #include <cstdio>
 #include <vector>
 
+namespace {
+
+using cerf::le::Append16;
+using cerf::le::Append32;
+using cerf::le::Put16;
+using cerf::le::Put32;
+using cerf::le::U16;
+using cerf::le::U32;
+
+uint16_t IpcmpChecksum(const uint8_t* p, std::size_t len) {
+    uint32_t sum = 0u;
+    for (std::size_t i = 0; i < len; ++i) sum += p[i];
+    return static_cast<uint16_t>(sum);
+}
+
+}
+
 bool FordSync2VmcuPeer::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::FordSyncGen2;
+    return bd && bd->GetBoardId() == BoardId::FordSync2;
 }
 
 void FordSync2VmcuPeer::OnReady() {
@@ -29,13 +50,8 @@ void FordSync2VmcuPeer::OnReady() {
 std::vector<uint8_t> FordSync2VmcuPeer::EncodeFrame(const uint8_t* payload,
                                                     std::size_t len) {
     /* sync_2 EA5T-14D544-BA.sec, IPCMP.dll sub_C0E23130. */
-    uint32_t sum = 0u;
-    for (std::size_t i = 0; i < len; ++i) sum += payload[i];
-    sum &= 0xFFFFu;
-
     std::vector<uint8_t> flat(payload, payload + len);
-    flat.push_back(static_cast<uint8_t>(sum & 0xFFu));
-    flat.push_back(static_cast<uint8_t>(sum >> 8));
+    Append16(flat, IpcmpChecksum(payload, len));
     flat.push_back(0u);
 
     std::vector<uint8_t> out;
@@ -86,16 +102,9 @@ std::vector<uint8_t> FordSync2VmcuPeer::BuildLinkFrame(uint8_t type, uint8_t tid
                                                        uint16_t token) {
     /* ipc.dll LINK packet (Cid 0): header(2)=01 00, data(12)=[type][Tid]
        [token:2][config-CRC:4][pad:4]. */
-    const uint8_t payload[14] = {
-        0x01u, 0x00u,
-        type, tid,
-        static_cast<uint8_t>(token & 0xFFu), static_cast<uint8_t>(token >> 8),
-        static_cast<uint8_t>(kConfigCrc & 0xFFu),
-        static_cast<uint8_t>((kConfigCrc >> 8) & 0xFFu),
-        static_cast<uint8_t>((kConfigCrc >> 16) & 0xFFu),
-        static_cast<uint8_t>((kConfigCrc >> 24) & 0xFFu),
-        0u, 0u, 0u, 0u,
-    };
+    uint8_t payload[14] = { 0x01u, 0x00u, type, tid };
+    Put16(payload + 4, token);
+    Put32(payload + 6, kConfigCrc);
     return EncodeFrame(payload, sizeof(payload));
 }
 
@@ -104,12 +113,18 @@ std::vector<uint8_t> FordSync2VmcuPeer::BuildAckFrame(uint8_t cid, uint8_t ack_s
        no data. byte0 = Cid<<2 | 2 (ACK type bit1) -> head RX routes to the RX-ACK
        handler sub_C093BE18; byte1 = next-expected-seq << 1 (the seq the head
        validates against its outstanding TX window); bytes[2..3] = RX window. */
-    const uint8_t pkt[4] = {
+    uint8_t pkt[4] = {
         static_cast<uint8_t>((cid << 2) | 0x02u),
         static_cast<uint8_t>(ack_seq << 1),
-        static_cast<uint8_t>(kAckWindow & 0xFFu),
-        static_cast<uint8_t>(kAckWindow >> 8),
     };
+    Put16(pkt + 2, kAckWindow);
+    return EncodeFrame(pkt, sizeof(pkt));
+}
+
+std::vector<uint8_t> FordSync2VmcuPeer::BuildWindowUpdateFrame(uint8_t cid) {
+    /* EA5T-14D544-BA.sec, ipc.dll C0938180 (window update), C093D3E0 (receive). */
+    uint8_t pkt[4] = { static_cast<uint8_t>((cid << 2) | 0x02u), 1u };
+    Put16(pkt + 2, kAckWindow);
     return EncodeFrame(pkt, sizeof(pkt));
 }
 
@@ -162,24 +177,24 @@ void FordSync2VmcuPeer::HandlePmInbound(const uint8_t* pm, std::size_t n) {
             /* PetActivityTimer keep-alive (IPC_PetActivityTimer sub_C028A69C) -
                fire-and-forget; CERF's always-on VMCU has no inactivity timer. */
             break;
-        case 0x02u:
+        case 0x02u: {
             /* IPC_SendRebootRequest (pm.dll sub_C028A22C, AUTOPM sub_C028765C cmd 5). */
-            LOG(Caution,
-                "Sync 2 has requested reboot over VMCU (pm type=0x%02X len=%zu). "
-                "This is a known PANIC reboot, read NKDBG above or debug. Normal case is a corrupted nand.img. "
-                "CERF does not restart the guest, so it stays alive for debugging.\n",
-                static_cast<unsigned>(pm[0]), n);
+            const std::string nand = emu_.Get<Imx51NandStore>().ImagePath();
+            LOG(Caution, "[VMCU] reboot request (pm type=0x%02X len=%zu), storage.nand %s\n",
+                static_cast<unsigned>(pm[0]), n, nand.c_str());
 #if !CERF_DEV_MODE
-            MessageBoxA(nullptr,
-                        "Sync 2 has panicked and requested a reboot over VMCU.\n\n"
-                        "One possibility is a dirty/corrupted nand.img: delete it "
-                        "from the device directory and try flashing again.\n\n"
-                        "CERF does not restart the guest, so it "
-                        "stays alive for debugging.",
-                        "Sync 2 panic reboot - CE Runtime Foundation",
+            const std::wstring text =
+                L"Sync 2 has panicked and requested a reboot over VMCU.\n\n"
+                L"One possibility is a dirty/corrupted NAND image: delete " +
+                Utf8ToWide(nand.c_str()) +
+                L" and try flashing again.\n\n"
+                L"CERF does not restart the guest, so it stays alive for debugging.";
+            MessageBoxW(nullptr, text.c_str(),
+                        L"Sync 2 panic reboot - CE Runtime Foundation",
                         MB_OK | MB_ICONWARNING | MB_TASKMODAL | MB_TOPMOST);
 #endif
             break;
+        }
         default:
             LOG(Caution, "[VMCU] unmodelled inbound pm message type=0x%02X len=%zu\n",
                 static_cast<unsigned>(pm[0]), n);
@@ -222,7 +237,7 @@ void FordSync2VmcuPeer::HandleInboundSetOids(const uint8_t* inb, std::size_t n) 
 void FordSync2VmcuPeer::HandleInboundGetAllOids(const uint8_t* inb, std::size_t n) {
     if (n < 4u) return;
     const uint8_t tid = inb[1];
-    const uint16_t count = static_cast<uint16_t>(inb[2] | (inb[3] << 8));
+    const uint16_t count = U16(inb, 2);
     if (count == 0u || 4u + 4u * static_cast<std::size_t>(count) > n) return;
 
     /* Answer only OIDs CERF has a grounded value for; omit the rest. An omitted OID
@@ -231,16 +246,11 @@ void FordSync2VmcuPeer::HandleInboundGetAllOids(const uint8_t* inb, std::size_t 
     std::vector<uint8_t> body;
     uint16_t answered = 0u;
     for (uint16_t i = 0; i < count; ++i) {
-        const uint8_t* o = inb + 4u + static_cast<std::size_t>(i) * 4u;
-        const uint32_t oid = static_cast<uint32_t>(o[0]) |
-                             (static_cast<uint32_t>(o[1]) << 8) |
-                             (static_cast<uint32_t>(o[2]) << 16) |
-                             (static_cast<uint32_t>(o[3]) << 24);
+        const uint32_t oid = U32(inb, 4u + static_cast<std::size_t>(i) * 4u);
         std::vector<uint8_t> val;
         if (!AppendGroundedOidValue(oid, val)) continue;
-        body.push_back(o[0]); body.push_back(o[1]); body.push_back(o[2]); body.push_back(o[3]);
-        body.push_back(static_cast<uint8_t>(val.size() & 0xFFu));
-        body.push_back(static_cast<uint8_t>(val.size() >> 8));
+        Append32(body, oid);
+        Append16(body, static_cast<uint16_t>(val.size()));
         body.insert(body.end(), val.begin(), val.end());
         ++answered;
     }
@@ -253,8 +263,7 @@ void FordSync2VmcuPeer::HandleInboundGetAllOids(const uint8_t* inb, std::size_t 
     reply.push_back(tid);
     reply.push_back(0x00u);
     reply.push_back(0x00u);
-    reply.push_back(static_cast<uint8_t>(answered & 0xFFu));
-    reply.push_back(static_cast<uint8_t>(answered >> 8));
+    Append16(reply, answered);
     reply.insert(reply.end(), body.begin(), body.end());
     SendOnCid(kInboundCid, inbound_tx_seq_, reply.data(), reply.size());
 }
@@ -299,8 +308,7 @@ bool FordSync2VmcuPeer::OnHeadData(uint8_t cid, uint8_t rx_seq, bool reliable) {
     /* EA5T-14D544-BA.sec, ipc.dll sub_C093D258 (RX sequence), sub_C093B890 (ACK). */
     const bool accepted = !reliable || rx_seq == next_rx_[cid];
     if (accepted && reliable) next_rx_[cid] = static_cast<uint8_t>((rx_seq + 1u) & 0x7Fu);
-    const uint8_t ack_seq = reliable ? next_rx_[cid] : static_cast<uint8_t>((rx_seq + 1u) & 0x7Fu);
-    const auto frame = BuildAckFrame(cid, ack_seq);
+    const auto frame = reliable ? BuildAckFrame(cid, next_rx_[cid]) : BuildWindowUpdateFrame(cid);
     uart_->InjectRx(frame.data(), frame.size());
     return accepted;
 }
@@ -326,10 +334,7 @@ std::size_t FordSync2VmcuPeer::Deframe(const std::vector<uint8_t>& rle,
     }
     if (dec.size() < 5u) return 0u;
     const std::size_t n = dec.size() - 3u;
-    uint32_t sum = 0u;
-    for (std::size_t j = 0; j < n; ++j) sum += dec[j];
-    if ((sum & 0xFFFFu) != static_cast<uint32_t>(dec[n] | (dec[n + 1u] << 8)))
-        return 0u;
+    if (IpcmpChecksum(dec.data(), n) != U16(dec.data(), n)) return 0u;
     dec.resize(n);
     return n;
 }
@@ -380,39 +385,40 @@ void FordSync2VmcuPeer::OnGuestTx(uint8_t byte) {
 }
 
 void FordSync2VmcuPeer::SaveState(StateWriter& w) {
-    w.Write<uint8_t>(static_cast<uint8_t>(state_));
-    w.Write(peer_tid_);
-    w.Write(pm_tx_seq_);
-    w.Write(inbound_tx_seq_);
+    w.Write<uint8_t>("state", static_cast<uint8_t>(state_));
+    w.Write("peer_tid", peer_tid_);
+    w.Write("pm_tx_seq", pm_tx_seq_);
+    w.Write("inbound_tx_seq", inbound_tx_seq_);
     emu_.Get<FordSync2IlpChannel>().SaveState(w);
-    w.Write<uint8_t>(pm_state_pushed_ ? 1u : 0u);
+    w.Write<uint8_t>("pm_state_pushed", pm_state_pushed_ ? 1u : 0u);
     emu_.Get<FordSync2VmcuDiagChannel>().SaveState(w);
-    w.WriteBytes(next_rx_.data(), next_rx_.size());
-    w.Write<uint8_t>(discarding_frame_);
-    w.Write<uint32_t>(static_cast<uint32_t>(tx_frame_.size()));
-    w.WriteBytes(tx_frame_.data(), tx_frame_.size());
+    w.WriteBytes("next_rx", next_rx_.data(), next_rx_.size());
+    w.Write<uint8_t>("discarding_frame", discarding_frame_);
+    w.Write<uint32_t>("tx_frame_count", static_cast<uint32_t>(tx_frame_.size()));
+    w.WriteBytes("tx_frame", tx_frame_.data(), tx_frame_.size());
 }
 
 void FordSync2VmcuPeer::RestoreState(StateReader& r) {
     uint8_t s = 0;
-    r.Read(s);
+    r.Read("state", s);
     state_ = static_cast<PeerState>(s);
-    r.Read(peer_tid_);
-    r.Read(pm_tx_seq_);
-    r.Read(inbound_tx_seq_);
+    r.Read("peer_tid", peer_tid_);
+    r.Read("pm_tx_seq", pm_tx_seq_);
+    r.Read("inbound_tx_seq", inbound_tx_seq_);
     emu_.Get<FordSync2IlpChannel>().RestoreState(r);
     uint8_t pushed = 0;
-    r.Read(pushed);
+    r.Read("pm_state_pushed", pushed);
     pm_state_pushed_ = pushed != 0u;
     emu_.Get<FordSync2VmcuDiagChannel>().RestoreState(r);
-    r.ReadBytes(next_rx_.data(), next_rx_.size());
+    r.ReadBytes("next_rx", next_rx_.data(), next_rx_.size());
     uint8_t discarding = 0;
     uint32_t frame_size = 0;
-    r.Read(discarding); r.Read(frame_size);
-    if (frame_size > kMaxTxFrame) CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    r.Read("discarding_frame", discarding); r.Read("tx_frame_count", frame_size);
+    if (frame_size > kMaxTxFrame)
+        r.Reject("[VMCU] pending TX frame of %u bytes", frame_size);
     discarding_frame_ = discarding != 0;
     tx_frame_.resize(frame_size);
-    r.ReadBytes(tx_frame_.data(), tx_frame_.size());
+    r.ReadBytes("tx_frame", tx_frame_.data(), tx_frame_.size());
 }
 
 REGISTER_SERVICE(FordSync2VmcuPeer);

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "../freescale_sdma_impl.h"
+#include "imx31_id.h"
 
 /* MCIMX31RM Table 40-10: SDMA at 0x53FD_4000. Named (not anonymous) so
    Imx31AudioPlayer can register a channel sink on it. */
 class Imx31Sdma
     : public cerf_freescale_sdma_detail::FreescaleSdmaBase<0x53FD4000u,
-                                                           SocFamily::iMX31> {
+                                                           SocId::Imx31> {
 public:
     using FreescaleSdmaBase::FreescaleSdmaBase;
 

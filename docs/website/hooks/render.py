@@ -1,20 +1,23 @@
 """MkDocs hook: fills the placeholders whose content lives outside the site.
 
 {version}         cerf/version.h
-{boards_table}    launcher/supported_devices.py (via compile_readme.py)
+{boards_table}    bundled/db.json (via compile_readme.py)
 {changelog_table} docs/changelog.yml (via changelog.py)
-{stats}           board / SoC / CPU counts, from launcher/supported_devices.py
-{devices}         the front-page device wall, from docs/website/devices.yml
+{stats}           board / SoC / CPU counts, from bundled/db.json
+{devices}         the front-page device row, from docs/website/devices.yml
 {features}        the front-page feature cards, from docs/website/features.yml
 {articles}        the front-page article cards, from docs/website/articles.yml
 {links}           GitHub / Discord / support pills, from .github/FUNDING.yml
+{cur_year}        today's year, in the mkdocs.yml copyright line
 
 Keeping these as placeholders - rather than files generated into the docs dir -
 lets `mkdocs serve` run straight from docs/website with live reload.
 """
 
+import datetime
 import html
 import os
+import re
 import sys
 
 import yaml
@@ -36,7 +39,7 @@ FUNDING_LINKS = [
 ]
 
 SITE_LINKS = [
-    ('GitHub',  ':fontawesome-brands-github:',  'https://github.com/gweslab/cerf'),
+    # ('GitHub',  ':fontawesome-brands-github:',  'https://github.com/gweslab/cerf'),
     ('Discord', ':fontawesome-brands-discord:', 'https://discord.gg/QREE9Y2v2d'),
 ]
 
@@ -44,7 +47,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import changelog
 import compile_readme
-from supported_devices import BOARDS_INFORMATION
+from board_database import DEVICES, operating_systems_of, soc_family_of
 
 
 def _boards_table():
@@ -63,10 +66,11 @@ def _changelog_table():
 
 
 def _stats():
-    boards = [b for b in BOARDS_INFORMATION if b.get('supported')]
-    socs   = {b['soc'].family for b in boards}
-    cpus   = sorted({b['soc'].cpu for b in boards})
-    oses   = {os_.name for b in boards for os_ in b['operating_systems']}
+    boards = [b for b in DEVICES if b.get('supported')]
+    socs   = {b['soc_id'] for b in boards}
+    cpus   = sorted({soc_family_of(b['id'])['arch'] for b in boards})
+    oses   = {os_['name'] for b in boards
+              for os_ in operating_systems_of(b['id'])}
 
     cells = [
         (str(len(boards)), 'boards'),
@@ -112,7 +116,8 @@ def _devices():
     with open(DEV_YML, 'r', encoding='utf-8') as f:
         devices = yaml.safe_load(f).get('devices') or []
 
-    out = ['<div class="cerf-wall">']
+    out = ['<div class="cerf-rail">',
+           '<div class="cerf-rail-track" tabindex="0" role="region" aria-label="Devices">']
     for index, device in enumerate(devices):
         slides = _slides(device, DEV_DIR, '/assets/devices', 'file')
         if not slides:
@@ -123,12 +128,21 @@ def _devices():
         attrs = _slide_attrs(slides, index)
 
         out.append(f'  <figure class="{klass}">')
-        out.append(f'    <img src="{slides[0]}" loading="lazy" alt="{alt}"{attrs} />')
+        out.append(f'    <img src="{slides[0]}" loading="lazy" draggable="false" '
+                   f'alt="{alt}"{attrs} />')
         out.append('    <figcaption>'
                    f'<b>{alt}</b>'
                    f'<span>{html.escape(device["os"])}</span>'
                    '</figcaption>')
         out.append('  </figure>')
+
+    boards = len([b for b in DEVICES if b.get('supported')])
+    out.append(f'  <a class="cerf-rail-all" href="{_card_url("devices.md")}">'
+               '<span class="cerf-rail-all-mark">&rarr;</span>'
+               '<b>All</b>'
+               f'<span>{boards} boards</span>'
+               '</a>')
+    out.append('</div>')
     out.append('</div>')
     return '\n'.join(out)
 
@@ -178,15 +192,32 @@ def _links():
     with open(FUNDING, 'r', encoding='utf-8') as f:
         users = yaml.safe_load(f) or {}
 
-    pills = [f'[{icon} {label}]({url}){{ .cerf-pill }}'
-             for label, icon, url in SITE_LINKS]
-    pills += [f'[{icon} {label}]({url.format(user=users[key])})'
-              '{ .cerf-pill .cerf-pill--support }'
+    pills = [f'[{icon} {label}]({url.format(user=users[key])})'
+              '{ .cerf-pill }'
               for key, label, icon, url in FUNDING_LINKS if users.get(key)]
+    pills += [f'[{icon} {label}]({url}){{ .cerf-pill }}'
+             for label, icon, url in SITE_LINKS]
 
     return ('<div class="cerf-links" markdown>\n\n'
             + '\n'.join(pills)
             + '\n\n</div>')
+
+
+HERO_PERMALINK = re.compile(
+    r'(<h1[^>]*>.*?)<a class="headerlink"[^>]*>.*?</a>(</h1>)', re.S)
+
+
+def on_config(config):
+    if config.copyright and '{cur_year}' in config.copyright:
+        config.copyright = config.copyright.replace(
+            '{cur_year}', str(datetime.date.today().year))
+    return config
+
+
+def on_page_content(content, page, config, files):
+    if page.is_homepage:
+        content = HERO_PERMALINK.sub(r'\1\2', content, count=1)
+    return content
 
 
 def on_page_markdown(markdown, page, config, files):

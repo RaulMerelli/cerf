@@ -1,4 +1,5 @@
 #include "../../boards/board_context.h"
+#include "casio_cassiopeia_em500_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/touch_input.h"
 #include "casio_cassiopeia_em500_companion.h"
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaEm500;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaEm500;
     }
 
     void OnPenDown(int x, int y) override {

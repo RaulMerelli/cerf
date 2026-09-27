@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "ford_sync_2_id.h"
 
 #include <cstdint>
 #include <vector>
@@ -50,7 +51,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

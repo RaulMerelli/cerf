@@ -3,6 +3,7 @@
 #include "../../peripherals/ti_tsc2046/ti_tsc2046_touch.h"
 #include "../../socs/omap3530/omap3530_gpio_bus.h"
 #include "../board_context.h"
+#include "omap_3530_evm_id.h"
 
 #include "../../core/cerf_emulator.h"
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OmapEvm3530;
+        return bd && bd->GetBoardId() == BoardId::Omap3530Evm;
     }
 
     void OnPenDown    (int x, int y) override { Apply(x, y, true);  }

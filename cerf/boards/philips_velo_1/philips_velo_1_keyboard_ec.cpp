@@ -1,6 +1,7 @@
 #include "philips_velo_1_keyboard_ec.h"
 
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/guest_deep_sleep.h"
@@ -32,7 +33,7 @@ uint8_t ScanChecksum(uint8_t b) {
 
 bool PhilipsVelo1KeyboardEc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::PhilipsVelo1;
+    return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
 }
 
 void PhilipsVelo1KeyboardEc::OnReady() {
@@ -124,21 +125,21 @@ void PhilipsVelo1KeyboardEc::SpiTxByte(uint8_t /*byte*/) {}
 
 void PhilipsVelo1KeyboardEc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(mtx_);
-    w.Write(enabled_);
+    w.Write("enabled", enabled_);
     const uint32_t n = static_cast<uint32_t>(tx_.size());
-    w.Write(n);
-    for (uint8_t b : tx_) w.Write(b);
+    w.Write("tx_count", n);
+    for (uint8_t b : tx_) w.Write("tx", b);
 }
 
 void PhilipsVelo1KeyboardEc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mtx_);
-    r.Read(enabled_);
+    r.Read("enabled", enabled_);
     tx_.clear();
     uint32_t n = 0;
-    r.Read(n);
+    r.Read("tx_count", n);
     for (uint32_t i = 0; i < n; ++i) {
         uint8_t b = 0;
-        r.Read(b);
+        r.Read("tx", b);
         tx_.push_back(b);
     }
 }

@@ -8,6 +8,7 @@
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 
 namespace {
 
@@ -30,7 +31,7 @@ public:
     using TouchInput::TouchInput;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
     void OnPenDown(int x, int y) override { emu_.Get<Jornada720Touch>().PenDown(x, y); }
     void OnPenMove(int x, int y) override { emu_.Get<Jornada720Touch>().PenMove(x, y); }
@@ -45,7 +46,7 @@ REGISTER_SERVICE_AS(Jornada720TouchInput, TouchInput);
 
 bool Jornada720Touch::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada720;
+    return bd && bd->GetBoardId() == BoardId::Jornada720;
 }
 
 void Jornada720Touch::OnReady() {

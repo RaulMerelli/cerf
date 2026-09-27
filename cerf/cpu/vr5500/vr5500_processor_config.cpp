@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "vr5500_id.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR5500;
+        return bd && bd->GetSocId() == SocId::Vr5500;
     }
 
     /* company<<16(=0, legacy NEC) | PRID_IMP_R5500(0x5500) | revision(0). */

@@ -1,19 +1,13 @@
-#include "../page_table_builder.h"
+#include "../mips_kseg_page_table_builder.h"
 
-#include "../../boot/rom_parser_service.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/log.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 
 #include <cstdint>
 #include <vector>
 
 namespace {
-
-constexpr uint32_t kKseg0Base  = 0x80000000u;
-constexpr uint32_t kKseg1Base  = 0xA0000000u;
-constexpr uint32_t kKseg2Base  = 0xC0000000u;
-constexpr uint32_t kUnmaskKseg = 0x1FFFFFFFu;
 
 constexpr uint32_t kDramVaBase = 0x80000000u;
 
@@ -36,68 +30,17 @@ constexpr uint32_t kRegsVaBase = 0xB0C00000u;
 constexpr uint32_t kRegsPaBase = 0x10C00000u;
 constexpr uint32_t kRegsSize   = 0x00200000u;
 
-class SharpMobilonHc4100PageTableBuilder : public PageTableBuilder {
+class SharpMobilonHc4100PageTableBuilder : public MipsKsegPageTableBuilder {
 public:
-    using PageTableBuilder::PageTableBuilder;
+    using MipsKsegPageTableBuilder::MipsKsegPageTableBuilder;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     void OnReady() override {
-        auto& rom = emu_.Get<RomParserService>();
-        if (!rom.Ok() || rom.Loaded().empty() || rom.Primary().xips.empty()) {
-            LOG(Caution, "SharpMobilonHc4100PageTableBuilder: ROM not parsed\n");
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-
-        const ParsedRom&    prim = rom.Primary();
-        const ParsedROMHDR* hdr  = nullptr;
-        for (const auto& xip : prim.xips) {
-            const ParsedROMHDR& h = xip.toc.romhdr;
-            if (prim.entry_va >= h.physfirst && prim.entry_va < h.physlast) {
-                hdr = &h;
-                break;
-            }
-        }
-        if (!hdr) {
-            hdr = &prim.xips.front().toc.romhdr;
-        }
-
-        if (hdr->physfirst < kKseg0Base || hdr->physlast <= hdr->physfirst ||
-            hdr->physlast > kKseg1Base) {
-            LOG(Caution, "SharpMobilonHc4100PageTableBuilder: ROM outside kseg0: "
-                    "physfirst=0x%08X physlast=0x%08X\n",
-                hdr->physfirst, hdr->physlast);
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-        if (hdr->ulRAMEnd <= kDramVaBase ||
-            hdr->ulRAMEnd - kDramVaBase > kBank0Size) {
-            LOG(Caution, "SharpMobilonHc4100PageTableBuilder: ROMHDR ulRAMEnd 0x%08X "
-                    "does not fit DRAM BANK 0 (0x%X bytes)\n",
-                hdr->ulRAMEnd, kBank0Size);
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-
-        rom_va_base_ = hdr->physfirst;
-        rom_pa_base_ = hdr->physfirst & kUnmaskKseg;
-        rom_size_    = hdr->physlast - hdr->physfirst;
-
-        LOG(Boot, "SharpMobilonHc4100PageTableBuilder: ROM kva=0x%08X pa=0x%08X "
-                  "size=0x%X, DRAM bank0 pa=0x%08X size=0x%X, bank1 pa=0x%08X "
-                  "size=0x%X (ulRAMEnd=0x%08X)\n",
-            rom_va_base_, rom_pa_base_, rom_size_, kBank0PaBase, kBank0Size,
-            kBank1PaBase, kBank1Size, hdr->ulRAMEnd);
-    }
-
-    uint32_t VaToPa(uint32_t va) const override {
-        if (va >= kKseg0Base && va < kKseg2Base) {
-            return va & kUnmaskKseg;
-        }
-        LOG(Caution, "SharpMobilonHc4100PageTableBuilder::VaToPa: VA 0x%08X is "
-                "outside the kseg0/kseg1 unmapped windows\n", va);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        rom_ = PlaceEntryXipRom(kDramVaBase, kBank0Size);
     }
 
     std::vector<DramRegion> CachedDramRegions() const override {
@@ -111,7 +54,7 @@ public:
         return {
             { kDramVaBase,  kBank0PaBase, kBank0Size, PAGE_READWRITE, kBank0DecodeSpan },
             { kBank1VaBase, kBank1PaBase, kBank1Size, PAGE_READWRITE, kBank1DecodeSpan },
-            { rom_va_base_, rom_pa_base_, rom_size_, PAGE_EXECUTE_READ },
+            { rom_.va_base, rom_.pa_base, rom_.size,  PAGE_EXECUTE_READ },
         };
     }
 
@@ -119,15 +62,13 @@ public:
         return {
             { kDramVaBase,  kBank0PaBase, kBank0DecodeSpan },
             { kBank1VaBase, kBank1PaBase, kBank1DecodeSpan },
-            { rom_va_base_, rom_pa_base_, rom_size_ },
+            rom_,
             { kRegsVaBase,  kRegsPaBase,  kRegsSize },
         };
     }
 
 private:
-    uint32_t rom_va_base_ = 0;
-    uint32_t rom_pa_base_ = 0;
-    uint32_t rom_size_    = 0;
+    DramRegion rom_{};
 };
 
 }  /* namespace */

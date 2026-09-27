@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 
 #include <cstdint>
 
@@ -21,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsVelo1;
+        return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
     }
 
     std::optional<Pr31x00SerialModem> ForUart(uint32_t mmio_base) const override {

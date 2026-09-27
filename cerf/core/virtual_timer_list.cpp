@@ -2,7 +2,6 @@
 
 #include "cerf_emulator.h"
 #include "fatal.h"
-#include "host_thread_priority.h"
 #include "log.h"
 #include "virtual_clock.h"
 #include "../state/emulation_freeze.h"
@@ -12,10 +11,6 @@
 #include <windows.h>
 
 REGISTER_SERVICE(VirtualTimerList);
-
-namespace {
-constexpr int64_t kSpinHorizonNs = 10200000;
-}
 
 void VirtualTimerList::OnReady() {
     timer_ = CreateWaitableTimerExW(nullptr, nullptr,
@@ -72,10 +67,7 @@ void VirtualTimerList::ArmEntry(Entry* e, int64_t deadline_ns) {
            armed timer becomes the head of the active list. */
         wake = deadline_ns < waiting_until_;
     }
-    if (wake) {
-        wake_gen_.fetch_add(1, std::memory_order_release);
-        SetEvent(wake_event_);
-    }
+    if (wake) SetEvent(wake_event_);
 }
 
 int64_t VirtualTimerList::NextDeadlineLocked() const {
@@ -117,7 +109,6 @@ void VirtualTimerList::RunExpired() {
 }
 
 void VirtualTimerList::ExpiryLoop() {
-    emu_.Get<HostThreadPriority>().Elevate(HostThreadRole::TimerExpiry);
     auto& freeze = emu_.Get<EmulationFreeze>();
     auto& clock  = emu_.Get<VirtualClock>();
     while (!stop_.load(std::memory_order_acquire)) {
@@ -137,18 +128,14 @@ void VirtualTimerList::ExpiryLoop() {
             continue;
         }
         waiting_until_ = next;
-        const uint32_t wait_gen = wake_gen_.load(std::memory_order_acquire);
         lk.unlock();
 
         if (next == kNoDeadline || !enabled) {
             WaitForSingleObject(wake_event_, INFINITE);
         } else {
-            /* dolphin-emu Source/Core/Common/Timer.cpp
-               PrecisionTimer::SleepUntil. */
-            bool woken = false;
             for (;;) {
                 if (!clock.Running()) break;
-                const int64_t sleep_ns = next - clock.NowNs() - kSpinHorizonNs;
+                const int64_t sleep_ns = next - clock.NowNs();
                 if (sleep_ns <= 0) break;
                 LARGE_INTEGER due;
                 /* util/qemu-timer.c qemu_timeout_ns_to_ms: "Always round
@@ -159,19 +146,7 @@ void VirtualTimerList::ExpiryLoop() {
                 const DWORD wr =
                     WaitForMultipleObjects(2, objs, FALSE, INFINITE);
                 CancelWaitableTimer(timer_);
-                if (wr == WAIT_OBJECT_0 + 1) {
-                    woken = true;
-                    break;
-                }
-            }
-            if (!woken) {
-                while (clock.Running() && clock.NowNs() < next) {
-                    if (wake_gen_.load(std::memory_order_acquire) !=
-                        wait_gen) {
-                        break;
-                    }
-                    YieldProcessor();
-                }
+                if (wr == WAIT_OBJECT_0 + 1) break;
             }
         }
 

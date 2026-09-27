@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "smartbook_g138_id.h"
 #include "../../host/host_canvas.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     void SendTouch(bool contact, uint16_t x14, uint16_t y14) {
@@ -75,7 +76,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     void OnReady() override {
@@ -172,7 +173,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

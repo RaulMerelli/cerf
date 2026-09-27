@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -41,7 +42,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetSoc() == SocFamily::MSM8255;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -75,16 +76,16 @@ public:
 
     void SaveState(StateWriter& w) override {
         for (auto& reg : regs_) {
-            w.Write<uint32_t>(reg.load(std::memory_order_acquire));
+            w.Write<uint32_t>("reg", reg.load(std::memory_order_acquire));
         }
     }
 
     void RestoreState(StateReader& r) override {
         for (uint32_t i = 0; i < kRegisterCount; ++i) {
             uint32_t value = kResetValue;
-            r.Read(value);
+            r.Read("reg", value);
             if ((value & ~kRegisters[i].accepted) != 0u) {
-                emu_.Get<Fatal>().Die(
+                r.Reject(
                     "msm8255 clk_ctl_sh2: restored +0x%03X value 0x%08X carries "
                     "bits the guest never writes", kRegisters[i].offset, value);
             }

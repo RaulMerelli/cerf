@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -47,7 +48,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
+        return bd && bd->GetSocId() == SocId::Omap3530;
     }
     void OnReady() override {
         dsi_   [kDsiSysstatus / 4u] = kSysstatusResetDone;
@@ -141,17 +142,17 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.WriteBytes(dsi_,     sizeof(dsi_));
-        w.WriteBytes(dsi_phy_, sizeof(dsi_phy_));
-        w.WriteBytes(dsi_pll_, sizeof(dsi_pll_));
-        w.Write(pll_locked_);
+        w.WriteBytes("dsi", dsi_,     sizeof(dsi_));
+        w.WriteBytes("dsi_phy", dsi_phy_, sizeof(dsi_phy_));
+        w.WriteBytes("dsi_pll", dsi_pll_, sizeof(dsi_pll_));
+        w.Write("pll_locked", pll_locked_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.ReadBytes(dsi_,     sizeof(dsi_));
-        r.ReadBytes(dsi_phy_, sizeof(dsi_phy_));
-        r.ReadBytes(dsi_pll_, sizeof(dsi_pll_));
-        r.Read(pll_locked_);
+        r.ReadBytes("dsi", dsi_,     sizeof(dsi_));
+        r.ReadBytes("dsi_phy", dsi_phy_, sizeof(dsi_phy_));
+        r.ReadBytes("dsi_pll", dsi_pll_, sizeof(dsi_pll_));
+        r.Read("pll_locked", pll_locked_);
     }
 
 private:

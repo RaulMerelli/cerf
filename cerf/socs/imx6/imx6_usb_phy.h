@@ -8,6 +8,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../core/service.h"
 #include "imx6_mmio_lane.h"
+#include "imx6_id.h"
 
 namespace cerf_imx6_usb_phy_detail {
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
 
     void OnReady() override {
@@ -89,9 +90,9 @@ private:
         if (reg == kRegCtrl) slot &= ~kCtrlSftrst;
     }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_, sizeof(regs_)); }
 
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_, sizeof(regs_)); }
 
 private:
     static constexpr uint32_t kRegPwd = 0x00u;

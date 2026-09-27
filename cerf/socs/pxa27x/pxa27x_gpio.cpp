@@ -1,11 +1,12 @@
 #include "pxa27x_gpio.h"
 
 #include "../../boards/board_context.h"
+#include "pxa270_id.h"
 #include "../../core/cerf_emulator.h"
 
 bool Pxa27xGpio::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::PXA27x;
+    return bd && bd->GetSocId() == SocId::Pxa270;
 }
 
 Pxa2xxGpio::Reg Pxa27xGpio::Decode(uint32_t off, uint32_t* index) const {

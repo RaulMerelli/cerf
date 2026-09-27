@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "imx31_avic.h"
@@ -61,7 +62,7 @@ Kind ClassifyOffset(uint32_t off) {
 
 bool Imx31Ipu::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX31;
+    return bd && bd->GetSocId() == SocId::Imx31;
 }
 
 void Imx31Ipu::OnReady() {

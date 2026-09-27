@@ -20,7 +20,7 @@ public:
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
         if (!board) return false;
-        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoardId());
         return profile && profile->has_f_module;
     }
 
@@ -37,14 +37,14 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(static_cast<uint8_t>(level_known_));
-        w.Write(static_cast<uint8_t>(line_high_));
+        w.Write("level_known", static_cast<uint32_t>(level_known_));
+        w.Write("line_high", static_cast<uint32_t>(line_high_));
     }
     void RestoreState(StateReader& r) override {
         uint8_t known = 0;
         uint8_t high = 0;
-        r.Read(known);
-        r.Read(high);
+        r.Read("level_known", known);
+        r.Read("line_high", high);
         level_known_ = known != 0u;
         line_high_ = high != 0u;
     }

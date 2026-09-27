@@ -3,10 +3,11 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 
 bool PhilipsVelo1Battery::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::PhilipsVelo1;
+    return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
 }
 
 void PhilipsVelo1Battery::OnReady() {

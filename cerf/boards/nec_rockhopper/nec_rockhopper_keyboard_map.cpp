@@ -2,6 +2,7 @@
 #include "../../host/keyboard_map.h"
 #include "../../host/ps2_set2_keymap.h"
 #include "../board_context.h"
+#include "nec_rockhopper_id.h"
 
 #include <vector>
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecRockhopper;
+        return bd && bd->GetBoardId() == BoardId::NecRockhopper;
     }
 
     void OnReady() override { bindings_ = Ps2Set2KeyBindings(); }

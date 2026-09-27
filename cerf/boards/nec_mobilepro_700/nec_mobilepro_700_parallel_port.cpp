@@ -5,6 +5,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "nec_mobilepro_700_id.h"
 
 #include <cstdint>
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro700;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
@@ -50,8 +51,8 @@ public:
         HaltUnsupportedAccess("MobilePro700 ParallelPort WriteByte", addr, value);
     }
 
-    void SaveState(StateWriter& w) override { w.Write(command_); }
-    void RestoreState(StateReader& r) override { r.Read(command_); }
+    void SaveState(StateWriter& w) override { w.Write("command", command_); }
+    void RestoreState(StateReader& r) override { r.Read("command", command_); }
 
 private:
     static constexpr uint32_t kBase       = 0x1600FFE0u;

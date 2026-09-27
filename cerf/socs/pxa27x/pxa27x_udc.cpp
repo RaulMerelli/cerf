@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "pxa270_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -225,19 +226,19 @@ void Pxa27xUdc::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Pxa27xUdc::SaveState(StateWriter& w) {
-    w.Write(udccr_);   w.Write(udcicr0_); w.Write(udcicr1_);
-    w.Write(udcotgicr_);
-    w.Write(up2ocr_);  w.Write(up3ocr_);  w.Write(udccsr0_);
-    w.WriteBytes(epcsr_, sizeof(epcsr_));
-    w.WriteBytes(epcr_,  sizeof(epcr_));
+    w.Write("udccr", udccr_);   w.Write("udcicr0", udcicr0_); w.Write("udcicr1", udcicr1_);
+    w.Write("udcotgicr", udcotgicr_);
+    w.Write("up2ocr", up2ocr_);  w.Write("up3ocr", up3ocr_);  w.Write("udccsr0", udccsr0_);
+    w.WriteBytes("epcsr", epcsr_, sizeof(epcsr_));
+    w.WriteBytes("epcr", epcr_,  sizeof(epcr_));
 }
 
 void Pxa27xUdc::RestoreState(StateReader& r) {
-    r.Read(udccr_);   r.Read(udcicr0_); r.Read(udcicr1_);
-    r.Read(udcotgicr_);
-    r.Read(up2ocr_);  r.Read(up3ocr_);  r.Read(udccsr0_);
-    r.ReadBytes(epcsr_, sizeof(epcsr_));
-    r.ReadBytes(epcr_,  sizeof(epcr_));
+    r.Read("udccr", udccr_);   r.Read("udcicr0", udcicr0_); r.Read("udcicr1", udcicr1_);
+    r.Read("udcotgicr", udcotgicr_);
+    r.Read("up2ocr", up2ocr_);  r.Read("up3ocr", up3ocr_);  r.Read("udccsr0", udccsr0_);
+    r.ReadBytes("epcsr", epcsr_, sizeof(epcsr_));
+    r.ReadBytes("epcr", epcr_,  sizeof(epcr_));
 }
 
 }

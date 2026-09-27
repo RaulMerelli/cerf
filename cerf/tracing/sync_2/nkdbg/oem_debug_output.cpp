@@ -2,6 +2,7 @@
 #include "../../trace_manager.h"
 #include "../../../core/cerf_emulator.h"
 #include "../../../boards/board_context.h"
+#include "../../../boards/ford_sync2/ford_sync_2_id.h"
 
 #include <string>
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
 
     void OnReady() override {

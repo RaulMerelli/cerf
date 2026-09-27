@@ -1,20 +1,18 @@
-"""Worker threads never touch Tk: every log line, progress update, retry prompt
-and completion crosses into the UI thread through the queue this window pumps."""
 from __future__ import annotations
 
 import queue
 import threading
 import tkinter as tk
-from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Optional
 
-from app_paths import resolve_icon, resolve_logo
+from app_paths import resolve_icon
+from branded_dialog import SETUP_ICON_STEM, BrandedDialog, scaled
 from ui_dialogs import show_dialog
 import ui_theme as theme
 
 
-LOGO_SIZE = 64
+LOG_ROWS = 12
 
 
 class UpgradeWindow(tk.Toplevel):
@@ -22,15 +20,10 @@ class UpgradeWindow(tk.Toplevel):
                  on_finish: Callable[[Optional[BaseException]], None]) -> None:
         super().__init__(parent)
         self._on_finish = on_finish
-        self._queue: "queue.Queue[tuple]" = queue.Queue()
+        self._queue = queue.Queue()
 
-        self.title("Upgrading CERF")
-        self.configure(bg=theme.BG)
-        self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        # The installing stage runs with no main window, so it owns the taskbar
-        # entry and cannot be transient for its hidden root.
         self._parented = bool(parent.winfo_viewable())
         if self._parented:
             self.transient(parent)
@@ -41,54 +34,26 @@ class UpgradeWindow(tk.Toplevel):
             except tk.TclError:
                 pass
 
-        body = ttk.Frame(self, padding=16)
-        body.pack(fill="both", expand=True)
+        self._chrome = BrandedDialog(self, heading, heading,
+                                     icon_stem=SETUP_ICON_STEM)
+        body = self._chrome.body
 
-        head = ttk.Frame(body)
-        head.pack(fill="x")
-        self._logo = self._load_logo()
-        if self._logo is not None:
-            logo_label = ttk.Label(head, image=self._logo, background=theme.BG)
-            logo_label.pack(side="left", padx=(0, 12))
-        ttk.Label(head, text=heading, font=("Segoe UI", 12, "bold")).pack(
-            side="left", anchor="w")
-
-        self.log_text = tk.Text(body, width=78, height=16, wrap="none",
-                                relief="flat", bg=theme.BG_FIELD,
-                                fg=theme.FG, insertbackground=theme.FG,
+        self.log_text = tk.Text(body, height=LOG_ROWS, width=1, wrap="char",
+                                relief="flat", bg=theme.BG_FIELD, fg=theme.FG,
+                                insertbackground=theme.FG,
                                 highlightthickness=1,
                                 highlightbackground=theme.BORDER)
-        self.log_text.pack(fill="both", expand=True, pady=(14, 10))
+        self.log_text.pack(fill="both", expand=True)
         self.log_text.configure(state="disabled")
 
         self.progress = ttk.Progressbar(body, orient="horizontal",
                                         mode="indeterminate")
-        self.progress.pack(fill="x")
+        self.progress.pack(fill="x", pady=(scaled(self, 10), 0))
         self.progress.start(80)
 
-        self.update_idletasks()
-        theme.apply_titlebar(self)
-        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-        if self._parented:
-            x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
-            y = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
-        else:
-            x = (self.winfo_screenwidth() - w) // 2
-            y = (self.winfo_screenheight() - h) // 2
-        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        self._chrome.present(parent if self._parented else None)
         self.grab_set()
         self.after(50, self._pump)
-
-    def _load_logo(self) -> Optional[tk.PhotoImage]:
-        path: Optional[Path] = resolve_logo()
-        if path is None:
-            return None
-        try:
-            image = tk.PhotoImage(file=str(path))
-        except tk.TclError:
-            return None
-        factor = max(1, image.width() // LOGO_SIZE)
-        return image.subsample(factor, factor)
 
     def post_log(self, line: str) -> None:
         self._queue.put(("log", line))

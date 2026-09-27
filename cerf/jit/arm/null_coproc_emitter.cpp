@@ -10,7 +10,7 @@ public:
     using CoprocEmitter::CoprocEmitter;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
+        return emu_.Get<BoardContext>().GetBoardId().empty();
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t* cursor, DecodedInsn*,

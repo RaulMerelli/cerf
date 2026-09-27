@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_icu_impl.h"
 
 #include <cstdint>
+#include "vr4122_id.h"
 
 namespace {
 
@@ -64,7 +65,7 @@ constexpr uint16_t kMbcuWritable = 0x0001u;
 /* Table 11-1: the VR4122 has no PIU/AIU/KIU - indication regs 0x82/0x84/0x86 and mask
    regs 0x8E/0x90/0x92 are absent (map goes SYSINT1REG 0x80 -> GIUINTL 0x88; NetBSD
    icureg.h VR4122_{AIU,KIU}INT_REG_W = ICU_NO_REG_W). */
-class Vr4122Icu : public Vr41xxIcuBase<SocFamily::VR4122, kModel> {
+class Vr4122Icu : public Vr41xxIcuBase<SocId::Vr4122, kModel> {
 public:
     using Vr41xxIcuBase::Vr41xxIcuBase;
 
@@ -104,10 +105,10 @@ protected:
     }
     void ApplyResetExtLocked() override { mpci_ = mscu_ = mcsi_ = mbcu_ = 0; }
     void SaveStateExtLocked(StateWriter& w) override {
-        w.Write(mpci_); w.Write(mscu_); w.Write(mcsi_); w.Write(mbcu_);
+        w.Write("mpci", mpci_); w.Write("mscu", mscu_); w.Write("mcsi", mcsi_); w.Write("mbcu", mbcu_);
     }
     void RestoreStateExtLocked(StateReader& r) override {
-        r.Read(mpci_); r.Read(mscu_); r.Read(mcsi_); r.Read(mbcu_);
+        r.Read("mpci", mpci_); r.Read("mscu", mscu_); r.Read("mcsi", mcsi_); r.Read("mbcu", mbcu_);
     }
 
 private:

@@ -2,10 +2,11 @@
 #include "../../socs/freescale_sdma_impl.h"
 #include "../../socs/imx6/imx6_gic.h"
 #include "../../state/state_stream.h"
+#include "imx6_id.h"
 
 namespace {
 
-class Imx6Sdma : public cerf_freescale_sdma_detail::FreescaleSdmaBase<0x020EC000u, SocFamily::iMX6> {
+class Imx6Sdma : public cerf_freescale_sdma_detail::FreescaleSdmaBase<0x020EC000u, SocId::Imx6> {
 public:
     using FreescaleSdmaBase::FreescaleSdmaBase;
 
@@ -36,8 +37,8 @@ protected:
         }
         return false;
     }
-    void SaveExtra(StateWriter& w) override { w.WriteBytes(chnenbl_, sizeof(chnenbl_)); }
-    void RestoreExtra(StateReader& r) override { r.ReadBytes(chnenbl_, sizeof(chnenbl_)); }
+    void SaveExtra(StateWriter& w) override { w.WriteBytes("chnenbl", chnenbl_, sizeof(chnenbl_)); }
+    void RestoreExtra(StateReader& r) override { r.ReadBytes("chnenbl", chnenbl_, sizeof(chnenbl_)); }
     void ResetExtra() override {
         for (auto& c : chnenbl_)
             c = 0u;

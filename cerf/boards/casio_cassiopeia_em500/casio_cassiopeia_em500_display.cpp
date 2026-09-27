@@ -1,9 +1,11 @@
 #include "casio_cassiopeia_em500_display.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../jit/mips/mips_mmu.h"
 #include "../../state/state_stream.h"
 
 #include <cstring>
@@ -36,10 +38,6 @@ constexpr uint32_t kOffFillGo      = 0x0234u;
 /* ddi.dll sub_FC4E38 @0xFC4F04 li $t0, 0x81; @0xFC4F38 sw $t0, 4($v0). */
 constexpr uint32_t kBlitOpCopy = 0x81u;
 
-/* VR4102 UM ch.5 p131 "(3) kseg1": references are not mapped through TLB and the
-   physical address is the virtual address minus 0xA0000000. */
-constexpr uint32_t kPaMask = 0x1FFFFFFFu;
-
 }  /* namespace */
 
 void CasioCassiopeiaEm500Display::Init(CerfEmulator& emu) {
@@ -55,13 +53,13 @@ bool CasioCassiopeiaEm500Display::TryReadByte(uint32_t off, uint8_t& out) {
 
 bool CasioCassiopeiaEm500Display::TryReadHalf(uint32_t off, uint16_t& out) {
     if (!InFb(off)) return false;
-    std::memcpy(&out, &fb_[off - kFbOffset], sizeof(out));
+    out = cerf::le::U16(fb_.data(), off - kFbOffset);
     return true;
 }
 
 bool CasioCassiopeiaEm500Display::TryReadWord(uint32_t off, uint32_t& out) {
     if (InFb(off)) {
-        std::memcpy(&out, &fb_[off - kFbOffset], sizeof(out));
+        out = cerf::le::U32(fb_.data(), off - kFbOffset);
         return true;
     }
     /* ddi.dll sub_FC4E38 @0xFC4F08 lw 0($v0); @0xFC4F10 beqz loc_FC4F24;
@@ -88,13 +86,13 @@ bool CasioCassiopeiaEm500Display::TryWriteByte(uint32_t off, uint8_t value) {
 
 bool CasioCassiopeiaEm500Display::TryWriteHalf(uint32_t off, uint16_t value) {
     if (!InFb(off)) return false;
-    std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value));
+    cerf::le::Put16(fb_.data() + (off - kFbOffset), value);
     return true;
 }
 
 bool CasioCassiopeiaEm500Display::TryWriteWord(uint32_t off, uint32_t value) {
     if (InFb(off)) {
-        std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value));
+        cerf::le::Put32(fb_.data() + (off - kFbOffset), value);
         return true;
     }
     switch (off) {
@@ -142,7 +140,9 @@ void CasioCassiopeiaEm500Display::RunBlit() {
     }
     const uint32_t bytes = blit_len_words_ * 4u;
     if (bytes == 0u) return;
-    const uint32_t src_pa = blit_src_ & kPaMask;
+    /* VR4102 UM ch.5 p131 "(3) kseg1": references are not mapped through TLB and the
+       physical address is the virtual address minus 0xA0000000. */
+    const uint32_t src_pa = MipsSeg::UnmappedPa(blit_src_);
     if (static_cast<uint64_t>(blit_dst_) + bytes > kFbSize) {
         LOG(Caution, "EM-500 display blit dst=0x%X len=%u exceeds framebuffer\n",
             blit_dst_, bytes);
@@ -177,7 +177,7 @@ void CasioCassiopeiaEm500Display::RunFill() {
     for (uint32_t row = 0; row < h; ++row) {
         uint8_t* p = fb_.data() + fb_off + row * StrideBytes();
         for (uint32_t col = 0; col < w; ++col)
-            std::memcpy(p + col * 2u, &color, sizeof(color));
+            cerf::le::Put16(p + col * 2u, color);
     }
 }
 
@@ -186,31 +186,23 @@ void CasioCassiopeiaEm500Display::MaybePublishDisplaySize() {
 }
 
 void CasioCassiopeiaEm500Display::SaveState(StateWriter& w) const {
-    w.Write<uint64_t>(fb_.size());
-    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
-    w.Write(blit_op_); w.Write(blit_len_words_);
-    w.Write(blit_src_); w.Write(blit_dst_);
-    w.Write(fill_dst_lo_); w.Write(fill_dst_hi_);
-    w.Write(fill_w_); w.Write(fill_h_); w.Write(fill_color_); w.Write(fill_cmd_);
-    w.Write(reg_0980_); w.Write(reg_0984_); w.Write(reg_0988_);
-    w.Write(reg_098C_); w.Write(reg_0994_); w.Write(reg_099C_);
+    w.WriteBytes("fb", fb_.data(), fb_.size());
+    w.Write("blit_op", blit_op_); w.Write("blit_len_words", blit_len_words_);
+    w.Write("blit_src", blit_src_); w.Write("blit_dst", blit_dst_);
+    w.Write("fill_dst_lo", fill_dst_lo_); w.Write("fill_dst_hi", fill_dst_hi_);
+    w.Write("fill_w", fill_w_); w.Write("fill_h", fill_h_); w.Write("fill_color", fill_color_); w.Write("fill_cmd", fill_cmd_);
+    w.Write("reg_0980", reg_0980_); w.Write("reg_0984", reg_0984_); w.Write("reg_0988", reg_0988_);
+    w.Write("reg_098C", reg_098C_); w.Write("reg_0994", reg_0994_); w.Write("reg_099C", reg_099C_);
     size_latch_.SaveState(w);
 }
 
 void CasioCassiopeiaEm500Display::RestoreState(StateReader& r) {
-    uint64_t n = 0;
-    r.Read(n);
-    if (n != kFbSize) {
-        emu_->Get<Fatal>().Die("CasioCassiopeiaEm500Display::RestoreState: framebuffer is %llu "
-                               "bytes, expected %u", static_cast<unsigned long long>(n), kFbSize);
-    }
-    fb_.assign(kFbSize, 0u);
-    r.ReadBytes(fb_.data(), fb_.size());
-    r.Read(blit_op_); r.Read(blit_len_words_);
-    r.Read(blit_src_); r.Read(blit_dst_);
-    r.Read(fill_dst_lo_); r.Read(fill_dst_hi_);
-    r.Read(fill_w_); r.Read(fill_h_); r.Read(fill_color_); r.Read(fill_cmd_);
-    r.Read(reg_0980_); r.Read(reg_0984_); r.Read(reg_0988_);
-    r.Read(reg_098C_); r.Read(reg_0994_); r.Read(reg_099C_);
+    r.ReadBytes("fb", fb_.data(), fb_.size());
+    r.Read("blit_op", blit_op_); r.Read("blit_len_words", blit_len_words_);
+    r.Read("blit_src", blit_src_); r.Read("blit_dst", blit_dst_);
+    r.Read("fill_dst_lo", fill_dst_lo_); r.Read("fill_dst_hi", fill_dst_hi_);
+    r.Read("fill_w", fill_w_); r.Read("fill_h", fill_h_); r.Read("fill_color", fill_color_); r.Read("fill_cmd", fill_cmd_);
+    r.Read("reg_0980", reg_0980_); r.Read("reg_0984", reg_0984_); r.Read("reg_0988", reg_0988_);
+    r.Read("reg_098C", reg_098C_); r.Read("reg_0994", reg_0994_); r.Read("reg_099C", reg_099C_);
     size_latch_.RestoreState(r);
 }

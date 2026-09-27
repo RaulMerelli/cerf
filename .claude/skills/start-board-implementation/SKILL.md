@@ -1,6 +1,6 @@
 ---
 name: start-board-implementation
-description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough - no path required), checks IDA MCP, then independently confirms - from the ROM bytes and the internet - the board identity, the SoC/CPU family, what CERF already supports, any reusable SoC, and whether the ROM is on the public manifest. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
+description: The user invokes `/start-board-implementation` to begin bringing up a NEW board/ROM in CERF. It acquires the ROM (naming the board is enough - no path required), checks IDA MCP, then independently confirms - from the ROM bytes and the internet - the board identity, the SoC/CPU family, what CERF already supports, and any reusable SoC. It shows a fixed emoji readiness table + session estimate and asks `[yes|no]`. On `yes` it seeds a cross-session tracking doc and drives the boot-driven bring-up loop (build → run → read the first fault → research → implement fully → `/verify` → repeat). Invoke when the user types `/start-board-implementation`.
 ---
 
 # Start Board Implementation - new-board bring-up
@@ -46,7 +46,7 @@ listing is your index.
    if the user says to run it in place.
 4. **One candidate** → record its ROM path, continue.
 5. **Several candidates for the same board** (NORMAL - a board commonly ships
-   multiple ROM generations) → SUCCESS, not a problem. Same `Board::`; name the
+   multiple ROM generations) → SUCCESS, not a problem. Same board id; name the
    generations, take the newest (or ask one short "which generation?"), continue.
 
 **HARD RULE - candidates found ≠ "absent".** If `ls` surfaced any plausible
@@ -59,8 +59,7 @@ like a human picking the obvious match.
 **Only if `ls` produced ZERO plausible candidates** - STOP and FAIL:
 
 > ❌ I couldn't find any ROM for "<what the user said>" under `bundled/devices/`.
-> Either sync it via the launcher or point me at the ROM path directly, then
-> re-run `/start-board-implementation`.
+> Point me at the ROM path directly, then re-run `/start-board-implementation`.
 
 ### Gate A2 - IDA MCP connectivity (warn + ask if absent)
 
@@ -118,8 +117,8 @@ fact gets a source.
   actually addresses; then the OEM's model string if one appears in the blob. A
   byte match is evidence only once you have shown the bytes are the string and
   not arbitrary data.
-- **B3 - Board already in CERF?** Read the `Board` enum in
-  `cerf/boards/board_context.h`; list `cerf/boards/` + `bundled/devices/`. Match
+- **B3 - Board already in CERF?** Read the `devices` table in
+  `bundled/db.json`; list `cerf/boards/` + `bundled/devices/`. Match
   the B2 identity → fully present / different-ROM-revision / absent.
 - **B4 - SoC / CPU family.** From the identity + driver/OEM names, determine the
   SoC, its CPU architecture (`CpuArch::Arm` / `CpuArch::Mips` - which JIT engine
@@ -127,17 +126,13 @@ fact gets a source.
   SA-11xx, ARM1136, Cortex-A8; R3000A/R3900/R4100/R5000-class MIPS, …). Confirm
   via the internet (datasheet / Linux `arch/arm/mach-*` or `arch/mips/`, QEMU,
   device specs) - not the user's word.
-- **B5 - SoC implemented in CERF? Reusable SoC?** Read the `SocFamily` enum; list
+- **B5 - SoC implemented in CERF? Reusable SoC?** Read the `socs` table in
+  `bundled/db.json`; list
   `cerf/socs/` + `cerf/cpu/`. Is this SoC present? Is the core's strategy set
   under `cerf/cpu/<core>/` - `ArmProcessorConfig`/`CoprocEmitter` on ARM,
   `MipsProcessorConfig`/`MipsCp0Emitter` on MIPS? If absent, is there a close
   relative sharing silicon/core? Reuse is the difference between a short and a
   long bring-up - name it.
-- **B6 - Public manifest.** `WebFetch`
-  `https://cerf.cx/cerf-bundles/manifest.json`. Listed → officially
-  distributed (tell the user). Not listed → user's own ROM; if it's a genuinely
-  unusual board, suggest they submit it (CERF Discord or `cerf@dz3n.net`) so
-  other devs benefit - a suggestion, never a requirement.
 
 ---
 
@@ -155,11 +150,10 @@ work/unconfirmed · ❌ missing/blocker).
 | 1 | ROM acquired                   | <bundle / path>                           | ✅/❌  |
 | 2 | IDA MCP connectivity           | <running, N instances | not running>      | ✅/⚠️  |
 | 3 | Board identity                 | <declared board.id> confirmed by <tells>  | ✅/⚠️  |
-| 4 | Board already in CERF          | <Board::X exists | absent>                | ✅/❌  |
+| 4 | Board already in CERF          | <db.json row exists | absent>             | ✅/❌  |
 | 5 | SoC / CPU family               | <SoC>, <core>, <CpuArch + isa level>      | ✅/⚠️  |
 | 6 | SoC implemented in CERF        | <cerf/socs/<x> present | absent>           | ✅/❌  |
 | 7 | Reusable / similar SoC or core | <what reuses what | none - from scratch>  | ✅/⚠️  |
-| 8 | On public remote manifest      | <listed | not listed - user ROM>          | ✅/⚠️  |
 ```
 
 Under the table, the **session estimate** from rows 6-7:
@@ -198,7 +192,7 @@ keep it a coarse index. Seed it with:
   § The bring-up loop."* (Plus the committed reference set: `CLAUDE.md`,
   `agent_docs/rules.md`, `agent_docs/debugging.md`, `agent_docs/code_style.md`.)
 - **`Session 0`** - paste the Phase C readiness table verbatim (identity +
-  source, SoC/CPU, what CERF has, reuse plan, manifest, estimate). The durable
+  source, SoC/CPU, what CERF has, reuse plan, estimate). The durable
   baseline a compacted agent resumes from. Real work starts at Session 1.
 
 The `yes` authorizes this single create only - not standing authorization; every
@@ -224,11 +218,11 @@ Pick the entry point from the table, then run § The bring-up loop:
   `MipsProcessorConfig` + `MipsCp0Emitter`, from the CPU architecture reference
   manual + the core TRM (downloaded to `references/<soc>/` first), then the
   `PageTableBuilder` / memory map, then the peripheral loop.
-- **SoC supported (rows 6-7 ✅)** → start at the `BoardContext` (a new concrete
-  reporting the board's constants; give the board an id, add it to the
-  `BoardContext` id table, and set `board.id` + `rom.primary` in the bundle's
-  cerf.json) + the `PageTableBuilder` (crack the kernel's OEMAddressTable in
-  IDA), then the peripheral loop.
+- **SoC supported (rows 6-7 ✅)** → start at the board's `bundled/db.json`
+  row and its `<board_id>_id.h` (see `agent_docs/database.md`), then the
+  `BoardContext` concrete returning that id, and set `board.id` +
+  `rom.primary` in the bundle's cerf.json + the `PageTableBuilder` (crack the
+  kernel's OEMAddressTable in IDA), then the peripheral loop.
 
 ---
 

@@ -3,6 +3,7 @@
 #include "../pxa2xx/pxa2xx_uart16550.h"
 
 #include "../../boards/board_context.h"
+#include "pxa255_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -26,6 +27,6 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && bd->GetSocId() == SocId::Pxa255;
     }
 };

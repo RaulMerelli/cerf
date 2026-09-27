@@ -11,10 +11,6 @@
 
 class FrameSource;
 
-/* Owner-supplied hooks for a PresenterCanvas. All optional: a window that
-   only ever shows the FrameSource (e.g. a VGA card's external monitor) passes
-   no host. HostCanvas implements it to add the UART / MemoryVisualizer tabs,
-   the per-tick LCD scan tick, and stylus input. */
 class PresenterCanvasHost {
 public:
     virtual ~PresenterCanvasHost() = default;

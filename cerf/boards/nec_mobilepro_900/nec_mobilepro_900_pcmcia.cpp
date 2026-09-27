@@ -6,6 +6,7 @@
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 
 namespace {
 
@@ -23,7 +24,7 @@ NecMobilePro900Pcmcia::NecMobilePro900Pcmcia(CerfEmulator& emu)
 
 bool NecMobilePro900Pcmcia::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::NecMobilePro900;
+    return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
 }
 
 void NecMobilePro900Pcmcia::OnReady() {

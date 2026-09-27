@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
     // hmi_ktp400_mobile_v13 ConnBox.dll: BOX_Init @ 0xEF493334 opens COM2:.
     void OnReady() override { emu_.Get<Imx6Uart2>().AttachEndpoint(this); }
@@ -29,26 +30,26 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write<uint8_t>(prev_dle_ ? 1u : 0u);
-        w.Write<uint8_t>(in_frame_ ? 1u : 0u);
-        w.Write<uint32_t>(static_cast<uint32_t>(rx_payload_.size()));
-        w.WriteBytes(rx_payload_.data(), rx_payload_.size());
+        w.Write<uint8_t>("prev_dle", prev_dle_ ? 1u : 0u);
+        w.Write<uint8_t>("in_frame", in_frame_ ? 1u : 0u);
+        w.Write<uint32_t>("rx_payload_count", static_cast<uint32_t>(rx_payload_.size()));
+        w.WriteBytes("rx_payload", rx_payload_.data(), rx_payload_.size());
     }
 
     void RestoreState(StateReader& r) override {
         uint8_t prev_dle = 0;
         uint8_t in_frame = 0;
         uint32_t payload_size = 0;
-        r.Read(prev_dle);
-        r.Read(in_frame);
-        r.Read(payload_size);
+        r.Read("prev_dle", prev_dle);
+        r.Read("in_frame", in_frame);
+        r.Read("rx_payload_count", payload_size);
         if (payload_size > 7u) {
             emu_.Get<Fatal>().Die("KTP Mobile ConnBox restored payload exceeds 7 bytes");
         }
         prev_dle_ = prev_dle != 0u;
         in_frame_ = in_frame != 0u;
         rx_payload_.resize(payload_size);
-        r.ReadBytes(rx_payload_.data(), rx_payload_.size());
+        r.ReadBytes("rx_payload", rx_payload_.data(), rx_payload_.size());
     }
 
     // hmi_ktp400_mobile_v13 ConnBox.dll: sub_EF492A54 @ 0xEF492A54 sends and sub_EF4927D0 @ 0xEF4927D0 parses

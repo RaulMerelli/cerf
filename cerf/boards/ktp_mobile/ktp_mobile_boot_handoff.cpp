@@ -17,6 +17,7 @@
 #include "../../socs/imx6/imx6_fec.h"
 
 #include <vector>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -29,7 +30,7 @@ constexpr uint32_t kHwfToken = 0x4B545034u;
 
 bool KtpMobileBootHandoff::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+    return bd && BoardId::IsKtpMobile(bd->GetBoardId());
 }
 
 void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {

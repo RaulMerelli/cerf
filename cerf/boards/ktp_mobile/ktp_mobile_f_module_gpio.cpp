@@ -19,7 +19,7 @@ public:
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
         if (!board) return false;
-        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+        const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoardId());
         return profile && profile->has_f_module;
     }
 
@@ -59,15 +59,15 @@ public:
 
     void SaveState(StateWriter& w) override {
         emu_.Get<KtpMobileFModuleDevice>().SaveState(w);
-        w.Write(static_cast<uint8_t>(last_ready_));
-        w.Write(static_cast<uint8_t>(ready_rise_pending_));
+        w.Write("last_ready", static_cast<uint32_t>(last_ready_));
+        w.Write("ready_rise_pending", static_cast<uint32_t>(ready_rise_pending_));
     }
     void RestoreState(StateReader& r) override {
         emu_.Get<KtpMobileFModuleDevice>().RestoreState(r);
         uint8_t last_ready = 0;
         uint8_t pending = 0;
-        r.Read(last_ready);
-        r.Read(pending);
+        r.Read("last_ready", last_ready);
+        r.Read("ready_rise_pending", pending);
         last_ready_ = last_ready != 0;
         ready_rise_pending_ = pending != 0;
     }

@@ -9,6 +9,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 
 #include <bit>
 #include <cstdint>
@@ -16,7 +17,7 @@
 
 bool Omap3530Intc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::OMAP3530;
+    return bd && bd->GetSocId() == SocId::Omap3530;
 }
 
 int Omap3530Intc::BankIndex(uint32_t off, uint32_t* bank_off_out) {
@@ -220,24 +221,29 @@ void Omap3530Intc::WriteReg(uint32_t off, uint32_t value) {
 
 void Omap3530Intc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    w.WriteBytes(banks_, sizeof(banks_));
-    w.WriteBytes(ilr_,   sizeof(ilr_));
-    w.Write(sysconfig_);
-    w.Write(control_);
-    w.Write(protection_);
-    w.Write(idle_);
-    w.Write(threshold_);
+    static_assert(StateVisitCoversAllBytes<Bank>(
+                      [](Bank& b, StateFieldBytes& f) { VisitBank(b, f); }),
+                  "Omap3530Intc::VisitBank must name or skip every field of Bank");
+    StateWriteField field(w);
+    for (Bank& b : banks_) VisitBank(b, field);
+    w.WriteBytes("ilr", ilr_,   sizeof(ilr_));
+    w.Write("sysconfig", sysconfig_);
+    w.Write("control", control_);
+    w.Write("protection", protection_);
+    w.Write("idle", idle_);
+    w.Write("threshold", threshold_);
 }
 
 void Omap3530Intc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    r.ReadBytes(banks_, sizeof(banks_));
-    r.ReadBytes(ilr_,   sizeof(ilr_));
-    r.Read(sysconfig_);
-    r.Read(control_);
-    r.Read(protection_);
-    r.Read(idle_);
-    r.Read(threshold_);
+    StateReadField field(r);
+    for (Bank& b : banks_) VisitBank(b, field);
+    r.ReadBytes("ilr", ilr_,   sizeof(ilr_));
+    r.Read("sysconfig", sysconfig_);
+    r.Read("control", control_);
+    r.Read("protection", protection_);
+    r.Read("idle", idle_);
+    r.Read("threshold", threshold_);
 }
 
 void Omap3530Intc::PostRestore() {
@@ -260,7 +266,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
+        return bd && bd->GetSocId() == SocId::Omap3530;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

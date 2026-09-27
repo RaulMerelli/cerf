@@ -1,6 +1,7 @@
 #include "xscale_coproc_emitter_base.h"
 
 #include "../../boards/board_context.h"
+#include "../../socs/iop13xx/iop13xx_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../jit/arm/arm_cpu.h"
 #include "../../jit/arm/arm_emit_services.h"
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::IOP13xx;
+        return bd && bd->GetSocId() == SocId::Iop13xx;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) override {

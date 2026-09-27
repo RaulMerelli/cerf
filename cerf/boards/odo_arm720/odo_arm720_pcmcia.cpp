@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -27,7 +28,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -43,17 +44,17 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(pcmcia_reg0_);
-        w.Write(pcmcia_intr_reg0_);
-        w.Write(pcmcia_reg1_);
-        w.Write(pcmcia_intr_reg1_);
+        w.Write("pcmcia_reg0", pcmcia_reg0_);
+        w.Write("pcmcia_intr_reg0", pcmcia_intr_reg0_);
+        w.Write("pcmcia_reg1", pcmcia_reg1_);
+        w.Write("pcmcia_intr_reg1", pcmcia_intr_reg1_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(pcmcia_reg0_);
-        r.Read(pcmcia_intr_reg0_);
-        r.Read(pcmcia_reg1_);
-        r.Read(pcmcia_intr_reg1_);
+        r.Read("pcmcia_reg0", pcmcia_reg0_);
+        r.Read("pcmcia_intr_reg0", pcmcia_intr_reg0_);
+        r.Read("pcmcia_reg1", pcmcia_reg1_);
+        r.Read("pcmcia_intr_reg1", pcmcia_intr_reg1_);
     }
 
 private:

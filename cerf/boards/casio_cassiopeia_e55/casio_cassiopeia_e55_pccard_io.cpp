@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_e55_id.h"
 
 #include <cstdint>
 
@@ -23,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }

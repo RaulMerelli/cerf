@@ -5,9 +5,12 @@
 
 #include "../../peripherals/peripheral_base.h"
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/frame_renderer.h"
 #include "../../host/panel_frame_renderer.h"
+#include "../../lcd/lcd_pixel_expand.h"
 
 #include <algorithm>
 #include <array>
@@ -19,16 +22,13 @@ namespace {
 using siemens_mp377::kFbHeight;
 using siemens_mp377::kFbWidth;
 using siemens_mp377::kSm501FbBytes;
-using siemens_mp377::Sm501FbOffsetToPa;
-
-constexpr size_t kContentProbeStride = 251u;
 
 void BuildRgb565ToXrgbLut(std::array<uint32_t, 65536>& lut) {
     for (uint32_t p = 0; p < 65536u; ++p) {
         const uint32_t r = ((p >> 11) & 0x1Fu) << 3;
         const uint32_t g = ((p >> 5) & 0x3Fu) << 2;
         const uint32_t b = (p & 0x1Fu) << 3;
-        lut[p] = 0xFF000000u | (r << 16) | (g << 8) | b;
+        lut[p] = lcd_pixel::PackXrgb(r, g, b);
     }
 }
 
@@ -38,7 +38,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensMP377;
+        return bd && bd->GetBoardId() == BoardId::SiemensMp377;
     }
 
     void OnReady() override { BuildRgb565ToXrgbLut(rgb565_to_xrgb_); }
@@ -49,7 +49,7 @@ public:
         const auto scanout = ResolveScanout(video);
         if (!scanout) return false;
         const size_t bytes = static_cast<size_t>(scanout->pitch) * scanout->height;
-        return latch_.ProbeAndLatch(video.Vram() + scanout->offset, bytes, kContentProbeStride);
+        return latch_.ProbeAndLatch(video.Vram() + scanout->offset, bytes);
     }
 
     void RenderInto(uint32_t* dib, uint32_t host_w, uint32_t host_h) override {
@@ -70,24 +70,13 @@ public:
                 if (scanout->bytes_per_pixel == 1u) {
                     drow[x] = 0xFF000000u | (video.DisplayPaletteEntry(srow[i]) & 0x00FFFFFFu);
                 } else if (scanout->bytes_per_pixel == 2u) {
-                    const uint16_t p = static_cast<uint16_t>(srow[i] | (srow[i + 1u] << 8));
-                    drow[x] = rgb565_to_xrgb_[p];
+                    drow[x] = rgb565_to_xrgb_[cerf::le::U16(srow, i)];
                 } else {
-                    drow[x] = 0xFF000000u | static_cast<uint32_t>(srow[i]) |
-                              (static_cast<uint32_t>(srow[i + 1u]) << 8u) |
-                              (static_cast<uint32_t>(srow[i + 2u]) << 16u);
+                    drow[x] = 0xFF000000u | cerf::le::U24(srow, i);
                 }
             }
             OverlayCursorLine(video, drow, fb_w, y, vram);
         }
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& video = emu_.Get<siemens_mp377::SiemensMp377Sm501Video>();
-        const auto scanout = ResolveScanout(video);
-        if (!scanout) return std::nullopt;
-        const uint32_t bpp = scanout->bytes_per_pixel * 8u;
-        return FbLayout{Sm501FbOffsetToPa(scanout->offset), scanout->pitch, bpp, bpp == 16u};
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {

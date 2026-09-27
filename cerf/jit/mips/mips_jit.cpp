@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/guest_deep_sleep.h"
@@ -14,6 +15,7 @@
 #include "mips_cp0_ops.h"
 #include "mips_cpu.h"
 #include "mips_exception_delivery.h"
+#include "mips_exception_model.h"
 #include "mips_interrupt_channel.h"
 #include "mips_mmu.h"
 #include "mips_translation_cache.h"
@@ -48,8 +50,13 @@ void MipsJit::OnReady() {
     channel_    = &emu_.Get<MipsInterruptChannel>();
     cp0_ops_    = &emu_.Get<MipsCp0Ops>();
     exceptions_ = &emu_.Get<MipsExceptionDelivery>();
+    exc_model_  = &emu_.Get<MipsExceptionModel>();
 
     LOG(Jit, "MipsJit::OnReady: entry VA=0x%08X\n", cpu_state_->pc);
+}
+
+bool MipsJit::GuestIrqMasked() const {
+    return !exc_model_->InterruptsEnabled(*cpu_state_);
 }
 
 __declspec(naked) void __cdecl MipsJit::Dispatch(void* /* native_pc */,
@@ -143,6 +150,11 @@ void MipsJit::EnterDeepSleep() { cpu_state_->deep_sleep = 1; }
 void MipsJit::ExitDeepSleep() {
     cpu_state_->deep_sleep = 0;
     channel_->SignalIdleWake();
+}
+
+void MipsJit::EnterIdleWait() {
+    emu_.Get<Fatal>().Die("MipsJit: a peripheral entered the idle wait, which "
+                          "CERF does not model on this engine");
 }
 
 void MipsJit::SaveCpuState(StateWriter& w)    { cpu_->SaveState(w); }

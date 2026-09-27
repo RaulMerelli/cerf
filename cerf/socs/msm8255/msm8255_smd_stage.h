@@ -13,6 +13,7 @@ public:
 
     uint32_t BasePa() const { return base_pa_; }
     uint32_t WriteBasePa() const { return base_pa_ + kStageBytes; }
+    static constexpr uint32_t ReadCapacity() { return kStageBytes; }
     static constexpr uint32_t WriteCapacity() { return kWriteStageBytes; }
 
     uint32_t Linearize(uint32_t fifo_pa, uint32_t half, uint32_t tail,

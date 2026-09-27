@@ -1,6 +1,7 @@
 #include "simpad_sl4_cs3_sink.h"
 
 #include "../../boards/board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/pcmcia/pcmcia_auto_insert.h"
@@ -22,7 +23,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
     void OnReady() override {

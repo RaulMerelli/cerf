@@ -8,6 +8,7 @@
 #include "../../socs/imx6/imx6_gpio_bus.h"
 #include "../../socs/imx6/imx6_gpio_source.h"
 #include "../../state/state_stream.h"
+#include "imx6_id.h"
 
 namespace cerf_imx6_gpio_detail {
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
@@ -59,19 +60,19 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_, sizeof(regs_));
+        w.WriteBytes("regs", regs_, sizeof(regs_));
         emu_.Get<Imx6GpioBus>().SaveSources(MmioBase(), w);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes("regs", regs_, sizeof(regs_));
         emu_.Get<Imx6GpioBus>().RestoreSources(MmioBase(), r);
         reset_restore_pending_ = false;
     }
     void SaveResetState(StateWriter& w) override {
-        w.WriteBytes(regs_, sizeof(regs_));
+        w.WriteBytes("regs", regs_, sizeof(regs_));
     }
     void RestoreResetState(StateReader& r) override {
-        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes("regs", regs_, sizeof(regs_));
         reset_restore_pending_ = true;
     }
     void PostRestore() override {

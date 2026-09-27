@@ -3,6 +3,7 @@
 #include "philips_velo_1_battery.h"
 #include "philips_velo_1_touch_panel.h"
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -49,7 +50,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsVelo1;
+        return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
     }
 
     uint16_t AuxAdc(uint8_t channel) override {

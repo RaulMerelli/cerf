@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "vr4102_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
@@ -30,7 +31,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4102;
+        return bd && bd->GetSocId() == SocId::Vr4102;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -71,8 +72,8 @@ public:
     uint32_t ReadWord (uint32_t addr) override { HaltUnsupportedAccess("HSP ReadWord", addr, 0); }
     void WriteWord(uint32_t addr, uint32_t v) override { HaltUnsupportedAccess("HSP WriteWord", addr, v); }
 
-    void SaveState(StateWriter& w) override { w.Write(init_); }
-    void RestoreState(StateReader& r) override { r.Read(init_); }
+    void SaveState(StateWriter& w) override { w.Write("init", init_); }
+    void RestoreState(StateReader& r) override { r.Read("init", init_); }
 
 private:
     uint16_t init_ = 0;   /* HSPINIT (reset 0, UM 25.2.1) */

@@ -3,31 +3,17 @@
 #include "s3c2410_lcd.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/smdk2410_devemu/devemu_id.h"
+#include "../../boards/siemens_p177/siemens_p177_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/panel_frame_renderer.h"
+#include "../../lcd/lcd_pixel_expand.h"
 
 #include <cstring>
 
 namespace {
-
-/* Sample stride for the content-latch probe. Relatively prime to the
-   row pitch so the sample pattern doesn't degenerate to a single
-   column on power-of-two widths. */
-constexpr size_t   kContentProbeStride = 251;
-
-/* 5:6:5 → BGRA8888. Top bits replicated so 0x1F → 0xFF and 0x3F →
-   0xFF (clean expansion to the full 8-bit range). Shared by the
-   16bpp-direct framebuffer path and the 8bpp palette-entry path. */
-inline uint32_t Expand565(uint16_t px) {
-    const uint8_t r5 = (px >> 11) & 0x1Fu;
-    const uint8_t g6 = (px >>  5) & 0x3Fu;
-    const uint8_t b5 =  px        & 0x1Fu;
-    const uint8_t r  = (uint8_t)((r5 << 3) | (r5 >> 2));
-    const uint8_t g  = (uint8_t)((g6 << 2) | (g6 >> 4));
-    const uint8_t b  = (uint8_t)((b5 << 3) | (b5 >> 2));
-    return 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
-}
 
 class S3C2410LcdRenderer : public PanelFrameRenderer {
 public:
@@ -40,8 +26,8 @@ public:
            bootloader presets it pre-kernel. */
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const Board b = bd->GetBoard();
-        return b == Board::Smdk2410DevEmu || b == Board::SiemensP177;
+        const std::string_view b = bd->GetBoardId();
+        return b == BoardId::Devemu || b == BoardId::SiemensP177;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {
@@ -61,8 +47,7 @@ public:
         const size_t fb_bytes = (size_t)guest_w * (size_t)guest_h
                               * (size_t)lcd.GetBytesPerPixel();
         return latch_.ProbeAndLatch(emu_.Get<EmulatedMemory>(),
-                                    fb_pa, fb_bytes,
-                                    kContentProbeStride);
+                                    fb_pa, fb_bytes);
     }
 
     void RenderInto(uint32_t* dib_bgra32,
@@ -91,28 +76,13 @@ public:
             if (pal) {
                 /* 8bpp: each byte indexes the 256-entry 5:6:5 palette. */
                 for (uint32_t x = 0; x < copy_w; ++x)
-                    dst_row[x] = Expand565(lcd.GetPaletteEntry565(src_row[x]));
+                    dst_row[x] = lcd_pixel::Expand565(lcd.GetPaletteEntry565(src_row[x]));
             } else {
-                /* 16bpp: framebuffer holds 5:6:5 pixels directly. */
-                const uint16_t* px16 =
-                    reinterpret_cast<const uint16_t*>(src_row);
                 for (uint32_t x = 0; x < copy_w; ++x)
-                    dst_row[x] = Expand565(px16[x]);
+                    dst_row[x] = lcd_pixel::Expand565(cerf::le::U16(src_row, (size_t)x * 2u));
             }
         }
     }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& lcd = emu_.Get<S3C2410Lcd>();
-        const uint32_t pa = lcd.GetFbPa();
-        if (pa == 0) return std::nullopt;
-        const uint32_t bpp = lcd.GetBytesPerPixel();
-        /* rgb565 flags a direct 5:6:5 framebuffer; the 8bpp path is
-           palette-indexed, not 565 pixels. */
-        return FbLayout{ pa, lcd.GetGuestW() * bpp, bpp * 8u, !lcd.IsPalettized() };
-    }
-
-private:
 };
 
 }  /* namespace */

@@ -1,12 +1,13 @@
 #include "../freescale_epit_impl.h"
 
 #include "imx31_avic.h"
+#include "imx31_id.h"
 
 namespace {
 
 /* EPIT2 @ 0x53F98000; AVIC source 27 (MCIMX31RM Table 2-3, p190). */
 class Imx31Epit2
-    : public cerf_freescale_epit_detail::FreescaleEpitBase<0x53F98000u, SocFamily::iMX31> {
+    : public cerf_freescale_epit_detail::FreescaleEpitBase<0x53F98000u, SocId::Imx31> {
     using FreescaleEpitBase::FreescaleEpitBase;
     void AssertIrqLine()   override { emu_.Get<Imx31Avic>().AssertSource(27u); }
     void DeassertIrqLine() override { emu_.Get<Imx31Avic>().DeassertSource(27u); }

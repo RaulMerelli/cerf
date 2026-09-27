@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/service.h"
 #include "../../boards/board_context.h"
+#include "jornada_720_id.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/wave_out_sink.h"
 #include "../../peripherals/intel_sa1111/sa1111_sac.h"
@@ -29,7 +30,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
 
     void OnReady() override {

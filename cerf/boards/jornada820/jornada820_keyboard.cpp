@@ -7,6 +7,7 @@
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../../socs/sa11xx/sa11xx_ssp_device.h"
 #include "../board_context.h"
+#include "jornada_820_id.h"
 
 #include <deque>
 
@@ -22,7 +23,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoardId() == BoardId::Jornada820;
     }
 
     uint16_t Exchange(uint16_t tx_frame) override {
@@ -82,7 +83,7 @@ public:
     using KeyboardInput::KeyboardInput;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoardId() == BoardId::Jornada820;
     }
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
     void OnHostKey(uint8_t vk, bool key_up) override {
@@ -97,7 +98,7 @@ REGISTER_SERVICE(Jornada820Keyboard);
 
 bool Jornada820Keyboard::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada820;
+    return bd && bd->GetBoardId() == BoardId::Jornada820;
 }
 
 void Jornada820Keyboard::OnHostKey(uint8_t vk, bool key_up) {

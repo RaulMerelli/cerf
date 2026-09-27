@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_icu_impl.h"
 
 #include <cstdint>
+#include "vr4102_id.h"
 
 namespace {
 
@@ -44,7 +45,7 @@ constexpr Vr41xxIcuModel kModel = {
     /*mfir_writable=*/0x001Fu,
 };
 
-class Vr4102Icu : public Vr41xxIcuBase<SocFamily::VR4102, kModel> {
+class Vr4102Icu : public Vr41xxIcuBase<SocId::Vr4102, kModel> {
 public:
     using Vr41xxIcuBase::Vr41xxIcuBase;
 };

@@ -1,6 +1,8 @@
 #include "usb_state.h"
 #include "usb_mass_storage_device.h"
 
+#include "../../core/byte_order.h"
+#include "../../core/log.h"
 #include "../../state/state_stream.h"
 #include "../../storage/disk_image.h"
 
@@ -37,21 +39,8 @@ constexpr uint8_t kScsiModeSense10     = 0x5Au;
 constexpr uint8_t kSenseNoSense    = 0x00u;
 constexpr uint8_t kSenseIllegalReq = 0x05u;
 
-uint32_t Be32(const uint8_t* p) {
-    return (static_cast<uint32_t>(p[0]) << 24) | (static_cast<uint32_t>(p[1]) << 16) |
-           (static_cast<uint32_t>(p[2]) << 8) | static_cast<uint32_t>(p[3]);
-}
-
-uint16_t Be16(const uint8_t* p) {
-    return static_cast<uint16_t>((p[0] << 8) | p[1]);
-}
-
-void PutBe32(std::vector<uint8_t>& v, uint32_t x) {
-    v.push_back(static_cast<uint8_t>(x >> 24));
-    v.push_back(static_cast<uint8_t>(x >> 16));
-    v.push_back(static_cast<uint8_t>(x >> 8));
-    v.push_back(static_cast<uint8_t>(x));
-}
+using cerf::be::U16;
+using cerf::be::U32;
 
 }
 
@@ -78,17 +67,7 @@ bool UsbMassStorageDevice::HandleVendorScsiCommand(const uint8_t* /*cdb*/,
 }
 
 std::vector<uint8_t> UsbMassStorageDevice::BuildDeviceDescriptor() const {
-    return {
-        18u, kDescDevice,
-        0x00u, 0x02u,
-        0u, 0u, 0u,
-        64u,
-        static_cast<uint8_t>(id_vendor_ & 0xFFu), static_cast<uint8_t>(id_vendor_ >> 8),
-        static_cast<uint8_t>(id_product_ & 0xFFu), static_cast<uint8_t>(id_product_ >> 8),
-        static_cast<uint8_t>(bcd_device_ & 0xFFu), static_cast<uint8_t>(bcd_device_ >> 8),
-        0u, 0u, 0u,
-        1u,
-    };
+    return StandardDeviceDescriptor(0u, 0u, 0u, id_vendor_, id_product_, bcd_device_);
 }
 
 std::vector<uint8_t> UsbMassStorageDevice::BuildConfigurationDescriptor() const {
@@ -172,18 +151,9 @@ void UsbMassStorageDevice::QueueCsw(uint8_t status) {
         ? static_cast<uint32_t>(pending_in_.size())
         : static_cast<uint32_t>(out_buf_.size());
     const uint32_t residue = transferred >= cbw_data_len_ ? 0u : cbw_data_len_ - transferred;
-    pending_in_.push_back(static_cast<uint8_t>(kCswSignature & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((kCswSignature >> 8) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((kCswSignature >> 16) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((kCswSignature >> 24) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>(cbw_tag_ & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((cbw_tag_ >> 8) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((cbw_tag_ >> 16) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((cbw_tag_ >> 24) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>(residue & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((residue >> 8) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((residue >> 16) & 0xFFu));
-    pending_in_.push_back(static_cast<uint8_t>((residue >> 24) & 0xFFu));
+    cerf::le::Append32(pending_in_, kCswSignature);
+    cerf::le::Append32(pending_in_, cbw_tag_);
+    cerf::le::Append32(pending_in_, residue);
     pending_in_.push_back(status);
     phase_ = cbw_dir_in_ && cbw_data_len_ ? Phase::DataIn : Phase::ReplyReady;
 }
@@ -209,7 +179,7 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
         std::memcpy(&d[16], "SD Card Reader  ", 16);
         std::memcpy(&d[32], "1.0 ", 4);
         /* SPC-3 Table 80 and 4.3.4.6: two-byte INQUIRY allocation length. */
-        d.resize(std::min(d.size(), static_cast<size_t>(Be16(&cbwcb_[3]))));
+        d.resize(std::min(d.size(), static_cast<size_t>(U16(&cbwcb_[3]))));
         pending_in_.insert(pending_in_.end(), d.begin(), d.end());
         SetSense(kSenseNoSense, 0u, 0u);
         QueueCsw(kCswStatusPassed);
@@ -221,8 +191,8 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
         const uint32_t last_lba = sectors == 0u ? 0u
             : static_cast<uint32_t>(sectors > 0xFFFFFFFFull ? 0xFFFFFFFFu : sectors - 1u);
         std::vector<uint8_t> d;
-        PutBe32(d, last_lba);
-        PutBe32(d, DiskImage::kSectorSize);
+        cerf::be::Append32(d,last_lba);
+        cerf::be::Append32(d,DiskImage::kSectorSize);
         pending_in_.insert(pending_in_.end(), d.begin(), d.end());
         SetSense(kSenseNoSense, 0u, 0u);
         QueueCsw(kCswStatusPassed);
@@ -235,7 +205,7 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
         std::vector<uint8_t> d(8u, 0u);
         d[1] = 6u;
         /* SPC-3 MODE SENSE(10), 4.3.4.6: allocation bounds the response. */
-        d.resize(std::min(d.size(), static_cast<size_t>(Be16(&cbwcb_[7]))));
+        d.resize(std::min(d.size(), static_cast<size_t>(U16(&cbwcb_[7]))));
         pending_in_.insert(pending_in_.end(), d.begin(), d.end());
         SetSense(kSenseNoSense, 0u, 0u);
         QueueCsw(kCswStatusPassed);
@@ -243,8 +213,8 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
     }
 
     if (op == kScsiRead10) {
-        const uint32_t lba = Be32(&cbwcb_[2]);
-        const uint32_t blocks = Be16(&cbwcb_[7]);
+        const uint32_t lba = U32(&cbwcb_[2]);
+        const uint32_t blocks = U16(&cbwcb_[7]);
         std::vector<uint8_t> d(static_cast<size_t>(blocks) * DiskImage::kSectorSize, 0u);
         if (blocks == 0u || !disk_.ReadSectors(lba, blocks, d.data())) {
             SetSense(kSenseIllegalReq, 0x21u, 0x00u);
@@ -258,8 +228,8 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
     }
 
     if (op == kScsiWrite10) {
-        const uint32_t lba = Be32(&cbwcb_[2]);
-        const uint32_t blocks = Be16(&cbwcb_[7]);
+        const uint32_t lba = U32(&cbwcb_[2]);
+        const uint32_t blocks = U16(&cbwcb_[7]);
         const bool ok = blocks != 0u &&
             out_buf_.size() >= static_cast<size_t>(blocks) * DiskImage::kSectorSize &&
             disk_.WriteSectors(lba, blocks, out_buf_.data());
@@ -297,15 +267,14 @@ void UsbMassStorageDevice::ExecuteScsiCommand() {
 
 void UsbMassStorageDevice::HandleCbw(const uint8_t* data, uint32_t len) {
     if (len != kCbwLength) { RejectCbw(len); return; }
-    const uint32_t signature = data[0] | (static_cast<uint32_t>(data[1]) << 8) |
-        (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
+    const uint32_t signature = cerf::le::U32(data, 0);
     if (signature != kCbwSignature || data[13] != 0u ||
         (data[12] & 0x7Fu) != 0u || data[14] == 0u || data[14] > 16u) {
         RejectCbw(len);
         return;
     }
-    cbw_tag_      = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
-    cbw_data_len_ = data[8] | (data[9] << 8) | (data[10] << 16) | (data[11] << 24);
+    cbw_tag_      = cerf::le::U32(data, 4);
+    cbw_data_len_ = cerf::le::U32(data, 8);
     cbw_dir_in_   = (data[12] & 0x80u) != 0u;
     cbwcb_len_    = static_cast<uint8_t>(data[14] & 0x1Fu);
     std::memcpy(cbwcb_, &data[15], 16u);
@@ -317,7 +286,7 @@ void UsbMassStorageDevice::HandleCbw(const uint8_t* data, uint32_t len) {
     const uint8_t op = cbwcb_[0];
     const uint8_t required = (op == kScsiRead10 || op == kScsiWrite10 ||
         op == kScsiReadCapacity10 || op == kScsiModeSense10) ? 10u : 6u;
-    const uint32_t write_bytes = static_cast<uint32_t>(Be16(&cbwcb_[7])) * DiskImage::kSectorSize;
+    const uint32_t write_bytes = static_cast<uint32_t>(U16(&cbwcb_[7])) * DiskImage::kSectorSize;
     if (cbwcb_len_ < required ||
         (op == kScsiWrite10 && (cbw_dir_in_ || cbw_data_len_ != write_bytes)) ||
         (cbw_data_len_ > 0u && !cbw_dir_in_ && op != kScsiWrite10)) {
@@ -382,60 +351,58 @@ uint32_t UsbMassStorageDevice::OnBulkIn(uint8_t ep, uint8_t* dst, uint32_t max) 
 
 void UsbMassStorageDevice::SaveState(StateWriter& w) {
     UsbDevice::SaveState(w);
-    UsbState::WriteString(w, image_path_);
-    UsbState::WriteString(w, image_name_);
-    w.Write(phase_);
-    w.Write(cbw_tag_);
-    w.Write(cbw_data_len_);
-    w.Write<uint8_t>(cbw_dir_in_ ? 1 : 0);
-    w.WriteBytes(cbwcb_, sizeof(cbwcb_));
-    w.Write(cbwcb_len_);
-    w.Write(sense_key_);
-    w.Write(sense_asc_);
-    w.Write(sense_ascq_);
-    UsbState::WriteBuffer(w, pending_in_);
-    w.Write<uint32_t>(static_cast<uint32_t>(pending_in_off_));
-    UsbState::WriteBuffer(w, out_buf_);
+    UsbState::WriteString(w, "image_path_length", "image_path", image_path_);
+    UsbState::WriteString(w, "image_name_length", "image_name", image_name_);
+    w.Write("phase", phase_);
+    w.Write("cbw_tag", cbw_tag_);
+    w.Write("cbw_data_len", cbw_data_len_);
+    w.Write<uint8_t>("cbw_dir_in", cbw_dir_in_ ? 1 : 0);
+    w.WriteBytes("cbwcb", cbwcb_, sizeof(cbwcb_));
+    w.Write("cbwcb_len", cbwcb_len_);
+    w.Write("sense_key", sense_key_);
+    w.Write("sense_asc", sense_asc_);
+    w.Write("sense_ascq", sense_ascq_);
+    UsbState::WriteBuffer(w, "pending_in_size", "pending_in", pending_in_);
+    w.Write<uint32_t>("pending_in_off", static_cast<uint32_t>(pending_in_off_));
+    UsbState::WriteBuffer(w, "out_buf_size", "out_buf", out_buf_);
 }
 
 void UsbMassStorageDevice::RestoreState(StateReader& r) {
     UsbDevice::RestoreState(r);
-    const auto path = UsbState::ReadString(r);
-    const auto name = UsbState::ReadString(r);
-    if (!OpenImage(path, name)) {
-        LOG(Caution, "USB restore: cannot open saved image '%s'\n", path.c_str());
-        UsbState::Require(false, "saved media is missing or cannot be opened");
-    }
-    r.Read(phase_);
-    r.Read(cbw_tag_);
-    r.Read(cbw_data_len_);
-    uint8_t direction = 0; r.Read(direction); cbw_dir_in_ = direction != 0;
-    UsbState::Require(r.Ok() && direction <= 1, "invalid transfer direction");
-    r.ReadBytes(cbwcb_, sizeof(cbwcb_));
-    r.Read(cbwcb_len_);
-    r.Read(sense_key_);
-    r.Read(sense_asc_);
-    r.Read(sense_ascq_);
+    const auto path = UsbState::ReadString(r, "image_path_length", "image_path");
+    const auto name = UsbState::ReadString(r, "image_name_length", "image_name");
+    if (!OpenImage(path, name))
+        r.Reject("USB: cannot open the saved media image '%s'", path.c_str());
+    r.Read("phase", phase_);
+    r.Read("cbw_tag", cbw_tag_);
+    r.Read("cbw_data_len", cbw_data_len_);
+    uint8_t direction = 0; r.Read("cbw_dir_in", direction); cbw_dir_in_ = direction != 0;
+    UsbState::Require(r, direction <= 1, "invalid transfer direction");
+    r.ReadBytes("cbwcb", cbwcb_, sizeof(cbwcb_));
+    r.Read("cbwcb_len", cbwcb_len_);
+    r.Read("sense_key", sense_key_);
+    r.Read("sense_asc", sense_asc_);
+    r.Read("sense_ascq", sense_ascq_);
     constexpr uint32_t max_write = 65535u * DiskImage::kSectorSize;
-    UsbState::ReadBuffer(r, pending_in_, max_write + 13u);
-    uint32_t offset = 0; r.Read(offset); pending_in_off_ = offset;
-    UsbState::ReadBuffer(r, out_buf_, max_write);
-    UsbState::Require(r.Ok() && cbwcb_len_ <= 16 && offset <= pending_in_.size() &&
+    UsbState::ReadBuffer(r, "pending_in_size", "pending_in", pending_in_, max_write + 13u);
+    uint32_t offset = 0; r.Read("pending_in_off", offset); pending_in_off_ = offset;
+    UsbState::ReadBuffer(r, "out_buf_size", "out_buf", out_buf_, max_write);
+    UsbState::Require(r, cbwcb_len_ <= 16 && offset <= pending_in_.size() &&
         (phase_ == Phase::AwaitingCbw || phase_ == Phase::DataOut ||
          phase_ == Phase::DataIn || phase_ == Phase::ReplyReady || phase_ == Phase::ResetRecovery),
         "invalid mass storage phase");
     if (phase_ == Phase::DataIn || phase_ == Phase::ReplyReady) {
-        UsbState::Require(pending_in_.size() >= kCswLength, "missing command status");
+        UsbState::Require(r, pending_in_.size() >= kCswLength, "missing command status");
         const size_t data_end = pending_in_.size() - kCswLength;
-        UsbState::Require(phase_ == Phase::DataIn
+        UsbState::Require(r, phase_ == Phase::DataIn
             ? cbw_dir_in_ && cbw_data_len_ && offset <= data_end && data_end <= cbw_data_len_
             : offset >= data_end, "invalid data/status boundary");
     }
     if (phase_ == Phase::ResetRecovery)
-        UsbState::Require(IsEndpointStalled(1) && IsEndpointStalled(2), "invalid reset recovery");
+        UsbState::Require(r, IsEndpointStalled(1) && IsEndpointStalled(2), "invalid reset recovery");
     if (phase_ == Phase::DataOut) {
-        const uint32_t expected = static_cast<uint32_t>(Be16(&cbwcb_[7])) * DiskImage::kSectorSize;
-        UsbState::Require(cbwcb_len_ >= 10 && cbwcb_[0] == kScsiWrite10 &&
+        const uint32_t expected = static_cast<uint32_t>(U16(&cbwcb_[7])) * DiskImage::kSectorSize;
+        UsbState::Require(r, cbwcb_len_ >= 10 && cbwcb_[0] == kScsiWrite10 &&
             !cbw_dir_in_ && cbw_data_len_ == expected && out_buf_.size() <= expected,
             "invalid partial write");
     }

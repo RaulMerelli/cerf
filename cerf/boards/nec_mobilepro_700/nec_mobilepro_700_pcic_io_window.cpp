@@ -4,6 +4,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../board_context.h"
+#include "nec_mobilepro_700_id.h"
 
 #include <cstdint>
 
@@ -21,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro700;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }

@@ -1,5 +1,6 @@
 #include "../board_context.h"
 
+#include "sharp_mobilon_hc4100_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -8,18 +9,9 @@ class SharpMobilonHc4100Context : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board          GetBoard()          const override { return Board::SharpMobilonHc4100; }
-    SocFamily      GetSoc()            const override { return SocFamily::PR31700; }
-    CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    /* 6.5" 640x240 MSTN landscape panel (PhoneDB id=235 / hpcfactor device 151). */
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{640, 240};
-    }
+    std::string_view GetBoardId() const override { return BoardId::SharpMobilonHc4100; }
 
     uint32_t GuestAdditionsWindowBase() const override { return 0x20000000u; }
-
-    uint32_t GetGuestAdditionsColorDepth() const override { return 8u; }
 };
 
 }  /* namespace */

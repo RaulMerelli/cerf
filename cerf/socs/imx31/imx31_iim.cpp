@@ -1,4 +1,5 @@
 #include "../freescale_iim_impl.h"
+#include "imx31_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ constexpr uint32_t kSrevImx31Rev12 = 0x14u;
 constexpr uint32_t kBank2Start = 0x1000u;
 constexpr uint32_t kBank2End   = 0x1400u;
 
-class Imx31Iim : public FreescaleIimBase<0x5001C000u, SocFamily::iMX31> {
+class Imx31Iim : public FreescaleIimBase<0x5001C000u, SocId::Imx31> {
 public:
     using FreescaleIimBase::FreescaleIimBase;
 

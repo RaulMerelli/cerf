@@ -1,6 +1,7 @@
 #include "../freescale_wdog_impl.h"
 
 #include "../../state/state_stream.h"
+#include "imx51_id.h"
 
 namespace {
 
@@ -18,17 +19,17 @@ constexpr uint16_t kWmcrReset = 0x0001u;  /* PDE=1 (MCIMX51RM Table 62-9)     */
 /* i.MX51 WDOG1 (MCIMX51RM Ch 62) at PA 0x73F9_8000 - five 16-bit registers
    (adds WICR/WMCR over i.MX31). The guest services the dog (WSR 0x5555/0xAAAA)
    every cycle and reads WRSR for the boot reason. */
-class Imx51Wdog1 : public FreescaleWdogBase<0x73F98000u, SocFamily::iMX51> {
+class Imx51Wdog1 : public FreescaleWdogBase<0x73F98000u, SocId::Imx51> {
 public:
     using FreescaleWdogBase::FreescaleWdogBase;
 
     /* WRSR is read-only (recomputed cold signature); WCR/WSR/WICR/WMCR are the
        writable state. */
     void SaveState(StateWriter& w) override {
-        w.Write(wcr_); w.Write(wsr_); w.Write(wicr_); w.Write(wmcr_);
+        w.Write("wcr", wcr_); w.Write("wsr", wsr_); w.Write("wicr", wicr_); w.Write("wmcr", wmcr_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(wcr_); r.Read(wsr_); r.Read(wicr_); r.Read(wmcr_);
+        r.Read("wcr", wcr_); r.Read("wsr", wsr_); r.Read("wicr", wicr_); r.Read("wmcr", wmcr_);
     }
 
 protected:

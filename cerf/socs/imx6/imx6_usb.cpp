@@ -10,6 +10,7 @@
 #include <cstring>
 #include <vector>
 #include "../../cpu/emulated_memory.h"
+#include "imx6_id.h"
 
 namespace {
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         for (uint32_t core = 0; core < kNonCore; core += kCoreSpan) {
@@ -88,11 +89,11 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_, sizeof(regs_));
+        w.WriteBytes("regs", regs_, sizeof(regs_));
     }
 
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes("regs", regs_, sizeof(regs_));
     }
 
 private:

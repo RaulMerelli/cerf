@@ -2,6 +2,7 @@
 #include "../../host/keyboard_map.h"
 #include "philips_nino_300_keypad_codes.h"
 #include "../board_context.h"
+#include "philips_nino_300_id.h"
 
 #include <vector>
 
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsNino300;
+        return bd && bd->GetBoardId() == BoardId::PhilipsNino300;
     }
 
     const std::vector<KeyBinding>& Bindings() const override { return kBindings; }

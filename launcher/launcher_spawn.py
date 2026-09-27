@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import subprocess
-import webbrowser
 from typing import List, Optional
 
+from about_window import AboutWindow
 from device_state import DeviceBundle
 from running_state import show_running_window
-from ui_dialogs import show_error, WEBSITE_URL
+from ui_dialogs import show_error
 
 
 class SpawnMixin:
@@ -29,20 +29,12 @@ class SpawnMixin:
         self._spawn_cerf(d, boot)
 
     def _open_about(self) -> None:
-        if self.cerf_exe is None:
-            webbrowser.open(WEBSITE_URL)
-            return
-        try:
-            subprocess.Popen([str(self.cerf_exe), "--about"],
-                             cwd=str(self.cerf_exe.parent),
-                             creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
-        except OSError as exc:
-            show_error(self, "Cannot show About", str(exc))
+        AboutWindow(self).wait()
 
     def _spawn_cerf(self, d: DeviceBundle, boot: Optional[str] = None) -> None:
-        tail = self.launch_options.collect_args(d)
-        if tail is None:
-            return
+        tail = [f"--device={d.name}"]
+        if d.name in self._verbose_devices:
+            tail.append("--log=ALL")
         tail.append(f"--boot={boot or 'resume'}")
         argv: List[str] = [str(self.cerf_exe)] + tail
         try:

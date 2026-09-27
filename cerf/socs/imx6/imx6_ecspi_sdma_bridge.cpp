@@ -8,6 +8,7 @@
 #include "imx6_ecspi_endpoint.h"
 
 #include <cstring>
+#include "imx6_id.h"
 
 namespace {
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetSoc() == SocFamily::iMX6;
+        return board && board->GetSocId() == SocId::Imx6;
     }
 
     bool Handles(uint32_t channel, int event) const override {

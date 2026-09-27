@@ -18,6 +18,7 @@
 #include <array>
 #include <cstdint>
 #include <mutex>
+#include "imx6_id.h"
 
 namespace {
 
@@ -30,7 +31,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
 
     void OnReady() override {
@@ -74,51 +75,51 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(mtx_);
-        w.Write(eir_);
-        w.Write(eimr_);
-        w.Write(ecr_);
-        w.Write(rcr_);
-        w.Write(tcr_);
-        w.Write(mmfr_);
-        w.Write(mscr_);
-        w.Write(iaur_);
-        w.Write(ialr_);
-        w.Write(gaur_);
-        w.Write(galr_);
-        w.Write(palr_);
-        w.Write(paur_);
-        w.Write(tfwr_);
-        w.Write(emrbr_);
-        w.Write(erdsr_);
-        w.Write(etdsr_);
-        w.Write(phy_bmcr_);
-        w.Write(phy_gbcr_);
-        w.Write(phy_ext_address_);
+        w.Write("eir", eir_);
+        w.Write("eimr", eimr_);
+        w.Write("ecr", ecr_);
+        w.Write("rcr", rcr_);
+        w.Write("tcr", tcr_);
+        w.Write("mmfr", mmfr_);
+        w.Write("mscr", mscr_);
+        w.Write("iaur", iaur_);
+        w.Write("ialr", ialr_);
+        w.Write("gaur", gaur_);
+        w.Write("galr", galr_);
+        w.Write("palr", palr_);
+        w.Write("paur", paur_);
+        w.Write("tfwr", tfwr_);
+        w.Write("emrbr", emrbr_);
+        w.Write("erdsr", erdsr_);
+        w.Write("etdsr", etdsr_);
+        w.Write("phy_bmcr", phy_bmcr_);
+        w.Write("phy_gbcr", phy_gbcr_);
+        w.Write("phy_ext_address", phy_ext_address_);
         rings_.SaveState(w);
     }
 
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(mtx_);
-        r.Read(eir_);
-        r.Read(eimr_);
-        r.Read(ecr_);
-        r.Read(rcr_);
-        r.Read(tcr_);
-        r.Read(mmfr_);
-        r.Read(mscr_);
-        r.Read(iaur_);
-        r.Read(ialr_);
-        r.Read(gaur_);
-        r.Read(galr_);
-        r.Read(palr_);
-        r.Read(paur_);
-        r.Read(tfwr_);
-        r.Read(emrbr_);
-        r.Read(erdsr_);
-        r.Read(etdsr_);
-        r.Read(phy_bmcr_);
-        r.Read(phy_gbcr_);
-        r.Read(phy_ext_address_);
+        r.Read("eir", eir_);
+        r.Read("eimr", eimr_);
+        r.Read("ecr", ecr_);
+        r.Read("rcr", rcr_);
+        r.Read("tcr", tcr_);
+        r.Read("mmfr", mmfr_);
+        r.Read("mscr", mscr_);
+        r.Read("iaur", iaur_);
+        r.Read("ialr", ialr_);
+        r.Read("gaur", gaur_);
+        r.Read("galr", galr_);
+        r.Read("palr", palr_);
+        r.Read("paur", paur_);
+        r.Read("tfwr", tfwr_);
+        r.Read("emrbr", emrbr_);
+        r.Read("erdsr", erdsr_);
+        r.Read("etdsr", etdsr_);
+        r.Read("phy_bmcr", phy_bmcr_);
+        r.Read("phy_gbcr", phy_gbcr_);
+        r.Read("phy_ext_address", phy_ext_address_);
         rings_.RestoreState(r);
     }
 

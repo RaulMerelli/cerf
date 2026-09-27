@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import ttk
 
 from available_update import AvailableUpdate
+from dialog_buttons import pack_actions
+from ui_dialogs import HIBERNATION_WARNING_URL, link_label
 import ui_theme as theme
 
 
@@ -14,7 +16,7 @@ CANCEL = "cancel"
 
 def show_release_available(parent: tk.Misc, release: AvailableUpdate) -> str:
     dlg = tk.Toplevel(parent)
-    dlg.title("A new CERF version is available")
+    dlg.title("Update available - CE Runtime Foundation")
     dlg.configure(bg=theme.BG)
     if parent.winfo_viewable():
         dlg.transient(parent)
@@ -27,6 +29,13 @@ def show_release_available(parent: tk.Misc, release: AvailableUpdate) -> str:
     ttk.Label(body, wraplength=520, justify="left",
               text=f"CE Runtime Foundation {release.tag} is available. "
                    f"Would you like to upgrade?").pack(anchor="w")
+
+    warning = ttk.Frame(body)
+    warning.pack(anchor="w", pady=(8, 0))
+    ttk.Label(warning, text="Your saved states will be broken - ",
+              foreground=theme.WARN_FG).pack(side="left")
+    link_label(warning, "Learn more",
+               HIBERNATION_WARNING_URL).pack(side="left")
     ttk.Label(body, text="Last version changelog:").pack(anchor="w",
                                                          pady=(12, 4))
 
@@ -49,13 +58,10 @@ def show_release_available(parent: tk.Misc, release: AvailableUpdate) -> str:
         choice["value"] = value
         dlg.destroy()
 
-    ttk.Button(btns, text="Cancel",
-               command=lambda: pick(CANCEL)).pack(side="right", padx=(6, 0))
-    ttk.Button(btns, text="Open in browser",
-               command=lambda: pick(BROWSER)).pack(side="right", padx=(6, 0))
-    upgrade = ttk.Button(btns, text="Upgrade", style="Download.TButton",
-                         command=lambda: pick(UPGRADE))
-    upgrade.pack(side="right")
+    upgrade = pack_actions(btns, [
+        ("Upgrade", lambda: pick(UPGRADE)),
+        ("Open in browser", lambda: pick(BROWSER)),
+        ("Cancel", lambda: pick(CANCEL))])[0]
     upgrade.focus_set()
 
     dlg.bind("<Return>", lambda _e: pick(UPGRADE))

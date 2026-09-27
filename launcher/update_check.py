@@ -6,7 +6,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from app_paths import exe_dir, resolve_version_tuple
+from app_paths import install_root, resolve_version_tuple
 from app_settings import CHANNEL_DISABLED, read_update_channel
 from bundles import parse_version_tuple
 from available_update import AvailableUpdate
@@ -14,8 +14,8 @@ import upgrade_dialog
 from ui_dialogs import show_dialog, show_error
 from upgrade_download import download_upgrade
 from upgrade_process import (INSTALL_FLAG, UPGRADE_DIR_NAME, UpgradeError,
-                             launcher_exe_in, running_cerf_pids, spawn_stage,
-                             stage_argument)
+                             launcher_exe_in, spawn_stage, stage_argument,
+                             wait_for_cerf_exit)
 from upgrade_window import UpgradeWindow
 import ui_theme as theme
 
@@ -75,28 +75,23 @@ class UpdateCheck:
             webbrowser.open(self.release.html_url)
 
     def _cerf_is_clear(self) -> bool:
-        while True:
-            try:
-                pids = running_cerf_pids()
-            except UpgradeError as exc:
-                show_error(self.app, "Upgrade", str(exc))
-                return False
-            if not pids:
-                return True
-            answer = show_dialog(
-                self.app, "cerf.exe is running",
-                "CERF is running and its files cannot be replaced while it is.\n\n"
-                "Close every CERF window, then retry.",
-                ("Retry", "Cancel"), default="Cancel")
-            if answer != "Retry":
-                return False
+        def ask_retry(title: str, message: str) -> bool:
+            return show_dialog(self.app, title, message, ("Retry", "Cancel"),
+                               default="Cancel") == "Retry"
+
+        try:
+            return wait_for_cerf_exit(ask_retry, install_root())
+        except UpgradeError as exc:
+            show_error(self.app, "Upgrade", str(exc))
+            return False
 
     def _start_upgrade(self) -> None:
         if self.release is None or not self._cerf_is_clear():
             return
-        install_dir = exe_dir()
+        install_dir = install_root()
         window = UpgradeWindow(
-            self.app, f"Upgrading to CERF {self.release.tag}",
+            self.app,
+            f"Upgrading CE Runtime Foundation to {self.release.tag}…",
             lambda exc: self._download_finished(exc, window, install_dir))
         threading.Thread(target=self._download, args=(window, install_dir),
                          daemon=True).start()

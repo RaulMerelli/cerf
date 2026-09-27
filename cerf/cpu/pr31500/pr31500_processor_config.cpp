@@ -1,6 +1,7 @@
 #include "../mips_processor_config.h"
 
 #include "../../boards/board_context.h"
+#include "../../socs/pr31x00/pr31500_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PR31500;
+        return bd && bd->GetSocId() == SocId::Pr31500;
     }
 
     /* PRId (CP0 r15): Imp[15:8] = 0x22, "R3900 Processor Core ID", reset value

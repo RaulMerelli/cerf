@@ -126,19 +126,40 @@ union ArmL2Pte {
 };
 static_assert(sizeof(ArmL2Pte) == 4, "L2 PTE must be 32 bits");
 
+struct ArmL2Translation {
+    uint32_t physical_address;
+    uint32_t span_bytes;
+};
+
+inline ArmL2Translation ArmTranslateLargePage(const ArmL2Pte& pte, uint32_t va) {
+    return {(pte.large_page.large_page_base << 16) | (va & 0xFFFFu), 0x10000u};
+}
+
+inline ArmL2Translation ArmTranslateSmallPage(const ArmL2Pte& pte, uint32_t va) {
+    return {(pte.small_page.small_page_base << 12) | (va & 0x0FFFu), 0x1000u};
+}
+
+inline ArmL2Translation ArmTranslateTinyPage(const ArmL2Pte& pte, uint32_t va) {
+    return {(pte.tiny_page.tiny_page_base << 10) | (va & 0x03FFu), 0x400u};
+}
+
+inline bool ArmSupersectionSelected(uint32_t pte_word, ArmSupersectionFormat format) {
+    return ((pte_word >> 18) & 1u) != 0u &&
+           (format == ArmSupersectionFormat::kPa32 ||
+            format == ArmSupersectionFormat::kPa36);
+}
+
+inline bool ArmSupersectionUnresolved(uint32_t pte_word,
+                                      ArmSupersectionFormat format) {
+    return ((pte_word >> 18) & 1u) != 0u &&
+           format == ArmSupersectionFormat::kUnknown;
+}
+
 struct ArmSectionTranslation {
     uint64_t physical_address;
     uint32_t span_bytes;
     uint32_t domain;
 };
-
-/* ARM DDI 0100I B4.7.5 and Table B4-2. */
-inline ArmSupersectionFormat ArmEffectiveSupersectionFormat(ArmSupersectionFormat format,
-                                                            bool extended_format) {
-    return format == ArmSupersectionFormat::kArmV6 && !extended_format
-        ? ArmSupersectionFormat::kNone
-        : format;
-}
 
 /* ARM DDI 0406C.c B3.5.4 and B4.1.154: TTBR selection and L1 index. */
 inline uint32_t ArmL1DescriptorAddress(uint32_t va, uint32_t ttbcr,
@@ -151,20 +172,16 @@ inline uint32_t ArmL1DescriptorAddress(uint32_t va, uint32_t ttbcr,
     return base | ((va >> 20) << 2);
 }
 
-/* Intel Third Generation XScale Microarchitecture Developer's Manual
-   section 3.2.2.1, Table 14 and Figure 2; ARM DDI 0406C.d Figure B3-4. */
+/* ARM DDI 0406C.c B3.5 Figure B3-4 and "Memory described by Supersections is
+   in domain 0"; Intel 316283-002US section 3.2.2.1 Figure 2 for PA[35:32]. */
 inline ArmSectionTranslation ArmTranslateSection(uint32_t pte_word, uint32_t va,
                                                  ArmSupersectionFormat format) {
-    const bool supersection = format != ArmSupersectionFormat::kNone && ((pte_word >> 18) & 1u) != 0u;
-    if (supersection) {
-        uint64_t high = static_cast<uint64_t>(pte_word & 0x00F00000u) << 12;
-        if (format == ArmSupersectionFormat::kArmV6 ||
-            format == ArmSupersectionFormat::kArmV7) {
-            high |= static_cast<uint64_t>(pte_word & 0x000001E0u) << 31;
+    if (ArmSupersectionSelected(pte_word, format)) {
+        uint64_t pa = (pte_word & 0xFF000000u) | (va & 0x00FFFFFFu);
+        if (format == ArmSupersectionFormat::kPa36) {
+            pa |= static_cast<uint64_t>(pte_word & 0x00F00000u) << 12;
         }
-        const uint64_t low = static_cast<uint64_t>((pte_word & 0xFF000000u) |
-                                                   (va & 0x00FFFFFFu));
-        return {high | low, 0x01000000u, 0u};
+        return {pa, 0x01000000u, 0u};
     }
     return {static_cast<uint64_t>((pte_word & 0xFFF00000u) |
                                   (va & 0x000FFFFFu)),

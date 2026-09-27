@@ -1,10 +1,12 @@
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/device_config.h"
 #include "../../core/log.h"
 #include "../../core/string_utils.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../boards/board_ata_service.h"
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
@@ -65,7 +67,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override {
         auto& bas = emu_.Get<BoardAtaService>();
@@ -93,17 +95,17 @@ public:
 
     void SaveState(StateWriter& w) override {
         drive_.SaveState(w);
-        w.WriteBytes(timing_.data(), timing_.size());
-        w.Write(ata_control_);
-        w.Write(int_enable_);
-        w.Write(fifo_alarm_);
+        w.WriteBytes("timing", timing_.data(), timing_.size());
+        w.Write("ata_control", ata_control_);
+        w.Write("int_enable", int_enable_);
+        w.Write("fifo_alarm", fifo_alarm_);
     }
     void RestoreState(StateReader& r) override {
         drive_.RestoreState(r);
-        r.ReadBytes(timing_.data(), timing_.size());
-        r.Read(ata_control_);
-        r.Read(int_enable_);
-        r.Read(fifo_alarm_);
+        r.ReadBytes("timing", timing_.data(), timing_.size());
+        r.Read("ata_control", ata_control_);
+        r.Read("int_enable", int_enable_);
+        r.Read("fifo_alarm", fifo_alarm_);
     }
 
     /* Re-assert the AVIC line from restored int_enable_ + drive state - the ATA
@@ -184,12 +186,7 @@ public:
 
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
-        if (off + 3u <= kTimingEnd) {
-            return static_cast<uint32_t>(timing_[off]) |
-                   (static_cast<uint32_t>(timing_[off + 1]) << 8) |
-                   (static_cast<uint32_t>(timing_[off + 2]) << 16) |
-                   (static_cast<uint32_t>(timing_[off + 3]) << 24);
-        }
+        if (off + 3u <= kTimingEnd) return cerf::le::U32(timing_.data(), off);
         switch (off) {
             case kFifoData32: case kFifoData16: case kFifoFill: return 0;
             case kAtaControl: return ata_control_;
@@ -202,13 +199,7 @@ public:
 
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - kBase;
-        if (off + 3u <= kTimingEnd) {
-            timing_[off]     = static_cast<uint8_t>(value);
-            timing_[off + 1] = static_cast<uint8_t>(value >> 8);
-            timing_[off + 2] = static_cast<uint8_t>(value >> 16);
-            timing_[off + 3] = static_cast<uint8_t>(value >> 24);
-            return;
-        }
+        if (off + 3u <= kTimingEnd) { cerf::le::Put32(timing_.data() + off, value); return; }
         switch (off) {
             case kFifoData32: case kFifoData16: return;
             case kAtaControl: ata_control_ = static_cast<uint8_t>(value); return;

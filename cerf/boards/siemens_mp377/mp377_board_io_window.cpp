@@ -1,10 +1,11 @@
 #include "mp377_board_io_window.h"
+#include "siemens_mp377_id.h"
 
 namespace mp377_board_io_detail {
 
 bool Mp377BoardIoWindow::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SiemensMP377;
+    return bd && bd->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void Mp377BoardIoWindow::OnReady() {

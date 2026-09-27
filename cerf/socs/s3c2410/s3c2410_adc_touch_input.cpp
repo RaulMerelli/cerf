@@ -1,6 +1,7 @@
 #define NOMINMAX
 
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        if (!bd || bd->GetSoc() != SocFamily::S3C2410) return false;
+        if (!bd || bd->GetSocId() != SocId::S3c2410) return false;
         return emu_.TryGet<S3C2410TouchCalibration>() != nullptr;
     }
 

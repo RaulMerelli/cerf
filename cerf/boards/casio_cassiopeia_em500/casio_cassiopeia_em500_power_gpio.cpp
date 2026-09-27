@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_em500_id.h"
 
 namespace {
 
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaEm500;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaEm500;
     }
 
     void OnReady() override {

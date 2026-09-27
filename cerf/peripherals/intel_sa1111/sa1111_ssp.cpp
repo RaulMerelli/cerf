@@ -6,6 +6,7 @@
 #include "../../core/cerf_paths.h"
 #include "../../core/string_utils.h"
 #include "../../boards/board_context.h"
+#include "../../boards/jornada720/jornada_720_id.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -25,7 +26,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
 
     void OnReady() override {
@@ -79,30 +80,30 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write<uint64_t>(eeprom_.size());
-        if (!eeprom_.empty()) w.WriteBytes(eeprom_.data(), eeprom_.size());
-        w.Write(cr0_);
-        w.Write(cr1_);
-        w.Write(phase_);
-        w.Write(addr_);
-        w.Write(rx_);
-        w.Write(status_reg_);
-        w.Write(rx_ready_);
-        w.Write(wel_);
+        w.Write<uint64_t>("eeprom_count", eeprom_.size());
+        if (!eeprom_.empty()) w.WriteBytes("eeprom", eeprom_.data(), eeprom_.size());
+        w.Write("cr0", cr0_);
+        w.Write("cr1", cr1_);
+        w.Write("phase", phase_);
+        w.Write("addr", addr_);
+        w.Write("rx", rx_);
+        w.Write("status_reg", status_reg_);
+        w.Write("rx_ready", rx_ready_);
+        w.Write("wel", wel_);
     }
     void RestoreState(StateReader& r) override {
         uint64_t n = 0;
-        r.Read(n);
+        r.Read("eeprom_count", n);
         eeprom_.resize(static_cast<size_t>(n));
-        if (n) r.ReadBytes(eeprom_.data(), static_cast<size_t>(n));
-        r.Read(cr0_);
-        r.Read(cr1_);
-        r.Read(phase_);
-        r.Read(addr_);
-        r.Read(rx_);
-        r.Read(status_reg_);
-        r.Read(rx_ready_);
-        r.Read(wel_);
+        if (n) r.ReadBytes("eeprom", eeprom_.data(), static_cast<size_t>(n));
+        r.Read("cr0", cr0_);
+        r.Read("cr1", cr1_);
+        r.Read("phase", phase_);
+        r.Read("addr", addr_);
+        r.Read("rx", rx_);
+        r.Read("status_reg", status_reg_);
+        r.Read("rx_ready", rx_ready_);
+        r.Read("wel", wel_);
     }
 
 private:

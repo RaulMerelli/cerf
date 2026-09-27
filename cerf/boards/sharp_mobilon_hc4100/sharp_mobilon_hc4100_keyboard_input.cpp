@@ -4,6 +4,7 @@
 #include "../../host/keyboard_router.h"
 #include "sharp_mobilon_hc4100_key_matrix.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 
 #include <cstdint>
 #include <string>
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

@@ -84,7 +84,7 @@ const COLORREF kClrDark     = RGB(50, 55, 50);
 const COLORREF kClrRim      = RGB(90, 95, 90);
 const COLORREF kClrRimBlink = RGB(120, 230, 130);
 
-template <SocFamily Soc, uint32_t Base>
+template <const std::string_view& Soc, uint32_t Base>
 class Vr41xxLedBase : public Peripheral, public HostWidget {
 public:
     using Peripheral::Peripheral;
@@ -94,7 +94,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == Soc;
+        return bd && bd->GetSocId() == Soc;
     }
     void OnReady() override {
         hltc_anchor_ = Clock::now();
@@ -193,15 +193,15 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(cnt_); w.Write(hts_); w.Write(lts_); w.Write(astc_); w.Write(int_);
-        w.Write(HltcNowLocked());
-        w.Write(astc_remaining_);
+        w.Write("cnt", cnt_); w.Write("hts", hts_); w.Write("lts", lts_); w.Write("astc", astc_); w.Write("int", int_);
+        w.Write("hltc", HltcNowLocked());
+        w.Write("astc_remaining", astc_remaining_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(cnt_); r.Read(hts_); r.Read(lts_); r.Read(astc_); r.Read(int_);
+        r.Read("cnt", cnt_); r.Read("hts", hts_); r.Read("lts", lts_); r.Read("astc", astc_); r.Read("int", int_);
         uint32_t hltc = 0;
-        r.Read(hltc); r.Read(astc_remaining_);
+        r.Read("hltc", hltc); r.Read("astc_remaining", astc_remaining_);
         ReanchorHltcLocked(hltc);
         last_pair_index_ = (cnt_ & kCntEnable) ? PairIndexLocked() : 0;
     }

@@ -1,119 +1,43 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
-#include "../../core/virtual_clock.h"
-#include "../../core/virtual_timer_list.h"
+#include "../../jit/guest_cycle_clock.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../cycle_anchored_counter.h"
 #include "../guest_cpu_reset.h"
 #include "../irq_controller.h"
 #include "../../state/state_stream.h"
 #include "omap3530_clocks.h"
+#include "omap3530_gptimer1_regs.h"
 
 #include <cstdint>
-#include <mutex>
 
 namespace {
 
-constexpr uint32_t kGptimer1BasePa = 0x48318000u;
-constexpr uint32_t kGptimer1Size   = 0x00001000u;
-constexpr int      kIrqGptimer1    = 37;
-
-constexpr uint32_t kOffTidr   = 0x00;
-constexpr uint32_t kOffTiocp  = 0x10;
-constexpr uint32_t kOffTistat = 0x14;
-constexpr uint32_t kOffTisr   = 0x18;
-constexpr uint32_t kOffTier   = 0x1C;
-constexpr uint32_t kOffTwer   = 0x20;
-constexpr uint32_t kOffTclr   = 0x24;
-constexpr uint32_t kOffTcrr   = 0x28;
-constexpr uint32_t kOffTldr   = 0x2C;
-constexpr uint32_t kOffTtgr   = 0x30;
-constexpr uint32_t kOffTwps   = 0x34;
-constexpr uint32_t kOffTmar   = 0x38;
-constexpr uint32_t kOffTcar1  = 0x3C;
-constexpr uint32_t kOffTsicr  = 0x40;
-constexpr uint32_t kOffTcar2  = 0x44;
-constexpr uint32_t kOffTpir   = 0x48;
-constexpr uint32_t kOffTnir   = 0x4C;
-constexpr uint32_t kOffTcvr   = 0x50;
-constexpr uint32_t kOffTocr   = 0x54;
-constexpr uint32_t kOffTowr   = 0x58;
-
-/* Table 16-18 (printed p. 2622-2623): TIOCP_CFG SOFTRESET [1], "This bit is
-   automatically reset by the hardware. During reads, it always returns 0",
-   "0x1: The module is reset." */
-constexpr uint32_t kTiocpSoftReset = 1u << 1;
-
-/* Table 16-42 (printed p. 2637): TSICR POSTED [2] RW reset 1; SFT [1] "Reset
-   software functional registers. This bit is automatically reset by the
-   hardware. During reads, it always returns 0", "0x1: The functional registers
-   are reset."; bits [31:3] and [0] Reserved, "Reads return 0". */
-constexpr uint32_t kTsicrSft    = 1u << 1;
-constexpr uint32_t kTsicrPosted = 1u << 2;
-
-/* OMAP3530 TRM SPRUF98Y §16.2.4 (printed p. 2605): the internal interrupt
-   sources merge into one module interrupt line, each independently enabled by
-   its GPTi.TIER bit. Table 16-22 (printed p. 2625): TISR MAT_IT_FLAG [0],
-   OVF_IT_FLAG [1], TCAR_IT_FLAG [2], RW reset 0, "Write 0x1: Status bit
-   cleared"; [31:3] Reserved "Reads return 0". */
-constexpr uint32_t kIntMat  = 1u << 0;
-constexpr uint32_t kIntOvf  = 1u << 1;
-constexpr uint32_t kIntTcar = 1u << 2;
-constexpr uint32_t kIntMask = kIntMat | kIntOvf | kIntTcar;
-
-
-/* OMAP3530 TRM SPRUF98Y §16.2.4.2 (printed p. 2607): TCLR[0] ST starts and
-   stops the counter; TCLR[1] AR selects autoreload over one-shot. Table 16-10
-   (printed p. 2614): TCLR[5] PRE enables the prescaler, TCLR[4:2] PTV selects
-   its ratio. §16.2.4.3 (printed p. 2610): TCLR[9:8] TCM selects the capture
-   edge on the EVENT_CAPTURE input pin. §16.2.4.4 (printed p. 2611): TCLR[6] CE
-   set to 1 continuously compares GPTi.TCRR against GPTi.TMAR, and a match
-   "issues an interrupt, if the GPTi.TIER[0] MAT_IT_ENA bit is set". */
-constexpr uint32_t kTclrSt    = 1u << 0;
-constexpr uint32_t kTclrAr    = 1u << 1;
-constexpr uint32_t kTclrPtvSh = 2;
-constexpr uint32_t kTclrPtvM  = 7u << kTclrPtvSh;
-constexpr uint32_t kTclrPre   = 1u << 5;
-constexpr uint32_t kTclrCe    = 1u << 6;
-
-/* OMAP3530 TRM SPRUF98Y TCLR field table (printed p. 2629): SCPWM [7] sets the
-   PWM_out default level, TCM [9:8] selects the EVENT_CAPTURE edge, TRG [11:10]
-   drives the trigger output on overflow or match, PT [12] selects pulse or
-   toggle modulation, CAPT_MODE [13] selects first or second capture and
-   GPO_CFG [14] sets the PWM/capture pin direction. All feed the PWM_out and
-   EVENT_CAPTURE pins. */
-constexpr uint32_t kTclrPinFields =
-    (1u << 7) | (3u << 8) | (3u << 10) | (1u << 12) | (1u << 13) | (1u << 14);
-
-/* TCLR field table (printed p. 2629): bits [31:15] are Reserved, "Reads
-   return 0". */
-constexpr uint32_t kTclrMask = 0x00007FFFu;
-
-constexpr uint64_t kCounterModulo = 0x100000000ull;
+using namespace Omap3530Gptimer1Regs;
 
 class Omap3530Gptimer1 : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Omap3530;
     }
+
     void OnReady() override {
-        entry_ = emu_.Get<VirtualTimerList>().Add([this] { OnDeadline(); });
-        {
-            std::lock_guard<std::mutex> lk(state_mutex_);
-            ResetStateLocked();
-        }
-        SyncIrqLine();
+        clock_ = &emu_.Get<GuestCycleClock>();
+        irq_   = &emu_.Get<IrqController>();
+        event_ = clock_->Add([this] { OnEvent(); });
+        counter_.Anchor(clock_->Cycles(), 0u);
+        ApplyRatio();
+        ResetState();
+        clock_->RegisterRateListener([this] { OnRateChange(); });
         emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
-            {
-                std::lock_guard<std::mutex> lk(state_mutex_);
-                ResetStateLocked();
-            }
-            SyncIrqLine();
+            ResetState();
         });
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
@@ -126,121 +50,149 @@ public:
 
     void SaveState(StateWriter& w) override;
     void RestoreState(StateReader& r) override;
-    void PostRestore() override { SyncIrqLine(); }
+    void PostRestore() override { PublishIrqLine(IrqLevel()); }
 
 private:
-    /* Table 16-10 (printed p. 2614): "PS = 2^(PTV + 1) if prescaler is
-       enabled, or PS = 1 if prescaler is disabled". */
-    uint64_t PrescaleLocked() const {
-        if ((tclr_ & kTclrPre) == 0) return 1u;
-        return 1ull << (((tclr_ & kTclrPtvM) >> kTclrPtvSh) + 1u);
+    enum class Pending : uint8_t { kNone, kMatch, kOverflow };
+
+    void ApplyRatio() {
+        if (!counter_.SetRatio(clock_->CpuHz(), kOmap3530Clk32kHz)) RatioOverflow();
     }
 
-    int64_t TicksToNsCeilLocked(uint64_t ticks) const {
-        const uint64_t ns = ticks * kOmap3530NsPerUnit * PrescaleLocked();
-        return static_cast<int64_t>((ns + kOmap3530TkPerUnit - 1u) /
-                                    kOmap3530TkPerUnit);
-    }
-    uint64_t ElapsedTicksLocked(int64_t now) const {
-        const int64_t ns = now - anchor_ns_;
-        if (ns <= 0) return 0;
-        return static_cast<uint64_t>(ns) * kOmap3530TkPerUnit /
-               (kOmap3530NsPerUnit * PrescaleLocked());
+    void OnRateChange() {
+        const uint64_t now = clock_->Cycles();
+        if (!counter_.Rescale(now, clock_->CpuHz(), kOmap3530Clk32kHz)) RatioOverflow();
+        Arm(now);
     }
 
-    int64_t NowNs() const { return emu_.Get<VirtualClock>().NowNs(); }
-
-    uint64_t UnfoldedTicksLocked(int64_t now) const {
-        if (!running_) return 0;
-        const uint64_t total = ElapsedTicksLocked(now);
-        return total > folded_ticks_ ? total - folded_ticks_ : 0;
+    [[noreturn]] void RatioOverflow() const {
+        emu_.Get<Fatal>().Die(
+            "omap3530 gptimer1: the %llu Hz timer clock against the %llu Hz core "
+            "overflows the 64-bit scale",
+            static_cast<unsigned long long>(kOmap3530Clk32kHz),
+            static_cast<unsigned long long>(clock_->CpuHz()));
     }
 
-    uint32_t CounterAtLocked(int64_t now) const {
-        return tcrr_base_ + static_cast<uint32_t>(UnfoldedTicksLocked(now));
+    uint32_t Count(uint64_t cycle) const {
+        return running_ ? counter_.CountAt(cycle) : stopped_count_;
+    }
+
+    /* §16.2.4.4 (printed p. 2611): with CE set, TCRR "is continuously compared"
+       to TMAR, TMAR "can be loaded at any time", and when the two "values match,
+       an interrupt is issued". */
+    void MatchAtUpdate(uint64_t cycle, const char* what) {
+        if ((tclr_ & kTclrCe) == 0u || tmar_ != Count(cycle)) return;
+        if (!running_) {
+            emu_.Get<Fatal>().Die(
+                "omap3530 gptimer1: %s leaves TMAR 0x%08X equal to the stopped TCRR "
+                "with CE set; whether a stopped comparator matches is not modelled",
+                what, tmar_);
+        }
+        tisr_ |= kIntMat;
     }
 
     /* §16.2.4 (printed p. 2605): a free-running upward counter with autoreload
        on overflow, plus compare logic against GPTi.TMAR. */
-    uint64_t TicksToOverflowLocked() const {
-        return kCounterModulo - tcrr_base_;
-    }
-    uint64_t TicksToMatchLocked() const {
-        if (tmar_ <= tcrr_base_) return kCounterModulo;
-        return tmar_ - tcrr_base_;
-    }
-    uint64_t TicksToNextEventLocked() const {
-        uint64_t ticks = TicksToOverflowLocked();
-        if ((tclr_ & kTclrCe) != 0) {
-            const uint64_t match = TicksToMatchLocked();
-            if (match < ticks) ticks = match;
-        }
-        return ticks;
-    }
-
-    void ArmLocked() {
+    void Arm(uint64_t ref) {
         if (!running_) {
-            entry_->Arm(VirtualTimerList::kNoDeadline);
+            pending_ = Pending::kNone;
+            clock_->Disarm(event_);
             return;
         }
-        entry_->Arm(anchor_ns_ + TicksToNsCeilLocked(folded_ticks_ +
-                                                     TicksToNextEventLocked()));
+        const uint32_t count = counter_.CountAt(ref);
+        uint64_t ticks = kCounterModulo - count;
+        pending_       = Pending::kOverflow;
+        if ((tclr_ & kTclrCe) != 0u && tmar_ > count) {
+            ticks    = tmar_ - count;
+            pending_ = Pending::kMatch;
+        }
+        armed_cycle_ = counter_.CycleOfTick(counter_.TicksSince(ref) + ticks);
+        clock_->Arm(event_, armed_cycle_);
     }
 
-    void LoadCounterLocked(uint32_t value, int64_t now) {
-        tcrr_base_     = value;
-        anchor_ns_     = now;
-        folded_ticks_  = 0;
-        one_shot_done_ = false;
-        running_       = (tclr_ & kTclrSt) != 0;
+    void OnEvent();
+    void OnOverflow(uint64_t edge);
+    void ResetFunctional();
+    void ResetState();
+    void WriteTclr(uint32_t value, uint64_t now);
+    void LoadCounter(uint32_t value, uint64_t now);
+
+    bool IrqLevel() const { return (tisr_ & tier_ & kIntMask) != 0u; }
+
+    void PublishIrqLine(bool high) {
+        irq_high_ = high;
+        if (high) irq_->AssertIrq  (kIrqGptimer1);
+        else      irq_->DeAssertIrq(kIrqGptimer1);
     }
 
-    void ResetFunctionalLocked();
-    void ResetStateLocked();
-    void ApplyTclrWriteLocked(uint32_t new_tclr, int64_t now);
-    void CatchUpLocked(int64_t now);
-    void OnDeadline();
-    void PublishIrqLineLocked(bool high);
-    void DriveIrqLineLocked();
-    void SyncIrqLine();
+    void DriveIrqLine() {
+        const bool high = IrqLevel();
+        if (high != irq_high_) PublishIrqLine(high);
+    }
 
-    mutable std::mutex       state_mutex_;
-    uint32_t                 tisr_          = 0;
-    uint32_t                 tier_          = 0;
-    uint32_t                 tclr_          = 0;
-    uint32_t                 tldr_          = 0;
-    uint32_t                 tmar_          = 0;
-    uint32_t                 tsicr_         = 0;
-    uint32_t                 tcrr_base_     = 0;
-    int64_t                  anchor_ns_     = 0;
-    uint64_t                 folded_ticks_  = 0;
-    bool                     running_       = false;
-    bool                     one_shot_done_ = false;
-    bool                     irq_high_      = false;
-    VirtualTimerList::Entry* entry_         = nullptr;
+    GuestCycleClock*        clock_ = nullptr;
+    IrqController*          irq_   = nullptr;
+    GuestCycleClock::Event* event_ = nullptr;
+    CycleAnchoredCounter    counter_;
+
+    uint32_t tisr_          = 0;
+    uint32_t tier_          = 0;
+    uint32_t tclr_          = 0;
+    uint32_t tldr_          = 0;
+    uint32_t tmar_          = 0;
+    uint32_t tsicr_         = 0;
+    uint32_t stopped_count_ = 0;
+    bool     running_       = false;
+    bool     one_shot_done_ = false;
+    bool     irq_high_      = false;
+    Pending  pending_       = Pending::kNone;
+    uint64_t armed_cycle_   = 0;
 };
 
-void Omap3530Gptimer1::PublishIrqLineLocked(bool high) {
-    irq_high_ = high;
-    auto& intc = emu_.Get<IrqController>();
-    if (high) intc.AssertIrq  (kIrqGptimer1);
-    else      intc.DeAssertIrq(kIrqGptimer1);
+void Omap3530Gptimer1::OnEvent() {
+    const Pending  kind = pending_;
+    const uint64_t edge = armed_cycle_;
+    pending_ = Pending::kNone;
+    switch (kind) {
+    case Pending::kMatch:
+        tisr_ |= kIntMat;
+        break;
+    case Pending::kOverflow:
+        OnOverflow(edge);
+        break;
+    case Pending::kNone:
+        emu_.Get<Fatal>().Die("omap3530 gptimer1: timer event fired with no "
+                              "pending overflow or match");
+    }
+    Arm(edge);
+    DriveIrqLine();
 }
 
-void Omap3530Gptimer1::DriveIrqLineLocked() {
-    const bool high = (tisr_ & tier_ & kIntMask) != 0;
-    if (high != irq_high_) PublishIrqLineLocked(high);
-}
-
-void Omap3530Gptimer1::SyncIrqLine() {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    PublishIrqLineLocked((tisr_ & tier_ & kIntMask) != 0);
+void Omap3530Gptimer1::OnOverflow(uint64_t edge) {
+    tisr_ |= kIntOvf;
+    if ((tclr_ & kTclrAr) != 0u) {
+        if (tldr_ == kTldrOverflowValue) {
+            emu_.Get<Fatal>().Die("omap3530 gptimer1: autoreload with TLDR "
+                                  "0xFFFFFFFF is not modelled");
+        }
+        counter_.SetCountAt(edge, tldr_);
+        MatchAtUpdate(edge, "the overflow reload");
+        return;
+    }
+    running_       = false;
+    stopped_count_ = 0u;
+    one_shot_done_ = true;
+    if ((tclr_ & kTclrCe) != 0u && tmar_ == 0u) {
+        emu_.Get<Fatal>().Die("omap3530 gptimer1: a one-shot overflow stops TCRR "
+                              "at TMAR 0 with CE set; whether that matches is "
+                              "not modelled");
+    }
 }
 
 /* §16.2.4.2 (printed p. 2607): "The timer is stopped and the counter value is
    set to 0 when the module reset is asserted. The timer is maintained at stop
    after the reset is released." */
-void Omap3530Gptimer1::ResetFunctionalLocked() {
+void Omap3530Gptimer1::ResetFunctional() {
     tisr_          = 0;
     tier_          = 0;
     tclr_          = 0;
@@ -248,87 +200,66 @@ void Omap3530Gptimer1::ResetFunctionalLocked() {
     /* Table 16-38 (printed p. 2635): TMAR COMPARE_VALUE [31:0] reset
        0x00000000. */
     tmar_          = 0;
-    tcrr_base_     = 0;
-    anchor_ns_     = NowNs();
-    folded_ticks_  = 0;
+    stopped_count_ = 0;
     running_       = false;
     one_shot_done_ = false;
-    entry_->Arm(VirtualTimerList::kNoDeadline);
+    pending_       = Pending::kNone;
+    clock_->Disarm(event_);
 }
 
-void Omap3530Gptimer1::ResetStateLocked() {
-    ResetFunctionalLocked();
+void Omap3530Gptimer1::ResetState() {
+    ResetFunctional();
     tsicr_ = kTsicrPosted;
+    PublishIrqLine(IrqLevel());
 }
 
 /* §16.2.4.2 (printed p. 2607): the counter "can be started and stopped at any
    time through the timer control register (GPTi.TCLR[0] ST bit)". */
-void Omap3530Gptimer1::ApplyTclrWriteLocked(uint32_t new_tclr, int64_t now) {
-    const uint64_t previous_prescale = PrescaleLocked();
-    tclr_ = new_tclr;
-    if (PrescaleLocked() != previous_prescale) {
-        anchor_ns_    = now;
-        folded_ticks_ = 0;
+void Omap3530Gptimer1::WriteTclr(uint32_t value, uint64_t now) {
+    if ((value & kTclrPinFields) != 0u) {
+        HaltUnsupportedAccess("WriteWord(TCLR capture / PWM-out pin field)",
+                              kGptimer1BasePa + kOffTclr, value);
     }
-
-    if ((new_tclr & kTclrSt) == 0) {
+    if ((value & kTclrPre) != 0u) {
+        emu_.Get<Fatal>().Die("omap3530 gptimer1: TCLR write 0x%08X enables the "
+                              "prescaler; its phase is not modelled", value);
+    }
+    const uint32_t count = Count(now);
+    tclr_ = value & kTclrMask;
+    if ((tclr_ & kTclrSt) == 0u) {
+        stopped_count_ = count;
         running_       = false;
         one_shot_done_ = false;
-    } else if (!running_ && !one_shot_done_) {
-        running_      = true;
-        anchor_ns_    = now;
-        folded_ticks_ = 0;
+    } else if (one_shot_done_) {
+        emu_.Get<Fatal>().Die("omap3530 gptimer1: TCLR write 0x%08X keeps ST set after a "
+                              "one-shot overflow stop; whether it restarts the counter is "
+                              "not modelled", value);
+    } else if (!running_) {
+        running_ = true;
+        counter_.SetCountAt(now, stopped_count_);
     }
-    ArmLocked();
+    MatchAtUpdate(now, "TCLR write");
+    Arm(now);
+    DriveIrqLine();
 }
 
-/* §16.2.4.2 (printed p. 2607): "In one-shot mode (the GPTi.TCLR[1] AR bit set
-   to 0), the counter is stopped after counting overflow occurs (the counter
-   value remains at 0). When the autoreload mode is enabled (the GPTi.TCLR[1]
-   AR bit set to 1), the GPTi.TCRR register is reloaded with the timer load
-   register (GPTi.TLDR) value after a counting overflow occurs." */
-void Omap3530Gptimer1::CatchUpLocked(int64_t now) {
-    const bool was_running = running_;
-    while (running_) {
-        const uint64_t unfolded = UnfoldedTicksLocked(now);
-        const uint64_t to_match = TicksToMatchLocked();
-        const uint64_t to_ovf   = TicksToOverflowLocked();
-
-        if ((tclr_ & kTclrCe) != 0 && unfolded >= to_match) tisr_ |= kIntMat;
-
-        if (unfolded < to_ovf) {
-            folded_ticks_ += unfolded;
-            tcrr_base_    += static_cast<uint32_t>(unfolded);
-            break;
-        }
-        folded_ticks_ += to_ovf;
-        tisr_         |= kIntOvf;
-        if ((tclr_ & kTclrAr) != 0) {
-            tcrr_base_     = tldr_;
-            one_shot_done_ = false;
-        } else {
-            tcrr_base_     = 0;
-            running_       = false;
-            one_shot_done_ = true;
-        }
+void Omap3530Gptimer1::LoadCounter(uint32_t value, uint64_t now) {
+    if (one_shot_done_) {
+        emu_.Get<Fatal>().Die("omap3530 gptimer1: a TCRR / TTGR load of 0x%08X after a "
+                              "one-shot overflow stop; whether it restarts the counter is "
+                              "not modelled", value);
     }
-    if (was_running) ArmLocked();
-    DriveIrqLineLocked();
-}
-
-void Omap3530Gptimer1::OnDeadline() {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    CatchUpLocked(NowNs());
+    running_       = (tclr_ & kTclrSt) != 0u;
+    if (running_) counter_.SetCountAt(now, value);
+    else          stopped_count_ = value;
+    MatchAtUpdate(now, "TCRR load");
+    Arm(now);
+    DriveIrqLine();
 }
 
 uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    const int64_t now = NowNs();
-    /* §16.2.4.2 (printed p. 2607): the counter is "captured on-the-fly by a
-       GPTi.TCRR read access", and after an overflow it holds GPTi.TLDR in
-       autoreload mode or 0 stopped in one-shot mode. */
-    CatchUpLocked(now);
+    const uint64_t now = clock_->Cycles();
 
     switch (off) {
     /* Table 16-16 (printed p. 2621): TIDR TID_REV [7:0] R, whose reset value the
@@ -341,7 +272,9 @@ uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
     case kOffTisr:    return tisr_ & kIntMask;
     case kOffTier:    return tier_ & kIntMask;
     case kOffTclr:    return tclr_;
-    case kOffTcrr:    return CounterAtLocked(now);
+    /* §16.2.4.2 (printed p. 2607): the counter "value can be read when stopped
+       or captured on-the-fly by a GPTi.TCRR read access". */
+    case kOffTcrr:    return Count(now);
     case kOffTldr:    return tldr_;
     /* Table 16-34 (printed p. 2632): TTGR_VALUE [31:0] - "The value of the
        trigger register. During reads, it always returns 0xFFFFFFFF." */
@@ -352,11 +285,8 @@ uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
     case kOffTwps:    return 0u;
     case kOffTmar:    return tmar_;
     case kOffTsicr:   return tsicr_;
-    /* §16.2.4.3 (printed p. 2610): TCAR1 and TCAR2 take the counter value only
-       on an EVENT_CAPTURE pin edge. §16.2.4.2.1 (printed p. 2610): "By default,
-       the GPTi.TPIR, GPTi.TNIR, GPTi.TCVR, GPTi.TOCR, and GPTi.TOWR registers
-       and the associated logic are in reset mode (all 0s) and have no action on
-       the programming model." */
+    /* Table 16-40 (printed p. 2636) / Table 16-44 (printed p. 2638): TCAR1 and
+       TCAR2 are type R, reset 0x00000000. */
     case kOffTcar1:   return 0u;
     case kOffTcar2:   return 0u;
     case kOffTpir:    return 0u;
@@ -370,130 +300,152 @@ uint32_t Omap3530Gptimer1::ReadWord(uint32_t addr) {
 
 void Omap3530Gptimer1::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        const int64_t now = NowNs();
-        CatchUpLocked(now);
+    const uint64_t now = clock_->Cycles();
 
-        switch (off) {
-        /* §16.2.6.1 (printed p. 2615): the host-writable set is TLDR, TCRR,
-           TIER, TISR, TCLR, TIOCP_CFG, TWER, TTGR, TSICR and TMAR, plus TPIR,
-           TNIR, TCVR, TOCR and TOWR on GPTIMER1. TIDR, TISTAT, TWPS, TCAR1 and
-           TCAR2 are absent from it. */
-        case kOffTidr:
-        case kOffTistat:
-        case kOffTwps:
-        case kOffTcar1:
-        case kOffTcar2:
-            return;
-        case kOffTiocp:
-            if (value & kTiocpSoftReset) {
-                ResetStateLocked();
-                break;
-            }
-            return;
-        case kOffTisr:
-            tisr_ &= ~(value & kIntMask);
-            break;
-        case kOffTier:
-            tier_ = value & kIntMask;
-            LOG(Periph, "[GPTIMER1] TIER <- 0x%X (MAT=%d OVF=%d)\n",
-                tier_, (tier_ & kIntMat) ? 1 : 0, (tier_ & kIntOvf) ? 1 : 0);
-            break;
-        /* Table 16-26 (printed p. 2627): TWER "controls (enable/disable) the
-           wake-up feature on specific interrupt events" - MAT_WUP_ENA [0],
-           OVF_WUP_ENA [1], TCAR_WUP_ENA [2]. */
-        case kOffTwer:
-            return;
-        case kOffTclr:
-            if ((value & kTclrPinFields) != 0) {
-                HaltUnsupportedAccess(
-                    "WriteWord(TCLR capture / PWM-out pin field)", addr, value);
-            }
-            ApplyTclrWriteLocked(value & kTclrMask, now);
-            return;
-        case kOffTcrr:
-            LoadCounterLocked(value, now);
-            ArmLocked();
-            return;
-        case kOffTldr:
-            tldr_ = value;
-            return;
-        /* §16.2.4.2 (printed p. 2607): "The GPTi.TCRR register can also be
-           loaded with the value held in the timer load register GPTi.TLDR by a
-           trigger register (GPTi.TTGR) write access. The GPTi.TCRR loading is
-           done regardless of the GPTi.TTGR written value." */
-        case kOffTtgr:
-            LoadCounterLocked(tldr_, now);
-            ArmLocked();
-            return;
-        case kOffTmar:
-            tmar_ = value;
-            ArmLocked();
-            return;
-        case kOffTsicr:
-            if (value & kTsicrSft) {
-                ResetFunctionalLocked();
-            }
-            tsicr_ = value & kTsicrPosted;
-            break;
-        /* §16.2.4.2.1 (printed p. 2610): these registers drive the 1-ms tick
-           generation and the overflow interrupt filter, whose reset state is
-           all zeros with "no action on the programming model". */
-        case kOffTpir:
-        case kOffTnir:
-        case kOffTcvr:
-        case kOffTocr:
-        case kOffTowr:
-            if (value != 0) {
-                HaltUnsupportedAccess(
-                    "WriteWord(1-ms tick / overflow-filter register)",
-                    addr, value);
-            }
-            return;
-        default:
-            HaltUnsupportedAccess("WriteWord", addr, value);
+    switch (off) {
+    /* §16.2.6.1 (printed p. 2615): the host-writable set is TLDR, TCRR, TIER,
+       TISR, TCLR, TIOCP_CFG, TWER, TTGR, TSICR, TMAR and, on GPTIMER1, TPIR,
+       TNIR, TCVR, TOCR, TOWR; TIDR, TISTAT, TWPS, TCAR1 and TCAR2 are not. */
+    case kOffTidr:
+    case kOffTistat:
+    case kOffTwps:
+    case kOffTcar1:
+    case kOffTcar2:
+        return;
+    case kOffTiocp:
+        if (value & kTiocpSoftReset) ResetState();
+        return;
+    case kOffTisr:
+        tisr_ &= ~(value & kIntMask);
+        DriveIrqLine();
+        return;
+    case kOffTier:
+        tier_ = value & kIntMask;
+        LOG(Periph, "[GPTIMER1] TIER <- 0x%X (MAT=%d OVF=%d)\n",
+            tier_, (tier_ & kIntMat) ? 1 : 0, (tier_ & kIntOvf) ? 1 : 0);
+        DriveIrqLine();
+        return;
+    /* Table 16-26 (printed p. 2627): TWER "controls (enable/disable) the
+       wake-up feature on specific interrupt events" - MAT_WUP_ENA [0],
+       OVF_WUP_ENA [1], TCAR_WUP_ENA [2]. */
+    case kOffTwer:
+        return;
+    case kOffTclr:
+        WriteTclr(value, now);
+        return;
+    case kOffTcrr:
+        LoadCounter(value, now);
+        return;
+    case kOffTldr:
+        tldr_ = value;
+        return;
+    case kOffTtgr:
+        LoadCounter(tldr_, now);
+        return;
+    case kOffTmar:
+        tmar_ = value;
+        MatchAtUpdate(now, "TMAR write");
+        Arm(now);
+        DriveIrqLine();
+        return;
+    case kOffTsicr:
+        if (value & kTsicrSft) {
+            ResetFunctional();
+            DriveIrqLine();
         }
-        DriveIrqLineLocked();
+        tsicr_ = value & kTsicrPosted;
+        return;
+    /* §16.2.4.2.1 (printed p. 2610): these registers drive the 1-ms tick
+       generation and the overflow interrupt filter, whose reset state is
+       all zeros with "no action on the programming model". */
+    case kOffTpir:
+    case kOffTnir:
+    case kOffTcvr:
+    case kOffTocr:
+    case kOffTowr:
+        if (value != 0) {
+            HaltUnsupportedAccess(
+                "WriteWord(1-ms tick / overflow-filter register)", addr, value);
+        }
+        return;
     }
+    HaltUnsupportedAccess("WriteWord", addr, value);
 }
 
 void Omap3530Gptimer1::SaveState(StateWriter& w) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    const int64_t now = NowNs();
-    CatchUpLocked(now);
-    w.Write(tisr_);
-    w.Write(tier_);
-    w.Write(tclr_);
-    w.Write(tldr_);
-    w.Write(tmar_);
-    w.Write(tsicr_);
-    w.Write<uint32_t>(CounterAtLocked(now));
-    w.Write<uint8_t>(running_ ? 1u : 0u);
-    w.Write<uint8_t>(one_shot_done_ ? 1u : 0u);
+    const uint64_t now = clock_->Cycles();
+    w.Write("tisr", tisr_);
+    w.Write("tier", tier_);
+    w.Write("tclr", tclr_);
+    w.Write("tldr", tldr_);
+    w.Write("tmar", tmar_);
+    w.Write("tsicr", tsicr_);
+    w.Write<uint32_t>("counter", Count(now));
+    w.Write<uint8_t>("running", running_ ? 1u : 0u);
+    w.Write<uint8_t>("one_shot_done", one_shot_done_ ? 1u : 0u);
+    w.Write<uint64_t>("clk32k_phase", counter_.PhaseAt(now));
+    w.Write<uint64_t>("clk32k_phase_den", counter_.PhaseDenominator());
 }
 
 void Omap3530Gptimer1::RestoreState(StateReader& r) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    r.Read(tisr_);
-    r.Read(tier_);
-    r.Read(tclr_);
-    r.Read(tldr_);
-    r.Read(tmar_);
-    r.Read(tsicr_);
+    uint32_t tisr = 0, tier = 0, tclr = 0, tldr = 0, tmar = 0, tsicr = 0;
     uint32_t counter = 0;
     uint8_t  running = 0, one_shot_done = 0;
-    r.Read(counter);
-    r.Read(running);
-    r.Read(one_shot_done);
-    tcrr_base_     = counter;
-    anchor_ns_     = NowNs();
-    folded_ticks_  = 0;
-    running_       = (running != 0);
-    one_shot_done_ = (one_shot_done != 0);
-    ArmLocked();
+    uint64_t phase = 0, phase_den = 0;
+    r.Read("tisr", tisr);
+    r.Read("tier", tier);
+    r.Read("tclr", tclr);
+    r.Read("tldr", tldr);
+    r.Read("tmar", tmar);
+    r.Read("tsicr", tsicr);
+    r.Read("counter", counter);
+    r.Read("running", running);
+    r.Read("one_shot_done", one_shot_done);
+    r.Read("clk32k_phase", phase);
+    r.Read("clk32k_phase_den", phase_den);
+    if ((tisr & ~kIntMask) != 0u || (tier & ~kIntMask) != 0u) {
+        r.Reject("omap3530 gptimer1: restored TISR 0x%08X / TIER 0x%08X set "
+                 "reserved bits", tisr, tier);
+    }
+    if ((tclr & ~kTclrMask) != 0u || (tclr & (kTclrPinFields | kTclrPre)) != 0u) {
+        r.Reject("omap3530 gptimer1: restored TCLR 0x%08X sets a field this "
+                 "build does not model", tclr);
+    }
+    if ((tsicr & ~kTsicrPosted) != 0u) {
+        r.Reject("omap3530 gptimer1: restored TSICR 0x%08X sets reserved bits",
+                 tsicr);
+    }
+    if (running > 1u || one_shot_done > 1u) {
+        r.Reject("omap3530 gptimer1: restored run flags %u / %u are not 0 or 1",
+                 running, one_shot_done);
+    }
+    if (running != 0u && ((tclr & kTclrSt) == 0u || one_shot_done != 0u)) {
+        r.Reject("omap3530 gptimer1: restored counter runs with TCLR 0x%08X and "
+                 "one-shot-done %u", tclr, one_shot_done);
+    }
+    if (running != 0u && tldr == kTldrOverflowValue && (tclr & kTclrAr) != 0u) {
+        r.Reject("omap3530 gptimer1: restored autoreload with TLDR 0xFFFFFFFF");
+    }
+    tisr_          = tisr;
+    tier_          = tier;
+    tclr_          = tclr;
+    tldr_          = tldr;
+    tmar_          = tmar;
+    tsicr_         = tsicr;
+    running_       = running != 0u;
+    one_shot_done_ = one_shot_done != 0u;
+    stopped_count_ = running_ ? 0u : counter;
+    const uint64_t now = clock_->Cycles();
+    ApplyRatio();
+    if (!counter_.AnchorAtPhase(now, running_ ? counter : 0u, phase, phase_den)) {
+        r.Reject("omap3530 gptimer1: restored 32-kHz phase %llu/%llu is not a "
+                 "fraction of one tick this build can place",
+                 static_cast<unsigned long long>(phase),
+                 static_cast<unsigned long long>(phase_den));
+    }
+    Arm(now);
 }
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE(Omap3530Gptimer1);

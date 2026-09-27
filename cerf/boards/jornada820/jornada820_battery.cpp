@@ -1,5 +1,6 @@
 #include "jornada820_battery.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
@@ -7,6 +8,7 @@
 #include "../../socs/sa11xx/sa11xx_sp1_uart.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_context.h"
+#include "jornada_820_id.h"
 
 #include <array>
 #include <chrono>
@@ -34,8 +36,7 @@ std::array<uint8_t, 14> BuildPacket(int percent, bool on_battery) {
     std::array<uint8_t, 14> p{};
     p[0]  = kFrameStart;
     p[2]  = static_cast<uint8_t>(percent);
-    p[3]  = static_cast<uint8_t>(cap & 0xFFu);
-    p[4]  = static_cast<uint8_t>((cap >> 8) & 0xFFu);
+    cerf::le::Put16(p.data() + 3, cap);
     p[12] = on_battery ? 0x00u : 0x04u;
     p[13] = kFrameEnd;
     return p;
@@ -45,7 +46,7 @@ std::array<uint8_t, 14> BuildPacket(int percent, bool on_battery) {
 
 bool Jornada820Battery::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada820;
+    return bd && bd->GetBoardId() == BoardId::Jornada820;
 }
 
 void Jornada820Battery::OnReady() {

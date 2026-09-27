@@ -4,6 +4,7 @@
 #include "../guest_cpu_reset.h"
 
 #include <cstdint>
+#include "vr4111_id.h"
 
 namespace {
 
@@ -38,7 +39,7 @@ constexpr Vr41xxPmuModel kModel = {
 
 constexpr uint16_t kIntDmsRst = 0x0004u;   /* PMUINTREG D2 DMSRST, "Deadman's switch"      */
 
-class Vr4111Pmu : public Vr41xxPmuBase<SocFamily::VR4111, kModel> {
+class Vr4111Pmu : public Vr41xxPmuBase<SocId::Vr4111, kModel> {
 public:
     using Vr41xxPmuBase::Vr41xxPmuBase;
 

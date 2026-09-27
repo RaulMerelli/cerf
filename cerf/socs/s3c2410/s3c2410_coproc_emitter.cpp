@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../jit/arm/place_fns.h"
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 
 namespace {
 
@@ -12,7 +13,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t*      cursor,

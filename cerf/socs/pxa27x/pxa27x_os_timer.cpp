@@ -1,23 +1,28 @@
-#include "../os_timer.h"
+#include "../intel_os_timer_impl.h"
 
 #include "../../boards/board_context.h"
+#include "pxa270_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../pxa2xx/pxa2xx_intc.h"
 
 namespace {
 
-/* Intel PXA27x Developer's Manual 280000-001 Table 25-2 (page 25-5): "IP[29]
-   Operating system timers OS timer equals Match register 3" .. "IP[26] OS timer
-   equals Match register 0". */
+/* Intel PXA27x Developer's Manual 280000-001 Table 25-2 (page 25-5): IP[29]
+   "OS timer equals Match register 3" .. IP[26] "OS timer equals Match
+   register 0". */
 constexpr uint32_t kIntcOst0Bit = 26u;
 
-class Pxa27xOsTimer : public OsTimer {
+/* Intel PXA27x Developer's Manual 280000-001 §22.5.5: OSCR0 "is incremented on
+   rising edges of the 3.25-MHz clock". */
+constexpr uint32_t kOscrHz = 3250000u;
+
+class Pxa27xOsTimer : public IntelOsTimerBase<kOscrHz> {
 public:
-    using OsTimer::OsTimer;
+    using IntelOsTimerBase<kOscrHz>::IntelOsTimerBase;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
 
     /* Table 22-12 (page 22-19) "OS Timers Register Summary": "0x40A0_0000
@@ -47,17 +52,18 @@ protected:
 
 private:
     uint32_t LaneByte(uint32_t addr) {
-        const uint32_t word  = ReadWord(addr & ~0x3u);
+        const uint32_t off = (addr - MmioBase()) & ~0x3u;
+        if (off != 0x10u) HaltUnsupportedAccess("ReadByte", addr, 0);
+        const uint32_t word  = FastRead(off, 4u);
         const uint32_t shift = (addr & 0x3u) * 8u;
         return (word >> shift) & 0xFFu;
     }
 
     static uint32_t FastReadThunk(void* ctx, uint32_t off, uint32_t width) {
-        auto*          self = static_cast<Pxa27xOsTimer*>(ctx);
-        const uint32_t addr = self->MmioBase() + off;
-        if (width == 4u) return self->ReadWord(addr);
-        if (width == 1u) return self->LaneByte(addr);
-        self->HaltUnsupportedAccess("FastRead", addr, 0);
+        auto* self = static_cast<Pxa27xOsTimer*>(ctx);
+        if (width == 4u) return self->FastRead(off, 4u);
+        if (width == 1u) return self->LaneByte(self->MmioBase() + off);
+        self->HaltUnsupportedAccess("FastRead", self->MmioBase() + off, 0);
     }
 };
 

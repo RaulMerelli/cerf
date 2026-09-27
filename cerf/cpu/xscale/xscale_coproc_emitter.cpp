@@ -11,6 +11,7 @@
 #include "../../jit/arm/place_fns.h"
 #include "../../jit/x86_emit_alu.h"
 #include "../../boards/board_context.h"
+#include "../../socs/pxa255/pxa255_id.h"
 
 namespace {
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && bd->GetSocId() == SocId::Pxa255;
     }
 
 protected:

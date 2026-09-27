@@ -40,14 +40,14 @@ struct Vr41xxPmuModel {
    A reset by software shutdown initializes the entire internal state except for the RTC timer
    and the PMU ... the processor ... begins the Cold reset exception sequence to access the reset
    vectors in the ROM space" (VR4102 UM 7.1.4 + Fig 7-4, VR4121 UM 8.1.4 + Fig 8-6). */
-template <SocFamily Soc, Vr41xxPmuModel M>
+template <const std::string_view& Soc, Vr41xxPmuModel M>
 class Vr41xxPmuBase : public Peripheral, public ResetCauseLatch, public DeepSleepWaker {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == Soc;
+        return bd && bd->GetSocId() == Soc;
     }
 
     /* An RTC reset "resets all peripheral units including the RTC unit"; an RSTSW
@@ -96,17 +96,17 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(IntReg());
-        w.Write(cntreg_);
-        w.Write(waitreg_);
+        w.Write("int_reg", IntReg());
+        w.Write("cntreg", cntreg_);
+        w.Write("waitreg", waitreg_);
     }
 
     void RestoreState(StateReader& r) override {
         uint16_t v = 0;
-        r.Read(v);
+        r.Read("int_reg", v);
         intreg_.store(v, std::memory_order_release);
-        r.Read(cntreg_);
-        r.Read(waitreg_);
+        r.Read("cntreg", cntreg_);
+        r.Read("waitreg", waitreg_);
     }
 
 protected:

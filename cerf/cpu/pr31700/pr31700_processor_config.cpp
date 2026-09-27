@@ -1,6 +1,7 @@
 #include "../mips_processor_config.h"
 
 #include "../../boards/board_context.h"
+#include "../../socs/pr31x00/pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PR31700;
+        return bd && bd->GetSocId() == SocId::Pr31700;
     }
 
     /* nk.exe 0x9F4116A8 compares the whole PRId against 0x2202 and only then

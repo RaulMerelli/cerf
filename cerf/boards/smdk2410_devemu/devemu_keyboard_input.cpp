@@ -1,6 +1,7 @@
 #include "devemu_keyboard_controller.h"
 
 #include "../../boards/board_context.h"
+#include "devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

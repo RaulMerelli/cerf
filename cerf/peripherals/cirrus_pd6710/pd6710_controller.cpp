@@ -4,6 +4,7 @@
 #include "pd6710_management_irq_line.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/smdk2410_devemu/devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/host_widget_registry.h"
@@ -32,7 +33,7 @@ Pd6710Controller::Pd6710Controller(CerfEmulator& emu)
 
 bool Pd6710Controller::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+    return bd && bd->GetBoardId() == BoardId::Devemu;
 }
 
 void Pd6710Controller::OnReady() {
@@ -155,8 +156,8 @@ void Pd6710Controller::OnCardIrqDeasserted(PcmciaSlot&) {
 void Pd6710Controller::SaveState(StateWriter& w) {
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(index_);
-        w.Write(reg_chip_info_);
+        w.Write("index", index_);
+        w.Write("reg_chip_info", reg_chip_info_);
         exca_.SaveState(w);
     }
     slot_.SaveSlotState(w);
@@ -165,8 +166,8 @@ void Pd6710Controller::SaveState(StateWriter& w) {
 void Pd6710Controller::RestoreState(StateReader& r) {
     {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(index_);
-        r.Read(reg_chip_info_);
+        r.Read("index", index_);
+        r.Read("reg_chip_info", reg_chip_info_);
         exca_.RestoreState(r);
     }
     slot_.RestoreSlotState(r);

@@ -2,6 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
@@ -40,7 +42,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -221,12 +223,12 @@ void Sa11xxRtc::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxRtc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> sg(state_mtx_);
-    w.Write(rtar_);  w.Write(rcnr_);  w.Write(rttr_);  w.Write(rtsr_);
+    w.Write("rtar", rtar_);  w.Write("rcnr", rcnr_);  w.Write("rttr", rttr_);  w.Write("rtsr", rtsr_);
 }
 
 void Sa11xxRtc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> sg(state_mtx_);
-    r.Read(rtar_);  r.Read(rcnr_);  r.Read(rttr_);  r.Read(rtsr_);
+    r.Read("rtar", rtar_);  r.Read("rcnr", rcnr_);  r.Read("rttr", rttr_);  r.Read("rtsr", rtsr_);
     /* Wall-clock counter: anchor the next 1-Hz edge one second after the
        restore so RCNR resumes ticking from its restored value. */
     next_tick_ = Clock::now() + std::chrono::seconds(1);

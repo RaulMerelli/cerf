@@ -1,6 +1,7 @@
 #include "../../peripherals/cirrus_pd6710/pd6710_management_irq_line.h"
 
 #include "../../boards/board_context.h"
+#include "devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/irq_controller.h"
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     void Pulse() override {

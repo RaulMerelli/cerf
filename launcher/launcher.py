@@ -12,28 +12,44 @@ if str(_THIS_DIR) not in sys.path:
 
 from app_paths import resolve_cerf_exe, resolve_devices_dir
 from cli_console import attach_parent_console
+from install_options import parse_options
 from launcher_cli import run_cli
 from operations import BundleManager
-from transactional import TRANSACTIONAL_COMMAND, run_transactional
+from transactional_crash import (TRANSACTIONAL_CRASH_COMMAND,
+                                 run_transactional_crash)
 from ui_theme import enable_dpi_awareness
+from uninstall_cli import run_uninstall
 from upgrade_cli import (INSTALL_STAGE, POST_UPGRADE_STAGE, parse_stage,
                          run_install_stage, run_post_upgrade)
+from upgrade_process import UNINSTALL_FLAG
 
 
 def main(argv: List[str]) -> int:
     stage, wait_pid = parse_stage(argv)
     if stage == INSTALL_STAGE:
         enable_dpi_awareness()
-        return run_install_stage(wait_pid)
+        return run_install_stage(wait_pid, argv)
 
-    upgraded = stage == POST_UPGRADE_STAGE
-    if upgraded:
+    if UNINSTALL_FLAG in argv:
         enable_dpi_awareness()
-        run_post_upgrade(wait_pid)
+        return run_uninstall(argv)
+
+    from transactional import TRANSACTIONAL_COMMAND, run_transactional
+
+    upgraded = False
+    if stage == POST_UPGRADE_STAGE:
+        enable_dpi_awareness()
+        if not run_post_upgrade(wait_pid, argv):
+            return 0
+        upgraded = not parse_options(argv).fresh
 
     if bool(argv) and argv[0] == TRANSACTIONAL_COMMAND:
         enable_dpi_awareness()
         return run_transactional(argv[1:])
+
+    if bool(argv) and argv[0] == TRANSACTIONAL_CRASH_COMMAND:
+        enable_dpi_awareness()
+        return run_transactional_crash(argv[1:])
 
     cli = bool(argv) and argv[0] == "sync"
     if cli:

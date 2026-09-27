@@ -10,6 +10,7 @@
 #include "imx6_i2c_device.h"
 
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace cerf_imx6_i2c_detail {
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().RegisterResettable(this); }
 
@@ -128,28 +129,28 @@ private:
 
 private:
     void SaveControllerState(StateWriter& w) const {
-        w.Write(iadr_);
-        w.Write(ifdr_);
-        w.Write(i2cr_);
-        w.Write(i2sr_);
-        w.Write(i2dr_);
-        w.Write(slave_addr_);
-        w.Write(rx_shift_);
-        w.Write<uint8_t>(static_cast<uint8_t>((expecting_addr_ ? 1u : 0u) | (read_phase_ ? 2u : 0u) |
-                                              (rx_dummy_ ? 4u : 0u) | (stop_pending_final_read_ ? 8u : 0u) |
-                                              (tx_complete_pending_ ? 16u : 0u)));
+        w.Write("iadr", iadr_);
+        w.Write("ifdr", ifdr_);
+        w.Write("i2cr", i2cr_);
+        w.Write("i2sr", i2sr_);
+        w.Write("i2dr", i2dr_);
+        w.Write("slave_addr", slave_addr_);
+        w.Write("rx_shift", rx_shift_);
+        w.Write<uint8_t>("flags", static_cast<uint8_t>((expecting_addr_ ? 1u : 0u) | (read_phase_ ? 2u : 0u) |
+                                                      (rx_dummy_ ? 4u : 0u) | (stop_pending_final_read_ ? 8u : 0u) |
+                                                      (tx_complete_pending_ ? 16u : 0u)));
     }
 
     void RestoreControllerState(StateReader& r) {
-        r.Read(iadr_);
-        r.Read(ifdr_);
-        r.Read(i2cr_);
-        r.Read(i2sr_);
-        r.Read(i2dr_);
-        r.Read(slave_addr_);
-        r.Read(rx_shift_);
+        r.Read("iadr", iadr_);
+        r.Read("ifdr", ifdr_);
+        r.Read("i2cr", i2cr_);
+        r.Read("i2sr", i2sr_);
+        r.Read("i2dr", i2dr_);
+        r.Read("slave_addr", slave_addr_);
+        r.Read("rx_shift", rx_shift_);
         uint8_t flags = 0;
-        r.Read(flags);
+        r.Read("flags", flags);
         expecting_addr_ = (flags & 1u) != 0u;
         read_phase_ = (flags & 2u) != 0u;
         rx_dummy_ = (flags & 4u) != 0u;

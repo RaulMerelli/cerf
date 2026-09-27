@@ -4,10 +4,11 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../board_context.h"
+#include "casio_toricomail_id.h"
 
 bool CasioToricomailBattery::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::CasioToricomail;
+    return bd && bd->GetBoardId() == BoardId::CasioToricomail;
 }
 
 void CasioToricomailBattery::OnReady() {

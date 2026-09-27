@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../irq_controller.h"
@@ -124,7 +125,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
     void OnReady() override {
         Reset();
@@ -178,16 +179,16 @@ public:
     void     WriteWord(uint32_t addr, uint32_t value) override;
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(storage_, sizeof(storage_));
-        w.Write<uint32_t>(LoadLevels());
-        w.Write<uint32_t>(LoadDriven());
+        w.WriteBytes("storage", storage_, sizeof(storage_));
+        w.Write<uint32_t>("levels", LoadLevels());
+        w.Write<uint32_t>("driven", LoadDriven());
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(storage_, sizeof(storage_));
+        r.ReadBytes("storage", storage_, sizeof(storage_));
         uint32_t levels = 0;
         uint32_t driven = 0;
-        r.Read(levels);
-        r.Read(driven);
+        r.Read("levels", levels);
+        r.Read("driven", driven);
         StoreLevels(levels);
         StoreDriven(driven);
     }

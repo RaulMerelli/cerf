@@ -29,11 +29,16 @@ public:
     bool     HasRev()                     const override { return true; }
     bool     HasExtendRotate()            const override { return true; }
     bool     HasLdrexStrex()              const override { return true; }
+    bool     HasLdrexStrexV6k()           const override { return true; }
     bool     HasBarrierInsn()             const override { return true; }
     bool     HasCp15V6()                  const override { return true; }
     bool     HasCp15V7()                  const override { return true; }
     bool     HasVmsav7()                  const override { return true; }
-    /* ARM Architecture Reference Manual ARMv7-A and ARMv7-R edition
-       DDI 0406C, section B3.5.1. */
-    ArmSupersectionFormat SupersectionFormat() const override { return ArmSupersectionFormat::kArmV7; }
+
+    /* ARM DDI 0406C.c B3.5: "Whether a VMSAv7 implementation of the
+       Short-descriptor format translation tables supports supersections is
+       IMPLEMENTATION DEFINED" - so each core declares its own. */
+    ArmSupersectionFormat SupersectionFormat() const override {
+        return ArmSupersectionFormat::kUnknown;
+    }
 };

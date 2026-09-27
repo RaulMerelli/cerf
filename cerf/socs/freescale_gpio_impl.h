@@ -4,6 +4,7 @@
 
 #include "../core/cerf_emulator.h"
 #include "../boards/board_context.h"
+#include "imx51/imx51_id.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 #include "irq_controller.h"
@@ -30,14 +31,14 @@ constexpr uint32_t kOffEdgeSel = 0x1Cu;
    EDGE_SEL (0x1C); gated per concrete by kSoc; 32-bit access only. kIrqLow16/kIrqHigh16
    = the TZIC sources (MCIMX51RM Table 3-2) for a concrete's OR'd pin 0-15 / 16-31
    lines; -1 (default) = passive register file, interrupt path compiled out. */
-template <uint32_t kBase, SocFamily kSoc, int kIrqLow16 = -1, int kIrqHigh16 = -1>
+template <uint32_t kBase, const std::string_view& kSoc, int kIrqLow16 = -1, int kIrqHigh16 = -1>
 class FreescaleGpioBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == kSoc;
+        return bd && bd->GetSocId() == kSoc;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -72,7 +73,7 @@ public:
 
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
-        if constexpr (kSoc == SocFamily::iMX51) {
+        if constexpr (kSoc == SocId::Imx51) {
             if (off == kOffEdgeSel) return edge_sel_;
         }
         switch (off) {
@@ -103,7 +104,7 @@ public:
 
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - kBase;
-        if constexpr (kSoc == SocFamily::iMX51) {
+        if constexpr (kSoc == SocId::Imx51) {
             if (off == kOffEdgeSel) { edge_sel_ = value; RecomputeIrq(); return; }
         }
         switch (off) {
@@ -132,16 +133,16 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(dr_);   w.Write(gdir_); w.Write(icr1_);
-        w.Write(icr2_); w.Write(imr_);  w.Write(isr_);
-        w.Write(input_level_);
-        if constexpr (kSoc == SocFamily::iMX51) w.Write(edge_sel_);
+        w.Write("dr", dr_);   w.Write("gdir", gdir_); w.Write("icr1", icr1_);
+        w.Write("icr2", icr2_); w.Write("imr", imr_);  w.Write("isr", isr_);
+        w.Write("input_level", input_level_);
+        if constexpr (kSoc == SocId::Imx51) w.Write("edge_sel", edge_sel_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(dr_);   r.Read(gdir_); r.Read(icr1_);
-        r.Read(icr2_); r.Read(imr_);  r.Read(isr_);
-        r.Read(input_level_);
-        if constexpr (kSoc == SocFamily::iMX51) r.Read(edge_sel_);
+        r.Read("dr", dr_);   r.Read("gdir", gdir_); r.Read("icr1", icr1_);
+        r.Read("icr2", icr2_); r.Read("imr", imr_);  r.Read("isr", isr_);
+        r.Read("input_level", input_level_);
+        if constexpr (kSoc == SocId::Imx51) r.Read("edge_sel", edge_sel_);
     }
 
 private:

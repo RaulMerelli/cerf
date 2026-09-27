@@ -10,6 +10,7 @@
 #include "../../socs/pxa255/pxa255_ac97.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_context.h"
+#include "falcon_4220_id.h"
 
 #include <algorithm>
 #include <atomic>
@@ -53,7 +54,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FalconPC3xx;
+        return bd && bd->GetBoardId() == BoardId::Falcon4220;
     }
 
     void OnReady() override {

@@ -16,6 +16,7 @@
 #include "../../jit/x86_emit.h"
 #include "../../jit/x86_emit_alu.h"
 #include "../../boards/board_context.h"
+#include "../../socs/pxa27x/pxa270_id.h"
 
 namespace {
 
@@ -25,7 +26,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
 
     /* MK500c50BenOS013014.bin 0x801C2258 "MRC p1,0,r1,c1,c0,0", 0x801C2268

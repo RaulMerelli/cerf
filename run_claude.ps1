@@ -101,6 +101,7 @@ $files = @(
     @{ Name = 'agent_docs/boot_loaders.md';          Path = 'agent_docs\boot_loaders.md' },
     @{ Name = 'agent_docs/rom_acceptance.md';        Path = 'agent_docs\rom_acceptance.md' },
     @{ Name = 'agent_docs/jit.md';                   Path = 'agent_docs\jit.md' },
+    @{ Name = 'agent_docs/timers_clocks.md';         Path = 'agent_docs\timers_clocks.md' },
     @{ Name = 'agent_docs/rules.md';                 Path = 'agent_docs\rules.md' },
     @{ Name = 'agent_docs/hibernation.md';           Path = 'agent_docs\hibernation.md' },
     @{ Name = 'agent_docs/code_style.md';            Path = 'agent_docs\code_style.md' },
@@ -110,6 +111,7 @@ $files = @(
     @{ Name = 'agent_docs/launcher.md';              Path = 'agent_docs\launcher.md' }
     @{ Name = 'agent_docs/psychological_support.md'; Path = 'agent_docs\psychological_support.md' }
     @{ Name = 'agent_docs/leds.md';                  Path = 'agent_docs\leds.md' }
+    @{ Name = 'agent_docs/database.md';              Path = 'agent_docs\database.md' }
 )
 
 do {
@@ -289,7 +291,7 @@ do {
     $asyncClangd = $psClangd.BeginInvoke()
 
     try {
-        & claude --effort high `
+        & claude --effort xhigh `
                  --allow-dangerously-skip-permissions `
                  --permission-mode bypassPermissions `
                  --system-prompt-file $tempFile `

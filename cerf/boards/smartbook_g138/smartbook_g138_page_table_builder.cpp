@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "smartbook_g138_id.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -60,7 +61,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

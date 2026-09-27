@@ -5,6 +5,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "nokia_lumia_800_id.h"
 
 #include <atomic>
 #include <cstdint>
@@ -18,14 +19,15 @@ constexpr uint32_t kRegLatch017C = 0x17Cu;
 constexpr uint32_t kRegProbe01AA = 0x1AAu;
 constexpr uint32_t kRegLatch01B0 = 0x1B0u;
 
-constexpr uint8_t kProbe01AAStub = 0xFFu;
+constexpr uint8_t  kProbe01AAStub     = 0xFFu;
+constexpr uint16_t kProbe01AAStubHalf = 0xFFFFu;
 
 class NokiaLumia800Ebi2Cs6 : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetBoard() == Board::NokiaLumia800;
+        return emu_.Get<BoardContext>().GetBoardId() == BoardId::NokiaLumia800;
     }
 
     void OnReady() override {
@@ -42,6 +44,13 @@ public:
         return kProbe01AAStub;
     }
 
+    uint16_t ReadHalf(uint32_t addr) override {
+        if (addr - MmioBase() != kRegProbe01AA) {
+            HaltUnsupportedAccess("ReadHalf", addr, 0);
+        }
+        return kProbe01AAStubHalf;
+    }
+
     void WriteHalf(uint32_t addr, uint16_t value) override {
         const uint32_t off = addr - MmioBase();
         switch (off) {
@@ -52,15 +61,15 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write<uint16_t>(latch_017c_.load(std::memory_order_acquire));
-        w.Write<uint16_t>(latch_01b0_.load(std::memory_order_acquire));
+        w.Write<uint16_t>("latch_017c", latch_017c_.load(std::memory_order_acquire));
+        w.Write<uint16_t>("latch_01b0", latch_01b0_.load(std::memory_order_acquire));
     }
 
     void RestoreState(StateReader& r) override {
         uint16_t latch_017c = 0;
         uint16_t latch_01b0 = 0;
-        r.Read(latch_017c);
-        r.Read(latch_01b0);
+        r.Read("latch_017c", latch_017c);
+        r.Read("latch_01b0", latch_01b0);
         latch_017c_.store(latch_017c, std::memory_order_release);
         latch_01b0_.store(latch_01b0, std::memory_order_release);
     }

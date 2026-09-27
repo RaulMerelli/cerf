@@ -6,6 +6,8 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
@@ -16,8 +18,16 @@ class PeripheralDispatcher : public Service {
 public:
     using Service::Service;
 
+    using DataInversionId = uint32_t;
+
     void Register(Peripheral* p);
     void RegisterResettable(Peripheral* p);
+
+    DataInversionId InstallDataInversion(uint32_t base, uint32_t end);
+
+    void SetDataInversion(DataInversionId id, bool inverting);
+
+    bool OverlapsDataInversion(uint32_t base, uint32_t size) const;
 
     bool IsPeripheralAddress(uint32_t addr) const;
 
@@ -41,16 +51,37 @@ private:
     };
 
     void RestoreResetBaselines(ResetKind reset_kind);
+    struct InversionRange {
+        uint32_t base;
+        uint32_t end;
+    };
+
+    struct InvertedTarget {
+        Peripheral::FastReadFn  read;
+        Peripheral::FastWriteFn write;
+        void*                   ctx;
+    };
+
     struct Entry {
         uint32_t                base;
-        uint32_t                size;
+        uint32_t                end;      /* exclusive */
         Peripheral::FastReadFn  read;
         Peripheral::FastWriteFn write;
         void*                   ctx;
         Peripheral*             p;
+        const InvertedTarget*   inverted;
     };
 
     using EntryTable = std::vector<Entry>;
+
+    static uint32_t InvertedRead (void* ctx, uint32_t off, uint32_t width_bytes);
+    static void     InvertedWrite(void* ctx, uint32_t off, uint32_t value, uint32_t width_bytes);
+
+    static constexpr uint32_t kMaxDataInversions = 32u;
+
+    bool OverlapsDataInversionLocked(uint32_t base, uint64_t end) const;
+    const InversionRange* InversionRangeOf(const Entry& entry) const;
+    void PublishLocked();
 
 public:
     uint32_t Read(uint32_t addr, MmioWidth width) {
@@ -89,7 +120,7 @@ private:
         const size_t cached = last_hit_.load(std::memory_order_relaxed);
         if (cached >= t->size()) return nullptr;
         const Entry& hit = (*t)[cached];
-        if (addr - hit.base >= hit.size) return nullptr;
+        if (addr < hit.base || addr >= hit.end) return nullptr;
         return &hit;
     }
 
@@ -101,6 +132,13 @@ private:
 
     std::atomic<const EntryTable*>          live_{nullptr};
     std::vector<std::unique_ptr<EntryTable>> tables_;
+
+    mutable std::mutex                            table_mutex_;
+    EntryTable                                    entries_;
+    std::vector<InversionRange>                   inversions_;
+    uint32_t                                      active_inversions_ = 0u;
+    std::unordered_map<uint32_t, const EntryTable*> table_by_active_;
+    std::vector<std::unique_ptr<InvertedTarget>>  inverted_targets_;
 
     mutable std::atomic<size_t> last_hit_{0};
 

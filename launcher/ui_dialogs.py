@@ -2,24 +2,35 @@
 canned launcher dialog (ROM license, guest-additions help)."""
 from __future__ import annotations
 
+import os
 import tkinter as tk
 import webbrowser
+from pathlib import Path
 from tkinter import ttk
 from typing import Callable, Dict, Optional, Tuple
 
 from copyright_removal_dialog import (BUTTON_LABEL as COPYRIGHT_BUTTON_LABEL,
                                       ContactsFn, show_copyright_removal)
 from device_state import DeviceSource
+from dialog_buttons import pack_actions
 import ui_theme as theme
 
 
 DISCORD_URL = "https://discord.gg/QREE9Y2v2d"
 WEBSITE_URL = "https://cerf.cx"
 GUEST_ADDITIONS_URL = "https://cerf.cx/articles/guest-additions/"
+HIBERNATION_WARNING_URL = "https://cerf.cx/hibernation-warning"
 
 # Funding target, mirroring .github/FUNDING.yml (patreon: dz3n) - that file is
 # not shipped with the packaged launcher, so the handle is spelled out here.
 PATREON_URL = "https://www.patreon.com/dz3n"
+
+
+def open_device_directory(parent: tk.Misc, path: Path) -> None:
+    try:
+        os.startfile(str(path))
+    except OSError as exc:
+        show_error(parent, "Open device directory", str(exc))
 
 
 def _run_extra(dlg: tk.Toplevel, handler: Callable[[tk.Misc], None]) -> None:
@@ -56,15 +67,15 @@ def show_dialog(parent: tk.Misc, title: str, message: str,
 
     btns = ttk.Frame(row)
     btns.pack(side="right")
-    for i, label in enumerate(buttons):
-        def click(l=label):
-            result["value"] = l
-            dlg.destroy()
-        b = ttk.Button(btns, text=label, command=click)
-        b.pack(side="left", padx=(6, 0))
-        if i == 0:
-            b.focus_set()
-        dlg.bind("<Return>", lambda _e, l=label: click(l)) if i == 0 else None
+
+    def click(label: str) -> None:
+        result["value"] = label
+        dlg.destroy()
+
+    primary = pack_actions(btns, [(label, lambda l=label: click(l))
+                                  for label in buttons])[0]
+    primary.focus_set()
+    dlg.bind("<Return>", lambda _e: click(buttons[0]))
     dlg.bind("<Escape>", lambda _e: dlg.destroy())
 
     dlg.update_idletasks()
@@ -106,9 +117,7 @@ def ask_text(parent: tk.Misc, title: str, prompt: str,
 
     btns = ttk.Frame(body)
     btns.pack(anchor="e", pady=(14, 0))
-    ttk.Button(btns, text="OK", command=accept).pack(side="left", padx=(6, 0))
-    ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left",
-                                                              padx=(6, 0))
+    pack_actions(btns, [("OK", accept), ("Cancel", dlg.destroy)])
     dlg.bind("<Return>", lambda _e: accept())
     dlg.bind("<Escape>", lambda _e: dlg.destroy())
 
@@ -168,12 +177,7 @@ def show_dpi_help(parent: tk.Misc) -> None:
         "Overrides the logical DPI (pixels-per-inch) the CERF guest display "
         "driver reports to the OS. It changes what the OS believes the screen "
         "density is - it most likely causes rendering artifacts and broken "
-        "graphics.\n\n"
-        "Known behaviour:\n"
-        "• Restores VGA (2×) mode on Device Emulator ROMs.\n"
-        "• Scales readable / printable text (documents, web pages) on older "
-        "CE versions.\n"
-        "• Works best on Alt-Controls (touch-style) ROMs."
+        "graphics."
     )
 
 
@@ -187,7 +191,7 @@ def show_bpp_help(parent: tk.Misc) -> None:
         "• 8 bpp - Should be used for Windows CE 2.0.\n"
         "• 16 bpp - Known to work best for Windows CE 2.11-3 era.\n"
         "• 24 bpp - Known to work best for all CE eras.\n"
-        "• 32 bpp - Supported by newer CE 2.11+ but often breaks rendering "
+        "• 32 bpp - Supported ~since CE 2.11+ but often breaks rendering "
         "in guest apps."
     )
 
@@ -262,9 +266,7 @@ def show_sources_thanks(parent: tk.Misc, sources) -> None:
 
     btns = ttk.Frame(body)
     btns.pack(anchor="e", pady=(14, 0))
-    ok = ttk.Button(btns, text="OK", command=dlg.destroy)
-    ok.pack(side="left")
-    ok.focus_set()
+    pack_actions(btns, [("OK", dlg.destroy)])[0].focus_set()
     dlg.bind("<Return>", lambda _e: dlg.destroy())
     dlg.bind("<Escape>", lambda _e: dlg.destroy())
 

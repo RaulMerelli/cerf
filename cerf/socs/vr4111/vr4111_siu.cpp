@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_siu_reset_csel.h"
 
 #include "../../boards/board_context.h"
+#include "vr4111_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4111;
+        return bd && bd->GetSocId() == SocId::Vr4111;
     }
 };
 

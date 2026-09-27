@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/msm8255/msm8255_id.h"
 
 namespace {
 
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::MSM8255;
+        return bd && bd->GetSocId() == SocId::Msm8255;
     }
 
     /* Linux arch/arm/include/asm/cputype.h ARM_CPU_PART_SCORPION 0x510002d0

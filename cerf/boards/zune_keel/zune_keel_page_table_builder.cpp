@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "zune_30_id.h"
 #include "../../cpu/emulated_memory.h"
 
 #include <cstdint>
@@ -50,7 +51,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::ZuneKeel;
+        return bd && bd->GetBoardId() == BoardId::Zune30;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

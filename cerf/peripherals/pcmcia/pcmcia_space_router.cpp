@@ -1,6 +1,9 @@
 #include "pcmcia_space_router.h"
 
 #include "../../boards/board_context.h"
+#include "../../socs/sa11xx/sa1110_id.h"
+#include "../../socs/pxa255/pxa255_id.h"
+#include "../../socs/sa11xx/sa1100_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "pcmcia_slot.h"
@@ -17,9 +20,9 @@ constexpr uint16_t kFloat16 = 0xFFFFu;
 bool PcmciaSpaceRouter::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::SA1110 || soc == SocFamily::PXA25x ||
-           soc == SocFamily::SA1100;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Sa1110 || soc == SocId::Pxa255 ||
+           soc == SocId::Sa1100;
 }
 
 void PcmciaSpaceRouter::OnReady() {
@@ -36,20 +39,21 @@ PcmciaSlot* PcmciaSpaceRouter::Socket(int n) const {
     return (n == 0 || n == 1) ? sockets_[n] : nullptr;
 }
 
-/* Socket wiring is board-deterministic (same ROM -> same ProvideSockets),
-   so the present/absent pattern is symmetric across save and restore. */
 void PcmciaSpaceRouter::SaveState(StateWriter& w) {
     for (int i = 0; i < 2; ++i) {
         PcmciaSlot* s = sockets_[i];
-        w.Write<uint8_t>(s ? 1u : 0u);
+        w.Write<uint8_t>("socket_present", s ? 1u : 0u);
         if (s) s->SaveSlotState(w);
     }
 }
 
 void PcmciaSpaceRouter::RestoreState(StateReader& r) {
     for (int i = 0; i < 2; ++i) {
-        uint8_t present = 0; r.Read(present);
-        if (present && sockets_[i]) sockets_[i]->RestoreSlotState(r);
+        uint8_t present = 0; r.Read("socket_present", present);
+        if ((present != 0u) != (sockets_[i] != nullptr))
+            r.Reject("socket %d is %s in the image and %s in this build", i,
+                     present ? "wired" : "absent", sockets_[i] ? "wired" : "absent");
+        if (sockets_[i]) sockets_[i]->RestoreSlotState(r);
     }
 }
 

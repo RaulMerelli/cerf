@@ -1,6 +1,8 @@
 #include "pr31x00_ir.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -39,8 +41,8 @@ constexpr uint32_t kNegCarInt     = 1u << 14;
 bool Pr31x00Ir::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00Ir::OnReady() {
@@ -74,14 +76,14 @@ void Pr31x00Ir::DriveCarDetInput(bool level) {
 }
 
 void Pr31x00Ir::SaveState(StateWriter& w) {
-    w.Write(ctl1_);
-    w.Write<uint8_t>(cardet_.load(std::memory_order_acquire) ? 1u : 0u);
+    w.Write("ctl1", ctl1_);
+    w.Write<uint8_t>("cardet", cardet_.load(std::memory_order_acquire) ? 1u : 0u);
 }
 
 void Pr31x00Ir::RestoreState(StateReader& r) {
-    r.Read(ctl1_);
+    r.Read("ctl1", ctl1_);
     uint8_t cardet = 0;
-    r.Read(cardet);
+    r.Read("cardet", cardet);
     cardet_.store(cardet != 0u, std::memory_order_release);
 }
 

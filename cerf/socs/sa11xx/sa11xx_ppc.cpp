@@ -3,6 +3,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -13,8 +15,8 @@
 
 bool Sa11xxPpc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 ||
-                  bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 ||
+                  bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxPpc::OnReady() {
@@ -104,16 +106,16 @@ void Sa11xxPpc::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxPpc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(mtx_);
-    w.WriteBytes(regs_, sizeof(regs_));
-    w.Write(input_state_);
-    w.Write(mccr1_);
+    w.WriteBytes("regs", regs_, sizeof(regs_));
+    w.Write("input_state", input_state_);
+    w.Write("mccr1", mccr1_);
 }
 
 void Sa11xxPpc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mtx_);
-    r.ReadBytes(regs_, sizeof(regs_));
-    r.Read(input_state_);
-    r.Read(mccr1_);
+    r.ReadBytes("regs", regs_, sizeof(regs_));
+    r.Read("input_state", input_state_);
+    r.Read("mccr1", mccr1_);
 }
 
 REGISTER_SERVICE(Sa11xxPpc);

@@ -1,10 +1,12 @@
 #include "../../boot/guest_cold_boot.h"
 #include "../../boot/rom_placer.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/service.h"
 #include "../../cpu/emulated_memory.h"
 #include "../board_context.h"
+#include "siemens_p177_id.h"
 
 #include <array>
 #include <cstdint>
@@ -32,7 +34,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensP177;
+        return bd && bd->GetBoardId() == BoardId::SiemensP177;
     }
 
     void OnReady() override {
@@ -47,10 +49,7 @@ private:
     void WriteHwi() {
         std::array<uint8_t, kHwInfoSize> hwi{};
 
-        auto put16 = [&](size_t off, uint16_t v) {
-            hwi[off]     = (uint8_t)(v & 0xFFu);
-            hwi[off + 1] = (uint8_t)(v >> 8);
-        };
+        auto put16 = [&](size_t off, uint16_t v) { cerf::le::Put16(hwi.data() + off, v); };
 
         /* Block copied verbatim to 0x8011F4F8; offset N -> global 0x8011F4F8+N. */
         hwi[0x00] = 0xA5u;     /* 0x8011F4F8 leading signature                  */

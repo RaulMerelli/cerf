@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -27,7 +28,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX51;
+        return bd && bd->GetSocId() == SocId::Imx51;
     }
     void OnReady() override {
         for (const auto& r : kResets) regs_[r.off >> 2] = r.val;
@@ -51,8 +52,8 @@ public:
     void WriteHalf(uint32_t a, uint16_t v) override { Merge(a - kBase, v, (a & 2u) * 8u, 0xFFFFu); }
     void WriteWord(uint32_t a, uint32_t v) override { regs_[(a - kBase) >> 2] = v; }
 
-    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_.data(), sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_.data(), sizeof(regs_)); }
+    void SaveState(StateWriter& w) override    { w.WriteBytes("regs", regs_.data(), sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_.data(), sizeof(regs_)); }
 
 private:
     void Merge(uint32_t off, uint32_t v, uint32_t shift, uint32_t vmask) {

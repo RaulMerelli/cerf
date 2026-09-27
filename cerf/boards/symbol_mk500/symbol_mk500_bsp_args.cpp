@@ -1,4 +1,5 @@
 #include "../board_context.h"
+#include "symbol_mk500_id.h"
 
 #include "../../boot/guest_cold_boot.h"
 #include "../../core/cerf_emulator.h"
@@ -39,7 +40,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SymbolMk500;
+        return bd && bd->GetBoardId() == BoardId::SymbolMk500;
     }
 
     void OnReady() override {

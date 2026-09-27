@@ -4,10 +4,11 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 
 bool Jornada720Battery::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada720;
+    return bd && bd->GetBoardId() == BoardId::Jornada720;
 }
 
 void Jornada720Battery::OnReady() {

@@ -5,6 +5,7 @@
 #include "msm8255_rpcrouter_wire.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -14,7 +15,7 @@
 
 bool Msm8255OncrpcCodec::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::MSM8255;
+    return bd && bd->GetSocId() == SocId::Msm8255;
 }
 
 Msm8255OncrpcCall Msm8255OncrpcCodec::ParseCall(const Msm8255RpcServer& server,

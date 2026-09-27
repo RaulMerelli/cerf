@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_e55_id.h"
 
 namespace {
 
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
     }
 
     std::optional<Vr41xxSerialModem> ForSiu() const override {

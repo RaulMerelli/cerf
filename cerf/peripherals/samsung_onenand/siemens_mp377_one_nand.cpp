@@ -1,11 +1,13 @@
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../../socs/guest_cpu_reset.h"
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
 
 #include <algorithm>
 #include <array>
@@ -46,7 +48,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensMP377;
+        return bd && bd->GetBoardId() == BoardId::SiemensMp377;
     }
     void OnReady() override {
         backing_.assign(kBackingSize, uint8_t{0xFFu});
@@ -87,18 +89,12 @@ public:
     }
     uint16_t ReadHalf(uint32_t addr) override {
         const uint32_t off = DecodeOffset(addr);
-        if (off < kBufferRamEnd) {
-            const size_t i = off & ~uint32_t{1};
-            return static_cast<uint16_t>(data_ram_[i] | (data_ram_[i + 1] << 8));
-        }
-        if (off >= kSpareRamBase && off < kSpareRamEnd) {
-            const size_t i = (off - kSpareRamBase) & ~uint32_t{1};
-            return static_cast<uint16_t>(spare_ram_[i] | (spare_ram_[i + 1] << 8));
-        }
-        if (off >= kBootStateMirrorBase && off < kBootStateMirrorEnd) {
-            const size_t i = (off - kBootStateMirrorBase) & ~uint32_t{1};
-            return static_cast<uint16_t>(boot_state_mirror_[i] | (boot_state_mirror_[i + 1] << 8));
-        }
+        if (off < kBufferRamEnd)
+            return cerf::le::U16(data_ram_.data(), off & ~uint32_t{1});
+        if (off >= kSpareRamBase && off < kSpareRamEnd)
+            return cerf::le::U16(spare_ram_.data(), (off - kSpareRamBase) & ~uint32_t{1});
+        if (off >= kBootStateMirrorBase && off < kBootStateMirrorEnd)
+            return cerf::le::U16(boot_state_mirror_.data(), (off - kBootStateMirrorBase) & ~uint32_t{1});
         /* siemens_mp377_v1040 TFFS3.dll sub_2BD2740; Samsung OneNAND
            ECC Status Register 0, chip word 0xFF00. */
         if (off == 0x3FC00u || off == 0x3FC02u) return 0;
@@ -129,21 +125,15 @@ public:
     void WriteHalf(uint32_t addr, uint16_t v) override {
         const uint32_t off = DecodeOffset(addr);
         if (off < kBufferRamEnd) {
-            const size_t i = off & ~uint32_t{1};
-            data_ram_[i] = static_cast<uint8_t>(v & uint8_t{0xFFu});
-            data_ram_[i + 1] = static_cast<uint8_t>((v >> 8) & uint8_t{0xFFu});
+            cerf::le::Put16(data_ram_.data() + (off & ~uint32_t{1}), v);
             return;
         }
         if (off >= kSpareRamBase && off < kSpareRamEnd) {
-            const size_t i = (off - kSpareRamBase) & ~uint32_t{1};
-            spare_ram_[i] = static_cast<uint8_t>(v & uint8_t{0xFFu});
-            spare_ram_[i + 1] = static_cast<uint8_t>((v >> 8) & uint8_t{0xFFu});
+            cerf::le::Put16(spare_ram_.data() + ((off - kSpareRamBase) & ~uint32_t{1}), v);
             return;
         }
         if (off >= kBootStateMirrorBase && off < kBootStateMirrorEnd) {
-            const size_t i = (off - kBootStateMirrorBase) & ~uint32_t{1};
-            boot_state_mirror_[i] = static_cast<uint8_t>(v & uint8_t{0xFFu});
-            boot_state_mirror_[i + 1] = static_cast<uint8_t>((v >> 8) & uint8_t{0xFFu});
+            cerf::le::Put16(boot_state_mirror_.data() + ((off - kBootStateMirrorBase) & ~uint32_t{1}), v);
             return;
         }
         RegWrite16(off, v);
@@ -154,51 +144,51 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        WriteVector(w, backing_);
-        WriteVector(w, spare_);
-        w.WriteBytes(data_ram_.data(), data_ram_.size());
-        w.WriteBytes(spare_ram_.data(), spare_ram_.size());
-        w.WriteBytes(boot_state_mirror_.data(), boot_state_mirror_.size());
-        w.Write(start_addr_1_);
-        w.Write(start_addr_2_);
-        w.Write(start_addr_3_);
-        w.Write(start_addr_4_);
-        w.Write(start_addr_5_);
-        w.Write(start_addr_6_);
-        w.Write(start_addr_7_);
-        w.Write(start_addr_8_);
-        w.Write(start_buffer_);
-        w.Write(sys_cfg_);
-        w.Write(ctrl_status_);
-        w.Write(interrupt_status_);
-        w.Write(unlock_start_);
-        w.Write(unlock_end_);
-        w.WriteBytes(block_unlocked_.data(), block_unlocked_.size());
-        w.Write(last_cmd_);
+        w.WriteBytes("backing", backing_.data(), backing_.size());
+        w.WriteBytes("spare", spare_.data(), spare_.size());
+        w.WriteBytes("data_ram", data_ram_.data(), data_ram_.size());
+        w.WriteBytes("spare_ram", spare_ram_.data(), spare_ram_.size());
+        w.WriteBytes("boot_state_mirror", boot_state_mirror_.data(), boot_state_mirror_.size());
+        w.Write("start_addr_1", start_addr_1_);
+        w.Write("start_addr_2", start_addr_2_);
+        w.Write("start_addr_3", start_addr_3_);
+        w.Write("start_addr_4", start_addr_4_);
+        w.Write("start_addr_5", start_addr_5_);
+        w.Write("start_addr_6", start_addr_6_);
+        w.Write("start_addr_7", start_addr_7_);
+        w.Write("start_addr_8", start_addr_8_);
+        w.Write("start_buffer", start_buffer_);
+        w.Write("sys_cfg", sys_cfg_);
+        w.Write("ctrl_status", ctrl_status_);
+        w.Write("interrupt_status", interrupt_status_);
+        w.Write("unlock_start", unlock_start_);
+        w.Write("unlock_end", unlock_end_);
+        w.WriteBytes("block_unlocked", block_unlocked_.data(), block_unlocked_.size());
+        w.Write("last_cmd", last_cmd_);
     }
 
     void RestoreState(StateReader& r) override {
-        ReadVector(r, backing_, kBackingSize, "OneNAND backing state size");
-        ReadVector(r, spare_, kSpareSize, "OneNAND spare state size");
-        r.ReadBytes(data_ram_.data(), data_ram_.size());
-        r.ReadBytes(spare_ram_.data(), spare_ram_.size());
-        r.ReadBytes(boot_state_mirror_.data(), boot_state_mirror_.size());
-        r.Read(start_addr_1_);
-        r.Read(start_addr_2_);
-        r.Read(start_addr_3_);
-        r.Read(start_addr_4_);
-        r.Read(start_addr_5_);
-        r.Read(start_addr_6_);
-        r.Read(start_addr_7_);
-        r.Read(start_addr_8_);
-        r.Read(start_buffer_);
-        r.Read(sys_cfg_);
-        r.Read(ctrl_status_);
-        r.Read(interrupt_status_);
-        r.Read(unlock_start_);
-        r.Read(unlock_end_);
-        r.ReadBytes(block_unlocked_.data(), block_unlocked_.size());
-        r.Read(last_cmd_);
+        r.ReadBytes("backing", backing_.data(), backing_.size());
+        r.ReadBytes("spare", spare_.data(), spare_.size());
+        r.ReadBytes("data_ram", data_ram_.data(), data_ram_.size());
+        r.ReadBytes("spare_ram", spare_ram_.data(), spare_ram_.size());
+        r.ReadBytes("boot_state_mirror", boot_state_mirror_.data(), boot_state_mirror_.size());
+        r.Read("start_addr_1", start_addr_1_);
+        r.Read("start_addr_2", start_addr_2_);
+        r.Read("start_addr_3", start_addr_3_);
+        r.Read("start_addr_4", start_addr_4_);
+        r.Read("start_addr_5", start_addr_5_);
+        r.Read("start_addr_6", start_addr_6_);
+        r.Read("start_addr_7", start_addr_7_);
+        r.Read("start_addr_8", start_addr_8_);
+        r.Read("start_buffer", start_buffer_);
+        r.Read("sys_cfg", sys_cfg_);
+        r.Read("ctrl_status", ctrl_status_);
+        r.Read("interrupt_status", interrupt_status_);
+        r.Read("unlock_start", unlock_start_);
+        r.Read("unlock_end", unlock_end_);
+        r.ReadBytes("block_unlocked", block_unlocked_.data(), block_unlocked_.size());
+        r.Read("last_cmd", last_cmd_);
     }
 
     static constexpr uint32_t kOneNandAliasStride = 0x00040000u;
@@ -209,22 +199,6 @@ public:
     }
 
 private:
-    static void WriteVector(StateWriter& w, const std::vector<uint8_t>& v) {
-        const uint64_t n = static_cast<uint64_t>(v.size());
-        w.Write(n);
-        if (n) w.WriteBytes(v.data(), static_cast<size_t>(n));
-    }
-
-    void ReadVector(StateReader& r, std::vector<uint8_t>& v, size_t expected, const char* what) {
-        uint64_t n = 0;
-        r.Read(n);
-        if (n != static_cast<uint64_t>(expected)) {
-            HaltUnsupportedAccess(what, MmioBase(), n);
-        }
-        v.resize(expected);
-        if (expected) r.ReadBytes(v.data(), expected);
-    }
-
     /* Page index in the backing array: linear page number computed from
        Start Address 1 (block) + Start Address 8 (page-in-block). sub_2BD2C14
        writes SA8 as ((page << 2) | 1), replicated across both halfwords. */

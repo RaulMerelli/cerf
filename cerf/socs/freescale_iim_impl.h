@@ -17,14 +17,14 @@ namespace cerf_freescale_iim_detail {
 
 constexpr uint32_t kSize = 0x00004000u;  /* AIPS 16 KB peripheral slot */
 
-template <uint32_t Base, SocFamily Soc>
+template <uint32_t Base, const std::string_view& Soc>
 class FreescaleIimBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == Soc;
+        return bd && bd->GetSocId() == Soc;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 

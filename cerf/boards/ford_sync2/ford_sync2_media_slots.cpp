@@ -3,6 +3,7 @@
 #include "../../core/cerf_paths.h"
 #include "../../core/string_utils.h"
 #include "../../boards/board_context.h"
+#include "ford_sync_2_id.h"
 #include "../../socs/imx51/imx51_usboh3.h"
 #include "../../host/host_widget_registry.h"
 #include "../../host/host_icon_cache.h"
@@ -22,7 +23,7 @@ public:
     using Service::Service;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
 
     class SlotWidget final : public HostWidget {

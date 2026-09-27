@@ -1,19 +1,19 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../core/log.h"
-#include "../../core/virtual_clock.h"
-#include "../../core/virtual_timer_list.h"
+#include "../../jit/guest_cycle_clock.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "../cycle_anchored_counter.h"
 #include "../guest_cpu_reset.h"
 #include "../irq_controller.h"
 #include "s3c2410_clocks.h"
 
 #include <cstdint>
-#include <mutex>
 
 namespace {
 
@@ -22,8 +22,6 @@ struct TimerBits {
     int manual_update;
     int auto_reload;
 };
-/* S3C2410A UM p.10-13/10-14 TCON: start/stop, manual update and auto reload
-   bits per timer; timer 4 carries no output-inverter bit. */
 constexpr TimerBits kTcon[5] = {
     { 0,   1,   3  },
     { 8,   9,   11 },
@@ -32,11 +30,8 @@ constexpr TimerBits kTcon[5] = {
     { 20,  21,  22 },
 };
 
-/* S3C2410A User Manual, printed p. 14-7: SRCPND INT_TIMER0 [10] .. INT_TIMER4
-   [14]. */
 constexpr int kIrqTimerN[5] = { 10, 11, 12, 13, 14 };
 
-/* S3C2410A UM p.10-15/10-19: TCNTBn, TCMPBn and TCNTOn are all [15:0]. */
 constexpr uint32_t kCountMask = 0xFFFFu;
 
 class S3C2410Timer : public Peripheral {
@@ -45,15 +40,18 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
     void OnReady() override {
-        auto& timers = emu_.Get<VirtualTimerList>();
+        clocks_ = &emu_.Get<S3C2410Clocks>();
+        clock_  = &emu_.Get<GuestCycleClock>();
+        gated_  = !clocks_->PwmTimerClockOn();
         for (int i = 0; i < 5; ++i) {
-            entry_[i] = timers.Add([this, i] { OnDeadline(i); });
+            event_[i] = clock_->Add([this, i] { OnMatch(i); });
+            SetUnits(i);
         }
+        clocks_->RegisterRateListener([this] { Reconfigure(tcfg0_, tcfg1_, Now()); });
         emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
-            std::lock_guard<std::mutex> lk(state_mutex_);
             OnResetLine();
         });
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -74,44 +72,45 @@ private:
 
     static DecodedReg DecodeReg(uint32_t offset);
 
-    static int64_t TicksToNs(uint32_t ticks, uint64_t freq_hz) {
-        return static_cast<int64_t>(
-            static_cast<uint64_t>(ticks) * 1000000000ull / freq_hz);
-    }
-    static uint32_t NsToTicks(int64_t ns, uint64_t freq_hz) {
-        if (ns <= 0) return 0;
-        return static_cast<uint32_t>(
-            static_cast<uint64_t>(ns) * freq_hz / 1000000000ull);
-    }
-
-    int64_t NowNs() const { return emu_.Get<VirtualClock>().NowNs(); }
-
-    uint64_t TimerFreqHz(int n) const;
-    uint32_t CountAtLocked(int n, int64_t now) const;
-    void     ReanchorLocked(int n, int64_t now);
-    void     ArmLocked(int n);
-    void     ApplyTconWrite(uint32_t new_tcon, int64_t now);
-
-    void OnDeadline(int n);
-    void OnResetLine();
-
     struct TimerState {
-        uint32_t tcntb       = 0;
-        uint32_t tcmpb       = 0;
-        bool     running     = false;
-        bool     auto_reload = false;
-        /* S3C2410A UM p.10-3: TCNTn is the internal down counter that TCNTOn
-           reads. */
-        int64_t  anchor_ns   = 0;
-        uint32_t count       = 0;
+        uint32_t tcntb          = 0;
+        uint32_t tcmpb          = 0;
+        bool     running        = false;
+        bool     auto_reload    = false;
+        bool     reload_pending = false;
+        uint32_t count          = 0;
+        uint64_t start_tick     = 0;
+        uint64_t epoch_tick     = 0;
+        uint64_t ratio_cycles   = 0;
+        uint64_t ratio_ticks    = 0;
+        uint64_t freeze_cycle   = 0;
+        CycleAnchoredCounter epoch;
     };
 
-    mutable std::mutex       state_mutex_;
-    uint32_t                 tcfg0_ = 0;
-    uint32_t                 tcfg1_ = 0;
-    uint32_t                 tcon_  = 0;
-    TimerState               timers_[5];
-    VirtualTimerList::Entry* entry_[5] = {};
+    uint64_t Now() const { return clock_->Cycles(); }
+
+    void     SetUnits(int n);
+    uint64_t ChannelDivisor(int n) const;
+    uint64_t TickAt(const TimerState& t, uint64_t cycles) const;
+    uint64_t EdgeCycles(const TimerState& t, uint64_t tick) const;
+    uint32_t CountAt(int n, uint64_t now) const;
+    void     StartPeriod(int n, uint64_t now);
+    void     Reanchor(int n, uint64_t now);
+    void     ArmTimer(int n);
+    void     ApplyTconWrite(uint32_t new_tcon, uint64_t now);
+
+    void OnMatch(int n);
+    void Reconfigure(uint32_t tcfg0, uint32_t tcfg1, uint64_t now);
+    void OnResetLine();
+
+    S3C2410Clocks*          clocks_   = nullptr;
+    GuestCycleClock*        clock_    = nullptr;
+    GuestCycleClock::Event* event_[5] = {};
+    bool                    gated_    = false;
+    uint32_t                tcfg0_    = 0;
+    uint32_t                tcfg1_    = 0;
+    uint32_t                tcon_     = 0;
+    TimerState              timers_[5];
 };
 
 S3C2410Timer::DecodedReg S3C2410Timer::DecodeReg(uint32_t offset) {
@@ -133,76 +132,113 @@ S3C2410Timer::DecodedReg S3C2410Timer::DecodeReg(uint32_t offset) {
     return { RegKind::OutOfRange, 0 };
 }
 
-uint64_t S3C2410Timer::TimerFreqHz(int n) const {
-    /* S3C2410A UM p.10-11: "Timer input clock Frequency = PCLK / {prescaler
-       value+1} / {divider value}"; TCFG0[7:0] prescales timers 0 and 1,
-       TCFG0[15:8] prescales timers 2, 3 and 4. */
+uint64_t S3C2410Timer::ChannelDivisor(int n) const {
     const uint64_t presc = (n <= 1)
         ? ((tcfg0_      ) & 0xFFu) + 1u
         : ((tcfg0_ >> 8 ) & 0xFFu) + 1u;
+    const uint32_t mux = (tcfg1_ >> (n * 4)) & 0xFu;
+    return presc * (1ull << (mux + 1));
+}
 
-    /* S3C2410A UM p.10-12 TCFG1: MUXn 0000/0001/0010/0011 select 1/2, 1/4,
-       1/8 and 1/16; 01xx selects the external TCLK input. */
+void S3C2410Timer::SetUnits(int n) {
     const uint32_t mux = (tcfg1_ >> (n * 4)) & 0xFu;
     if (mux >= 4u) {
         emu_.Get<Fatal>().Die("S3C2410Timer: timer %d MUX %u selects external "
                               "TCLK, which CERF does not model", n, mux);
     }
-    return kS3C2410PclkHz / presc / (1ull << (mux + 1));
+    TimerState& t = timers_[n];
+    t.ratio_ticks  = clocks_->PclkHz();
+    t.ratio_cycles = clocks_->CoreClockHz() * ChannelDivisor(n);
+    if (!t.epoch.SetRatio(t.ratio_cycles, t.ratio_ticks)) {
+        emu_.Get<Fatal>().Die("S3C2410Timer: timer %d tick ratio %llu:%llu "
+                              "overflows the 64-bit scale", n,
+                              static_cast<unsigned long long>(t.ratio_ticks),
+                              static_cast<unsigned long long>(t.ratio_cycles));
+    }
 }
 
-uint32_t S3C2410Timer::CountAtLocked(int n, int64_t now) const {
+/* S3C2410A UM printed p. 7-21 CLKCON [8]: "Control PCLK into PWMTIMER block". */
+uint64_t S3C2410Timer::TickAt(const TimerState& t, uint64_t cycles) const {
+    if (gated_ && cycles > t.freeze_cycle) cycles = t.freeze_cycle;
+    if (cycles < t.epoch.AnchorCycle()) return t.epoch_tick - 1u;
+    return t.epoch_tick + t.epoch.TicksSince(cycles);
+}
+
+uint64_t S3C2410Timer::EdgeCycles(const TimerState& t, uint64_t tick) const {
+    if (tick < t.epoch_tick) {
+        emu_.Get<Fatal>().Die("S3C2410Timer: edge %llu precedes the epoch edge %llu",
+                              static_cast<unsigned long long>(tick),
+                              static_cast<unsigned long long>(t.epoch_tick));
+    }
+    return t.epoch.CycleOfTick(tick - t.epoch_tick);
+}
+
+/* S3C2410A UM p.10-3 Figure 10-2: TCNTn holds its loaded value until the
+   next timer-clock edge, steps down once per edge, and requests the interrupt
+   as it reaches 0; an auto reload takes effect one edge after the 0. */
+uint32_t S3C2410Timer::CountAt(int n, uint64_t now) const {
     const TimerState& t = timers_[n];
     if (!t.running) return t.count;
-    const uint64_t freq    = TimerFreqHz(n);
-    const int64_t  elapsed = now - t.anchor_ns;
-    if (elapsed >= TicksToNs(t.count, freq)) return 0;
-    return t.count - NsToTicks(elapsed, freq);
+    const uint64_t tick = TickAt(t, now);
+    if (tick < t.start_tick) return t.reload_pending ? 0u : t.count;
+    const uint64_t since = tick - t.start_tick;
+    if (since >= t.count) return 0;
+    return static_cast<uint32_t>(t.count - since);
 }
 
-void S3C2410Timer::ReanchorLocked(int n, int64_t now) {
-    timers_[n].count     = CountAtLocked(n, now);
-    timers_[n].anchor_ns = now;
+void S3C2410Timer::StartPeriod(int n, uint64_t now) {
+    TimerState& t    = timers_[n];
+    t.start_tick     = TickAt(t, now) + 1u;
+    t.reload_pending = false;
 }
 
-void S3C2410Timer::ArmLocked(int n) {
+void S3C2410Timer::Reanchor(int n, uint64_t now) {
     TimerState& t = timers_[n];
-    if (!t.running) {
-        entry_[n]->Arm(VirtualTimerList::kNoDeadline);
+    const bool pending = t.running && TickAt(t, now) < t.start_tick;
+    if (!pending) {
+        t.count          = CountAt(n, now);
+        t.reload_pending = false;
+    }
+    t.epoch.Anchor(now, 0u);
+    t.epoch_tick   = 0;
+    t.freeze_cycle = now;
+    t.start_tick = pending ? 1u : 0u;
+}
+
+void S3C2410Timer::ArmTimer(int n) {
+    const TimerState& t = timers_[n];
+    if (!t.running || gated_) {
+        clock_->Disarm(event_[n]);
         return;
     }
-    entry_[n]->Arm(t.anchor_ns + TicksToNs(t.count, TimerFreqHz(n)));
+    const uint64_t zero = t.start_tick + t.count;
+    clock_->Arm(event_[n], zero < t.epoch_tick ? Now() : EdgeCycles(t, zero));
 }
 
-void S3C2410Timer::ApplyTconWrite(uint32_t new_tcon, int64_t now) {
+void S3C2410Timer::ApplyTconWrite(uint32_t new_tcon, uint64_t now) {
     for (int i = 0; i < 5; ++i) {
         const TimerBits& bits = kTcon[i];
         TimerState& t = timers_[i];
-        /* S3C2410A UM p.10-13 TCON start/stop bits [0]/[8]/[12]/[16]/[20]:
-           "0 = Stop, 1 = Start", with the "cleared at next writing" note
-           carried only on the manual update bits. */
         const bool start  = ((new_tcon >> bits.start)         & 1u) != 0;
         const bool manual = ((new_tcon >> bits.manual_update) & 1u) != 0;
 
         t.auto_reload = ((new_tcon >> bits.auto_reload) & 1u) != 0;
 
-        /* S3C2410A UM p.10-5: the starting value of TCNTn is loaded by the
-           manual update bit. */
         if (manual) {
-            t.count     = t.tcntb;
-            t.anchor_ns = now;
+            t.count = t.tcntb;
+            if (t.running) StartPeriod(i, now);
         }
         if (!start) {
-            /* S3C2410A UM p.10-5: "If the timer is stopped by force, the TCNTn
-               retains the counter value and is not reloaded from TCNTBn." */
-            if (t.running) t.count = CountAtLocked(i, now);
-            t.anchor_ns = now;
-            t.running   = false;
+            if (t.running) {
+                t.count          = CountAt(i, now);
+                t.reload_pending = false;
+            }
+            t.running = false;
         } else if (!t.running && t.count != 0) {
-            t.anchor_ns = now;
-            t.running   = true;
+            StartPeriod(i, now);
+            t.running = true;
         }
-        ArmLocked(i);
+        ArmTimer(i);
     }
 }
 
@@ -212,35 +248,47 @@ void S3C2410Timer::OnResetLine() {
     tcfg0_ = 0;
     tcfg1_ = 0;
     tcon_  = 0;
+    gated_ = !clocks_->PwmTimerClockOn();
+    const uint64_t now = Now();
     for (int i = 0; i < 5; ++i) {
         timers_[i] = TimerState{};
-        entry_[i]->Arm(VirtualTimerList::kNoDeadline);
+        timers_[i].epoch.Anchor(now, 0u);
+        timers_[i].freeze_cycle = now;
+        SetUnits(i);
+        ArmTimer(i);
     }
 }
 
-void S3C2410Timer::OnDeadline(int n) {
-    {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        if (entry_[n]->DeadlineNs() != VirtualTimerList::kNoDeadline) return;
-        TimerState& t = timers_[n];
-        if (!t.running) return;
-
-        const int64_t reached_zero_ns =
-            t.anchor_ns + TicksToNs(t.count, TimerFreqHz(n));
-        t.anchor_ns = reached_zero_ns;
-        /* S3C2410A UM p.10-4: auto reload copies TCNTBn into TCNTn at 0, and
-           with the auto reload bit 0 "the TCNTn does not operate any
-           further". */
-        t.count = t.auto_reload ? t.tcntb : 0u;
-        if (t.count == 0) {
-            t.running = false;
-            entry_[n]->Arm(VirtualTimerList::kNoDeadline);
-        } else {
-            ArmLocked(n);
-        }
+void S3C2410Timer::Reconfigure(uint32_t tcfg0, uint32_t tcfg1, uint64_t now) {
+    const bool gated = !clocks_->PwmTimerClockOn();
+    tcfg0_ = tcfg0;
+    tcfg1_ = tcfg1;
+    for (int i = 0; i < 5; ++i) {
+        TimerState& t = timers_[i];
+        const TimerState before = t;
+        SetUnits(i);
+        if (gated == gated_ && t.ratio_cycles == before.ratio_cycles &&
+            t.ratio_ticks == before.ratio_ticks)
+            continue;
+        t = before;
+        Reanchor(i, now);
+        SetUnits(i);
     }
-    /* S3C2410A UM p.10-3: "When the TCNTn reaches 0, an interrupt request will
-       occur if the interrupt is enabled." */
+    gated_ = gated;
+    for (int i = 0; i < 5; ++i) ArmTimer(i);
+}
+
+void S3C2410Timer::OnMatch(int n) {
+    TimerState& t = timers_[n];
+    if (t.auto_reload && t.tcntb != 0u) {
+        t.start_tick     = t.start_tick + t.count + 1u;
+        t.count          = t.tcntb;
+        t.reload_pending = true;
+    } else {
+        t.count   = 0;
+        t.running = false;
+    }
+    ArmTimer(n);
     emu_.Get<IrqController>().AssertIrq(kIrqTimerN[n]);
 }
 
@@ -248,41 +296,31 @@ uint32_t S3C2410Timer::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     const auto dec = DecodeReg(off);
 
-    std::lock_guard<std::mutex> lk(state_mutex_);
     switch (dec.kind) {
         case RegKind::Tcfg0:  return tcfg0_;
         case RegKind::Tcfg1:  return tcfg1_;
         case RegKind::Tcon:   return tcon_;
-        /* S3C2410A UM p.10-4: a TCNTBn read returns the reload value for the
-           next timer duration, not the state of the counter. */
         case RegKind::TcntbN: return timers_[dec.timer_idx].tcntb;
         case RegKind::TcmpbN: return timers_[dec.timer_idx].tcmpb;
-        case RegKind::TcntoN: return CountAtLocked(dec.timer_idx, NowNs());
+        case RegKind::TcntoN: return CountAt(dec.timer_idx, Now());
         case RegKind::OutOfRange:
             HaltUnsupportedAccess("ReadWord", addr, 0);
     }
-    HaltUnsupportedAccess("ReadWord", addr, 0);  /* noreturn */
+    HaltUnsupportedAccess("ReadWord", addr, 0);
 }
 
 void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     const auto dec = DecodeReg(off);
 
-    std::lock_guard<std::mutex> lk(state_mutex_);
     switch (dec.kind) {
         case RegKind::Tcfg0: {
             LOG(SocTimer, "S3C2410Timer: TCFG0 <- 0x%08X\n", value);
-            const int64_t now = NowNs();
-            for (int i = 0; i < 5; ++i) ReanchorLocked(i, now);
-            tcfg0_ = value;
-            for (int i = 0; i < 5; ++i) ArmLocked(i);
+            Reconfigure(value, tcfg1_, Now());
             break;
         }
         case RegKind::Tcfg1: {
             LOG(SocTimer, "S3C2410Timer: TCFG1 <- 0x%08X\n", value);
-            /* S3C2410A UM p.10-12 TCFG1 [23:20] DMA mode: 0001..0101 route the
-               selected timer's request to the DMA controller, and only 0000
-               leaves every timer on the interrupt controller. */
             const uint32_t dma_mode = (value >> 20) & 0xFu;
             if (dma_mode != 0u) {
                 emu_.Get<Fatal>().Die(
@@ -290,17 +328,14 @@ void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
                     "to the DMA controller, which CERF does not model",
                     dma_mode);
             }
-            const int64_t now = NowNs();
-            for (int i = 0; i < 5; ++i) ReanchorLocked(i, now);
-            tcfg1_ = value;
-            for (int i = 0; i < 5; ++i) ArmLocked(i);
+            Reconfigure(tcfg0_, value, Now());
             break;
         }
         case RegKind::Tcon:
 #if CERF_DEV_MODE
             LOG(SocTimer, "S3C2410Timer: TCON 0x%08X -> 0x%08X\n", tcon_, value);
 #endif
-            ApplyTconWrite(value, NowNs());
+            ApplyTconWrite(value, Now());
             tcon_ = value;
             break;
         case RegKind::TcntbN:
@@ -313,7 +348,6 @@ void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
         case RegKind::TcmpbN:
             timers_[dec.timer_idx].tcmpb = value & kCountMask;
             break;
-        /* S3C2410A UM p.10-15: TCNTOn is read-only. */
         case RegKind::TcntoN:
             break;
         case RegKind::OutOfRange:
@@ -322,42 +356,76 @@ void S3C2410Timer::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void S3C2410Timer::SaveState(StateWriter& w) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    const int64_t now = NowNs();
-    w.Write(tcfg0_);
-    w.Write(tcfg1_);
-    w.Write(tcon_);
+    const uint64_t now = Now();
+    w.Write("tcfg0", tcfg0_);
+    w.Write("tcfg1", tcfg1_);
+    w.Write("tcon", tcon_);
     for (int i = 0; i < 5; ++i) {
-        const TimerState& t = timers_[i];
-        w.Write(t.tcntb);
-        w.Write(t.tcmpb);
-        w.Write<uint8_t>(t.running ? 1u : 0u);
-        w.Write<uint8_t>(t.auto_reload ? 1u : 0u);
-        w.Write<uint32_t>(CountAtLocked(i, now));
+        const TimerState& t    = timers_[i];
+        const uint64_t    tick = TickAt(t, now);
+        const bool pending = t.running && tick < t.start_tick;
+        w.Write("tcntb", t.tcntb);
+        w.Write("tcmpb", t.tcmpb);
+        w.Write<uint8_t>("running", t.running ? 1u : 0u);
+        w.Write<uint8_t>("auto_reload", t.auto_reload ? 1u : 0u);
+        w.Write<uint8_t>("pending", pending ? 1u : 0u);
+        w.Write<uint8_t>("reload_pending", t.reload_pending ? 1u : 0u);
+        w.Write<uint32_t>("count", pending ? t.count : CountAt(i, now));
+        w.Write<uint64_t>("to_next_edge",
+                          gated_ ? t.epoch.CycleOfTick(1u) - t.epoch.AnchorCycle()
+                                 : EdgeCycles(t, tick + 1u) - now);
     }
 }
 
 void S3C2410Timer::RestoreState(StateReader& r) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    const int64_t now = NowNs();
-    r.Read(tcfg0_);
-    r.Read(tcfg1_);
-    r.Read(tcon_);
+    const uint64_t now = Now();
+    r.Read("tcfg0", tcfg0_);
+    r.Read("tcfg1", tcfg1_);
+    r.Read("tcon", tcon_);
+    for (int i = 0; i < 5; ++i) {
+        const uint32_t mux = (tcfg1_ >> (i * 4)) & 0xFu;
+        if (mux >= 4u) r.Reject("timer %d MUX %u selects external TCLK", i, mux);
+    }
+    const uint32_t dma_mode = (tcfg1_ >> 20) & 0xFu;
+    if (dma_mode != 0u) r.Reject("TCFG1 DMA mode %u", dma_mode);
+    gated_ = !clocks_->PwmTimerClockOn();
     for (int i = 0; i < 5; ++i) {
         TimerState& t = timers_[i];
-        r.Read(t.tcntb);
-        r.Read(t.tcmpb);
-        uint8_t running = 0, auto_reload = 0;
-        r.Read(running);
-        r.Read(auto_reload);
-        r.Read(t.count);
-        t.running     = (running != 0);
-        t.auto_reload = (auto_reload != 0);
-        t.anchor_ns   = now;
-        ArmLocked(i);
+        r.Read("tcntb", t.tcntb);
+        r.Read("tcmpb", t.tcmpb);
+        uint8_t running = 0, auto_reload = 0, pending = 0, reload_pending = 0;
+        r.Read("running", running);
+        r.Read("auto_reload", auto_reload);
+        r.Read("pending", pending);
+        r.Read("reload_pending", reload_pending);
+        uint32_t count        = 0;
+        uint64_t to_next_edge = 0;
+        r.Read("count", count);
+        r.Read("to_next_edge", to_next_edge);
+        if (t.tcntb > kCountMask || count > kCountMask)
+            r.Reject("timer %d count 0x%X or TCNTB 0x%X is past 16 bits", i, count, t.tcntb);
+        const bool tcon_reload = ((tcon_ >> kTcon[i].auto_reload) & 1u) != 0u;
+        if ((auto_reload != 0u) != tcon_reload)
+            r.Reject("timer %d auto reload %u disagrees with TCON 0x%08X", i, auto_reload, tcon_);
+        SetUnits(i);
+        t.epoch.Anchor(0u, 0u);
+        const uint64_t edge = t.epoch.CycleOfTick(1u);
+        if (to_next_edge == 0u || to_next_edge > edge)
+            r.Reject("timer %d next edge %llu cycles away is outside one edge period of %llu",
+                     i, static_cast<unsigned long long>(to_next_edge),
+                     static_cast<unsigned long long>(edge));
+        t.running        = (running != 0);
+        t.auto_reload    = (auto_reload != 0);
+        t.reload_pending = (reload_pending != 0) && (pending != 0);
+        t.count          = count;
+        t.epoch.Anchor(now + to_next_edge, 0u);
+        t.epoch_tick     = 1;
+        t.freeze_cycle   = now;
+        t.start_tick     = pending != 0 ? 1u : 0u;
+        ArmTimer(i);
     }
 }
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE(S3C2410Timer);

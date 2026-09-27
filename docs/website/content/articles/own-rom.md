@@ -5,7 +5,7 @@ drivers touch. A ROM boots when **that board is implemented in CERF**. The same 
 board has different RAM and flash addresses, a different display controller and different wiring,
 so a matching SoC is not enough.
 
-In practice: a dump boots if its board is on the [supported list](../boards.md). A ROM found on the
+In practice: a dump boots if its board is on the [supported list](/devices.md). A ROM found on the
 internet for some other device will not.
 
 !!! note "Use the original dump - CERF runs it as the hardware does"
@@ -28,7 +28,7 @@ That is it. The launcher writes the device and it shows up ready to boot.
 
 1. Create a folder under `devices/` (next to `cerf.exe`), e.g. `devices/mydump/`.
 2. Put the ROM image in it, e.g. `mykernel.nb0`.
-3. Add a `cerf.json` naming the board and the ROM:
+3. Add a `cerf-user.json` naming the board and the ROM:
 
     ```json
     {
@@ -40,7 +40,7 @@ That is it. The launcher writes the device and it shows up ready to boot.
 4. Run `cerf.exe --device=mydump`.
 
 The board id is your device's - `cerf.exe --help` lists them all. Those two keys are the minimum.
-[The configuration files](cerf-json.md) covers everything else a `cerf.json` can carry. Both fields
+[The configuration files](cerf-json.md) covers everything else the file can carry. Both fields
 can also be given on the command line instead:
 
 ```

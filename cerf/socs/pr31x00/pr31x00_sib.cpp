@@ -1,6 +1,8 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -99,8 +101,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Pr31500 || soc == SocId::Pr31700;
     }
 
     void OnReady() override {
@@ -215,15 +217,15 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(ctl_); w.Write(dma_ctl_); w.Write(sf0_aux_); w.Write(sf1_aux_);
-        w.Write(snd_tx_hold_); w.Write(tel_tx_hold_); w.Write(sf0_stat_);
-        w.Write(snd_tx_start_); w.Write(snd_size_);
+        w.Write("ctl", ctl_); w.Write("dma_ctl", dma_ctl_); w.Write("sf0_aux", sf0_aux_); w.Write("sf1_aux", sf1_aux_);
+        w.Write("snd_tx_hold", snd_tx_hold_); w.Write("tel_tx_hold", tel_tx_hold_); w.Write("sf0_stat", sf0_stat_);
+        w.Write("snd_tx_start", snd_tx_start_); w.Write("snd_size", snd_size_);
         if (auto* codec = emu_.TryGet<Pr31x00SibCodec>()) codec->SaveState(w);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(ctl_); r.Read(dma_ctl_); r.Read(sf0_aux_); r.Read(sf1_aux_);
-        r.Read(snd_tx_hold_); r.Read(tel_tx_hold_); r.Read(sf0_stat_);
-        r.Read(snd_tx_start_); r.Read(snd_size_);
+        r.Read("ctl", ctl_); r.Read("dma_ctl", dma_ctl_); r.Read("sf0_aux", sf0_aux_); r.Read("sf1_aux", sf1_aux_);
+        r.Read("snd_tx_hold", snd_tx_hold_); r.Read("tel_tx_hold", tel_tx_hold_); r.Read("sf0_stat", sf0_stat_);
+        r.Read("snd_tx_start", snd_tx_start_); r.Read("snd_size", snd_size_);
         if (auto* codec = emu_.TryGet<Pr31x00SibCodec>()) codec->RestoreState(r);
     }
     void PostRestore() override {

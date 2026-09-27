@@ -1,5 +1,6 @@
 #include "../board_context.h"
 
+#include "ford_sync_2_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -8,15 +9,7 @@ class FordSyncGen2Context : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board       GetBoard()  const override { return Board::FordSyncGen2; }
-    SocFamily   GetSoc()    const override { return SocFamily::iMX51; }
-    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::Imx51Nand; }
-    /* Pre-boot hint only; real sizing comes from OnLcdEnabled. The SYNC2 8" panel
-       is 800x480 (runtime IPU CPMEM ch23 scanout: 800x480 RGB565 @ 0x90E34000). */
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{800u, 480u};
-    }
+    std::string_view GetBoardId() const override { return BoardId::FordSync2; }
 };
 
 }  /* namespace */

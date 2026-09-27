@@ -3,6 +3,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa11xx_ssp_device.h"
@@ -19,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -115,11 +117,11 @@ void Sa11xxSsp::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Sa11xxSsp::SaveState(StateWriter& w) {
-    w.Write(sscr0_);  w.Write(sscr1_);  w.Write(ssdr_);  w.Write(sssr_);
+    w.Write("sscr0", sscr0_);  w.Write("sscr1", sscr1_);  w.Write("ssdr", ssdr_);  w.Write("sssr", sssr_);
 }
 
 void Sa11xxSsp::RestoreState(StateReader& r) {
-    r.Read(sscr0_);  r.Read(sscr1_);  r.Read(ssdr_);  r.Read(sssr_);
+    r.Read("sscr0", sscr0_);  r.Read("sscr1", sscr1_);  r.Read("ssdr", ssdr_);  r.Read("sssr", sssr_);
 }
 
 }  /* namespace */

@@ -3,6 +3,11 @@
 #include <cstdint>
 
 #include "../../boards/board_context.h"
+#include "../../socs/vr4102/vr4102_id.h"
+#include "../../socs/vr4111/vr4111_id.h"
+#include "../../socs/vr4121/vr4121_id.h"
+#include "../../socs/vr4122/vr4122_id.h"
+#include "../vr5500/vr5500_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../jit/mips/mips_cp0_ops.h"
 #include "../../jit/mips/mips_cpu_state.h"
@@ -15,11 +20,11 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::VR4102 ||
-                      bd->GetSoc() == SocFamily::VR4111 ||
-                      bd->GetSoc() == SocFamily::VR4121 ||
-                      bd->GetSoc() == SocFamily::VR4122 ||
-                      bd->GetSoc() == SocFamily::VR5500);
+        return bd && (bd->GetSocId() == SocId::Vr4102 ||
+                      bd->GetSocId() == SocId::Vr4111 ||
+                      bd->GetSocId() == SocId::Vr4121 ||
+                      bd->GetSocId() == SocId::Vr4122 ||
+                      bd->GetSocId() == SocId::Vr5500);
     }
 
 protected:

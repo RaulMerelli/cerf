@@ -1,6 +1,7 @@
 #include "../../peripherals/open_bus_window.h"
 
 #include "../../core/cerf_emulator.h"
+#include "symbol_mk500_id.h"
 
 namespace {
 
@@ -18,7 +19,7 @@ public:
     uint32_t MmioSize() const override { return 0x04000000u; }
 
 protected:
-    Board       WindowBoard() const override { return Board::SymbolMk500; }
+    std::string_view WindowBoardId() const override { return BoardId::SymbolMk500; }
     const char* WindowTag()   const override { return "MK500 nCS4 OpenBus"; }
 };
 

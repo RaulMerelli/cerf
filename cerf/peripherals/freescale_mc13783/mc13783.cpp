@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../boards/zune_keel/zune_30_id.h"
 #include "../../cpu/arm_processor_config.h"
 #include "../../jit/arm/arm_jit.h"
 #include "../../jit/arm/cpu_state.h"
@@ -37,7 +38,7 @@ Mc13783::~Mc13783() { StopRebaseThread(); }
 
 bool Mc13783::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::ZuneKeel;
+    return bd && bd->GetBoardId() == BoardId::Zune30;
 }
 
 void Mc13783::OnReady() {
@@ -84,13 +85,13 @@ void Mc13783::RebaseLoop() {
 }
 
 void Mc13783::SaveState(StateWriter& w) {
-    w.WriteBytes(regs_, sizeof(regs_));
-    w.Write<uint32_t>(RtcTotalSecs());   /* live RTC seconds; re-anchored on restore */
+    w.WriteBytes("regs", regs_, sizeof(regs_));
+    w.Write<uint32_t>("rtc_total_secs", RtcTotalSecs());
 }
 
 void Mc13783::RestoreState(StateReader& r) {
-    r.ReadBytes(regs_, sizeof(regs_));
-    uint32_t secs = 0; r.Read(secs);
+    r.ReadBytes("regs", regs_, sizeof(regs_));
+    uint32_t secs = 0; r.Read("rtc_total_secs", secs);
     /* Re-anchor the RTC epoch to the restored cycle counter so RtcTotalSecs()
        resumes from the saved second instead of a stale baseline (os_timer pattern). */
     baseline_packed_.store(PackBaseline(secs, GuestCycles()), std::memory_order_release);

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -39,7 +40,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -53,8 +54,8 @@ public:
 
     /* Only the register file is machine state - tx_line_ is a host-side
        console line accumulator, rebuilt as the guest writes. */
-    void SaveState(StateWriter& w) override    { w.WriteBytes(storage_, sizeof(storage_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(storage_, sizeof(storage_)); }
+    void SaveState(StateWriter& w) override    { w.WriteBytes("storage", storage_, sizeof(storage_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("storage", storage_, sizeof(storage_)); }
 
 private:
     void     EmitTxByte(int uart_idx, uint8_t ch);

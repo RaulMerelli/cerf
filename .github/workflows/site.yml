@@ -6,7 +6,7 @@ on:
     paths:
       - "docs/website/**"
       - "docs/changelog.yml"
-      - "launcher/supported_devices.py"
+      - "bundled/db.json"
       - "compile_readme.py"
       - "tools/build_site.py"
       - "cerf/version.h"

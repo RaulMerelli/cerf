@@ -1,12 +1,13 @@
 #include "../freescale_gpt_impl.h"
 
 #include "imx31_avic.h"
+#include "imx31_id.h"
 
 namespace {
 
 /* GPT @ 0x53F90000; AVIC source 29 (MCIMX31RM §2.2 Table 2-3, p190). */
 class Imx31Gpt
-    : public cerf_freescale_gpt_detail::FreescaleGptBase<0x53F90000u, SocFamily::iMX31> {
+    : public cerf_freescale_gpt_detail::FreescaleGptBase<0x53F90000u, SocId::Imx31> {
     using FreescaleGptBase::FreescaleGptBase;
     void AssertIrqLine()   override { emu_.Get<Imx31Avic>().AssertSource(29u); }
     void DeassertIrqLine() override { emu_.Get<Imx31Avic>().DeassertSource(29u); }

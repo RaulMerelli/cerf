@@ -1,5 +1,6 @@
 #include "../board_context.h"
 
+#include "falcon_4220_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -8,14 +9,7 @@ class FalconPc3xxContext : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board       GetBoard()  const override { return Board::FalconPC3xx; }
-    SocFamily   GetSoc()    const override { return SocFamily::PXA25x; }
-    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{ 240, 320 };
-    }
+    std::string_view GetBoardId() const override { return BoardId::Falcon4220; }
 };
 
 }  /* namespace */

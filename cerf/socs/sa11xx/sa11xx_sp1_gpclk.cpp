@@ -3,6 +3,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -19,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -108,17 +110,17 @@ void Sa11xxSp1Gpclk::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Sa11xxSp1Gpclk::SaveState(StateWriter& w) {
-    w.Write(gpclkr0_);
-    w.Write(gpclkr1_);
-    w.Write(gpclkr2_);
-    w.Write(gpclkr3_);
+    w.Write("gpclkr0", gpclkr0_);
+    w.Write("gpclkr1", gpclkr1_);
+    w.Write("gpclkr2", gpclkr2_);
+    w.Write("gpclkr3", gpclkr3_);
 }
 
 void Sa11xxSp1Gpclk::RestoreState(StateReader& r) {
-    r.Read(gpclkr0_);
-    r.Read(gpclkr1_);
-    r.Read(gpclkr2_);
-    r.Read(gpclkr3_);
+    r.Read("gpclkr0", gpclkr0_);
+    r.Read("gpclkr1", gpclkr1_);
+    r.Read("gpclkr2", gpclkr2_);
+    r.Read("gpclkr3", gpclkr3_);
 }
 
 }  /* namespace */

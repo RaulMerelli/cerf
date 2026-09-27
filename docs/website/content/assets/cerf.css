@@ -92,6 +92,12 @@
   background: var(--cerf-tabs-bg);
 }
 
+body[data-md-color-scheme="default"] .md-nav--primary .md-nav__title[for="__drawer"],
+body[data-md-color-scheme="default"] .md-nav__source {
+  background-color: var(--cerf-hairline);
+  color: var(--cerf-text-soft);
+}
+
 .md-search__form {
   border-radius: 100px;
   background: var(--cerf-glass-bg);
@@ -244,7 +250,7 @@
 /* Hero */
 .cerf-hero {
   text-align: center;
-  padding: 6rem 0 5rem;
+  padding: 5rem 0 5rem;
 }
 
 .md-typeset .cerf-hero h1 {
@@ -281,7 +287,6 @@
 }
 
 /* Glass surfaces */
-.md-typeset .cerf-device,
 .md-typeset .cerf-card,
 .cerf-banner,
 .cerf-video img {
@@ -388,7 +393,7 @@
   opacity: 0.5;
 }
 
-/* Screenshot wall */
+/* Card wall */
 /* auto-fit, not auto-fill: empty tracks collapse, so a row with fewer cards
    than columns stretches them instead of leaving gaps. */
 .cerf-wall {
@@ -401,16 +406,6 @@
   --cerf-wall-min: 12rem;
 }
 
-/* Material styles every figure as width: fit-content, which shrinks the tile to
-   the screenshot's intrinsic width and leaves the grid column half empty. */
-.md-typeset .cerf-device {
-  width: 100%;
-  margin: 0;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.md-typeset .cerf-device:hover,
 .md-typeset .cerf-card:hover {
   transform: translateY(-4px);
   background: var(--cerf-glass-bg-hover);
@@ -418,42 +413,15 @@
   color: var(--cerf-text);
 }
 
-.cerf-device--wide {
-  grid-column: span 2;
-}
-
 /* Guest aspect ratios run from 640x240 to 240x320, so the preview is a fixed
    box the screenshot is fitted into: without it a portrait shot sets the grid
    row height and every landscape tile in that row grows a slab of dead space. */
-.md-typeset .cerf-device img,
 .md-typeset .cerf-card img {
   display: block;
   width: 100%;
   height: 350px;
   object-fit: contain;
   background: var(--cerf-media-bg);
-}
-
-.md-typeset .cerf-device figcaption {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  margin: 0;
-  padding: 0.9rem 1rem;
-  text-align: left;
-  font-size: 0.72rem;
-  font-style: normal;   /* Material italicises figcaption by default */
-  line-height: 1.35;
-  border-top: 1px solid var(--cerf-glass-border);
-}
-
-.md-typeset .cerf-device figcaption b {
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.md-typeset .cerf-device figcaption span {
-  opacity: 0.45;
 }
 
 /* Slideshow chrome: the click stage (left half = prev, right half = next) and

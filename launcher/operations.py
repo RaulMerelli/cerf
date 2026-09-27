@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from bundle_download import (
-    CancelledError,
     ProgressFn,
     download_extract,
     remove_artifact,
@@ -28,12 +27,12 @@ from bundle_repositories import read_repositories
 from cerf_user_json import (
     CERF_USER_JSON_FILENAME,
     LauncherLink,
+    read_device_meta,
     read_launcher_link,
     read_rom_primary,
-    read_user_meta_name,
+    resolve_device_file,
     write_launcher_link,
 )
-from github_issues import fetch_open_issues
 from update_source import fetch_update
 from user_device_create import UserDeviceSpec, create_user_device
 from device_state import (
@@ -45,7 +44,6 @@ from device_state import (
     load_local_manifest,
     package_artifact_present,
     cerf_json_differs,
-    parse_cerf_json,
     parse_cerf_json_object,
     save_local_manifest,
     write_cerf_json,
@@ -77,9 +75,6 @@ class BundleManager:
 
     def submit_release_check(self) -> Future:
         return self._pool.submit(fetch_update)
-
-    def submit_issues_fetch(self) -> Future:
-        return self._pool.submit(fetch_open_issues)
 
     def submit_create_user_device(self, spec: UserDeviceSpec,
                                   progress: ProgressFn,
@@ -121,9 +116,7 @@ class BundleManager:
         primary = read_rom_primary(device_dir)
         if not primary:
             return None
-        path = Path(primary)
-        if not path.is_absolute():
-            path = device_dir / primary
+        path = resolve_device_file(primary, device_dir)
         try:
             return path.stat().st_size if path.is_file() else None
         except OSError:
@@ -191,10 +184,7 @@ class BundleManager:
         claimed: set = set()
 
         for entry in self._local_device_dirs():
-            meta, w, h = parse_cerf_json(entry / "cerf.json")
-            user_name = read_user_meta_name(entry)
-            if user_name:
-                meta.name = user_name
+            meta, w, h = read_device_meta(entry)
             record = self.installed.get(entry.name)
             d = DeviceBundle(
                 name=entry.name,
@@ -285,11 +275,7 @@ class BundleManager:
                 bundle.archive_url, dir_name, tmp,
                 bundle.archive_size, bundle.archive_sha256,
                 progress, cancel_event)
-            # Installed additional packages (a CF image may be the user's
-            # mutated persistent disk) and cerf-user.json (user's persisted
-            # options, display name, and the repository link) survive a ROM
-            # update: stash them aside, wipe, restore after the new ROM is in
-            # place.
+            kept = self._kept_storage_entries(dir_name, target, prepared)
             preserved = self._stash_installed_packages(dir_name, target,
                                                        tmp / "preserved")
             user_json_stash: Optional[Path] = None
@@ -297,9 +283,16 @@ class BundleManager:
                 user_json_stash = tmp / CERF_USER_JSON_FILENAME
                 shutil.move(str(target / CERF_USER_JSON_FILENAME),
                             str(user_json_stash))
-            if target.exists():
-                shutil.rmtree(target)
-            shutil.move(str(prepared), str(target))
+            if kept:
+                for entry in target.iterdir():
+                    if entry.name not in kept:
+                        remove_artifact(entry)
+                for entry in prepared.iterdir():
+                    shutil.move(str(entry), str(target / entry.name))
+            else:
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.move(str(prepared), str(target))
             for record, stash_path in preserved:
                 dest = target / record.key
                 remove_artifact(dest)
@@ -322,6 +315,27 @@ class BundleManager:
             )
             save_local_manifest(self.local_manifest_path, self.installed)
         return dir_name
+
+    def _kept_storage_entries(self, name: str, target: Path,
+                              prepared: Path) -> List[str]:
+        if not target.is_dir():
+            return []
+        from device_file_types import storage_files
+        root = target.resolve()
+        kept: List[str] = []
+        for path in storage_files(target):
+            try:
+                rel = path.resolve().relative_to(root)
+            except ValueError:
+                continue
+            if rel.parts and (target / rel.parts[0]).exists():
+                kept.append(rel.parts[0])
+        for entry in kept:
+            if (prepared / entry).exists():
+                raise BundleError(
+                    f"{name}: the bundle carries {entry}, which holds the "
+                    f"device's storage")
+        return kept
 
     def _stash_installed_packages(
             self, name: str, target: Path,

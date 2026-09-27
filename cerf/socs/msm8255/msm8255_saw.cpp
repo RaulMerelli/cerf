@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -30,7 +31,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetSoc() == SocFamily::MSM8255;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -69,19 +70,19 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write<uint32_t>(reg04_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("reg04", reg04_.load(std::memory_order_acquire));
         for (uint32_t i = 0; i < kRegFileCount; ++i) {
-            w.Write<uint32_t>(regs_[i].load(std::memory_order_acquire));
+            w.Write<uint32_t>("regs", regs_[i].load(std::memory_order_acquire));
         }
     }
 
     void RestoreState(StateReader& r) override {
         uint32_t reg04 = kRegReset;
-        r.Read(reg04);
+        r.Read("reg04", reg04);
         reg04_.store(reg04, std::memory_order_release);
         for (uint32_t i = 0; i < kRegFileCount; ++i) {
             uint32_t v = kRegReset;
-            r.Read(v);
+            r.Read("regs", v);
             regs_[i].store(v, std::memory_order_release);
         }
     }

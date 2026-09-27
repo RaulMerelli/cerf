@@ -1,6 +1,7 @@
 #include "siemens_mp377_touch_panel.h"
 
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/touch_input.h"
 
@@ -12,7 +13,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensMP377;
+        return bd && bd->GetBoardId() == BoardId::SiemensMp377;
     }
 
     void OnPenDown(int x, int y) override { UpdateTouch(x, y, true); }

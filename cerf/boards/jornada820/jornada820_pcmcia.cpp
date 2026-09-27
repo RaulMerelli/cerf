@@ -5,6 +5,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/pcmcia/pcmcia_space_router.h"
 #include "../board_context.h"
+#include "jornada_820_id.h"
 #include "jornada820_companion_asic.h"
 
 namespace {
@@ -26,7 +27,7 @@ Jornada820Pcmcia::Jornada820Pcmcia(CerfEmulator& emu)
 
 bool Jornada820Pcmcia::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada820;
+    return bd && bd->GetBoardId() == BoardId::Jornada820;
 }
 
 void Jornada820Pcmcia::OnReady() {

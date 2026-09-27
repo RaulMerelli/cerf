@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../jit/arm/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
@@ -25,7 +26,7 @@ int32_t Nimask5ToSigned(uint32_t v) {
 
 bool Imx31Avic::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX31;
+    return bd && bd->GetSocId() == SocId::Imx31;
 }
 
 void Imx31Avic::OnReady() {
@@ -206,26 +207,26 @@ void Imx31Avic::SaveState(StateWriter& w) {
     /* src_hw_ is mutated from peripheral worker threads via AssertSource/
        DeassertSource, so all reads of AVIC state require state_mtx_. */
     std::lock_guard<std::mutex> guard(state_mtx_);
-    w.Write(src_hw_);
-    w.Write(intcntl_);
-    w.Write(nimask_);
-    w.Write(intenable_);
-    w.Write(inttype_);
-    w.Write(intfrc_);
-    w.WriteBytes(niprio_, sizeof(niprio_));
-    w.WriteBytes(vector_, sizeof(vector_));
+    w.Write("src_hw", src_hw_);
+    w.Write("intcntl", intcntl_);
+    w.Write("nimask", nimask_);
+    w.Write("intenable", intenable_);
+    w.Write("inttype", inttype_);
+    w.Write("intfrc", intfrc_);
+    w.WriteBytes("niprio", niprio_, sizeof(niprio_));
+    w.WriteBytes("vector", vector_, sizeof(vector_));
 }
 
 void Imx31Avic::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> guard(state_mtx_);
-    r.Read(src_hw_);
-    r.Read(intcntl_);
-    r.Read(nimask_);
-    r.Read(intenable_);
-    r.Read(inttype_);
-    r.Read(intfrc_);
-    r.ReadBytes(niprio_, sizeof(niprio_));
-    r.ReadBytes(vector_, sizeof(vector_));
+    r.Read("src_hw", src_hw_);
+    r.Read("intcntl", intcntl_);
+    r.Read("nimask", nimask_);
+    r.Read("intenable", intenable_);
+    r.Read("inttype", inttype_);
+    r.Read("intfrc", intfrc_);
+    r.ReadBytes("niprio", niprio_, sizeof(niprio_));
+    r.ReadBytes("vector", vector_, sizeof(vector_));
 }
 
 void Imx31Avic::PostRestore() {

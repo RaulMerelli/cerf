@@ -1,10 +1,12 @@
 #include "imx51_gpu3d_raster.h"
 #include "imx51_gpu3d_memory.h"
 #include "imx51_gpu3d_tiling.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../state/state_stream.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -23,19 +25,19 @@ static uint32_t ApproximateDitherQuantize(float channel, uint32_t maximum, unsig
 REGISTER_SERVICE(Imx51Gpu3dRaster);
 bool Imx51Gpu3dRaster::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetSoc() == SocFamily::iMX51;
+    return board && board->GetSocId() == SocId::Imx51;
 }
 void Imx51Gpu3dRaster::SaveState(StateWriter& writer) {
-    writer.Write(gmem_binding_); writer.Write(gmem_pitch_);
-    writer.WriteBytes(gmem_.data(),gmem_.size());
+    writer.Write("gmem_binding", gmem_binding_); writer.Write("gmem_pitch", gmem_pitch_);
+    writer.WriteBytes("gmem", gmem_.data(),gmem_.size());
 }
 void Imx51Gpu3dRaster::RestoreState(StateReader& reader) {
-    reader.Read(gmem_binding_); reader.Read(gmem_pitch_);
-    reader.ReadBytes(gmem_.data(),gmem_.size());
+    reader.Read("gmem_binding", gmem_binding_); reader.Read("gmem_pitch", gmem_pitch_);
+    reader.ReadBytes("gmem", gmem_.data(),gmem_.size());
     if (gmem_binding_ != 0xFFFFFFFFu &&
         ((gmem_binding_ & 0xFF0u) != 0u || (gmem_binding_ & 0xFFFFF000u) >= gmem_.size() || gmem_pitch_ == 0 || gmem_pitch_ > 16383u ||
          ((gmem_binding_ & 15u) != 0u && (gmem_binding_ & 15u) != 2u && (gmem_binding_ & 15u) != 5u)))
-        emu_.Get<Fatal>().Die("GPU raster invalid saved GMEM binding");
+        reader.Reject("GPU raster GMEM binding 0x%08X pitch %u", gmem_binding_, gmem_pitch_);
 }
 
 /* Khronos OpenGL ES 2.0.25 sections 2.13 and 2.13.1. */
@@ -307,7 +309,7 @@ void Imx51Gpu3dRaster::RasterizeTriangle(const std::array<Imx51Gpu3dShaderState,
             const auto* p = gmem_.data()+base+(uint64_t(y)*pitch+x)*bytes;
             if (bytes == 4u) for (unsigned i=0;i<4;++i) color[i]=float(p[i])/255.0f;
             else {
-                const uint32_t packed=uint32_t(p[0])|(uint32_t(p[1])<<8);
+                const uint32_t packed=cerf::le::U16(p);
                 if (format == 0u) for (unsigned i=0;i<4;++i) color[i]=float((packed>>(i*4u))&15u)/15.0f;
                 else color={float(packed&31u)/31.0f,float((packed>>5)&63u)/63.0f,float((packed>>11)&31u)/31.0f,1.0f};
             }
@@ -362,13 +364,16 @@ void Imx51Gpu3dRaster::RasterizeTriangle(const std::array<Imx51Gpu3dShaderState,
                 fail("depth fragment exports",static_cast<uint32_t>(fragment.export_mask));
             /* NXP a1638da9 yamato_enum.h: CompareFrag; Khronos GLES 2.0 glDepthFunc. */
             if (depth_enabled) {
-                const uint32_t stored = uint32_t(depth_destination[0]) | (uint32_t(depth_destination[1]) << 8);
+                const uint32_t stored = cerf::le::U16(depth_destination);
                 const bool passes[] = {false,incoming_depth < stored,incoming_depth == stored,incoming_depth <= stored,
                     incoming_depth > stored,incoming_depth != stored,incoming_depth >= stored,true};
                 if (!passes[(depth_control >> 4) & 7u]) continue;
             }
-            if (depth_write) writes.pixels.push_back({depth_destination,
-                {static_cast<uint8_t>(incoming_depth),static_cast<uint8_t>(incoming_depth >> 8),0,0},2});
+            if (depth_write) {
+                RasterWrites::Pixel depth_pixel{depth_destination,{},2};
+                cerf::le::Put16(depth_pixel.data.data(), static_cast<uint16_t>(incoming_depth));
+                writes.pixels.push_back(depth_pixel);
+            }
             if (color_mask == 0) continue;
             if ((fragment.export_mask & 1u) == 0) fail("missing fragment color",0);
             color = fragment.exports[0];
@@ -392,7 +397,7 @@ void Imx51Gpu3dRaster::RasterizeTriangle(const std::array<Imx51Gpu3dShaderState,
                 ApproximateDitherQuantize(color[i],255u,i,uint32_t(x)+offset_x,uint32_t(y)+offset_y,
                     !resolve && dither_mode != 0u)) : destination[i];
         else {
-            uint32_t packed = uint32_t(destination[0]) | (uint32_t(destination[1]) << 8);
+            uint32_t packed = cerf::le::U16(destination);
             const std::array<uint32_t,4> shifts = format == 0u ?
                 (((target_info >> 9) & 3u) == 3u ? std::array<uint32_t,4>{12,8,4,0} : std::array<uint32_t,4>{0,4,8,12}) :
                 std::array<uint32_t,4>{0,5,11,0};
@@ -405,7 +410,7 @@ void Imx51Gpu3dRaster::RasterizeTriangle(const std::array<Imx51Gpu3dShaderState,
             for (unsigned i = 0; i < (format == 0u ? 4u : 3u); ++i) if (mask & (1u << i))
                 packed = (packed & ~(maxima[i] << shifts[i])) | (ApproximateDitherQuantize(color[i],maxima[i],i,
                     uint32_t(x)+offset_x,uint32_t(y)+offset_y,!resolve && dither_mode != 0u) << shifts[i]);
-            pixel.data[0] = static_cast<uint8_t>(packed); pixel.data[1] = static_cast<uint8_t>(packed >> 8);
+            cerf::le::Put16(pixel.data.data(), static_cast<uint16_t>(packed));
         }
         writes.pixels.push_back(pixel);
     }

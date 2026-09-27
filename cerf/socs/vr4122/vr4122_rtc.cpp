@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "vr4122_id.h"
 
 #include <cstdint>
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4122;
+        return bd && bd->GetSocId() == SocId::Vr4122;
     }
 
     uint32_t MmioBase() const override { return 0x0F000100u; }

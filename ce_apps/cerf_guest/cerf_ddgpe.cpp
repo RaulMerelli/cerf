@@ -52,12 +52,11 @@ CerfDDGPE::CerfDDGPE() : DDGPE() {
 }
 
 SCODE CerfDDGPE::BltComplete(GPEBltParms* p) {
-    CERF_LOG_X_DEV("cerf_guest: GPE::BltComplete rop4", p ? p->rop4 : 0);
+    (void)p;
     return S_OK;
 }
 
 SCODE CerfDDGPE::Line(GPELineParms* pLineParms, EGPEPhase phase) {
-    CERF_LOG_X_DEV("cerf_guest: GPE::Line phase", phase);
     if (phase == gpeSingle || phase == gpePrepare) {
         pLineParms->pLine = (SCODE (GPE::*)(GPELineParms*))&CerfDDGPE::HostLine;
     }

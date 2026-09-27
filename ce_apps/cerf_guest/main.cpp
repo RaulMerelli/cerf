@@ -82,7 +82,6 @@ void CerfReadFbRegs(void) {
 }
 
 static BOOL CerfMapGpeCmd(CerfMainState* mn) {
-    CERF_LOG_DEV("cerf_guest: CerfMapGpeCmd entry");
     if (mn->gpe_cmd) return TRUE;
     mn->gpe_cmd = (volatile ULONG*)CerfMapRegsPage(g_CerfVirtBase + CerfVirt::kGpeCmdOffset,
                                                    CerfVirt::kGpeCmdSize);
@@ -177,60 +176,10 @@ extern "C" BOOL APIENTRY DrvStartDoc(SURFOBJ*, PWSTR, DWORD)   { CERF_LOG_DEV("c
 extern "C" BOOL APIENTRY DrvStartPage(SURFOBJ*)                { CERF_LOG_DEV("cerf_guest: DrvStartPage"); return TRUE; }
 extern "C" BOOL APIENTRY DrvExclusiveMode(DHPDEV, BOOL)        { CERF_LOG_DEV("cerf_guest: DrvExclusiveMode"); return TRUE; }
 
-static BOOL APIENTRY CerfTraceBitBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
-                                      CLIPOBJ* co, XLATEOBJ* xlo, RECTL* prd,
-                                      POINTL* pps, POINTL* ppm, BRUSHOBJ* pbo,
-                                      POINTL* ppb, ROP4 rop4) {
-    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt rop4", rop4);
-    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt xlo",  xlo);
-    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt src",  src);
-    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt dst",  dst);
-    CERF_LOG_X_DEV("cerf_guest: DrvBitBlt pbo",  pbo);
-    return DrvBitBlt(dst, src, msk, co, xlo, prd, pps, ppm, pbo, ppb, rop4);
-}
-static BOOL APIENTRY CerfTraceCopyBits(SURFOBJ* dst, SURFOBJ* src, CLIPOBJ* co,
-                                        XLATEOBJ* xlo, RECTL* prd, POINTL* pps) {
-    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits xlo", xlo);
-    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits src", src);
-    CERF_LOG_X_DEV("cerf_guest: DrvCopyBits dst", dst);
-    return DrvCopyBits(dst, src, co, xlo, prd, pps);
-}
-static BOOL APIENTRY CerfTraceAnyBlt(SURFOBJ* dst, SURFOBJ* src, SURFOBJ* msk,
-                                      CLIPOBJ* co, XLATEOBJ* xlo, POINTL* phto,
-                                      RECTL* prd, RECTL* prs, POINTL* ppm,
-                                      BRUSHOBJ* pbo, POINTL* ppb, ROP4 rop4,
-                                      ULONG mode, ULONG flags) {
-    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt rop4", rop4);
-    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt xlo",  xlo);
-    CERF_LOG_X_DEV("cerf_guest: DrvAnyBlt mode", mode);
-    return DrvAnyBlt(dst, src, msk, co, xlo, phto, prd, prs, ppm, pbo, ppb,
-                      rop4, mode, flags);
-}
-static BOOL APIENTRY CerfTraceTransparentBlt(SURFOBJ* dst, SURFOBJ* src,
-                                              CLIPOBJ* co, XLATEOBJ* xlo,
-                                              RECTL* prd, RECTL* prs, ULONG tc) {
-    CERF_LOG_X_DEV("cerf_guest: DrvTransparentBlt xlo", xlo);
-    CERF_LOG_X_DEV("cerf_guest: DrvTransparentBlt tc",  tc);
-    return DrvTransparentBlt(dst, src, co, xlo, prd, prs, tc);
-}
-static BOOL APIENTRY CerfTraceRealizeBrush(BRUSHOBJ* pbo, SURFOBJ* psoTarget,
-                                            SURFOBJ* psoPattern, SURFOBJ* psoMask,
-                                            XLATEOBJ* pxlo, ULONG iHatch) {
-    CERF_LOG_X_DEV("cerf_guest: DrvRealizeBrush pxlo", pxlo);
-    CERF_LOG_X_DEV("cerf_guest: DrvRealizeBrush iHatch", iHatch);
-    return DrvRealizeBrush(pbo, psoTarget, psoPattern, psoMask, pxlo, iHatch);
-}
-static BOOL APIENTRY CerfTracePaint(SURFOBJ* pso, CLIPOBJ* pco, BRUSHOBJ* pbo,
-                                     POINTL* pptlBrush, MIX mix) {
-    CERF_LOG_X_DEV("cerf_guest: DrvPaint mix", mix);
-    return DrvPaint(pso, pco, pbo, pptlBrush, mix);
-}
-
 static ULONG WINAPI CerfXlateGetPaletteWrap(XLATEOBJ* pxlo, ULONG iPal,
                                              ULONG cPal, ULONG* pPal) {
     CerfMainState* mn = Mn();
     if (!pxlo) return 0;
-    CERF_LOG_X_DEV("cerf_guest: XlateGetPal flXlate", pxlo->flXlate);
     if (pxlo->flXlate == XO_TRIVIAL) return 0;
     if (!mn->eng_xlate_get_palette) return 0;
     return mn->eng_xlate_get_palette(pxlo, iPal, cPal, pPal);
@@ -242,7 +191,6 @@ static VOID CerfNoPoolReleasePalette(ULONG, ULONG* pPalette, int) { delete[] pPa
 
 extern "C" void CerfStartInputPump(void);
 extern "C" void CerfStartServicePump(void);
-extern "C" void CerfStartTickProfiler(HMODULE self);
 extern "C" void CerfStartDriverInDriver(void);
 extern "C" void CerfAdvertiseDisplayPower(void);
 extern "C" void CerfStartSync2ShellReplace(void);
@@ -257,7 +205,6 @@ static DHPDEV APIENTRY CerfEnablePDEVWrap(
                                    cjCaps, pdevcaps, cjDevInfo, pdi,
                                    hdev, pwszDeviceName, hDriver);
     if (result) CerfStartInputPump();
-    if (result) CerfStartTickProfiler(Mn()->hinst);
     if (result) CerfStartDriverInDriver();
     if (result) CerfAdvertiseDisplayPower();
     if (result) CerfStartSync2ShellReplace();
@@ -333,14 +280,14 @@ extern "C" BOOL APIENTRY DrvEnableDriver(ULONG iEngineVersion,
     pded->DrvDisableSurface     = DrvDisableSurface;
     pded->DrvCreateDeviceBitmap = DrvCreateDeviceBitmap;
     pded->DrvDeleteDeviceBitmap = DrvDeleteDeviceBitmap;
-    pded->DrvRealizeBrush       = CerfTraceRealizeBrush;
+    pded->DrvRealizeBrush       = DrvRealizeBrush;
     pded->DrvStrokePath         = DrvStrokePath;
     pded->DrvFillPath           = DrvFillPath;
-    pded->DrvPaint              = CerfTracePaint;
-    pded->DrvBitBlt             = CerfTraceBitBlt;
-    pded->DrvCopyBits           = CerfTraceCopyBits;
-    pded->DrvAnyBlt             = CerfTraceAnyBlt;
-    pded->DrvTransparentBlt     = CerfTraceTransparentBlt;
+    pded->DrvPaint              = DrvPaint;
+    pded->DrvBitBlt             = DrvBitBlt;
+    pded->DrvCopyBits           = DrvCopyBits;
+    pded->DrvAnyBlt             = DrvAnyBlt;
+    pded->DrvTransparentBlt     = DrvTransparentBlt;
     pded->DrvSetPalette         = DrvSetPalette;
     pded->DrvSetPointerShape    = DrvSetPointerShape;
     pded->DrvMovePointer        = DrvMovePointer;

@@ -8,6 +8,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "devemu_id.h"
 
 #include <array>
 #include <cstdint>
@@ -42,7 +43,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -57,11 +58,11 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.WriteBytes(regs_.data(), regs_.size());
+        w.WriteBytes("regs", regs_.data(), regs_.size());
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.ReadBytes(regs_.data(), regs_.size());
+        r.ReadBytes("regs", regs_.data(), regs_.size());
     }
 
     /* HostWidget. The icon IS the LED state; no data path -> no RX/TX. */

@@ -11,9 +11,9 @@
 
 #include <algorithm>
 #include <cstring>
-#include <optional>
 
 #include <windows.h>
+#include "imx6_id.h"
 
 namespace {
 
@@ -38,7 +38,7 @@ public:
             return false;
         }
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
 
     bool HasFrame() override {
@@ -75,12 +75,6 @@ public:
             emu_.Get<Fatal>().Die("i.MX6 IPU: display channel bits per pixel %u is not modelled",
                                   d.bits_per_pixel);
         }
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        const auto d = ActiveDisplay();
-        if (!d.valid) return std::nullopt;
-        return FbLayout{d.eba, d.sl, d.bits_per_pixel, d.bits_per_pixel == kBitsRgb565};
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {

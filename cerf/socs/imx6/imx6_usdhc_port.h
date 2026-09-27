@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include "imx6_id.h"
 namespace cerf_imx6_usdhc_detail {
 
 template <uint32_t kBase, int kSpi, bool kHasCard = true> class Imx6UsdhcPort : public Imx6UsdhcTransfer {
@@ -34,7 +35,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
 
     void OnReady() override {
@@ -98,56 +99,56 @@ private:
     void WriteWord(uint32_t a, uint32_t v) override { HandleWrite(a - kBase, v); }
 
     void SaveState(StateWriter& w) override {
-        w.Write(cmdarg_);
-        w.Write(cmd_xfr_typ_);
-        w.Write(mix_ctrl_);
-        w.Write(irqstat_);
-        w.Write(irqstaten_);
-        w.Write(irqsigen_);
-        w.Write(sys_ctrl_);
-        w.Write(prot_ctrl_);
-        w.Write(blk_att_);
-        w.Write(wtmk_lvl_);
-        w.Write(vend_spec_);
-        w.Write(ds_addr_);
-        w.Write(adma_sys_addr_);
-        w.Write(autocmd12_err_status_);
-        w.WriteBytes(rsp_, sizeof(rsp_));
-        w.Write(buf_pos_);
-        w.Write(blocks_rem_);
+        w.Write("cmdarg", cmdarg_);
+        w.Write("cmd_xfr_typ", cmd_xfr_typ_);
+        w.Write("mix_ctrl", mix_ctrl_);
+        w.Write("irqstat", irqstat_);
+        w.Write("irqstaten", irqstaten_);
+        w.Write("irqsigen", irqsigen_);
+        w.Write("sys_ctrl", sys_ctrl_);
+        w.Write("prot_ctrl", prot_ctrl_);
+        w.Write("blk_att", blk_att_);
+        w.Write("wtmk_lvl", wtmk_lvl_);
+        w.Write("vend_spec", vend_spec_);
+        w.Write("ds_addr", ds_addr_);
+        w.Write("adma_sys_addr", adma_sys_addr_);
+        w.Write("autocmd12_err_status", autocmd12_err_status_);
+        w.WriteBytes("rsp", rsp_, sizeof(rsp_));
+        w.Write("buf_pos", buf_pos_);
+        w.Write("blocks_rem", blocks_rem_);
         const uint32_t flags = (buf_reading_ ? 1u : 0u) | (buf_writing_ ? 2u : 0u) | (next_is_acmd_ ? 4u : 0u) |
                                (open_ended_read_ ? 8u : 0u) | (open_ended_write_ ? 16u : 0u);
-        w.Write(flags);
-        w.WriteBytes(buf_, sizeof(buf_));
+        w.Write("flags", flags);
+        w.WriteBytes("buf", buf_, sizeof(buf_));
         if constexpr (kHasCard) Card().SaveState(w);
     }
 
     void RestoreState(StateReader& r) override {
-        r.Read(cmdarg_);
-        r.Read(cmd_xfr_typ_);
-        r.Read(mix_ctrl_);
-        r.Read(irqstat_);
-        r.Read(irqstaten_);
-        r.Read(irqsigen_);
-        r.Read(sys_ctrl_);
-        r.Read(prot_ctrl_);
-        r.Read(blk_att_);
-        r.Read(wtmk_lvl_);
-        r.Read(vend_spec_);
-        r.Read(ds_addr_);
-        r.Read(adma_sys_addr_);
-        r.Read(autocmd12_err_status_);
-        r.ReadBytes(rsp_, sizeof(rsp_));
-        r.Read(buf_pos_);
-        r.Read(blocks_rem_);
+        r.Read("cmdarg", cmdarg_);
+        r.Read("cmd_xfr_typ", cmd_xfr_typ_);
+        r.Read("mix_ctrl", mix_ctrl_);
+        r.Read("irqstat", irqstat_);
+        r.Read("irqstaten", irqstaten_);
+        r.Read("irqsigen", irqsigen_);
+        r.Read("sys_ctrl", sys_ctrl_);
+        r.Read("prot_ctrl", prot_ctrl_);
+        r.Read("blk_att", blk_att_);
+        r.Read("wtmk_lvl", wtmk_lvl_);
+        r.Read("vend_spec", vend_spec_);
+        r.Read("ds_addr", ds_addr_);
+        r.Read("adma_sys_addr", adma_sys_addr_);
+        r.Read("autocmd12_err_status", autocmd12_err_status_);
+        r.ReadBytes("rsp", rsp_, sizeof(rsp_));
+        r.Read("buf_pos", buf_pos_);
+        r.Read("blocks_rem", blocks_rem_);
         uint32_t flags = 0u;
-        r.Read(flags);
+        r.Read("flags", flags);
         buf_reading_ = (flags & 1u) != 0u;
         buf_writing_ = (flags & 2u) != 0u;
         next_is_acmd_ = (flags & 4u) != 0u;
         open_ended_read_ = (flags & 8u) != 0u;
         open_ended_write_ = (flags & 16u) != 0u;
-        r.ReadBytes(buf_, sizeof(buf_));
+        r.ReadBytes("buf", buf_, sizeof(buf_));
         if constexpr (kHasCard) Card().RestoreState(r);
     }
 

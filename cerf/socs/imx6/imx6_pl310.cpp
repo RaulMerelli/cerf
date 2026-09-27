@@ -4,6 +4,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "imx6_mmio_lane.h"
+#include "imx6_id.h"
 
 namespace {
 class Imx6Pl310 final : public Peripheral {
@@ -11,7 +12,7 @@ public:
     using Peripheral::Peripheral;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         /* ARM DDI 0246F Table 3-2: reg1_aux_control resets to 0x02020000. The tag and data RAM
@@ -55,8 +56,8 @@ public:
             regs_[offset >> 2] = value;
         }
     }
-    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_, sizeof(regs_)); }
 
 private:
     static bool IsMaintenanceOperation(uint32_t offset) {

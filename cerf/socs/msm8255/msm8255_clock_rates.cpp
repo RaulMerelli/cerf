@@ -3,6 +3,7 @@
 #include "msm8255_value_set.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../state/state_stream.h"
@@ -25,6 +26,11 @@ constexpr uint32_t kMdpVsyncClock = 43u;
 /* Linux arch/arm/mach-msm clock-7x30-vendor.c: clk_tbl_mdp_vsync, whose only
    rate other than the ground source is the low-power crystal's. */
 constexpr uint32_t kMdpVsyncHz = 24576000u;
+
+constexpr uint32_t kDalI2cBus0Clock = 78u;
+constexpr uint32_t kDalI2cBus1Clock = 79u;
+
+constexpr uint32_t kI2cCoreHz = 19200000u;
 
 /* Linux arch/arm/mach-msm clock-7x30-vendor.c: the driving rates of
    clk_tbl_mdh, the table both pmdh_clk and emdh_clk carry. */
@@ -62,7 +68,7 @@ REGISTER_SERVICE(Msm8255ClockRates);
 
 bool Msm8255ClockRates::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::MSM8255;
+    return bd && bd->GetSocId() == SocId::Msm8255;
 }
 
 uint32_t Msm8255ClockRates::ReportClockFreqKhz(uint32_t clock) {
@@ -78,6 +84,9 @@ uint32_t Msm8255ClockRates::ReportClockFreqKhz(uint32_t clock) {
     }
     if (clock == kMdpVsyncClock) {
         return kMdpVsyncHz / kHzPerKhz;
+    }
+    if (clock == kDalI2cBus0Clock || clock == kDalI2cBus1Clock) {
+        return kI2cCoreHz / kHzPerKhz;
     }
     if (clock == kPmdhClock) {
         const uint32_t khz =
@@ -195,18 +204,18 @@ uint32_t Msm8255ClockRates::GrantMdhRateKhz(uint32_t index, uint32_t min_khz,
 
 void Msm8255ClockRates::SaveState(StateWriter& w) const {
     for (const auto& rate : mdh_granted_khz_) {
-        w.Write<uint32_t>(rate.load(std::memory_order_acquire));
+        w.Write<uint32_t>("rate", rate.load(std::memory_order_acquire));
     }
-    w.Write<uint32_t>(mdp_core_granted_hz_.load(std::memory_order_acquire));
+    w.Write<uint32_t>("mdp_core_granted_hz", mdp_core_granted_hz_.load(std::memory_order_acquire));
 }
 
 void Msm8255ClockRates::RestoreState(StateReader& r) {
     for (auto& rate : mdh_granted_khz_) {
         uint32_t khz = kRateUnavailable;
-        r.Read(khz);
+        r.Read("rate", khz);
         rate.store(khz, std::memory_order_release);
     }
     uint32_t hz = kRateUnavailable;
-    r.Read(hz);
+    r.Read("mdp_core_granted_hz", hz);
     mdp_core_granted_hz_.store(hz, std::memory_order_release);
 }

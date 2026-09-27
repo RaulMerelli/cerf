@@ -1,7 +1,8 @@
 #include "ktp_mobile_placer.h"
+#include "ktp_mobile_id.h"
 
 namespace {
-class Ktp900FPlacer final : public KtpMobilePlacer<Board::HmiKtp900FMobile> {
+class Ktp900FPlacer final : public KtpMobilePlacer<BoardId::HmiKtp900FMobile> {
 public:
     using KtpMobilePlacer::KtpMobilePlacer;
 };

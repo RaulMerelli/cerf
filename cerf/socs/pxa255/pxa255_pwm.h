@@ -4,6 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "pxa255_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -21,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && bd->GetSocId() == SocId::Pxa255;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -48,14 +49,14 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(ctrl_);
-        w.Write(duty_);
-        w.Write(perval_);
+        w.Write("ctrl", ctrl_);
+        w.Write("duty", duty_);
+        w.Write("perval", perval_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(ctrl_);
-        r.Read(duty_);
-        r.Read(perval_);
+        r.Read("ctrl", ctrl_);
+        r.Read("duty", duty_);
+        r.Read("perval", perval_);
     }
 
 private:

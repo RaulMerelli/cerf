@@ -5,6 +5,7 @@
 #include "msm8255_rpcrouter_wire.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -15,7 +16,7 @@
 
 bool Msm8255RpcRouterPeer::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::MSM8255;
+    return bd && bd->GetSocId() == SocId::Msm8255;
 }
 
 void Msm8255RpcRouterPeer::OnReady() {
@@ -284,18 +285,18 @@ void Msm8255RpcRouterPeer::WriteCtrlMsg(uint32_t out_pa, uint32_t cmd,
 }
 
 void Msm8255RpcRouterPeer::SaveState(StateWriter& w) {
-    w.Write<uint32_t>(next_mid_);
-    w.Write<uint32_t>(srv_pid_);
-    w.Write<uint32_t>(srv_cid_);
-    w.Write<uint32_t>(srv_known_ ? 1u : 0u);
+    w.Write<uint32_t>("next_mid", next_mid_);
+    w.Write<uint32_t>("srv_pid", srv_pid_);
+    w.Write<uint32_t>("srv_cid", srv_cid_);
+    w.Write<uint32_t>("srv_known", srv_known_ ? 1u : 0u);
 }
 
 void Msm8255RpcRouterPeer::RestoreState(StateReader& r) {
     uint32_t known = 0;
-    r.Read(next_mid_);
-    r.Read(srv_pid_);
-    r.Read(srv_cid_);
-    r.Read(known);
+    r.Read("next_mid", next_mid_);
+    r.Read("srv_pid", srv_pid_);
+    r.Read("srv_cid", srv_cid_);
+    r.Read("srv_known", known);
     srv_known_ = known != 0u;
 }
 

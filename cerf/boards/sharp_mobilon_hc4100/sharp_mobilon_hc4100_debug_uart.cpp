@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 #include "sharp_mobilon_hc4100_cmtt.h"
 
 #include <cstdint>
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     uint32_t MmioBase() const override { return 0x10800000u; }

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "simpad_sl4_cs3_sink.h"
@@ -31,7 +32,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -47,10 +48,10 @@ public:
 
     /* State image: the latch shadow is the entire guest-writable state. */
     void SaveState(StateWriter& w) override {
-        w.Write(shadow_);
+        w.Write("shadow", shadow_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(shadow_);
+        r.Read("shadow", shadow_);
     }
 
 private:

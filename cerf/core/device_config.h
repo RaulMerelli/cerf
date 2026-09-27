@@ -39,15 +39,10 @@ enum class StateBootMode {
     Cold,     /* ignore state.img, cold boot */
 };
 
-/* The host canvas tabs. The startup / reboot / resume tab (--tab=boot|hw|fb)
-   selects one; MemoryVisualizer is a dev-only tab, not a startup choice.
-   Defined here (not in HostCanvas) so core config can name it without core
-   depending on the host layer; HostCanvas aliases it as HostCanvas::Tab. */
 enum class CanvasTab {
-    Boot,            /* CERF/OEM logo boot screen */
-    Hw,              /* hardware text console (UART / debug output) */
-    Framebuffer,     /* live guest framebuffer */
-    MemoryVisualizer,/* dev memory visualizer */
+    Boot,
+    Hw,
+    Framebuffer,
 };
 
 constexpr uint32_t kDefaultConfigurableScreenWidth  = 800;
@@ -102,6 +97,12 @@ struct DeviceConfig : public Service {
        when the device has none. */
     std::string              rom_eeprom;
 
+    std::string              rom_lumia800_user_area_erase;
+
+    std::string storage_nand = "nand.img";
+    std::string storage_hdd  = "hdd.img";
+    std::string storage_emmc = "emmc.img";
+
     /* Optional CF images bundled with the ROM (cerf.json
        "additional_packages.compact_flash_cards"); the CF insert menu offers
        each entry whose file is present in the device directory. */
@@ -114,8 +115,6 @@ struct DeviceConfig : public Service {
 
     int32_t guest_additions_font_size = 0;
     bool    guest_additions_font_size_set = false;
-
-    bool ga_tick_profiler = false;
 
     /* Startup tab. Dev builds default to the hardware console so debug output
        shows instantly; production defaults to the boot screen. --tab overrides. */
@@ -138,8 +137,6 @@ struct DeviceConfig : public Service {
     std::string share_folder;
 
     bool start_fullscreen = false;
-
-    bool show_about_instead_of_run = false;
 
     /* Guest-additions victim display-driver module names from the GLOBAL
        cerf.json ("video_driver_names_for_guest_additions"): the ROM modules to

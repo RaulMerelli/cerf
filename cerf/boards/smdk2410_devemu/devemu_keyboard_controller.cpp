@@ -1,6 +1,7 @@
 #include "devemu_keyboard_controller.h"
 
 #include "../../boards/board_context.h"
+#include "devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../jit/arm/arm_jit.h"
@@ -45,13 +46,18 @@ constexpr auto kDeadlinePollInterval = std::chrono::microseconds(50);
 
 bool DevEmuKeyboardController::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+    return bd && bd->GetBoardId() == BoardId::Devemu;
 }
 
 void DevEmuKeyboardController::OnReady() {
     emu_.Get<S3C2410Spi>().SetSlave(kSpiChannel, this);
     emu_.Get<GuestCpuReset>().RegisterResetListener(
         [this](ResetLineKind) { ResetDevice(); });
+    emu_.Get<GuestCpuReset>().RegisterResetReleaseListener([this] {
+        std::lock_guard<std::mutex> lk(mutex_);
+        DriveLineLocked(kPinIdle);
+        line_seeded_ = true;
+    });
     worker_ = std::thread([this] { DeadlineLoop(); });
 }
 
@@ -96,14 +102,14 @@ uint8_t DevEmuKeyboardController::Exchange(uint8_t mosi) {
 
 void DevEmuKeyboardController::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(mutex_);
-    w.Write<uint32_t>(static_cast<uint32_t>(queue_.size()));
-    for (uint8_t b : queue_) { w.Write<uint8_t>(b); }
-    w.Write<uint32_t>(deadline_);
-    w.Write<uint32_t>(cmd_index_);
-    w.Write<uint32_t>(cmd_pos_);
-    w.Write<uint8_t>(static_cast<uint8_t>(armed_));
-    w.Write<uint8_t>(static_cast<uint8_t>(line_active_));
-    w.Write<uint8_t>(static_cast<uint8_t>(line_seeded_));
+    w.Write<uint32_t>("queue_count", static_cast<uint32_t>(queue_.size()));
+    for (uint8_t b : queue_) { w.Write<uint8_t>("queue", b); }
+    w.Write<uint32_t>("deadline", deadline_);
+    w.Write<uint32_t>("cmd_index", cmd_index_);
+    w.Write<uint32_t>("cmd_pos", cmd_pos_);
+    w.Write<uint8_t>("armed", static_cast<uint8_t>(armed_));
+    w.Write<uint8_t>("line_active", static_cast<uint8_t>(line_active_));
+    w.Write<uint8_t>("line_seeded", static_cast<uint8_t>(line_seeded_));
 }
 
 void DevEmuKeyboardController::RestoreState(StateReader& r) {
@@ -111,19 +117,19 @@ void DevEmuKeyboardController::RestoreState(StateReader& r) {
         std::lock_guard<std::mutex> lk(mutex_);
         queue_.clear();
         uint32_t count = 0;
-        r.Read(count);
+        r.Read("queue_count", count);
         for (uint32_t i = 0; i < count; ++i) {
             uint8_t b = 0;
-            r.Read(b);
+            r.Read("queue", b);
             queue_.push_back(b);
         }
-        r.Read(deadline_);
-        r.Read(cmd_index_);
-        r.Read(cmd_pos_);
+        r.Read("deadline", deadline_);
+        r.Read("cmd_index", cmd_index_);
+        r.Read("cmd_pos", cmd_pos_);
         uint8_t armed = 0, active = 0, seeded = 0;
-        r.Read(armed);
-        r.Read(active);
-        r.Read(seeded);
+        r.Read("armed", armed);
+        r.Read("line_active", active);
+        r.Read("line_seeded", seeded);
         armed_       = armed  != 0;
         line_active_ = active != 0;
         line_seeded_ = seeded != 0;
@@ -137,9 +143,8 @@ void DevEmuKeyboardController::ResetDevice() {
     cmd_pos_   = 0;
     cmd_index_ = 0;
     armed_     = false;
-    DriveLineLocked(kPinIdle);
     line_active_ = false;
-    line_seeded_ = true;
+    line_seeded_ = false;
 }
 
 void DevEmuKeyboardController::DriveLineLocked(bool level) {

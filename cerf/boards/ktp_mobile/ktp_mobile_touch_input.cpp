@@ -6,6 +6,7 @@
 #include "../../peripherals/ti_tsc2017/tsc2017_host_state.h"
 
 #include <algorithm>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -21,11 +22,11 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
 
     void OnReady() override {
-        profile_ = &KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoard());
+        profile_ = &KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoardId());
         map_ = emu_.Get<KtpMobileTouchCalibration>().Read(
             profile_->touch_size_suffix, profile_->panel.width, profile_->panel.height);
         emu_.Get<Tsc2017HostState>().SetPen(false, 0x800u, 0x800u);

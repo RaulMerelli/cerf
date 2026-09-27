@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 
 namespace {
 constexpr uint8_t kTwlAddr_USB         = 0x48;
@@ -13,7 +14,7 @@ constexpr uint8_t kTwlAddr_PWR_RTC     = 0x4B;
 
 bool Twl4030::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::OMAP3530;
+    return bd && bd->GetSocId() == SocId::Omap3530;
 }
 
 bool Twl4030::MatchesAddress(uint8_t slave_addr) const {

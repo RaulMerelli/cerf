@@ -1,6 +1,7 @@
 #include "peripheral_dispatcher.h"
 
 #include "peripheral_base.h"
+#include "../core/byte_order.h"
 #include "../core/cerf_emulator.h"
 #include "../core/fatal.h"
 #include "../core/log.h"
@@ -29,41 +30,143 @@ void PeripheralDispatcher::Register(Peripheral* p) {
     }
     const uint32_t base = p->MmioBase();
     const uint32_t size = p->MmioSize();
-    const uint64_t end  = static_cast<uint64_t>(base) + size;
+    const uint32_t end  = base + size;
     if (size == 0) {
         LOG(Caution, "PeripheralDispatcher::Register peripheral has "
                 "zero-size MMIO range (base 0x%08X)\n", base);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 
-    const EntryTable* prev = live_.load(std::memory_order_acquire);
-    if (prev) {
-        for (const auto& e : *prev) {
-            const uint64_t existing_end = static_cast<uint64_t>(e.base) + e.size;
-            if (static_cast<uint64_t>(base) < existing_end && static_cast<uint64_t>(e.base) < end) {
-                LOG(Caution, "PeripheralDispatcher::Register overlap: "
-                        "new [0x%08X..0x%llX) vs existing [0x%08X..0x%llX)\n",
-                        base, static_cast<unsigned long long>(end), e.base,
-                        static_cast<unsigned long long>(existing_end));
-                CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-            }
+    std::lock_guard<std::mutex> lock(table_mutex_);
+    for (const auto& e : entries_) {
+        if (base < e.end && e.base < end) {
+            LOG(Caution, "PeripheralDispatcher::Register overlap: "
+                    "new [0x%08X..0x%08X) vs existing [0x%08X..0x%08X)\n",
+                    base, end, e.base, e.end);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
     }
 
-    auto next = prev ? std::make_unique<EntryTable>(*prev)
-                     : std::make_unique<EntryTable>();
-    Entry entry{base, size, p->FastReader(), p->FastWriter(), p, p};
-    auto pos = std::lower_bound(next->begin(), next->end(), base,
+    const Entry entry{base, end, p->FastReader(), p->FastWriter(), p, p, nullptr};
+    auto pos = std::lower_bound(entries_.begin(), entries_.end(), base,
         [](const Entry& e, uint32_t b) { return e.base < b; });
-    next->insert(pos, entry);
+    entries_.insert(pos, entry);
+    table_by_active_.clear();
+    PublishLocked();
 
-    const EntryTable* published = next.get();
-    tables_.push_back(std::move(next));
+    LOG(Periph, "Register 0x%08X..0x%08X\n", base, end);
+}
+
+PeripheralDispatcher::DataInversionId PeripheralDispatcher::InstallDataInversion(
+    uint32_t base, uint32_t end) {
+    if (base >= end) {
+        emu_.Get<Fatal>().Die("PeripheralDispatcher::InstallDataInversion empty range "
+                              "[0x%08X..0x%08X)", base, end);
+    }
+    if (emu_.Get<EmulatedMemory>().OverlapsRegion(base, end - base)) {
+        emu_.Get<Fatal>().Die("PeripheralDispatcher::InstallDataInversion [0x%08X..0x%08X) "
+                              "overlaps backed memory", base, end);
+    }
+    std::lock_guard<std::mutex> lock(table_mutex_);
+    if (inversions_.size() >= kMaxDataInversions) {
+        emu_.Get<Fatal>().Die("PeripheralDispatcher::InstallDataInversion [0x%08X..0x%08X) "
+                              "past %u ranges", base, end, kMaxDataInversions);
+    }
+    if (OverlapsDataInversionLocked(base, end)) {
+        emu_.Get<Fatal>().Die("PeripheralDispatcher::InstallDataInversion [0x%08X..0x%08X) "
+                              "overlaps another inversion range", base, end);
+    }
+    inversions_.push_back({base, end});
+    table_by_active_.clear();
+    PublishLocked();
+
+    LOG(Periph, "InstallDataInversion 0x%08X..0x%08X\n", base, end);
+    return static_cast<DataInversionId>(inversions_.size() - 1u);
+}
+
+void PeripheralDispatcher::SetDataInversion(DataInversionId id, bool inverting) {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+    if (id >= inversions_.size()) {
+        emu_.Get<Fatal>().Die("PeripheralDispatcher::SetDataInversion unknown range %u", id);
+    }
+    const uint32_t bit    = 1u << id;
+    const uint32_t active = inverting ? (active_inversions_ | bit) : (active_inversions_ & ~bit);
+    if (active == active_inversions_) return;
+    active_inversions_ = active;
+    PublishLocked();
+
+    const EntryTable* live = live_.load(std::memory_order_acquire);
+    const auto wrapped = std::count_if(live->begin(), live->end(),
+        [](const Entry& e) { return e.inverted != nullptr; });
+    LOG(Periph, "SetDataInversion range %u %s: active 0x%X, %d of %zu entries wrapped\n",
+        id, inverting ? "on" : "off", active, static_cast<int>(wrapped), live->size());
+}
+
+bool PeripheralDispatcher::OverlapsDataInversion(uint32_t base, uint32_t size) const {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+    return OverlapsDataInversionLocked(base, uint64_t{base} + size);
+}
+
+bool PeripheralDispatcher::OverlapsDataInversionLocked(uint32_t base, uint64_t end) const {
+    for (const InversionRange& r : inversions_) {
+        if (base < r.end && r.base < end) return true;
+    }
+    return false;
+}
+
+const PeripheralDispatcher::InversionRange* PeripheralDispatcher::InversionRangeOf(
+    const Entry& entry) const {
+    for (const InversionRange& r : inversions_) {
+        if (entry.base < r.end && r.base < entry.end) {
+            if (entry.base < r.base || entry.end > r.end) {
+                emu_.Get<Fatal>().Die("PeripheralDispatcher: %s at [0x%08X..0x%08X) crosses the "
+                                      "edge of data inversion range [0x%08X..0x%08X)",
+                                      typeid(*entry.p).name(), entry.base, entry.end, r.base,
+                                      r.end);
+            }
+            return &r;
+        }
+    }
+    return nullptr;
+}
+
+void PeripheralDispatcher::PublishLocked() {
+    const EntryTable* published = nullptr;
+    const auto cached = table_by_active_.find(active_inversions_);
+    if (cached != table_by_active_.end()) {
+        published = cached->second;
+    } else {
+        auto next = std::make_unique<EntryTable>(entries_);
+        for (Entry& e : *next) {
+            const InversionRange* r = InversionRangeOf(e);
+            if (!r) continue;
+            const uint32_t index = static_cast<uint32_t>(r - inversions_.data());
+            if ((active_inversions_ & (1u << index)) == 0u) continue;
+            inverted_targets_.push_back(std::make_unique<InvertedTarget>(
+                InvertedTarget{e.read, e.write, e.ctx}));
+            InvertedTarget* t = inverted_targets_.back().get();
+            e.read     = &InvertedRead;
+            e.write    = &InvertedWrite;
+            e.ctx      = t;
+            e.inverted = t;
+        }
+        published = next.get();
+        tables_.push_back(std::move(next));
+        table_by_active_.emplace(active_inversions_, published);
+    }
     last_hit_.store(0, std::memory_order_relaxed);
     live_.store(published, std::memory_order_release);
+}
 
-    LOG(Periph, "Register 0x%08X..0x%llX\n", base,
-        static_cast<unsigned long long>(end));
+uint32_t PeripheralDispatcher::InvertedRead(void* ctx, uint32_t off, uint32_t width_bytes) {
+    const auto* t = static_cast<const InvertedTarget*>(ctx);
+    return ~t->read(t->ctx, off, width_bytes) & cerf::ByteWidthMask(width_bytes);
+}
+
+void PeripheralDispatcher::InvertedWrite(void* ctx, uint32_t off, uint32_t value,
+                                         uint32_t width_bytes) {
+    const auto* t = static_cast<const InvertedTarget*>(ctx);
+    t->write(t->ctx, off, ~value & cerf::ByteWidthMask(width_bytes), width_bytes);
 }
 
 void PeripheralDispatcher::RegisterResettable(Peripheral* p) {
@@ -85,12 +188,11 @@ void PeripheralDispatcher::RegisterResettable(Peripheral* p) {
 
 void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
     const bool cold = reset_kind == ResetKind::Cold;
-    const ResetLineKind legacy_kind =
-        cold ? ResetLineKind::Rtc : ResetLineKind::Other;
+    const ResetLineKind legacy_kind = cold ? ResetLineKind::Rtc : ResetLineKind::Other;
     for (auto& baseline : reset_baselines_) {
         StateReader reader(baseline.state);
         baseline.p->RestoreResetState(reader);
-        if (!reader.Ok() || reader.Position() != reader.FileSize())
+        if (!reader.Ok() || reader.Remaining() != 0u)
             emu_.Get<Fatal>().Die("PeripheralDispatcher: failed to restore reset baseline at 0x%08X",
                                   baseline.p->MmioBase());
     }
@@ -109,14 +211,13 @@ void PeripheralDispatcher::ValidatePhysReachable(uint32_t phys_addr_mask) const 
     const EntryTable* t = live_.load(std::memory_order_acquire);
     if (!t) return;
     for (const auto& e : *t) {
-        const uint64_t end = static_cast<uint64_t>(e.base) + e.size;
-        if ((end - 1u) > phys_addr_mask) {
-            LOG(Caution, "PeripheralDispatcher: %s at [0x%08X..0x%llX) is above "
+        if ((e.end - 1u) > phys_addr_mask) {
+            LOG(Caution, "PeripheralDispatcher: %s at [0x%08X..0x%08X) is above "
                     "the SoC physical space (mask 0x%08X); it aliases to "
                     "0x%08X and is unreachable/shadowed - relocate it into the "
                     "addressable range\n",
-                    typeid(*e.p).name(), e.base, static_cast<unsigned long long>(end),
-                    phys_addr_mask, e.base & phys_addr_mask);
+                    typeid(*e.p).name(), e.base, e.end, phys_addr_mask,
+                    e.base & phys_addr_mask);
             CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
         }
     }
@@ -138,7 +239,7 @@ const PeripheralDispatcher::Entry* PeripheralDispatcher::LookupSlow(
         [](uint32_t a, const Entry& e) { return a < e.base; });
     if (it == t->begin()) return nullptr;
     --it;
-    if (addr - it->base < it->size) {
+    if (addr >= it->base && addr < it->end) {
         last_hit_.store(static_cast<size_t>(it - t->begin()),
                         std::memory_order_relaxed);
         return &(*it);
@@ -194,7 +295,8 @@ uint32_t PeripheralDispatcher::ReadWord(uint32_t addr) {
 
 uint64_t PeripheralDispatcher::ReadDword(uint32_t addr) {
     if (const Entry* e = LookupEntry(addr)) {
-        return e->p->ReadDword(addr);
+        const uint64_t value = e->p->ReadDword(addr);
+        return e->inverted ? ~value : value;
     }
     return emu_.Get<EmulatedMemory>().ReadDword(addr);
 }
@@ -213,8 +315,10 @@ void PeripheralDispatcher::WriteWord(uint32_t addr, uint32_t value) {
 
 void PeripheralDispatcher::WriteDword(uint32_t addr, uint64_t value) {
     if (const Entry* e = LookupEntry(addr)) {
+        if (e->inverted) value = ~value;
         e->p->WriteDword(addr, value);
         return;
     }
     emu_.Get<EmulatedMemory>().WriteDword(addr, value);
 }
+

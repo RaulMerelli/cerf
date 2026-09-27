@@ -15,13 +15,14 @@ are too long to inline are in `licenses/`.
 | [PCRE2](https://github.com/PCRE2Project/pcre2) | 10.47 | BSD-3-Clause | (c) 1997-2007 University of Cambridge; (c) 2007-2024 Philip Hazel; JIT written by Zoltan Herczeg |
 | [GNU libiconv](https://www.gnu.org/software/libiconv/) | 1.18 | LGPL-2.1-or-later | (c) Free Software Foundation |
 | [GNU gettext (libintl)](https://www.gnu.org/software/gettext/) | 0.22.5 | LGPL-2.1-or-later | (c) Free Software Foundation |
+| [Sun Valley ttk theme (sv-ttk)](https://github.com/rdbende/Sun-Valley-ttk-theme) | 2.5.5 | MIT | (c) rdbende |
 
 GLib, PCRE2, libiconv and libintl are pulled in transitively by libslirp and form its
 static link closure.
 
 ---
 
-### MIT (nlohmann-json, YY-Thunks)
+### MIT (nlohmann-json, YY-Thunks, sv-ttk)
 
 > Permission is hereby granted, free of charge, to any person obtaining a copy of this
 > software and associated documentation files (the "Software"), to deal in the Software
@@ -112,6 +113,11 @@ The file [`licenses/OFL-1.1.txt`](licenses/OFL-1.1.txt) contains the full licens
 - **[MAME](https://www.mamedev.org/)**
 - **[OpenOCD](https://openocd.org/)**
 - **[etnaviv](https://github.com/etnaviv/etna_viv)**
+- **[dosfstools](https://github.com/dosfstools/dosfstools)**
+- **[Dynamic Rate Control for Retro Game Emulators](https://docs.libretro.com/guides/ratecontrol.pdf)** - Hans-Kristian Arntzen
+- **[Polynomial Interpolators for High-Quality Resampling of Oversampled Audio](http://yehar.com/blog/wp-content/uploads/2009/08/deip.pdf)** - Olli Niemitalo
+- **[qemu-neo1973](https://github.com/jvesely/qemu-neo1973)** - Openmoko
+- **[libqmi](https://gitlab.freedesktop.org/mobile-broadband/libqmi)**
 
 ## Trademarks
 

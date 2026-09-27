@@ -11,6 +11,7 @@
 #include "imx6_mmio_lane.h"
 
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace cerf_imx6_pwm_detail {
 
@@ -23,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().RegisterResettable(this); }
 
@@ -61,8 +62,8 @@ private:
         HaltUnsupportedAccess("write32", addr, value);
     }
 
-    void SaveState(StateWriter& w) override { w.Write(control_); }
-    void RestoreState(StateReader& r) override { r.Read(control_); }
+    void SaveState(StateWriter& w) override { w.Write("control", control_); }
+    void RestoreState(StateReader& r) override { r.Read("control", control_); }
 
     static constexpr uint32_t kOffCr = 0x00u;
     static constexpr uint32_t kOffSar = 0x0Cu;

@@ -11,6 +11,8 @@ public:
        emulator). Called by DeviceConfig::OnReady. */
     void LoadInto(DeviceConfig& config);
 
+    void ApplyBoardPanelDefault(DeviceConfig& config);
+
     /* Persist the shutdown dialog's "Save the state" selection to the global
        cerf.json top-level "last_save_state_mode", preserving every other key.
        Called when the dialog's "Remember choice" is set. */

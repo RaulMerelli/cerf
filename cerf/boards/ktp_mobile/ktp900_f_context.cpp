@@ -1,7 +1,8 @@
 #include "ktp_mobile_context.h"
+#include "ktp_mobile_id.h"
 
 namespace {
-class Ktp900FContext final : public KtpMobileContext<Board::HmiKtp900FMobile> {
+class Ktp900FContext final : public KtpMobileContext<BoardId::HmiKtp900FMobile> {
 public:
     using KtpMobileContext::KtpMobileContext;
 };

@@ -4,13 +4,14 @@
 #include "../../host/keyboard_map.h"
 #include "../../host/keyboard_router.h"
 #include "../board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <array>
 
 bool SimpadSl4Keypad::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SimpadSl4;
+    return bd && bd->GetBoardId() == BoardId::SimpadSl4;
 }
 
 REGISTER_SERVICE(SimpadSl4Keypad);
@@ -23,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

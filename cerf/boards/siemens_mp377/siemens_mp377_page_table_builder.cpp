@@ -4,6 +4,7 @@
 #include "../../peripherals/siemens_aspc2/siemens_mp377_aspc2.h"
 
 #include "../../boards/board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -53,7 +54,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensMP377;
+        return bd && bd->GetBoardId() == BoardId::SiemensMp377;
     }
 
     uint32_t InitStackTopPa() const override { return kBackedDramSize; }

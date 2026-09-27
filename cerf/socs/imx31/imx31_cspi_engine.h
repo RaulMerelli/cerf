@@ -4,6 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -18,7 +19,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -28,14 +29,14 @@ public:
     void WriteWord(uint32_t addr, uint32_t value) override;
 
     void SaveState(StateWriter& w) override {
-        w.Write(conreg_);    w.Write(intreg_);      w.Write(dmareg_);
-        w.Write(statreg_);   w.Write(periodreg_);   w.Write(testreg_);
-        w.Write(last_txdata_); w.Write(last_rxdata_);
+        w.Write("conreg", conreg_);    w.Write("intreg", intreg_);      w.Write("dmareg", dmareg_);
+        w.Write("statreg", statreg_);   w.Write("periodreg", periodreg_);   w.Write("testreg", testreg_);
+        w.Write("last_txdata", last_txdata_); w.Write("last_rxdata", last_rxdata_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(conreg_);    r.Read(intreg_);      r.Read(dmareg_);
-        r.Read(statreg_);   r.Read(periodreg_);   r.Read(testreg_);
-        r.Read(last_txdata_); r.Read(last_rxdata_);
+        r.Read("conreg", conreg_);    r.Read("intreg", intreg_);      r.Read("dmareg", dmareg_);
+        r.Read("statreg", statreg_);   r.Read("periodreg", periodreg_);   r.Read("testreg", testreg_);
+        r.Read("last_txdata", last_txdata_); r.Read("last_rxdata", last_rxdata_);
     }
 
 protected:

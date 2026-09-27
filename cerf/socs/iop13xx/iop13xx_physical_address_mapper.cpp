@@ -1,6 +1,7 @@
 #include "../../cpu/physical_address_mapper.h"
 
 #include "../../boards/board_context.h"
+#include "iop13xx_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "iop13xx_atu_state.h"
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetSoc() == SocFamily::IOP13xx;
+        return board && board->GetSocId() == SocId::Iop13xx;
     }
 
     bool Map(uint64_t cpu_pa, uint32_t size, uint32_t& system_pa) override {

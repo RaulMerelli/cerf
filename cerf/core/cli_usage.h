@@ -1,3 +1,10 @@
 #pragma once
 
-void PrintUsage(const char* prog);
+#include "service.h"
+
+class CliUsage : public Service {
+public:
+    using Service::Service;
+
+    void Print(const char* prog);
+};

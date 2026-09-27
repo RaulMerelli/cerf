@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include "imx6_id.h"
 
 namespace {
 
@@ -21,7 +22,7 @@ public:
     using Peripheral::Peripheral;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         ResetRegisters();
@@ -75,9 +76,9 @@ public:
         HaltUnsupportedAccess("write32", addr, value);
     }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_, sizeof(regs_)); }
 
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_, sizeof(regs_)); }
 
 private:
     static bool IsPllControl(uint32_t base) {

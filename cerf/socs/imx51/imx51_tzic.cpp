@@ -9,6 +9,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 
 #include <bit>
 #include <cstdint>
@@ -16,7 +17,7 @@
 
 bool Imx51Tzic::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX51;
+    return bd && bd->GetSocId() == SocId::Imx51;
 }
 
 bool Imx51Tzic::SourceDeliverable(uint32_t src) const {
@@ -171,30 +172,30 @@ void Imx51Tzic::WriteReg(uint32_t off, uint32_t value) {
 
 void Imx51Tzic::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    w.WriteBytes(raw_,      sizeof(raw_));
-    w.WriteBytes(enable_,   sizeof(enable_));
-    w.WriteBytes(secure_,   sizeof(secure_));
-    w.WriteBytes(swforce_,  sizeof(swforce_));
-    w.WriteBytes(wakeup_,   sizeof(wakeup_));
-    w.WriteBytes(priority_, sizeof(priority_));
-    w.Write(intctrl_);
-    w.Write(priomask_);
-    w.Write(syncctrl_);
-    w.Write(dsmint_);
+    w.WriteBytes("raw", raw_,      sizeof(raw_));
+    w.WriteBytes("enable", enable_,   sizeof(enable_));
+    w.WriteBytes("secure", secure_,   sizeof(secure_));
+    w.WriteBytes("swforce", swforce_,  sizeof(swforce_));
+    w.WriteBytes("wakeup", wakeup_,   sizeof(wakeup_));
+    w.WriteBytes("priority", priority_, sizeof(priority_));
+    w.Write("intctrl", intctrl_);
+    w.Write("priomask", priomask_);
+    w.Write("syncctrl", syncctrl_);
+    w.Write("dsmint", dsmint_);
 }
 
 void Imx51Tzic::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    r.ReadBytes(raw_,      sizeof(raw_));
-    r.ReadBytes(enable_,   sizeof(enable_));
-    r.ReadBytes(secure_,   sizeof(secure_));
-    r.ReadBytes(swforce_,  sizeof(swforce_));
-    r.ReadBytes(wakeup_,   sizeof(wakeup_));
-    r.ReadBytes(priority_, sizeof(priority_));
-    r.Read(intctrl_);
-    r.Read(priomask_);
-    r.Read(syncctrl_);
-    r.Read(dsmint_);
+    r.ReadBytes("raw", raw_,      sizeof(raw_));
+    r.ReadBytes("enable", enable_,   sizeof(enable_));
+    r.ReadBytes("secure", secure_,   sizeof(secure_));
+    r.ReadBytes("swforce", swforce_,  sizeof(swforce_));
+    r.ReadBytes("wakeup", wakeup_,   sizeof(wakeup_));
+    r.ReadBytes("priority", priority_, sizeof(priority_));
+    r.Read("intctrl", intctrl_);
+    r.Read("priomask", priomask_);
+    r.Read("syncctrl", syncctrl_);
+    r.Read("dsmint", dsmint_);
 }
 
 void Imx51Tzic::PostRestore() {
@@ -217,7 +218,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX51;
+        return bd && bd->GetSocId() == SocId::Imx51;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 

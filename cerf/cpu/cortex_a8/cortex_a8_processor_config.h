@@ -24,6 +24,13 @@ public:
     bool     HasSecurityExtensions()      const override { return true; }
     bool     HasL2CacheAuxControl()       const override { return true; }
 
+    /* ARM DDI 0344K section 6.3: "The processor supports supersections that
+       consist of 16MB blocks of memory. The processor does not support the
+       optional extension of physical address bits [39:32]." */
+    ArmSupersectionFormat SupersectionFormat() const override {
+        return ArmSupersectionFormat::kPa32;
+    }
+
     bool     HasVfp()  const override { return true; }
     bool     HasNeon() const override { return true; }
     uint32_t Fpsid()   const override { return 0x410330C0u; }

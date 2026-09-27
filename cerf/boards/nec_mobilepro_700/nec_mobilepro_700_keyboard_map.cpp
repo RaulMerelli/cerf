@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
 #include "../board_context.h"
+#include "nec_mobilepro_700_id.h"
 
 #include <vector>
 
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro700;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
     }
 
     const std::vector<KeyBinding>& Bindings() const override {

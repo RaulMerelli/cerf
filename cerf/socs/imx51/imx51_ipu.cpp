@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../../host/host_window.h"
@@ -40,7 +41,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX51;
+        return bd && bd->GetSocId() == SocId::Imx51;
     }
     void OnReady() override {
         regs_.assign(kSize / 4, 0u);
@@ -86,10 +87,10 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint32_t));
+        w.WriteBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t));
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint32_t));
+        r.ReadBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t));
     }
     void PostRestore() override {
         /* OnLcdEnabled fires only on the IDMAC_CH_EN_1 ch23 0->1 edge in

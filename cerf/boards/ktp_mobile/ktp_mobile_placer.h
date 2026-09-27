@@ -7,14 +7,14 @@
 #include "ktp_mobile_board_profile.h"
 #include "ktp_mobile_boot_handoff.h"
 
-template <Board kBoard>
+template <const std::string_view& kBoard>
 class KtpMobilePlacer : public BoardBootPlacer {
 public:
     using BoardBootPlacer::BoardBootPlacer;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == kBoard;
+        return bd && bd->GetBoardId() == kBoard;
     }
 
     void OnReady() override {

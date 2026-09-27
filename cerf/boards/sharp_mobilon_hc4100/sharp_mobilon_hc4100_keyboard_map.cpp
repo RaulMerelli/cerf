@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 
 #include <array>
 #include <cstdint>
@@ -44,7 +45,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     void OnReady() override {

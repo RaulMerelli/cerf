@@ -4,6 +4,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../socs/vr41xx/vr41xx_kiu.h"
 #include "../board_context.h"
+#include "nec_mobilepro_700_id.h"
 
 #include <cstdint>
 
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro700;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

@@ -1,6 +1,7 @@
 #include "../arm_processor_config.h"
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/pxa27x/pxa270_id.h"
 
 namespace {
 
@@ -10,7 +11,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
 
     uint32_t PcStoreOffset()              const override { return 8; }

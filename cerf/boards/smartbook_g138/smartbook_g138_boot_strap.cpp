@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "smartbook_g138_id.h"
 #include "../../socs/sa11xx/sa11xx_ppc.h"
 
 namespace {
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     void OnReady() override {

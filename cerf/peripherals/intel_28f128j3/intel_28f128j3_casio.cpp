@@ -1,6 +1,7 @@
 #include "intel_28f128j3.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/casio_toricomail/casio_toricomail_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioToricomail;
+        return bd && bd->GetBoardId() == BoardId::CasioToricomail;
     }
 
     uint32_t MmioBase() const override { return 0x1F000000u; }

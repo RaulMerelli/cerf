@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_hotkey_menu.h"
 #include "../board_context.h"
+#include "jornada_820_id.h"
 #include "jornada820_keyboard.h"
 
 #include <cstdint>
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoardId() == BoardId::Jornada820;
     }
 
     std::vector<MenuSection> HotkeySections() override {

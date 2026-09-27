@@ -8,6 +8,9 @@
 #include "../state/state_stream.h"
 
 #include <cstring>
+#include "imx6/imx6_id.h"
+#include "imx51/imx51_id.h"
+#include "imx31/imx31_id.h"
 
 using namespace cerf_freescale_sdma_detail;
 
@@ -16,8 +19,8 @@ REGISTER_SERVICE(FreescaleSdmaChannel0);
 bool FreescaleSdmaChannel0::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
     if (!board) return false;
-    const SocFamily soc = board->GetSoc();
-    return soc == SocFamily::iMX31 || soc == SocFamily::iMX51 || soc == SocFamily::iMX6;
+    const std::string_view soc = board->GetSocId();
+    return soc == SocId::Imx31 || soc == SocId::Imx51 || soc == SocId::Imx6;
 }
 
 void FreescaleSdmaChannel0::OnReady() {
@@ -25,15 +28,15 @@ void FreescaleSdmaChannel0::OnReady() {
 }
 
 void FreescaleSdmaChannel0::SaveState(StateWriter& writer) const {
-    writer.Write(current_address_);
-    writer.WriteBytes(program_, sizeof(program_));
-    writer.WriteBytes(data_, sizeof(data_));
+    writer.Write("current_address", current_address_);
+    writer.WriteBytes("program", program_, sizeof(program_));
+    writer.WriteBytes("data", data_, sizeof(data_));
 }
 
 void FreescaleSdmaChannel0::RestoreState(StateReader& reader) {
-    reader.Read(current_address_);
-    reader.ReadBytes(program_, sizeof(program_));
-    reader.ReadBytes(data_, sizeof(data_));
+    reader.Read("current_address", current_address_);
+    reader.ReadBytes("program", program_, sizeof(program_));
+    reader.ReadBytes("data", data_, sizeof(data_));
 }
 
 void FreescaleSdmaChannel0::Reset() {

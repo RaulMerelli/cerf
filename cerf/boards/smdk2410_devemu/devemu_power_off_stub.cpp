@@ -1,4 +1,5 @@
 #include "../board_context.h"
+#include "devemu_id.h"
 
 #include "../../boot/board_boot_placer.h"
 #include "../../boot/guest_cold_boot.h"
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     void OnReady() override {

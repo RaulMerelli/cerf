@@ -4,6 +4,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/imx6/imx6_gic.h"
 #include "../../state/state_stream.h"
+#include "imx6_id.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         kpsr_ = 0;
@@ -91,19 +92,19 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(kpcr_);
-        w.Write(kpsr_);
-        w.Write(kddr_);
-        w.Write(kpdr_latch_);
-        w.Write<uint8_t>((depress_sync_ ? 1u : 0u) | (release_sync_ ? 2u : 0u));
+        w.Write("kpcr", kpcr_);
+        w.Write("kpsr", kpsr_);
+        w.Write("kddr", kddr_);
+        w.Write("kpdr_latch", kpdr_latch_);
+        w.Write<uint8_t>("sync", static_cast<uint8_t>((depress_sync_ ? 1u : 0u) | (release_sync_ ? 2u : 0u)));
     }
     void RestoreState(StateReader& r) override {
-        r.Read(kpcr_);
-        r.Read(kpsr_);
-        r.Read(kddr_);
-        r.Read(kpdr_latch_);
+        r.Read("kpcr", kpcr_);
+        r.Read("kpsr", kpsr_);
+        r.Read("kddr", kddr_);
+        r.Read("kpdr_latch", kpdr_latch_);
         uint8_t sync = 0;
-        r.Read(sync);
+        r.Read("sync", sync);
         depress_sync_ = (sync & 1u) != 0u;
         release_sync_ = (sync & 2u) != 0u;
     }

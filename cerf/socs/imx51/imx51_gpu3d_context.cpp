@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../state/state_stream.h"
 #include <vector>
 
@@ -10,7 +11,7 @@ REGISTER_SERVICE(Imx51Gpu3dContext);
 
 bool Imx51Gpu3dContext::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetSoc() == SocFamily::iMX51;
+    return board && board->GetSocId() == SocId::Imx51;
 }
 
 /* NXP linux-imx a1638da9, gsl_drawctxt.c:74-107,1005-1076; gsl_ringbuffer.h:64. */
@@ -64,8 +65,13 @@ void Imx51Gpu3dContext::ShadowWrite(uint32_t index, uint32_t value, uint32_t con
 }
 
 void Imx51Gpu3dContext::SaveState(StateWriter& writer) {
-    for (const auto& bank : banks_) { writer.Write(bank.address); writer.Write(bank.enabled); }
+    static_assert(StateVisitCoversAllBytes<Bank>(
+                      [](Bank& b, StateFieldBytes& f) { Bank::Visit(b, f); }),
+                  "Bank::Visit must name or skip every field of Bank");
+    StateWriteField field(writer);
+    for (Bank& bank : banks_) Bank::Visit(bank, field);
 }
 void Imx51Gpu3dContext::RestoreState(StateReader& reader) {
-    for (auto& bank : banks_) { reader.Read(bank.address); reader.Read(bank.enabled); }
+    StateReadField field(reader);
+    for (Bank& bank : banks_) Bank::Visit(bank, field);
 }

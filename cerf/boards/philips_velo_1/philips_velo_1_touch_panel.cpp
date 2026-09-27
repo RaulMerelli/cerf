@@ -1,6 +1,7 @@
 #include "philips_velo_1_touch_panel.h"
 
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/pr31x00/pr31x00_intc.h"
 
@@ -15,7 +16,7 @@ constexpr uint32_t kSibIrqPosInt    = 1u << 6;
 
 bool PhilipsVelo1TouchPanel::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::PhilipsVelo1;
+    return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
 }
 
 void PhilipsVelo1TouchPanel::SetPen(bool down, int x, int y) {

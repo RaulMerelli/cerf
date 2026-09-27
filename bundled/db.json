@@ -1,0 +1,1809 @@
+{
+  "operating_systems": [
+    {
+      "id": "windows_ce_1",
+      "name": "Windows CE 1.0"
+    },
+    {
+      "id": "windows_ce_2",
+      "name": "Windows CE 2.0"
+    },
+    {
+      "id": "windows_ce_2_11",
+      "name": "Windows CE 2.11"
+    },
+    {
+      "id": "windows_ce_2_12",
+      "name": "Windows CE 2.12"
+    },
+    {
+      "id": "palm_size_pc",
+      "name": "Palm-size PC"
+    },
+    {
+      "id": "handheld_pc_pro",
+      "name": "Handheld PC 3.0 Professional"
+    },
+    {
+      "id": "handheld_pc_2000",
+      "name": "Handheld PC 2000"
+    },
+    {
+      "id": "pocket_pc_2000",
+      "name": "Pocket PC 2000"
+    },
+    {
+      "id": "pocket_pc_2002",
+      "name": "Pocket PC 2002"
+    },
+    {
+      "id": "windows_ce_3",
+      "name": "Windows CE 3"
+    },
+    {
+      "id": "windows_ce_net",
+      "name": "Windows CE .NET"
+    },
+    {
+      "id": "windows_mobile_2003se",
+      "name": "Windows Mobile 2003 SE"
+    },
+    {
+      "id": "windows_ce_5",
+      "name": "Windows CE 5"
+    },
+    {
+      "id": "windows_mobile_5",
+      "name": "Windows Mobile 5"
+    },
+    {
+      "id": "windows_ce_6",
+      "name": "Windows Embedded CE 6"
+    },
+    {
+      "id": "windows_mobile_6",
+      "name": "Windows Mobile 6"
+    },
+    {
+      "id": "windows_ce_7",
+      "name": "Windows Embedded Compact 7"
+    },
+    {
+      "id": "windows_ce_8",
+      "name": "Windows Embedded Compact 2013"
+    },
+    {
+      "id": "linux",
+      "name": "Linux Distributions"
+    },
+    {
+      "id": "wp7",
+      "name": "Windows Phone 7"
+    }
+  ],
+  "soc_families": [
+    {
+      "id": "strongarm",
+      "name": "StrongARM",
+      "arch": "ARM"
+    },
+    {
+      "id": "xscale",
+      "name": "XScale",
+      "arch": "ARM"
+    },
+    {
+      "id": "arm720t",
+      "name": "ARM720T",
+      "arch": "ARM"
+    },
+    {
+      "id": "arm920t",
+      "name": "ARM920T",
+      "arch": "ARM"
+    },
+    {
+      "id": "arm1136",
+      "name": "ARM1136",
+      "arch": "ARM"
+    },
+    {
+      "id": "cortex_a8",
+      "name": "Cortex-A8",
+      "arch": "ARM"
+    },
+    {
+      "id": "scorpion",
+      "name": "Scorpion",
+      "arch": "ARM"
+    },
+    {
+      "id": "mips1",
+      "name": "MIPS I",
+      "arch": "MIPS"
+    },
+    {
+      "id": "mips3",
+      "name": "MIPS III",
+      "arch": "MIPS"
+    },
+    {
+      "id": "mips4",
+      "name": "MIPS IV",
+      "arch": "MIPS"
+    },
+    {
+      "id": "cortex_a9",
+      "name": "Cortex-A9",
+      "arch": "ARM"
+    }
+  ],
+  "socs": [
+    {
+      "id": "sa1100",
+      "name": "Intel SA-1100",
+      "family_id": "strongarm"
+    },
+    {
+      "id": "sa1110",
+      "name": "Intel SA-1110",
+      "family_id": "strongarm"
+    },
+    {
+      "id": "pxa255",
+      "name": "Intel XScale PXA255",
+      "family_id": "xscale"
+    },
+    {
+      "id": "pxa270",
+      "name": "Intel XScale PXA270",
+      "family_id": "xscale"
+    },
+    {
+      "id": "iop13xx",
+      "name": "Intel IOP13xx",
+      "family_id": "xscale"
+    },
+    {
+      "id": "poseidon",
+      "name": "Microsoft Poseidon",
+      "family_id": "arm720t"
+    },
+    {
+      "id": "s3c2410",
+      "name": "Samsung S3C2410",
+      "family_id": "arm920t"
+    },
+    {
+      "id": "omap3530",
+      "name": "TI OMAP 3530",
+      "family_id": "cortex_a8"
+    },
+    {
+      "id": "imx31",
+      "name": "Freescale i.MX31L",
+      "family_id": "arm1136"
+    },
+    {
+      "id": "imx51",
+      "name": "Freescale i.MX51",
+      "family_id": "cortex_a8"
+    },
+    {
+      "id": "msm8255",
+      "name": "Qualcomm MSM8255",
+      "family_id": "scorpion"
+    },
+    {
+      "id": "vr4102",
+      "name": "NEC VR4102",
+      "family_id": "mips3"
+    },
+    {
+      "id": "vr4111",
+      "name": "NEC VR4111",
+      "family_id": "mips3"
+    },
+    {
+      "id": "vr4121",
+      "name": "NEC VR4121",
+      "family_id": "mips3"
+    },
+    {
+      "id": "vr4122",
+      "name": "NEC VR4122",
+      "family_id": "mips3"
+    },
+    {
+      "id": "vr5500",
+      "name": "NEC VR5500",
+      "family_id": "mips4"
+    },
+    {
+      "id": "pr31500",
+      "name": "Philips PR31500",
+      "family_id": "mips1"
+    },
+    {
+      "id": "pr31700",
+      "name": "Philips PR31700",
+      "family_id": "mips1"
+    },
+    {
+      "id": "imx6",
+      "name": "Freescale i.MX6 Dual",
+      "family_id": "cortex_a9"
+    }
+  ],
+  "device_features": [
+    {
+      "id": "touch",
+      "name": "Touch",
+      "icon": "stylus"
+    },
+    {
+      "id": "mouse",
+      "name": "Mouse",
+      "icon": "cursor"
+    },
+    {
+      "id": "keyboard",
+      "name": "Keyboard",
+      "icon": "keyboard"
+    },
+    {
+      "id": "suspend",
+      "name": "Suspend / Resume",
+      "icon": "suspend"
+    },
+    {
+      "id": "guest_additions",
+      "name": "Guest Additions",
+      "icon": "ga_autoresize"
+    },
+    {
+      "id": "sound",
+      "name": "Sound",
+      "icon": "speaker_active"
+    },
+    {
+      "id": "mic",
+      "name": "Microphone",
+      "icon": "microphone"
+    },
+    {
+      "id": "pcmcia",
+      "name": "PCMCIA",
+      "icon": "pcmcia_enabled"
+    },
+    {
+      "id": "network",
+      "name": "Network",
+      "icon": "internet"
+    },
+    {
+      "id": "battery",
+      "name": "Battery",
+      "icon": "battery"
+    },
+    {
+      "id": "serial",
+      "name": "Serial Port",
+      "icon": "serial_com"
+    }
+  ],
+  "devices": [
+    {
+      "id": "devemu",
+      "name": "Device Emulator",
+      "short_name": "Device Emulator",
+      "supported": true,
+      "soc_id": "s3c2410",
+      "operating_system_ids": [
+        "windows_ce_6",
+        "windows_mobile_5",
+        "windows_mobile_6",
+        "windows_mobile_2003se",
+        "windows_ce_5"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "Stock video: don't exceed 640x480 on Windows Mobile 6.5 or newer.",
+        "Stock video: don't exceed 800x600 on any OS."
+      ],
+      "configurable_screen": true,
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "falcon_4220",
+      "name": "Falcon 4220",
+      "short_name": "Falcon 4220",
+      "supported": true,
+      "soc_id": "pxa255",
+      "operating_system_ids": [
+        "windows_ce_net"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": false
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "CERF badly emulates stock video, it renders with artifacts. You can use it with Guest Additions instead",
+        "Audio has artifacts/glitches"
+      ],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "ipaq_gen1",
+      "name": "iPAQ H3100/H3600/H3700",
+      "short_name": "iPAQ",
+      "supported": true,
+      "soc_id": "sa1110",
+      "operating_system_ids": [
+        "pocket_pc_2000",
+        "pocket_pc_2002"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": false
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "mic",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "Audio has artifacts/glitches"
+      ],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "jornada_820",
+      "name": "HP Jornada 820",
+      "short_name": "Jornada 820",
+      "supported": true,
+      "soc_id": "sa1100",
+      "operating_system_ids": [
+        "handheld_pc_pro"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "mouse",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "serial",
+          "supported": false
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 480
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "jornada_720",
+      "name": "HP Jornada 720",
+      "short_name": "Jornada 720",
+      "supported": true,
+      "soc_id": "sa1110",
+      "operating_system_ids": [
+        "handheld_pc_2000",
+        "linux"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "serial",
+          "supported": false
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "odo",
+      "name": "Microsoft Windows CE Hardware Reference Platform",
+      "short_name": "Reference Platform",
+      "supported": true,
+      "soc_id": "poseidon",
+      "operating_system_ids": [
+        "windows_ce_2_11",
+        "windows_ce_2_12",
+        "windows_ce_3"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "Audio has artifacts/glitches",
+        "Guest additions keyboard causes OS to HANG - switch to stock!"
+      ],
+      "lcd_panel_size": {
+        "width": 480,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "omap_3530_evm",
+      "name": "OMAP 3530 EVM",
+      "short_name": "OMAP3530 EVM",
+      "supported": true,
+      "soc_id": "omap3530",
+      "operating_system_ids": [
+        "windows_ce_7",
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": false
+        }
+      ],
+      "notes": [
+        "ROMs with Compositor are slower"
+      ],
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "zune_30",
+      "name": "Zune 30",
+      "short_name": "Zune 30",
+      "supported": true,
+      "soc_id": "imx31",
+      "operating_system_ids": [
+        "windows_ce_5"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        }
+      ],
+      "notes": [
+        "CERF creates a blank HDD image on first boot when the HDD file does not exist",
+        "Guest additions: You can open apps through shared storage + task manager, only extremely simple apps will run (like literally blank Win32 skeletons)"
+      ],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 16,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "simpad_sl4",
+      "name": "Siemens SIMpad SL4",
+      "short_name": "SIMpad SL4",
+      "supported": true,
+      "soc_id": "sa1110",
+      "operating_system_ids": [
+        "handheld_pc_2000",
+        "windows_ce_net"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 600
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "nec_mobilepro_900",
+      "name": "NEC MobilePro 900",
+      "short_name": "MobilePro 900",
+      "supported": true,
+      "soc_id": "pxa255",
+      "operating_system_ids": [
+        "handheld_pc_2000",
+        "windows_ce_net"
+      ],
+      "device_features": [
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "Emulated with serious lags / audio / visual issues"
+      ],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "nec_mobilepro_700",
+      "name": "NEC MobilePro 700",
+      "short_name": "MobilePro 700",
+      "supported": true,
+      "soc_id": "vr4102",
+      "operating_system_ids": [
+        "windows_ce_2"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": false
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "serial",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 240
+      },
+      "ga_color_depth": 8,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "nec_mobilepro_790",
+      "name": "NEC MobilePro 790",
+      "short_name": "MobilePro 790",
+      "supported": false,
+      "soc_id": "vr4121",
+      "operating_system_ids": [
+        "handheld_pc_2000"
+      ],
+      "device_features": [],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 240
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "casio_cassiopeia_e55",
+      "name": "Casio Cassiopeia E-55",
+      "short_name": "E-55",
+      "supported": true,
+      "soc_id": "vr4111",
+      "operating_system_ids": [
+        "palm_size_pc"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "serial",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": false
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "suspend",
+          "supported": false
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 8,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "casio_cassiopeia_em500",
+      "name": "Casio Cassiopeia EM-500",
+      "short_name": "EM-500",
+      "supported": true,
+      "soc_id": "vr4122",
+      "operating_system_ids": [
+        "pocket_pc_2000"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": false
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": false
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "network",
+          "supported": false
+        },
+        {
+          "feature_id": "serial",
+          "supported": false
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "casio_toricomail",
+      "name": "Casio Toricomail / Message-Cam / Pocket PostPet",
+      "short_name": "Toricomail",
+      "supported": true,
+      "soc_id": "vr4121",
+      "operating_system_ids": [
+        "windows_ce_2_12"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": false
+        },
+        {
+          "feature_id": "network",
+          "supported": false
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": false
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        }
+      ],
+      "notes": [
+        "Camera and microphone access crashes the emulator"
+      ],
+      "lcd_panel_size": {
+        "width": 320,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "nec_rockhopper",
+      "name": "NEC Rockhopper SG2_VR5500",
+      "short_name": "Rockhopper",
+      "supported": true,
+      "soc_id": "vr5500",
+      "operating_system_ids": [
+        "windows_ce_6"
+      ],
+      "device_features": [
+        {
+          "feature_id": "mouse",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": false
+        },
+        {
+          "feature_id": "sound",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "notes": [
+        "MIPS IV ROM is incompatible with MIPS II apps. Prefer using MIPS II ROM."
+      ],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 480
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "philips_nino_300",
+      "name": "Philips Nino 300",
+      "short_name": "Nino 300",
+      "supported": true,
+      "soc_id": "pr31700",
+      "operating_system_ids": [
+        "palm_size_pc"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "serial",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 240,
+        "height": 320
+      },
+      "ga_color_depth": 8,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "philips_velo_1",
+      "name": "Philips Velo 1",
+      "short_name": "Velo 1",
+      "supported": true,
+      "soc_id": "pr31500",
+      "operating_system_ids": [
+        "windows_ce_1",
+        "windows_ce_2"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": false
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "serial",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 480,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "sharp_mobilon_hc4100",
+      "name": "Sharp Mobilon HC-4100",
+      "short_name": "Mobilon HC-4100",
+      "supported": true,
+      "soc_id": "pr31700",
+      "operating_system_ids": [
+        "windows_ce_2"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": true
+        },
+        {
+          "feature_id": "suspend",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "serial",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 640,
+        "height": 240
+      },
+      "ga_color_depth": 8,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "siemens_mp377",
+      "name": "Siemens SIMATIC MP 377",
+      "short_name": "SIMATIC MP 377",
+      "supported": true,
+      "soc_id": "iop13xx",
+      "operating_system_ids": [
+        "windows_ce_5"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "serial",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "siemens_p177",
+      "name": "Siemens SIMATIC TP177B",
+      "short_name": "SIMATIC TP177B",
+      "supported": true,
+      "soc_id": "s3c2410",
+      "operating_system_ids": [
+        "windows_ce_5"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 480,
+        "height": 272
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "smartbook_g138",
+      "name": "SmartBook G138",
+      "short_name": "SmartBook G138",
+      "supported": true,
+      "soc_id": "sa1110",
+      "operating_system_ids": [
+        "windows_ce_net"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": true
+        },
+        {
+          "feature_id": "pcmcia",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "battery",
+          "supported": false
+        },
+        {
+          "feature_id": "mic",
+          "supported": false
+        },
+        {
+          "feature_id": "suspend",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "ford_sync_2",
+      "name": "Ford SYNC 2",
+      "short_name": "Ford SYNC 2",
+      "supported": true,
+      "soc_id": "imx51",
+      "operating_system_ids": [
+        "windows_ce_6"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "sound",
+          "supported": false
+        }
+      ],
+      "notes": [
+        "THIS BOARD IS NOT EMULATED WELL AT ALL! All it can do is a boot to a glitching home screen and that's it",
+        "On the first boot, guest flashes the ~2GB NAND image from .sec file. It will take some time and x2 disk space. After first boot, you can remove .sec file if you are not going to re-flash.",
+        "GPU has severe visual artifacts.",
+        "A click on screen will likely crash CERF due to missing GPU implementation",
+        "Guest additions are launching if re-run with complete NAND image. Sync2UI is automatically hijacked and replaced with CE Explorer. OpenVG/Sync2 UI wont render."
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "imx51_nand"
+    },
+    {
+      "id": "symbol_mk500",
+      "name": "Symbol MK500",
+      "short_name": "MK500",
+      "supported": true,
+      "soc_id": "pxa270",
+      "operating_system_ids": [
+        "windows_ce_5"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "keyboard",
+          "supported": false
+        },
+        {
+          "feature_id": "sound",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": false
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        }
+      ],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 320,
+        "height": 240
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "nokia_lumia_800",
+      "name": "Nokia Lumia 800",
+      "short_name": "Lumia 800",
+      "supported": false,
+      "soc_id": "msm8255",
+      "operating_system_ids": [
+        "wp7"
+      ],
+      "device_features": [],
+      "notes": [],
+      "lcd_panel_size": {
+        "width": 480,
+        "height": 800
+      },
+      "ga_color_depth": 24,
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp400f_mobile",
+      "name": "SIMATIC HMI KTP400F Mobile",
+      "short_name": "KTP400F Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 480,
+        "height": 272
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp700_mobile",
+      "name": "SIMATIC HMI KTP700 Mobile",
+      "short_name": "KTP700 Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp700f_mobile",
+      "name": "SIMATIC HMI KTP700F Mobile",
+      "short_name": "KTP700F Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp900_mobile",
+      "name": "SIMATIC HMI KTP900 Mobile",
+      "short_name": "KTP900 Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp900f_mobile",
+      "name": "SIMATIC HMI KTP900F Mobile",
+      "short_name": "KTP900F Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_tp1000f_mobile",
+      "name": "SIMATIC HMI TP1000F Mobile",
+      "short_name": "TP1000F Mobile",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp700f_hw_mobile",
+      "name": "SIMATIC HMI KTP700F Mobile with hand wheel",
+      "short_name": "KTP700F Mobile HW",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    },
+    {
+      "id": "hmi_ktp700f_arctic_mobile",
+      "name": "SIMATIC HMI KTP700F Mobile Arctic",
+      "short_name": "KTP700F Mobile Arctic",
+      "supported": true,
+      "soc_id": "imx6",
+      "operating_system_ids": [
+        "windows_ce_8"
+      ],
+      "device_features": [
+        {
+          "feature_id": "touch",
+          "supported": true
+        },
+        {
+          "feature_id": "guest_additions",
+          "supported": true
+        },
+        {
+          "feature_id": "network",
+          "supported": true
+        }
+      ],
+      "lcd_panel_size": {
+        "width": 800,
+        "height": 480
+      },
+      "rom_placing_mode": "flat_container"
+    }
+  ],
+  "rom_types": [
+    {
+      "id": "primary",
+      "name": "Generic NK/XIP/NB0",
+      "formats": [
+        "bin",
+        "nb0"
+      ]
+    },
+    {
+      "id": "primary",
+      "name": "SmartBook Upgrade Package",
+      "board_ids": [
+        "smartbook_g138"
+      ],
+      "formats": [
+        "fim"
+      ]
+    },
+    {
+      "id": "primary",
+      "name": "SYNC 2 Upgrade Package",
+      "board_ids": [
+        "ford_sync_2"
+      ],
+      "formats": [
+        "sec"
+      ],
+      "optional_for_storage_ids": [
+        "nand"
+      ],
+      "note": "If you don't have a NAND image, CERF will use this package to seed the bootloader, enter factory recovery mode and will transfer it fully into the recovery program via USB."
+    },
+    {
+      "id": "primary",
+      "name": "Mk500 Flash Dump",
+      "board_ids": [
+        "symbol_mk500"
+      ],
+      "formats": [
+        "bin"
+      ]
+    },
+    {
+      "id": "primary",
+      "name": "Simpad Upgrade Package",
+      "board_ids": [
+        "simpad_sl4"
+      ]
+    },
+    {
+      "id": "primary",
+      "name": "Lumia 800 Upgrade ROM",
+      "board_ids": [
+        "nokia_lumia_800"
+      ],
+      "formats": [
+        "esco"
+      ]
+    },
+    {
+      "id": "lumia800_user_area_erase",
+      "name": "User Area Erase Image",
+      "board_ids": [
+        "nokia_lumia_800"
+      ],
+      "formats": [
+        "esco"
+      ]
+    }
+  ],
+  "storage_types": [
+    {
+      "id": "nand",
+      "name": "NAND",
+      "picker_type": "existing_or_point",
+      "board_ids": [
+        "ford_sync_2"
+      ],
+      "formats": [
+        "img"
+      ]
+    },
+    {
+      "id": "hdd",
+      "name": "HDD",
+      "picker_type": "existing_or_point",
+      "board_ids": [
+        "zune_30"
+      ],
+      "formats": [
+        "img"
+      ],
+      "note": "HDD image with Zune 30 system/user storage partitions. CERF does not boot from it unlike real hardware - the operating system stored in your dump is inert for CERF."
+    },
+    {
+      "id": "emmc",
+      "name": "eMMC",
+      "picker_type": "existing_or_point",
+      "board_ids": [
+        "nokia_lumia_800"
+      ],
+      "formats": [
+        "img"
+      ]
+    }
+  ]
+}

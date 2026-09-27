@@ -1,6 +1,7 @@
 #include "../../socs/sa11xx/sa11xx_dma_capture.h"
 
 #include "../../boards/board_context.h"
+#include "ipaq_gen1_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::IpaqGen1;
+        return bd && bd->GetBoardId() == BoardId::IpaqGen1;
     }
 
 protected:

@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../cpu/vr5500/vr5500_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../tracing/kernel_debug_sink.h"
 #include "../../state/state_stream.h"
@@ -43,7 +44,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR5500;
+        return bd && bd->GetSocId() == SocId::Vr5500;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -57,8 +58,17 @@ public:
 
     /* Only the register file is machine state; tx_line_ is a host-side console
        line accumulator rebuilt as the guest writes. */
-    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_, sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
+    void SaveState(StateWriter& w) override {
+        static_assert(StateVisitCoversAllBytes<UartRegs>(
+                          [](UartRegs& u, StateFieldBytes& f) { VisitRegs(u, f); }),
+                      "VisitRegs must name or skip every field of UartRegs");
+        StateWriteField field(w);
+        for (UartRegs& u : regs_) VisitRegs(u, field);
+    }
+    void RestoreState(StateReader& r) override {
+        StateReadField field(r);
+        for (UartRegs& u : regs_) VisitRegs(u, field);
+    }
 
 private:
     uint32_t Index(uint32_t addr, uint32_t* reg) const {
@@ -66,6 +76,17 @@ private:
         const uint32_t uart = (off >= kUartStride) ? 1u : 0u;
         *reg = ((off - uart * kUartStride) >> 3) & 7u;
         return uart;
+    }
+
+    template <typename F>
+    static constexpr void VisitRegs(UartRegs& u, F& field) {
+        field("ier", u.ier);
+        field("fcr", u.fcr);
+        field("lcr", u.lcr);
+        field("mcr", u.mcr);
+        field("scr", u.scr);
+        field("dll", u.dll);
+        field("dlm", u.dlm);
     }
 
     UartRegs    regs_[2]   = {};

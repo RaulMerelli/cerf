@@ -1,6 +1,7 @@
 #pragma once
 
 #include "service.h"
+#include "tick_scale.h"
 
 #include <atomic>
 #include <cstdint>
@@ -29,10 +30,6 @@ public:
 
 private:
     int64_t HostTicks() const;
-
-    static uint64_t ScaleU64(uint64_t value, uint64_t num, uint64_t den) {
-        return (value / den) * num + ((value % den) * num) / den;
-    }
 
     std::atomic<uint32_t> seq_{0};
     std::atomic<int64_t>  accum_ticks_{0};

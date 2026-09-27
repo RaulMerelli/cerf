@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/vr4102/vr4102_id.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4102;
+        return bd && bd->GetSocId() == SocId::Vr4102;
     }
 
     /* PRId (CP0 r15) Fig 5-16: bits[15:8] Imp = 0x0C for the VR4102, comp bits

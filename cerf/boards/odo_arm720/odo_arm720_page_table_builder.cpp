@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../cpu/emulated_memory.h"
 
 #include <cstdint>
@@ -39,7 +40,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

@@ -26,10 +26,19 @@ enum class S3C2410DmaSource : uint8_t {
     kUsbEp4,
 };
 
+struct S3C2410DmaAtomicTransfer {
+    uint32_t channels  = 0;
+    uint32_t bytes     = 0;
+    bool     burst     = false;
+    uint32_t dst       = 0;
+    bool     dst_fixed = false;
+};
+
 class S3C2410DmaRequester {
 public:
     virtual ~S3C2410DmaRequester() = default;
     virtual void OnDmaChannelArmed() = 0;
+    virtual void OnDmaAccess() = 0;
 };
 
 class S3C2410Dma : public Peripheral {
@@ -54,6 +63,9 @@ public:
     /* S3C2410A User Manual, printed p. 8-2 "DMA OPERATION". */
     bool ServiceRequest(S3C2410DmaSource source);
 
+    S3C2410DmaAtomicTransfer AtomicTransfer(S3C2410DmaSource source);
+    uint32_t TransfersToTerminalCount(S3C2410DmaSource source);
+
 private:
     struct Channel {
         uint32_t disrc    = 0;
@@ -65,6 +77,19 @@ private:
         uint32_t curr_src = 0;
         uint32_t curr_dst = 0;
         uint32_t curr_tc  = 0;
+
+        template <typename F>
+        static constexpr void Visit(Channel& c, F& field) {
+            field("disrc", c.disrc);
+            field("disrcc", c.disrcc);
+            field("didst", c.didst);
+            field("didstc", c.didstc);
+            field("dcon", c.dcon);
+            field("mask", c.mask);
+            field("curr_src", c.curr_src);
+            field("curr_dst", c.curr_dst);
+            field("curr_tc", c.curr_tc);
+        }
     };
 
     static constexpr uint32_t kChannelCount   = 4u;
@@ -72,13 +97,17 @@ private:
         static_cast<uint32_t>(S3C2410DmaSource::kUsbEp4) + 1u;
 
     S3C2410DmaSource  ChannelSource(uint32_t n, const Channel& c);
+    bool              ServesLocked(uint32_t n, const Channel& c, S3C2410DmaSource source);
     S3C2410DmaRequester* RequesterFor(S3C2410DmaSource source) const;
+    void                 NotifyRequestersOfAccess();
 
     void Reset();
     bool RunChannelLocked    (uint32_t n, Channel& c);
     bool SelfReferential(uint32_t pa) const {
         return pa >= MmioBase() && pa < MmioBase() + MmioSize();
     }
+    uint32_t UnitBytes       (const Channel& c);
+    static uint32_t Beats    (const Channel& c);
     bool RunAtomicLocked     (Channel& c);
     void LoadLocked          (Channel& c);
     void TerminalCountLocked (uint32_t n, Channel& c);

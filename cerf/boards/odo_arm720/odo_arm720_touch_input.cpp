@@ -1,6 +1,7 @@
 #include "../../host/touch_input.h"
 
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include "odo_arm720_touch_sound.h"
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
 
     void OnPenDown    (int x, int y) override {

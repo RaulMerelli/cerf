@@ -1,6 +1,7 @@
 #include "../../core/service.h"
 
 #include "../../boards/board_context.h"
+#include "smartbook_g138_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/pcmcia/pcmcia_auto_insert.h"
@@ -22,7 +23,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
 
     void OnReady() override {

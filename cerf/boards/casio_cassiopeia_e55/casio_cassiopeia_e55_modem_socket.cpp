@@ -5,6 +5,7 @@
 #include "../../socs/guest_cpu_reset.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_e55_id.h"
 
 #include <cstdint>
 
@@ -64,7 +65,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
     }
 
     void OnReady() override {
@@ -141,14 +142,14 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(enable_);
-        w.Write(claim_);
-        w.Write(select_);
+        w.Write("enable", enable_);
+        w.Write("claim", claim_);
+        w.Write("select", select_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(enable_);
-        r.Read(claim_);
-        r.Read(select_);
+        r.Read("enable", enable_);
+        r.Read("claim", claim_);
+        r.Read("select", select_);
     }
 
 private:

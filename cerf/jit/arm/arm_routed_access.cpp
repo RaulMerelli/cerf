@@ -7,7 +7,10 @@
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../guest_cycle_clock.h"
+#include "arm_cpu.h"
 #include "arm_mmu.h"
+#include "cpu_state.h"
 #include "arm_page_walker.h"
 
 REGISTER_SERVICE(ArmRoutedAccess);
@@ -23,6 +26,12 @@ void ArmRoutedAccess::OnReady() {
 #if CERF_DEV_MODE
     rate_probe_ = &emu_.Get<RateProbe>();
 #endif
+    clock_      = &emu_.Get<GuestCycleClock>();
+    cpu_state_  = emu_.Get<ArmCpu>().State();
+}
+
+void ArmRoutedAccess::DeliverDueClockEvents() {
+    if (ArmCycleDeadlineReached(*cpu_state_)) clock_->OnDispatch();
 }
 
 void ArmRoutedAccess::HaltUnalignedRouted(uint32_t guest_pc, uint32_t va,
@@ -48,6 +57,7 @@ uint32_t ArmRoutedAccess::DispatchRead(uint32_t pa, uint32_t bytes,
 #if CERF_DEV_MODE
     rate_probe_->RecordMmioPc(guest_pc, pa);
 #endif
+    DeliverDueClockEvents();
     switch (bytes) {
     case 1u: return dispatcher_->Read(pa, MmioWidth::kByte);
     case 2u: return dispatcher_->Read(pa, MmioWidth::kHalf);
@@ -61,6 +71,7 @@ void ArmRoutedAccess::DispatchWrite(uint32_t pa, uint32_t bytes, uint32_t value,
 #if CERF_DEV_MODE
     rate_probe_->RecordMmioPc(guest_pc, pa);
 #endif
+    DeliverDueClockEvents();
     switch (bytes) {
     case 1u: dispatcher_->Write(pa, value, MmioWidth::kByte); return;
     case 2u: dispatcher_->Write(pa, value, MmioWidth::kHalf); return;

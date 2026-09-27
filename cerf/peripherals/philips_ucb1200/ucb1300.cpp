@@ -1,6 +1,7 @@
 #include "ucb1x00_codec.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/simpad_sl4/simpad_sl4_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
 protected:

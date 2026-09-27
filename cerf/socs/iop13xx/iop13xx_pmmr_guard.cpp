@@ -1,12 +1,13 @@
 #include "iop13xx_pmmr_guard.h"
 
 #include "../../boards/board_context.h"
+#include "iop13xx_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 bool Iop13xxPmmrGuard::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetSoc() == SocFamily::IOP13xx;
+    return board && board->GetSocId() == SocId::Iop13xx;
 }
 
 void Iop13xxPmmrGuard::OnReady() {

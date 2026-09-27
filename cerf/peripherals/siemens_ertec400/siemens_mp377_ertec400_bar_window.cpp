@@ -5,6 +5,7 @@
 #include "siemens_mp377_ertec400_nrt.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
@@ -60,7 +61,7 @@ bool IsReadOnlyLinkStatus(uint32_t offset) {
 
 bool SiemensMp377Ertec400BarWindow::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetBoard() == Board::SiemensMP377;
+    return board && board->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377Ertec400BarWindow::OnReady() {

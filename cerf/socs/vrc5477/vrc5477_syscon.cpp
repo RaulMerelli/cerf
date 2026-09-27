@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../cpu/vr5500/vr5500_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../peripherals/pci/pci_host_bridge.h"
 #include "../../state/state_stream.h"
@@ -40,7 +41,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR5500;
+        return bd && bd->GetSocId() == SocId::Vr5500;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -55,11 +56,11 @@ public:
     void WriteWord(uint32_t addr, uint32_t v) override    { Write<uint32_t>(addr, v); }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_, sizeof(regs_));
+        w.WriteBytes("regs", regs_, sizeof(regs_));
         emu_.Get<Vrc5477Intc>().SaveState(w);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes("regs", regs_, sizeof(regs_));
         emu_.Get<Vrc5477Intc>().RestoreState(r);
     }
     void PostRestore() override { emu_.Get<Vrc5477Intc>().Renotify(); }

@@ -107,6 +107,22 @@ struct ArmTlbEntry {
 static_assert(sizeof(ArmTlbEntry) == 16,
               "emit_tlb_fast_path.cpp addresses ways at stride 16");
 
+/* ARM DDI 0406C.c B4.1.112: an ATS translation reports the memory attributes of the
+   translation it resolved, so the spare bits of the entry's global and writable bytes carry
+   them and a TLB hit can answer ATS without walking the tables. */
+inline bool ArmTlbGlobal(const ArmTlbEntry& entry) { return (entry.global & 1u) != 0u; }
+inline bool ArmTlbWritable(const ArmTlbEntry& entry) { return (entry.writable & 1u) != 0u; }
+
+inline uint16_t ArmTlbParAttributes(const ArmTlbEntry& entry) {
+    return static_cast<uint16_t>(entry.global & 0xFEu) |
+           static_cast<uint16_t>((entry.writable & 0x0Eu) << 7);
+}
+
+inline void ArmTlbSetFlags(ArmTlbEntry& entry, bool global, bool writable, uint16_t par_attrs) {
+    entry.global = static_cast<uint8_t>((global ? 1u : 0u) | (par_attrs & 0xFEu));
+    entry.writable = static_cast<uint8_t>((writable ? 1u : 0u) | ((par_attrs >> 7) & 0x0Eu));
+}
+
 constexpr uint32_t kArmTlbWays       = 4;
 constexpr uint32_t kArmTlbSets       = 256;
 constexpr uint32_t kArmTlbSetMask    = kArmTlbSets - 1u;
@@ -129,26 +145,6 @@ struct ArmTlbSpanTracker {
     uint32_t active_region_bits[kArmTlbRegionBitWords]{};
     std::vector<uint16_t> active_regions;
 };
-inline bool ArmTlbGlobal(const ArmTlbEntry& entry) {
-    return (entry.global & 1u) != 0u;
-}
-
-inline bool ArmTlbWritable(const ArmTlbEntry& entry) {
-    return (entry.writable & 1u) != 0u;
-}
-
-inline uint16_t ArmTlbParAttributes(const ArmTlbEntry& entry) {
-    return static_cast<uint16_t>(entry.global & 0xFEu) |
-           static_cast<uint16_t>((entry.writable & 0x0Eu) << 7);
-}
-
-inline void ArmTlbSetFlags(ArmTlbEntry& entry, bool global, bool writable,
-                           uint16_t par_attrs) {
-    entry.global = static_cast<uint8_t>((global ? 1u : 0u) |
-                                        (par_attrs & 0xFEu));
-    entry.writable = static_cast<uint8_t>((writable ? 1u : 0u) |
-                                          ((par_attrs >> 7) & 0x0Eu));
-}
 
 struct ArmTlbUnit {
     ArmTlbEntry entries[kArmTlbSets * kArmTlbWays];
@@ -178,6 +174,17 @@ inline int ArmTlbMatchIoWay(const ArmTlbUnit* unit, uint32_t base,
                           asid, need_write);
 }
 
+inline bool ArmTlbEntryIsWideSpan(const ArmTlbEntry& entry) {
+    return entry.tag != kArmTlbInvalidTag && entry.span_shift > 12u;
+}
+
+static_assert(kArmTlbWays <= 32u && (kArmTlbWays & (kArmTlbWays - 1u)) == 0u,
+              "a set's span bits must occupy one aligned field of entry_bits");
+
+inline uint32_t ArmTlbSpanBitField(uint32_t base) {
+    return ((1u << kArmTlbWays) - 1u) << (base & 31u);
+}
+
 inline void ArmTlbPromote(ArmTlbUnit* unit, uint32_t base, int way) {
     if (way <= 0) return;
     const ArmTlbEntry hit = unit->entries[base + static_cast<uint32_t>(way)];
@@ -186,18 +193,15 @@ inline void ArmTlbPromote(ArmTlbUnit* unit, uint32_t base, int way) {
             unit->entries[base + static_cast<uint32_t>(w - 1)];
     }
     unit->entries[base] = hit;
-    if (ArmTlbSpanTracker* tracker = unit->span_tracker) {
-        for (uint32_t w = 0; w < kArmTlbWays; ++w) {
-            const uint32_t slot = base + w;
-            const uint32_t mask = 1u << (slot & 31u);
-            uint32_t& bits = tracker->entry_bits[slot >> 5];
-            const ArmTlbEntry& entry = unit->entries[slot];
-            if (entry.tag != kArmTlbInvalidTag && entry.span_shift > 12u)
-                bits |= mask;
-            else
-                bits &= ~mask;
-        }
-    }
+    ArmTlbSpanTracker* tracker = unit->span_tracker;
+    if (!tracker) return;
+    uint32_t& bits = tracker->entry_bits[base >> 5];
+    const uint32_t rotated_field =
+        ((1u << (static_cast<uint32_t>(way) + 1u)) - 1u) << (base & 31u);
+    const uint32_t live = bits & rotated_field;
+    if (live == 0u) return;
+    bits = (bits & ~rotated_field) |
+           (((live << 1) | (live >> static_cast<uint32_t>(way))) & rotated_field);
 }
 
 inline ArmTlbEntry& ArmTlbInsertSlot(ArmTlbUnit* unit, uint32_t base) {
@@ -230,8 +234,8 @@ struct ArmMmuState {
        the MMU is disabled", and "Behavior is UNPREDICTABLE if the FCSE PID is
        not zero when the MMU is disabled". Kept by ArmMmu::RefreshFcseFold. */
     uint32_t  fcse_fold_id          = 0;
+    uint32_t  cortex_a9_diagnostic_control = 0;   /* DDI 0388I 4.3.9 */
     uint32_t  coprocessor_access    = 0;   /* CPACR */
-    uint32_t  cortex_a9_diagnostic_control = 0;
     uint32_t  cssel_register        = 0;   /* CSSELR */
     uint32_t  ttbr1                 = 0;
     uint32_t  ttbcr                 = 0;   /* N = bits[2:0] (B4.1.153) */
@@ -252,6 +256,42 @@ struct ArmMmuState {
     uint8_t* code_xlat_bitmap       = nullptr;
     uint32_t code_page_dirty_bytes  = 0;
     uint8_t* code_page_dirty        = nullptr;
+
+    template <typename F>
+    static constexpr void Visit(ArmMmuState& s, F& field) {
+        field("control_register", s.control_register.word);
+        field("effective_control_register", s.effective_control_register.word);
+        field("aux_control_register", s.aux_control_register);
+        field("translation_table_base", s.translation_table_base.word);
+        field("domain_access_control", s.domain_access_control);
+        field("fault_status", s.fault_status.word);
+        field("fault_address", s.fault_address);
+        field("par", s.par);
+        field("ifsr", s.ifsr);
+        field("ifar", s.ifar);
+        field("process_id", s.process_id);
+        field.Skip(s.fcse_fold_id);
+        field("coprocessor_access", s.coprocessor_access);
+        field("cortex_a9_diagnostic_control", s.cortex_a9_diagnostic_control);
+        field("cssel_register", s.cssel_register);
+        field("ttbr1", s.ttbr1);
+        field("ttbcr", s.ttbcr);
+        field("prrr", s.prrr);
+        field("nmrr", s.nmrr);
+        field("contextidr", s.contextidr);
+        field("tpidrurw", s.tpidrurw);
+        field("tpidruro", s.tpidruro);
+        field("tpidrprw", s.tpidrprw);
+        field("l2_aux_control", s.l2_aux_control);
+        field.Skip(s.data_tlb);
+        field.Skip(s.instruction_tlb);
+        field.Skip(s.code_word_base);
+        field.Skip(s.code_word_top);
+        field.Skip(s.code_word_bitmap_bytes);
+        field.Skip(s.code_xlat_bitmap);
+        field.Skip(s.code_page_dirty_bytes);
+        field.Skip(s.code_page_dirty);
+    }
 };
 
 template <ArmMmuAccess kAccess>

@@ -16,6 +16,8 @@ class Pxa2xxIntc : public IrqController {
 public:
     using IrqController::IrqController;
 
+    void OnReady() override;
+
     void AssertIrq   (int source_bit) override;
     void DeAssertIrq (int source_bit) override;
     void AssertSubIrq(int main_source_bit, int sub_source_bit) override;
@@ -98,6 +100,14 @@ private:
 
     uint32_t IcIpAllLocked() const { return IcIpLocked(0) | IcIpLocked(1); }
     uint32_t IcFpAllLocked() const { return IcFpLocked(0) | IcFpLocked(1); }
+
+    /* Intel PXA27x Developer's Manual 280000-001 Table 25-13 DIM: 0 = any
+       interrupt in ICPR brings the processor out of idle mode; 1 = only
+       active, unmasked interrupts (as defined in the ICMR). */
+    bool IdleWakeLocked() const {
+        return (iccr_ & kIccrMask) != 0u ? IcIpAllLocked() != 0u
+                                         : (icpr_[0] | icpr_[1]) != 0u;
+    }
 
     bool     SplitSource(int source_bit, uint32_t& bank, uint32_t& bit) const;
     uint32_t IprIndex(uint32_t off) const;

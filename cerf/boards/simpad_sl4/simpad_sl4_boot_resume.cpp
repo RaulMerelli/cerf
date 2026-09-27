@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../jit/arm/arm_cpu.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
     void OnReady() override {
         emu_.Get<GuestDeepSleep>().RegisterResumeVectorProvider(this);

@@ -1,8 +1,10 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/service.h"
+#include "../../lcd/lcd_pixel_expand.h"
 #include "../../socs/s3c2410/s3c2410_lcd.h"
 #include "../board_context.h"
+#include "siemens_p177_id.h"
 
 #include <cstdint>
 
@@ -60,32 +62,25 @@ constexpr uint32_t kSysPalRgb888[256] = {
     0x808080u, 0xFF0000u, 0x00FF00u, 0xFFFF00u, 0x0000FFu, 0xFF00FFu, 0x00FFFFu, 0xFFFFFFu,
 };
 
-inline uint16_t Rgb888To565(uint32_t c) {
-    const uint32_t r = (c >> 16) & 0xFFu;
-    const uint32_t g = (c >>  8) & 0xFFu;
-    const uint32_t b =  c        & 0xFFu;
-    return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-}
-
 class SiemensP177BootloaderLcd : public Service {
 public:
     using Service::Service;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensP177;
+        return bd && bd->GetBoardId() == BoardId::SiemensP177;
     }
 
     void OnReady() override {
         auto& lcd = emu_.Get<S3C2410Lcd>();
 
         for (uint32_t i = 0; i < 256u; ++i)
-            lcd.WriteWord(kTFTPAL0 + i * 4u, Rgb888To565(kSysPalRgb888[i]));
+            lcd.WriteWord(kTFTPAL0 + i * 4u, lcd_pixel::PackRgb565(kSysPalRgb888[i]));
 
-        lcd.WriteWord(kLCDCON2,   (kHeight - 1u) << 14);  /* LINEVAL[23:14] */
-        lcd.WriteWord(kLCDCON3,   (kWidth  - 1u) <<  8);  /* HOZVAL[18:8]   */
-        lcd.WriteWord(kLCDCON5,   1u << 11);              /* FRM565=1       */
-        lcd.WriteWord(kLCDSADDR1, kFbPa >> 1);            /* PA[30:1]       */
+        lcd.WriteWord(kLCDCON2,   (kHeight - 1u) << 14);
+        lcd.WriteWord(kLCDCON3,   (kWidth  - 1u) <<  8);
+        lcd.WriteWord(kLCDCON5,   1u << 11);
+        lcd.WriteWord(kLCDSADDR1, kFbPa >> 1);
 
         /* LCDCON1 LAST: PNRMODE=3 (TFT) | BPPMODE=11 (8bpp TFT) | ENVID=1.
            The 0→1 ENVID edge is what fires S3C2410Lcd's OnLcdEnabled. */

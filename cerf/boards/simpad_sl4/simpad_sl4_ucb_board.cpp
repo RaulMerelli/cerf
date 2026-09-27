@@ -4,6 +4,7 @@
 #include "simpad_sl4_keypad.h"
 #include "simpad_sl4_touch_panel.h"
 #include "../board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -47,7 +48,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
     uint16_t AuxAdc(uint8_t channel) override {

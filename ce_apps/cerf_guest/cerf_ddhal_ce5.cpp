@@ -228,7 +228,6 @@ static DWORD WINAPI Ce5LockWrap(Ce5_DDHAL_LOCKDATA* pd) {
     Ce5LclLeave(pd->lpDDSurface, sv);
     pd->lpSurfData = c6.lpSurfData;
     pd->ddRVal     = c6.ddRVal;
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Lock ddRVal", (DWORD)c6.ddRVal);
     return r;
 }
 
@@ -250,10 +249,6 @@ typedef struct _Ce5_DDHAL_BLTDATA {
 } Ce5_DDHAL_BLTDATA;
 
 static DWORD WINAPI Ce5BltWrap(Ce5_DDHAL_BLTDATA* pd) {
-
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Blt dwFlags", pd->dwFlags);
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Blt dwROPFlags", pd->dwROPFlags);
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Blt bltFX.dwROP", pd->bltFX.dwROP);
     ULONG_PTR svD = Ce5LclEnter(pd->lpDDDestSurface);
     ULONG_PTR svS = Ce5LclEnter(pd->lpDDSrcSurface);
     int ok = CerfDDrawBlt(pd->lpDDDestSurface, pd->lpDDSrcSurface,
@@ -263,7 +258,6 @@ static DWORD WINAPI Ce5BltWrap(Ce5_DDHAL_BLTDATA* pd) {
     Ce5LclLeave(pd->lpDDSrcSurface, svS);
     Ce5LclLeave(pd->lpDDDestSurface, svD);
     pd->ddRVal = ok ? CERF_DD_OK : CERF_DDERR_GENERIC;
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Blt ddRVal", (DWORD)pd->ddRVal);
     return DDHAL_DRIVER_HANDLED;
 }
 
@@ -283,7 +277,6 @@ static DWORD WINAPI Ce5FlipWrap(Ce6_DDHAL_FLIPDATA* pd) {
     DWORD r = DDGPEFlip(pd);
     Ce5LclLeave(pd->lpSurfTarg, svT);
     Ce5LclLeave(pd->lpSurfCurr, svC);
-    CERF_LOG_X_DEV("cerf_guest: Ce5 Flip ddRVal", (DWORD)pd->ddRVal);
     return r;
 }
 

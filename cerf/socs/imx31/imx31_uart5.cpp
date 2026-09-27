@@ -1,4 +1,5 @@
 #include "../freescale_uart_impl.h"
+#include "imx31_id.h"
 
 namespace {
 
@@ -6,7 +7,7 @@ namespace {
    the ACSSERV.DLL service probes it on the DefaultApp-launch path. */
 class Imx31Uart5
     : public cerf_freescale_uart_detail::FreescaleUartBase<0x43FB4000u, 5,
-                                                           SocFamily::iMX31> {
+                                                           SocId::Imx31> {
     using FreescaleUartBase::FreescaleUartBase;
 };
 

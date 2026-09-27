@@ -1,7 +1,9 @@
 #include "imx51_nand_layout.h"
 
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../boot/sec_flash.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -46,26 +48,19 @@ constexpr uint64_t kPageBytes = 0x1000u;
    spare offset 6*0x40 = 0x180; meta[0]=0x00 marks the page written. */
 constexpr size_t   kBbtMetaSpareOff = 0x180u;
 
-uint32_t Rd32(const uint8_t* p) {
-    return  static_cast<uint32_t>(p[0])
-         | (static_cast<uint32_t>(p[1]) << 8)
-         | (static_cast<uint32_t>(p[2]) << 16)
-         | (static_cast<uint32_t>(p[3]) << 24);
-}
+using cerf::le::Put32;
+using cerf::le::U32;
 
 void Wr32(uint8_t* p, size_t off, size_t len, uint32_t v) {
     if (off + 4 > len) return;
-    p[off + 0] = static_cast<uint8_t>(v);
-    p[off + 1] = static_cast<uint8_t>(v >> 8);
-    p[off + 2] = static_cast<uint8_t>(v >> 16);
-    p[off + 3] = static_cast<uint8_t>(v >> 24);
+    Put32(p + off, v);
 }
 
 }  /* namespace */
 
 bool Imx51NandLayout::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    if (!bd || bd->GetSoc() != SocFamily::iMX51) return false;
+    if (!bd || bd->GetSocId() != SocId::Imx51) return false;
     auto* sf = emu_.TryGet<SecFlash>();
     return sf && sf->IsPresent();
 }
@@ -76,9 +71,9 @@ void Imx51NandLayout::OnReady() {
 
     std::array<uint8_t, kRecBase + kRecStride * 16> cfg{};
     sf.ReadFlash(0, cfg.data(), cfg.size());
-    if (Rd32(cfg.data()) != kCfgMagic) {
+    if (U32(cfg.data()) != kCfgMagic) {
         LOG(Caution, "Imx51NandLayout: flash-0x0 config magic mismatch (0x%08X)\n",
-            Rd32(cfg.data()));
+            U32(cfg.data()));
         return;
     }
 
@@ -90,10 +85,10 @@ void Imx51NandLayout::OnReady() {
     uint64_t sec_off     = kBootRegion;
     for (uint32_t i = 0; i < 16; ++i) {
         const uint8_t* rec = cfg.data() + kRecBase + i * kRecStride;
-        if (Rd32(rec) != kRecDelim) break;
-        const uint32_t id   = Rd32(rec + 4);
+        if (U32(rec) != kRecDelim) break;
+        const uint32_t id   = U32(rec + 4);
         if (id == 0xFFu) break;
-        const uint64_t size = Rd32(rec + 0xC);
+        const uint64_t size = U32(rec + 0xC);
 
         Part p{};
         p.id          = id;
@@ -206,11 +201,8 @@ void Imx51NandLayout::BuildBbtPage(uint64_t phys_off, uint8_t* main, size_t main
     if ((phys_off % kBlock) / kPageBytes != 0) return;
     /* Main: signature + entry count 0. DPS_ReadBadBlockTable copies (count+4)*2 = 8
        bytes from main[0] (0x8FF0D8EC). */
-    main[0] = static_cast<uint8_t>(kBbtMagic);
-    main[1] = static_cast<uint8_t>(kBbtMagic >> 8);
-    main[2] = static_cast<uint8_t>(kBbtMagic >> 16);
-    main[3] = static_cast<uint8_t>(kBbtMagic >> 24);
-    main[4] = main[5] = main[6] = main[7] = 0x00;
+    Put32(main, kBbtMagic);
+    Put32(main + 4, 0);
     /* meta[0]=0x00 marks a written page (validator 0x8FF0C9A0); meta[1..2] stay
        0xFF so the stored checksum reads 0xFFFF and the reader skips it (0x8FF0D8C4). */
     if (kBbtMetaSpareOff < spare_len) spare[kBbtMetaSpareOff] = 0x00;

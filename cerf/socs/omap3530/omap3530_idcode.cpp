@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 
 #include <cstdint>
 
@@ -21,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
+        return bd && bd->GetSocId() == SocId::Omap3530;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

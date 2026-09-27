@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include "imx6_id.h"
 
 namespace imx6_vivante {
 
@@ -32,7 +33,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         mem_ = std::make_unique<VivanteMem>(st_, emu_, Core(), IrqSpi());
@@ -287,76 +288,89 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::recursive_mutex> lk(fe_mutex_);
-        w.WriteBytes(st_.regs_, sizeof(st_.regs_));
-        w.Write(st_.intr_status_);
-        w.Write(st_.intr_enable_);
+        w.WriteBytes("regs", st_.regs_, sizeof(st_.regs_));
+        w.Write("intr_status", st_.intr_status_);
+        w.Write("intr_enable", st_.intr_enable_);
         uint32_t b = st_.irq_asserted_ ? 1u : 0u;
-        w.Write(b);
+        w.Write("irq_asserted", b);
         b = st_.fe_live_ ? 1u : 0u;
-        w.Write(b);
+        w.Write("fe_live", b);
         b = st_.fe_idle_ring_ ? 1u : 0u;
-        w.Write(b);
-        w.Write(st_.fe_ring_pc_);
-        w.Write(st_.fe_ring_prefetch_);
-        w.Write(st_.fe_window_words_);
-        w.Write(st_.fe_resume_idle_target_);
+        w.Write("fe_idle_ring", b);
+        w.Write("fe_ring_pc", st_.fe_ring_pc_);
+        w.Write("fe_ring_prefetch", st_.fe_ring_prefetch_);
+        w.Write("fe_window_words", st_.fe_window_words_);
+        w.Write("fe_resume_idle_target", st_.fe_resume_idle_target_);
         uint32_t address_space = static_cast<uint32_t>(st_.fe_address_space_);
-        w.Write(address_space);
+        w.Write("fe_address_space", address_space);
         address_space = static_cast<uint32_t>(st_.fe_resume_address_space_);
-        w.Write(address_space);
-        w.Write(st_.fe_call_depth_);
-        w.WriteBytes(st_.fe_call_stack_, sizeof(st_.fe_call_stack_));
-        w.WriteBytes(st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
-        w.WriteBytes(st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
-        w.Write(st_.de_pattern_latch_config_);
-        w.Write(st_.de_pattern_latch_address_);
-        w.Write(st_.de_pattern_latch_bpp_);
+        w.Write("fe_resume_address_space", address_space);
+        w.Write("fe_call_depth", st_.fe_call_depth_);
+        for (const FeCallFrame& frame : st_.fe_call_stack_) {
+            w.Write("frame_return_address", frame.return_address);
+            w.Write("frame_return_window_words", frame.return_window_words);
+            w.Write("frame_return_address_space", static_cast<uint32_t>(frame.return_address_space));
+        }
+        w.WriteBytes("semaphore_tokens", st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
+        w.WriteBytes("de_pattern_latch", st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
+        w.Write("de_pattern_latch_config", st_.de_pattern_latch_config_);
+        w.Write("de_pattern_latch_address", st_.de_pattern_latch_address_);
+        w.Write("de_pattern_latch_bpp", st_.de_pattern_latch_bpp_);
         b = st_.de_pattern_latch_valid_ ? 1u : 0u;
-        w.Write(b);
+        w.Write("de_pattern_latch_valid", b);
         const uint32_t n = static_cast<uint32_t>(st_.state_.size());
-        w.Write(n);
-        if (n) w.WriteBytes(st_.state_.data(), n * sizeof(uint32_t));
+        w.Write("state_count", n);
+        if (n) w.WriteBytes("state", st_.state_.data(), n * sizeof(uint32_t));
     }
 
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::recursive_mutex> lk(fe_mutex_);
-        r.ReadBytes(st_.regs_, sizeof(st_.regs_));
-        r.Read(st_.intr_status_);
-        r.Read(st_.intr_enable_);
+        r.ReadBytes("regs", st_.regs_, sizeof(st_.regs_));
+        r.Read("intr_status", st_.intr_status_);
+        r.Read("intr_enable", st_.intr_enable_);
         uint32_t b = 0;
-        r.Read(b);
+        r.Read("irq_asserted", b);
         st_.irq_asserted_ = b != 0u;
-        r.Read(b);
+        r.Read("fe_live", b);
         st_.fe_live_ = b != 0u;
-        r.Read(b);
+        r.Read("fe_idle_ring", b);
         st_.fe_idle_ring_ = b != 0u;
-        r.Read(st_.fe_ring_pc_);
-        r.Read(st_.fe_ring_prefetch_);
-        r.Read(st_.fe_window_words_);
-        r.Read(st_.fe_resume_idle_target_);
+        r.Read("fe_ring_pc", st_.fe_ring_pc_);
+        r.Read("fe_ring_prefetch", st_.fe_ring_prefetch_);
+        r.Read("fe_window_words", st_.fe_window_words_);
+        r.Read("fe_resume_idle_target", st_.fe_resume_idle_target_);
         uint32_t address_space = 0u;
-        r.Read(address_space);
+        r.Read("fe_address_space", address_space);
         st_.fe_address_space_ = address_space <= static_cast<uint32_t>(FeCommandAddressSpace::Virtual)
                                     ? static_cast<FeCommandAddressSpace>(address_space)
                                     : FeCommandAddressSpace::Physical;
-        r.Read(address_space);
+        r.Read("fe_resume_address_space", address_space);
         st_.fe_resume_address_space_ = address_space <= static_cast<uint32_t>(FeCommandAddressSpace::Virtual)
                                            ? static_cast<FeCommandAddressSpace>(address_space)
                                            : FeCommandAddressSpace::Physical;
-        r.Read(st_.fe_call_depth_);
+        r.Read("fe_call_depth", st_.fe_call_depth_);
         if (st_.fe_call_depth_ > kFeCallStackDepth) st_.fe_call_depth_ = 0u;
-        r.ReadBytes(st_.fe_call_stack_, sizeof(st_.fe_call_stack_));
-        r.ReadBytes(st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
-        r.ReadBytes(st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
-        r.Read(st_.de_pattern_latch_config_);
-        r.Read(st_.de_pattern_latch_address_);
-        r.Read(st_.de_pattern_latch_bpp_);
-        r.Read(b);
+        for (FeCallFrame& frame : st_.fe_call_stack_) {
+            r.Read("frame_return_address", frame.return_address);
+            r.Read("frame_return_window_words", frame.return_window_words);
+            uint32_t frame_address_space = 0u;
+            r.Read("frame_return_address_space", frame_address_space);
+            frame.return_address_space =
+                frame_address_space <= static_cast<uint32_t>(FeCommandAddressSpace::Virtual)
+                    ? static_cast<FeCommandAddressSpace>(frame_address_space)
+                    : FeCommandAddressSpace::Physical;
+        }
+        r.ReadBytes("semaphore_tokens", st_.semaphore_tokens_, sizeof(st_.semaphore_tokens_));
+        r.ReadBytes("de_pattern_latch", st_.de_pattern_latch_, sizeof(st_.de_pattern_latch_));
+        r.Read("de_pattern_latch_config", st_.de_pattern_latch_config_);
+        r.Read("de_pattern_latch_address", st_.de_pattern_latch_address_);
+        r.Read("de_pattern_latch_bpp", st_.de_pattern_latch_bpp_);
+        r.Read("de_pattern_latch_valid", b);
         st_.de_pattern_latch_valid_ = b != 0u;
         uint32_t n = 0;
-        r.Read(n);
+        r.Read("state_count", n);
         st_.state_.resize(n);
-        if (n) r.ReadBytes(st_.state_.data(), n * sizeof(uint32_t));
+        if (n) r.ReadBytes("state", st_.state_.data(), n * sizeof(uint32_t));
     }
 
     void PostRestore() override {

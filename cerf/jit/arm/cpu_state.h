@@ -94,6 +94,9 @@ struct ArmCpuState {
     uint32_t    ldrex_monitor_armed;
 
     uint32_t    guest_cycle_counter;
+    uint32_t    guest_cycle_deadline;
+    uint32_t    guest_cycle_hi;
+    uint32_t    guest_cycle_folded;
     uint32_t    irq_interrupt_pending;
     uint32_t    reset_pending;
     uint32_t    deep_sleep;
@@ -156,6 +159,11 @@ inline uint32_t ArmItToCpsrBits(uint32_t it) {
 inline void ArmItStoreToCpsr(ArmCpuState& state, uint32_t it) {
     state.cpsr.bits.it_high = it >> 2;
     state.cpsr.bits.it_low  = it & 0x3u;
+}
+
+inline bool ArmCycleDeadlineReached(const ArmCpuState& state) {
+    return static_cast<int32_t>(state.guest_cycle_counter -
+                                state.guest_cycle_deadline) >= 0;
 }
 
 constexpr int32_t ArmNfDisp() {

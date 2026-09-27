@@ -43,6 +43,7 @@ The following pages are authoritative project knowledge; their full contents are
 - **[agent_docs/workflow_examples.md](agent_docs/workflow_examples.md)** - proven investigation recipes.
 - **[agent_docs/subsystems.md](agent_docs/subsystems.md)** - what CERF owns.
 - **[agent_docs/jit.md](agent_docs/jit.md)** - the JIT.
+- **[agent_docs/timers_clocks.md](agent_docs/timers_clocks.md)** - the guest cycle clock, every timer on it, and what a Windows CE tick handler does to a timer.
 - **[agent_docs/rules.md](agent_docs/rules.md)** - project rules.
 - **[agent_docs/code_style.md](agent_docs/code_style.md)** - how to write code.
 - **[agent_docs/debugging.md](agent_docs/debugging.md)** - debugging.
@@ -53,6 +54,7 @@ The following pages are authoritative project knowledge; their full contents are
 - **[agent_docs/deep_sleep.md](agent_docs/deep_sleep.md)** - guest suspend/resume.
 - **[agent_docs/guest_additions.md](agent_docs/guest_additions.md)** - Guest Additions.
 - **[agent_docs/launcher.md](agent_docs/launcher.md)** - launcher, config files, transactional mode.
+- **[agent_docs/database.md](agent_docs/database.md)** - the shared board / SoC / OS database.
 - **[agent_docs/leds.md](agent_docs/leds.md)** - LEDs and LED buttons.
 
 ## Build
@@ -64,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 Output: `build/Release/Win32/cerf.exe`. Pre-commit hook rejects .cpp/.h files over 500 lines (see `.githooks/pre-commit`). The `.vcxproj` uses `**\*.cpp` glob - new .cpp files are automatically included in the build. No manual project file edits needed.
 
 - Build might take 5-10 minutes to complete on an already-set-up machine.
-- `build.ps1` uses the same two lock files as the runner. It waits for `.cerf_lock` (a run in progress), holds `.build_lock` until the build ends, and deletes it on every exit path. Each script refreshes its own lock while it works, so a lock expires only after its owner process dies.
+- `build.ps1` waits until no run holds a `.cerf_lock.N` slot, and holds `.build_lock` until the build ends. Each script refreshes its own lock while it works, so a lock expires only after its owner process dies.
 - **First build on a fresh machine takes 1+ hour** because vcpkg compiles dependencies from source before cerf links. This is automatic - msbuild restores them via manifest mode; no separate vcpkg command needed. Cached in `vcpkg_installed/` after; later builds are fast again. Do not cancel the first build assuming it's hung.
 - Prerequisite (once per machine): `vcpkg integrate install` from the VS-bundled vcpkg at `<VS install>\VC\vcpkg\vcpkg.exe`. `build.ps1` fails fast with a clear error if this is missing.
 - You can run it as a background task with GNU timeout in command itself in case if either you have parallel work to do or user insisted on this.
@@ -77,10 +79,10 @@ Output: `build/Release/Win32/cerf.exe`. Pre-commit hook rejects .cpp/.h files ov
 powershell -ExecutionPolicy Bypass -File claude_cerf_runner.ps1 --timeout=20 --log-file=/z/tmp/my_run.log --device=jornada720 [more cerf.exe args...]
 ```
 
-The runner is the queue. It waits for `.build_lock`, so a run never starts during a build. It holds `.cerf_lock`, so `build.ps1` waits for the run to end, and so two agents do not run cerf.exe at the same time. It deletes the lock file on every exit path.
+The runner is the queue. It waits for `.build_lock`, so a run never starts during a build. It holds one `.cerf_lock.N` run slot while cerf.exe runs. More than one run can occur at the same time. When every slot is held, the next run waits for a free slot.
 
 - **Three flags are mandatory: `--timeout=SECONDS`, `--log-file=PATH`, `--device=NAME`.** The runner forwards every other argument to `cerf.exe` unchanged. Without `--device`, cerf boots stock cerfos.
-- **The runner replaces GNU `timeout`. Never wrap the runner in `timeout`.** An external kill stops the runner before it deletes `.cerf_lock`, and that stale lock then blocks the next build and the next run. Give the limit to `--timeout=`.
+- **The runner replaces GNU `timeout`. Never wrap the runner in `timeout`.** An external kill stops the runner before it deletes its `.cerf_lock.N` slot, and the next build then waits for that stale slot. Give the limit to `--timeout=`.
 - `cerf.exe` implements `--timeout` itself and exits with `CERF_FATAL_TIMEOUT` (124). That exit flushes the log file and keeps `live_state.png` on disk. When cerf.exe outlives its own timeout, the runner kills the process, and that is a CERF bug.
 - Write the log path in the form that is natural. The runner converts msys and mixed-slash paths to Windows form.
 - Run the runner with no arguments for its flags and its exit codes.

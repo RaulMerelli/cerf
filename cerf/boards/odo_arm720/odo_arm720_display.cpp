@@ -7,6 +7,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -47,7 +48,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         xsize_ = 479;
@@ -103,15 +104,15 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(csr_);
-        w.Write(xsize_);
-        w.Write(ysize_);
+        w.Write("csr", csr_);
+        w.Write("xsize", xsize_);
+        w.Write("ysize", ysize_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(csr_);
-        r.Read(xsize_);
-        r.Read(ysize_);
+        r.Read("csr", csr_);
+        r.Read("xsize", xsize_);
+        r.Read("ysize", ysize_);
     }
 
 private:
@@ -127,7 +128,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -171,13 +172,13 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(dma_low_);
-        w.Write(dma_high_);
+        w.Write("dma_low", dma_low_);
+        w.Write("dma_high", dma_high_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(dma_low_);
-        r.Read(dma_high_);
+        r.Read("dma_low", dma_low_);
+        r.Read("dma_high", dma_high_);
     }
 
 private:
@@ -192,7 +193,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {
@@ -211,8 +212,7 @@ public:
         return latch_.ProbeAndLatch(emu_.Get<EmulatedMemory>(),
                                     emu_.Get<OdoArm720DisplayDma>()
                                        .GetEffectivePa(),
-                                    (size_t)(xs * ys) / 4u,
-                                    251u);
+                                    (size_t)(xs * ys) / 4u);
     }
 
     void RenderInto(uint32_t* dib_bgra32,
@@ -240,16 +240,6 @@ public:
                 dst_row[x] = kGrayscaleBgra[level];
             }
         }
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& regs = emu_.Get<OdoArm720DisplayRegs>();
-        const uint32_t w = regs.XSize();
-        if (w == 0) return std::nullopt;
-        /* 2-bpp packed grayscale, 4 px/byte (same packing RenderInto unpacks),
-           so the row pitch is w/4 bytes. */
-        return FbLayout{ emu_.Get<OdoArm720DisplayDma>().GetEffectivePa(),
-                         w / 4u, 2u, false };
     }
 };
 

@@ -1,6 +1,7 @@
 #include "intel_28f256k3.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/symbol_mk500/symbol_mk500_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SymbolMk500;
+        return bd && bd->GetBoardId() == BoardId::SymbolMk500;
     }
 
     uint32_t MmioBase() const override { return 0x00000000u; }

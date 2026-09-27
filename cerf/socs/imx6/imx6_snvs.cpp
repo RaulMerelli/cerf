@@ -8,6 +8,7 @@
 #include "imx6_mmio_lane.h"
 
 #include <mutex>
+#include "imx6_id.h"
 
 namespace {
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         {
@@ -81,17 +82,17 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lock(mtx_);
-        w.Write(RtcCounterLocked());
-        w.Write(lpcr_);
-        w.Write(lpsr_);
+        w.Write("rtc_counter", RtcCounterLocked());
+        w.Write("lpcr", lpcr_);
+        w.Write("lpsr", lpsr_);
     }
 
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lock(mtx_);
-        r.Read(rtc_base_);
+        r.Read("rtc_counter", rtc_base_);
         rtc_baseline_ns_ = NowNs();
-        r.Read(lpcr_);
-        r.Read(lpsr_);
+        r.Read("lpcr", lpcr_);
+        r.Read("lpsr", lpsr_);
     }
 
 private:

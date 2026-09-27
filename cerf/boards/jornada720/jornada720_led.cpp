@@ -5,6 +5,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 
 REGISTER_SERVICE(Jornada720Led);
 
@@ -17,7 +18,7 @@ const COLORREF kClrRim  = RGB(150, 160, 150);
 
 bool Jornada720Led::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada720;
+    return bd && bd->GetBoardId() == BoardId::Jornada720;
 }
 
 void Jornada720Led::OnReady() {

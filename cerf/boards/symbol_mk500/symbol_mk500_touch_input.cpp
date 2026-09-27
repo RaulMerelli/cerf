@@ -12,6 +12,7 @@
 #include "../../socs/pxa27x/pxa27x_gpio.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_context.h"
+#include "symbol_mk500_id.h"
 
 #include <algorithm>
 #include <atomic>
@@ -49,7 +50,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SymbolMk500;
+        return bd && bd->GetBoardId() == BoardId::SymbolMk500;
     }
 
     void OnReady() override {

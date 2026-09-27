@@ -4,9 +4,11 @@
 #include "../pcmcia/pcmcia_slot.h"
 #include "../pcmcia/pcmcia_auto_insert.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../boards/nec_rockhopper/nec_rockhopper_id.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/vrc5477/vrc5477_intc.h"
 #include "../../state/state_stream.h"
@@ -54,6 +56,11 @@ struct Bar {
     uint32_t base      = 0;
     uint32_t Read() const { return size_mask ? base : 0u; }
     void Write(uint32_t v) { if (size_mask) base = v & size_mask; }
+    template <typename F>
+    static constexpr void Visit(Bar& b, F& field) {
+        field("socket_bar_size_mask", b.size_mask);
+        field("socket_bar_base", b.base);
+    }
 };
 
 class TiCardbusBridge : public Service, public PciDevice, public PcmciaSlotHost {
@@ -62,7 +69,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecRockhopper;
+        return bd && bd->GetBoardId() == BoardId::NecRockhopper;
     }
     void OnReady() override {
         std::memset(cfg_, 0, sizeof(cfg_));
@@ -115,7 +122,7 @@ public:
     uint32_t IoRead(uint32_t pci_io, unsigned size) override {
         uint32_t card = 0; bool mapped;
         { std::lock_guard<std::mutex> lk(mtx_); mapped = exca_.MapIo(pci_io, &card); }
-        if (!mapped) return (size >= 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1u);
+        if (!mapped) return cerf::ByteWidthMask(size);
         const uint32_t v = (size >= 2) ? slot_.ReadIo16(card) : slot_.ReadIo8(card);
         return v;
     }
@@ -142,25 +149,30 @@ public:
 
     void SaveState(StateWriter& w) override {
         { std::lock_guard<std::mutex> lk(mtx_);
-          w.WriteBytes(cfg_, sizeof(cfg_));
-          w.WriteBytes(&socket_bar_, sizeof(socket_bar_));
-          w.Write(socket_event_); w.Write(socket_mask_); w.Write(socket_control_);
-          w.Write<uint32_t>(card_irq_ ? 1u : 0u);
+          w.WriteBytes("cfg", cfg_, sizeof(cfg_));
+          static_assert(StateVisitCoversAllBytes<Bar>(
+                            [](Bar& b, StateFieldBytes& f) { Bar::Visit(b, f); }),
+                        "Bar::Visit must name or skip every field of Bar");
+          StateWriteField bar_field(w);
+          Bar::Visit(socket_bar_, bar_field);
+          w.Write("socket_event", socket_event_); w.Write("socket_mask", socket_mask_); w.Write("socket_control", socket_control_);
+          w.Write<uint32_t>("card_irq", card_irq_ ? 1u : 0u);
           /* the driven INTA# level: serialized so a post-restore card deassert
              isn't dropped by a stale edge-detect (stuck source). */
-          w.Write<uint32_t>(irq_asserted_ ? 1u : 0u);
-          w.WriteBytes(exca_chip_regs_, sizeof(exca_chip_regs_));
+          w.Write<uint32_t>("irq_asserted", irq_asserted_ ? 1u : 0u);
+          w.WriteBytes("exca_chip_regs", exca_chip_regs_, sizeof(exca_chip_regs_));
           exca_.SaveState(w); }
         slot_.SaveSlotState(w);
     }
     void RestoreState(StateReader& r) override {
         { std::lock_guard<std::mutex> lk(mtx_);
-          r.ReadBytes(cfg_, sizeof(cfg_));
-          r.ReadBytes(&socket_bar_, sizeof(socket_bar_));
-          r.Read(socket_event_); r.Read(socket_mask_); r.Read(socket_control_);
-          uint32_t ci = 0; r.Read(ci); card_irq_ = ci != 0;
-          uint32_t ia = 0; r.Read(ia); irq_asserted_ = ia != 0;
-          r.ReadBytes(exca_chip_regs_, sizeof(exca_chip_regs_));
+          r.ReadBytes("cfg", cfg_, sizeof(cfg_));
+          StateReadField bar_field(r);
+          Bar::Visit(socket_bar_, bar_field);
+          r.Read("socket_event", socket_event_); r.Read("socket_mask", socket_mask_); r.Read("socket_control", socket_control_);
+          uint32_t ci = 0; r.Read("card_irq", ci); card_irq_ = ci != 0;
+          uint32_t ia = 0; r.Read("irq_asserted", ia); irq_asserted_ = ia != 0;
+          r.ReadBytes("exca_chip_regs", exca_chip_regs_, sizeof(exca_chip_regs_));
           exca_.RestoreState(r); }
         slot_.RestoreSlotState(r);
     }
@@ -189,7 +201,7 @@ private:
     uint32_t CardMemRead(uint32_t addr, unsigned size) {
         uint32_t card = 0; bool attr = false, wr = false, mapped;
         { std::lock_guard<std::mutex> lk(mtx_); mapped = exca_.MapMem(addr, &card, &attr, &wr); }
-        if (!mapped) return (size >= 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1u);
+        if (!mapped) return cerf::ByteWidthMask(size);
         const uint32_t v = attr ? slot_.ReadAttribute8(card)
                                 : (size >= 2 ? slot_.ReadCommon16(card) : slot_.ReadCommon8(card));
         return v;

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from device_state import DeviceBundle, PackageStatus
-from board_catalog_schema import sort_text
+from board_database import sort_text
 from board_info import board_display_name, board_soc_label, board_sort_key
 
 

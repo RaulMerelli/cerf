@@ -1,6 +1,9 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "../vr4102/vr4102_id.h"
+#include "../vr4121/vr4121_id.h"
+#include "../vr4111/vr4111_id.h"
 #include "../../boards/page_table_builder.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
@@ -27,9 +30,9 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::VR4102 || soc == SocFamily::VR4121 ||
-               soc == SocFamily::VR4111;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Vr4102 || soc == SocId::Vr4121 ||
+               soc == SocId::Vr4111;
     }
 
     void OnReady() override {

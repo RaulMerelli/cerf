@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_kiu.h"
 
 #include "../../boards/board_context.h"
+#include "vr4102_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -16,6 +17,8 @@ constexpr Vr41xxKiuModel kModel = {
     .scanstart_auto_clear     = false,
     .keyen_scanline_interlock = false,
     .keyen_stop_deferred      = false,
+    .gpen_retained_on_other_reset = false,
+    .gpen_survives_kiurst         = false,
 };
 
 class Vr4102Kiu : public Vr41xxKiu {
@@ -24,7 +27,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4102;
+        return bd && bd->GetSocId() == SocId::Vr4102;
     }
 
 protected:

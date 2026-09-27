@@ -3,6 +3,7 @@
 #include "cerf_emulator.h"
 #include "cerf_paths.h"
 #include "config_json.h"
+#include "config_loader.h"
 #include "config_mutable_fields.h"
 #include "device_config.h"
 #include "log.h"
@@ -25,6 +26,7 @@ void DeviceConfigRefresh::Refresh() {
         if (j.is_null()) continue;
         CfgLoadMutableFields(j, config, path);
     }
+    emu_.Get<ConfigLoader>().ApplyBoardPanelDefault(config);
 
     LOG(Cfg, "DeviceConfigRefresh: %ux%u dpi=%u bpp=%u font=%d(set=%d) scheme='%s' share='%s'\n",
         config.board_configurable_screen_width,

@@ -14,8 +14,8 @@ Set-Location $PSScriptRoot
 
 . (Join-Path $PSScriptRoot "tools\cerf_locks.ps1")
 
-$buildLock   = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "BUILD"
-$cerfRunLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".cerf_lock")  -StaleSeconds 120 -Label "BUILD"
+$buildLock = New-CerfLock -Path (Join-Path $PSScriptRoot ".build_lock") -StaleSeconds 300 -Label "BUILD"
+$runLocks  = @(New-CerfRunLocks -Root $PSScriptRoot -Label "BUILD")
 
 function Stop-Build {
     param([int]$Code)
@@ -40,8 +40,8 @@ if (-not (Test-Path "$env:LOCALAPPDATA\vcpkg\vcpkg.user.props")) {
     Stop-Build 1
 }
 
-Wait-CerfLock $cerfRunLock
 Enter-CerfLock $buildLock
+foreach ($l in $runLocks) { Wait-CerfLock $l }
 
 $waitDeadline = (Get-Date).AddMinutes(30)
 while ($true) {
@@ -152,11 +152,6 @@ $buildsSucceeded = 0
 $buildsFailed    = 0
 $failedNames     = @()
 
-# Launcher inputs change rarely; PyInstaller is slow. Skip the launcher build
-# when no input has changed since the last successful build. The signature is a
-# sorted list of "path|UTC-ticks" over every launcher source plus the two cerf
-# files launcher.spec pulls in (cerf.ico, version.h); it captures content edits,
-# adds, and removes. Stored in launcher/.launcher_timestamps (gitignored).
 function Get-LauncherInputSignature {
     $launcherDir = Join-Path $PSScriptRoot "launcher"
     $inputs = Get-ChildItem -Path $launcherDir -Recurse -File -ErrorAction SilentlyContinue |
@@ -165,10 +160,13 @@ function Get-LauncherInputSignature {
             $_.Extension -ne ".pyc" -and
             $_.Name -ne ".launcher_timestamps"
         }
-    foreach ($rel in @("cerf\assets\cerf.ico", "cerf\version.h")) {
+    foreach ($rel in @("cerf\assets\cerf.ico", "cerf\assets\cerf_error.ico",
+                       "cerf\assets\cerf_setup.ico", "cerf\version.h")) {
         $p = Join-Path $PSScriptRoot $rel
         if (Test-Path $p) { $inputs += Get-Item $p }
     }
+    $bands = Join-Path $PSScriptRoot "cerf\assets"
+    $inputs += Get-ChildItem -Path $bands -Filter "about_band_*.png" -File -ErrorAction SilentlyContinue
     ($inputs |
         ForEach-Object { "$($_.FullName)|$($_.LastWriteTimeUtc.Ticks)" } |
         Sort-Object) -join "`n"
@@ -179,10 +177,14 @@ Update-CerfLockStamp $buildLock
 $launcherBuild = Join-Path $PSScriptRoot "launcher\build.ps1"
 $launcherStamp = Join-Path $PSScriptRoot "launcher\.launcher_timestamps"
 $launcherExe   = Join-Path $PSScriptRoot "bundled\launcher.exe"
+$launcherReal  = Join-Path $PSScriptRoot "bundled\launcher\launcher.exe"
+$installerExe  = Join-Path $PSScriptRoot "launcher\dist\cerf_installer.exe"
 if (Test-Path $launcherBuild) {
     $launcherSig = Get-LauncherInputSignature
     $launcherStampOld = if (Test-Path $launcherStamp) { Get-Content $launcherStamp -Raw } else { "" }
     $launcherUpToDate = (-not $Rebuild) -and (Test-Path $launcherExe) -and
+                        (Test-Path $launcherReal) -and
+                        (Test-Path $installerExe) -and
                         ($launcherStampOld -eq $launcherSig)
 
     if ($launcherUpToDate) {
@@ -198,9 +200,7 @@ if (Test-Path $launcherBuild) {
             $buildsFailed++
             $failedNames += "launcher"
         } else {
-            # Re-snapshot after the build: the build itself may touch inputs, and
-            # only a successful build should refresh the stamp.
-            Set-Content -Path $launcherStamp -Value (Get-LauncherInputSignature) -NoNewline
+            Set-Content -Path $launcherStamp -Value $launcherSig -NoNewline
             $buildsSucceeded++
         }
     }

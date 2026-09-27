@@ -21,12 +21,11 @@ uint8_t* EmitChainToBlock(uint8_t* cursor, BlockContext* ctx,
     target_va = ArmFcseFold(target_va, ctx->fcse_pid);
 
     if (target_va == ctx->guest_start) {
-        EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-            static_cast<int32_t>(offsetof(ArmCpuState, chain_exit_request)));
-        EmitTestRegReg(cursor, kEax, kEax);
-        uint8_t* to_dispatcher = EmitJnzLabel32(cursor);
+        uint8_t* to_dispatcher[2];
+        cursor = EmitDispatcherExitPoll(cursor, to_dispatcher);
         EmitJmp32(cursor, ctx->native_start);
-        FixupLabel32(to_dispatcher, cursor);
+        FixupLabel32(to_dispatcher[0], cursor);
+        FixupLabel32(to_dispatcher[1], cursor);
         return cursor;
     }
 
@@ -43,10 +42,8 @@ uint8_t* EmitChainToBlock(uint8_t* cursor, BlockContext* ctx,
         dest = nullptr;
     }
 
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-        static_cast<int32_t>(offsetof(ArmCpuState, chain_exit_request)));
-    EmitTestRegReg(cursor, kEax, kEax);
-    uint8_t* to_dispatcher = EmitJnzLabel32(cursor);
+    uint8_t* to_dispatcher[2];
+    cursor = EmitDispatcherExitPoll(cursor, to_dispatcher);
     Emit8(cursor, 0xE9);
     uint8_t* const site = cursor;
     Emit32(cursor, 0u);
@@ -63,6 +60,7 @@ uint8_t* EmitChainToBlock(uint8_t* cursor, BlockContext* ctx,
         const uint32_t disp = static_cast<uint32_t>(cursor - (site + 4));
         std::memcpy(site, &disp, 4);
     }
-    FixupLabel32(to_dispatcher, cursor);
+    FixupLabel32(to_dispatcher[0], cursor);
+    FixupLabel32(to_dispatcher[1], cursor);
     return cursor;
 }

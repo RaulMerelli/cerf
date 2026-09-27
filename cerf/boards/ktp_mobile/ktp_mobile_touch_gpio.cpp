@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
     void OnReady() override {
         emu_.Get<Imx6GpioBus>().RegisterSource(this);

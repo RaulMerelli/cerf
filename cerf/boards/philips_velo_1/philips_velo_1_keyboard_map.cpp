@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
 #include "../board_context.h"
+#include "philips_velo_1_id.h"
 
 #include <vector>
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsVelo1;
+        return bd && bd->GetBoardId() == BoardId::PhilipsVelo1;
     }
 
     const std::vector<KeyBinding>& Bindings() const override {

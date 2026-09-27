@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "smartbook_g138_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SmartBookG138;
+        return bd && bd->GetBoardId() == BoardId::SmartbookG138;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -33,8 +34,8 @@ public:
     void WriteHalf(uint32_t addr, uint16_t value) override { Store(addr, value, 2); }
     void WriteWord(uint32_t addr, uint32_t value) override { Store(addr, value, 4); }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(shadow_, sizeof(shadow_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(shadow_, sizeof(shadow_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("shadow", shadow_, sizeof(shadow_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("shadow", shadow_, sizeof(shadow_)); }
 
 private:
     void Store(uint32_t addr, uint32_t value, uint32_t bytes) {

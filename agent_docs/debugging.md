@@ -19,6 +19,10 @@ which hooks fire. Narrow the range. Repeat until the log names the dead
 branch. No step is skippable. "I already know what it is" never
 replaces a hook - write the hook anyway.
 
+**If a defect appears only under a load, bisect the load before the
+emulator.** Disable the parts of the trigger one at a time. Each run
+narrows the search before you write an instrument.
+
 ### New session? Compaction? Lost context?
 
 Then read the trace hooks you created in previous session(s). Read all
@@ -162,6 +166,23 @@ branch is named.
   fires. Move high-frequency state observation into a trace file
   (gated by bundle CRC32, excluded from production). Permanent
   LOGs are for low-frequency milestones only.
+- **An instrument whose two terms both come from the emulator
+  always reads correct.** Before you build an instrument, name the
+  outside reference for each term. A subsystem compared against its
+  own state measures the identity that defines it. It does not
+  measure the defect.
+- **A mechanism that logs its own counters is already instrumented
+  - read its output before you build a probe.** The fields a
+  subsystem prints about itself are the first and cheapest
+  measurement of it, and they are in every log already on disk. An
+  investigation that builds new instruments, and does not read
+  those fields, can run for sessions beside the answer.
+- **Debug a bounded subsystem from inside itself before its
+  users.** When a failing quantity comes from a component whose
+  inputs and outputs you can enumerate, look at that component's
+  own state first. Its consumers come last. Drill a consumer for a
+  fault whose origin is unlocated, never for one a bounded
+  mechanism already owns.
 
 ### Example shapes (concrete forms of the same method)
 

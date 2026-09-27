@@ -1,6 +1,8 @@
 #include "pr31x00_biu.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -56,8 +58,8 @@ constexpr uint32_t kCfg4MemPowerDown = 1u << 16;
 bool Pr31x00Biu::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00Biu::OnReady() { emu_.Get<PeripheralDispatcher>().Register(this); }
@@ -128,11 +130,11 @@ void Pr31x00Biu::WriteConfig4(uint32_t addr, uint32_t value) {
 }
 
 void Pr31x00Biu::SaveState(StateWriter& w) {
-    for (uint32_t i = 0; i < kRegs; ++i) w.Write(reg_[i]);
+    for (uint32_t i = 0; i < kRegs; ++i) w.Write("reg", reg_[i]);
 }
 
 void Pr31x00Biu::RestoreState(StateReader& r) {
-    for (uint32_t i = 0; i < kRegs; ++i) r.Read(reg_[i]);
+    for (uint32_t i = 0; i < kRegs; ++i) r.Read("reg", reg_[i]);
 }
 
 REGISTER_SERVICE(Pr31x00Biu);

@@ -6,6 +6,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../board_context.h"
+#include "devemu_id.h"
 
 #include <cstdint>
 
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

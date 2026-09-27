@@ -6,6 +6,7 @@
 #include "../board_context.h"
 
 #include <cstdint>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
@@ -32,8 +33,8 @@ public:
         values_[off >> 1] = value;
     }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(values_, sizeof(values_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(values_, sizeof(values_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("values", values_, sizeof(values_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("values", values_, sizeof(values_)); }
 
 private:
     uint16_t values_[4] = {};

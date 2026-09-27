@@ -10,7 +10,7 @@ public:
     using PageTableBuilder::PageTableBuilder;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
+        return emu_.Get<BoardContext>().GetBoardId().empty();
     }
 
     uint32_t InitStackTopPa() const override { return 0; }

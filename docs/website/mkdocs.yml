@@ -1,9 +1,11 @@
 site_name: CE Runtime Foundation
-site_description: A virtual hardware platform that boots real Windows CE and Windows Mobile ROMs on modern Windows.
+site_description: Universal Windows CE emulator - Run Windows CE 1.0 through Windows Embedded Compact 2013
 site_url: https://cerf.cx/
 repo_url: https://github.com/gweslab/cerf
 repo_name: gweslab/cerf
-copyright: Yaroslav Kibysh
+copyright: >-
+  &copy; 2019-{cur_year}
+  <a href="https://yaroslavkibysh.com" target="_blank" rel="noopener">Yaroslav Kibysh</a>
 
 docs_dir: content
 site_dir: ../../build/site
@@ -54,7 +56,7 @@ theme:
 nav:
   - Home: index.md
   - Download: download.md
-  - Boards: boards.md
+  - Devices: devices.md
   - Articles:
       - articles/index.md
       - Guest Additions: articles/guest-additions.md
@@ -63,12 +65,12 @@ nav:
       - Command line: articles/command-line.md
       - Getting the guest online: articles/networking.md
       - Touch and mouse: articles/pointer-input.md
-      - Report a bug: articles/report-a-bug.md
       - Running your own ROM: articles/own-rom.md
       - The configuration files: articles/cerf-json.md
       - ROM bundle repositories: articles/bundle-repositories.md
       - Connecting to ActiveSync: articles/activesync.md
       - Windows CE ROM containers: articles/rom-containers.md
+      - Send feedback: /feedback
   - Changelog: changelog.md
 
 markdown_extensions:
@@ -89,11 +91,13 @@ markdown_extensions:
 
 extra_css:
   - assets/cerf.css
+  - assets/rail.css
 
 extra_javascript:
   - assets/reveal.js
   - assets/slideshow.js
   - assets/scene.js
+  - assets/rail.js
 
 extra:
   analytics:

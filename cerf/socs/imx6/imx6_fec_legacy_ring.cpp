@@ -38,17 +38,17 @@ void Imx6FecLegacyRing::Reset() {
 }
 
 void Imx6FecLegacyRing::SaveState(StateWriter& writer) const {
-    writer.Write(rdar_);
-    writer.Write(tdar_);
-    writer.Write(rx_descriptor_);
-    writer.Write(tx_descriptor_);
+    writer.Write("rdar", rdar_);
+    writer.Write("tdar", tdar_);
+    writer.Write("rx_descriptor", rx_descriptor_);
+    writer.Write("tx_descriptor", tx_descriptor_);
 }
 
 void Imx6FecLegacyRing::RestoreState(StateReader& reader) {
-    reader.Read(rdar_);
-    reader.Read(tdar_);
-    reader.Read(rx_descriptor_);
-    reader.Read(tx_descriptor_);
+    reader.Read("rdar", rdar_);
+    reader.Read("tdar", tdar_);
+    reader.Read("rx_descriptor", rx_descriptor_);
+    reader.Read("tx_descriptor", tx_descriptor_);
 }
 
 void Imx6FecLegacyRing::SetRxDescriptorBase(uint32_t base) {

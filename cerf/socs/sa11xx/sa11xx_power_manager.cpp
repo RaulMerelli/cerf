@@ -5,6 +5,8 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../state/state_stream.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 
 namespace {
 
@@ -18,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -126,23 +128,23 @@ void Sa11xxPowerManager::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Sa11xxPowerManager::SaveState(StateWriter& w) {
-    w.Write(pmcr_);
-    w.Write(pssr_);
-    w.Write(pspr_);
-    w.Write(pwer_);
-    w.Write(pcfr_);
-    w.Write(ppcr_);
-    w.Write(pgsr_);
+    w.Write("pmcr", pmcr_);
+    w.Write("pssr", pssr_);
+    w.Write("pspr", pspr_);
+    w.Write("pwer", pwer_);
+    w.Write("pcfr", pcfr_);
+    w.Write("ppcr", ppcr_);
+    w.Write("pgsr", pgsr_);
 }
 
 void Sa11xxPowerManager::RestoreState(StateReader& r) {
-    r.Read(pmcr_);
-    r.Read(pssr_);
-    r.Read(pspr_);
-    r.Read(pwer_);
-    r.Read(pcfr_);
-    r.Read(ppcr_);
-    r.Read(pgsr_);
+    r.Read("pmcr", pmcr_);
+    r.Read("pssr", pssr_);
+    r.Read("pspr", pspr_);
+    r.Read("pwer", pwer_);
+    r.Read("pcfr", pcfr_);
+    r.Read("ppcr", ppcr_);
+    r.Read("pgsr", pgsr_);
 }
 
 }  /* namespace */

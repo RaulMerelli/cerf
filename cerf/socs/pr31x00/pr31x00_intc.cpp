@@ -1,6 +1,8 @@
 #include "pr31x00_intc.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../jit/mips/mips_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -79,8 +81,8 @@ constexpr HighPrioTerm kHighPrio[16][2] = {
 bool Pr31x00Intc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00Intc::OnReady() {
@@ -260,17 +262,17 @@ void Pr31x00Intc::WriteWord(uint32_t addr, uint32_t value) {
 void Pr31x00Intc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(mtx_);
     for (uint32_t i = 0; i < kSets; ++i) {
-        w.Write(status_[i]); w.Write(enable_[i]); w.Write(free_running_[i]);
+        w.Write("status", status_[i]); w.Write("enable", enable_[i]); w.Write("free_running", free_running_[i]);
     }
-    w.Write(enable6_);
+    w.Write("enable6", enable6_);
 }
 
 void Pr31x00Intc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mtx_);
     for (uint32_t i = 0; i < kSets; ++i) {
-        r.Read(status_[i]); r.Read(enable_[i]); r.Read(free_running_[i]);
+        r.Read("status", status_[i]); r.Read("enable", enable_[i]); r.Read("free_running", free_running_[i]);
     }
-    r.Read(enable6_);
+    r.Read("enable6", enable6_);
 }
 
 void Pr31x00Intc::PostRestore() {

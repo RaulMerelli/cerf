@@ -2,6 +2,7 @@
 
 #include "iop13xx_pci_config.h"
 #include "../../boards/board_context.h"
+#include "iop13xx_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -13,7 +14,7 @@ public:
     using Peripheral::Peripheral;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::IOP13xx;
+        return bd && bd->GetSocId() == SocId::Iop13xx;
     }
     void OnReady() override {
         occar_ = 0u;
@@ -72,11 +73,11 @@ public:
             MergeWrite(addr, value, 1u);
     }
     void SaveState(StateWriter& writer) override {
-        writer.Write(occar_);
+        writer.Write("occar", occar_);
         if constexpr (kPrimary) emu_.Get<Iop13xxPciConfig>().SaveState(writer);
     }
     void RestoreState(StateReader& reader) override {
-        reader.Read(occar_);
+        reader.Read("occar", occar_);
         if constexpr (kPrimary) emu_.Get<Iop13xxPciConfig>().RestoreState(reader);
     }
 

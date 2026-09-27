@@ -1,14 +1,17 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 #include "../../core/cerf_emulator.h"
-#include "../../core/virtual_clock.h"
+#include "../../core/fatal.h"
+#include "../../jit/guest_cycle_clock.h"
 #include "../../peripherals/peripheral_dispatcher.h"
+#include "../cycle_anchored_counter.h"
+#include "../guest_cpu_reset.h"
 #include "../../state/state_stream.h"
 #include "omap3530_clocks.h"
 
 #include <cstdint>
-#include <mutex>
 
 namespace {
 
@@ -22,10 +25,8 @@ constexpr uint32_t kOffRev       = 0x00;
 constexpr uint32_t kOffSysconfig = 0x04;
 constexpr uint32_t kOffCr        = 0x10;
 
-/* OMAP3530 TRM SPRUF98Y Table 16-98 (printed p. 2663): REG_32KSYNCNT_CR
-   COUNTER_VALUE [31:0], reset 0x00000003. §16.6.1 (printed p. 2660): counting
-   starts from the reset value three 32-kHz clock periods after the power-up
-   reset is released. */
+/* Table 16-98 (printed p. 2663): REG_32KSYNCNT_CR COUNTER_VALUE [31:0],
+   reset 0x00000003. */
 constexpr uint32_t kCounterResetValue = 0x00000003u;
 
 class Omap3530Synctimer : public Peripheral {
@@ -33,16 +34,26 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::OMAP3530;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Omap3530;
     }
+
     /* §16.6.1 (printed p. 2660): the counter is reset only while the external
-       asynchronous power-up reset sys_nrespwron is active. §16.6.1.2 lists
-       "Start and keep counting after power-on reset", so no CPU reset line
-       rewinds it. */
+       asynchronous power-up reset sys_nrespwron is active. §4.5.2.2 (printed
+       p. 258): a global warm reset does not apply to the 32-kHz sync timer. */
     void OnReady() override {
-        std::lock_guard<std::mutex> lk(state_mutex_);
-        SetAnchorLocked(kCounterResetValue, NowNs());
+        clock_ = &emu_.Get<GuestCycleClock>();
+        counter_.Anchor(clock_->Cycles(), kCounterResetValue);
+        if (!counter_.SetRatio(clock_->CpuHz(), kOmap3530Clk32kHz)) RatioOverflow();
+        clock_->RegisterRateListener([this] {
+            if (!counter_.Rescale(clock_->Cycles(), clock_->CpuHz(), kOmap3530Clk32kHz)) {
+                RatioOverflow();
+            }
+        });
+        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
+            if (kind == ResetLineKind::Rtc) {
+                counter_.Anchor(clock_->Cycles(), kCounterResetValue);
+            }
+        });
         emu_.Get<PeripheralDispatcher>().Register(this);
     }
 
@@ -56,45 +67,33 @@ public:
     void RestoreState(StateReader& r) override;
 
 private:
-    static uint32_t NsToTicks(int64_t ns) {
-        if (ns <= 0) return 0;
-        return static_cast<uint32_t>(static_cast<uint64_t>(ns) *
-                                     kOmap3530TkPerUnit / kOmap3530NsPerUnit);
+    [[noreturn]] void RatioOverflow() const {
+        emu_.Get<Fatal>().Die(
+            "omap3530 synctimer: the %llu Hz counter clock against the %llu Hz core "
+            "overflows the 64-bit scale",
+            static_cast<unsigned long long>(kOmap3530Clk32kHz),
+            static_cast<unsigned long long>(clock_->CpuHz()));
     }
 
-    int64_t NowNs() const { return emu_.Get<VirtualClock>().NowNs(); }
-
-    /* §16.6.1 (printed p. 2660): a free-running 32-bit upward counter that
-       wraps back to 0 after 0xFFFF FFFF. */
-    uint32_t CounterAtLocked(int64_t now) const {
-        return count_anchor_ + NsToTicks(now - anchor_ns_);
-    }
-
-    void SetAnchorLocked(uint32_t count, int64_t now) {
-        count_anchor_ = count;
-        anchor_ns_    = now;
-    }
-
-    mutable std::mutex state_mutex_;
-    uint32_t           count_anchor_ = kCounterResetValue;
-    int64_t            anchor_ns_    = 0;
+    GuestCycleClock*     clock_ = nullptr;
+    CycleAnchoredCounter counter_;
 };
 
 uint32_t Omap3530Synctimer::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
-    std::lock_guard<std::mutex> lk(state_mutex_);
     switch (off) {
     /* Table 16-94 (printed p. 2662): CID_REV [7:0] holds the counter revision
        number, whose reset value the manual gives as TI internal data. */
     case kOffRev:       return 0u;
-    case kOffCr:        return CounterAtLocked(NowNs());
+    /* §16.6.1 (printed p. 2660): a free-running 32-bit upward counter that
+       wraps back to 0 after 0xFFFF FFFF. */
+    case kOffCr:        return counter_.CountAt(clock_->Cycles());
     }
     HaltUnsupportedAccess("ReadWord", addr, 0);
 }
 
 void Omap3530Synctimer::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
-    std::lock_guard<std::mutex> lk(state_mutex_);
     switch (off) {
     /* Table 16-93 (printed p. 2662): REV and CR are type R. §16.6.1.2 (printed
        p. 2660): "no write operation is supported (no error/no action on
@@ -110,17 +109,27 @@ void Omap3530Synctimer::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Omap3530Synctimer::SaveState(StateWriter& w) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    w.Write<uint32_t>(CounterAtLocked(NowNs()));
+    const uint64_t now = clock_->Cycles();
+    w.Write<uint32_t>("counter", counter_.CountAt(now));
+    w.Write<uint64_t>("clk32k_phase", counter_.PhaseAt(now));
+    w.Write<uint64_t>("clk32k_phase_den", counter_.PhaseDenominator());
 }
 
 void Omap3530Synctimer::RestoreState(StateReader& r) {
-    std::lock_guard<std::mutex> lk(state_mutex_);
     uint32_t counter = 0;
-    r.Read(counter);
-    SetAnchorLocked(counter, NowNs());
+    uint64_t phase = 0, phase_den = 0;
+    r.Read("counter", counter);
+    r.Read("clk32k_phase", phase);
+    r.Read("clk32k_phase_den", phase_den);
+    if (!counter_.SetRatio(clock_->CpuHz(), kOmap3530Clk32kHz)) RatioOverflow();
+    if (!counter_.AnchorAtPhase(clock_->Cycles(), counter, phase, phase_den)) {
+        r.Reject("omap3530 synctimer: restored 32-kHz phase %llu/%llu is not a "
+                 "fraction of one tick this build can place",
+                 static_cast<unsigned long long>(phase),
+                 static_cast<unsigned long long>(phase_den));
+    }
 }
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE(Omap3530Synctimer);

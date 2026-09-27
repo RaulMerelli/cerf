@@ -2,6 +2,9 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../vr4102/vr4102_id.h"
+#include "../vr4111/vr4111_id.h"
+#include "../vr4121/vr4121_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
@@ -50,9 +53,9 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::VR4102 || soc == SocFamily::VR4111 ||
-               soc == SocFamily::VR4121;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Vr4102 || soc == SocId::Vr4111 ||
+               soc == SocId::Vr4121;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -95,8 +98,8 @@ public:
     void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("AIU WriteByte", addr, v); }
     void WriteWord(uint32_t addr, uint32_t v) override { HaltUnsupportedAccess("AIU WriteWord", addr, v); }
 
-    void SaveState(StateWriter& w) override { w.Write(seq_); w.Write(scnt_); w.Write(mcnt_); w.Write(int_); }
-    void RestoreState(StateReader& r) override { r.Read(seq_); r.Read(scnt_); r.Read(mcnt_); r.Read(int_); }
+    void SaveState(StateWriter& w) override { w.Write("seq", seq_); w.Write("scnt", scnt_); w.Write("mcnt", mcnt_); w.Write("int", int_); }
+    void RestoreState(StateReader& r) override { r.Read("seq", seq_); r.Read("scnt", scnt_); r.Read("mcnt", mcnt_); r.Read("int", int_); }
 
 private:
     uint16_t seq_  = 0;   /* SEQREG  (AIURST/AIUMEN/AIUSEN) */

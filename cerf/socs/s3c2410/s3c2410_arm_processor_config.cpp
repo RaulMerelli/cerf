@@ -2,6 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
+#include "s3c2410_clocks.h"
 
 namespace {
 
@@ -11,7 +13,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
 
     /* S3C2410A User Manual, ARM Instruction Set, Block Data Transfer
@@ -25,8 +27,9 @@ public:
     bool     HasDsp()                     const override { return true; }
     bool     HasLoadStoreDouble()         const override { return true; }
 
-    /* S3C2410 User Manual §7.7.1 - FCLK default 200 MHz (max 266). */
-    uint32_t CpuClockHz()                 const override { return 200000000u; }
+    uint32_t CpuClockHz() const override {
+        return static_cast<uint32_t>(emu_.Get<S3C2410Clocks>().CoreClockHz());
+    }
 };
 
 }  /* namespace */

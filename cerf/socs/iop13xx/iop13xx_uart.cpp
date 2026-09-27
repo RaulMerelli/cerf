@@ -1,6 +1,7 @@
 #include "../../peripherals/uart16550/uart16550.h"
 
 #include "../../boards/board_context.h"
+#include "iop13xx_id.h"
 #include "../../core/cerf_emulator.h"
 
 /* Intel 81341/81342 Developer's Manual 315037-002US, section 16;
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::IOP13xx;
+        return bd && bd->GetSocId() == SocId::Iop13xx;
     }
 
     uint32_t MmioBase() const override { return 0xFFD82340u; }

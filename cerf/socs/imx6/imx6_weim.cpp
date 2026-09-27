@@ -7,6 +7,7 @@
 #include "imx6_mmio_lane.h"
 
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace {
 
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         /* IMX6DQRM Rev.2 §22.9: CS0GCR1 reset value. */
@@ -52,9 +53,9 @@ public:
         HaltUnsupportedAccess("write32", addr, value);
     }
 
-    void SaveState(StateWriter& w) override { w.Write(cs0gcr1_); }
+    void SaveState(StateWriter& w) override { w.Write("cs0gcr1", cs0gcr1_); }
 
-    void RestoreState(StateReader& r) override { r.Read(cs0gcr1_); }
+    void RestoreState(StateReader& r) override { r.Read("cs0gcr1", cs0gcr1_); }
 
 private:
     /* IMX6DQRM Rev.2 §22.9: CS0..CS3 GCR1..WCR2 at 0x00-0x5C, WCR/WIAR/EAR at 0x90-0x98, all R/W. */

@@ -54,6 +54,11 @@ private:
 
     uint32_t IcIpLocked() const { return icpr_ & icmr_ & ~iclr_; }
     uint32_t IcFpLocked() const { return icpr_ & icmr_ & iclr_; }
+    /* SA-1110 Dev Man §9.2.1.5 ICCR.DIM: 0 - all enabled interrupts bring the
+       SA-1110 out of idle mode; 1 - only enabled and unmasked (per the ICMR). */
+    bool IdleWakeLocked() const {
+        return (iccr_ & 0x1u) != 0u ? IcIpLocked() != 0u : icpr_ != 0u;
+    }
 
     void NotifyLocked();
 

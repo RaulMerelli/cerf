@@ -51,6 +51,8 @@ struct ParsedROMHDR {
     uint32_t pExtensions     = 0;
     uint32_t ulTrackingStart = 0;
     uint32_t ulTrackingLen   = 0;
+
+    bool ImageContains(uint32_t va) const { return va >= physfirst && va < physlast; }
 };
 
 /* ParsedTOC - what the kernel sees at one pTOC slot: a ROMHDR
@@ -111,6 +113,9 @@ struct ParsedRom {
     bool                         is_nosaj     = false;
     bool                         is_arnold    = false;
     bool                         is_nbf       = false;
+    bool                         is_wmstore   = false;
+    size_t                       wmstore_payload_off   = 0;
+    size_t                       wmstore_payload_bytes = 0;
     bool                         is_ce1       = false;
     bool                         is_symbol_flash = false;
     bool is_fwf = false;
@@ -121,6 +126,13 @@ struct ParsedRom {
     uint32_t                     imgfs_bytes_per_block = 0;
     std::vector<ParsedXipRegion> xips;
     std::vector<ParsedImgfsModule> imgfs_modules;
+
+    const ParsedROMHDR* XipHeaderContaining(uint32_t va) const {
+        for (const auto& xip : xips) {
+            if (xip.toc.romhdr.ImageContains(va)) return &xip.toc.romhdr;
+        }
+        return nullptr;
+    }
 };
 
 class RomParserService : public Service {

@@ -20,7 +20,6 @@
 #include "host_menu.h"
 #include "host_status_bar.h"
 #include "host_widget_registry.h"
-#include "initial_window_size.h"
 #include "window_title.h"
 
 REGISTER_SERVICE(HostWindow);
@@ -61,10 +60,11 @@ void HostWindow::StopUiThread() {
 }
 
 void HostWindow::OnReady() {
-    const auto size = emu_.Get<InitialWindowSize>().Resolve();
-    initial_surface_w_ = size.width;
-    initial_surface_h_ = size.height;
-    LOG(Lcd, "HostWindow OnReady: opening at %ux%u\n", size.width, size.height);
+    const auto& dc = emu_.Get<DeviceConfig>();
+    initial_surface_w_ = dc.board_configurable_screen_width;
+    initial_surface_h_ = dc.board_configurable_screen_height;
+    LOG(Lcd, "HostWindow OnReady: opening at %ux%u\n", initial_surface_w_,
+        initial_surface_h_);
 
     /* Per-Monitor-v2 DPI awareness comes from cerf.manifest: ConfigLoader reads
        host screen metrics for the adopt-resolution path before this window
@@ -399,6 +399,14 @@ LRESULT HostWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (LOWORD(wp) == WA_INACTIVE)
                 if (auto* cap = emu_.TryGet<HostInputCapture>()) cap->OnFocusLost();
             break;
+
+        case WM_SETFOCUS: {
+            const HWND canvas = emu_.Get<HostCanvas>().Hwnd();
+            LOG(Lcd, "HostWindow: keyboard focus %p -> canvas %p\n", (void*)wp,
+                (void*)canvas);
+            SetFocus(canvas);
+            return 0;
+        }
 
         case WM_TIMER:
             if (wp == kCloseWatchdogTimer) {

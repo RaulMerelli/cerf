@@ -1,6 +1,9 @@
 #define NOMINMAX
 
 #include "../../boards/board_context.h"
+#include "../vr4102/vr4102_id.h"
+#include "../vr4111/vr4111_id.h"
+#include "../vr4121/vr4121_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_canvas.h"
 #include "../../host/touch_input.h"
@@ -29,9 +32,9 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::VR4102 || soc == SocFamily::VR4111 ||
-               soc == SocFamily::VR4121;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Vr4102 || soc == SocId::Vr4111 ||
+               soc == SocId::Vr4121;
     }
 
     void OnPenDown(int x, int y) override { Drive(true, x, y); }

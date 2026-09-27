@@ -6,6 +6,7 @@
 #include "arm_mmu_state.h"
 #include "cpu_state.h"
 
+class ArmInjectionBand;
 class ArmMmu;
 class ArmProcessorConfig;
 class EmulatedMemory;
@@ -31,23 +32,15 @@ public:
 
     uint32_t LastExecPa() const { return last_exec_pa_; }
 
-    void SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size);
-    bool InjectionBandPa(uint32_t folded_va, uint32_t* pa) const;
-
 private:
     template <ArmMmuAccess kAccess, bool kForceUser = false>
     uint8_t* MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p);
-
-    uint8_t* ServeInjectionBand(uint32_t va, ArmMmuAccess access);
 
     ArmMmu*             mmu_              = nullptr;
     ArmMmuState*        state_p_          = nullptr;
     EmulatedMemory*     memory_           = nullptr;
     ArmProcessorConfig* processor_config_ = nullptr;
+    ArmInjectionBand*   injection_band_   = nullptr;
 
     uint32_t last_exec_pa_ = 0;
-
-    uint32_t injection_band_va_   = 0;
-    uint32_t injection_band_pa_   = 0;
-    uint32_t injection_band_size_ = 0;
 };

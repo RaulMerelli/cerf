@@ -49,6 +49,7 @@ uint8_t* EmitMsrWriteTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitNeonCoreToScalar(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitNeonScalarToCore(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitNeonVdup(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* EmitNeonVdupScalar(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitRaiseUndAndReturn(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitRaiseUndTail(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* EmitSpsrModeGuard(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -138,6 +139,7 @@ uint8_t* PlaceNeonDataVtbl(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonLoadStoreInterleaved(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonLoadStoreMultiple(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonLoadStoreSingleLane(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
+uint8_t* PlaceNeonLoadAllLanes(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonOneRegImm(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonShiftImm(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceNeonShiftImmNarrow(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
@@ -148,6 +150,7 @@ uint8_t* PlaceNeonUnimplemented(uint8_t* cursor, DecodedInsn* d, BlockContext* c
 uint8_t* PlaceNop(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 uint8_t* PlaceR15ModifiedHelper(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx);
 
+uint8_t* EmitDispatcherExitPoll(uint8_t* cursor, uint8_t* (&to_dispatcher)[2]);
 uint8_t* EmitJumpCacheProbe(uint8_t* cursor, BlockContext* ctx);
 uint8_t* EmitChainToBlock(uint8_t* cursor, BlockContext* ctx,
                           uint32_t target_va, uint32_t slot);

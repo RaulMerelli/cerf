@@ -1,6 +1,7 @@
 #include "../../peripherals/philips_ucb1200/ucb1x00_board.h"
 
 #include "../board_context.h"
+#include "jornada_820_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada820;
+        return bd && bd->GetBoardId() == BoardId::Jornada820;
     }
 
     uint16_t AuxAdc(uint8_t) override { return kNominalSample; }

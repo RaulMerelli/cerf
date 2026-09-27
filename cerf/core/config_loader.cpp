@@ -1,11 +1,13 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "config_loader.h"
+#include "board_database.h"
 #include "cerf_emulator.h"
 #include "config_json.h"
 #include "config_mutable_fields.h"
 #include "main_config.h"
 #include "log.h"
 #include "cerf_paths.h"
+#include "../net/mac_address.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <cstring>
@@ -18,8 +20,8 @@ REGISTER_SERVICE(ConfigLoader);
 
 namespace {
 
-void SetMetaString(std::string& field, const json& obj, const char* key,
-                   const std::string& path, const std::string& ctx) {
+void SetNonEmptyString(std::string& field, const json& obj, const char* key,
+                       const std::string& path, const std::string& ctx) {
     std::string v = CfgReadOptString(obj, key, path, ctx);
     if (!v.empty()) field = std::move(v);
 }
@@ -36,15 +38,15 @@ void LoadMeta(const json& root, DeviceMeta& meta, const std::string& path) {
     if (!m.is_object())
         CfgFatal(path, "'meta' must be an object");
 
-    SetMetaString(meta.name,        m, "name",        path, "meta");
-    SetMetaString(meta.device_name, m, "device_name", path, "meta");
+    SetNonEmptyString(meta.name,        m, "name",        path, "meta");
+    SetNonEmptyString(meta.device_name, m, "device_name", path, "meta");
     SetMetaInt   (meta.device_year, m, "device_year", path, "meta");
 
     if (m.contains("os")) {
         const auto& o = m["os"];
         if (!o.is_object())
             CfgFatal(path, "'meta.os' must be an object");
-        SetMetaString(meta.os_name,      o, "name",      path, "meta.os");
+        SetNonEmptyString(meta.os_name,  o, "name",      path, "meta.os");
         SetMetaInt   (meta.os_ver_major, o, "ver_major", path, "meta.os");
         SetMetaInt   (meta.os_ver_minor, o, "ver_minor", path, "meta.os");
     }
@@ -121,10 +123,8 @@ void LoadNetwork(const json& root, DeviceConfig& config, const std::string& path
     }
     if (n.contains("mac")) {
         std::string v = CfgReadOptString(n, "mac", path, "network");
-        unsigned b[6] = {};
-        int got = std::sscanf(v.c_str(), "%02X:%02X:%02X:%02X:%02X:%02X",
-                              &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]);
-        if (got != 6)
+        std::array<uint8_t, cerf::inet::kEthMacSize> mac{};
+        if (!cerf::inet::ParseMac(v, mac))
             CfgFatal(path, "network.mac '" + v + "' must be XX:XX:XX:XX:XX:XX hex");
         config.network_mac = v;
     }
@@ -168,6 +168,9 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
         config.rom_primary = CfgReadOptString(r, "primary", path, "rom");
     if (r.contains("eeprom"))
         config.rom_eeprom = CfgReadOptString(r, "eeprom", path, "rom");
+    if (r.contains("lumia800_user_area_erase"))
+        config.rom_lumia800_user_area_erase =
+            CfgReadOptString(r, "lumia800_user_area_erase", path, "rom");
     if (r.contains("recovery"))
         config.rom_recovery = CfgReadOptString(r, "recovery", path, "rom");
     if (r.contains("extensions")) {
@@ -185,6 +188,17 @@ void LoadRom(const json& root, DeviceConfig& config, const std::string& path) {
             CfgFatal(path, "rom.extensions must be a string or array of strings");
         }
     }
+}
+
+void LoadStorage(const json& root, DeviceConfig& config, const std::string& path) {
+    if (!root.contains("storage")) return;
+    const auto& s = root["storage"];
+    if (!s.is_object())
+        CfgFatal(path, "'storage' must be an object");
+
+    SetNonEmptyString(config.storage_nand, s, "nand", path, "storage");
+    SetNonEmptyString(config.storage_hdd,  s, "hdd",  path, "storage");
+    SetNonEmptyString(config.storage_emmc, s, "emmc", path, "storage");
 }
 
 void LoadUsbMedia(const json& packages, const char* key, bool sd,
@@ -360,6 +374,7 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
         LoadBoard   (dev, config,      dev_path);
         LoadNetwork (dev, config,      dev_path);
         LoadRom     (dev, config,      dev_path);
+        LoadStorage (dev, config,      dev_path);
         LoadFeatures(dev, config,      dev_path);
         LoadAdditionalPackages(dev, config, dev_path);
     }
@@ -372,6 +387,7 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
         LoadBoard   (user, config,      user_path);
         LoadNetwork (user, config,      user_path);
         LoadRom     (user, config,      user_path);
+        LoadStorage (user, config,      user_path);
         LoadFeatures(user, config,      user_path);
         LoadAdditionalPackages(user, config, user_path);
     }
@@ -430,10 +446,6 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             config.share_folder = a + sizeof(kArgGaShareFolder) - 1;
         } else if (strcmp(a, kArgFullScreen) == 0) {
             config.start_fullscreen = true;
-        } else if (strcmp(a, kArgGaTickProfiler) == 0) {
-            config.ga_tick_profiler = true;
-        } else if (strcmp(a, kArgAbout) == 0) {
-            config.show_about_instead_of_run = true;
         } else if (strncmp(a, kArgBoot, sizeof(kArgBoot) - 1) == 0) {
             const char* v = a + sizeof(kArgBoot) - 1;
             if      (strcmp(v, "resume") == 0) config.boot_mode = StateBootMode::Resume;
@@ -448,6 +460,16 @@ void ConfigLoader::LoadInto(DeviceConfig& config) {
             else CfgFatal("(command line)", "--tab must be boot, hw, or fb");
         }
     }
+
+    ApplyBoardPanelDefault(config);
+}
+
+void ConfigLoader::ApplyBoardPanelDefault(DeviceConfig& config) {
+    if (config.board_configurable_screen_explicit) return;
+    const DbDevice* dev = emu_.Get<BoardDatabase>().FindDevice(config.board_id);
+    if (!dev || !dev->lcd_panel_size) return;
+    config.board_configurable_screen_width  = dev->lcd_panel_size->width;
+    config.board_configurable_screen_height = dev->lcd_panel_size->height;
 }
 
 void ConfigLoader::SaveLastSaveStateMode(bool save_state) {

@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -12,7 +13,7 @@
 REGISTER_SERVICE(Imx51Gpu3dShader);
 bool Imx51Gpu3dShader::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetSoc() == SocFamily::iMX51;
+    return board && board->GetSocId() == SocId::Imx51;
 }
 void Imx51Gpu3dShader::Reject(const char* reason, uint32_t value) {
     emu_.Get<Fatal>().Die("GPU shader rejected %s (0x%08X)", reason, value);

@@ -2,6 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa11xx_mcp_codec.h"
@@ -13,7 +15,7 @@
 
 bool Sa11xxMcp::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxMcp::OnReady() {
@@ -60,16 +62,16 @@ void Sa11xxMcp::RouteCodecCommand(uint32_t cmd) {
 }
 
 void Sa11xxMcp::SaveState(StateWriter& w) {
-    w.Write(mccr0_);
-    w.Write(mcsr_);
-    w.Write(mcdr2_read_);
+    w.Write("mccr0", mccr0_);
+    w.Write("mcsr", mcsr_);
+    w.Write("mcdr2_read", mcdr2_read_);
     if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->SaveState(w);
 }
 
 void Sa11xxMcp::RestoreState(StateReader& r) {
-    r.Read(mccr0_);
-    r.Read(mcsr_);
-    r.Read(mcdr2_read_);
+    r.Read("mccr0", mccr0_);
+    r.Read("mcsr", mcsr_);
+    r.Read("mcdr2_read", mcdr2_read_);
     if (auto* codec = emu_.TryGet<Sa11xxMcpCodec>()) codec->RestoreState(r);
 }
 

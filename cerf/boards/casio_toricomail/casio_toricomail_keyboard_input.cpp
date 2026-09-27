@@ -4,6 +4,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../socs/vr41xx/vr41xx_kiu.h"
 #include "../board_context.h"
+#include "casio_toricomail_id.h"
 #include "casio_toricomail_asic.h"
 
 #include <cstdint>
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioToricomail;
+        return bd && bd->GetBoardId() == BoardId::CasioToricomail;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

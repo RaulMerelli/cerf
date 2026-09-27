@@ -57,16 +57,16 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(command_);
-        w.Write(read_index_);
-        w.Write(last_value_);
-        w.Write(setup_);
+        w.Write("command", command_);
+        w.Write("read_index", read_index_);
+        w.Write("last_value", last_value_);
+        w.Write("setup", setup_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(command_);
-        r.Read(read_index_);
-        r.Read(last_value_);
-        r.Read(setup_);
+        r.Read("command", command_);
+        r.Read("read_index", read_index_);
+        r.Read("last_value", last_value_);
+        r.Read("setup", setup_);
         frame_active_ = false;
         frame_z2_count_ = 0;
         pending_completion_ = false;

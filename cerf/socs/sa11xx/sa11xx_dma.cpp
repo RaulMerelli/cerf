@@ -4,6 +4,8 @@
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
@@ -43,7 +45,7 @@ bool Sa11xxDma::DecodeOffset(uint32_t off, uint32_t& ch, uint32_t& reg) {
 
 bool Sa11xxDma::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxDma::OnReady() {
@@ -260,16 +262,21 @@ void Sa11xxDma::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxDma::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    w.WriteBytes(ch_, sizeof(ch_));
+    static_assert(StateVisitCoversAllBytes<Channel>(
+                      [](Channel& c, StateFieldBytes& f) { VisitChannel(c, f); }),
+                  "Sa11xxDma::VisitChannel must name or skip every field of Channel");
+    StateWriteField field(w);
+    for (Channel& c : ch_) VisitChannel(c, field);
 }
 
 void Sa11xxDma::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    r.ReadBytes(ch_, sizeof(ch_));
-    /* No host sink owns a buffer after a restore; clearing the in-flight
-       flags lets a paused channel re-submit on the next RUN edge instead
-       of waiting forever for a CompleteTransfer that won't arrive. */
-    for (auto& c : ch_) { c.in_flight_a = false; c.in_flight_b = false; }
+    StateReadField field(r);
+    for (Channel& c : ch_) {
+        VisitChannel(c, field);
+        c.in_flight_a = false;
+        c.in_flight_b = false;
+    }
 }
 
 REGISTER_SERVICE(Sa11xxDma);

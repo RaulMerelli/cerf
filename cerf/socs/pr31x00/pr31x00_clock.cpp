@@ -1,6 +1,8 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -25,8 +27,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Pr31500 || soc == SocId::Pr31700;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -51,8 +53,8 @@ public:
     void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("PR31x00 CLOCK WriteByte", addr, v); }
     void WriteHalf(uint32_t addr, uint16_t v) override { HaltUnsupportedAccess("PR31x00 CLOCK WriteHalf", addr, v); }
 
-    void SaveState(StateWriter& w) override { w.Write(ctl_); }
-    void RestoreState(StateReader& r) override { r.Read(ctl_); }
+    void SaveState(StateWriter& w) override { w.Write("ctl", ctl_); }
+    void RestoreState(StateReader& r) override { r.Read("ctl", ctl_); }
 
 private:
     uint32_t ctl_ = kCserSel;

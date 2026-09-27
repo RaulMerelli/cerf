@@ -1,6 +1,7 @@
 #include "ucb1x00_codec.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/sharp_mobilon_hc4100/sharp_mobilon_hc4100_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
 protected:

@@ -4,6 +4,7 @@
 #include "siemens_mp377_sm501_audio_mcu.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../host/audio_activity_widget.h"
@@ -21,7 +22,7 @@ namespace siemens_mp377 {
 
 bool SiemensMp377Sm501AudioOutput::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetBoard() == Board::SiemensMP377;
+    return board && board->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377Sm501AudioOutput::OnReady() {
@@ -67,7 +68,7 @@ void SiemensMp377Sm501AudioOutput::HandleDacPowerDown() {
         host_packet_frames_ = 0u;
         host_packet_.fill(0u);
     }
-    output_.StopAudioOut();
+    output_.FinishAudioOut();
     SetPacerEnabled(capture_active_.load(std::memory_order_acquire));
 }
 
@@ -90,7 +91,7 @@ void SiemensMp377Sm501AudioOutput::SetPlaybackEnabled(bool enabled) {
             host_packet_.fill(0u);
             host_packet_frames_ = 0u;
         }
-        output_.StopAudioOut();
+        output_.FinishAudioOut();
         SetPacerEnabled(capture_active_.load(std::memory_order_acquire));
     }
 }
@@ -105,26 +106,28 @@ std::unique_lock<std::mutex> SiemensMp377Sm501AudioOutput::LockForState() {
 }
 
 void SiemensMp377Sm501AudioOutput::SaveState(StateWriter& w) {
-    w.Write(active_.load(std::memory_order_acquire));
-    w.Write(capture_active_.load(std::memory_order_acquire));
+    w.Write("active", active_.load(std::memory_order_acquire));
+    w.Write("capture_active", capture_active_.load(std::memory_order_acquire));
     std::lock_guard<std::mutex> lock(pcm_mutex_);
-    w.WriteBytes(host_packet_.data(), host_packet_.size());
-    w.Write(host_packet_frames_);
+    w.WriteBytes("host_packet", host_packet_.data(), host_packet_.size());
+    w.Write("host_packet_frames", host_packet_frames_);
 }
 
 void SiemensMp377Sm501AudioOutput::RestoreState(StateReader& r) {
     bool active = false;
-    r.Read(active);
+    r.Read("active", active);
     active_.store(active, std::memory_order_release);
     bool capture_active = false;
-    r.Read(capture_active);
+    r.Read("capture_active", capture_active);
     capture_active_.store(capture_active, std::memory_order_release);
     {
         std::lock_guard<std::mutex> lock(pcm_mutex_);
-        r.ReadBytes(host_packet_.data(), host_packet_.size());
-        r.Read(host_packet_frames_);
-        if (host_packet_frames_ > kHostPacketFrames) host_packet_frames_ = 0u;
+        r.ReadBytes("host_packet", host_packet_.data(), host_packet_.size());
+        r.Read("host_packet_frames", host_packet_frames_);
+        if (host_packet_frames_ > kHostPacketFrames)
+            r.Reject("host packet frames %u past %u", host_packet_frames_, kHostPacketFrames);
     }
+    output_.StopAudioOut();
     if (active_.load(std::memory_order_acquire)) {
         output_.SetFormat(kDefaultRateHz, 2, 16);
         output_.BeginAudioOut({});

@@ -1,6 +1,7 @@
 #include "msm8255_dal_remote_server.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -47,7 +48,7 @@ constexpr uint32_t kNoPort   = 0xFFFFFFFFu;
 
 bool Msm8255DalRemoteServer::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::MSM8255;
+    return bd && bd->GetSocId() == SocId::Msm8255;
 }
 
 void Msm8255DalRemoteServer::OnReady() {
@@ -120,12 +121,12 @@ uint32_t Msm8255DalRemoteServer::Answer(uint32_t in_pa, uint32_t in_avail,
 }
 
 void Msm8255DalRemoteServer::SaveState(StateWriter& w) {
-    w.Write<uint32_t>(port_announced_ ? 1u : 0u);
+    w.Write<uint32_t>("port_announced", port_announced_ ? 1u : 0u);
 }
 
 void Msm8255DalRemoteServer::RestoreState(StateReader& r) {
     uint32_t announced = 0;
-    r.Read(announced);
+    r.Read("port_announced", announced);
     port_announced_ = announced != 0u;
 }
 

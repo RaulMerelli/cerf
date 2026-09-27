@@ -1,6 +1,7 @@
 #include "sharp_mobilon_hc4100_touch_panel.h"
 
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/pr31x00/pr31x00_intc.h"
 
@@ -14,7 +15,7 @@ constexpr uint32_t kSibIrqPosInt    = 1u << 6;
 
 bool SharpMobilonHc4100TouchPanel::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+    return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
 }
 
 void SharpMobilonHc4100TouchPanel::SetPen(bool down, int x, int y) {

@@ -1,6 +1,7 @@
 #include "../../peripherals/cirrus_pd6710/pd6710_card_irq_line.h"
 
 #include "../../boards/board_context.h"
+#include "devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/s3c2410/s3c2410_eint_source.h"
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     /* CL-PD6710/'22 data sheet v3.1 p. 58 §9.1 Misc Control 1 (index 16h)

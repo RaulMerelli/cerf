@@ -2,6 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -17,7 +19,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+        return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -39,10 +41,10 @@ public:
     void WriteWord(uint32_t addr, uint32_t v) override { WriteReg(addr - MmioBase(), v); }
 
     void SaveState(StateWriter& w) override {
-        w.Write(hscr0_);  w.Write(hscr1_);
+        w.Write("hscr0", hscr0_);  w.Write("hscr1", hscr1_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(hscr0_);  r.Read(hscr1_);
+        r.Read("hscr0", hscr0_);  r.Read("hscr1", hscr1_);
     }
 
 private:

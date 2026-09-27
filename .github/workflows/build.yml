@@ -130,6 +130,26 @@ jobs:
         shell: pwsh
         run: ./build.ps1 -Config ${{matrix.configuration}} -Mode production
 
+      - name: Reduce the payload to what a user runs
+        shell: pwsh
+        run: |
+          $out = "build/${{matrix.configuration}}/${{matrix.platform}}"
+          $public = Join-Path $out "cerf.public.pdb"
+          if (-not (Test-Path $public)) {
+            throw "$public is missing; StripPrivateSymbols did not run"
+          }
+          $drop = "cerf.pdb","cerf.exp","cerf.lib"
+          foreach ($name in $drop) {
+            Remove-Item (Join-Path $out $name) -Force -ErrorAction SilentlyContinue
+          }
+          $left = $drop | Where-Object { Test-Path (Join-Path $out $_) }
+          if ($left) { throw "still in the payload: $($left -join ', ')" }
+          $shipped = Join-Path $out "cerf.pdb"
+          Move-Item $public $shipped -Force
+          if (-not (Test-Path $shipped)) { throw "$shipped was not put in place" }
+          Get-ChildItem $out -File | Sort-Object Length -Descending |
+            Select-Object -First 8 Name, Length | Format-Table -AutoSize
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -154,6 +174,21 @@ jobs:
           Compress-Archive -Path "build/${{matrix.configuration}}/${{matrix.platform}}/*" -DestinationPath $zip
           python tools/publish_r2_build.py --zip="$zip"
 
+      - name: Publish the installer to R2
+        if: >-
+          ${{ github.event_name == 'push' &&
+              matrix.configuration == 'Release' && matrix.platform == 'Win32' }}
+        shell: pwsh
+        env:
+          R2_ACCOUNT_ID:        ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET:            cerf
+          R2_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_PREFIX: cerf_installer
+        run: |
+          python -m pip install --quiet --disable-pip-version-check boto3 pyyaml
+          python tools/publish_r2_object.py --file="launcher/dist/cerf_installer.exe"
+
   announce:
     needs: build
     if: >-
@@ -167,14 +202,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the announcement dependencies
+        run: python -m pip install --quiet --disable-pip-version-check pillow pyyaml
+
       - name: Announce the build in the QA channel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_SECRET: ${{ secrets.DISCORD_SECRET }}
         run: >-
-          python3 tools/announce_build.py
+          python tools/announce_build.py
           --run-id=${{ github.run_id }}
-          --build=${{ github.run_number }}
           ${{ contains(github.event.head_commit.message, '[rc]') && '--rc' || '' }}
 
   release:
@@ -185,6 +226,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the release dependencies
+        run: python -m pip install --quiet --disable-pip-version-check pillow pyyaml
+
       - name: Settle the artifact API
         run: sleep 60
 
@@ -192,4 +240,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DISCORD_SECRET: ${{ secrets.DISCORD_SECRET }}
-        run: python3 tools/deploy.py --yes --sha=${{ github.sha }}
+        run: python tools/deploy.py --yes --sha=${{ github.sha }}

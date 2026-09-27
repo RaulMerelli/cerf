@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "siemens_p177_id.h"
 
 #include <cstdint>
 #include <vector>
@@ -63,7 +64,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensP177;
+        return bd && bd->GetBoardId() == BoardId::SiemensP177;
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

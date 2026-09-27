@@ -132,12 +132,9 @@ void ArmBlockCompiler::BuildTrampolines() {
 
 void __fastcall ArmBlockCompiler::SctlrWriteHelper(uint32_t          value,
                                                    ArmBlockCompiler* compiler) {
-    ArmMmuState*   state = compiler->mmu_->State();
-    const uint32_t old   = state->control_register.word;
-    state->control_register.word = value;
+    if (compiler->mmu_->State()->control_register.word == value) return;
 
-    if (old == value) return;
-
+    compiler->mmu_->SetControlRegister(value);
     compiler->cache_->PendFlush();
 }
 

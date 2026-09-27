@@ -10,7 +10,7 @@ public:
     using ArmProcessorConfig::ArmProcessorConfig;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
+        return emu_.Get<BoardContext>().GetBoardId().empty();
     }
 
     uint32_t PcStoreOffset()              const override { return 0; }

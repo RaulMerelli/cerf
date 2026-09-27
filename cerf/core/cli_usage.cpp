@@ -1,9 +1,14 @@
 #include "cli_usage.h"
+
+#include "board_database.h"
+#include "cerf_emulator.h"
 #include "log.h"
-#include "../boards/board_context.h"
+
 #include <cstdio>
 
-void PrintUsage(const char* prog) {
+REGISTER_SERVICE(CliUsage);
+
+void CliUsage::Print(const char* prog) {
     printf("CE Runtime Foundation (CERF) - Universal Windows CE Emulator\n\n");
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");
@@ -30,8 +35,6 @@ void PrintUsage(const char* prog) {
     printf("                           (needs --guest-additions)\n");
     printf("  --ga-autorun=PATH        Start PATH in the guest once its shell is up (repeatable;\n");
     printf("                           needs --guest-additions)\n");
-    printf("  --ga-tick-profiler       Show the guest tick-rate overlay and log tick samples\n");
-    printf("                           (needs --guest-additions)\n");
     printf("  --ga-share-folder=PATH   Mount the host directory PATH into the guest at boot\n");
     printf("                           (relative to the cerf.exe directory; needs --guest-additions)\n");
     printf("  --recovery               Boot the device's recovery ROM (rom.recovery) instead of primary\n");
@@ -40,13 +43,12 @@ void PrintUsage(const char* prog) {
     printf("  --tab=boot|hw|fb         Startup tab: boot screen, hardware console, or framebuffer\n");
     printf("                           (default: hw in dev, boot in release)\n");
     printf("  --full-screen            Enter borderless fullscreen (host key + F) once the window is shown\n");
-    printf("  --about                  Show the About CERF dialog and exit without emulating\n");
     printf("  --help                   Show this help\n");
     printf("\n");
     printf("Board ids (cerf.json board.id / --board-id):\n  ");
     bool first = true;
-    for (const auto& e : BoardContext::BoardIds()) {
-        printf("%s%s", first ? "" : ", ", e.id);
+    for (const auto& d : emu_.Get<BoardDatabase>().Devices()) {
+        printf("%s%s", first ? "" : ", ", d.id.c_str());
         first = false;
     }
     printf("\n\n");

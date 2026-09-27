@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../board_context.h"
+#include "falcon_4220_id.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,7 +18,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FalconPC3xx;
+        return bd && bd->GetBoardId() == BoardId::Falcon4220;
     }
 
     uint32_t WindowPa()   const override { return 0x00000000u; }

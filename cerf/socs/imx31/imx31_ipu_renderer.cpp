@@ -3,16 +3,17 @@
 #include "imx31_ipu.h"
 
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/panel_frame_renderer.h"
+#include "../../lcd/lcd_pixel_expand.h"
 
 #include <cstring>
 
 namespace {
-
-constexpr size_t kContentProbeStride = 251;
 
 bool IsRgb565(const Imx31Ipu::ChannelFormat& f) {
     return f.pfs == Imx31Ipu::PfsKind::RgbPack
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {
@@ -51,7 +52,7 @@ public:
         const size_t pixel_bytes = (fmt.bpp_bits + 7u) / 8u;
         const size_t fb_bytes = (size_t)guest_w * (size_t)guest_h * pixel_bytes;
         const bool got = latch_.ProbeAndLatch(emu_.Get<EmulatedMemory>(),
-                                    fb_pa, fb_bytes, kContentProbeStride);
+                                    fb_pa, fb_bytes);
         return got;
     }
 
@@ -89,30 +90,11 @@ public:
         }
 
         for (uint32_t y = 0; y < copy_h; ++y) {
-            const uint16_t* src_row = reinterpret_cast<const uint16_t*>(
-                src_base + (size_t)y * pitch);
+            const uint8_t* src_row = src_base + (size_t)y * pitch;
             uint32_t* dst_row = dib_bgra32 + (size_t)y * host_w;
-            for (uint32_t x = 0; x < copy_w; ++x) {
-                const uint16_t px = src_row[x];
-                const uint8_t  r5 = (px >> 11) & 0x1Fu;
-                const uint8_t  g6 = (px >>  5) & 0x3Fu;
-                const uint8_t  b5 =  px        & 0x1Fu;
-                const uint8_t  r  = (uint8_t)((r5 << 3) | (r5 >> 2));
-                const uint8_t  g  = (uint8_t)((g6 << 2) | (g6 >> 4));
-                const uint8_t  b  = (uint8_t)((b5 << 3) | (b5 >> 2));
-                dst_row[x] = 0xFF000000u | ((uint32_t)r << 16)
-                                         | ((uint32_t)g <<  8)
-                                         |  (uint32_t)b;
-            }
+            for (uint32_t x = 0; x < copy_w; ++x)
+                dst_row[x] = lcd_pixel::Expand565(cerf::le::U16(src_row, (size_t)x * 2u));
         }
-    }
-
-    std::optional<FbLayout> GetFbLayout() override {
-        auto& ipu = emu_.Get<Imx31Ipu>();
-        const uint32_t pa = ipu.GetSdcBgFbPa();
-        if (pa == 0) return std::nullopt;
-        const Imx31Ipu::ChannelFormat fmt = ipu.GetSdcBgFormat();
-        return FbLayout{ pa, fmt.stride, fmt.bpp_bits, IsRgb565(fmt) };
     }
 };
 

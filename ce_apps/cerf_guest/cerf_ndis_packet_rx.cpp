@@ -176,7 +176,6 @@ BOOL CerfNdisPacketRxIndicate(const UCHAR* frame, ULONG len) {
     {
         ULONG oob_status =
             *(ULONG*)(CerfRxOob(mp->pkt_slot[i].packet) + CERF_NDIS_OOB_STATUS);
-        CERF_LOG_X_DEV("ndis: packet rx oob status", oob_status);
         if (oob_status == 0)
             CerfRxReclaimSlot(api, mp, i);
     }

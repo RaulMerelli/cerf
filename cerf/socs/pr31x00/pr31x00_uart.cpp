@@ -4,6 +4,8 @@
 #include "pr31x00_io.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -79,8 +81,8 @@ constexpr uint32_t kCtl1TwoStop    = 1u << 5;
 bool Pr31x00Uart::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00Uart::OnReady() {
@@ -402,14 +404,14 @@ void Pr31x00Uart::SaveState(StateWriter& w) {
         dtr       = dtr_ ? 1u : 0u;
         rts       = rts_ ? 1u : 0u;
     }
-    w.Write(ctl1_v);
-    w.Write(baud);
-    w.Write(mfio_dout);
-    w.Write(mfio_mask);
-    w.Write(io_dout);
-    w.Write(io_mask);
-    w.Write(dtr);
-    w.Write(rts);
+    w.Write("ctl1_v", ctl1_v);
+    w.Write("baud", baud);
+    w.Write("mfio_dout", mfio_dout);
+    w.Write("mfio_mask", mfio_mask);
+    w.Write("io_dout", io_dout);
+    w.Write("io_mask", io_mask);
+    w.Write("dtr", dtr);
+    w.Write("rts", rts);
     rx_dma_->SaveState(w);
     if (cradle_) cradle_->SaveCradleState(w);
 }
@@ -417,15 +419,15 @@ void Pr31x00Uart::SaveState(StateWriter& w) {
 void Pr31x00Uart::RestoreState(StateReader& r) {
     {
         std::lock_guard<std::mutex> lk(mu_);
-        r.Read(ctl1_);
-        r.Read(ctl2_baud_);
-        r.Read(mfio_dout_);
-        r.Read(mfio_out_mask_);
-        r.Read(io_dout_);
-        r.Read(io_out_mask_);
+        r.Read("ctl1_v", ctl1_);
+        r.Read("baud", ctl2_baud_);
+        r.Read("mfio_dout", mfio_dout_);
+        r.Read("mfio_mask", mfio_out_mask_);
+        r.Read("io_dout", io_dout_);
+        r.Read("io_mask", io_out_mask_);
         uint8_t b = 0;
-        r.Read(b); dtr_ = b != 0;
-        r.Read(b); rts_ = b != 0;
+        r.Read("dtr", b); dtr_ = b != 0;
+        r.Read("rts", b); rts_ = b != 0;
     }
     {
         std::lock_guard<std::recursive_mutex> elk(endpoint_mu_);

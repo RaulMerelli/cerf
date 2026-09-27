@@ -8,6 +8,7 @@
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_e55_id.h"
 
 namespace {
 
@@ -36,7 +37,7 @@ CasioCassiopeiaE55PcCard::CasioCassiopeiaE55PcCard(CerfEmulator& emu)
 
 bool CasioCassiopeiaE55PcCard::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+    return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
 }
 
 void CasioCassiopeiaE55PcCard::OnReady() {
@@ -47,6 +48,8 @@ void CasioCassiopeiaE55PcCard::OnReady() {
     emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
         reg_space_ = false;
         in_reset_  = false;
+    });
+    emu_.Get<GuestCpuReset>().RegisterResetReleaseListener([this] {
         slot0_.SetPowered(false);
         emu_.Get<Vr41xxGiu>().SetPinLevel(kCardIreqGiuPin, true);
     });
@@ -113,14 +116,14 @@ void CasioCassiopeiaE55PcCard::OnCardIrqDeasserted(PcmciaSlot&) {
 }
 
 void CasioCassiopeiaE55PcCard::SaveState(StateWriter& w) {
-    w.Write(reg_space_);
-    w.Write(in_reset_);
+    w.Write("reg_space", reg_space_);
+    w.Write("in_reset", in_reset_);
     slot0_.SaveSlotState(w);
 }
 
 void CasioCassiopeiaE55PcCard::RestoreState(StateReader& r) {
-    r.Read(reg_space_);
-    r.Read(in_reset_);
+    r.Read("reg_space", reg_space_);
+    r.Read("in_reset", in_reset_);
     slot0_.RestoreSlotState(r);
 }
 

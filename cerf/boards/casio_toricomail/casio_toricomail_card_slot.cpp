@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../board_context.h"
+#include "casio_toricomail_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioToricomail;
+        return bd && bd->GetBoardId() == BoardId::CasioToricomail;
     }
 
     void OnReady() override {

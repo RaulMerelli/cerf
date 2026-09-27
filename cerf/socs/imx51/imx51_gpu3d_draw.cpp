@@ -4,6 +4,7 @@
 #include "imx51_gpu3d_shader.h"
 #include "imx51_gpu3d_raster.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../state/state_stream.h"
@@ -16,7 +17,7 @@ REGISTER_SERVICE(Imx51Gpu3dDraw);
 
 bool Imx51Gpu3dDraw::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetSoc() == SocFamily::iMX51;
+    return board && board->GetSocId() == SocId::Imx51;
 }
 
 [[noreturn]] void Imx51Gpu3dDraw::Reject(const char* reason, uint64_t value) {
@@ -115,12 +116,12 @@ void Imx51Gpu3dDraw::Packet(const Imx51Gpu3dPacket& packet,
 }
 
 void Imx51Gpu3dDraw::SaveState(StateWriter& writer) {
-    writer.Write(instructions_); writer.Write(valid_); writer.Write(start_size_);
-    writer.Write(bases_); writer.Write(bin_base_);
+    writer.Write("instructions", instructions_); writer.Write("valid", valid_); writer.Write("start_size", start_size_);
+    writer.Write("bases", bases_); writer.Write("bin_base", bin_base_);
 }
 void Imx51Gpu3dDraw::RestoreState(StateReader& reader) {
-    reader.Read(instructions_); reader.Read(valid_); reader.Read(start_size_);
-    reader.Read(bases_); reader.Read(bin_base_);
+    reader.Read("instructions", instructions_); reader.Read("valid", valid_); reader.Read("start_size", start_size_);
+    reader.Read("bases", bases_); reader.Read("bin_base", bin_base_);
 }
 
 /* Mesa e97ad748, fd2_gmem.c:591-600,609-635; fd2_util.c: fd2_pipe2color;

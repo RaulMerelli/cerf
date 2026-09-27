@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_giu_impl.h"
 
 #include <cstdint>
+#include "vr4102_id.h"
 
 namespace {
 
@@ -27,7 +28,7 @@ constexpr Vr41xxGiuModel kModel = {
     /*podat_h_retained_on_reset=*/false,
 };
 
-class Vr4102Giu : public Vr41xxGiuBase<SocFamily::VR4102, kModel> {
+class Vr4102Giu : public Vr41xxGiuBase<SocId::Vr4102, kModel> {
 public:
     using Vr41xxGiuBase::Vr41xxGiuBase;
 };

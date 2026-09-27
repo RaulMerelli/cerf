@@ -1,6 +1,7 @@
 #include "../../peripherals/rtc8564/rtc8564_wiring.h"
 
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/irq_controller.h"
 
@@ -12,7 +13,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetBoard() == Board::SiemensMP377;
+        return board && board->GetBoardId() == BoardId::SiemensMp377;
     }
 
     void SetInterrupt(bool active) override {

@@ -1,9 +1,10 @@
 #include "mediaq_mq1188.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/falcon_pc3xx/falcon_4220_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -11,7 +12,7 @@
 
 bool MediaQMq1188::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::FalconPC3xx;
+    return bd && bd->GetBoardId() == BoardId::Falcon4220;
 }
 
 void MediaQMq1188::OnReady() {
@@ -50,18 +51,11 @@ uint32_t MediaQMq1188::PaletteEntry(uint32_t index) const {
 }
 
 void MediaQMq1188::PublishScreenSizeOnEnableEdge() {
-    const bool enabled = IsEnabled();
-    if (!enabled) { enable_published_ = false; return; }
-
-    const uint32_t w = GetGuestW(), h = GetGuestH();
-    if (enable_published_ && w == published_w_ && h == published_h_) return;
-
-    enable_published_ = true;
-    published_w_ = w;
-    published_h_ = h;
+    const bool on = IsEnabled();
+    const uint32_t w = on ? GetGuestW() : 0u, h = on ? GetGuestH() : 0u;
+    if (!mode_latch_.Publish(emu_, on, w, h)) return;
     LOG(Lcd, "MediaQMq1188: display enabled %ux%u %ubpp stride=%u fb_off=0x%X\n",
         w, h, Bpp(), Stride(), FbWindowOffset());
-    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 uint32_t MediaQMq1188::RegRead(uint32_t addr) {
@@ -103,17 +97,13 @@ uint16_t MediaQMq1188::ReadHalf(uint32_t addr) {
         const uint32_t word = RegRead(addr & ~0x3u);
         return static_cast<uint16_t>(word >> ((off & 0x2u) * 8u));
     }
-    uint16_t v;
-    std::memcpy(&v, &sram_[off], sizeof(v));
-    return v;
+    return cerf::le::U16(&sram_[off]);
 }
 
 uint32_t MediaQMq1188::ReadWord(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (InRegWindow(off)) return RegRead(addr);
-    uint32_t v;
-    std::memcpy(&v, &sram_[off], sizeof(v));
-    return v;
+    return cerf::le::U32(&sram_[off]);
 }
 
 void MediaQMq1188::WriteByte(uint32_t addr, uint8_t value) {
@@ -137,33 +127,26 @@ void MediaQMq1188::WriteHalf(uint32_t addr, uint16_t value) {
                  (word & ~(0xFFFFu << shift)) | (static_cast<uint32_t>(value) << shift));
         return;
     }
-    std::memcpy(&sram_[off], &value, sizeof(value));
+    cerf::le::Put16(&sram_[off], value);
 }
 
 void MediaQMq1188::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - MmioBase();
     if (InRegWindow(off)) { RegWrite(addr, value); return; }
-    std::memcpy(&sram_[off], &value, sizeof(value));
+    cerf::le::Put32(&sram_[off], value);
 }
 
 void MediaQMq1188::SaveState(StateWriter& w) {
-    w.Write<uint64_t>(sram_.size());
-    if (!sram_.empty()) w.WriteBytes(sram_.data(), sram_.size());
-    w.WriteBytes(reg_, sizeof(reg_));
-    w.Write<uint8_t>(enable_published_ ? 1u : 0u);
-    w.Write(published_w_);
-    w.Write(published_h_);
+    w.WriteBytes("sram", sram_.data(), sram_.size());
+    w.WriteBytes("reg", reg_, sizeof(reg_));
+    mode_latch_.SaveState(w);
     ge_.SaveState(w);
 }
 
 void MediaQMq1188::RestoreState(StateReader& r) {
-    uint64_t n = 0; r.Read(n);
-    sram_.assign(static_cast<size_t>(n), 0u);
-    if (n) r.ReadBytes(sram_.data(), static_cast<size_t>(n));
-    r.ReadBytes(reg_, sizeof(reg_));
-    uint8_t en = 0; r.Read(en); enable_published_ = (en != 0);
-    r.Read(published_w_);
-    r.Read(published_h_);
+    r.ReadBytes("sram", sram_.data(), sram_.size());
+    r.ReadBytes("reg", reg_, sizeof(reg_));
+    mode_latch_.RestoreState(r);
     ge_.RestoreState(r);
 }
 

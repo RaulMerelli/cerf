@@ -10,6 +10,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../state/emulation_freeze.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 #include "nec_mobilepro_900_pco_companion.h"
 
 #include <array>
@@ -44,7 +45,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro900;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
     }
 
     void OnReady() override {

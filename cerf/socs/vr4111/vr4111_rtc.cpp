@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "vr4111_id.h"
 
 #include <cstdint>
 
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4111;
+        return bd && bd->GetSocId() == SocId::Vr4111;
     }
     uint32_t TClockHz() const override { return 0u; }
 };

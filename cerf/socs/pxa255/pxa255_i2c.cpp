@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "pxa255_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../irq_controller.h"
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && bd->GetSocId() == SocId::Pxa255;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -111,13 +112,13 @@ void Pxa255I2c::UpdateIrq() {
 }
 
 void Pxa255I2c::SaveState(StateWriter& w) {
-    w.Write(icr_); w.Write(isr_); w.Write(idbr_); w.Write(isar_);
-    w.Write(reading_);
+    w.Write("icr", icr_); w.Write("isr", isr_); w.Write("idbr", idbr_); w.Write("isar", isar_);
+    w.Write("reading", reading_);
 }
 
 void Pxa255I2c::RestoreState(StateReader& r) {
-    r.Read(icr_); r.Read(isr_); r.Read(idbr_); r.Read(isar_);
-    r.Read(reading_);
+    r.Read("icr", icr_); r.Read("isr", isr_); r.Read("idbr", idbr_); r.Read("isar", isar_);
+    r.Read("reading", reading_);
 }
 
 }  /* namespace */

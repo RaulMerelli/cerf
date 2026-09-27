@@ -1,5 +1,6 @@
 #include "../board_context.h"
 
+#include "philips_velo_1_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -8,14 +9,7 @@ class PhilipsVelo1Context : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board          GetBoard()          const override { return Board::PhilipsVelo1; }
-    SocFamily      GetSoc()            const override { return SocFamily::PR31500; }
-    CpuArch        GetCpuArch()        const override { return CpuArch::Mips; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-    /* 480x240 landscape (Philips Velo 1 panel). */
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{480, 240};
-    }
+    std::string_view GetBoardId() const override { return BoardId::PhilipsVelo1; }
 };
 
 }  /* namespace */

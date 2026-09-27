@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "nec_mobilepro_900_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro900;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -64,12 +65,12 @@ public:
     void WriteWord(uint32_t addr, uint32_t v) override { WriteHalf(addr, static_cast<uint16_t>(v)); }
 
     void SaveState(StateWriter& w) override {
-        w.Write(cur_reg_); w.Write(phase_);
-        for (auto r : reg_) w.Write(r);
+        w.Write("cur_reg", cur_reg_); w.Write("phase", phase_);
+        for (auto r : reg_) w.Write("reg", r);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(cur_reg_); r.Read(phase_);
-        for (auto& x : reg_) r.Read(x);
+        r.Read("cur_reg", cur_reg_); r.Read("phase", phase_);
+        for (auto& x : reg_) r.Read("reg", x);
     }
 
 private:

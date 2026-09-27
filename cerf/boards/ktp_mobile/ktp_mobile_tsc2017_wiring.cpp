@@ -4,6 +4,7 @@
 #include "../../socs/imx6/imx6_i2c_bus.h"
 
 #include <cstdint>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -18,7 +19,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && BoardContext::IsKtpMobile(board->GetBoard());
+        return board && BoardId::IsKtpMobile(board->GetBoardId());
     }
 
     void Attach(Imx6I2cDevice* device) override {

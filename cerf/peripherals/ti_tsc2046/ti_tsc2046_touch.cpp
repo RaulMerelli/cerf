@@ -1,6 +1,7 @@
 #include "ti_tsc2046_touch.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/omap_evm_3530/omap_3530_evm_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -9,8 +10,8 @@ REGISTER_SERVICE(Tsc2046Touch);
 bool Tsc2046Touch::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const auto b = bd->GetBoard();
-    return b == Board::OmapEvm3530;
+    const auto b = bd->GetBoardId();
+    return b == BoardId::Omap3530Evm;
 }
 
 void Tsc2046Touch::OnReady() {

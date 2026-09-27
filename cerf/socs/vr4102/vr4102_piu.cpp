@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_piu_impl.h"
 
 #include <cstdint>
+#include "vr4102_id.h"
 
 namespace {
 
@@ -22,7 +23,7 @@ constexpr Vr41xxPiuModel kModel = {
     /*penstc_latched_by_penchg=*/false,
 };
 
-class Vr4102Piu : public Vr41xxPiuBase<SocFamily::VR4102, kModel> {
+class Vr4102Piu : public Vr41xxPiuBase<SocId::Vr4102, kModel> {
 public:
     using Vr41xxPiuBase::Vr41xxPiuBase;
 };

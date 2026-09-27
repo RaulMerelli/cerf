@@ -4,11 +4,12 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 #include "nec_mobilepro_900_pcmcia.h"
 
 bool NecMobilePro900L1110::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::NecMobilePro900;
+    return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
 }
 
 void NecMobilePro900L1110::OnReady() {
@@ -56,5 +57,5 @@ void NecMobilePro900L1110::WriteByte(uint32_t addr, uint8_t value) {
     WriteCommand(v);
 }
 
-void NecMobilePro900L1110::SaveState(StateWriter& w)   { w.Write(prc_); }
-void NecMobilePro900L1110::RestoreState(StateReader& r) { r.Read(prc_); }
+void NecMobilePro900L1110::SaveState(StateWriter& w)   { w.Write("prc", prc_); }
+void NecMobilePro900L1110::RestoreState(StateReader& r) { r.Read("prc", prc_); }

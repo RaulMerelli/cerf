@@ -6,6 +6,7 @@
 
 class ArmMmu;
 class ArmPageWalker;
+class GuestCycleClock;
 class PeripheralDispatcher;
 class RateProbe;
 struct ArmCpuState;
@@ -36,6 +37,7 @@ private:
                           uint32_t va);
     void     DispatchWrite(uint32_t pa, uint32_t bytes, uint32_t value,
                            uint32_t guest_pc, uint32_t va);
+    void     DeliverDueClockEvents();
 
     [[noreturn]] void HaltUnalignedRouted(uint32_t guest_pc, uint32_t va,
                                           uint32_t bytes, uint32_t pa,
@@ -48,4 +50,6 @@ private:
     ArmPageWalker*        walker_     = nullptr;
     PeripheralDispatcher* dispatcher_ = nullptr;
     RateProbe* rate_probe_ = nullptr;
+    GuestCycleClock*      clock_      = nullptr;
+    ArmCpuState*          cpu_state_  = nullptr;
 };

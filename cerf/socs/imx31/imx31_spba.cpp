@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -23,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -45,6 +46,12 @@ private:
     struct Prr {
         uint8_t rar          = 0b111u;  /* reset value of RAR */
         bool    owned_by_arm = false;
+
+        template <typename F>
+        static constexpr void Visit(Prr& p, F& field) {
+            field("rar", p.rar);
+            field("owned_by_arm", p.owned_by_arm);
+        }
     };
     Prr prrs_[kPrrCount];
 
@@ -81,21 +88,17 @@ void Imx31Spba::WriteWord(uint32_t addr, uint32_t value) {
         idx, addr, value, p.rar, p.owned_by_arm);
 }
 
-/* Per-PRR latch is the only state. Serialize each Prr field-by-field rather
-   than blitting the struct array, since Prr's uint8_t+bool layout carries
-   padding that should not leak into the saved image. */
 void Imx31Spba::SaveState(StateWriter& w) {
-    for (const Prr& p : prrs_) {
-        w.Write(p.rar);
-        w.Write(p.owned_by_arm);
-    }
+    static_assert(StateVisitCoversAllBytes<Prr>(
+                      [](Prr& p, StateFieldBytes& f) { Prr::Visit(p, f); }),
+                  "Prr::Visit must name or skip every field of Prr");
+    StateWriteField field(w);
+    for (Prr& p : prrs_) Prr::Visit(p, field);
 }
 
 void Imx31Spba::RestoreState(StateReader& r) {
-    for (Prr& p : prrs_) {
-        r.Read(p.rar);
-        r.Read(p.owned_by_arm);
-    }
+    StateReadField field(r);
+    for (Prr& p : prrs_) Prr::Visit(p, field);
 }
 
 }  /* namespace */

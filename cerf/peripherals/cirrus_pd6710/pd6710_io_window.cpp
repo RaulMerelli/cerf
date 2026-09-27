@@ -1,6 +1,7 @@
 #include "pd6710_controller.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/smdk2410_devemu/devemu_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_base.h"
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

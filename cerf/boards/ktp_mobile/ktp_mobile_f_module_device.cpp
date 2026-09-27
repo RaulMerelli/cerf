@@ -22,7 +22,7 @@
 bool KtpMobileFModuleDevice::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
     if (!board) return false;
-    const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoard());
+    const auto* profile = TryKtpMobileBoardProfileFor(board->GetBoardId());
     return profile && profile->has_f_module;
 }
 
@@ -296,11 +296,11 @@ void KtpMobileFModuleDevice::SaveState(StateWriter& w) {
     auto state = std::make_unique<ktp_mobile::State>();
     model_.CaptureState(*state);
     ktp_mobile_f_module_state_io::Write(w, *state);
-    w.WriteBytes(dma_tx_.data(), dma_tx_.size());
-    w.WriteBytes(dma_rx_.data(), dma_rx_.size());
-    w.Write(dma_tx_bytes_);
-    w.Write(dma_rx_buffer_pa_);
-    w.Write(dma_rx_bytes_);
+    w.WriteBytes("dma_tx", dma_tx_.data(), dma_tx_.size());
+    w.WriteBytes("dma_rx", dma_rx_.data(), dma_rx_.size());
+    w.Write("dma_tx_bytes", dma_tx_bytes_);
+    w.Write("dma_rx_buffer_pa", dma_rx_buffer_pa_);
+    w.Write("dma_rx_bytes", dma_rx_bytes_);
     const uint8_t flags[] = {
         static_cast<uint8_t>(dma_tx_ready_),
         static_cast<uint8_t>(dma_rx_pending_),
@@ -313,26 +313,26 @@ void KtpMobileFModuleDevice::SaveState(StateWriter& w) {
         static_cast<uint8_t>(adapter_error_),
         static_cast<uint8_t>(cyclic_ready_suppressed_),
     };
-    w.WriteBytes(flags, sizeof(flags));
+    w.WriteBytes("flags", flags, sizeof(flags));
     const int64_t now = emu_.Get<VirtualClock>().NowNs();
-    w.Write(cyclic_ready_timer_->RemainingNs(now));
+    w.Write("cyclic_ready_remaining_ns", cyclic_ready_timer_->RemainingNs(now));
 }
 
 void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
     auto state = std::make_unique<ktp_mobile::State>();
     ktp_mobile_f_module_state_io::Read(r, *state);
-    r.ReadBytes(dma_tx_.data(), dma_tx_.size());
-    r.ReadBytes(dma_rx_.data(), dma_rx_.size());
+    r.ReadBytes("dma_tx", dma_tx_.data(), dma_tx_.size());
+    r.ReadBytes("dma_rx", dma_rx_.data(), dma_rx_.size());
     uint32_t dma_tx_bytes = 0;
     uint32_t dma_rx_buffer_pa = 0;
     uint32_t dma_rx_bytes = 0;
-    r.Read(dma_tx_bytes);
-    r.Read(dma_rx_buffer_pa);
-    r.Read(dma_rx_bytes);
+    r.Read("dma_tx_bytes", dma_tx_bytes);
+    r.Read("dma_rx_buffer_pa", dma_rx_buffer_pa);
+    r.Read("dma_rx_bytes", dma_rx_bytes);
     uint8_t flags[10]{};
-    r.ReadBytes(flags, sizeof(flags));
+    r.ReadBytes("flags", flags, sizeof(flags));
     int64_t cyclic_ready_remaining_ns = VirtualTimerList::kNoDeadline;
-    r.Read(cyclic_ready_remaining_ns);
+    r.Read("cyclic_ready_remaining_ns", cyclic_ready_remaining_ns);
 
     if (!r.Ok())
         emu_.Get<Fatal>().Die("KTP Mobile F-module: truncated saved state");

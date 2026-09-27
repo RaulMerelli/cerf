@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -26,7 +27,7 @@ public:
 
     bool ShouldRegister() override {
         const auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetBoard() == Board::HmiKtp700FHwMobile;
+        return board && board->GetBoardId() == BoardId::HmiKtp700FHwMobile;
     }
 
     void OnReady() override { emu_.Get<Imx6I2cBus>().Register(this, kI2c1Base, kSlaveAddress); }
@@ -56,17 +57,17 @@ public:
     }
 
     void SaveState(StateWriter& writer) override {
-        writer.Write(command_);
-        writer.Write<uint32_t>(static_cast<uint32_t>(byte_index_));
-        writer.WriteBytes(response_.data(), response_.size());
+        writer.Write("command", command_);
+        writer.Write<uint32_t>("byte_index", static_cast<uint32_t>(byte_index_));
+        writer.WriteBytes("response", response_.data(), response_.size());
     }
 
     void RestoreState(StateReader& reader) override {
-        reader.Read(command_);
+        reader.Read("command", command_);
         uint32_t index = 0;
-        reader.Read(index);
+        reader.Read("byte_index", index);
         byte_index_ = index;
-        reader.ReadBytes(response_.data(), response_.size());
+        reader.ReadBytes("response", response_.data(), response_.size());
     }
 
 private:

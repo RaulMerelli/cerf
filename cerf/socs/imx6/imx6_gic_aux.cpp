@@ -124,27 +124,27 @@ void Imx6GicAux::ResetGlobalTimerAnchor(uint32_t cycles_now) { gt_anchor_cycles_
 void Imx6GicAux::Reset() { *this = Imx6GicAux{}; }
 
 void Imx6GicAux::SaveState(StateWriter& w) const {
-    w.Write(scu_control_);
-    w.Write(scu_access_control_);
-    w.Write(gt_anchor_cycles_);
-    w.Write(gt_base64_);
-    w.Write(global_timer_control_);
-    w.Write(global_timer_status_);
-    w.Write(global_timer_compare_lo_);
-    w.Write(global_timer_compare_hi_);
-    w.Write(global_timer_increment_);
+    w.Write("scu_control", scu_control_);
+    w.Write("scu_access_control", scu_access_control_);
+    w.Write("gt_anchor_cycles", gt_anchor_cycles_);
+    w.Write("gt_base64", gt_base64_);
+    w.Write("global_timer_control", global_timer_control_);
+    w.Write("global_timer_status", global_timer_status_);
+    w.Write("global_timer_compare_lo", global_timer_compare_lo_);
+    w.Write("global_timer_compare_hi", global_timer_compare_hi_);
+    w.Write("global_timer_increment", global_timer_increment_);
 }
 
 void Imx6GicAux::RestoreState(StateReader& r) {
-    r.Read(scu_control_);
-    r.Read(scu_access_control_);
-    r.Read(gt_anchor_cycles_);
-    r.Read(gt_base64_);
-    r.Read(global_timer_control_);
-    r.Read(global_timer_status_);
-    r.Read(global_timer_compare_lo_);
-    r.Read(global_timer_compare_hi_);
-    r.Read(global_timer_increment_);
+    r.Read("scu_control", scu_control_);
+    r.Read("scu_access_control", scu_access_control_);
+    r.Read("gt_anchor_cycles", gt_anchor_cycles_);
+    r.Read("gt_base64", gt_base64_);
+    r.Read("global_timer_control", global_timer_control_);
+    r.Read("global_timer_status", global_timer_status_);
+    r.Read("global_timer_compare_lo", global_timer_compare_lo_);
+    r.Read("global_timer_compare_hi", global_timer_compare_hi_);
+    r.Read("global_timer_increment", global_timer_increment_);
 }
 
 }

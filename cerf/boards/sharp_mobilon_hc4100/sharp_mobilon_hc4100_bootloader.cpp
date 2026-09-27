@@ -3,6 +3,7 @@
 #include "../../socs/guest_cpu_reset.h"
 #include "../../socs/pr31x00/pr31x00_intc.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 
 namespace {
 
@@ -15,13 +16,13 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     void OnReady() override {
         emu_.Get<Pr31x00Intc>().SetGlobalEnable();
-        emu_.Get<GuestCpuReset>().RegisterResetListener(
-            [this](ResetLineKind) { emu_.Get<Pr31x00Intc>().SetGlobalEnable(); });
+        emu_.Get<GuestCpuReset>().RegisterResetReleaseListener(
+            [this] { emu_.Get<Pr31x00Intc>().SetGlobalEnable(); });
     }
 };
 

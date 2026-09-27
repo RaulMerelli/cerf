@@ -1,4 +1,5 @@
 #include "log.h"
+#include "crash_report.h"
 #include <windows.h>
 #include <dbghelp.h>
 #include <tlhelp32.h>
@@ -348,30 +349,7 @@ void CerfFatalExit(int code) {
     Log::Close();
 
 #if !CERF_DEV_MODE
-    if (code == CERF_FATAL_RUNTIME_ERROR) {
-        char box[6144];
-        lstrcpynA(box,
-                  "Something inside CERF blew up and it has to close.\n\n",
-                  sizeof(box));
-        if (recent_cautions[0]) {
-            lstrcatA(box, recent_cautions);
-            lstrcatA(box, "\n");
-        }
-        lstrcatA(box,
-                 "Two log files were written next to cerf.exe:\n"
-                 "  - cerf.log         (full run log)\n"
-                 "  - cerf.crash.log   (thread snapshot at the crash, the\n"
-                 "                      error text, and the final log lines)\n\n"
-                 "The run log carries only a limited default set of channels; "
-                 "full detail needs every channel on. "
-                 "If the crash happens again, reproduce it with all log channels "
-                 "enabled - the launcher has a tick for it - and keep both files.\n\n"
-                 "To report it, open http://cerf.cx and search for "
-                 "\"Report a bug\".");
-
-        MessageBoxA(nullptr, box, "Unexpected error - CE Runtime Foundation",
-                    MB_OK | MB_ICONERROR | MB_TASKMODAL | MB_TOPMOST);
-    }
+    if (code == CERF_FATAL_RUNTIME_ERROR) CrashReport::Present();
 #endif
 
     ExitProcess((UINT)code);

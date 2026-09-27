@@ -202,8 +202,6 @@ extern "C" NDIS_STATUS CerfMpTransferData(void* packet, UINT* transferred,
 
     (void)adapter; (void)ctx;
     *transferred = 0;
-    CERF_LOG_X_DEV("ndis: transferdata offset", offset);
-    CERF_LOG_X_DEV("ndis: transferdata want", want);
     if (!api || !packet || !mp->rx_body) return CERF_NDIS_STATUS_FAILURE;
     if (offset > mp->rx_body_len) return CERF_NDIS_STATUS_FAILURE;
     if (offset + want > mp->rx_body_len) want = mp->rx_body_len - offset;
@@ -255,8 +253,6 @@ static DWORD WINAPI CerfMpRxThread(LPVOID param) {
 
             filter = CerfMpFilter(mp);
 
-            CERF_LOG_X_DEV("ndis: rx slot len", len);
-
             if (CerfNdisPacketRxReady() &&
                 len >= CERF_MP_ETH_HDR && len <= CerfMpMaxFrame()) {
                 if (CerfNdisPacketRxIndicate(slot + CerfVirt::kNicSlotPayloadOff,
@@ -289,7 +285,6 @@ static DWORD WINAPI CerfMpRxThread(LPVOID param) {
 
                 if (lock) api->ReleaseSpinLock(lock);
                 mp->rx_body = 0;
-                CERF_LOG_X_DEV("ndis: rx indicated body len", mp->rx_body_len);
             } else {
                 CERF_LOG_X("ndis: rx frame dropped, no consumer, len", len);
             }

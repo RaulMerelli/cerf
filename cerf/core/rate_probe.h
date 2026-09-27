@@ -8,6 +8,11 @@
 #include <mutex>
 #include <thread>
 
+#if CERF_DEV_MODE
+#include <functional>
+#include <vector>
+#endif
+
 class RateProbe : public Service {
 public:
     using Service::Service;
@@ -15,10 +20,16 @@ public:
 
     void OnReady() override;
 
+#if CERF_DEV_MODE
+    void RegisterStallDump(std::function<void()> fn) {
+        std::lock_guard<std::mutex> lk(sd_mtx_);
+        stall_dumps_.push_back(std::move(fn));
+    }
+#endif
+
     enum class Counter : uint8_t {
         JitRuns         = 0,
         OstReadOscr,
-        OstPolls,
         OstFires,
         IntcAsserts,
         IntcDeasserts,
@@ -120,4 +131,10 @@ private:
     std::thread             thread_;
     std::mutex              cv_mtx_;
     std::condition_variable cv_;
+#if CERF_DEV_MODE
+    std::mutex                         sd_mtx_;
+    std::vector<std::function<void()>> stall_dumps_;
+    bool                               sd_active_prev_ = false;
+    uint32_t                           sd_fired_       = 0;
+#endif
 };

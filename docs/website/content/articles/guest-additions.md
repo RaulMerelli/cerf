@@ -6,7 +6,7 @@ Guest Additions is a very complex guest driver, that covers every Windows CE ver
 
 The Guest Additions driver is literally a video driver. It replaces the stock one with a very small stub. That stub manual-maps the big real driver, which it receives over a virtual I/O channel.
 
-- **Resolution**: Supports up to 4K resolution on **all** devices. Can live resize since CE 4.
+- **Resolution**: Supports up to 4K resolution on **all** devices. Can live resize since CE 4. Matches **refresh rate** with your monitor.
 - **Input**: mouse and keyboard are directly passed as the native devices into the guest. This can conflict - check the status bar tools to configure
 - **Accelerated drawing**: Guest Additions driver draws only exclusively through the host process. This is the hardware acceleration for guests.
 - **Shared folders.** A folder on your PC appears inside the guest as a storage card. ``\CERF Storage\*``

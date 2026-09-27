@@ -1,13 +1,12 @@
 #include "vga_controller.h"
 
 #include "../../core/log.h"
+#include "../../lcd/lcd_pixel_expand.h"
 #include "../../state/state_stream.h"
 
 #include <algorithm>
 #include <cstring>
 
-/* VGA register ports (the byte sub-offset within the card's register window;
-   refs: QEMU references/qemu_vga/vga_regs.h, IBM VGA standard). */
 namespace {
 constexpr uint32_t kAttrIndexData = 0x3C0;  /* index + data via flip-flop  */
 constexpr uint32_t kAttrReadData  = 0x3C1;
@@ -30,19 +29,12 @@ constexpr uint32_t kInputStatus1  = 0x3DA;  /* read resets attr flip-flop   */
 constexpr uint32_t kPllIndex      = 0x43C8; /* pixel-clock PLL (timing only)*/
 constexpr uint32_t kPllData       = 0x43C9;
 
-/* CRTC indices (vga_regs.h). */
 constexpr uint8_t kCrH_Disp    = 0x01;
 constexpr uint8_t kCrOverflow  = 0x07;
 constexpr uint8_t kCrStartHi   = 0x0C;
 constexpr uint8_t kCrStartLo   = 0x0D;
 constexpr uint8_t kCrV_DispEnd = 0x12;
 constexpr uint8_t kCrOffset    = 0x13;
-
-uint32_t Expand5(uint32_t v) { return (v << 3) | (v >> 2); }
-uint32_t Expand6(uint32_t v) { return (v << 2) | (v >> 4); }
-uint32_t PackBgra(uint32_t r, uint32_t g, uint32_t b) {
-    return 0xFF000000u | (r << 16) | (g << 8) | b;
-}
 }  /* namespace */
 
 VgaController::VgaController() : fb_(kFbSize, 0u) {}
@@ -166,30 +158,27 @@ void VgaController::WriteReg8(uint32_t port, uint8_t value) {
 }
 
 void VgaController::SaveState(StateWriter& w) const {
-    w.WriteBytes(cr_, sizeof(cr_));
-    w.WriteBytes(sr_, sizeof(sr_));
-    w.WriteBytes(gr_, sizeof(gr_));
-    w.WriteBytes(ar_, sizeof(ar_));
-    w.Write(misc_);
-    w.Write(crtc_index_); w.Write(seq_index_); w.Write(gc_index_); w.Write(attr_index_);
-    w.Write<uint8_t>(attr_flipflop_ ? 1u : 0u);
-    w.WriteBytes(dac_pal_, sizeof(dac_pal_));
-    w.Write<uint64_t>(fb_.size());
-    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
+    w.WriteBytes("cr", cr_, sizeof(cr_));
+    w.WriteBytes("sr", sr_, sizeof(sr_));
+    w.WriteBytes("gr", gr_, sizeof(gr_));
+    w.WriteBytes("ar", ar_, sizeof(ar_));
+    w.Write("misc", misc_);
+    w.Write("crtc_index", crtc_index_); w.Write("seq_index", seq_index_); w.Write("gc_index", gc_index_); w.Write("attr_index", attr_index_);
+    w.Write<uint8_t>("attr_flipflop", attr_flipflop_ ? 1u : 0u);
+    w.WriteBytes("dac_pal", dac_pal_, sizeof(dac_pal_));
+    w.WriteBytes("fb", fb_.data(), fb_.size());
 }
 
 void VgaController::RestoreState(StateReader& r) {
-    r.ReadBytes(cr_, sizeof(cr_));
-    r.ReadBytes(sr_, sizeof(sr_));
-    r.ReadBytes(gr_, sizeof(gr_));
-    r.ReadBytes(ar_, sizeof(ar_));
-    r.Read(misc_);
-    r.Read(crtc_index_); r.Read(seq_index_); r.Read(gc_index_); r.Read(attr_index_);
-    uint8_t ff = 0; r.Read(ff); attr_flipflop_ = (ff != 0);
-    r.ReadBytes(dac_pal_, sizeof(dac_pal_));
-    uint64_t n = 0; r.Read(n);
-    fb_.assign(static_cast<size_t>(n), 0u);
-    if (n) r.ReadBytes(fb_.data(), static_cast<size_t>(n));
+    r.ReadBytes("cr", cr_, sizeof(cr_));
+    r.ReadBytes("sr", sr_, sizeof(sr_));
+    r.ReadBytes("gr", gr_, sizeof(gr_));
+    r.ReadBytes("ar", ar_, sizeof(ar_));
+    r.Read("misc", misc_);
+    r.Read("crtc_index", crtc_index_); r.Read("seq_index", seq_index_); r.Read("gc_index", gc_index_); r.Read("attr_index", attr_index_);
+    uint8_t ff = 0; r.Read("attr_flipflop", ff); attr_flipflop_ = (ff != 0);
+    r.ReadBytes("dac_pal", dac_pal_, sizeof(dac_pal_));
+    r.ReadBytes("fb", fb_.data(), fb_.size());
 }
 
 void VgaController::RenderInto(uint32_t* dib, uint32_t dst_w, uint32_t dst_h) {
@@ -212,16 +201,14 @@ void VgaController::RenderInto(uint32_t* dib, uint32_t dst_w, uint32_t dst_h) {
             for (uint32_t x = 0; x < cw; ++x) {
                 const uint32_t at = (line + x) % kFbSize;
                 const uint8_t* c = dac_pal_[fb[at]];
-                row[x] = PackBgra(Expand6(c[0]), Expand6(c[1]), Expand6(c[2]));
+                row[x] = lcd_pixel::PackXrgb(lcd_pixel::Expand6(c[0]), lcd_pixel::Expand6(c[1]),
+                                             lcd_pixel::Expand6(c[2]));
             }
         } else {  /* 16bpp 5-6-5 */
             for (uint32_t x = 0; x < cw; ++x) {
                 const uint32_t at = (line + x * 2u) % kFbSize;
-                const uint16_t p = (uint16_t)(fb[at] |
-                                              (fb[(at + 1u) % kFbSize] << 8));
-                row[x] = PackBgra(Expand5((p >> 11) & 0x1Fu),
-                                  Expand6((p >> 5) & 0x3Fu),
-                                  Expand5(p & 0x1Fu));
+                row[x] = lcd_pixel::Expand565(
+                    (uint16_t)(fb[at] | (fb[(at + 1u) % kFbSize] << 8)));
             }
         }
     }

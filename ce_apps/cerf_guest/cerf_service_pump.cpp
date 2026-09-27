@@ -3,7 +3,6 @@
 #include "cerf_service_pump.h"
 #include "cerf_debug_log.h"
 
-#include "cerf_tick_profiler.h"
 #include "cerf_task_manager_pump.h"
 #include "cerf_resize_pump.h"
 #include "cerf_shell_watch.h"
@@ -17,7 +16,6 @@ static DWORD WINAPI CerfServicePumpThread(LPVOID) {
     for (;;) {
         Sleep(CERF_SERVICE_TICK_MS);
         ++n;
-        CerfTickProfilerTick();
         if ((n & 1u) == 0) CerfTaskManagerTick();
         if ((n & 3u) == 0) {
             CerfResizeTick();

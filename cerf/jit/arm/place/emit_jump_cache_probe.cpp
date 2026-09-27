@@ -13,13 +13,13 @@
 uint8_t* EmitJumpCacheProbe(uint8_t* cursor, BlockContext* ctx) {
     using namespace x86;
 
-    uint8_t* miss[4];
+    uint8_t* miss[5];
     uint32_t n = 0;
 
-    EmitMovRegBaseDisp32(cursor, kEax, kStateReg,
-        static_cast<int32_t>(offsetof(ArmCpuState, chain_exit_request)));
-    EmitTestRegReg(cursor, kEax, kEax);
-    miss[n++] = EmitJnzLabel32(cursor);
+    uint8_t* to_dispatcher[2];
+    cursor    = EmitDispatcherExitPoll(cursor, to_dispatcher);
+    miss[n++] = to_dispatcher[0];
+    miss[n++] = to_dispatcher[1];
 
     /* ARM DDI 0406C.c B1.3 (p. B1-1149): "T, bit[5] Thumb execution state
        bit." */

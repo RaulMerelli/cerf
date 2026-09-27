@@ -5,42 +5,23 @@ hide:
 
 # Download
 
-[Download latest release](https://github.com/gweslab/cerf/releases/latest){ .md-button .md-button--primary }
+[:fontawesome-solid-download: Download stable release (Windows, x86)](https://github.com/gweslab/cerf/releases/latest){ .md-button .md-button--primary }
 
-## Supported platforms
+<br>
 
-CERF is a 32-bit x86 Windows program (it runs fine on 64-bit Windows). The two
-executables in the archive do not have the same floor:
+!!! tip "Running emulator"
+    
+    Once you have downloaded the archive, the only thing that's left is to unpack anywhere you like and run **`launcher.exe`**. This will open a virtual machine manager window, where you can create new devices, configure and run them.
 
-| Program | Runs on |
-| --- | --- |
-| `cerf.exe` - the emulator | **Windows XP** and newer |
-| `launcher.exe` - device picker / ROM downloader | **Windows Vista** and newer |
+!!! warning "Supported platforms"
 
-On Windows XP there is no launcher: run `cerf.exe` directly from the
-[command line](/articles/command-line/), pointing it at a device folder you copied
-across from another machine.
+    **Recommended**: Latest Windows version
+    
+    **Minimal requirements:** Windows Vista. Windows XP is partially supported without UI components. This is best effort support, might break or get removed at any time.
 
-!!! warning "XP / Vista support is best-effort"
+## Unstable builds
 
-    CERF is developed and tested against the latest Windows. Support for XP and
-    Vista rests on the program never touching an API those systems lack - and
-    that is easy to break by accident, with a single new call in unrelated work.
-    A build can therefore stop starting on XP or Vista at any time, without
-    anyone noticing until someone tries it. If that happens,
-    [open an issue](https://github.com/gweslab/cerf/issues) - it is a bug, and a
-    fixable one.
+If you would like to use unstable builds, built directly from the tree which are pending release - you can:
 
-## Development builds
-
-Every commit is built automatically. The newest build is attached to the top entry of the
-[build list](https://github.com/gweslab/cerf/actions/workflows/build.yml?query=branch%3Amain+is%3Asuccess) -
-open it and download the artifact at the bottom of the page. It is the same program as the
-release, just ahead of it.
-
-## How to use?
-
-Unpack the archive anywhere and run **`launcher.exe`**: pick a device, and it
-downloads the ROM bundle and boots it. CERF ships no ROMs of its own.
-
-<img src="/assets/img/launcher.png" alt="The CERF launcher" class="cerf-banner" />
+- open Launcher, Settings dialog and pick the unstable release channel. You will upgrade to one instantly.
+- or you can download builds directly at [build list](https://github.com/gweslab/cerf/actions/workflows/build.yml?query=branch%3Amain+is%3Asuccess)

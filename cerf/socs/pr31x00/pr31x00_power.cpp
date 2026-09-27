@@ -1,6 +1,8 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/guest_deep_sleep.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -61,8 +63,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Pr31500 || soc == SocId::Pr31700;
     }
     void OnReady() override {
         intc_ = &emu_.Get<Pr31x00Intc>();
@@ -139,16 +141,16 @@ public:
     void WriteHalf(uint32_t addr, uint16_t v) override { HaltUnsupportedAccess("PR31x00 Power WriteHalf", addr, v); }
 
     void SaveState(StateWriter& w) override {
-        w.Write(Ctl()); w.Write(signals_);
-        w.Write(pending_cause_.load(std::memory_order_acquire));
+        w.Write("ctl", Ctl()); w.Write("signals", signals_);
+        w.Write("pending_cause", pending_cause_.load(std::memory_order_acquire));
     }
     void RestoreState(StateReader& r) override {
         uint32_t ctl = 0;
-        r.Read(ctl);
+        r.Read("ctl", ctl);
         ctl_.store(ctl, std::memory_order_release);
-        r.Read(signals_);
+        r.Read("signals", signals_);
         uint32_t cause = kCauseNone;
-        r.Read(cause);
+        r.Read("pending_cause", cause);
         pending_cause_.store(cause, std::memory_order_release);
     }
 

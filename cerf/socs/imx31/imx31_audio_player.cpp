@@ -3,6 +3,7 @@
 #include "imx31_audio_player.h"
 
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
@@ -30,7 +31,7 @@ constexpr uint32_t kBdWrap = 1u << 17;
 
 bool Imx31AudioPlayer::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX31;
+    return bd && bd->GetSocId() == SocId::Imx31;
 }
 
 void Imx31AudioPlayer::OnReady() {
@@ -38,7 +39,7 @@ void Imx31AudioPlayer::OnReady() {
                 [this](const MSG& m) { OnThreadMessage(m); },
                 "iMX31-Audio");
     emu_.Get<Imx31Sdma>().RegisterChannelSink(
-        [this](const FreescaleSdmaChannelStart& s) { return OnChannelClaim(s); },
+        [this](const Imx31Sdma::ChannelStart& s) { return OnChannelClaim(s); },
         [this](uint32_t ch) { OnChannelStop(ch); });
     emu_.Get<AudioActivityWidget>().NotePresent();
 }
@@ -51,7 +52,7 @@ uint32_t Imx31AudioPlayer::SsiForTxEvent(int event) {
     return (event == kEvtSsi2Tx1 || event == kEvtSsi2Tx2) ? 2u : 0u;
 }
 
-bool Imx31AudioPlayer::OnChannelClaim(const FreescaleSdmaChannelStart& s) {
+bool Imx31AudioPlayer::OnChannelClaim(const Imx31Sdma::ChannelStart& s) {
     const uint32_t ssi = SsiForTxEvent(s.event);
     if (ssi == 0u) return false;
 

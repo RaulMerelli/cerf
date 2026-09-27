@@ -1,6 +1,7 @@
 #include "sharp_mobilon_hc4100_key_matrix.h"
 
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pr31x00/pr31x00_io.h"
@@ -15,7 +16,7 @@ constexpr uint32_t kSpinMfioPin = 13;
 
 bool SharpMobilonHc4100KeyMatrix::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+    return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
 }
 
 void SharpMobilonHc4100KeyMatrix::OnReady() {

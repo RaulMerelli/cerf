@@ -4,6 +4,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 
 #include <cstdint>
+#include "imx31_id.h"
 
 namespace {
 
@@ -63,7 +64,7 @@ constexpr uint32_t kCkihHz = 27000000u;
 
 bool Imx31Ccm::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX31;
+    return bd && bd->GetSocId() == SocId::Imx31;
 }
 
 void Imx31Ccm::OnReady() {

@@ -3,6 +3,7 @@
 #include "sec_flash.h"
 
 #include "../boards/board_context.h"
+#include "../boards/ford_sync2/ford_sync_2_id.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
 #include "../core/log.h"
@@ -25,7 +26,7 @@ bool FileExists(const std::string& path) {
 }  /* namespace */
 
 bool SecFlash::ShouldRegister() {
-    if (emu_.Get<BoardContext>().GetBoard() != Board::FordSyncGen2) return false;
+    if (emu_.Get<BoardContext>().GetBoardId() != BoardId::FordSync2) return false;
     const auto& cfg = emu_.Get<DeviceConfig>();
     if (cfg.rom_primary.empty()) return false;
     return FileExists(ResolveDeviceFile(cfg.device_name, cfg.rom_primary));

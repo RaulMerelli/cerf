@@ -4,6 +4,7 @@
 #include "../core/fatal.h"
 #include "../core/log.h"
 #include "../boards/page_table_builder.h"
+#include "../peripherals/peripheral_dispatcher.h"
 #include "../state/state_stream.h"
 
 #include <cstring>
@@ -28,6 +29,11 @@ void EmulatedMemory::AddRegion(uint32_t base, uint32_t size,
         LOG(Caution, "EmulatedMemory::AddRegion invalid region: base=0x%08X "
                 "size=0x%X span=0x%X\n", base, size, span);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
+    if (emu_.Get<PeripheralDispatcher>().OverlapsDataInversion(base, span)) {
+        emu_.Get<Fatal>().Die("EmulatedMemory::AddRegion [0x%08X..0x%llX) overlaps a bus "
+                              "data inversion range", base,
+                              static_cast<unsigned long long>(base) + span);
     }
     const uint32_t wrap_mask = (span == size) ? 0xFFFFFFFFu : (size - 1u);
 
@@ -66,6 +72,18 @@ void EmulatedMemory::AddRegion(uint32_t base, uint32_t size,
 
     LOG(Mem, "AddRegion 0x%08X size 0x%X span 0x%X protect 0x%X (slot %zu)\n",
         base, size, span, page_protect, n);
+}
+
+bool EmulatedMemory::OverlapsRegion(uint32_t base, uint32_t size) const {
+    const size_t n = count_.load(std::memory_order_acquire);
+    for (size_t i = 0; i < n; ++i) {
+        const Region& r = regions_[i];
+        if (uint64_t(base) < uint64_t(r.base) + r.span &&
+            uint64_t(r.base) < uint64_t(base) + size) {
+            return true;
+        }
+    }
+    return false;
 }
 
 EmulatedMemory::Region* EmulatedMemory::FindRegion(uint32_t vaddr) {
@@ -133,20 +151,36 @@ uint8_t* EmulatedMemory::TryTranslateWrite(uint32_t paddr) {
        must dispatch to the flash controller / I/O peripheral instead
        of caching a host pointer; signal that to the walker by
        returning nullptr. */
-    if (r->page_protect == PAGE_READONLY ||
-        r->page_protect == PAGE_EXECUTE_READ) {
+    if (IsFlash(*r)) {
         return nullptr;
     }
 
     return EnsureBacked(r) + ((paddr - r->base) & r->wrap_mask);
 }
 
+bool EmulatedMemory::IsFlash(const Region& r) {
+    return r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ;
+}
+
+EmulatedMemory::Region* EmulatedMemory::BulkRegion(uint32_t vaddr, size_t size) {
+    Region* r = FindRegion(vaddr);
+    if (!r || static_cast<uint64_t>(vaddr) + size >
+                  static_cast<uint64_t>(r->base) + r->size) {
+        return nullptr;
+    }
+    return r;
+}
+
+bool EmulatedMemory::CanCopyRange(uint32_t paddr, size_t size, bool writable) {
+    const Region* r = BulkRegion(paddr, size);
+    return r && (!writable || !IsFlash(*r));
+}
+
 uint8_t* EmulatedMemory::TryTranslateRange(uint64_t paddr, uint64_t size, bool write) {
     if (size == 0 || paddr > UINT32_MAX || size > (uint64_t{1} << 32) - paddr)
         return nullptr;
     Region* r = FindRegion(static_cast<uint32_t>(paddr));
-    if (!r || (write && (r->page_protect == PAGE_READONLY ||
-                        r->page_protect == PAGE_EXECUTE_READ)))
+    if (!r || (write && IsFlash(*r)))
         return nullptr;
     const uint64_t offset = paddr - r->base;
     const uint64_t backed_offset = offset & r->wrap_mask;
@@ -207,20 +241,17 @@ void EmulatedMemory::WriteDword(uint32_t vaddr, uint64_t value) {
 EmulatedMemory::Region* EmulatedMemory::BulkRegionFor(uint32_t vaddr,
                                                       size_t size,
                                                       const char* op) {
+    if (Region* ok = BulkRegion(vaddr, size)) return ok;
     Region* r = FindRegion(vaddr);
     if (!r) {
         LOG(Caution, "EmulatedMemory::%s unmapped address "
                 "0x%08X size 0x%zX\n", op, vaddr, size);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    uint64_t end = static_cast<uint64_t>(vaddr) + size;
-    if (end > static_cast<uint64_t>(r->base) + r->size) {
+    } else {
         LOG(Caution, "EmulatedMemory::%s crosses region boundary at "
                 "0x%08X size 0x%zX (region 0x%08X size 0x%X)\n",
                 op, vaddr, size, r->base, r->size);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    return r;
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
 void EmulatedMemory::CopyIn(uint32_t vaddr, const void* host_src, size_t size) {
@@ -252,71 +283,60 @@ void EmulatedMemory::WipeVolatileRegions() {
     }
 }
 
-void EmulatedMemory::SaveState(StateWriter& w) {
+void EmulatedMemory::SaveState(StateWriter& w) { SaveRegions(w, false); }
+
+void EmulatedMemory::SaveFlashRegions(StateWriter& w) { SaveRegions(w, true); }
+
+void EmulatedMemory::RestoreState(StateReader& r) { RestoreRegions(r, false); }
+
+void EmulatedMemory::RestoreFlashRegions(StateReader& r) { RestoreRegions(r, true); }
+
+uint32_t EmulatedMemory::RegionCount(bool flash) const {
     const size_t n = count_.load(std::memory_order_acquire);
-    uint32_t volatile_count = 0;
+    uint32_t count = 0;
     for (size_t i = 0; i < n; ++i) {
-        const Region& r = regions_[i];
-        if (r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ)
-            continue;
-        ++volatile_count;
+        if (IsFlash(regions_[i]) == flash) ++count;
     }
-    w.Write(volatile_count);
+    return count;
+}
+
+void EmulatedMemory::SaveRegions(StateWriter& w, bool flash) {
+    const size_t n = count_.load(std::memory_order_acquire);
+    w.Write(flash ? "flash_count" : "volatile_count", RegionCount(flash));
     for (size_t i = 0; i < n; ++i) {
         Region& r = regions_[i];
-        if (r.page_protect == PAGE_READONLY || r.page_protect == PAGE_EXECUTE_READ)
-            continue;
-        w.Write(r.base);
-        w.Write(r.size);
+        if (IsFlash(r) != flash) continue;
+        w.Write("base", r.base);
+        w.Write("region_size", r.size);
         uint8_t* host = r.host_ptr.load(std::memory_order_acquire);
         const uint8_t backed = host ? 1u : 0u;
-        w.Write(backed);
-        if (host) w.WriteBytes(host, r.size);
+        w.Write("backed", backed);
+        if (host) w.WriteBytes("host", host, r.size);
     }
 }
 
-void EmulatedMemory::SaveFlashRegions(StateWriter& w) {
-    const size_t n = count_.load(std::memory_order_acquire);
-    uint32_t flash_count = 0;
-    for (size_t i = 0; i < n; ++i) {
-        const Region& r = regions_[i];
-        if (r.page_protect != PAGE_READONLY && r.page_protect != PAGE_EXECUTE_READ)
-            continue;
-        if (r.host_ptr.load(std::memory_order_acquire) == nullptr)
-            continue;   /* never touched: nothing programmed, the ROM repopulates it */
-        ++flash_count;
-    }
-    w.Write(flash_count);
-    for (size_t i = 0; i < n; ++i) {
-        Region& r = regions_[i];
-        if (r.page_protect != PAGE_READONLY && r.page_protect != PAGE_EXECUTE_READ)
-            continue;
-        uint8_t* host = r.host_ptr.load(std::memory_order_acquire);
-        if (!host) continue;
-        w.Write(r.base);
-        w.Write(r.size);
-        w.WriteBytes(host, r.size);
-    }
-}
-
-void EmulatedMemory::RestoreFlashRegions(StateReader& r) {
-    uint32_t flash_count = 0;
-    r.Read(flash_count);
-    for (uint32_t k = 0; k < flash_count; ++k) {
+void EmulatedMemory::RestoreRegions(StateReader& r, bool flash) {
+    const char* kind = flash ? "flash" : "RAM";
+    uint32_t count = 0;
+    r.Read(flash ? "flash_count" : "volatile_count", count);
+    if (count != RegionCount(flash))
+        r.Reject("the image has %u %s regions, this build has %u", count, kind,
+                 RegionCount(flash));
+    for (uint32_t k = 0; k < count; ++k) {
         uint32_t base = 0, size = 0;
-        r.Read(base);
-        r.Read(size);
-        if (!r.Ok()) return;
+        r.Read("base", base);
+        r.Read("region_size", size);
         Region* reg = FindRegion(base);
-        if (!reg || reg->base != base || reg->size != size ||
-            (reg->page_protect != PAGE_READONLY &&
-             reg->page_protect != PAGE_EXECUTE_READ)) {
-            LOG(Caution, "EmulatedMemory::RestoreFlashRegions: region mismatch "
-                "base=0x%08X size=0x%X - image incompatible with memory map\n",
-                base, size);
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        if (!reg || reg->base != base || reg->size != size || IsFlash(*reg) != flash)
+            r.Reject("%s region base=0x%08X size=0x%X is not in this memory map",
+                     kind, base, size);
+        uint8_t backed = 0;
+        r.Read("backed", backed);
+        if (backed) {
+            r.ReadBytes("host", EnsureBacked(reg), size);
+        } else if (uint8_t* host = reg->host_ptr.load(std::memory_order_acquire)) {
+            std::memset(host, 0, size);
         }
-        r.ReadBytes(EnsureBacked(reg), size);
     }
 }
 
@@ -330,31 +350,4 @@ uint64_t EmulatedMemory::VolatileByteCount() const {
         total += r.size;
     }
     return total;
-}
-
-void EmulatedMemory::RestoreState(StateReader& r) {
-    uint32_t volatile_count = 0;
-    r.Read(volatile_count);
-    for (uint32_t k = 0; k < volatile_count; ++k) {
-        uint32_t base = 0, size = 0;
-        uint8_t  backed = 0;
-        r.Read(base);
-        r.Read(size);
-        r.Read(backed);
-        if (!r.Ok()) return;
-        Region* reg = FindRegion(base);
-        if (!reg || reg->base != base || reg->size != size ||
-            reg->page_protect == PAGE_READONLY ||
-            reg->page_protect == PAGE_EXECUTE_READ) {
-            LOG(Caution, "EmulatedMemory::RestoreState: region mismatch "
-                "base=0x%08X size=0x%X - image incompatible with memory map\n",
-                base, size);
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-        if (backed) {
-            r.ReadBytes(EnsureBacked(reg), size);
-        } else if (uint8_t* host = reg->host_ptr.load(std::memory_order_acquire)) {
-            std::memset(host, 0, size);
-        }
-    }
 }

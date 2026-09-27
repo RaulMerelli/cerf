@@ -24,9 +24,9 @@ FUNDING_BADGES = [
 FUNDING_MESSAGE = 'support'
 
 sys.path.insert(0, os.path.join(ROOT, 'launcher'))
-from board_catalog_schema import FEATURE_SPECS
+from board_database import (DEVICES, FEATURE_SPECS, operating_systems_of,
+                            soc_family_of, soc_of)
 from board_info import board_sort_key
-from supported_devices import BOARDS_INFORMATION
 
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import changelog
@@ -52,14 +52,16 @@ def badge_img(cpu):
             f'align="middle" title="{cpu}" alt="{cpu}"/>')
 
 
-def features_cell(features):
+def features_cell(board):
+    working = {f['feature_id'] for f in board.get('device_features', [])
+               if f.get('supported')}
     icons = [icon_img(stem, label)
-             for key, stem, label in FEATURE_SPECS if features.get(key)]
+             for key, stem, label in FEATURE_SPECS if key in working]
     return ' '.join(icons) if icons else '&mdash;'
 
 
 def build_supported_devices():
-    boards = sorted((b for b in BOARDS_INFORMATION if b.get('supported')),
+    boards = sorted((b for b in DEVICES if b.get('supported')),
                     key=lambda b: board_sort_key(b['name']))
 
     # All boards on the same SoC share one rowspan SoC cell. Grouping is by SoC
@@ -70,7 +72,7 @@ def build_supported_devices():
     groups = []
     soc_index = {}
     for board in boards:
-        soc = board['soc']
+        soc = board['soc_id']
         if soc in soc_index:
             soc_index[soc].append(board)
         else:
@@ -89,24 +91,25 @@ def build_supported_devices():
         '  </thead>',
         '  <tbody>',
     ]
-    for soc, group in groups:
+    for _soc_id, group in groups:
         for index, board in enumerate(group):
             lines.append('    <tr>')
             if index == 0:
+                soc = soc_of(board['id'])
+                family = soc_family_of(board['id'])
                 rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
                 lines.append(f'      <td{rowspan} align="center">'
-                             f'{badge_img(soc.cpu)}<br/><b>{soc.family}</b>'
-                             f'<br/><sub>{soc.arch}</sub></td>')
-            board_label = (f'{icon_img("board", "PDA", 16)} '
-                           f'<b>{board["name"]}</b>')
-            ids = [board["board_id"]] + list(board.get('board_ids', []))
-            board_label += ' ' + ' '.join(f'<code>{i}</code>' for i in ids)
-            cell = [board_label]
-            cell += [guest_os.name for guest_os in board['operating_systems']]
+                             f'{badge_img(family["arch"])}'
+                             f'<br/><b>{soc["name"]}</b>'
+                             f'<br/><sub>{family["name"]}</sub></td>')
+            cell = [f'{icon_img("board", "PDA", 16)} <b>{board["name"]}</b> '
+                    f'<code>{board["id"]}</code>']
+            cell += [guest_os['name']
+                     for guest_os in operating_systems_of(board['id'])]
             lines.append('      <td>')
             lines.append('        ' + '<br/>\n        '.join(cell))
             lines.append('      </td>')
-            lines.append(f'      <td>{features_cell(board.get("features", {}))}</td>')
+            lines.append(f'      <td>{features_cell(board)}</td>')
             lines.append('    </tr>')
     lines.append('  </tbody>')
     lines.append('</table>')
@@ -173,7 +176,7 @@ def main():
     content = content.replace('{support_badges}', build_support_badges())
     content = content.replace('{cur_year}', str(datetime.date.today().year))
 
-    with open(OUTPUT, 'w', encoding='utf-8') as f:
+    with open(OUTPUT, 'w', encoding='utf-8', newline='\n') as f:
         f.write(content)
 
     print(f'README.md compiled (v{version})')

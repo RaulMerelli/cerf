@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_siu.h"
 
 #include "../../boards/board_context.h"
+#include "vr4102_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../state/state_stream.h"
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4102;
+        return bd && bd->GetSocId() == SocId::Vr4102;
     }
 
 protected:
@@ -30,8 +31,8 @@ protected:
         Vr41xxSiu::WriteChipExtReg(idx, value);
     }
     void ResetChip() override                      { baud_reload_ = 0; }
-    void SaveChipState(StateWriter& w) override    { w.Write(baud_reload_); }
-    void RestoreChipState(StateReader& r) override { r.Read(baud_reload_); }
+    void SaveChipState(StateWriter& w) override    { w.Write("baud_reload", baud_reload_); }
+    void RestoreChipState(StateReader& r) override { r.Read("baud_reload", baud_reload_); }
 
 private:
     uint8_t baud_reload_ = 0;   /* SIU 0x09 divisor-reload strobe */

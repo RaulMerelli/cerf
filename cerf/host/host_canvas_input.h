@@ -5,9 +5,6 @@
 #define NOMINMAX
 #include <windows.h>
 
-/* Routes host-window pointer/keyboard/wheel messages to the guest input
-   services (TouchInput / PointerInput / KeyboardInput / MemoryVisualizer).
-   Split out of HostCanvas, which owns the window, layout, and presentation. */
 class HostCanvasInput : public Service {
 public:
     using Service::Service;

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../board_context.h"
+#include "nokia_lumia_800_id.h"
 
 #include <cstdint>
 
@@ -26,7 +27,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NokiaLumia800;
+        return bd && bd->GetBoardId() == BoardId::NokiaLumia800;
     }
 
     uint32_t PartitionCount() const override { return kPartitionCount; }

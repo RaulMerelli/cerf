@@ -1,6 +1,7 @@
 #include "vr4122_dsiu.h"
 
 #include "../../boards/board_context.h"
+#include "vr4122_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../guest_cpu_reset.h"
 #include "../vr41xx/vr41xx_icu.h"
@@ -9,7 +10,7 @@ REGISTER_SERVICE(Vr4122Dsiu);
 
 bool Vr4122Dsiu::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::VR4122;
+    return bd && bd->GetSocId() == SocId::Vr4122;
 }
 
 void Vr4122Dsiu::OnReady() {

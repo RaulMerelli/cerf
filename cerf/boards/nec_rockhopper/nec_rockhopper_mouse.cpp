@@ -2,6 +2,7 @@
 #include "../../host/relative_mouse_input.h"
 #include "../../peripherals/intel_i8042/i8042_controller.h"
 #include "../board_context.h"
+#include "nec_rockhopper_id.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecRockhopper;
+        return bd && bd->GetBoardId() == BoardId::NecRockhopper;
     }
 
     void OnRelativeMove(int dx, int dy, uint32_t button_mask) override {

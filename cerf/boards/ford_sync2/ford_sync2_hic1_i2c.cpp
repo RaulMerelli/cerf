@@ -1,8 +1,10 @@
 #include "../../core/service.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "ford_sync_2_id.h"
 #include "../../socs/imx51/imx51_gpio4.h"
 #include "../../jit/arm/arm_cpu.h"
 #include "../../jit/arm/arm_mmu_probe.h"
@@ -36,7 +38,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
     void OnReady() override {
         gpio_ = &emu_.Get<Imx51Gpio4>();
@@ -60,7 +62,7 @@ private:
         ArmMmuProbe& probe = emu_.Get<ArmMmuProbe>();
         auto rd = [&](uint32_t va) -> uint32_t {
             uint8_t* p = probe.PeekVaToHost(va);
-            return p ? *reinterpret_cast<uint32_t*>(p) : 0u;
+            return p ? cerf::le::U32(p) : 0u;
         };
         char chain[320];
         int o = 0;

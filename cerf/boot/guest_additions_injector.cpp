@@ -3,10 +3,10 @@
 
 #include "ce_image_relocator.h"
 #include "ce_import_binder.h"
-#include "cerf_injection_region.h"
 #include "guest_additions_binaries.h"
 #include "guest_cold_boot.h"
 #include "guest_module_placer.h"
+#include "guest_stub_host.h"
 #include "imgfs_injector.h"
 #include "pe_image.h"
 #include "rom_parser_queries.h"
@@ -32,13 +32,10 @@
 
 namespace {
 
-constexpr uint32_t kPageMask = 0xFFFu;
-
 constexpr uint32_t kImgScnMemShared = 0x10000000u;
 constexpr uint32_t kImgScnMemWrite  = 0x80000000u;
 
-uint32_t AlignPage(uint32_t v) { return (v + kPageMask) & ~kPageMask; }
-uint32_t Align4(uint32_t v)    { return (v + 3u) & ~3u; }
+uint32_t Align4(uint32_t v) { return (v + 3u) & ~3u; }
 
 class GuestAdditionsInjector : public Service {
 public:
@@ -303,7 +300,7 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         const bool in_dll_region = (orig_vbase >= primary_toc.romhdr.dllfirst)
                                 && (orig_vbase <  primary_toc.romhdr.dlllast);
         const bool xip_codebase  = (orig_vbase != 0)
-                                && ((orig_vbase & kPageMask) == 0)
+                                && ((orig_vbase & kRomPageMask) == 0)
                                 && (orig_vbase == codebase)
                                 && (orig_vbase < primary_toc.romhdr.physfirst);
         vbase_ok = in_dll_region || xip_codebase;
@@ -317,15 +314,18 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         CerfFatalExit();
     }
 
-    auto& region = emu_.Get<CerfInjectionRegion>();
-    const uint32_t band_va   = region.BandVaBase();
-    const uint32_t band_pa   = region.BandPaBase();
-    const uint32_t band_size = region.BandSize();
+    const size_t   nsec       = pe.Sections().size();
+    const uint32_t foot_bytes = Align4(AlignRomPage(pe.ImageSize()) + L.size)
+                              + uint32_t(nsec) * kO32RomSize;
+    const bool     in_place   = (ce_major_ >= 6);
 
-    const bool in_place = (ce_major_ >= 6) && region.BandRunsInPlace();
+    const GuestStubHostSpan host = emu_.Get<GuestStubHost>().Pick(
+        victim_name, orig_o32_pa, orig_objcnt, foot_bytes, in_place);
+    const uint32_t host_va = host.va;
+    const uint32_t host_pa = host.pa;
 
-    uint32_t target_vbase = band_va;
-    uint32_t run_base     = band_va;   /* base the section bytes are relocated for */
+    uint32_t target_vbase = host_va;
+    uint32_t run_base     = host_va;
     if (!in_place) {
         const uint32_t slot_base = codebase - orig_vbase;
         target_vbase = emu_.Get<GuestModulePlacer>().ComputeVbase(
@@ -334,27 +334,19 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         run_base = target_vbase + slot_base;
     }
 
-    const size_t nsec = pe.Sections().size();
     std::vector<uint32_t> sec_pa(nsec), dataptr(nsec), realaddr(nsec), flags(nsec);
     for (size_t i = 0; i < nsec; ++i) {
         const auto& s = pe.Sections()[i];
-        sec_pa[i]   = band_pa + s.rva;
-        dataptr[i]  = band_va + s.rva;
+        sec_pa[i]   = host_pa + s.rva;
+        dataptr[i]  = host_va + s.rva;
         realaddr[i] = run_base + s.rva;
         flags[i] = in_place
             ? emu_.Get<GuestModulePlacer>().EffSectionFlags(s.flags)
             : (s.flags | kImgScnMemWrite | kImgScnMemShared);
     }
 
-    const uint32_t e32_va    = band_va + AlignPage(pe.ImageSize());
-    const uint32_t o32_va    = Align4(e32_va + L.size);
-    const uint32_t band_used = (o32_va + uint32_t(nsec) * kO32RomSize) - band_va;
-    if (band_used > band_size) {
-        LOG(Caution, "%s stub needs 0x%X band bytes but the band is 0x%X - raise "
-                "kInjectionBandSize in cerf_virt_addr_map.h\n",
-            victim_name, band_used, band_size);
-        CerfFatalExit();
-    }
+    const uint32_t e32_va = host_va + AlignRomPage(pe.ImageSize());
+    const uint32_t o32_va = Align4(e32_va + L.size);
 
     std::vector<uint8_t> patched_bytes(pe.Bytes().begin(), pe.Bytes().end());
     const int32_t code_delta = int32_t(run_base) - int32_t(pe.ImageBase());
@@ -381,8 +373,10 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         emu_.Get<CeImportBinder>().BindImports(patched_bytes, pe, L);
     }
 
-    const uint32_t e32_pa = band_pa + (e32_va - band_va);
-    const uint32_t o32_pa = band_pa + (o32_va - band_va);
+    const uint32_t e32_pa = host_pa + (e32_va - host_va);
+    const uint32_t o32_pa = host_pa + (o32_va - host_va);
+    const std::vector<uint8_t> zeros(foot_bytes, 0);
+    mem.CopyIn(host_pa, zeros.data(), zeros.size());
     WriteE32Rom(e32_pa, pe, target_vbase, orig_subsysmaj, orig_subsysmin);
     WriteO32Array(o32_pa, pe, dataptr, realaddr, flags);
     WriteSectionBytes(sec_pa, pe, patched_bytes);
@@ -391,26 +385,17 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
     mem.WriteWord(entry_pa + kTocOffNFileSize,  uint32_t(pe_bytes_size));
     mem.WriteWord(entry_pa + kTocOffE32Offset,  e32_va);
     mem.WriteWord(entry_pa + kTocOffO32Offset,  o32_va);
-    mem.WriteWord(entry_pa + kTocOffLoadOffset, band_va);
+    mem.WriteWord(entry_pa + kTocOffLoadOffset, host_va);
 
-    LOG(GuestAdditions, "%s stub injected (%s): idx=%zu entry_kva=0x%08X "
-              "band VA=0x%08X PA=0x%08X e32=0x%08X o32=0x%08X sections=%zu "
-              "vbase=0x%08X run_base=0x%08X\n",
-        victim_name, in_place ? "in-place" : "copy", victim_idx, entry_kva,
-        band_va, band_pa, e32_va, o32_va, nsec, target_vbase, run_base);
+    LOG(GuestAdditions, "%s stub injected (%s, %s): idx=%zu entry_kva=0x%08X "
+              "host VA=0x%08X PA=0x%08X used=0x%X avail=0x%X e32=0x%08X o32=0x%08X "
+              "sections=%zu vbase=0x%08X run_base=0x%08X\n",
+        victim_name, host.squat ? "squat" : "band", in_place ? "in-place" : "copy",
+        victim_idx, entry_kva, host_va, host_pa, foot_bytes, host.avail,
+        e32_va, o32_va, nsec, target_vbase, run_base);
 
-    /* The band PA region is volatile (cerf_virt window) and a RAMIMAGE board's
-       TOC-entry span is volatile - replay the band writes + the TOCentry repoint
-       so a cold boot restores them. */
     auto& coldboot = emu_.Get<GuestColdBoot>();
-    for (size_t i = 0; i < nsec; ++i) {
-        const auto& s = pe.Sections()[i];
-        if (s.psize > 0 && size_t(s.pe_file_off) + s.psize <= patched_bytes.size()) {
-            coldboot.RecordPatch(sec_pa[i], s.psize);
-        }
-    }
-    coldboot.RecordPatch(e32_pa, L.size);
-    coldboot.RecordPatch(o32_pa, uint32_t(nsec) * kO32RomSize);
+    coldboot.RecordPatch(host_pa, foot_bytes);
     coldboot.RecordPatch(entry_pa + kTocOffNFileSize,  4);
     coldboot.RecordPatch(entry_pa + kTocOffE32Offset,  4);
     coldboot.RecordPatch(entry_pa + kTocOffO32Offset,  4);
@@ -421,17 +406,13 @@ bool GuestAdditionsInjector::Replace(const char* victim_name,
         coldboot.RecordPatch(pt.VaToPa(primary_toc.romhdr_va) + kHdrDllFirstOff, 4);
     }
 
-    /* In-place stubs mutate their writable .data in the band; a warm reset neither
-       re-copies the section (in-place skips ReadSection) nor replays the band
-       (cold-boot only), so without this the post-reset stub reads stale prior-boot
-       pointers and faults. Restore the band's initial bytes on each reset. */
     if (in_place) {
-        std::vector<uint8_t> band_initial(band_used);
-        mem.CopyOut(band_pa, band_initial.data(), band_used);
+        std::vector<uint8_t> host_initial(foot_bytes);
+        mem.CopyOut(host_pa, host_initial.data(), foot_bytes);
         emu_.Get<GuestCpuReset>().RegisterResetListener(
-            [this, band_pa, band_initial = std::move(band_initial)](ResetLineKind) {
-                emu_.Get<EmulatedMemory>().CopyIn(band_pa, band_initial.data(),
-                                                  band_initial.size());
+            [this, host_pa, host_initial = std::move(host_initial)](ResetLineKind) {
+                emu_.Get<EmulatedMemory>().CopyIn(host_pa, host_initial.data(),
+                                                  host_initial.size());
             });
     }
     return true;

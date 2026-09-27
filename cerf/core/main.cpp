@@ -1,3 +1,4 @@
+#include "cli_usage.h"
 #include "log.h"
 #include "main_config.h"
 #include "cerf_emulator.h"
@@ -12,8 +13,13 @@ int main(int argc, char* argv[]) {
     CerfConfig cfg;
     switch (ParseCerfArgs(argc, argv, cfg)) {
         case ArgParseResult::Run:         break;
-        case ArgParseResult::HelpShown:   return CERF_FATAL_NORMAL_EXIT;
         case ArgParseResult::BadArgument: return CERF_FATAL_USER_ERROR;
+        case ArgParseResult::HelpShown: {
+            CerfEmulator help(cfg, argc, argv);
+            help.CreateAllServices();
+            help.Get<CliUsage>().Print(argv[0]);
+            return CERF_FATAL_NORMAL_EXIT;
+        }
     }
 
     /* Without this, sub-ms cv_.wait_for/Sleep round to the 15.625 ms

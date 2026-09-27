@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <iterator>
+#include "imx6_id.h"
 
 namespace {
 
@@ -21,7 +22,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         ResetRegisters();
@@ -94,11 +95,11 @@ public:
         uint32_t snapshot[0x48u / 4u]{};
         std::copy(std::begin(regs_), std::end(regs_), std::begin(snapshot));
         snapshot[0x08u >> 2] = srsr_.load(std::memory_order_acquire);
-        w.WriteBytes(snapshot, sizeof(snapshot));
+        w.WriteBytes("regs", snapshot, sizeof(snapshot));
     }
 
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_, sizeof(regs_));
+        r.ReadBytes("regs", regs_, sizeof(regs_));
         srsr_.store(regs_[0x08u >> 2], std::memory_order_release);
         regs_[0x08u >> 2] = 0u;
     }

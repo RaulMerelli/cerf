@@ -30,11 +30,9 @@ public:
     uint32_t GuestW()      const { return 240u; }
     uint32_t GuestH()      const { return 320u; }
     uint32_t StrideBytes() const { return 512u; }
-    uint32_t FbPa()        const { return kBase + kFbOffset; }
     const uint8_t* FbBytes() const { return fb_.data(); }
 
 private:
-    static constexpr uint32_t kBase     = 0x0A000000u;
     static constexpr uint32_t kFbOffset = 0x00200000u;
     static constexpr uint32_t kFbSize   = 0x00040000u;
 

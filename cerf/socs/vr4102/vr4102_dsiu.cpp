@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_dsiu_impl.h"
 
 #include <cstdint>
+#include "vr4102_id.h"
 
 namespace {
 
@@ -16,7 +17,7 @@ constexpr Vr41xxDsiuModel kModel = {
     /*portreg_retained_on_reset=*/false,
 };
 
-class Vr4102Dsiu : public Vr41xxDsiuBase<SocFamily::VR4102, kModel> {
+class Vr4102Dsiu : public Vr41xxDsiuBase<SocId::Vr4102, kModel> {
 public:
     using Vr41xxDsiuBase::Vr41xxDsiuBase;
 };

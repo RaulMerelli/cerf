@@ -14,7 +14,7 @@ enum class MipsIsaLevel : uint32_t {
 };
 
 /* Per-SoC MIPS processor identity/capability strategy, MIPS analog of
-   ArmProcessorConfig. One concrete per MIPS SoC, selected by GetSoc(). */
+   ArmProcessorConfig. One concrete per MIPS SoC, selected by GetSocId(). */
 class MipsProcessorConfig : public Service {
 public:
     using Service::Service;

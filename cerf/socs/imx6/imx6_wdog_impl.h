@@ -10,6 +10,7 @@
 #include "imx6_gic.h"
 
 #include <mutex>
+#include "imx6_id.h"
 
 namespace cerf_imx6_wdog_detail {
 
@@ -25,9 +26,9 @@ constexpr uint16_t kWicrReset = 0x0004u;
 
 constexpr uint16_t kWrsrPor = 0x0010u;
 
-template <uint32_t Base> class Imx6WdogBase : public FreescaleWdogBase<Base, SocFamily::iMX6> {
+template <uint32_t Base> class Imx6WdogBase : public FreescaleWdogBase<Base, SocId::Imx6> {
 public:
-    using Parent = FreescaleWdogBase<Base, SocFamily::iMX6>;
+    using Parent = FreescaleWdogBase<Base, SocId::Imx6>;
     using Parent::Parent;
 
     void OnReady() override {
@@ -80,31 +81,31 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lock(mtx_);
-        w.Write(wcr_);
-        w.Write(wsr_);
-        w.Write(wicr_);
-        w.Write(wrsr_);
-        w.Write(service_phase_);
-        w.Write(static_cast<uint8_t>(wcr_policy_locked_ ? 1u : 0u));
-        w.Write(static_cast<uint8_t>(wicr_policy_locked_ ? 1u : 0u));
+        w.Write("wcr", wcr_);
+        w.Write("wsr", wsr_);
+        w.Write("wicr", wicr_);
+        w.Write("wrsr", wrsr_);
+        w.Write("service_phase", service_phase_);
+        w.Write("wcr_policy_locked", static_cast<uint8_t>(wcr_policy_locked_ ? 1u : 0u));
+        w.Write("wicr_policy_locked", static_cast<uint8_t>(wicr_policy_locked_ ? 1u : 0u));
         const int64_t now = this->emu_.Get<VirtualClock>().NowNs();
-        w.Write(timer_->RemainingNs(now));
-        w.Write(interrupt_timer_->RemainingNs(now));
+        w.Write("restored_remaining_ns", timer_->RemainingNs(now));
+        w.Write("restored_interrupt_remaining_ns", interrupt_timer_->RemainingNs(now));
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lock(mtx_);
-        r.Read(wcr_);
-        r.Read(wsr_);
-        r.Read(wicr_);
-        r.Read(wrsr_);
-        r.Read(service_phase_);
+        r.Read("wcr", wcr_);
+        r.Read("wsr", wsr_);
+        r.Read("wicr", wicr_);
+        r.Read("wrsr", wrsr_);
+        r.Read("service_phase", service_phase_);
         uint8_t policy_locked = 0u;
-        r.Read(policy_locked);
+        r.Read("wcr_policy_locked", policy_locked);
         wcr_policy_locked_ = policy_locked != 0u;
-        r.Read(policy_locked);
+        r.Read("wicr_policy_locked", policy_locked);
         wicr_policy_locked_ = policy_locked != 0u;
-        r.Read(restored_remaining_ns_);
-        r.Read(restored_interrupt_remaining_ns_);
+        r.Read("restored_remaining_ns", restored_remaining_ns_);
+        r.Read("restored_interrupt_remaining_ns", restored_interrupt_remaining_ns_);
         reset_requested_ = false;
     }
 

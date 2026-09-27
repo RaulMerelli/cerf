@@ -18,6 +18,7 @@ class ArmMmu;
 class ArmMmuProbe;
 class ArmPageWalker;
 class ArmTranslationCache;
+class GuestCycleClock;
 
 class ArmJit : public GuestEngine {
 public:
@@ -32,6 +33,7 @@ public:
 
     void SetInterruptPending();
     void ClearInterruptPending();
+    void SetIdleWake(bool level);
 
     static void __cdecl Dispatch(void*        native_pc,
                                  ArmCpuState* cpu_state,
@@ -40,6 +42,10 @@ public:
     void     Run() override;
     bool     DeepSleep()    const override { return cpu_state_->deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_->reset_pending != 0; }
+
+    bool GuestIrqMasked() const override {
+        return cpu_state_->cpsr.bits.irq_disable != 0u;
+    }
     uint32_t Pc()           const override { return cpu_state_->gprs[ArmGpr::kR15]; }
     void     PrintFatalDump() override;
     void     DispatchTraceIter() override {
@@ -63,6 +69,7 @@ public:
     void SetHostChainExit(bool requested) override;
     void EnterDeepSleep() override;
     void ExitDeepSleep() override;
+    void EnterIdleWait() override;
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;
     void SetDmaRegion(uint32_t pa, uint32_t size) override;
 
@@ -77,4 +84,5 @@ private:
     ArmTranslationCache* cache_    = nullptr;
     ArmBlockCompiler*    compiler_ = nullptr;
     ArmInterruptChannel* channel_  = nullptr;
+    GuestCycleClock*     clock_    = nullptr;
 };

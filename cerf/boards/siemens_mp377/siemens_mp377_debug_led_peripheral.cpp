@@ -3,10 +3,11 @@
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 
 bool SiemensMp377DebugLedPeripheral::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SiemensMP377;
+    return bd && bd->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377DebugLedPeripheral::OnReady() {

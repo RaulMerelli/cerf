@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "pxa270_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -169,13 +170,13 @@ void Pxa27xI2c::UpdateIrq() {
 }
 
 void Pxa27xI2c::SaveState(StateWriter& w) {
-    w.Write(icr_); w.Write(isr_); w.Write(idbr_); w.Write(isar_);
-    w.Write(reading_);
+    w.Write("icr", icr_); w.Write("isr", isr_); w.Write("idbr", idbr_); w.Write("isar", isar_);
+    w.Write("reading", reading_);
 }
 
 void Pxa27xI2c::RestoreState(StateReader& r) {
-    r.Read(icr_); r.Read(isr_); r.Read(idbr_); r.Read(isar_);
-    r.Read(reading_);
+    r.Read("icr", icr_); r.Read("isr", isr_); r.Read("idbr", idbr_); r.Read("isar", isar_);
+    r.Read("reading", reading_);
 }
 
 }  /* namespace */

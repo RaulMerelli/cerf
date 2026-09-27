@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
+#include "vr4102_id.h"
 
 namespace {
 
@@ -40,7 +41,7 @@ constexpr Vr41xxPmuModel kModel = {
 constexpr uint16_t kIntDmSrst   = 0x0004u;  /* D2 DMSRST  (deadman's-switch reset)    */
 constexpr uint16_t kIntPowerSw  = 0x0001u;  /* D0 POWERSW (power-switch interrupt)    */
 
-class Vr4102Pmu : public Vr41xxPmuBase<SocFamily::VR4102, kModel> {
+class Vr4102Pmu : public Vr41xxPmuBase<SocId::Vr4102, kModel> {
 public:
     using Vr41xxPmuBase::Vr41xxPmuBase;
 

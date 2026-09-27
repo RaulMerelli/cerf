@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace cerf_imx6_ipu_mem_detail {
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().RegisterResettable(this); }
 
@@ -48,8 +49,8 @@ public:
     }
     void WriteWord(uint32_t addr, uint32_t value) override { regs_[(addr - kBase) >> 2] = value; }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(regs_.data(), sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_.data(), sizeof(regs_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_.data(), regs_.size()); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_.data(), regs_.size()); }
 
 protected:
     std::array<uint32_t, kSize / 4> regs_{};

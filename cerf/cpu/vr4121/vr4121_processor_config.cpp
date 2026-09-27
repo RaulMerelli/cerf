@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/vr4121/vr4121_id.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4121;
+        return bd && bd->GetSocId() == SocId::Vr4121;
     }
 
     /* PRId (CP0 r15) UM Fig 6-18: [31:16] RFU reads 0, Imp[15:8] = 0x0C for the

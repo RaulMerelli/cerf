@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "poseidon_id.h"
 
 namespace {
 
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::Poseidon;
+        return bd && bd->GetSocId() == SocId::Poseidon;
     }
 
     /* ARM7TDMI Data Sheet (ARM DDI 0029E) STM, Block Data Transfer:

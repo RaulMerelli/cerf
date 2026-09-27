@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../boards/jornada720/jornada_720_id.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa1111_gpio_port_a_sink.h"
@@ -18,7 +19,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -28,16 +29,16 @@ public:
     uint32_t MmioSize() const override { return 0x00000200u; }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(ddr_, sizeof(ddr_));
-        w.WriteBytes(dwr_, sizeof(dwr_));
-        w.WriteBytes(sdr_, sizeof(sdr_));
-        w.WriteBytes(ssr_, sizeof(ssr_));
+        w.WriteBytes("ddr", ddr_, sizeof(ddr_));
+        w.WriteBytes("dwr", dwr_, sizeof(dwr_));
+        w.WriteBytes("sdr", sdr_, sizeof(sdr_));
+        w.WriteBytes("ssr", ssr_, sizeof(ssr_));
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(ddr_, sizeof(ddr_));
-        r.ReadBytes(dwr_, sizeof(dwr_));
-        r.ReadBytes(sdr_, sizeof(sdr_));
-        r.ReadBytes(ssr_, sizeof(ssr_));
+        r.ReadBytes("ddr", ddr_, sizeof(ddr_));
+        r.ReadBytes("dwr", dwr_, sizeof(dwr_));
+        r.ReadBytes("sdr", sdr_, sizeof(sdr_));
+        r.ReadBytes("ssr", ssr_, sizeof(ssr_));
     }
 
     uint32_t ReadWord(uint32_t addr) override {

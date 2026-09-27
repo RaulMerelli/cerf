@@ -1,5 +1,6 @@
 #include "../board_context.h"
 
+#include "nec_mobilepro_900_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -8,16 +9,7 @@ class NecMobilePro900Context : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board       GetBoard()  const override { return Board::NecMobilePro900; }
-    SocFamily   GetSoc()    const override { return SocFamily::PXA25x; }
-    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
-
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{ 640, 240 };
-    }
-
-    uint32_t GetGuestAdditionsColorDepth() const override { return 24u; }
+    std::string_view GetBoardId() const override { return BoardId::NecMobilepro900; }
 };
 
 }  /* namespace */

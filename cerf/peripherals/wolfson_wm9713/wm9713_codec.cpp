@@ -1,6 +1,7 @@
 #include "wm9713_codec.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/symbol_mk500/symbol_mk500_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../state/state_stream.h"
@@ -54,7 +55,7 @@ uint16_t LowestSel(uint16_t sel) {
 
 bool Wm9713Codec::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SymbolMk500;
+    return bd && bd->GetBoardId() == BoardId::SymbolMk500;
 }
 
 void Wm9713Codec::OnReady() {
@@ -136,11 +137,11 @@ void Wm9713Codec::PushLocked(uint16_t word) {
 }
 
 void Wm9713Codec::SaveState(StateWriter& w) {
-    w.WriteBytes(reg_, sizeof(reg_));
+    w.WriteBytes("reg", reg_, sizeof(reg_));
 }
 
 void Wm9713Codec::RestoreState(StateReader& r) {
-    r.ReadBytes(reg_, sizeof(reg_));
+    r.ReadBytes("reg", reg_, sizeof(reg_));
 }
 
 REGISTER_SERVICE_AS(Wm9713Codec, Ac97Codec);

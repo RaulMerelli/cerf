@@ -7,6 +7,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace {
 
@@ -18,7 +19,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetSoc() == SocFamily::iMX6;
+        return board && board->GetSocId() == SocId::Imx6;
     }
 
     void OnReady() override {

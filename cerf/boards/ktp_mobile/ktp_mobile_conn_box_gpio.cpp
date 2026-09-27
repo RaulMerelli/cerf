@@ -5,6 +5,7 @@
 #include "../../socs/imx6/imx6_uart2.h"
 
 #include <cstdint>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
     void OnReady() override { emu_.Get<Imx6GpioBus>().RegisterSource(this); }
 
@@ -43,14 +44,14 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(static_cast<uint8_t>(armed_ ? 1u : 0u));
-        w.Write(static_cast<uint8_t>(box_id_sent_ ? 1u : 0u));
+        w.Write("armed", static_cast<uint8_t>(armed_ ? 1u : 0u));
+        w.Write("box_id_sent", static_cast<uint8_t>(box_id_sent_ ? 1u : 0u));
     }
     void RestoreState(StateReader& r) override {
         uint8_t a = 0;
         uint8_t b = 0;
-        r.Read(a);
-        r.Read(b);
+        r.Read("armed", a);
+        r.Read("box_id_sent", b);
         armed_ = a != 0;
         box_id_sent_ = b != 0;
     }

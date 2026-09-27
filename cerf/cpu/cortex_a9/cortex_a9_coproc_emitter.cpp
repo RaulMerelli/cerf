@@ -8,6 +8,7 @@
 #include "../../jit/x86_emit.h"
 
 #include <cstddef>
+#include "../../socs/imx6/imx6_id.h"
 
 namespace {
 
@@ -33,7 +34,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
 
     uint8_t* EmitRegisterTransfer(uint8_t* cursor, DecodedInsn* d, BlockContext* ctx) override {

@@ -3,6 +3,7 @@
 #include "msm8255_mddi_client.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -71,7 +72,7 @@ constexpr uint32_t kMaxChainItems = 25u;
 
 bool Msm8255MddiLinkList::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::MSM8255;
+    return bd && bd->GetSocId() == SocId::Msm8255;
 }
 
 uint32_t Msm8255MddiLinkList::ReadUnalignedWord(uint32_t pa) {

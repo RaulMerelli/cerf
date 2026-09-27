@@ -3,13 +3,12 @@
 #include "ite_it8181.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/nec_mobilepro_700/nec_mobilepro_700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/panel_frame_renderer.h"
 #include "../../lcd/panel_scanout.h"
 
 namespace {
-
-constexpr size_t kContentProbeStride = 251;
 
 class IteIt8181Renderer : public PanelFrameRenderer {
 public:
@@ -17,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro700;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {
@@ -31,7 +30,7 @@ public:
         if (!lcd.IsEnabled())  return false;
         if (latch_.Latched())  return true;
         const uint32_t bytes = lcd.StrideBytes() * lcd.GuestH();
-        return latch_.ProbeAndLatch(lcd.FbBytes(), bytes, kContentProbeStride);
+        return latch_.ProbeAndLatch(lcd.FbBytes(), bytes);
     }
 
     void RenderInto(uint32_t* dib, uint32_t host_w, uint32_t host_h) override {
@@ -44,7 +43,7 @@ public:
     }
 
 private:
-    PanelScanout scanout_{PanelPixelFormat::kGray2Msb};
+    PanelScanout scanout_{PanelPixelFormat::kGray2MsbInverted};
 };
 
 }  /* namespace */

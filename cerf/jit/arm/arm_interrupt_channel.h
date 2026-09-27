@@ -9,7 +9,7 @@
 
 struct ArmCpuState;
 
-class ArmProcessorConfig;
+class GuestCycleClock;
 
 class ArmInterruptChannel : public Service {
 public:
@@ -23,6 +23,7 @@ public:
 
     void SetInterruptPending();
     void ClearInterruptPending();
+    void SetIdleWake(bool level);
 
     uint32_t Level() const { return irq_line_.load(std::memory_order_acquire); }
 
@@ -42,12 +43,15 @@ public:
 
     void Wake();
 
+    void WaitForInterrupt();
+
     static void __fastcall WfiHelper(ArmInterruptChannel* channel);
 
 private:
     std::atomic<uint32_t> irq_line_{0};
+    std::atomic<uint32_t> idle_wake_line_{0};
     void*                 idle_event_ = nullptr;
 
-    ArmCpuState*        cpu_state_        = nullptr;
-    ArmProcessorConfig* processor_config_ = nullptr;
+    ArmCpuState*     cpu_state_ = nullptr;
+    GuestCycleClock* clock_     = nullptr;
 };

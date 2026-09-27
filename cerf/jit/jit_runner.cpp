@@ -2,12 +2,12 @@
 
 #include "../core/cerf_emulator.h"
 #include "../core/fatal.h"
-#include "../core/host_thread_priority.h"
 #include "../core/log.h"
 #include "../core/rate_probe.h"
 #include "../core/virtual_clock.h"
 #include "../peripherals/peripheral_dispatcher.h"
 #include "guest_engine.h"
+#include "guest_cycle_clock.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -86,7 +86,6 @@ void JitRunner::Resume() {
 }
 
 void JitRunner::RunLoop() {
-    emu_.Get<HostThreadPriority>().Elevate(HostThreadRole::GuestCpu);
     LOG(Jit, "JitRunner::RunLoop: entered, resolving engine\n");
     /* Resolve the guest engine lazily on the JIT thread - first Get<T> walks the
        OnReady dependency chain. A Get<> in JitRunner::OnReady is service
@@ -107,6 +106,8 @@ void JitRunner::RunLoop() {
     auto& probe = emu_.Get<RateProbe>();
 #endif
 
+    GuestCycleClock* cycle_clock = emu_.TryGet<GuestCycleClock>();
+
     bool prev_deep_sleep = false;
     while (!stop_requested_.load(std::memory_order_acquire)) {
 #if CERF_DEV_MODE
@@ -126,6 +127,7 @@ void JitRunner::RunLoop() {
             prev_deep_sleep = ds;
         }
         if (pause_requested_.load(std::memory_order_acquire) || engine.DeepSleep()) {
+            if (cycle_clock != nullptr) cycle_clock->OnDispatch();
             std::unique_lock<std::mutex> lk(pause_mutex_);
             paused_ = true;
             vclock.Pause();

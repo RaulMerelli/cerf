@@ -18,9 +18,9 @@ void GuestCpuReset::SetCauseLatch(ResetCauseLatch* latch) {
 }
 
 void GuestCpuReset::WarmReset() {
-    LOG(SocReset, "GuestCpuReset: host warm reset requested\n");
     if (latch_) latch_->LatchWarmReset();
-    pending_kind_.store(ResetKind::Warm, std::memory_order_release);
+    pending_kind_.store(ResetLineKind::Other, std::memory_order_release);
+    pending_reset_kind_.store(ResetKind::Warm, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
@@ -28,21 +28,25 @@ void GuestCpuReset::WarmReset() {
    RTC unit" (VR4102 UM 15.1.1(1); Table 15-1 "RTC reset" row: RTC = Reset). The RTC-and-PMU
    exemption is the RSTSW row's (UM 15.1.1(2)). */
 void GuestCpuReset::ColdReset() {
-    LOG(SocReset, "GuestCpuReset: host cold reset requested\n");
     if (latch_) latch_->LatchColdReset();
-    pending_kind_.store(ResetKind::Cold, std::memory_order_release);
+    pending_kind_.store(ResetLineKind::Rtc, std::memory_order_release);
+    pending_reset_kind_.store(ResetKind::Cold, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::WatchdogReset() {
-    LOG(SocReset, "GuestCpuReset: watchdog reset requested\n");
     if (latch_) latch_->LatchWatchdogReset();
-    pending_kind_.store(ResetKind::Watchdog, std::memory_order_release);
+    pending_kind_.store(ResetLineKind::Other, std::memory_order_release);
+    pending_reset_kind_.store(ResetKind::Watchdog, std::memory_order_release);
     emu_.Get<GuestEngine>().SetResetPending(false);
 }
 
 void GuestCpuReset::RegisterResetListener(std::function<void(ResetLineKind)> fn) {
     reset_listeners_.push_back(std::move(fn));
+}
+
+void GuestCpuReset::RegisterResetReleaseListener(std::function<void()> fn) {
+    release_listeners_.push_back(std::move(fn));
 }
 
 void GuestCpuReset::RegisterResetKindListener(std::function<void(ResetKind)> fn) {
@@ -58,35 +62,37 @@ void GuestCpuReset::SetPendingResume(bool is_resume) {
 }
 
 void GuestCpuReset::SaveState(StateWriter& w) const {
-    w.Write<uint32_t>(static_cast<uint32_t>(pending_kind_.load(std::memory_order_acquire)));
-    w.Write<uint8_t>(pending_is_resume_.load(std::memory_order_acquire) ? 1u : 0u);
+    w.Write<uint32_t>("pending_kind", static_cast<uint32_t>(pending_kind_.load(std::memory_order_acquire)));
+    w.Write<uint32_t>("pending_reset_kind", static_cast<uint32_t>(pending_reset_kind_.load(std::memory_order_acquire)));
+    w.Write<uint8_t>("pending_is_resume", pending_is_resume_.load(std::memory_order_acquire) ? 1u : 0u);
 }
 
 void GuestCpuReset::RestoreState(StateReader& r) {
     uint32_t kind = 0;
-    r.Read(kind);
-    if (kind != static_cast<uint32_t>(ResetKind::Cold) &&
-        kind != static_cast<uint32_t>(ResetKind::Warm) &&
-        kind != static_cast<uint32_t>(ResetKind::Watchdog)) {
-        LOG(Caution, "GuestCpuReset: state image carries reset kind %u, which is not a "
-                "ResetKind - restoring it would deliver a reset with the wrong source\n",
-            kind);
-        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-    }
-    pending_kind_.store(static_cast<ResetKind>(kind), std::memory_order_release);
+    r.Read("pending_kind", kind);
+    if (kind != static_cast<uint32_t>(ResetLineKind::Rtc) &&
+        kind != static_cast<uint32_t>(ResetLineKind::Other))
+        r.Reject("reset kind %u is not a ResetLineKind", kind);
+    pending_kind_.store(static_cast<ResetLineKind>(kind), std::memory_order_release);
+    uint32_t reset_kind = 0;
+    r.Read("pending_reset_kind", reset_kind);
+    if (reset_kind > static_cast<uint32_t>(ResetKind::Watchdog))
+        r.Reject("reset kind %u is not a ResetKind", reset_kind);
+    pending_reset_kind_.store(static_cast<ResetKind>(reset_kind), std::memory_order_release);
     uint8_t resume = 0;
-    r.Read(resume);
+    r.Read("pending_is_resume", resume);
     pending_is_resume_.store(resume != 0, std::memory_order_release);
 }
 
 void GuestCpuReset::OnResetDelivered() {
-    const ResetKind kind =
-        pending_kind_.exchange(ResetKind::Warm, std::memory_order_acq_rel);
-    const ResetLineKind legacy_kind =
-        kind == ResetKind::Cold ? ResetLineKind::Rtc : ResetLineKind::Other;
+    const ResetLineKind kind =
+        pending_kind_.exchange(ResetLineKind::Other, std::memory_order_acq_rel);
     delivered_is_resume_ = pending_is_resume_.exchange(false, std::memory_order_acq_rel);
-    for (auto& fn : reset_listeners_) fn(legacy_kind);
-    for (auto& fn : reset_kind_listeners_) fn(kind);
+    const ResetKind reset_kind =
+        pending_reset_kind_.exchange(ResetKind::Warm, std::memory_order_acq_rel);
+    for (auto& fn : reset_listeners_) fn(kind);
+    for (auto& fn : reset_kind_listeners_) fn(reset_kind);
     emu_.Get<GuestColdBoot>().ExecuteIfPending();
-    for (auto& fn : post_reset_kind_listeners_) fn(kind);
+    for (auto& fn : release_listeners_) fn();
+    for (auto& fn : post_reset_kind_listeners_) fn(reset_kind);
 }

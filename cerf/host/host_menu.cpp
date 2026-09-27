@@ -5,7 +5,7 @@
 #include "../boot/guest_cold_boot.h"
 #include "../core/cerf_emulator.h"
 #include "../socs/guest_cpu_reset.h"
-#include "about_dialog.h"
+#include "about_transaction.h"
 #include "host_canvas.h"
 #include "host_input_capture.h"
 #include "host_key_binding.h"
@@ -14,7 +14,6 @@
 #include "host_widget_registry.h"
 #include "settings_transaction.h"
 #include "host_window.h"
-#include "memory_visualizer.h"
 #include "emulation_pause.h"
 #include "../state/hibernation.h"
 
@@ -35,7 +34,6 @@ enum MenuId : int {
     kIdViewBoot    = 100,
     kIdViewHw      = 101,
     kIdViewFb      = 102,
-    kIdViewMemViz  = 103,
     kIdVpOriginal  = 110,
     kIdVpAspect    = 111,
     kIdVpStretch   = 112,
@@ -65,8 +63,6 @@ HMENU HostMenu::Build() {
     AppendMenuW(view, MF_STRING, kIdViewBoot, L"Boot Screen");
     AppendMenuW(view, MF_STRING, kIdViewHw,   L"Hardware Screen");
     AppendMenuW(view, MF_STRING, kIdViewFb,     L"Framebuffer");
-    if (emu_.TryGet<MemoryVisualizer>())
-        AppendMenuW(view, MF_STRING, kIdViewMemViz, L"Memory Visualizer (dev)");
     AppendMenuW(view, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(view, MF_STRING, kIdVpOriginal, L"Original view");
     AppendMenuW(view, MF_STRING, kIdVpAspect,   L"Resize + match aspect ratio");
@@ -107,9 +103,8 @@ void HostMenu::Sync() {
         case HostCanvas::Tab::Boot:             view_id = kIdViewBoot; break;
         case HostCanvas::Tab::Hw:             view_id = kIdViewHw;   break;
         case HostCanvas::Tab::Framebuffer:      view_id = kIdViewFb;     break;
-        case HostCanvas::Tab::MemoryVisualizer: view_id = kIdViewMemViz; break;
     }
-    CheckMenuRadioItem(view, kIdViewBoot, kIdViewMemViz, view_id, MF_BYCOMMAND);
+    CheckMenuRadioItem(view, kIdViewBoot, kIdViewFb, view_id, MF_BYCOMMAND);
     int vp_id = kIdVpOriginal;
     switch (canvas.Mode()) {
         case HostCanvas::ViewportMode::Original: vp_id = kIdVpOriginal; break;
@@ -208,7 +203,6 @@ void HostMenu::HandleCommand(int id) {
         case kIdViewBoot:   canvas.SetTab(HostCanvas::Tab::Boot, true);        break;
         case kIdViewHw:   canvas.SetTab(HostCanvas::Tab::Hw, true);        break;
         case kIdViewFb:     canvas.SetTab(HostCanvas::Tab::Framebuffer, true); break;
-        case kIdViewMemViz: canvas.SetTab(HostCanvas::Tab::MemoryVisualizer, true); break;
         case kIdVpOriginal: canvas.SetViewportMode(HostCanvas::ViewportMode::Original);
                             emu_.Get<HostWindow>().RefitIfFollowingGuest(); break;
         case kIdVpAspect:   canvas.SetViewportMode(HostCanvas::ViewportMode::Aspect);
@@ -226,7 +220,9 @@ void HostMenu::HandleCommand(int id) {
         case kIdSaveShot:   emu_.Get<HostScreenshot>().Save(); break;
         case kIdCopyShot:   emu_.Get<HostScreenshot>().Copy(); break;
         case kIdMatchGuest: emu_.Get<HostWindow>().MatchGuestSize(); break;
-        case kIdAbout:      emu_.Get<AboutDialog>().Show(); break;
+        case kIdAbout:
+            emu_.Get<AboutTransaction>().Open(emu_.Get<HostWindow>().Hwnd());
+            break;
         case kIdArticles:
             emu_.Get<HostLinkOpener>().Open(nullptr, kArticlesUrl);
             break;

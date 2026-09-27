@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -35,7 +36,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetSoc() == SocFamily::MSM8255;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -61,7 +62,7 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write<uint32_t>(reg04_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("reg04", reg04_.load(std::memory_order_acquire));
         emu_.Get<Msm8255RpcRouterPeer>().SaveState(w);
         for (auto* server : emu_.Get<Msm8255RpcServerRegistry>().Servers()) {
             server->SaveState(w);
@@ -71,9 +72,9 @@ public:
 
     void RestoreState(StateReader& r) override {
         uint32_t reg04 = 0;
-        r.Read(reg04);
+        r.Read("reg04", reg04);
         if (reg04 != kReg04Reset && reg04 != kReg04Accepted) {
-            emu_.Get<Fatal>().Die(
+            r.Reject(
                 "msm8255 gcc: restored +0x04 value 0x%08X was never written "
                 "by the guest", reg04);
         }

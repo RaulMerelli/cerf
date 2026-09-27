@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
+
+
+LAUNCHER_DIR_NAME = "launcher"
 
 
 def exe_dir() -> Path:
@@ -14,29 +17,33 @@ def exe_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def install_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return exe_dir().parent
+    return exe_dir()
+
+
 def resolve_devices_dir() -> Path:
-    # The launcher and cerf.exe are co-located; cerf.exe reads/writes its ROMs
-    # and state.img under "<exe dir>/devices", so the launcher uses the same tree.
-    return exe_dir() / "devices"
+    return install_root() / "devices"
 
 
 def resolve_cerf_exe() -> Optional[Path]:
-    candidate = exe_dir() / "cerf.exe"
+    candidate = install_root() / "cerf.exe"
     if candidate.is_file():
         return candidate
     return None
 
 
-def resolve_icon() -> Optional[Path]:
+def resolve_icon(name: str = "cerf.ico") -> Optional[Path]:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        candidate = Path(meipass) / "launcher.ico"
+        candidate = Path(meipass) / name
         if candidate.is_file():
             return candidate
-    candidate = exe_dir() / "launcher.ico"
+    candidate = exe_dir() / name
     if candidate.is_file():
         return candidate
-    repo_candidate = exe_dir() / ".." / "cerf" / "assets" / "launcher.ico"
+    repo_candidate = exe_dir() / ".." / "cerf" / "assets" / name
     if repo_candidate.is_file():
         return repo_candidate.resolve()
     return None
@@ -55,14 +62,15 @@ def resolve_icons_dir() -> Optional[Path]:
     return None
 
 
-def resolve_logo() -> Optional[Path]:
+def resolve_asset(name: str) -> Optional[Path]:
     meipass = getattr(sys, "_MEIPASS", None)
     candidates: List[Path] = []
     if meipass:
-        candidates.append(Path(meipass) / "assets" / "cerf_1024.png")
-    candidates.append(exe_dir() / "assets" / "cerf_1024.png")
-    candidates.append(Path(__file__).resolve().parent.parent / "cerf"
-                      / "assets" / "cerf_1024.png")
+        candidates.append(Path(meipass) / "assets" / name)
+    candidates.append(exe_dir() / "assets" / name)
+    here = Path(__file__).resolve().parent
+    candidates.append(here / "assets" / name)
+    candidates.append(here.parent / "cerf" / "assets" / name)
     for path in candidates:
         if path.is_file():
             return path
@@ -103,20 +111,27 @@ def resolve_version_tuple() -> Optional[tuple]:
             _int_define(text, "CERF_VERSION_BUILD") or 0)
 
 
-def resolve_version() -> str:
+def resolve_version_parts() -> Tuple[str, str]:
     text = _version_header_text()
     major = _int_define(text, "CERF_VERSION_MAJOR")
     minor = _int_define(text, "CERF_VERSION_MINOR")
     if major is None or minor is None:
-        return ""
+        return "", ""
     patch = _int_define(text, "CERF_VERSION_PATCH") or 0
     version = "{}.{}".format(major, minor)
     if patch:
         version += ".{}".format(patch)
     build = _int_define(text, "CERF_VERSION_BUILD") or 0
     if not build:
-        return version
+        return version, ""
     detail = [part for part in ("build {}".format(build),
                                 _str_define(text, "CERF_VERSION_DATE"),
                                 _str_define(text, "CERF_VERSION_SHA")) if part]
-    return "{} ({})".format(version, ", ".join(detail))
+    return version, ", ".join(detail)
+
+
+def resolve_version() -> str:
+    version, detail = resolve_version_parts()
+    if not version or not detail:
+        return version
+    return "{} ({})".format(version, detail)

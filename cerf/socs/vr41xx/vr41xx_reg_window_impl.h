@@ -4,11 +4,13 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
 
 #include <cstdint>
+#include <typeinfo>
 
 namespace cerf_vr41xx_reg_window_detail {
 
@@ -50,25 +52,26 @@ struct Vr41xxRegWindowModel {
     Vr41xxRegSpec reg[kMaxRegs];
 };
 
-template <SocFamily Soc, Vr41xxRegWindowModel M>
+template <const std::string_view& Soc, Vr41xxRegWindowModel M>
 class Vr41xxRegWindowBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == Soc;
+        return bd && bd->GetSocId() == Soc;
     }
 
     void OnReady() override {
-        for (uint32_t i = 0; i < M.num_regs; ++i) reg_[i] = M.reg[i].reset;
+        for (uint32_t i = 0; i < M.num_regs; ++i) reg_[i] = ResetValue(i, true);
         emu_.Get<PeripheralDispatcher>().Register(this);
         emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind kind) {
             const bool rtc = kind == ResetLineKind::Rtc;
             for (uint32_t i = 0; i < M.num_regs; ++i) {
-                if (rtc || M.reg[i].other_reset == OtherReset::kReset) reg_[i] = M.reg[i].reset;
+                if (rtc || M.reg[i].other_reset == OtherReset::kReset) reg_[i] = ResetValue(i, rtc);
                 undefined_[i] = rtc ? uint16_t{0} : M.reg[i].undefined_on_other_reset;
             }
+            AfterReset();
         });
     }
 
@@ -91,13 +94,14 @@ public:
     void WriteHalf(uint32_t addr, uint16_t value) override {
         const uint32_t i = RegIndex(addr, "WriteHalf", value);
         if (value & M.reg[i].fatal_on_set) {
-            HaltUnsupportedAccess("WriteHalf sets an unmodeled trigger bit", addr, value);
+            HaltUnsupportedAccess((value & M.reg[i].fatal_on_set & M.reg[i].wmask) != 0u
+                                      ? "WriteHalf sets an unmodeled trigger bit"
+                                      : "WriteHalf sets a write-0 RFU bit",
+                                  addr, value);
         }
         switch (M.reg[i].write) {
             case WriteKind::kStored:
-                reg_[i] = static_cast<uint16_t>((reg_[i] & ~M.reg[i].wmask) |
-                                                (value & M.reg[i].wmask));
-                undefined_[i] = static_cast<uint16_t>(undefined_[i] & ~M.reg[i].wmask);
+                StoreMasked(i, value);
                 return;
             case WriteKind::kClear:
                 reg_[i] = static_cast<uint16_t>(reg_[i] & ~(value & M.reg[i].wmask));
@@ -126,15 +130,42 @@ public:
     void WriteByte(uint32_t addr, uint8_t v) override { HaltUnsupportedAccess("WriteByte", addr, v); }
 
     void SaveState(StateWriter& w) override {
-        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write(reg_[i]);
-        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write(undefined_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write(RegStateName(), reg_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) w.Write("undefined", undefined_[i]);
     }
     void RestoreState(StateReader& r) override {
-        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read(reg_[i]);
-        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read(undefined_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read(RegStateName(), reg_[i]);
+        for (uint32_t i = 0; i < M.num_regs; ++i) r.Read("undefined", undefined_[i]);
+    }
+
+protected:
+    virtual const char* RegStateName() const { return "reg"; }
+
+    virtual uint16_t ResetValue(uint32_t i, bool rtc) const {
+        (void)rtc;
+        return M.reg[i].reset;
+    }
+    virtual void AfterReset() {}
+
+    uint16_t StoredReg(uint32_t i) const { return reg_[i]; }
+
+    void ApplyStoredWrite(uint32_t offset, uint16_t value) {
+        const uint32_t i = offset / 2u;
+        if ((offset & 1u) || i >= M.num_regs || M.reg[i].write != WriteKind::kStored ||
+            (value & ~M.reg[i].wmask) != 0u || (value & M.reg[i].fatal_on_set) != 0u) {
+            emu_.Get<Fatal>().Die("%s: stored write 0x%04X at offset 0x%02X is not a "
+                                  "stored-register write", typeid(*this).name(), value,
+                                  offset);
+        }
+        StoreMasked(i, value);
     }
 
 private:
+    void StoreMasked(uint32_t i, uint16_t value) {
+        reg_[i] = static_cast<uint16_t>((reg_[i] & ~M.reg[i].wmask) | (value & M.reg[i].wmask));
+        undefined_[i] = static_cast<uint16_t>(undefined_[i] & ~M.reg[i].wmask);
+    }
+
     uint32_t RegIndex(uint32_t addr, const char* what, uint32_t value) {
         const uint32_t off = addr - M.base;
         if (off >= M.num_regs * 2u || (off & 1u)) HaltUnsupportedAccess(what, addr, value);

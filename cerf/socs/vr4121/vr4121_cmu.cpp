@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_reg_window_impl.h"
 
 #include <cstdint>
+#include "vr4121_id.h"
 
 namespace {
 
@@ -23,7 +24,7 @@ constexpr Vr41xxRegWindowModel kModel = {
     },
 };
 
-class Vr4121Cmu : public Vr41xxRegWindowBase<SocFamily::VR4121, kModel> {
+class Vr4121Cmu : public Vr41xxRegWindowBase<SocId::Vr4121, kModel> {
 public:
     using Vr41xxRegWindowBase::Vr41xxRegWindowBase;
 };

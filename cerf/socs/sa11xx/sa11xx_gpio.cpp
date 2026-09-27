@@ -2,13 +2,15 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "sa11xx_intc.h"
 
 bool Sa11xxGpio::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxGpio::OnReady() {
@@ -107,24 +109,24 @@ void Sa11xxGpio::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxGpio::SaveState(StateWriter& w) {
     std::unique_lock<std::mutex> lk(mtx_);
-    w.Write(output_state_);
-    w.Write(input_state_);
-    w.Write(gpdr_);
-    w.Write(grer_);
-    w.Write(gfer_);
-    w.Write(gedr_);
-    w.Write(gafr_);
+    w.Write("output_state", output_state_);
+    w.Write("input_state", input_state_);
+    w.Write("gpdr", gpdr_);
+    w.Write("grer", grer_);
+    w.Write("gfer", gfer_);
+    w.Write("gedr", gedr_);
+    w.Write("gafr", gafr_);
 }
 
 void Sa11xxGpio::RestoreState(StateReader& r) {
     std::unique_lock<std::mutex> lk(mtx_);
-    r.Read(output_state_);
-    r.Read(input_state_);
-    r.Read(gpdr_);
-    r.Read(grer_);
-    r.Read(gfer_);
-    r.Read(gedr_);
-    r.Read(gafr_);
+    r.Read("output_state", output_state_);
+    r.Read("input_state", input_state_);
+    r.Read("gpdr", gpdr_);
+    r.Read("grer", grer_);
+    r.Read("gfer", gfer_);
+    r.Read("gedr", gedr_);
+    r.Read("gafr", gafr_);
 }
 
 void Sa11xxGpio::PostRestore() {

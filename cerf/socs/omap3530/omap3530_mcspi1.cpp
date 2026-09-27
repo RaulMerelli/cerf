@@ -1,6 +1,7 @@
 #include "omap3530_mcspi1.h"
 
 #include "../../boards/board_context.h"
+#include "omap3530_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -41,7 +42,7 @@ REGISTER_SERVICE(Omap3530Mcspi1);
 
 bool Omap3530Mcspi1::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::OMAP3530;
+    return bd && bd->GetSocId() == SocId::Omap3530;
 }
 
 void Omap3530Mcspi1::OnReady() {

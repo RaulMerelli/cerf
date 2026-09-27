@@ -15,12 +15,12 @@
 #define ROMS_MASK_KEY    RGB(255, 0, 255)
 
 static const TCHAR* ROMS_LINK = TEXT("How to run other ROMs?");
-static const TCHAR* ROMS_ITEM = TEXT("launcher.exe");
+static const TCHAR* ROMS_ITEM = TEXT("CE Runtime Foundation");
 
 static const TCHAR* ROMS_BODY =
     TEXT("You are booting CerfOS - the small demo OS without any ")
-    TEXT("components. If you would like to boot other ROMs - open the ")
-    TEXT("launcher on your host near CERF executable.");
+    TEXT("components. If you would like to boot other ROMs - open ")
+    TEXT("CE Runtime Foundation on your host.");
 
 static RECT    g_roms_linkrect;
 static HWND    g_roms_dlg;
@@ -70,7 +70,7 @@ static void AttachIcon(HWND list) {
     himl = ImageList_Create(g_icon_cx, g_icon_cy, ILC_COLOR | ILC_MASK, 1, 0);
     if (!himl) return;
 
-    icon = LoadIcon(g_inst, MAKEINTRESOURCE(IDI_LAUNCHER));
+    icon = LoadIcon(g_inst, MAKEINTRESOURCE(IDI_CERF));
     if (icon) {
         ImageList_ReplaceIcon(himl, -1, icon);
         DestroyIcon(icon);
@@ -168,8 +168,8 @@ static LRESULT CALLBACK RomsProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
         LPNMHDR nh = (LPNMHDR)lp;
         if (g_roms_list && nh->hwndFrom == g_roms_list &&
             nh->code == NM_DBLCLK) {
-            MessageBox(h, TEXT("Not this one! Find launcher.exe on your ")
-                          TEXT("host, near cerf.exe."),
+            MessageBox(h, TEXT("Not this one! Open CE Runtime Foundation ")
+                          TEXT("on your host."),
                        TEXT("CE Runtime Foundation"),
                        MB_OK | MB_ICONINFORMATION);
             return 0;

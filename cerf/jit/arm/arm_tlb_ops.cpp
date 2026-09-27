@@ -32,8 +32,7 @@ void SetLargeSpanSlot(ArmTlbUnit* unit, uint32_t slot, bool large) {
 
 void TrackLargeSpan(ArmTlbUnit* unit, uint32_t slot, bool add) {
     const ArmTlbEntry& entry = unit->entries[slot];
-    const bool large = entry.tag != kArmTlbInvalidTag && entry.span_shift > 12u;
-    if (!large) {
+    if (!ArmTlbEntryIsWideSpan(entry)) {
         SetLargeSpanSlot(unit, slot, false);
         return;
     }
@@ -68,13 +67,10 @@ void TrackLargeSpan(ArmTlbUnit* unit, uint32_t slot, bool add) {
 ArmTlbEntry& PrepareInsert(ArmTlbUnit* unit, uint32_t base) {
     TrackLargeSpan(unit, base + kArmTlbWays - 1u, false);
     ArmTlbEntry& entry = ArmTlbInsertSlot(unit, base);
-    if (unit->span_tracker) {
-        for (uint32_t w = 0; w < kArmTlbWays; ++w) {
-            const ArmTlbEntry& shifted = unit->entries[base + w];
-            SetLargeSpanSlot(unit, base + w,
-                             shifted.tag != kArmTlbInvalidTag &&
-                             shifted.span_shift > 12u);
-        }
+    if (ArmTlbSpanTracker* tracker = unit->span_tracker) {
+        uint32_t& bits = tracker->entry_bits[base >> 5];
+        const uint32_t field = ArmTlbSpanBitField(base);
+        bits = (bits & ~field) | ((((bits & field) << 1)) & field);
     }
     return entry;
 }
@@ -117,7 +113,7 @@ ArmTlbInvalidation ArmTlbInvalidateByVa(ArmTlbUnit* unit,
         }
         for (uint32_t w = 0; w < kArmTlbWays; ++w) {
             ArmTlbEntry& entry = unit->entries[base + w];
-            if (entry.span_shift <= 12u &&
+            if (!ArmTlbEntryIsWideSpan(entry) &&
                 (entry.tag & ~kArmTlbIoTagBit) == page) {
                 entry.tag = kArmTlbInvalidTag;
             }
@@ -132,11 +128,8 @@ ArmTlbInvalidation ArmTlbInvalidateByVa(ArmTlbUnit* unit,
    corresponds to folded_va's PA, so va_addend = host - folded_va reconstructs
    the host pointer for any access in the page (the page offset cancels). */
 void FillFastTlb(ArmTlbUnit* unit, uint32_t folded_va, uint8_t* host,
-                 uint32_t pa, uint8_t asid,
-                 const ArmTlbFillSlot& slot, bool writable) {
-    const bool global = slot.global;
-    const uint16_t par_attrs = slot.par_attrs;
-    const uint32_t span_bytes = slot.span_bytes;
+                 uint32_t pa, uint8_t asid, bool global, bool writable,
+                 uint32_t span_bytes, uint16_t par_attrs) {
     const uint32_t base = ArmTlbSetBase(folded_va);
     const uint32_t page = folded_va & 0xFFFFF000u;
     /* Reuse an existing way for the same page (e.g. a read-only entry being
@@ -167,10 +160,8 @@ void FillFastTlb(ArmTlbUnit* unit, uint32_t folded_va, uint8_t* host,
    records its PA tagged kArmTlbIoTagBit. ArmTlbMatchIoWay later resolves it via
    SetIoPending with no walk; writable mirrors the RAM read-only-upgrade rule. */
 void FillFastTlbIo(ArmTlbUnit* unit, uint32_t folded_va, uint32_t pa,
-                   uint8_t asid, const ArmTlbFillSlot& slot, bool writable) {
-    const bool global = slot.global;
-    const uint16_t par_attrs = slot.par_attrs;
-    const uint32_t span_bytes = slot.span_bytes;
+                   uint8_t asid, bool global, bool writable,
+                   uint32_t span_bytes, uint16_t par_attrs) {
     const uint32_t base   = ArmTlbSetBase(folded_va);
     const uint32_t io_tag = (folded_va & 0xFFFFF000u) | kArmTlbIoTagBit;
     ArmTlbEntry* e = nullptr;

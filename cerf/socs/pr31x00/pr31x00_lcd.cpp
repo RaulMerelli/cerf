@@ -1,6 +1,8 @@
 #include "pr31x00_lcd.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_window.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -111,8 +113,8 @@ constexpr uint32_t kPat28Reserved = 0xF0000000u;
 bool Pr31x00Lcd::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
     if (!bd) return false;
-    const SocFamily soc = bd->GetSoc();
-    return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+    const std::string_view soc = bd->GetSocId();
+    return soc == SocId::Pr31500 || soc == SocId::Pr31700;
 }
 
 void Pr31x00Lcd::OnReady() {
@@ -333,11 +335,11 @@ void Pr31x00Lcd::StorePattern(uint32_t idx, uint32_t addr, uint32_t value,
 }
 
 void Pr31x00Lcd::SaveState(StateWriter& w) {
-    for (uint32_t i = 0; i < kRegs; ++i) w.Write(reg_[i]);
+    for (uint32_t i = 0; i < kRegs; ++i) w.Write("reg", reg_[i]);
 }
 
 void Pr31x00Lcd::RestoreState(StateReader& r) {
-    for (uint32_t i = 0; i < kRegs; ++i) r.Read(reg_[i]);
+    for (uint32_t i = 0; i < kRegs; ++i) r.Read("reg", reg_[i]);
 }
 
 REGISTER_SERVICE(Pr31x00Lcd);

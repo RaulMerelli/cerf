@@ -5,6 +5,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -39,7 +40,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -88,13 +89,13 @@ public:
 
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write(dma_low_);
-        w.Write(dma_high_);
+        w.Write("dma_low", dma_low_);
+        w.Write("dma_high", dma_high_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(dma_low_);
-        r.Read(dma_high_);
+        r.Read("dma_low", dma_low_);
+        r.Read("dma_high", dma_high_);
     }
 
 private:
@@ -142,7 +143,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

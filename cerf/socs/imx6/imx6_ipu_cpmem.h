@@ -35,13 +35,13 @@ public:
 
     void SaveState(StateWriter& w) override {
         Imx6IpuInternalMem::SaveState(w);
-        w.Write(active_display_channel_);
-        w.WriteBytes(current_buffer_, sizeof(current_buffer_));
+        w.Write("active_display_channel", active_display_channel_);
+        w.WriteBytes("current_buffer", current_buffer_, sizeof(current_buffer_));
     }
     void RestoreState(StateReader& r) override {
         Imx6IpuInternalMem::RestoreState(r);
-        r.Read(active_display_channel_);
-        r.ReadBytes(current_buffer_, sizeof(current_buffer_));
+        r.Read("active_display_channel", active_display_channel_);
+        r.ReadBytes("current_buffer", current_buffer_, sizeof(current_buffer_));
     }
 
 private:

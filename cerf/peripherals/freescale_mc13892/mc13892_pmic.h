@@ -3,6 +3,7 @@
 #include "../../socs/i2c_slave.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/ford_sync2/ford_sync_2_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../state/state_stream.h"
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FordSyncGen2;
+        return bd && bd->GetBoardId() == BoardId::FordSync2;
     }
 
     bool MatchesAddress(uint8_t slave_addr) const override {
@@ -30,19 +31,19 @@ public:
     uint8_t TxnReadByte (uint8_t slave_addr) override;
 
     void SaveState(StateWriter& w) override {
-        for (uint32_t v : regs_) w.Write(v);
-        w.Write(sub_addr_);
-        w.Write<uint8_t>(sub_addr_pending_ ? 1 : 0);
-        w.Write<uint8_t>(wr_idx_);
-        w.Write<uint8_t>(rd_idx_);
+        for (uint32_t v : regs_) w.Write("regs", v);
+        w.Write("sub_addr", sub_addr_);
+        w.Write<uint8_t>("sub_addr_pending", sub_addr_pending_ ? 1 : 0);
+        w.Write<uint8_t>("wr_idx", wr_idx_);
+        w.Write<uint8_t>("rd_idx", rd_idx_);
     }
     void RestoreState(StateReader& r) override {
-        for (uint32_t& v : regs_) r.Read(v);
-        r.Read(sub_addr_);
+        for (uint32_t& v : regs_) r.Read("regs", v);
+        r.Read("sub_addr", sub_addr_);
         uint8_t b = 0;
-        r.Read(b); sub_addr_pending_ = b != 0;
-        r.Read(b); wr_idx_ = b;
-        r.Read(b); rd_idx_ = b;
+        r.Read("sub_addr_pending", b); sub_addr_pending_ = b != 0;
+        r.Read("wr_idx", b); wr_idx_ = b;
+        r.Read("rd_idx", b); rd_idx_ = b;
     }
 
 private:

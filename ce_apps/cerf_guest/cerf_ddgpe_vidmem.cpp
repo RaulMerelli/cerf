@@ -109,11 +109,6 @@ extern "C" void CerfPrimaryShadowPresent(void) {
 
 SCODE CerfDDGPE::AllocSurface(GPESurf** ppSurf, int width, int height,
                               EGPEFormat format, int surfaceFlags) {
-    CERF_LOG_X_DEV("cerf_guest: AllocSurface w", (DWORD)width);
-    CERF_LOG_X_DEV("cerf_guest: AllocSurface h", (DWORD)height);
-    CERF_LOG_X_DEV("cerf_guest: AllocSurface fmt", (DWORD)format);
-    CERF_LOG_X_DEV("cerf_guest: AllocSurface flags", (DWORD)surfaceFlags);
-
     const bool wantVideo =
         (surfaceFlags & (GPE_REQUIRE_VIDEO_MEMORY |
                          GPE_PREFER_VIDEO_MEMORY)) != 0;
@@ -131,17 +126,13 @@ SCODE CerfDDGPE::AllocSurface(GPESurf** ppSurf, int width, int height,
                                              format, CerfFormatToDDGPE(format),
                                              node->Address(), node);
             if (s && s->Buffer()) {
-                CERF_LOG_X_DEV("cerf_guest: AllocSurface video offset", node->Address());
-                CERF_LOG_X_DEV("cerf_guest: AllocSurface video obj", (DWORD)(ULONG_PTR)s);
                 *ppSurf = s;
                 return S_OK;
             }
             if (s) delete s; else node->Free();
         }
-        CERF_LOG_DEV("cerf_guest: AllocSurface video carve failed");
         if (requireVideo) { *ppSurf = NULL; return E_OUTOFMEMORY; }
     } else if (requireVideo) {
-        CERF_LOG_DEV("cerf_guest: AllocSurface require-video but no heap");
         *ppSurf = NULL;
         return E_OUTOFMEMORY;
     }
@@ -153,7 +144,6 @@ SCODE CerfDDGPE::AllocSurface(GPESurf** ppSurf, int width, int height,
             *ppSurf = NULL;
             return E_OUTOFMEMORY;
         }
-        CERF_LOG_DEV("cerf_guest: AllocSurface back buffer (guest RAM, video-tagged)");
         *ppSurf = bb;
         return S_OK;
     }
@@ -164,7 +154,6 @@ SCODE CerfDDGPE::AllocSurface(GPESurf** ppSurf, int width, int height,
         *ppSurf = NULL;
         return E_OUTOFMEMORY;
     }
-    CERF_LOG_DEV("cerf_guest: AllocSurface system memory");
     *ppSurf = sys;
     return S_OK;
 }

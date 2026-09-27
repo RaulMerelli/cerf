@@ -24,8 +24,8 @@ public:
    23.2.3: LEDCNTREG RTCRST = 0x0002, other resets "Previous value is retained"). */
 enum class ResetLineKind { Rtc, Other };
 
-/* i.MX6DQRM Rev.2 §60.1: SRC distinguishes POR, WARM, and COLD reset
-   sources and resets domains according to the source and reset type. */
+/* IMX6DQRM Rev.2 §60.1: the SRC reports which source drove the reset, and a peripheral's
+   reset value can differ between them. */
 enum class ResetKind { Cold, Warm, Watchdog };
 
 /* Routes CERF-initiated CPU resets through the SoC's reset-cause latch
@@ -52,13 +52,16 @@ public:
        reset line (RESET_OUT): they run at reset delivery on the JIT
        thread, for every delivered reset regardless of source. */
     void RegisterResetListener(std::function<void(ResetLineKind)> fn);
+    void RegisterResetReleaseListener(std::function<void()> fn);
 
+    /* OnReady-time only. Listeners that need the reset source, not the reset line. */
     void RegisterResetKindListener(std::function<void(ResetKind)> fn);
-
     void RegisterPostResetKindListener(std::function<void(ResetKind)> fn);
 
     void SetPendingResume(bool is_resume);
 
+    /* JIT thread, reset-delivery branch only: runs the reset-line
+       listeners, then an armed GuestColdBoot hard reset. */
     void OnResetDelivered();
 
     bool DeliveredResetWasResume() const { return delivered_is_resume_; }
@@ -69,9 +72,11 @@ public:
 private:
     ResetCauseLatch*                                latch_ = nullptr;
     std::vector<std::function<void(ResetLineKind)>> reset_listeners_;
+    std::vector<std::function<void()>>              release_listeners_;
     std::vector<std::function<void(ResetKind)>>     reset_kind_listeners_;
     std::vector<std::function<void(ResetKind)>>     post_reset_kind_listeners_;
-    std::atomic<ResetKind>                          pending_kind_{ResetKind::Warm};
+    std::atomic<ResetLineKind>                      pending_kind_{ResetLineKind::Other};
+    std::atomic<ResetKind>                          pending_reset_kind_{ResetKind::Warm};
     std::atomic<bool>                               pending_is_resume_{false};
     bool                                            delivered_is_resume_ = false;
 };

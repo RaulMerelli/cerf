@@ -1,6 +1,7 @@
 #include "../../peripherals/open_bus_window.h"
 
 #include "../../core/cerf_emulator.h"
+#include "casio_toricomail_id.h"
 
 namespace {
 
@@ -26,7 +27,7 @@ public:
     void WriteDword(uint32_t addr, uint64_t) override { Trace("w64", addr); }
 
 protected:
-    Board       WindowBoard() const override { return Board::CasioToricomail; }
+    std::string_view WindowBoardId() const override { return BoardId::CasioToricomail; }
     const char* WindowTag()   const override { return "CasioRomOpenBus"; }
 };
 

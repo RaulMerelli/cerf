@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -27,7 +28,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -52,8 +53,8 @@ public:
     }
 
     /* JIT-thread-only register file (no worker thread). */
-    void SaveState(StateWriter& w) override    { w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
+    void SaveState(StateWriter& w) override    { w.WriteBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
 
 private:
     std::array<uint32_t, 15> regs_ = kReset;

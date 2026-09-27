@@ -446,9 +446,6 @@ extern "C" int CerfDDrawBlt(void* dstLcl, void* srcLcl, const RECTL* rDest,
             solidColor = srcKeyOverride;
         }
     }
-    CERF_LOG_X_DEV("cerf_guest: DDrawBlt ddFlags", ddFlags);
-    CERF_LOG_X_DEV("cerf_guest: DDrawBlt ropArg", ropArg);
-    CERF_LOG_X_DEV("cerf_guest: DDrawBlt rop4", rop4);
     SCODE sc = ((CerfDDGPE*)GetGPE())->BltExpanded(
         pDst, pSrc, NULL, (const RECT*)rDest, prclSrc, solidColor, bltFlags, (ROP4)rop4);
     return (sc == S_OK) ? 1 : 0;

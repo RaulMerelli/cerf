@@ -4,12 +4,13 @@
 #include "siemens_mp377_ertec400_model.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 
 bool SiemensMp377Ertec400Fdb::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetBoard() == Board::SiemensMP377;
+    return board && board->GetBoardId() == BoardId::SiemensMp377;
 }
 
 uint32_t SiemensMp377Ertec400Fdb::ExecutePrimary(uint32_t value) {

@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from changelog_card import artifact_card
 from ci_release import (GITHUB_API, GITHUB_UPLOADS, REPO, Artifact, CiError,
-                        changelog_markdown, compose, github, latest_artifact,
+                        changelog_markdown, github, latest_artifact,
                         load_credentials, post_discord, request)
 
 DISCORD_CHANNEL_ID = "1517249750796206191"
+RELEASE_WATCHERS_ROLE_ID = "1553511779789971606"
 
 
 def confirm(question: str, assume_yes: bool) -> None:
@@ -73,14 +75,12 @@ def upload_asset(token: str, release_id: int, archive: Path) -> str:
     return payload["browser_download_url"]
 
 
-def announce_release(secret: str, artifact: Artifact, changelog: str) -> None:
-    content = compose(
-        f"[**CE Runtime Foundation {artifact.title} Released**]"
-        f"(https://github.com/{REPO}/releases/tag/{artifact.tag})",
-        changelog,
-        f"[CI build]({artifact.run_url}) · "
-        f"[`{artifact.sha[:7]}`]({artifact.commit_url})")
-    post_discord(secret, DISCORD_CHANNEL_ID, content)
+def release_message(artifact: Artifact) -> str:
+    return (f"**v{artifact.series} build {artifact.run_number}** released "
+            f"<@&{RELEASE_WATCHERS_ROLE_ID}>\n"
+            f"[Release](https://github.com/{REPO}/releases/tag/{artifact.tag}) · "
+            f"[CI build]({artifact.run_url}) · "
+            f"[`{artifact.sha[:7]}`]({artifact.commit_url})")
 
 
 def main(argv: List[str]) -> int:
@@ -104,6 +104,9 @@ def main(argv: List[str]) -> int:
     print(f"\nChangelog for v{artifact.series}:\n{body}\n")
     confirm("Use this as the release description?", assume_yes)
 
+    card = artifact_card(token, artifact, "release")
+    print(f"  announcement card rendered ({len(card) // 1024} KB)")
+
     archive = Path("tmp") / f"{artifact.name}.zip"
     print(f"\nDownloading {artifact.name} ...")
     download_artifact(token, artifact, archive)
@@ -117,7 +120,8 @@ def main(argv: List[str]) -> int:
     print(f"  asset: {upload_asset(token, release['id'], archive)}")
 
     confirm(f"\nPost the {artifact.tag} announcement to Discord?", assume_yes)
-    announce_release(secret, artifact, body)
+    post_discord(secret, DISCORD_CHANNEL_ID, release_message(artifact),
+                 ping_role=RELEASE_WATCHERS_ROLE_ID, image=card)
     print("  posted.\n")
     print(f"Released {artifact.tag}: {release['html_url']}")
     return 0

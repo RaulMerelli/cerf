@@ -18,6 +18,11 @@
 >
 > For the same reason - be careful if you are going to use CERF is a reference for
 > hardware level behaviour. The code works but CERF is not an official chip datasheet.
+>
+> **This document covers development and contribution aspects**. Visit [cerf.cx](https://cerf.cx)
+> for user-oriented documentation.
+
+## [Contribution Guidelines](.github/CONTRIBUTING.md)
 
 ## Downloads
 
@@ -25,19 +30,13 @@ To use the newest features, download the WIP build ({version}) from the artifact
 
 If you need any additional help, e.g. what to run and how to use the emulator - visit [cerf.cx](https://cerf.cx/articles).
 
-See ``cerf.exe`` command line usage at [cerf.cx/articles/command-line](https://cerf.cx/articles/command-line/).
-
-## Supported boards
-
-{supported_devices}
+See `cerf.exe` command line usage at [cerf.cx/articles/command-line](https://cerf.cx/articles/command-line/). Might be stale - prefer running `cerf.exe --help` manually instead.
 
 ## Running your own ROM
 
-A ROM boots only if **CERF implements that exact board**. A matching SoC is not sufficient.
-
 **The board is on the supported list.** The [articles](https://cerf.cx/articles/own-rom/) show how to boot your own dump.
 
-**The board is not on the supported list.** A new board is a code contribution. It needs C++ for the memory map of the board, for each peripheral that the drivers use, and for the quirks of the SoC. The code must agree with datasheets, BSP sources and reverse engineering, at the quality level of the current tree. A new board is not a change to a configuration file - that's not that simple.
+**The board is not on the supported list.** A new board needs a code contribution. You need to write your own code. Visit [Contribution Guidelines](.github/CONTRIBUTING.md) before doing that.
 
 > [!IMPORTANT]
 > **CERF does not accept ROM submissions or requests for new boards.** If you want a new board - your only choice is to build a support yourself and send a contribution.
@@ -48,6 +47,9 @@ CERF requires Visual Studio 2026 with the C++ desktop development workload.
 
 > [!NOTE]
 > **The first build on a new machine takes more than one hour.** vcpkg compiles the dependencies from source before CERF links. This occurs one time on each machine. Later builds use the cached `vcpkg_installed/` tree and are complete in a few minutes. Do not stop the first build.
+
+> [!CAUTION]
+> Development environment might need additional configuration on your machine that this guide doesn't explain. If you find a bug there, or find a more universal approach - feel free to submit a pull request.
 
 Configure the clone (one time on each machine):
 
@@ -62,6 +64,7 @@ setup.cmd -Check
 ```
 
 It will
+
 - point git at tracked hooks
 - report missing prerequisite
 
@@ -72,18 +75,20 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 The script will:
+
 - wait for a parallel build (Claude Code-special feature for parallel agents work)
 - build the launcher (and will install CPython into a repo directory, if needed)
 - build the emulator itself (and will pick appropriate SDK/toolchain from your installations)
-- build all the bundled Windows CE apps (at ``ce_apps/``)
+- build all the bundled Windows CE apps (at `ce_apps/`)
+
+> [!NOTE]
+> The script is primarily designed for Claude. It should still work if you invoke it manually.
 
 ### Building the CE-side binaries (optional)
 
-`ce_apps/` holds the Windows CE binaries that CERF ships, and the Guest Additions driver.
-To build them, you need a CE toolchain and a CE SDK. 
+`ce_apps/` holds various Windows CE applications CERF is bundled with including the Guest Additions driver.
 
-`cerf.exe` does **not** need them. If you work on the emulator core, the boards, the SoCs, the JIT or the host UI,
-use the prebuilt binaries from another CERF release or just dont use them at all.
+You don't need those if you are not working with Guest Additions. You may copy Guest Additions binaries from an artifact or skip them entirely.
 
 To build `ce_apps/`, install eMbedded Visual C++ 4.0 (a free Microsoft download from the
 Microsoft archive). CERF includes a script that will unpack the installation (you dont want and probably can't install ancient tools)
@@ -94,32 +99,24 @@ See **[docs/ce_apps_setup.md](docs/ce_apps_setup.md)**.
 
 ### Website
 
-This repositroy includes [cerf.cx](https://cerf.cx) source code at ``docs/website``.
+This repository includes [cerf.cx](https://cerf.cx) source code at `docs/website`.
 
 `python tools/build_site.py --serve` runs the website on your machine with live reload.
-
-## Changelog
-
-{changelog}
-
-## Known Issues
-
-For the issues of each board, see the [board database of the launcher](launcher/supported_devices.py) or read Notes block when you use a launcher.
 
 ## Claude Development Environment
 
 > [!TIP]
-> Contributions made with AI are welcome - only if they correspond the quality level we maintain. The development involves a huge **human resouce** contribution. Do not turn this project into AI slop - we build a respectable emulator here.
+> Contributions made with AI are welcome - only if they correspond the quality level we maintain. But DO NOT turn this into an AI slop. Please read [Contribution Guidelines](.github/CONTRIBUTING.md)
 
-The environment includes several contraversional things you need to know before using it.
+The environment includes several controversial things you need to know before using it.
 
 - Full project **documentation is injected** into a system prompt - this eats tokens
-- The environment **kills** global ``clangd.exe`` and own ``claude.exe`` instances if they leak memory
-- Thinking is set to *high*; **bypass permissions mode** is set
+- The environment **kills** global `clangd.exe` and own `claude.exe` instances if they leak memory
+- Thinking is set to _high_; **bypass permissions mode** is set
 - Several own/3rd-party **skills** included
 - Powerful hooks triggering when agent might do something bad to the codebase
-- IDA MCP is ready to be installed at ``tools\ida_server.py`` and ``tools\ida_claude.py``
-- FS Read MCP is a workaround for ``Read()`` tool, useful for ``/tracking restore`` and massive text files (``tools\fs_read_mcp.py``)
+- IDA MCP is ready to be installed at `tools\ida_server.py` and `tools\ida_claude.py`
+- FS Read MCP is a workaround for `Read()` tool, useful for `/tracking restore` and massive text files (`tools\fs_read_mcp.py`)
 
 The environment gives you the **`/start-board-implementation`** skill. Run the skill and agent will start the new board bring-up on its own. You need experience - the skill won't do all the work instead of you. (Tho honestly speaking, there have been cases where Claude alone brought a board to a bootable state)
 
@@ -129,12 +126,17 @@ Run the environment:
 run_claude.cmd
 ```
 
-## License
+## Supported boards
 
-[MIT](LICENSE). Third-party components and studied references are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+{supported_devices}
+
+## Changelog
+
+{changelog}
 
 ---
 
-CERF was started as [WCECL](https://github.com/dz333n/wcecl) in 2019.
+CERF was known earlier as [WCECL](https://github.com/dz333n/wcecl) (2019)
 
-**Copyright (c) 2019-{cur_year} [Yaroslav Kibysh](https://yaroslavkibysh.com)**
+[**MIT License**](LICENSE) | [**Third-Party Notices**](THIRD_PARTY_NOTICES.md)<br/>
+**Copyright &copy; 2019-{cur_year} [Yaroslav Kibysh](https://yaroslavkibysh.com)**

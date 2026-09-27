@@ -37,7 +37,7 @@ state are forbidden.
   true for one Base, a required slot with no winner, or a
   `ShouldRegister`↔`Get` cycle. You need no defensive check around `Get<>`.
 - **`ShouldRegister()`** can call `Get<>`/`TryGet<>` through the same lazy
-  path. The idiom is `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`.
+  path. The idiom is `emu_.Get<BoardContext>().GetSocId() == SocId::X`.
 
 - `cerf/core/cerf_emulator.h`, `cerf/core/service.h`
 
@@ -49,10 +49,12 @@ code, translated to host x86 on the fly. This covers
 userspace EXEs / driver DLLs. `JitRunner` drives an abstract `GuestEngine`
 service. The concrete engine implements it for the CPU architecture of the
 board, and `BoardContext::GetCpuArch()` selects it. Per-SoC variation lives
-in per-core strategy services that `GetSoc()` selects. Per-SoC variation is
+in per-core strategy services that `GetSocId()` selects. Per-SoC variation is
 never an `if (soc == X)` branch in the JIT body.
 
 - `cerf/jit/`, [agent_docs/jit.md](jit.md)
+- the guest cycle clock every timer derives from:
+  [agent_docs/timers_clocks.md](timers_clocks.md)
 
 ## Per-chip / per-board / per-part strategies
 
@@ -69,26 +71,27 @@ Poseidon, … arrive with their boards). It contains:
   and more.
 
 The `ShouldRegister` of a concrete returns
-`emu_.Get<BoardContext>().GetSoc() == SocFamily::X`. Chip-layer code
+`emu_.Get<BoardContext>().GetSocId() == SocId::X`. Chip-layer code
 never knows its board. It knows only its chip.
 
 The VA→PA placement map (`PageTableBuilder`) is **not** here. The core
 CPU strategies (`ArmProcessorConfig`, `CoprocEmitter`) split on a different
 axis. VA→PA placement is a BSP/board choice, because the OEMAddressTable
 differs per board. Its concretes live under `cerf/boards/<board>/`, and
-`GetBoard()` selects them. The core strategies are a CPU-arch property
+`GetBoardId()` selects them. The core strategies are a CPU-arch property
 identical across every board on that core. Their concretes live under
-`cerf/cpu/<core>/`, and `GetSoc()` selects them. A core strategy gated on
-`GetBoard()` leaves every additional board on that SoC with no winner. A
+`cerf/cpu/<core>/`, and `GetSocId()` selects them. A core strategy gated on
+`GetBoardId()` leaves every additional board on that SoC with no winner. A
 second SA-1110 board that re-states the MIDR of the die is the smell.
 
 ### `cerf/boards/<board>/` - one specific OEM board / BSP
 
 One directory per supported board. It contains:
 
-- `<board>_context.cpp` - the concrete `BoardContext` impl. It reports the
-  `Board`, `SocFamily`, `CpuArch`, and `RomPlacingMode` constants for that
-  board. It registers when the configured `board_id` names it
+- `<board>_context.cpp` - the concrete `BoardContext` impl. It returns the
+  board's id constant, and the base answers everything else from the
+  board's `bundled/db.json` row (`agent_docs/database.md`). It registers
+  when the configured `board_id` names it
 - `<board>_page_table_builder.cpp` - the `PageTableBuilder` impl of the
   board: the BSP OEMAddressTable VA→PA map, the DRAM/flash backed regions,
   and the bootloader-handoff SP. ROM placement and pre-MMU boot use it
@@ -99,7 +102,7 @@ One directory per supported board. It contains:
   which fills a DRAM struct that the BSP reads on boot)
 
 The `ShouldRegister` of a concrete returns
-`emu_.Get<BoardContext>().GetBoard() == Board::X`. The BoardContext of a
+`emu_.Get<BoardContext>().GetBoardId() == BoardId::X`. The BoardContext of a
 board is the only thing that must know its board name. Everything else asks
 only "am I on board X".
 
@@ -111,8 +114,8 @@ new sibling directories (for example `davicom_dm9000/` for the DM9000 NIC IC).
 
 The `ShouldRegister` of a concrete compares against a board list:
 
-    auto b = emu_.Get<BoardContext>().GetBoard();
-    return b == Board::X || b == Board::Y;
+    auto b = emu_.Get<BoardContext>().GetBoardId();
+    return b == BoardId::X || b == BoardId::Y;
 
 The list grows when a new board adopts the same part. The part file is
 never duplicated. The part directory is the single source of truth
@@ -246,6 +249,15 @@ boots, but it hangs on guest reboot. A startup that reads the reset cause
 takes the sleep-resume path, and warm peripheral state fails driver
 re-probes.
 
+**The result of a reset must not depend on the order of the reset
+listeners.** The reset line holds every unit in reset at the same time, but
+the listeners run one after another. A write from one reset listener into
+another unit therefore reaches that unit before its own reset or after it.
+When the two results differ, the write goes in a release listener. Examples
+are a new clock rate, a pin level that the other unit latches, and a value
+that a skipped bootloader leaves in another unit. Release listeners run after
+every reset listener and after the cold boot.
+
 - `cerf/socs/guest_cpu_reset.{h,cpp}`
 
 **`GuestColdBoot`** implements hard reset (cold boot). At reset
@@ -274,18 +286,33 @@ concretes (strategy pattern, selected by `BoardContext`).
   host to read the new size from `FrameRenderer::PresentedSize`.
   - `cerf/host/host_window.{h,cpp}`
 
+- **The panel code is the only authority on the guest resolution. Two
+  states sit outside it, and one board fact serves both.** The guest signals
+  its resolution to the LCD peripheral, and the window follows that edge.
+  Before the guest runs, no such signal exists, and the window already needs
+  a size. Guest additions replace the display driver, so they need a size of
+  their own.
+
+  A board declares its panel size in the board database, and CERF opens the
+  window at that size. When the guest signals the same size, the user sees
+  no window resize. A panel that reports a different size wins.
+
+  When the user sets no guest-additions resolution override, guest additions
+  take that same board fact. The launcher resolves that order too.
+
+  **A default that is too large breaks many guests.** A board whose panel the
+  user can change therefore declares the size it uses by default. When no single
+  size is right for the board, it declares none, and the window opens at the
+  CERF default.
+
 - **`HostCanvas`** - the child window for the drawable area. It owns the
-  **tabs** (`Tab::Boot` = boot screen, `Tab::Hw` = hardware text console,
-  `Tab::Framebuffer` = the live guest framebuffer, `Tab::MemoryVisualizer` =
-  dev), the viewport mode (Original / Aspect / Stretch, optional antialias),
-  and the scrollbars. It also owns the single host-pixel↔guest-surface
-  coordinate transform (`HostToGuest`), so taps land on the rendered image.
-  The startup tab is `DeviceConfig.start_tab` (`--tab=boot|hw|fb`). On the
-  first presented guest frame the canvas auto-switches to `Tab::Framebuffer`,
-  unless the user already picked a tab. `Tab` is an alias of the core
-  `CanvasTab` enum, so core configuration can name the startup tab with no
-  dependency on the host layer. The canvas publishes the atomic
-  guest-surface dimensions that the touch sampler reads.
+  tabs, the viewport mode and the scrollbars. It also owns the single
+  host-pixel↔guest-surface coordinate transform (`HostToGuest`), so taps land
+  on the rendered image. On the first presented guest frame the canvas
+  switches to the framebuffer tab, unless the user already picked a tab.
+  `Tab` is an alias of the core `CanvasTab` enum, so core configuration can
+  name the startup tab with no dependency on the host layer. The
+  guest-surface dimensions are atomic, so any thread can read them.
   - `cerf/host/host_canvas.{h,cpp}`
 
 - **`FrameRenderer`** (abstract) - one producer of guest frames.
@@ -338,20 +365,23 @@ concretes (strategy pattern, selected by `BoardContext`).
   guest-additions display driver renders its first frame. The boot animation
   of CERF is only the placeholder while the guest renders nothing.
 
-  The compositor scales a smaller layer up by the largest integer factor that
-  fits, and then centers it. One factor serves both axes, so the aspect ratio
-  stays exact. Nearest-neighbor sampling keeps each source pixel square.
+  The compositor fits a layer of another size to the surface, keeps its aspect
+  ratio, and centers it. It never crops a layer. The compositor enlarges a
+  smaller layer by the largest integer factor that fits, with nearest-neighbor
+  sampling. It reduces a layer that is larger on either axis. Each output
+  pixel is then the average of the source pixels under it.
 
-  The layers are opaque, and the compositor skips each covered layer. DO NOT
-  blend the layers per pixel. The guest-additions surface has areas that are
-  legitimately black, and a blend makes the panel layer visible through them.
+  The layers are opaque, and the compositor skips each covered layer. The
+  compositor must not blend the layers per pixel. The guest-additions surface
+  has areas that are legitimately black, and a blend makes the panel layer
+  visible through them.
 
   The layer that covers the surface renders directly into the target DIB, so
   it costs no copy. The scratch buffer and the scaled copy occur only while
-  the compositor presents a smaller layer.
+  the compositor presents a layer of another size.
 
-  `RearmContentLatch` goes to every layer, so a guest reset rearms all of
-  them.
+  The compositor sends `RearmContentLatch` to every layer, so a guest reset
+  rearms all of them.
 
   To add a layer, register it on its own role slot. Then put the layer in the
   order of the compositor.
@@ -556,6 +586,13 @@ the sink. Register-access logging stays on its own SoC channel (for example
 is `Nkdbg`.
 
 - `cerf/tracing/kernel_debug_sink.{h,cpp}`, `Nkdbg` log channel
+
+## Byte order
+
+`cerf/core/byte_order.h` holds the only code that reads and writes multi-byte
+values in a byte buffer. It contains little-endian and big-endian loads, stores
+and vector appends. It also contains byte swaps and the mask for an access
+width. Do not write a local shift-and-or or a local `Put32`.
 
 ## Bundled device tree
 

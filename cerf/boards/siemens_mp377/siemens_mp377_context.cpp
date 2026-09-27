@@ -1,7 +1,6 @@
 #include "../board_context.h"
 
-#include "siemens_mp377_panel.h"
-
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -10,16 +9,11 @@ class SiemensMp377Context : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board GetBoard() const override { return Board::SiemensMP377; }
-    SocFamily GetSoc() const override { return SocFamily::IOP13xx; }
-    CpuArch GetCpuArch() const override { return CpuArch::Arm; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::FlatContainer; }
+    std::string_view GetBoardId() const override { return BoardId::SiemensMp377; }
 
-    std::optional<PreferredWindowSize> GetPreferredWindowSize() const override {
-        return PreferredWindowSize{siemens_mp377::kMp377HwiPanel.width, siemens_mp377::kMp377HwiPanel.height};
-    }
+    uint32_t GuestAdditionsWindowBase() const override { return 0xE0000000u; }
 };
 
-} /* namespace */
+}  /* namespace */
 
 REGISTER_SERVICE_AS(SiemensMp377Context, BoardContext);

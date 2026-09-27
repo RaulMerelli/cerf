@@ -6,8 +6,8 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANUAL_LIST = os.path.join(REPO_ROOT, "cerf", "host", "contributors.txt")
-GENERATED_LIST = os.path.join(REPO_ROOT, "cerf", "host",
+MANUAL_LIST = os.path.join(REPO_ROOT, "launcher", "assets", "contributors.txt")
+GENERATED_LIST = os.path.join(REPO_ROOT, "launcher", "assets",
                               "contributors_generated.txt")
 
 OWNER_NAMES = {"yaroslav kibysh"}
@@ -148,11 +148,11 @@ def merge(*groups):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Merge cerf/host/contributors.txt with the GitHub logins "
-                    "of every git author and Co-Authored-By trailer, then "
-                    "write cerf/host/contributors_generated.txt, which cerf.rc "
-                    "embeds as the ABOUT_CONTRIBUTORS resource. Needs an "
-                    "authenticated gh.")
+        description="Merge launcher/assets/contributors.txt with the GitHub "
+                    "logins of every git author and Co-Authored-By trailer, "
+                    "then write launcher/assets/contributors_generated.txt, "
+                    "which the launcher ships and its About box reads. Needs "
+                    "an authenticated gh.")
     parser.add_argument("--check", action="store_true",
                         help="exit 1 when the generated list is stale "
                              "instead of rewriting it")

@@ -72,16 +72,16 @@ public:
 
     void SaveState(StateWriter& writer) override {
         for (uint8_t value : registers_)
-            writer.Write(value);
-        writer.Write(pointer_);
-        writer.Write(epoch_delta_seconds_);
+            writer.Write("value", value);
+        writer.Write("pointer", pointer_);
+        writer.Write("epoch_delta_seconds", epoch_delta_seconds_);
     }
 
     void RestoreState(StateReader& reader) override {
         for (uint8_t& value : registers_)
-            reader.Read(value);
-        reader.Read(pointer_);
-        reader.Read(epoch_delta_seconds_);
+            reader.Read("value", value);
+        reader.Read("pointer", pointer_);
+        reader.Read("epoch_delta_seconds", epoch_delta_seconds_);
         expecting_pointer_ = true;
     }
 

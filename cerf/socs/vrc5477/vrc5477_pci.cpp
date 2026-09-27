@@ -1,9 +1,11 @@
 #include "../../peripherals/pci/pci_host_bridge.h"
 #include "../../peripherals/pci/pci_device.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../cpu/vr5500/vr5500_id.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>
@@ -26,7 +28,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR5500;
+        return bd && bd->GetSocId() == SocId::Vr5500;
     }
 
     void RegisterPciDevice(PciDevice* dev) override { devices_.push_back(dev); }
@@ -44,12 +46,12 @@ public:
     uint32_t WindowRead(uint32_t addr, unsigned size) override {
         if (IsConfigCycle()) {
             PciDevice* d = nullptr; uint32_t reg = 0;
-            if (!DecodeConfig(addr, &d, &reg)) return AllOnes(size);
+            if (!DecodeConfig(addr, &d, &reg)) return cerf::ByteWidthMask(size);
             return Extract(d->ConfigRead(reg & ~3u), addr, size);
         }
         for (PciDevice* d : devices_)
             if (d->MemClaims(addr)) return d->MemRead(addr, size);
-        return AllOnes(size);
+        return cerf::ByteWidthMask(size);
     }
     void WindowWrite(uint32_t addr, uint32_t v, unsigned size) override {
         if (IsConfigCycle()) {
@@ -66,7 +68,7 @@ public:
     uint32_t WindowIoRead(uint32_t pci_io, unsigned size) override {
         for (PciDevice* d : devices_)
             if (d->IoClaims(pci_io)) return d->IoRead(pci_io, size);
-        return AllOnes(size);
+        return cerf::ByteWidthMask(size);
     }
     void WindowIoWrite(uint32_t pci_io, uint32_t v, unsigned size) override {
         for (PciDevice* d : devices_)
@@ -74,36 +76,32 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(pciinit00_);
-        w.Write(pciw0_);
-        w.Write<uint32_t>(static_cast<uint32_t>(devices_.size()));
+        w.Write("pciinit00", pciinit00_);
+        w.Write("pciw0", pciw0_);
+        w.Write<uint32_t>("devices_count", static_cast<uint32_t>(devices_.size()));
         for (PciDevice* d : devices_) {
-            w.Write<uint16_t>(static_cast<uint16_t>((d->PciDev() << 8) | d->PciFnc()));
+            w.Write<uint16_t>("pci_dev_fnc", static_cast<uint16_t>((d->PciDev() << 8) | d->PciFnc()));
             d->SaveState(w);
         }
     }
     void RestoreState(StateReader& r) override {
-        r.Read(pciinit00_);
-        r.Read(pciw0_);
+        r.Read("pciinit00", pciinit00_);
+        r.Read("pciw0", pciw0_);
         uint32_t n = 0;
-        r.Read(n);
-        if (n != devices_.size()) {
-            LOG(Caution, "Vrc5477Pci: device count %u != live %zu\n", n, devices_.size());
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
+        r.Read("devices_count", n);
+        if (n != devices_.size())
+            r.Reject("Vrc5477Pci: %u devices, this build has %zu", n, devices_.size());
         for (uint32_t i = 0; i < n; ++i) {
             uint16_t tag = 0;
-            r.Read(tag);
+            r.Read("pci_dev_fnc", tag);
             const uint8_t dev = static_cast<uint8_t>(tag >> 8);
             const uint8_t fnc = static_cast<uint8_t>(tag & 0xFFu);
-            PciDevice* match = nullptr;
-            for (PciDevice* d : devices_)
-                if (d->PciDev() == dev && d->PciFnc() == fnc) { match = d; break; }
-            if (!match) {
-                LOG(Caution, "Vrc5477Pci: no live device for tag dev=%u fnc=%u\n", dev, fnc);
-                CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-            }
-            match->RestoreState(r);
+            size_t match = devices_.size();
+            for (size_t k = 0; k < devices_.size(); ++k)
+                if (devices_[k]->PciDev() == dev && devices_[k]->PciFnc() == fnc) { match = k; break; }
+            if (match == devices_.size())
+                r.Reject("Vrc5477Pci: no device dev=%u fnc=%u in this build", dev, fnc);
+            devices_[match]->RestoreState(r);
         }
     }
 
@@ -129,16 +127,12 @@ private:
         return false;
     }
 
-    static uint32_t AllOnes(unsigned size) {
-        return size >= 4 ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1u);
-    }
     static uint32_t Extract(uint32_t dword, uint32_t addr, unsigned size) {
-        const uint32_t v = dword >> ((addr & 3u) * 8u);
-        return size >= 4 ? v : (v & ((1u << (size * 8)) - 1u));
+        return (dword >> ((addr & 3u) * 8u)) & cerf::ByteWidthMask(size);
     }
     static uint32_t Merge(uint32_t dword, uint32_t v, uint32_t reg, unsigned size) {
         const unsigned shift = (reg & 3u) * 8u;
-        const uint32_t mask  = ((1u << (size * 8)) - 1u) << shift;
+        const uint32_t mask  = cerf::ByteWidthMask(size) << shift;
         return (dword & ~mask) | ((v << shift) & mask);
     }
 

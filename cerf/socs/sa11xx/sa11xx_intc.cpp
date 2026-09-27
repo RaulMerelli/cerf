@@ -1,20 +1,32 @@
 #include "sa11xx_intc.h"
 
+#include "../guest_cpu_reset.h"
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../jit/arm/arm_jit.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
 bool Sa11xxIntc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxIntc::OnReady() {
     emu_.Get<PeripheralDispatcher>().Register(this);
+    /* SA-1110 Dev Man §9.2.1.5: DIM "is cleared during all resets"; §9.2.1.3 /
+       §9.2.1.4: the ICMR and ICLR values are unknown at reset. */
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+        std::lock_guard<std::mutex> guard(state_mtx_);
+        const bool old_wake = IdleWakeLocked();
+        iccr_ = 0u;
+        if (IdleWakeLocked() != old_wake) NotifyLocked();
+    });
 }
 
 void Sa11xxIntc::NotifyLocked() {
@@ -35,6 +47,7 @@ void Sa11xxIntc::NotifyLocked() {
         emu_.Get<RateProbe>().Inc(RateProbe::Counter::JitPendClr);
 #endif
     }
+    jit.SetIdleWake(IdleWakeLocked());
 }
 
 void Sa11xxIntc::AssertSource(uint32_t bit_index) {
@@ -67,8 +80,10 @@ void Sa11xxIntc::SetSourceLevel(uint32_t mask, uint32_t level) {
     std::lock_guard<std::mutex> guard(state_mtx_);
     const uint32_t old_icip = IcIpLocked();
     const uint32_t old_icfp = IcFpLocked();
+    const bool     old_wake = IdleWakeLocked();
     icpr_ = (icpr_ & ~mask) | (level & mask);
-    if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp) {
+    if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp ||
+        IdleWakeLocked() != old_wake) {
         NotifyLocked();
     }
 }
@@ -105,6 +120,7 @@ uint32_t Sa11xxIntc::ReadRegLocked(uint32_t off) const {
 void Sa11xxIntc::WriteRegLocked(uint32_t off, uint32_t value) {
     const uint32_t old_icip = IcIpLocked();
     const uint32_t old_icfp = IcFpLocked();
+    const bool     old_wake = IdleWakeLocked();
     switch (off) {
         case 0x00: break;
         case 0x04: icmr_ = value; break;
@@ -114,9 +130,8 @@ void Sa11xxIntc::WriteRegLocked(uint32_t off, uint32_t value) {
         case 0x20: break;
         default:   break;
     }
-    /* §9.2: writes to ICLR / ICCR / read-only addresses don't change
-       IcIp or IcFp - notifying the JIT on every write is wasted work. */
-    if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp) {
+    if (IcIpLocked() != old_icip || IcFpLocked() != old_icfp ||
+        IdleWakeLocked() != old_wake) {
         NotifyLocked();
     }
 }
@@ -157,18 +172,18 @@ void Sa11xxIntc::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxIntc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> guard(state_mtx_);
-    w.Write(icpr_);
-    w.Write(icmr_);
-    w.Write(iclr_);
-    w.Write(iccr_);
+    w.Write("icpr", icpr_);
+    w.Write("icmr", icmr_);
+    w.Write("iclr", iclr_);
+    w.Write("iccr", iccr_);
 }
 
 void Sa11xxIntc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> guard(state_mtx_);
-    r.Read(icpr_);
-    r.Read(icmr_);
-    r.Read(iclr_);
-    r.Read(iccr_);
+    r.Read("icpr", icpr_);
+    r.Read("icmr", icmr_);
+    r.Read("iclr", iclr_);
+    r.Read("iccr", iccr_);
 }
 
 void Sa11xxIntc::PostRestore() {

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 
 #include <cstdint>
 
@@ -24,7 +25,7 @@ constexpr uint32_t kDataStrobeHi = 0x9Fu;
 
 bool SharpMobilonHc4100Cmtt::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+    return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
 }
 
 void SharpMobilonHc4100Cmtt::WriteDataPort(uint32_t value) {

@@ -1,6 +1,7 @@
 #include "vr4111_bus_error.h"
 
 #include "../../boards/board_context.h"
+#include "vr4111_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_base.h"
@@ -23,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4111;
+        return bd && bd->GetSocId() == SocId::Vr4111;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }

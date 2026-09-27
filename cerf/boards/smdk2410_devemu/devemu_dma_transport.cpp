@@ -1,13 +1,14 @@
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
+#include "devemu_id.h"
 
 #include <array>
 #include <cstdint>
-#include <cstring>
 
 namespace {
 
@@ -67,7 +68,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     void OnReady() override {
@@ -83,17 +84,13 @@ public:
     }
     uint16_t ReadHalf(uint32_t addr) override {
         RequireGuestOwned("ReadHalf", addr, sizeof(uint16_t), 0);
-        uint16_t v = 0;
-        std::memcpy(&v, &shared_[addr - kBase], sizeof(v));
-        return v;
+        return cerf::le::U16(shared_.data(), addr - kBase);
     }
     uint32_t ReadWord(uint32_t addr) override {
         const uint32_t off = addr - kBase;
         if (off < kSharedSize) {
             RequireGuestOwned("ReadWord", addr, sizeof(uint32_t), 0);
-            uint32_t v = 0;
-            std::memcpy(&v, &shared_[off], sizeof(v));
-            return v;
+            return cerf::le::U32(shared_.data(), off);
         }
         if (off >= kChannelBase && off < kChannelTop) {
             const uint32_t n   = (off - kChannelBase) / kChannelStride;
@@ -117,13 +114,13 @@ public:
     }
     void WriteHalf(uint32_t addr, uint16_t value) override {
         RequireGuestOwned("WriteHalf", addr, sizeof(value), value);
-        std::memcpy(&shared_[addr - kBase], &value, sizeof(value));
+        cerf::le::Put16(shared_.data() + (addr - kBase), value);
     }
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - kBase;
         if (off < kSharedSize) {
             RequireGuestOwned("WriteWord", addr, sizeof(value), value);
-            std::memcpy(&shared_[off], &value, sizeof(value));
+            cerf::le::Put32(shared_.data() + off, value);
             return;
         }
         if (off >= kChannelBase && off < kChannelTop) {
@@ -163,16 +160,16 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(shared_.data(), shared_.size());
-        for (uint32_t v : ch_control_) w.Write<uint32_t>(v);
-        w.Write<uint32_t>(cmd_select_);
-        w.Write<uint32_t>(cmd_operation_);
+        w.WriteBytes("shared", shared_.data(), shared_.size());
+        for (uint32_t v : ch_control_) w.Write<uint32_t>("ch_control", v);
+        w.Write<uint32_t>("cmd_select", cmd_select_);
+        w.Write<uint32_t>("cmd_operation", cmd_operation_);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(shared_.data(), shared_.size());
-        for (uint32_t& v : ch_control_) r.Read(v);
-        r.Read(cmd_select_);
-        r.Read(cmd_operation_);
+        r.ReadBytes("shared", shared_.data(), shared_.size());
+        for (uint32_t& v : ch_control_) r.Read("ch_control", v);
+        r.Read("cmd_select", cmd_select_);
+        r.Read("cmd_operation", cmd_operation_);
     }
 
 private:
@@ -188,9 +185,7 @@ private:
     }
 
     void CompleteWithoutService(uint32_t descriptor) {
-        const uint32_t status = kTransferNoService;
-        std::memcpy(&shared_[descriptor + kDescriptorStatus], &status,
-                    sizeof(status));
+        cerf::le::Put32(shared_.data() + descriptor + kDescriptorStatus, kTransferNoService);
     }
 
     void RequireGuestOwned(const char* op, uint32_t addr,

@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "devemu_id.h"
 #include "../../cpu/emulated_memory.h"
 
 #include <cstdint>
@@ -60,7 +61,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     void OnReady() override;
@@ -84,12 +85,8 @@ void Smdk2410DevEmuPageTableBuilder::OnReady() {
     auto& rom = emu_.Get<RomParserService>();
     if (rom.Ok() && !rom.Loaded().empty()) {
         const ParsedRom& prim = rom.Primary();
-        for (const auto& xip : prim.xips) {
-            const ParsedROMHDR& h = xip.toc.romhdr;
-            if (prim.entry_va >= h.physfirst && prim.entry_va < h.physlast) {
-                ram_start = h.ulRAMStart;
-                break;
-            }
+        if (const ParsedROMHDR* h = prim.XipHeaderContaining(prim.entry_va)) {
+            ram_start = h->ulRAMStart;
         }
         if (ram_start == 0 && !prim.xips.empty()) {
             ram_start = prim.xips.front().toc.romhdr.ulRAMStart;

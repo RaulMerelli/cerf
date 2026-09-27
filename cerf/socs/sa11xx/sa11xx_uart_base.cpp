@@ -3,6 +3,8 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "sa1110_id.h"
+#include "sa1100_id.h"
 #include "../../tracing/kernel_debug_sink.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -14,7 +16,7 @@
 
 bool Sa11xxUartBase::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && (bd->GetSoc() == SocFamily::SA1110 || bd->GetSoc() == SocFamily::SA1100);
+    return bd && (bd->GetSocId() == SocId::Sa1110 || bd->GetSocId() == SocId::Sa1100);
 }
 
 void Sa11xxUartBase::OnReady() {
@@ -191,32 +193,32 @@ void Sa11xxUartBase::WriteWord(uint32_t addr, uint32_t value) {
 
 void Sa11xxUartBase::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    w.Write(utcr0_);
-    w.Write(utcr1_);
-    w.Write(utcr2_);
-    w.Write(utcr3_);
-    w.Write(utcr4_);
-    w.Write(utsr0_pending_);
-    w.Write(intc_asserted_);
-    w.Write<uint32_t>(static_cast<uint32_t>(rx_fifo_.size()));
-    for (uint8_t b : rx_fifo_) w.Write(b);
+    w.Write("utcr0", utcr0_);
+    w.Write("utcr1", utcr1_);
+    w.Write("utcr2", utcr2_);
+    w.Write("utcr3", utcr3_);
+    w.Write("utcr4", utcr4_);
+    w.Write("utsr0_pending", utsr0_pending_);
+    w.Write("intc_asserted", intc_asserted_);
+    w.Write<uint32_t>("rx_fifo_count", static_cast<uint32_t>(rx_fifo_.size()));
+    for (uint8_t b : rx_fifo_) w.Write("rx_fifo", b);
 }
 
 void Sa11xxUartBase::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    r.Read(utcr0_);
-    r.Read(utcr1_);
-    r.Read(utcr2_);
-    r.Read(utcr3_);
-    r.Read(utcr4_);
-    r.Read(utsr0_pending_);
-    r.Read(intc_asserted_);
+    r.Read("utcr0", utcr0_);
+    r.Read("utcr1", utcr1_);
+    r.Read("utcr2", utcr2_);
+    r.Read("utcr3", utcr3_);
+    r.Read("utcr4", utcr4_);
+    r.Read("utsr0_pending", utsr0_pending_);
+    r.Read("intc_asserted", intc_asserted_);
     rx_fifo_.clear();
     uint32_t n = 0;
-    r.Read(n);
+    r.Read("rx_fifo_count", n);
     for (uint32_t i = 0; i < n; ++i) {
         uint8_t b = 0;
-        r.Read(b);
+        r.Read("rx_fifo", b);
         rx_fifo_.push_back(b);
     }
 }

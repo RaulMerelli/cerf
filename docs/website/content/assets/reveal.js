@@ -43,6 +43,12 @@
       });
     });
 
+    document.querySelectorAll('.cerf-rail-track').forEach(function (track) {
+      track.querySelectorAll('.cerf-device').forEach(function (el, i) {
+        showOnScroll(el, Math.min(i, 6) * 80);
+      });
+    });
+
     document.querySelectorAll('.cerf-banner, .cerf-video').forEach(function (el) {
       showOnScroll(el, 0);
     });

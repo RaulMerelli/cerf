@@ -6,6 +6,7 @@
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../core/service.h"
 #include "imx6_mmio_lane.h"
+#include "imx6_id.h"
 
 
 namespace {
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         /* IMX6DQRM Rev.2 §36.4: GPR1 resets to 4840_0005h, GPR2 to 0000_0000h. */
@@ -56,13 +57,13 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(gpr1_);
-        w.Write(gpr2_);
+        w.Write("gpr1", gpr1_);
+        w.Write("gpr2", gpr2_);
     }
 
     void RestoreState(StateReader& r) override {
-        r.Read(gpr1_);
-        r.Read(gpr2_);
+        r.Read("gpr1", gpr1_);
+        r.Read("gpr2", gpr2_);
     }
 
 private:

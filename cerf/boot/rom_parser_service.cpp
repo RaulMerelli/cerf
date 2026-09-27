@@ -11,8 +11,10 @@
 #include "rom_wmstore_parse.h"
 
 #include "../boards/board_context.h"
+#include "../core/byte_order.h"
 #include "../core/cerf_emulator.h"
 #include "../core/device_config.h"
+#include "../core/host_file_bytes.h"
 #include "../core/log.h"
 #include "../core/no_emulation_runtime_service.h"
 #include "../core/cerf_paths.h"
@@ -21,7 +23,6 @@
 #include <windows.h>
 
 #include <cstring>
-#include <fstream>
 
 REGISTER_SERVICE(RomParserService);
 
@@ -33,6 +34,7 @@ using cerf::rom_image_parse::ArnoldOsXip;
 using cerf::rom_image_parse::AssembleB000FFFlat;
 using cerf::rom_image_parse::FindAllEcec;
 using cerf::rom_image_parse::FindImgfsBase;
+using cerf::rom_image_parse::ImgfsSuperblock;
 using cerf::rom_image_parse::IpaqNbfLocateOsXip;
 using cerf::rom_image_parse::IpaqNbfOsXip;
 using cerf::rom_image_parse::kArnoldSignature;
@@ -49,17 +51,11 @@ using cerf::rom_image_parse::SymbolFlashLocateOsXip;
 using cerf::rom_image_parse::SymbolFlashOsXip;
 using cerf::rom_image_parse::WmstoreLocateOsXip;
 using cerf::rom_image_parse::WmstoreOsXip;
-using cerf::rom_image_parse::U32;
-
-std::vector<uint8_t> ReadWholeFile(const std::string& path) {
-    std::ifstream f(path, std::ios::binary | std::ios::ate);
-    if (!f.is_open()) return {};
-    const auto sz = f.tellg();
-    std::vector<uint8_t> bytes(static_cast<size_t>(sz));
-    f.seekg(0);
-    f.read(reinterpret_cast<char*>(bytes.data()), sz);
-    return bytes;
-}
+using cerf::le::U32;
+using cerf::rom_image_parse::kArnoldSignature;
+using cerf::rom_image_parse::kB000FFSignature;
+using cerf::rom_image_parse::kIpaqNbfSignature;
+using cerf::rom_image_parse::kNosajSignature;
 
 }  /* namespace */
 
@@ -87,7 +83,7 @@ bool RomParserService::ParseCe1Xips(ParsedRom& rom) {
 }
 
 bool RomParserService::ParseOne(ParsedRom& rom) {
-    rom.raw = ReadWholeFile(rom.path);
+    rom.raw = ReadHostFileBytes(rom.path);
     if (rom.raw.empty()) {
         LOG(Caution, "RomParser: failed to read %s\n", rom.path.c_str());
         return false;
@@ -182,6 +178,9 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         rom.flat         = std::span<const uint8_t>(rom.raw)
                                .subspan(wm.data_off, wm.flat_size);
         rom.flat_base_va = wm.base_va;
+        rom.is_wmstore   = true;
+        rom.wmstore_payload_off   = wm.payload_off;
+        rom.wmstore_payload_bytes = wm.payload_bytes;
         LOG(Boot, "RomParser %s: _wmstore container - NK XIP @ file 0x%zX "
                   "base=0x%08X span=%.1f MB\n",
             rom.filename.c_str(), wm.data_off, wm.base_va,
@@ -252,10 +251,11 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
         LOG(Boot, "RomParser %s: %zu ECEC marker(s) in flat\n",
             rom.filename.c_str(), ececs.size());
 
-        for (size_t e : ececs) {
+        for (const auto& ecec : ececs) {
+            const size_t    e = ecec.off;
             ParsedXipRegion xip;
             size_t          romhdr_off = 0;
-            if (!ResolveRomhdrAtEcec(rom.flat, e, rom.flat_base_va,
+            if (!ResolveRomhdrAtEcec(rom.flat, ecec, rom.flat_base_va,
                                      xip, romhdr_off)) {
                 LOG(Boot, "RomParser %s: ECEC @ 0x%zX did not resolve to a "
                           "valid ROMHDR; skipping this XIP region\n",
@@ -302,9 +302,9 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
             if (rom.is_ce1) break;
             if (m.ulLoadOffset != rom.entry_va) continue;   /* kernel = module @ physfirst */
             const size_t e32_off = size_t(m.ulE32Offset - rom.flat_base_va);
-            if (e32_off + 12 > rom.flat.size()) break;
-            const uint32_t entryrva = U32(rom.flat.data(), e32_off + 4);
-            const uint32_t vbase    = U32(rom.flat.data(), e32_off + 8);
+            if (e32_off + kE32OffVbase + 4 > rom.flat.size()) break;
+            const uint32_t entryrva = U32(rom.flat.data(), e32_off + kE32OffEntryRva);
+            const uint32_t vbase    = U32(rom.flat.data(), e32_off + kE32OffVbase);
             if (vbase == rom.entry_va && entryrva < 0x01000000u)
                 rom.entry_va = vbase + entryrva;
             break;
@@ -313,11 +313,12 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
 
     if (!rom.is_b000ff && !rom.is_nosaj && !rom.is_arnold && !rom.is_nbf
         && !rom.is_ce1) {
-        const size_t off = FindImgfsBase(rom.raw);
-        if (off != SIZE_MAX) {
+        ImgfsSuperblock sb;
+        if (FindImgfsBase(rom.raw, sb)) {
+            const size_t   off = sb.off;
+            const uint32_t bpb = sb.bytes_per_block;
             rom.has_imgfs        = true;
             rom.imgfs_file_off   = uint32_t(off);
-            const uint32_t bpb = U32(rom.raw.data(), off + 0x24);
             rom.imgfs_bytes_per_block = bpb;
             LOG(Boot, "RomParser %s: IMGFS superblock @ file offset 0x%zX "
                       "(%.1f MB into image), bytes_per_block=0x%X\n",

@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "pxa255_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA25x;
+        return bd && bd->GetSocId() == SocId::Pxa255;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -64,11 +65,11 @@ void Pxa255ClockManager::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Pxa255ClockManager::SaveState(StateWriter& w) {
-    w.Write(cccr_); w.Write(cken_); w.Write(oon_);
+    w.Write("cccr", cccr_); w.Write("cken", cken_); w.Write("oon", oon_);
 }
 
 void Pxa255ClockManager::RestoreState(StateReader& r) {
-    r.Read(cccr_); r.Read(cken_); r.Read(oon_);
+    r.Read("cccr", cccr_); r.Read("cken", cken_); r.Read("oon", oon_);
 }
 
 }  /* namespace */

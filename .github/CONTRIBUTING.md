@@ -1,5 +1,8 @@
 # Contributing to CE Runtime Foundation
 
+> [!IMPORTANT]
+> This document is quite raw. Not finished yet. Expect this content to change.
+
 ## Low-quality contributions are **forbidden**
 
 A low-quality contribution might be one of these:
@@ -15,3 +18,9 @@ Of course, this is all subjective - you may have a worse level of understanding 
 > **You will be banned from all community and project resources** if you attempt this.
 
 If you feel the itch to vibe code an enhancement to the emulator that suddenly appears to be working, you can create a pull request as a draft and leave it there with explicit text that it is done badly and doesn't deserve a review. Maybe someone will decide one day to pick it up, take your code, maybe co-author you, and finish your feature. But do NOT attempt to smuggle this as a proper pull request and lie about your understanding. This is easy to detect, and you won't be happy to get a ban. 
+
+This is more about being a sane community member and a sane developer rather than about any kind of skills.
+
+## UI, pictures, complex changes
+ 
+Some stuff like new UI elements which have no example in tree should be discussed first with the project owner and other developers. Discord is the best communication channel for that. Same goes for any other architectural change you think you shouldn't do yourself. Same goes for e.g. ``cerf.json`` schema changes which we'll support forever - that's a careful decision. It's OK if you see a good example in the tree and you are confident in your change. If you are not - go ahead and discuss with others.

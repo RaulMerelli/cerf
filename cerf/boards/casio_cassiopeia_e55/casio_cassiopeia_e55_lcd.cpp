@@ -1,5 +1,6 @@
 #include "casio_cassiopeia_e55_lcd.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../lcd/display_size_latch.h"
@@ -7,8 +8,7 @@
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../../state/state_stream.h"
 #include "../board_context.h"
-
-#include <cstring>
+#include "casio_cassiopeia_e55_id.h"
 
 namespace {
 
@@ -24,7 +24,7 @@ constexpr uint8_t kCtrlSeqC4[8] = {0xF4u, 0xC4u, 0xB0u, 0xD0u, 0xF4u, 0xC4u, 0xB
 
 bool CasioCassiopeiaE55Lcd::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+    return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
 }
 
 void CasioCassiopeiaE55Lcd::OnReady() {
@@ -40,21 +40,13 @@ uint8_t CasioCassiopeiaE55Lcd::ReadByte(uint32_t addr) {
 
 uint16_t CasioCassiopeiaE55Lcd::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off) && off + 1u < kFbSize) {
-        uint16_t v;
-        std::memcpy(&v, fb_.data() + off, sizeof(v));
-        return v;
-    }
+    if (InFb(off) && off + 1u < kFbSize) return cerf::le::U16(fb_.data(), off);
     HaltUnsupportedAccess("ReadHalf", addr, 0);
 }
 
 uint32_t CasioCassiopeiaE55Lcd::ReadWord(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off) && off + 3u < kFbSize) {
-        uint32_t v;
-        std::memcpy(&v, fb_.data() + off, sizeof(v));
-        return v;
-    }
+    if (InFb(off) && off + 3u < kFbSize) return cerf::le::U32(fb_.data(), off);
     HaltUnsupportedAccess("ReadWord", addr, 0);
 }
 
@@ -65,8 +57,9 @@ void CasioCassiopeiaE55Lcd::WriteByte(uint32_t addr, uint8_t value) {
         return;
     }
     if (InCtrl(off)) {
-        const uint32_t i = off - kCtrlOffset;
-        if (value != kCtrlSeq84[i] && value != kCtrlSeqC4[i]) {
+        const uint32_t i     = off - kCtrlOffset;
+        const uint8_t  guest = static_cast<uint8_t>(~value);
+        if (guest != kCtrlSeq84[i] && guest != kCtrlSeqC4[i]) {
             HaltUnsupportedAccess("WriteByte", addr, value);
         }
         ctrl_[i] = value;
@@ -78,7 +71,7 @@ void CasioCassiopeiaE55Lcd::WriteByte(uint32_t addr, uint8_t value) {
 void CasioCassiopeiaE55Lcd::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - kBase;
     if (InFb(off) && off + 1u < kFbSize) {
-        std::memcpy(fb_.data() + off, &value, sizeof(value));
+        cerf::le::Put16(fb_.data() + off, value);
         return;
     }
     HaltUnsupportedAccess("WriteHalf", addr, value);
@@ -87,7 +80,7 @@ void CasioCassiopeiaE55Lcd::WriteHalf(uint32_t addr, uint16_t value) {
 void CasioCassiopeiaE55Lcd::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - kBase;
     if (InFb(off) && off + 3u < kFbSize) {
-        std::memcpy(fb_.data() + off, &value, sizeof(value));
+        cerf::le::Put32(fb_.data() + off, value);
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
@@ -102,23 +95,15 @@ void CasioCassiopeiaE55Lcd::MaybePublishDisplaySize() {
 }
 
 void CasioCassiopeiaE55Lcd::SaveState(StateWriter& w) {
-    for (uint32_t i = 0; i < kCtrlCount; ++i) w.Write(ctrl_[i]);
+    for (uint32_t i = 0; i < kCtrlCount; ++i) w.Write("ctrl_pin", ctrl_[i]);
     size_latch_.SaveState(w);
-    w.Write<uint64_t>(fb_.size());
-    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
+    w.WriteBytes("fb_pin", fb_.data(), fb_.size());
 }
 
 void CasioCassiopeiaE55Lcd::RestoreState(StateReader& r) {
-    for (uint32_t i = 0; i < kCtrlCount; ++i) r.Read(ctrl_[i]);
+    for (uint32_t i = 0; i < kCtrlCount; ++i) r.Read("ctrl_pin", ctrl_[i]);
     size_latch_.RestoreState(r);
-    uint64_t n = 0;
-    r.Read(n);
-    if (n != kFbSize) {
-        emu_.Get<Fatal>().Die("CasioCassiopeiaE55Lcd::RestoreState: framebuffer is %llu bytes, "
-                              "expected %u", static_cast<unsigned long long>(n), kFbSize);
-    }
-    fb_.assign(kFbSize, 0u);
-    r.ReadBytes(fb_.data(), fb_.size());
+    r.ReadBytes("fb_pin", fb_.data(), fb_.size());
 }
 
 REGISTER_SERVICE(CasioCassiopeiaE55Lcd);

@@ -1,4 +1,5 @@
 #include "../freescale_iim_impl.h"
+#include "imx51_id.h"
 
 namespace {
 
@@ -12,7 +13,7 @@ constexpr uint32_t kFuseBank0      = 0x800u;
 constexpr uint32_t kFuseBankRows   = 0x80u;   /* 32 rows x 4 bytes per bank */
 constexpr uint32_t kFuseBankCount  = 4u;
 
-class Imx51Iim : public FreescaleIimBase<0x83F98000u, SocFamily::iMX51> {
+class Imx51Iim : public FreescaleIimBase<0x83F98000u, SocId::Imx51> {
 public:
     using FreescaleIimBase::FreescaleIimBase;
 

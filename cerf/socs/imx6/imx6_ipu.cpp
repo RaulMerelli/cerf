@@ -9,6 +9,7 @@
 #include "imx6_gic.h"
 #include "imx6_ipu_cpmem.h"
 #include "imx6_ipu_register_map.h"
+#include "imx6_id.h"
 
 using namespace imx6_ipu;
 
@@ -16,7 +17,7 @@ REGISTER_SERVICE(Imx6Ipu);
 
 bool Imx6Ipu::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX6;
+    return bd && bd->GetSocId() == SocId::Imx6;
 }
 
 void Imx6Ipu::OnReady() {
@@ -78,9 +79,9 @@ void Imx6Ipu::WriteWord(uint32_t addr, uint32_t value) {
     WriteMerged(off, value);
 }
 
-void Imx6Ipu::SaveState(StateWriter& w) { w.WriteBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
+void Imx6Ipu::SaveState(StateWriter& w) { w.WriteBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
 
-void Imx6Ipu::RestoreState(StateReader& r) { r.ReadBytes(regs_.data(), regs_.size() * sizeof(uint32_t)); }
+void Imx6Ipu::RestoreState(StateReader& r) { r.ReadBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
 
 void Imx6Ipu::PostRestore() {
     sync_irq_asserted_ = false;

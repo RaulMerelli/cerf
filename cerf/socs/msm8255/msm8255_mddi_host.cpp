@@ -4,6 +4,8 @@
 #include "msm8255_mddi_link_list.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -124,7 +126,7 @@ public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
-        return emu_.Get<BoardContext>().GetSoc() == SocFamily::MSM8255;
+        return emu_.Get<BoardContext>().GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -182,12 +184,12 @@ public:
 
     void SaveState(StateWriter& w) override {
         for (uint32_t i = 0; i < kWordCount; ++i) {
-            w.Write<uint32_t>(regs_[i].load(std::memory_order_acquire));
+            w.Write<uint32_t>("regs", regs_[i].load(std::memory_order_acquire));
         }
-        w.Write<uint32_t>(rev_cursor_.load(std::memory_order_acquire));
-        w.Write<uint32_t>(response_pending_.load(std::memory_order_acquire));
-        w.Write<uint32_t>(response_address_.load(std::memory_order_acquire));
-        w.Write<uint32_t>(response_value_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("rev_cursor", rev_cursor_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("response_pending", response_pending_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("response_address", response_address_.load(std::memory_order_acquire));
+        w.Write<uint32_t>("response_value", response_value_.load(std::memory_order_acquire));
         if (auto* client = emu_.TryGet<Msm8255MddiClient>()) {
             client->SaveState(w);
         }
@@ -196,13 +198,13 @@ public:
     void RestoreState(StateReader& r) override {
         for (uint32_t i = 0; i < kWordCount; ++i) {
             uint32_t v = kRegReset;
-            r.Read(v);
+            r.Read("regs", v);
             regs_[i].store(v, std::memory_order_release);
         }
-        RestoreField(r, rev_cursor_);
-        RestoreField(r, response_pending_);
-        RestoreField(r, response_address_);
-        RestoreField(r, response_value_);
+        RestoreField(r, "rev_cursor", rev_cursor_);
+        RestoreField(r, "response_pending", response_pending_);
+        RestoreField(r, "response_address", response_address_);
+        RestoreField(r, "response_value", response_value_);
         if (auto* client = emu_.TryGet<Msm8255MddiClient>()) {
             client->RestoreState(r);
         }
@@ -259,20 +261,10 @@ private:
         response_value_.store(0u, std::memory_order_release);
     }
 
-    static void RestoreField(StateReader& r, std::atomic<uint32_t>& field) {
+    static void RestoreField(StateReader& r, const char* name, std::atomic<uint32_t>& field) {
         uint32_t v = kRegReset;
-        r.Read(v);
+        r.Read(name, v);
         field.store(v, std::memory_order_release);
-    }
-
-    static void StoreHalf(uint8_t* packet, uint32_t off, uint32_t value) {
-        packet[off]      = static_cast<uint8_t>(value);
-        packet[off + 1u] = static_cast<uint8_t>(value >> 8);
-    }
-
-    static void StoreWord(uint8_t* packet, uint32_t off, uint32_t value) {
-        StoreHalf(packet, off,      value & 0xFFFFu);
-        StoreHalf(packet, off + 2u, value >> 16);
     }
 
     void ExecuteLinkList(uint32_t head_pa) {
@@ -322,14 +314,14 @@ private:
             emu_.Get<Msm8255MddiClient>().Capability();
 
         uint8_t packet[kCapPacketBytes] = {};
-        StoreHalf(packet, kPktOffLength,        kCapPacketLength);
-        StoreHalf(packet, kPktOffType,          kCapPacketType);
-        StoreHalf(packet, kCapOffBitmapWidth,   cap.bitmap_width);
-        StoreHalf(packet, kCapOffBitmapHeight,  cap.bitmap_height);
-        StoreHalf(packet, kCapOffWindowWidth,   cap.display_window_width);
-        StoreHalf(packet, kCapOffWindowHeight,  cap.display_window_height);
-        StoreHalf(packet, kCapOffMfrName,       cap.mfr_name);
-        StoreHalf(packet, kCapOffProductCode,   cap.product_code);
+        cerf::le::Put16(packet + kPktOffLength,       static_cast<uint16_t>(kCapPacketLength));
+        cerf::le::Put16(packet + kPktOffType,         static_cast<uint16_t>(kCapPacketType));
+        cerf::le::Put16(packet + kCapOffBitmapWidth,  static_cast<uint16_t>(cap.bitmap_width));
+        cerf::le::Put16(packet + kCapOffBitmapHeight, static_cast<uint16_t>(cap.bitmap_height));
+        cerf::le::Put16(packet + kCapOffWindowWidth,  static_cast<uint16_t>(cap.display_window_width));
+        cerf::le::Put16(packet + kCapOffWindowHeight, static_cast<uint16_t>(cap.display_window_height));
+        cerf::le::Put16(packet + kCapOffMfrName,      static_cast<uint16_t>(cap.mfr_name));
+        cerf::le::Put16(packet + kCapOffProductCode,  static_cast<uint16_t>(cap.product_code));
 
         DeliverReversePacket(packet, kCapPacketBytes);
         CompleteReverseEncap(kRevPacketOne);
@@ -342,13 +334,13 @@ private:
         }
 
         uint8_t packet[kRegAccPacketBytes] = {};
-        StoreHalf(packet, kPktOffLength, kRegAccPacketLength);
-        StoreHalf(packet, kPktOffType,   kRegAccPacketType);
-        StoreHalf(packet, kPktOffRwInfo, kRwInfoReadResponse);
-        StoreWord(packet, kPktOffAddress,
-                  response_address_.load(std::memory_order_acquire));
-        StoreWord(packet, kPktOffDataList,
-                  response_value_.load(std::memory_order_acquire));
+        cerf::le::Put16(packet + kPktOffLength, static_cast<uint16_t>(kRegAccPacketLength));
+        cerf::le::Put16(packet + kPktOffType,   static_cast<uint16_t>(kRegAccPacketType));
+        cerf::le::Put16(packet + kPktOffRwInfo, static_cast<uint16_t>(kRwInfoReadResponse));
+        cerf::le::Put32(packet + kPktOffAddress,
+                        response_address_.load(std::memory_order_acquire));
+        cerf::le::Put32(packet + kPktOffDataList,
+                        response_value_.load(std::memory_order_acquire));
 
         response_pending_.store(0u, std::memory_order_release);
         DeliverReversePacket(packet, kRegAccPacketBytes);

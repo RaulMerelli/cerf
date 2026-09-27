@@ -2,6 +2,7 @@
 
 #include "simpad_sl4_touch_panel.h"
 #include "../board_context.h"
+#include "simpad_sl4_id.h"
 #include "../../core/cerf_emulator.h"
 
 namespace {
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
     void OnPenDown(int x, int y) override {

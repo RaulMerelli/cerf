@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_giu_impl.h"
 
 #include <cstdint>
+#include "vr4122_id.h"
 
 namespace {
 
@@ -29,7 +30,7 @@ constexpr Vr41xxGiuModel kModel = {
    (offset 0x1E); the shared VR4102/4121 template decodes 0x1C as its own GIUPODATL, and its
    ReadWord/WriteWord call the private ReadHalfLocked, so a word access touching the tail
    must not reach the base. */
-class Vr4122Giu : public Vr41xxGiuBase<SocFamily::VR4122, kModel> {
+class Vr4122Giu : public Vr41xxGiuBase<SocId::Vr4122, kModel> {
 public:
     using Vr41xxGiuBase::Vr41xxGiuBase;
 
@@ -76,13 +77,13 @@ public:
 
     void SaveState(StateWriter& w) override {
         Vr41xxGiuBase::SaveState(w);
-        w.Write(podaten_);
-        w.Write(podatl_);
+        w.Write("podaten", podaten_);
+        w.Write("podatl", podatl_);
     }
     void RestoreState(StateReader& r) override {
         Vr41xxGiuBase::RestoreState(r);
-        r.Read(podaten_);
-        r.Read(podatl_);
+        r.Read("podaten", podaten_);
+        r.Read("podatl", podatl_);
     }
 
 private:

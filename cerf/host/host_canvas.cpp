@@ -8,7 +8,6 @@
 #include "frame_renderer.h"
 #include "host_canvas_input.h"
 #include "lcd_scan_tick.h"
-#include "memory_visualizer.h"
 #include "boot_screen.h"
 #include "hw_screen.h"
 #include "refresh_rate_service.h"
@@ -33,10 +32,6 @@ void HostCanvas::SetTab(Tab t, bool user_initiated) {
     if (user_initiated) user_picked_view_ = true;
     if (tab_ == t) return;
     if (tab_ == Tab::Framebuffer) emu_.Get<HostCanvasInput>().ReleasePenIfDown();
-    else if (tab_ == Tab::MemoryVisualizer) {
-        if (GetCapture() == canvas_.Hwnd()) ReleaseCapture();
-        if (auto* mv = emu_.TryGet<MemoryVisualizer>()) mv->CancelInput();
-    }
     tab_ = t;
     canvas_.SetFramebufferActive(tab_ == Tab::Framebuffer);
     if (canvas_.Hwnd()) InvalidateRect(canvas_.Hwnd(), nullptr, FALSE);
@@ -79,11 +74,6 @@ bool HostCanvas::RenderAltContent(HDC dc, uint32_t* bits, int w, int h) {
     if (tab_ == Tab::Framebuffer) return false;   /* canvas composes the frame */
     if (tab_ == Tab::Boot) {
         emu_.Get<BootScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
-        return true;
-    }
-    if (tab_ == Tab::MemoryVisualizer) {
-        if (auto* mv = emu_.TryGet<MemoryVisualizer>())
-            mv->RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);
         return true;
     }
     emu_.Get<HwScreen>().RenderInto(dc, bits, (uint32_t)w, (uint32_t)h);

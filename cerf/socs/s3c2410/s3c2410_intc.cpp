@@ -9,6 +9,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../state/state_stream.h"
 #include "s3c2410_eint_source.h"
 #include "s3c2410_sub_source_levels.h"
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
 
     /* IrqController API. */
@@ -286,12 +287,12 @@ void S3C2410Intc::WriteReg(uint32_t offset, uint32_t value) {
 
 void S3C2410Intc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    w.WriteBytes(storage_, sizeof(storage_));
+    w.WriteBytes("storage", storage_, sizeof(storage_));
 }
 
 void S3C2410Intc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    r.ReadBytes(storage_, sizeof(storage_));
+    r.ReadBytes("storage", storage_, sizeof(storage_));
 }
 
 void S3C2410Intc::PostRestore() {
@@ -310,7 +311,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

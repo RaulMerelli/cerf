@@ -7,9 +7,6 @@
 #include <cstdint>
 #include <vector>
 
-/* The main host window's drawable. Owns a shared PresenterCanvas and layers on
-   the main-window-only concerns (HwScreen / Framebuffer / MemoryVisualizer
-   tabs, LCD scan tick, stylus input) via the PresenterCanvasHost hooks. */
 class HostCanvas : public Service, public PresenterCanvasHost {
 public:
     using Service::Service;

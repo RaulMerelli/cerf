@@ -1,10 +1,14 @@
 #include "casio_toricomail_asic.h"
 
 #include "../../boards/board_context.h"
+#include "casio_toricomail_id.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
+#include "../../jit/mips/mips_mmu.h"
+#include "../../lcd/lcd_pixel_expand.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/guest_cpu_reset.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
@@ -16,7 +20,7 @@
 
 bool CasioToricomailAsic::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::CasioToricomail;
+    return bd && bd->GetBoardId() == BoardId::CasioToricomail;
 }
 
 void CasioToricomailAsic::OnReady() {
@@ -42,7 +46,7 @@ void CasioToricomailAsic::RunFillLocked() {
     for (uint32_t y = 0; y < fill_height_; ++y) {
         uint8_t* row = fb_.data() + dst + static_cast<size_t>(y) * kPitchBytes;
         for (uint32_t x = 0; x < fill_width_; ++x)
-            std::memcpy(row + x * 2u, &fill_value_, sizeof(fill_value_));
+            cerf::le::Put16(row + x * 2u, fill_value_);
     }
     /* ddi.dll blit sub_13815A8 writes 0x208/0x20A fresh on every blit; nk.exe fill
        sub_9F0B7D20 never writes them and fills from origin - the destination is
@@ -96,9 +100,8 @@ void CasioToricomailAsic::RunBlitLocked() {
         const uint8_t* mask = fb_.data() + src + StageOffset(y);
         uint8_t*       row  = fb_.data() + dst + static_cast<size_t>(y) * kPitchBytes;
         for (uint32_t x = 0; x < fill_width_; ++x) {
-            const uint32_t bit = static_cast<uint32_t>(src_bit) + x;
-            if ((mask[bit >> 3] >> (7u - (bit & 7u))) & 1u)
-                std::memcpy(row + x * 2u, &fg, sizeof(fg));
+            if (lcd_pixel::PackedIndexMsbFirst(mask, static_cast<uint32_t>(src_bit) + x, 1u))
+                cerf::le::Put16(row + x * 2u, fg);
         }
     }
     fill_dst_lo_ = 0; fill_dst_hi_ = 0;
@@ -116,8 +119,8 @@ void CasioToricomailAsic::RunBlit7Locked() {
             blit7_height_);
         CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
-    const uint32_t src_pa = (static_cast<uint32_t>(blit7_src_lo_) |
-                             (static_cast<uint32_t>(blit7_src_hi_) << 16)) & 0x1FFFFFFFu;
+    const uint32_t src_pa = MipsSeg::UnmappedPa(static_cast<uint32_t>(blit7_src_lo_) |
+                                                (static_cast<uint32_t>(blit7_src_hi_) << 16));
     const uint32_t dst = static_cast<uint32_t>(blit7_dst_lo_) |
                          (static_cast<uint32_t>(blit7_dst_hi_) << 16);
     const uint32_t row_bytes = static_cast<uint32_t>(blit7_width_) * 2u;
@@ -346,13 +349,13 @@ uint8_t CasioToricomailAsic::ReadByte(uint32_t addr) {
 
 uint16_t CasioToricomailAsic::ReadHalf(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) { uint16_t v; std::memcpy(&v, &fb_[off - kFbOffset], sizeof(v)); return v; }
+    if (InFb(off)) return cerf::le::U16(fb_.data(), off - kFbOffset);
     return ReadReg(off);
 }
 
 uint32_t CasioToricomailAsic::ReadWord(uint32_t addr) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) { uint32_t v; std::memcpy(&v, &fb_[off - kFbOffset], sizeof(v)); return v; }
+    if (InFb(off)) return cerf::le::U32(fb_.data(), off - kFbOffset);
     /* ddi.dll blit sub_13815A8 drives the blit registers as 32-bit words; the 16-bit bus
        splits each into low-then-high halfword accesses. */
     return static_cast<uint32_t>(ReadReg(off)) |
@@ -367,13 +370,13 @@ void CasioToricomailAsic::WriteByte(uint32_t addr, uint8_t value) {
 
 void CasioToricomailAsic::WriteHalf(uint32_t addr, uint16_t value) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) { std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value)); return; }
+    if (InFb(off)) { cerf::le::Put16(fb_.data() + (off - kFbOffset), value); return; }
     WriteReg(off, value);
 }
 
 void CasioToricomailAsic::WriteWord(uint32_t addr, uint32_t value) {
     const uint32_t off = addr - kBase;
-    if (InFb(off)) { std::memcpy(&fb_[off - kFbOffset], &value, sizeof(value)); return; }
+    if (InFb(off)) { cerf::le::Put32(fb_.data() + (off - kFbOffset), value); return; }
     /* ddi.dll blit sub_13815A8 drives the blit registers as 32-bit words; the 16-bit bus
        splits each into low-then-high halfword accesses. */
     WriteReg(off,      static_cast<uint16_t>(value & 0xFFFFu));
@@ -381,59 +384,50 @@ void CasioToricomailAsic::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void CasioToricomailAsic::SaveState(StateWriter& w) {
-    w.Write<uint64_t>(fb_.size());
-    if (!fb_.empty()) w.WriteBytes(fb_.data(), fb_.size());
-    w.Write(fill_value_); w.Write(fill_width_); w.Write(fill_height_);
-    w.Write(fill_dst_lo_); w.Write(fill_dst_hi_);
-    w.Write(fill_src_lo_); w.Write(fill_src_hi_); w.Write(blit_src_bit_); w.Write(blit_mode_);
-    w.Write(blit7_ctl_); w.Write(blit7_width_); w.Write(blit7_height_);
-    w.Write(blit7_src_lo_); w.Write(blit7_src_hi_); w.Write(blit7_dst_lo_); w.Write(blit7_dst_hi_);
-    w.Write(int_status_); w.Write(int_enable_);
-    w.Write(side_buttons_);
-    w.Write(reg_1000_);
-    w.Write(reg_1002_); w.Write(reg_1010_); w.Write(reg_1134_);
-    w.Write(reg_7a0_); w.Write(reg_7a2_); w.Write(reg_7a4_);
-    w.Write(reg_40a_); w.Write(reg_406_);
-    for (uint16_t v : suspend_save_) w.Write(v);
-    w.Write(reg_1130_);
-    w.Write(reg_0A00_); w.Write(reg_0A02_);
+    w.WriteBytes("fb", fb_.data(), fb_.size());
+    w.Write("fill_value", fill_value_); w.Write("fill_width", fill_width_); w.Write("fill_height", fill_height_);
+    w.Write("fill_dst_lo", fill_dst_lo_); w.Write("fill_dst_hi", fill_dst_hi_);
+    w.Write("fill_src_lo", fill_src_lo_); w.Write("fill_src_hi", fill_src_hi_); w.Write("blit_src_bit", blit_src_bit_); w.Write("blit_mode", blit_mode_);
+    w.Write("blit7_ctl", blit7_ctl_); w.Write("blit7_width", blit7_width_); w.Write("blit7_height", blit7_height_);
+    w.Write("blit7_src_lo", blit7_src_lo_); w.Write("blit7_src_hi", blit7_src_hi_); w.Write("blit7_dst_lo", blit7_dst_lo_); w.Write("blit7_dst_hi", blit7_dst_hi_);
+    w.Write("int_status", int_status_); w.Write("int_enable", int_enable_);
+    w.Write("reg_1000", reg_1000_);
+    w.Write("reg_1002", reg_1002_); w.Write("reg_1010", reg_1010_); w.Write("reg_1134", reg_1134_);
+    w.Write("reg_7a0", reg_7a0_); w.Write("reg_7a2", reg_7a2_); w.Write("reg_7a4", reg_7a4_);
+    w.Write("reg_40a", reg_40a_); w.Write("reg_406", reg_406_);
+    for (uint16_t v : suspend_save_) w.Write("suspend_save", v);
+    w.Write("reg_1130", reg_1130_);
+    w.Write("reg_0A00", reg_0A00_); w.Write("reg_0A02", reg_0A02_);
     size_latch_.SaveState(w);
-    w.Write(reg_1120_);
-    w.Write(reg_0920_); w.Write(reg_0922_); w.Write(reg_1112_);
-    w.Write(reg_0B00_); w.Write(reg_0B10_); w.Write(reg_0B02_);
-    w.Write(reg_0B1E_);
-    w.Write<uint8_t>(dms_armed_ ? 1u : 0u);
+    w.Write("reg_1120", reg_1120_);
+    w.Write("reg_0920", reg_0920_); w.Write("reg_0922", reg_0922_); w.Write("reg_1112", reg_1112_);
+    w.Write("reg_0B00", reg_0B00_); w.Write("reg_0B10", reg_0B10_); w.Write("reg_0B02", reg_0B02_);
+    w.Write("reg_0B1E", reg_0B1E_);
+    w.Write<uint8_t>("dms_armed", dms_armed_ ? 1u : 0u);
 }
 
 void CasioToricomailAsic::RestoreState(StateReader& r) {
-    uint64_t n = 0; r.Read(n);
-    if (n != kFbSize) {
-        emu_.Get<Fatal>().Die("CasioToricomailAsic::RestoreState: framebuffer is %llu bytes, "
-                              "expected %u", static_cast<unsigned long long>(n), kFbSize);
-    }
-    fb_.assign(kFbSize, 0u);
-    r.ReadBytes(fb_.data(), fb_.size());
-    r.Read(fill_value_); r.Read(fill_width_); r.Read(fill_height_);
-    r.Read(fill_dst_lo_); r.Read(fill_dst_hi_);
-    r.Read(fill_src_lo_); r.Read(fill_src_hi_); r.Read(blit_src_bit_); r.Read(blit_mode_);
-    r.Read(blit7_ctl_); r.Read(blit7_width_); r.Read(blit7_height_);
-    r.Read(blit7_src_lo_); r.Read(blit7_src_hi_); r.Read(blit7_dst_lo_); r.Read(blit7_dst_hi_);
-    r.Read(int_status_); r.Read(int_enable_);
-    r.Read(side_buttons_);
-    side_buttons_ = 0;   /* no physical side button is held after restore (hibernation.md) */
-    r.Read(reg_1000_);
-    r.Read(reg_1002_); r.Read(reg_1010_); r.Read(reg_1134_);
-    r.Read(reg_7a0_); r.Read(reg_7a2_); r.Read(reg_7a4_);
-    r.Read(reg_40a_); r.Read(reg_406_);
-    for (uint16_t& v : suspend_save_) r.Read(v);
-    r.Read(reg_1130_);
-    r.Read(reg_0A00_); r.Read(reg_0A02_);
+    r.ReadBytes("fb", fb_.data(), fb_.size());
+    r.Read("fill_value", fill_value_); r.Read("fill_width", fill_width_); r.Read("fill_height", fill_height_);
+    r.Read("fill_dst_lo", fill_dst_lo_); r.Read("fill_dst_hi", fill_dst_hi_);
+    r.Read("fill_src_lo", fill_src_lo_); r.Read("fill_src_hi", fill_src_hi_); r.Read("blit_src_bit", blit_src_bit_); r.Read("blit_mode", blit_mode_);
+    r.Read("blit7_ctl", blit7_ctl_); r.Read("blit7_width", blit7_width_); r.Read("blit7_height", blit7_height_);
+    r.Read("blit7_src_lo", blit7_src_lo_); r.Read("blit7_src_hi", blit7_src_hi_); r.Read("blit7_dst_lo", blit7_dst_lo_); r.Read("blit7_dst_hi", blit7_dst_hi_);
+    r.Read("int_status", int_status_); r.Read("int_enable", int_enable_);
+    side_buttons_ = 0;
+    r.Read("reg_1000", reg_1000_);
+    r.Read("reg_1002", reg_1002_); r.Read("reg_1010", reg_1010_); r.Read("reg_1134", reg_1134_);
+    r.Read("reg_7a0", reg_7a0_); r.Read("reg_7a2", reg_7a2_); r.Read("reg_7a4", reg_7a4_);
+    r.Read("reg_40a", reg_40a_); r.Read("reg_406", reg_406_);
+    for (uint16_t& v : suspend_save_) r.Read("suspend_save", v);
+    r.Read("reg_1130", reg_1130_);
+    r.Read("reg_0A00", reg_0A00_); r.Read("reg_0A02", reg_0A02_);
     size_latch_.RestoreState(r);
-    r.Read(reg_1120_);
-    r.Read(reg_0920_); r.Read(reg_0922_); r.Read(reg_1112_);
-    r.Read(reg_0B00_); r.Read(reg_0B10_); r.Read(reg_0B02_);
-    r.Read(reg_0B1E_);
-    uint8_t armed = 1; r.Read(armed); dms_armed_ = (armed != 0);
+    r.Read("reg_1120", reg_1120_);
+    r.Read("reg_0920", reg_0920_); r.Read("reg_0922", reg_0922_); r.Read("reg_1112", reg_1112_);
+    r.Read("reg_0B00", reg_0B00_); r.Read("reg_0B10", reg_0B10_); r.Read("reg_0B02", reg_0B02_);
+    r.Read("reg_0B1E", reg_0B1E_);
+    uint8_t armed = 1; r.Read("dms_armed", armed); dms_armed_ = (armed != 0);
 }
 
 void CasioToricomailAsic::PostRestore() {

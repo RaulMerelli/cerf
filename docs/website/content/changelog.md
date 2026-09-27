@@ -4,6 +4,4 @@ hide:
   - toc
 ---
 
-# Changelog
-
 {changelog_table}

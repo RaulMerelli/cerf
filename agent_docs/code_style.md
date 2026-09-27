@@ -26,16 +26,25 @@ This page is MANDATORY and complements `rules.md` (behavioral rules) and
 - **No "removed X" / "TODO later" comments** for work that is actually done. If the code is gone, the comment is gone.
 - **A comment that still makes sense moved to a random file is dead weight** - useful comments are glued to the specific code below them (non-obvious invariants, CE quirks, pointer-truncation hazards). Generic narration ("lives in X", "moved to Y", "added for debugging", "out-of-line in Z") reads the same anywhere, because it says nothing about what is actually there.
 
+## The `CERF_DEV_MODE` gate
+
+`build.ps1` sets `CERF_DEV_MODE` to `1` for a dev build and to `0` for a
+production build. The preprocessor then deletes the gated code from the shipped
+binary.
+
+**Gated code must not reach a production build, because it harms the user. A dev
+build keeps that code, because a developer needs it, and the harm does not apply
+to a developer.**
+
+Name both reasons in the message that carries the change: the harm to the user,
+and the need in the dev build. **A gate with no reason is a rule violation.**
+
 ## Logging
 
 - **A LOG line is a record of an event, not prose.** It carries the event and the values a reader needs to act on it (register, address, value, PC, function). Narration, rationale, design defence, apology, TODO text, and anything lifted from the session that produced the code are the same bloat that § Comments bans, and they are banned here for the same reason. This binds hardest on the `LOG` immediately before a `CerfFatalExit`, because that one line is what a user pastes back: it states what was hit and with which values, never an essay about why the path is unimplemented.
 - **Structured log channels** - `LOG(MEM, ...)`, `LOG(NET, ...)`, and more. One channel per subsystem. New subsystem → new channel in `log.h`, not a generic fallback. The exact set of channels is in flux during the v2 rewrite. Align new code with whatever channels exist when you write it, and add a new one when no existing channel fits.
 - **Default log mask is mode-gated.** Dev builds (`CERF_DEV_MODE=1`) enable every channel by default, so investigations have full output with no flag. Production builds (`CERF_DEV_MODE=0`) start with a limited default set: `Log::MASK_PRODUCTION_DEFAULT`, the always-on `Cerf` / `Caution` categories plus the event/milestone channels that stay non-spamming on every board. The user widens or narrows that set with `--log=...` / `--no-log=...`. The switch is the `Log::detail::enabled_mask` initializer in `cerf/core/log.cpp`.
-- **Verbose LOG lines that print inputs/state are acceptable permanently - but only when low-frequency** - the log level filters them, and they aid future debugging at zero runtime cost. That holds when their fire-rate is low enough that the signal a future reader needs is not buried in their noise. Anything that fires per-clock, per-register-access, per-instruction, or per-context-switch is high-frequency and **must not ship in production**: either move it into a device-specific trace file under `cerf/tracing/<bundle>/` (gated by bundle CRC32, excluded from production builds), or wrap the LOG site in `#if CERF_DEV_MODE ... #endif` wherever a trace file does not apply. `build.ps1` sets `CERF_DEV_MODE=1` in dev and `CERF_DEV_MODE=0` in production. See `agent_docs/rules.md` § "Simple LOG verbose lines" for the full removal criteria.
-- **`#if CERF_DEV_MODE` gates the dev-mode subsystem - it is NOT a catch-all for "debugging-ish" code, and this rule does not discourage diagnostics.** Diagnostics are essential. The rule is purely *where each kind lives*. Classify before you wrap anything:
-  - **Temporary, tied to one bug hunt** (a register dump at one PC, a abort-walker trace, a thread-suspend dump): home is a CRC-gated trace file under `cerf/tracing/<bundle>/`, or deletion when the hunt ends - **never** `#if CERF_DEV_MODE` inside JIT/MMU/peripheral core, which launders throwaway debugging into code that looks permanent and pollutes the fragile core.
-  - **Permanently useful, low-frequency operational log** (an event any maintainer wants on a dev *or* production run - an open-bus floating access, a touch into unmapped MMIO, a rare mode transition): a plain `LOG()`. A wrap in `#if CERF_DEV_MODE` is backwards - it deletes the log in production builds, exactly where the silent event it guards is most dangerous.
-  - **Permanently useful but high-frequency** (per-clock / per-register / per-instruction): the *only* case `#if CERF_DEV_MODE` legitimately wraps in core - and even then a trace file is preferred (see the high-frequency-log rule above and in `agent_docs/rules.md`).
+- **Verbose LOG lines that print inputs/state are acceptable permanently - but only when low-frequency** - the log level filters them, and they aid future debugging at zero runtime cost. That holds when their fire-rate is low enough that the signal a future reader needs is not buried in their noise. For a site that fires more often than that, `agent_docs/rules.md` § "Simple LOG verbose lines" gives the frequency test and where the site must go.
 
 ## Services
 
@@ -73,14 +82,13 @@ bool FooService::DoThing(int arg) { /* ... */ }
     - **Shape P - private concrete, .cpp only, class inside `namespace { ... }`.** Used for every concrete that registers via `REGISTER_SERVICE_AS(Concrete, Base)` (consumers depend on `Base`, never on `Concrete`) AND for any concrete registered via `REGISTER_SERVICE` whose name is needed *only* by the registration macro itself. That is typical of peripherals that self-register with `PeripheralDispatcher` in `OnReady` and are then routed to by address, never resolved by class name. The class definition, all method bodies, and the `REGISTER_SERVICE[_AS]` line live in the same `.cpp`. The class sits inside `namespace { ... }` so no other TU can name it, and its enclosing `.cpp` has no companion header. This enforces the Dependency Inversion mechanically - there is no symbol available to import.
   A split of one service across two `.cpp` files is forbidden under either shape. If the file approaches the 500-line cap, the only sanctioned response is to split into multiple smaller services with distinct responsibilities (each its own `foo_*_service.{h,cpp}` or `foo_*.cpp`), never to spread one service across two `.cpp` files.
 - **Three orthogonal per-impl trees, picked by what the thing IS:**
-    - `cerf/socs/<chip>/` - on-die silicon for one SoC family. `*PageTableBuilder`, every chip-level peripheral (UART, INTC, GPIO, RTC, timer, watchdog, memctrl, LCD controller, NAND controller, …). Concretes' `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`. Shape S allowed for cross-TU base concretes. Shape P more common for peripherals.
-    - `cerf/boards/<board>/` - one specific OEM board / BSP. The `BoardContext` impl (reports the board's `Board` / `SocFamily` / `CpuArch` / `RomPlacingMode`, and registers when the configured `board_id` names it), board-only virtual peripherals (host-emulator notification channels, virtual DMA transports), BSP-specific config writers (BSP_ARGS layout). Concretes' `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetBoard() == Board::X`.
-    - `cerf/peripherals/<vendor>_<part>/` - off-chip silicon any board can connect (for example `cirrus_pd6710/` PCMCIA controller, `amd_am29lv800bb/` NOR flash). Concretes' `ShouldRegister` evaluates a board-list - `auto b = emu_.Get<BoardContext>().GetBoard(); return b == X || b == Y;`. The list grows when a new board adopts the same part. The file is never duplicated. The `cerf/peripherals/` root also holds the abstract `Peripheral` base (`peripheral_base.{h,cpp}`) and the MMIO router (`peripheral_dispatcher.{h,cpp}`) - all peripheral-domain code, framework + concretes, lives in this one tree.
+    - `cerf/socs/<chip>/` - on-die silicon for one SoC family. `*PageTableBuilder`, every chip-level peripheral (UART, INTC, GPIO, RTC, timer, watchdog, memctrl, LCD controller, NAND controller, …). Concretes' `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetSocId() == SocId::X`. Shape S allowed for cross-TU base concretes. Shape P more common for peripherals.
+    - `cerf/boards/<board>/` - one specific OEM board / BSP. The `BoardContext` impl (returns the board's id, and registers when the configured `board_id` names it), board-only virtual peripherals (host-emulator notification channels, virtual DMA transports), BSP-specific config writers (BSP_ARGS layout). Concretes' `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetBoardId() == BoardId::X`.
+    - `cerf/peripherals/<vendor>_<part>/` - off-chip silicon any board can connect (for example `cirrus_pd6710/` PCMCIA controller, `amd_am29lv800bb/` NOR flash). Concretes' `ShouldRegister` evaluates a board-list - `auto b = emu_.Get<BoardContext>().GetBoardId(); return b == BoardId::X || b == BoardId::Y;`. The list grows when a new board adopts the same part. The file is never duplicated. The `cerf/peripherals/` root also holds the abstract `Peripheral` base (`peripheral_base.{h,cpp}`) and the MMIO router (`peripheral_dispatcher.{h,cpp}`) - all peripheral-domain code, framework + concretes, lives in this one tree.
   Abstract bases (`BoardContext`, `PageTableBuilder`, `Peripheral`) live next to their consumers (`cerf/boards/`, `cerf/core/`, `cerf/cpu/`, `cerf/peripherals/`), not under any per-impl tree. The addition or removal of a chip / board / vendor-part touches exactly one directory. A split of one impl's pieces across multiple trees (chip pieces in board dir, board pieces in chip dir) is the wrong axis.
 - **Before you write a new concrete, list that tree's root.** The base it implements is usually already there. A sibling concrete shows the idiom, but it does not name the seam.
 - **Find an existing impl by enumerating the trees, not by keyword search.** CERF names off-chip parts by vendor and part number, and SoC units by chip. A grep for what the part does ("flash", "nor", "timer") therefore finds nothing, and you write a duplicate. `ls` the directories and files under `cerf/peripherals/`, `cerf/socs/`, and sometimes `cerf/boards/`, and read the names. When `cerf/socs/` carries a per-chip directory for each family member next to a shared one, that split is itself the signal: `ls` inside each and see whether a shared `*_impl.h` base or a sibling concrete already covers your unit.
 - **A new device seam is the signal to search for the existing one.** Before you write a `virtual` interface for a device-facing seam, search for the base that already covers it. An existing base carries obligations that an invented one omits. Those obligations surface long after the duplication does.
-- **Dependencies via `emu_.Get<T>()`** - never cache service pointers in statics, globals, or construction-time copies. Captured references inside a method body are fine. A reference captured at construction time is a service-locator bypass.
 - **`OnReady` is the setup lifecycle phase.** There is no `OnInit`. All setup - self-state, cross-service wiring, worker threads - happens in `OnReady`. Inside `OnReady`, a call to `emu_.Get<Other>()` runs `Other::OnReady` first if it has not run yet (lazy `EnsureReady()` on `Get<>`). The framework dependency-orders services on demand. Declaration order in the registry does not matter. Cycles (`A.OnReady` → `Get<B>` → `B.OnReady` → `Get<A>`) halt loudly via `ServiceInternal::HaltOnCycle`. `Get<>` is thread-safe. `EnsureReady` serializes concurrent first-callers on a mutex, so `OnReady` runs at most once.
 - **Services have a shutdown phase, not only `OnReady`.** The framework runs `OnShutdown()` on every service that became ready (idempotently, reverse-registration order) before any service destructor begins. Use it to stop your own worker threads and detach from peers ONLY - continue to free a buffer a peer thread can read in the destructor, because during the shutdown phase a peer whose `OnShutdown` runs later has not stopped its thread yet. If you stop a worker thread in the destructor instead of `OnShutdown`, that thread can touch a peer already torn down.
 - **Strategy pattern - `REGISTER_SERVICE_AS(Impl, Base)`** for device-version-dependent implementations. One impl per device ID, selected at startup by `DeviceConfig`. Zero `if (os_major == X)` branches inside a strategy - strategies ARE the version distinction (see `rules.md`).
@@ -98,9 +106,9 @@ When a subsystem's behavior must differ between SoCs / boards / off-chip parts, 
 
 The query axis matches the per-impl tree (see `subsystems.md` § "Per-chip / per-board / per-part strategies"):
 
-- **SoC-family code** under `cerf/socs/<chip>/` - `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetSoc() == SocFamily::X`.
-- **Board-specific code** under `cerf/boards/<board>/` - `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetBoard() == Board::X`.
-- **Off-chip-part code** under `cerf/peripherals/<vendor>_<part>/` - `ShouldRegister` evaluates a board-list: `auto b = emu_.Get<BoardContext>().GetBoard(); return b == X || b == Y;`.
+- **SoC-family code** under `cerf/socs/<chip>/` - `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetSocId() == SocId::X`.
+- **Board-specific code** under `cerf/boards/<board>/` - `ShouldRegister` evaluates `emu_.Get<BoardContext>().GetBoardId() == BoardId::X`.
+- **Off-chip-part code** under `cerf/peripherals/<vendor>_<part>/` - `ShouldRegister` evaluates a board-list: `auto b = emu_.Get<BoardContext>().GetBoardId(); return b == BoardId::X || b == BoardId::Y;`.
 
 This takes two shapes, and the shape depends on whether the service has external callers:
 
@@ -115,7 +123,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::S3C2410;
+        return bd && bd->GetSocId() == SocId::S3c2410;
     }
 
     void OnReady() override {
@@ -125,7 +133,7 @@ public:
 REGISTER_SERVICE(S3C2410FooPeripheral);
 ```
 
-A sibling file `pxa27x_foo_peripheral.cpp` whose `ShouldRegister` evaluates `SocFamily::PXA27x` is the second variant, and so on. The addition of a third variant touches no existing files.
+A sibling file `pxa27x_foo_peripheral.cpp` whose `ShouldRegister` evaluates `SocId::Pxa270` is the second variant, and so on. The addition of a third variant touches no existing files.
 
 #### Shape B - external callers exist → base class + `REGISTER_SERVICE_AS`
 
@@ -150,7 +158,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     uint32_t InitStackTopPa() const override { /* SMDK2410 DRAM top */ }
@@ -159,12 +167,12 @@ public:
 REGISTER_SERVICE_AS(Smdk2410DevEmuPageTableBuilder, PageTableBuilder);
 ```
 
-A sibling `jornada720_page_table_builder.cpp` registers itself for `Board::Jornada720` and so on. Consumers always write `emu.Get<PageTableBuilder>()` - they neither know nor care which concrete answered. (`PageTableBuilder` is the VA→PA map, a per-board choice, so its concretes select on `GetBoard()`. A SoC-family strategy like `ArmProcessorConfig` selects on `GetSoc()` instead.)
+A sibling `jornada720_page_table_builder.cpp` registers itself for `BoardId::Jornada720` and so on. Consumers always write `emu.Get<PageTableBuilder>()` - they neither know nor care which concrete answered. (`PageTableBuilder` is the VA→PA map, a per-board choice, so its concretes select on `GetBoardId()`. A SoC-family strategy like `ArmProcessorConfig` selects on `GetSocId()` instead.)
 
 #### Rules that apply to both shapes
 
-- **Exactly one impl wins for a required base.** Two `ShouldRegister` that return `true` for the same base is a bug. Two that return `false` for a required base is also a bug. `BoardContext` is the gate - the configured `board_id` (`cerf.json board.id` / `--board-id`) selects exactly one `BoardContext`, whose `GetBoard()` / `GetSoc()` then bucket every other strategy. Optional bases (a peripheral that not every board has) can have zero winners - consumers use `emu.TryGet<Base>()` and tolerate absence.
-- **`ShouldRegister` can resolve any service via `emu_.Get<>()`** - same lazy/recursive shape as `OnReady`. The framework defers slot resolution until first `Get<>` and walks each candidate's `ShouldRegister` on demand, so a strategy whose decision depends on another service (for example "register this MMU policy iff `Get<BoardContext>().GetSoc() == SocFamily::S3C2410`") composes cleanly. Cycles (`A.ShouldRegister` → `Get<B>` → `B.ShouldRegister` → `Get<A>`) halt loudly. NEVER reach into a specific concrete subclass by name (for example `Smdk2410DevEmuDetector::Fingerprint`) - that is a Dependency Inversion violation. Depend on the abstract `Base` only.
+- **Exactly one impl wins for a required base.** Two `ShouldRegister` that return `true` for the same base is a bug. Two that return `false` for a required base is also a bug. `BoardContext` is the gate - the configured `board_id` (`cerf.json board.id` / `--board-id`) selects exactly one `BoardContext`, whose `GetBoardId()` / `GetSocId()` then bucket every other strategy. Optional bases (a peripheral that not every board has) can have zero winners - consumers use `emu.TryGet<Base>()` and tolerate absence.
+- **`ShouldRegister` can resolve any service via `emu_.Get<>()`** - same lazy/recursive shape as `OnReady`. The framework defers slot resolution until first `Get<>` and walks each candidate's `ShouldRegister` on demand, so a strategy whose decision depends on another service (for example "register this MMU policy iff `Get<BoardContext>().GetSocId() == SocId::S3c2410`") composes cleanly. Cycles (`A.ShouldRegister` → `Get<B>` → `B.ShouldRegister` → `Get<A>`) halt loudly. NEVER reach into a specific concrete subclass by name (for example `Smdk2410DevEmuDetector::Fingerprint`) - that is a Dependency Inversion violation. Depend on the abstract `Base` only.
 - **Never put `if (board == X)` or `if (soc == X)` inside the impl body.** The impl already represents one specific board / SoC. That branch belongs in `ShouldRegister` and nowhere else. If two boards share most of an impl and diverge in one method, the divergence goes into a separate Service that the shared impl resolves via `emu_.Get<>()` - not an inline branch.
 - **A shared-capable ISA capability goes in the shared path behind a `ProcessorConfig::HasX()` flag, never localized in one SoC's strategy.** When an instruction-set capability (VFP, NEON, DSP, …) currently appears on only one implemented SoC, its decode/dispatch still belongs in the shared decoder / emit path, gated by the engine's processor-config capability flag (`ArmProcessorConfig` / `MipsProcessorConfig` `HasX()`). It must never be hardcoded into that SoC's coprocessor emitter (`CoprocEmitter` / `MipsCp0Emitter`) or strategy. "Only one current SoC has it" is an artifact of the implemented-SoC set, not a property of the capability, and a localization of it forces an expensive later re-extraction into the shared path.
 - **One concrete per file, filename matches the class name exactly.** `S3C2410FooPeripheral` → `s3c2410_foo_peripheral.{h,cpp}`, `PXA27xFooPeripheral` → `pxa27x_foo_peripheral.{h,cpp}`. Never gang two concretes into one file. Same strict naming rule as § Writing a service: snake_case of the full class name, no abbreviation, no rename, no dropped suffix. The 500-line cap and the "split into multiple services" rule apply identically here - if a concrete impl outgrows its file, split it into smaller services, not into sidecar `.cpp` files.

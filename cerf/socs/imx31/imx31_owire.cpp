@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -31,7 +32,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -55,10 +56,10 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(control_); w.Write(time_divider_); w.Write(reset_);
+        w.Write("control", control_); w.Write("time_divider", time_divider_); w.Write("reset", reset_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(control_); r.Read(time_divider_); r.Read(reset_);
+        r.Read("control", control_); r.Read("time_divider", time_divider_); r.Read("reset", reset_);
     }
 
 private:

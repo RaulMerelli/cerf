@@ -6,10 +6,9 @@
 #include "../../host/panel_frame_renderer.h"
 #include "../../lcd/panel_scanout.h"
 #include "../board_context.h"
+#include "nokia_lumia_800_id.h"
 
 namespace {
-
-constexpr size_t kContentProbeStride = 251;
 
 class NokiaLumia800PanelRenderer : public PanelFrameRenderer {
 public:
@@ -17,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NokiaLumia800;
+        return bd && bd->GetBoardId() == BoardId::NokiaLumia800;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {
@@ -30,8 +29,7 @@ public:
         const Msm8255MddiSurface s = emu_.Get<Msm8255MddiClient>().Surface();
         if (!s.visible)       return false;
         if (latch_.Latched()) return true;
-        return latch_.ProbeAndLatch(s.pixels, s.stride_bytes * s.height,
-                                    kContentProbeStride);
+        return latch_.ProbeAndLatch(s.pixels, s.stride_bytes * s.height);
     }
 
     void RenderInto(uint32_t* dib, uint32_t host_w, uint32_t host_h) override {

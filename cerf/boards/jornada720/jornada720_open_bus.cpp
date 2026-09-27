@@ -1,6 +1,7 @@
 #include "../../peripherals/open_bus_window.h"
 
 #include "../../core/cerf_emulator.h"
+#include "jornada_720_id.h"
 
 namespace {
 
@@ -16,7 +17,7 @@ public:
     uint32_t MmioSize() const override { return 0x11C00000u; }
 
 protected:
-    Board       WindowBoard() const override { return Board::Jornada720; }
+    std::string_view WindowBoardId() const override { return BoardId::Jornada720; }
     const char* WindowTag()   const override { return "J720OpenBus"; }
 };
 

@@ -3,6 +3,7 @@
 #include "siemens_mp377_sm501_internal.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_mp377/siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../peripherals/cirrus_cs4297a/cs4297a_codec.h"
@@ -12,7 +13,7 @@ namespace siemens_mp377 {
 
 bool SiemensMp377Sm501Ac97::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetBoard() == Board::SiemensMP377;
+    return board && board->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377Sm501Ac97::OnReady() {

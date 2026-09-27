@@ -1,6 +1,8 @@
 #include "pr31x00_card_space.h"
 
 #include "../../boards/board_context.h"
+#include "pr31500_id.h"
+#include "pr31700_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -20,8 +22,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::PR31500 || soc == SocFamily::PR31700;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Pr31500 || soc == SocId::Pr31700;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }

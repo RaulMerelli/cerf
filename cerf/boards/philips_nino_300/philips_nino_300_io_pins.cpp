@@ -2,6 +2,7 @@
 #include "../../socs/pr31x00/pr31x00_io_pins.h"
 #include "philips_nino_300_battery.h"
 #include "../board_context.h"
+#include "philips_nino_300_id.h"
 
 #include <cstdint>
 
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsNino300;
+        return bd && bd->GetBoardId() == BoardId::PhilipsNino300;
     }
 
     uint32_t IoDin() const override {

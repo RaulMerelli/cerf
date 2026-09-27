@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "vr4122_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -45,7 +46,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4122;
+        return bd && bd->GetSocId() == SocId::Vr4122;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -72,8 +73,8 @@ public:
         HaltUnsupportedAccess("VR4122 BCU WriteHalf", addr, value);
     }
 
-    void SaveState(StateWriter& w) override { w.Write(cntreg1_); }
-    void RestoreState(StateReader& r) override { r.Read(cntreg1_); }
+    void SaveState(StateWriter& w) override { w.Write("cntreg1", cntreg1_); }
+    void RestoreState(StateReader& r) override { r.Read("cntreg1", cntreg1_); }
 
 private:
     /* VR4131 UM 7.2.7 p142: CLKSPEEDREG VTDIVMODE(10:8)/TDIVMODE(12) take PMUTCLKDIVREG's

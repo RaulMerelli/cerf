@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../host/keyboard_input.h"
 #include "../../host/keyboard_map.h"
 #include "../../host/keyboard_router.h"
@@ -39,7 +40,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -55,19 +56,19 @@ public:
        ring indices. The scancode lookup table is constant data. */
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write<uint16_t>(kb_csr_);
-        w.Write<uint16_t>(kb_isr_);
-        w.WriteBytes(scancode_fifo_, sizeof(scancode_fifo_));
-        w.Write<int>(fifo_head_);
-        w.Write<int>(fifo_tail_);
+        w.Write<uint16_t>("kb_csr", kb_csr_);
+        w.Write<uint16_t>("kb_isr", kb_isr_);
+        w.WriteBytes("scancode_fifo", scancode_fifo_, sizeof(scancode_fifo_));
+        w.Write<int>("fifo_head", fifo_head_);
+        w.Write<int>("fifo_tail", fifo_tail_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(kb_csr_);
-        r.Read(kb_isr_);
-        r.ReadBytes(scancode_fifo_, sizeof(scancode_fifo_));
-        r.Read(fifo_head_);
-        r.Read(fifo_tail_);
+        r.Read("kb_csr", kb_csr_);
+        r.Read("kb_isr", kb_isr_);
+        r.ReadBytes("scancode_fifo", scancode_fifo_, sizeof(scancode_fifo_));
+        r.Read("fifo_head", fifo_head_);
+        r.Read("fifo_tail", fifo_tail_);
     }
 
     void OnHostKey(uint8_t vk, bool key_up);
@@ -211,7 +212,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

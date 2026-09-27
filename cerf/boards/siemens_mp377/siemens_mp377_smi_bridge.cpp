@@ -3,6 +3,7 @@
 #include "siemens_mp377_smi_bridge.h"
 
 #include "../../boards/board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../socs/guest_cpu_reset.h"
@@ -15,7 +16,7 @@ namespace siemens_mp377 {
 
 bool SiemensMp377SmiBridge::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::SiemensMP377;
+    return bd && bd->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377SmiBridge::OnReady() {
@@ -90,20 +91,20 @@ void SiemensMp377SmiBridge::Write(uint32_t pa, uint32_t value) {
 
 void SiemensMp377SmiBridge::SaveState(StateWriter& w) const {
     uint32_t v = master_pending_.load(std::memory_order_acquire);
-    w.Write(v);
+    w.Write("master_pending", v);
     v = bridge_status_.load(std::memory_order_acquire);
-    w.Write(v);
+    w.Write("bridge_status", v);
     v = bridge_enable_.load(std::memory_order_acquire);
-    w.Write(v);
+    w.Write("bridge_enable", v);
 }
 
 void SiemensMp377SmiBridge::RestoreState(StateReader& r) {
     uint32_t master = 0;
     uint32_t status = 0;
     uint32_t enable = 0xFFFFFFFFu;
-    r.Read(master);
-    r.Read(status);
-    r.Read(enable);
+    r.Read("master_pending", master);
+    r.Read("bridge_status", status);
+    r.Read("bridge_enable", enable);
     master_pending_.store(master ? 1u : 0u, std::memory_order_release);
     bridge_status_.store(status & kBridgeValidStatusBits, std::memory_order_release);
     bridge_enable_.store(enable, std::memory_order_release);

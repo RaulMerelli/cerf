@@ -11,6 +11,7 @@
 #include "ktp_mobile_sd_card_backend.h"
 
 #include <memory>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -20,14 +21,14 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && BoardContext::IsKtpMobile(board->GetBoard());
+        return board && BoardId::IsKtpMobile(board->GetBoardId());
     }
 
     uint64_t MediaSizeBytes() const override { return 128ull * 1024u * 1024u; }
 
     void Configure(SdCard& card) override {
         const auto& config = emu_.Get<DeviceConfig>();
-        const auto& profile = KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoard());
+        const auto& profile = KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoardId());
         card.ConfigureMedia(std::make_unique<KtpMobileSdCardBackend>(
             GetDeviceDir(config.device_name), config.rom_primary,
             profile.op_type,

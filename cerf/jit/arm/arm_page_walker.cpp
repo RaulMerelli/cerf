@@ -2,12 +2,15 @@
 
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/arm_processor_config.h"
 #include "../../cpu/emulated_memory.h"
+#include "arm_injection_band.h"
 #include "arm_mmu.h"
 #include "arm_mmu_ap_permits.h"
 #include "arm_pte.h"
+#include "arm_par_attributes.h"
 #include "arm_tlb_ops.h"
 
 REGISTER_SERVICE(ArmPageWalker);
@@ -21,31 +24,8 @@ void ArmPageWalker::OnReady() {
     state_p_          = mmu_->State();
     memory_           = &emu_.Get<EmulatedMemory>();
     processor_config_ = &emu_.Get<ArmProcessorConfig>();
+    injection_band_   = &emu_.Get<ArmInjectionBand>();
     mmu_->BindWalker(this);
-}
-
-void ArmPageWalker::SetInjectionBand(uint32_t va_base, uint32_t pa_base, uint32_t size) {
-    injection_band_va_   = va_base;
-    injection_band_pa_   = pa_base;
-    injection_band_size_ = size;
-}
-
-uint8_t* ArmPageWalker::ServeInjectionBand(uint32_t va, ArmMmuAccess access) {
-    uint32_t pa = 0;
-    if (!InjectionBandPa(va, &pa)) return nullptr;
-    const bool is_write = (access == ArmMmuAccess::kWrite || access == ArmMmuAccess::kReadWrite);
-    uint8_t* host = is_write ? memory_->TryTranslateWrite(pa) : memory_->TryTranslate(pa);
-    if (!host) return nullptr;
-    if (access == ArmMmuAccess::kExecute) last_exec_pa_ = pa;
-    return host;
-}
-
-bool ArmPageWalker::InjectionBandPa(uint32_t folded_va, uint32_t* pa) const {
-    if (injection_band_size_ == 0u) return false;
-    const uint32_t off = folded_va - injection_band_va_;
-    if (off >= injection_band_size_) return false;
-    *pa = injection_band_pa_ + off;
-    return true;
 }
 
 template <ArmMmuAccess kAccess, bool kForceUser>
@@ -137,8 +117,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
 
     /* Fast-path miss - walk the in-RAM page table. */
     {
-        const uint32_t l1_pa = ArmL1DescriptorAddress(p, state_.ttbcr,
-                                                      state_.translation_table_base.word, state_.ttbr1);
+        const uint32_t l1_pa = ArmL1DescriptorAddress(
+            p, state_.ttbcr, state_.translation_table_base.word, state_.ttbr1);
         uint8_t* l1_host = memory_->TryTranslateWrite(l1_pa);
         if (!l1_host) {
             mmu_->RaiseAbort(p, ArmFaultStatus::kExternalAbortTranslation1, 0u, kAccess);
@@ -147,18 +127,29 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         ArmL1Pte l1_pte;
         l1_pte.word = *reinterpret_cast<uint32_t*>(l1_host);
 
-        ArmTlbFillSlot new_slot{};
+        struct {
+            uint32_t span_bytes    = 0x1000u;
+            uint16_t par_attrs     = 0u;
+            bool     global        = false;
+            bool     fast_fillable = true;
+        } new_slot{};
 
         switch (l1_pte.fault.type) {
-        case ArmL1PteType::kFault:
-            if (uint8_t* band = ServeInjectionBand(p, kAccess)) return band;
+        case ArmL1PteType::kFault: {
+            uint32_t band_pa = 0;
+            if (uint8_t* band = injection_band_->Serve(p, kAccess, band_pa)) {
+                if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = band_pa;
+                return band;
+            }
             mmu_->RaiseAbort(p, ArmFaultStatus::kTranslationSection, 0u, kAccess);
             return nullptr;
+        }
 
         case ArmL1PteType::kCoarse: {
             const uint32_t domain    = l1_pte.coarse.domain;
             const uint32_t dom_field = (dacr >> (domain << 1)) & 3u;
-            const uint32_t l2_pa = (l1_pte.coarse.page_table_base << 10) | (((p >> 12) & 0xFFu) << 2);
+            const uint32_t l2_pa = (l1_pte.coarse.page_table_base << 10)
+                                 | (((p >> 12) & 0xFFu) << 2);
             uint8_t* l2_host = memory_->TryTranslateWrite(l2_pa);
             if (!l2_host) {
                 mmu_->RaiseAbort(p, ArmFaultStatus::kExternalAbortTranslation2, domain, kAccess);
@@ -184,7 +175,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                         return nullptr;
                     }
                     const uint32_t ap = (l2_pte.word >> 4) & 3u;
-                    if (dom_field == 1u && !ApPermits<kAccess>(ap, is_user_mode, sctlr_s, sctlr_r)) {
+                    if (dom_field == 1u &&
+                        !ApPermits<kAccess>(ap, is_user_mode, sctlr_s, sctlr_r)) {
                         mmu_->RaiseAbort(p, ArmFaultStatus::kPermissionPage, domain, kAccess);
                         return nullptr;
                     }
@@ -223,9 +215,9 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     return nullptr;
                 }
                 /* ARM DDI 0406C.c B3.5 Fig B3-5: L2 small page nG at bit[11]. */
-                new_slot.global          = !((l2_pte.word >> 11) & 1u);
-                new_slot.par_attrs = ArmSmallPageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
-                effective_address        = (l2_pte.small_page.small_page_base << 12) | (p & 0x0FFFu);
+                new_slot.global         = !((l2_pte.word >> 11) & 1u);
+                new_slot.par_attrs      = ArmSmallPageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
+                effective_address       = ArmTranslateSmallPage(l2_pte, p).physical_address;
                 break;
             }
             case 1: {
@@ -243,17 +235,18 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                             return nullptr;
                         }
                     }
-                    const uint32_t ap = ((l2_pte.word >> 4) & 3u) | (((l2_pte.word >> 9) & 1u) << 2);
+                    const uint32_t ap = ((l2_pte.word >> 4) & 3u) |
+                                        (((l2_pte.word >> 9) & 1u) << 2);
                     if (dom_field == 1u && !ApPermitsV6<kAccess>(ap, is_user_mode)) {
                         mmu_->RaiseAbort(p, ArmFaultStatus::kPermissionPage, domain,
                                    kAccess);
                         return nullptr;
                     }
-                    new_slot.span_bytes = 0x10000u;
+                    const ArmL2Translation large = ArmTranslateLargePage(l2_pte, p);
+                    new_slot.span_bytes = large.span_bytes;
                     new_slot.global     = !((l2_pte.word >> 11) & 1u);
-                    new_slot.par_attrs = ArmLargePageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
-                    effective_address   =
-                        (l2_pte.large_page.large_page_base << 16) | (p & 0xFFFFu);
+                    new_slot.par_attrs  = ArmLargePageParAttributes(state_, l2_pte.word, l1_pte.word, modern_v6_fmt);
+                    effective_address   = large.physical_address;
                     break;
                 }
                 if (!(dom_field & 1u)) {
@@ -268,10 +261,11 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     mmu_->RaiseAbort(p, ArmFaultStatus::kPermissionPage, domain, kAccess);
                     return nullptr;
                 }
-                new_slot.span_bytes     = 0x10000u;
+                const ArmL2Translation large = ArmTranslateLargePage(l2_pte, p);
+                new_slot.span_bytes     = large.span_bytes;
                 /* ARM DDI 0406C.c B3.5 Fig B3-5: L2 large page nG at bit[11]. */
                 new_slot.global         = !((l2_pte.word >> 11) & 1u);
-                effective_address       = (l2_pte.large_page.large_page_base << 16) | (p & 0xFFFFu);
+                effective_address       = large.physical_address;
                 break;
             }
             }
@@ -281,10 +275,15 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         }
 
         case ArmL1PteType::kSection: {
-            const ArmSupersectionFormat format = ArmEffectiveSupersectionFormat(
-                processor_config_->SupersectionFormat(), state_.effective_control_register.bits.xp);
-            const auto translation =
-                ArmTranslateSection(l1_pte.word, p, format);
+            const ArmSupersectionFormat ss_format =
+                processor_config_->SupersectionFormat();
+            if (ArmSupersectionUnresolved(l1_pte.word, ss_format)) {
+                emu_.Get<Fatal>().Die("MMU walk: L1 Supersection (bit 18) on a core "
+                    "that declares no Supersection support (va=0x%08X L1_pa=0x%08X "
+                    "L1_pte=0x%08X)", p, l1_pa, l1_pte.word);
+            }
+            const ArmSectionTranslation translation =
+                ArmTranslateSection(l1_pte.word, p, ss_format);
             const uint32_t domain    = translation.domain;
             const uint32_t dom_field = (dacr >> (domain << 1)) & 3u;
             if (!(dom_field & 1u)) {
@@ -313,9 +312,10 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             new_slot.span_bytes = translation.span_bytes;
             /* ARM DDI 0406C.c B3.5 Fig B3-4: L1 Section nG at bit[17]. */
             new_slot.global          = !((l1_pte.word >> 17) & 1u);
-            new_slot.par_attrs = ArmSectionParAttributes(state_, l1_pte.word, modern_v6_fmt);
+            new_slot.par_attrs       = ArmSectionParAttributes(state_, l1_pte.word, modern_v6_fmt);
             break;
         }
+
         case ArmL1PteType::kFine: {
             /* ARM DDI 0406C.c D12.6 / D15.6.3: the fine second-level page
                table format is not supported from ARMv6, at any SCTLR.XP. */
@@ -359,9 +359,10 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     mmu_->RaiseAbort(p, ArmFaultStatus::kPermissionPage, domain, kAccess);
                     return nullptr;
                 }
-                new_slot.span_bytes      = 0x10000u;
+                const ArmL2Translation large = ArmTranslateLargePage(l2_pte, p);
+                new_slot.span_bytes      = large.span_bytes;
                 new_slot.global          = true;
-                effective_address        = (l2_pte.large_page.large_page_base << 16) | (p & 0xFFFFu);
+                effective_address        = large.physical_address;
                 break;
             }
             case ArmL2PteType::kSmallPage: {
@@ -378,7 +379,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     return nullptr;
                 }
                 new_slot.global          = true;
-                effective_address        = (l2_pte.small_page.small_page_base << 12) | (p & 0x0FFFu);
+                effective_address        = ArmTranslateSmallPage(l2_pte, p).physical_address;
                 break;
             }
             case ArmL2PteType::kTinyPage: {
@@ -392,13 +393,10 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                     mmu_->RaiseAbort(p, ArmFaultStatus::kPermissionPage, domain, kAccess);
                     return nullptr;
                 }
+                const ArmL2Translation tiny = ArmTranslateTinyPage(l2_pte, p);
                 new_slot.global          = true;
-                /* ARM DDI 0406C.c Table D15-10 / Figure D15-1: 1 KB Tiny
-                   page - PA = descriptor bits[31:10] | VA[9:0]. */
-                effective_address        =
-                    (l2_pte.tiny_page.tiny_page_base << 10) | (p & 0x03FFu);
-                /* ARM DDI 0406C.c Table D15-10: a Tiny page maps 1 KB. */
-                new_slot.span_bytes      = 0x400u;
+                effective_address        = tiny.physical_address;
+                new_slot.span_bytes      = tiny.span_bytes;
                 new_slot.fast_fillable   = false;
                 break;
             }
@@ -409,7 +407,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         }
         }
 
-        const bool uniform = new_slot.fast_fillable && memory_->IsSlotRangeUniform(new_slot.span_bytes,
+        const bool uniform = new_slot.fast_fillable &&
+                             memory_->IsSlotRangeUniform(new_slot.span_bytes,
                                                          effective_address);
 
         if constexpr (kAccess == ArmMmuAccess::kExecute) last_exec_pa_ = effective_address;
@@ -419,7 +418,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             if (host_ptr) {
                 if (uniform) {
                     FillFastTlb(tlb_unit, p, host_ptr, effective_address,
-                                current_asid, new_slot, true);
+                                current_asid, new_slot.global,
+                                /*writable=*/true, new_slot.span_bytes, new_slot.par_attrs);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return host_ptr;
@@ -430,7 +430,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                then resolves the page's reads to MMIO. */
             if (new_slot.fast_fillable && !memory_->TryTranslate(effective_address)) {
                 FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
-                              new_slot, true);
+                              new_slot.global, /*writable=*/true, new_slot.span_bytes, new_slot.par_attrs);
             }
             mmu_->SetIoPending(effective_address);
             return nullptr;
@@ -443,7 +443,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                        store re-walks once to verify write perm and set writable. */
                     const bool writable = (kAccess == ArmMmuAccess::kReadWrite);
                     FillFastTlb(tlb_unit, p, ram_host, effective_address,
-                                current_asid, new_slot, writable);
+                                current_asid, new_slot.global, writable, new_slot.span_bytes);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return ram_host;
@@ -456,7 +456,8 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
                    access and faults whenever that entry was oscillated away. */
                 if (uniform) {
                     FillFastTlb(tlb_unit, p, flash_host, effective_address,
-                                current_asid, new_slot, false);
+                                current_asid, new_slot.global,
+                                /*writable=*/false, new_slot.span_bytes);
                 }
                 ArmNoteCodeTracking<kAccess>(state_, effective_address);
                 return flash_host;
@@ -464,8 +465,9 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
             if constexpr (kAccess != ArmMmuAccess::kExecute) {
                 if (new_slot.fast_fillable) {
                     FillFastTlbIo(tlb_unit, p, effective_address, current_asid,
-                                  new_slot,
-                                  kAccess == ArmMmuAccess::kReadWrite);
+                                  new_slot.global,
+                                  /*writable=*/kAccess == ArmMmuAccess::kReadWrite,
+                                  new_slot.span_bytes);
                 }
             }
             mmu_->SetIoPending(effective_address);

@@ -1,5 +1,7 @@
 #include "pxa2xx_intc.h"
 
+#include "../guest_cpu_reset.h"
+
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../core/rate_probe.h"
@@ -10,6 +12,22 @@
 #include "../../state/state_stream.h"
 
 #include <mutex>
+
+/* Intel PXA27x Developer's Manual 280000-001 Tables 25-9 / 25-10 / 25-11 / 25-12
+   reset rows 0, Table 25-13 DIM "Cleared during resets", Section 25.5.7 "At reset,
+   these registers are marked invalid"; PXA255 Section 4.2.2 "set to 0x0". */
+void Pxa2xxIntc::OnReady() {
+    emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+        std::lock_guard<std::mutex> guard(state_mtx_);
+        for (uint32_t b = 0; b < kBanks; ++b) {
+            icmr_[b] = 0u;
+            iclr_[b] = 0u;
+        }
+        iccr_ = 0u;
+        for (uint32_t i = 0; i < kIprSlots; ++i) ipr_[i] = 0u;
+        NotifyLocked();
+    });
+}
 
 bool Pxa2xxIntc::SplitSource(int source_bit, uint32_t& bank, uint32_t& bit) const {
     if (source_bit < 0) return false;
@@ -56,6 +74,7 @@ void Pxa2xxIntc::NotifyLocked() {
         emu_.Get<RateProbe>().Inc(RateProbe::Counter::JitPendClr);
 #endif
     }
+    jit.SetIdleWake(IdleWakeLocked());
 }
 
 void Pxa2xxIntc::AssertIrq(int source_bit) {
@@ -105,8 +124,10 @@ void Pxa2xxIntc::SetSourceLevel(uint32_t mask, uint32_t level) {
     std::lock_guard<std::mutex> guard(state_mtx_);
     const uint32_t old_icip = IcIpAllLocked();
     const uint32_t old_icfp = IcFpAllLocked();
+    const bool     old_wake = IdleWakeLocked();
     icpr_[0] = (icpr_[0] & ~mask) | (level & mask);
-    if (IcIpAllLocked() != old_icip || IcFpAllLocked() != old_icfp) {
+    if (IcIpAllLocked() != old_icip || IcFpAllLocked() != old_icfp ||
+        IdleWakeLocked() != old_wake) {
         NotifyLocked();
     }
 }
@@ -198,6 +219,7 @@ uint32_t Pxa2xxIntc::ReadRegLocked(uint32_t off) {
 void Pxa2xxIntc::WriteRegLocked(uint32_t off, uint32_t value) {
     const uint32_t old_icip = IcIpAllLocked();
     const uint32_t old_icfp = IcFpAllLocked();
+    const bool     old_wake = IdleWakeLocked();
     switch (off) {
     case kIcmr:
 #if CERF_DEV_MODE
@@ -222,7 +244,8 @@ void Pxa2xxIntc::WriteRegLocked(uint32_t off, uint32_t value) {
         ipr_[IprIndex(off)] = value & kIprMask;
         break;
     }
-    if (IcIpAllLocked() != old_icip || IcFpAllLocked() != old_icfp) {
+    if (IcIpAllLocked() != old_icip || IcFpAllLocked() != old_icfp ||
+        IdleWakeLocked() != old_wake) {
         NotifyLocked();
     }
 }
@@ -255,23 +278,23 @@ void Pxa2xxIntc::WriteByteAt(uint32_t off, uint8_t value) {
 void Pxa2xxIntc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> guard(state_mtx_);
     for (uint32_t b = 0; b < kBanks; ++b) {
-        w.Write(icpr_[b]);
-        w.Write(icmr_[b]);
-        w.Write(iclr_[b]);
+        w.Write("icpr", icpr_[b]);
+        w.Write("icmr", icmr_[b]);
+        w.Write("iclr", iclr_[b]);
     }
-    w.Write(iccr_);
-    for (uint32_t i = 0; i < kIprSlots; ++i) w.Write(ipr_[i]);
+    w.Write("iccr", iccr_);
+    for (uint32_t i = 0; i < kIprSlots; ++i) w.Write("ipr", ipr_[i]);
 }
 
 void Pxa2xxIntc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> guard(state_mtx_);
     for (uint32_t b = 0; b < kBanks; ++b) {
-        r.Read(icpr_[b]);
-        r.Read(icmr_[b]);
-        r.Read(iclr_[b]);
+        r.Read("icpr", icpr_[b]);
+        r.Read("icmr", icmr_[b]);
+        r.Read("iclr", iclr_[b]);
     }
-    r.Read(iccr_);
-    for (uint32_t i = 0; i < kIprSlots; ++i) r.Read(ipr_[i]);
+    r.Read("iccr", iccr_);
+    for (uint32_t i = 0; i < kIprSlots; ++i) r.Read("ipr", ipr_[i]);
 }
 
 void Pxa2xxIntc::PostRestore() {

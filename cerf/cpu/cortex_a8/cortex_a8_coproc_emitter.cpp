@@ -2,6 +2,8 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/omap3530/omap3530_id.h"
+#include "../../socs/imx51/imx51_id.h"
 
 namespace {
 
@@ -12,8 +14,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const SocFamily soc = bd->GetSoc();
-        return soc == SocFamily::OMAP3530 || soc == SocFamily::iMX51;
+        const std::string_view soc = bd->GetSocId();
+        return soc == SocId::Omap3530 || soc == SocId::Imx51;
     }
 };
 

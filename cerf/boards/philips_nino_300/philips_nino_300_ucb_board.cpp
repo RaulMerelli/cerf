@@ -3,6 +3,7 @@
 #include "philips_nino_300_battery.h"
 #include "philips_nino_300_touch_panel.h"
 #include "../board_context.h"
+#include "philips_nino_300_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -64,7 +65,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::PhilipsNino300;
+        return bd && bd->GetBoardId() == BoardId::PhilipsNino300;
     }
 
     uint16_t AuxAdc(uint8_t channel) override {

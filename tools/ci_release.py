@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import changelog
@@ -23,7 +25,6 @@ DISCORD_SUPPRESS_EMBEDS = 1 << 2
 
 ARTIFACT_NAME = re.compile(r"^CERF-(\d+)\.(\d+)\.(\d+)-([0-9a-f]+)-Release-Win32$")
 CHANGELOG_PATH = Path("docs/changelog.yml")
-CHANGELOG_URL = f"https://github.com/{REPO}#changelog"
 ENV_PATH = Path(".env")
 USER_AGENT = "CERF deploy"
 
@@ -196,29 +197,79 @@ def changelog_markdown(tag: str, fallback: Optional[str] = None) -> str:
     return changelog.render_markdown(entry["groups"])
 
 
-def compose(top: str, body: str, bottom: str) -> str:
-    lines = body.splitlines()
-    dropped = 0
-    while True:
-        more = (f"\n... +{dropped} more in the [full changelog]({CHANGELOG_URL})"
-                if dropped else "")
-        content = "\n\n".join([top, "\n".join(lines) + more, bottom])
-        if len(content) <= DISCORD_MESSAGE_LIMIT or not lines:
-            return content
-        lines.pop()
-        dropped += 1
+def latest_release(token: str) -> Tuple[str, str]:
+    release = github(token, f"/repos/{REPO}/releases/latest")
+    tag = release.get("tag_name")
+    if not tag:
+        raise CiError("the latest release reports no tag")
+    sha = github(token, f"/repos/{REPO}/commits/{tag}").get("sha")
+    if not sha:
+        raise CiError(f"release tag {tag} resolves to no commit")
+    return release.get("name") or tag, sha
+
+
+def _git(*args: str) -> str:
+    result = subprocess.run(["git", *args], capture_output=True,
+                            encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        raise CiError(f"git {' '.join(args)}: {result.stderr.strip()}")
+    return result.stdout
+
+
+def _ensure_commit(sha: str) -> None:
+    probe = subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                           capture_output=True)
+    if probe.returncode == 0:
+        return
+    if _git("rev-parse", "--is-shallow-repository").strip() != "true":
+        raise CiError(f"commit {sha[:7]} is not in this clone; fetch it first")
+    _git("fetch", "--no-tags", "--depth=1", "origin", sha)
+
+
+def diffstat(base: str, head: str) -> Tuple[int, int]:
+    for sha in (base, head):
+        _ensure_commit(sha)
+    added = deleted = 0
+    for line in _git("diff", "--numstat", base, head).splitlines():
+        plus, minus, _ = line.split("\t", 2)
+        if plus != "-":
+            added += int(plus)
+            deleted += int(minus)
+    return added, deleted
+
+
+def _multipart(payload: dict, image: bytes, filename: str) -> Tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    head = (f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="payload_json"\r\n'
+            "Content-Type: application/json\r\n\r\n"
+            f"{json.dumps(payload)}\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="files[0]"; '
+            f'filename="{filename}"\r\n'
+            "Content-Type: image/png\r\n\r\n").encode("utf-8")
+    tail = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    return head + image + tail, f"multipart/form-data; boundary={boundary}"
 
 
 def post_discord(secret: str, channel_id: str, content: str,
-                 ping_role: Optional[str] = None) -> None:
+                 ping_role: Optional[str] = None,
+                 image: Optional[bytes] = None,
+                 filename: str = "changelog.png") -> None:
     if len(content) > DISCORD_MESSAGE_LIMIT:
         raise CiError(
             f"the Discord message is {len(content)} characters, over the "
-            f"{DISCORD_MESSAGE_LIMIT} limit; shorten the changelog")
+            f"{DISCORD_MESSAGE_LIMIT} limit")
     mentions = {"parse": [], "roles": [ping_role] if ping_role else []}
     payload = {"content": content,
                "flags": DISCORD_SUPPRESS_EMBEDS,
                "allowed_mentions": mentions}
-    request(f"{DISCORD_API}/channels/{channel_id}/messages",
-            {"Authorization": f"Bot {secret}"}, "POST",
-            json.dumps(payload).encode("utf-8"), "application/json")
+    url = f"{DISCORD_API}/channels/{channel_id}/messages"
+    headers = {"Authorization": f"Bot {secret}"}
+    if image is None:
+        request(url, headers, "POST", json.dumps(payload).encode("utf-8"),
+                "application/json")
+        return
+    payload["attachments"] = [{"id": 0, "filename": filename}]
+    body, content_type = _multipart(payload, image, filename)
+    request(url, headers, "POST", body, content_type)

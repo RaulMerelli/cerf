@@ -4,6 +4,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../peripherals/intel_i8042/i8042_controller.h"
 #include "../board_context.h"
+#include "nec_rockhopper_id.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecRockhopper;
+        return bd && bd->GetBoardId() == BoardId::NecRockhopper;
     }
 
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }

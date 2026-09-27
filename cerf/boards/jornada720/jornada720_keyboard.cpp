@@ -6,6 +6,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../socs/sa11xx/sa11xx_gpio.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
     using KeyboardInput::KeyboardInput;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
     void OnReady() override { emu_.Get<KeyboardRouter>().Register(this); }
     void OnHostKey(uint8_t vk, bool key_up) override {
@@ -29,7 +30,7 @@ REGISTER_SERVICE(Jornada720KeyboardInput);
 
 bool Jornada720Keyboard::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::Jornada720;
+    return bd && bd->GetBoardId() == BoardId::Jornada720;
 }
 
 void Jornada720Keyboard::OnReady() {

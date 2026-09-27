@@ -4,6 +4,7 @@
 #include "../../host/keyboard_router.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../board_context.h"
+#include "casio_cassiopeia_e55_id.h"
 
 #include <cstdint>
 #include <string>
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioCassiopeiaE55;
+        return bd && bd->GetBoardId() == BoardId::CasioCassiopeiaE55;
     }
 
     void OnReady() override {

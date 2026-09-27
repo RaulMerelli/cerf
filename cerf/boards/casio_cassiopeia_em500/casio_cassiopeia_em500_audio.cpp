@@ -4,6 +4,7 @@
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../host/audio_activity_widget.h"
+#include "../../jit/mips/mips_mmu.h"
 #include "../../state/emulation_freeze.h"
 #include "../../state/state_stream.h"
 
@@ -57,10 +58,6 @@ constexpr uint32_t kOffAckR8CC = 0x08CCu;
 /* loc_F62984 @0xF629CE li $a2, 0x71 / neg -> 0xFFFFFF8F, so the select is
    bits[6:4]. */
 constexpr uint32_t kRateSelectMask = 0x70u;
-
-/* VR4102 UM ch.5 p131 "(3) kseg1": references are not mapped through TLB and the
-   physical address is the virtual address minus 0xA0000000. */
-constexpr uint32_t kPaMask = 0x1FFFFFFFu;
 
 /* Every loc_F61998 converter stores with sh into the DMA buffer whatever the
    source width: @0xF61D3A (case 0, lbu source), @0xF61C92 (case 1, lh source),
@@ -278,7 +275,9 @@ void CasioCassiopeiaEm500Audio::QueueDescriptor(uint32_t start_index,
     }
     const uint32_t length = static_cast<uint32_t>(span);
     std::vector<uint8_t> block(length);
-    emu_->Get<EmulatedMemory>().CopyOut(start_va & kPaMask, block.data(), length);
+    /* VR4102 UM ch.5 p131 "(3) kseg1": references are not mapped through TLB and the
+       physical address is the virtual address minus 0xA0000000. */
+    emu_->Get<EmulatedMemory>().CopyOut(MipsSeg::UnmappedPa(start_va), block.data(), length);
     if (frozen.owns_lock()) frozen.unlock();
 
     emu_->Get<AudioActivityWidget>().MarkTx();
@@ -319,38 +318,38 @@ void CasioCassiopeiaEm500Audio::OnBlockDone(uint32_t sink_gen) {
 
 void CasioCassiopeiaEm500Audio::SaveState(StateWriter& w) const {
     std::lock_guard<std::mutex> lk(mtx_);
-    w.Write(reg_880_);
-    w.Write(reg_884_);
-    w.Write(reg_888_);
-    w.Write(reg_890_);
-    w.Write(reg_898_);
-    w.Write(reg_8A0_);
-    for (uint32_t v : desc_) w.Write(v);
-    w.Write(reg_8C4_);
-    w.Write(reg_8C8_);
-    w.Write(reg_8CC_);
-    w.Write<uint8_t>(rate_doubler_ ? 1u : 0u);
-    w.Write(status_8A8_.load(std::memory_order_acquire));
+    w.Write("reg_880", reg_880_);
+    w.Write("reg_884", reg_884_);
+    w.Write("reg_888", reg_888_);
+    w.Write("reg_890", reg_890_);
+    w.Write("reg_898", reg_898_);
+    w.Write("reg_8A0", reg_8A0_);
+    for (uint32_t v : desc_) w.Write("desc", v);
+    w.Write("reg_8C4", reg_8C4_);
+    w.Write("reg_8C8", reg_8C8_);
+    w.Write("reg_8CC", reg_8CC_);
+    w.Write<uint8_t>("rate_doubler", rate_doubler_ ? 1u : 0u);
+    w.Write("status_8A8", status_8A8_.load(std::memory_order_acquire));
 }
 
 void CasioCassiopeiaEm500Audio::RestoreState(StateReader& r) {
     paced_.StopAudioOut();
     std::lock_guard<std::mutex> lk(mtx_);
-    r.Read(reg_880_);
-    r.Read(reg_884_);
-    r.Read(reg_888_);
-    r.Read(reg_890_);
-    r.Read(reg_898_);
-    r.Read(reg_8A0_);
-    for (uint32_t& v : desc_) r.Read(v);
-    r.Read(reg_8C4_);
-    r.Read(reg_8C8_);
-    r.Read(reg_8CC_);
+    r.Read("reg_880", reg_880_);
+    r.Read("reg_884", reg_884_);
+    r.Read("reg_888", reg_888_);
+    r.Read("reg_890", reg_890_);
+    r.Read("reg_898", reg_898_);
+    r.Read("reg_8A0", reg_8A0_);
+    for (uint32_t& v : desc_) r.Read("desc", v);
+    r.Read("reg_8C4", reg_8C4_);
+    r.Read("reg_8C8", reg_8C8_);
+    r.Read("reg_8CC", reg_8CC_);
     uint8_t doubler = 0;
-    r.Read(doubler);
+    r.Read("rate_doubler", doubler);
     rate_doubler_ = doubler != 0;
     uint16_t status = 0;
-    r.Read(status);
+    r.Read("status_8A8", status);
     status_8A8_.store(status, std::memory_order_release);
     queued_      = 0;
     next_queued_ = false;

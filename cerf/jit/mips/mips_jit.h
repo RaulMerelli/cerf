@@ -13,6 +13,7 @@ class MipsBlockCompiler;
 class MipsCp0Ops;
 class MipsCpu;
 class MipsExceptionDelivery;
+class MipsExceptionModel;
 class MipsInterruptChannel;
 class MipsMmu;
 class MipsTranslationCache;
@@ -36,6 +37,8 @@ public:
     void     Run() override;
     bool     DeepSleep()    const override { return cpu_state_->deep_sleep != 0; }
     bool     ResetPending() const override { return cpu_state_->reset_pending != 0; }
+
+    bool     GuestIrqMasked() const override;
     uint32_t Pc()           const override { return cpu_state_->pc; }
     void     PrintFatalDump() override;
     uint32_t PhysAddrMask() const override { return cpu_state_->phys_addr_mask; }
@@ -58,6 +61,7 @@ public:
     void SetResetPending(bool is_resume) override;
     void EnterDeepSleep() override;
     void ExitDeepSleep() override;
+    void EnterIdleWait() override;
     void SetInjectionBand(uint32_t va, uint32_t pa, uint32_t size) override;
     void SetDmaRegion(uint32_t pa, uint32_t size) override;
 
@@ -74,4 +78,5 @@ private:
     MipsInterruptChannel*  channel_    = nullptr;
     MipsCp0Ops*            cp0_ops_    = nullptr;
     MipsExceptionDelivery* exceptions_ = nullptr;
+    MipsExceptionModel*    exc_model_  = nullptr;
 };

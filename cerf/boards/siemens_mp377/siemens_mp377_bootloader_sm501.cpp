@@ -8,6 +8,7 @@
 #include "../../socs/guest_cpu_reset.h"
 #include "../../socs/iop13xx/iop13xx_atu_state.h"
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 
 #include <cstdint>
 
@@ -26,12 +27,12 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensMP377;
+        return bd && bd->GetBoardId() == BoardId::SiemensMp377;
     }
 
     void OnReady() override {
         ApplyPreset();
-        emu_.Get<GuestCpuReset>().RegisterResetListener([this](ResetLineKind) {
+        emu_.Get<GuestCpuReset>().RegisterResetReleaseListener([this] {
             if (!emu_.Get<GuestCpuReset>().DeliveredResetWasResume()) ApplyPreset();
         });
     }

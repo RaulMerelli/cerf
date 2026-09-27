@@ -2,6 +2,7 @@
 #include "../../host/keyboard_hotkey_menu.h"
 #include "../../socs/vr41xx/vr41xx_piu.h"
 #include "../board_context.h"
+#include "casio_toricomail_id.h"
 
 #include <cstdint>
 #include <utility>
@@ -30,7 +31,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::CasioToricomail;
+        return bd && bd->GetBoardId() == BoardId::CasioToricomail;
     }
 
     std::vector<MenuSection> HotkeySections() override {

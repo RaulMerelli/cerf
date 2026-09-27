@@ -2,9 +2,11 @@
 #include "../pci/pci_host_bridge.h"
 #include "ati_ragexl_display.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../boards/nec_rockhopper/nec_rockhopper_id.h"
 #include "../../host/host_window.h"
 #include "../../state/state_stream.h"
 
@@ -69,6 +71,12 @@ struct Bar {
     uint32_t base      = 0;   /* written value masked to size; bus driver assigns it */
     uint32_t Read() const { return size_mask ? (base | flags) : 0u; }
     void Write(uint32_t v) { if (size_mask) base = v & size_mask; }
+    template <typename F>
+    static constexpr void Visit(Bar& b, F& field) {
+        field("bar_size_mask", b.size_mask);
+        field("bar_flags", b.flags);
+        field("bar_base", b.base);
+    }
 };
 
 class AtiRageXl : public PciDevice, public RageXlDisplay {
@@ -77,7 +85,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecRockhopper;
+        return bd && bd->GetBoardId() == BoardId::NecRockhopper;
     }
     void OnReady() override {
         fb_.assign(kFbSize, 0);
@@ -120,33 +128,31 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(command_);
-        w.WriteBytes(bars_, sizeof(bars_));
-        w.Write<uint32_t>(static_cast<uint32_t>(fb_.size()));
-        w.WriteBytes(fb_.data(), fb_.size());
-        w.WriteBytes(regs_, sizeof(regs_));
-        w.Write(clock_cntl_);
-        w.WriteBytes(pll_, sizeof(pll_));
-        w.Write(crtc_vline_);
-        w.Write(signaled_w_);
-        w.Write(signaled_h_);
+        w.Write("command", command_);
+        static_assert(StateVisitCoversAllBytes<Bar>(
+                          [](Bar& b, StateFieldBytes& f) { Bar::Visit(b, f); }),
+                      "Bar::Visit must name or skip every field of Bar");
+        StateWriteField bar_field(w);
+        for (Bar& b : bars_) Bar::Visit(b, bar_field);
+        w.WriteBytes("fb", fb_.data(), fb_.size());
+        w.WriteBytes("regs", regs_, sizeof(regs_));
+        w.Write("clock_cntl", clock_cntl_);
+        w.WriteBytes("pll", pll_, sizeof(pll_));
+        w.Write("crtc_vline", crtc_vline_);
+        w.Write("signaled_w", signaled_w_);
+        w.Write("signaled_h", signaled_h_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(command_);
-        r.ReadBytes(bars_, sizeof(bars_));
-        uint32_t fbsz = 0;
-        r.Read(fbsz);
-        if (fbsz != fb_.size()) {
-            LOG(Caution, "AtiRageXl: state fb size %u != live %zu\n", fbsz, fb_.size());
-            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-        }
-        r.ReadBytes(fb_.data(), fb_.size());
-        r.ReadBytes(regs_, sizeof(regs_));
-        r.Read(clock_cntl_);
-        r.ReadBytes(pll_, sizeof(pll_));
-        r.Read(crtc_vline_);
-        r.Read(signaled_w_);
-        r.Read(signaled_h_);
+        r.Read("command", command_);
+        StateReadField bar_field(r);
+        for (Bar& b : bars_) Bar::Visit(b, bar_field);
+        r.ReadBytes("fb", fb_.data(), fb_.size());
+        r.ReadBytes("regs", regs_, sizeof(regs_));
+        r.Read("clock_cntl", clock_cntl_);
+        r.ReadBytes("pll", pll_, sizeof(pll_));
+        r.Read("crtc_vline", crtc_vline_);
+        r.Read("signaled_w", signaled_w_);
+        r.Read("signaled_h", signaled_h_);
     }
 
     Frame CurrentFrame() const override {
@@ -214,9 +220,8 @@ private:
         }
     }
 
-    static uint32_t Mask(unsigned size) { return size >= 4 ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1u); }
     static uint32_t Slice(uint32_t dword, uint32_t off, unsigned size) {
-        return (dword >> ((off & 3u) * 8u)) & Mask(size);
+        return (dword >> ((off & 3u) * 8u)) & cerf::ByteWidthMask(size);
     }
 
     uint32_t RegOut(uint32_t off, unsigned size) const {
@@ -283,9 +288,7 @@ private:
     }
     uint32_t FbPixel(uint32_t addr, uint32_t bytespp) const {
         if (addr + bytespp > fb_.size()) EngineOob("read", addr);
-        uint32_t v = 0;
-        for (uint32_t b = 0; b < bytespp; ++b) v |= uint32_t(fb_[addr + b]) << (b * 8);
-        return v;
+        return static_cast<uint32_t>(cerf::le::UN(fb_.data() + addr, bytespp));
     }
 
     void ExecuteEngineOp(uint32_t launch_off, uint32_t launch_val) {
@@ -328,7 +331,7 @@ private:
                     if (da + bytespp > fb_.size()) EngineOob("write", da);
                     const uint32_t s = is_blit ? FbPixel(sbase + (uint32_t)syr * spitch + (uint32_t)sxc * bytespp, bytespp) : fg;
                     const uint32_t res = (mix_code == 7u) ? s : Rop(mix_code, FbPixel(da, bytespp), s);
-                    for (uint32_t b = 0; b < bytespp; ++b) fb_[da + b] = uint8_t(res >> (b * 8));
+                    cerf::le::PutN(fb_.data() + da, res, bytespp);
                 }
             }
             return;

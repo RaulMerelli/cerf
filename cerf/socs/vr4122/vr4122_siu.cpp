@@ -1,6 +1,7 @@
 #include "../vr41xx/vr41xx_siu_reset_csel.h"
 
 #include "../../boards/board_context.h"
+#include "vr4122_id.h"
 #include "../../core/cerf_emulator.h"
 #include "vr4122_dsiu.h"
 
@@ -15,7 +16,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::VR4122;
+        return bd && bd->GetSocId() == SocId::Vr4122;
     }
 
     uint32_t MmioBase() const override { return 0x0F000800u; }

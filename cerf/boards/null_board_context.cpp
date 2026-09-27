@@ -8,12 +8,11 @@ class NullBoardContext : public BoardContext {
 public:
     using BoardContext::BoardContext;
 
-    Board       GetBoard()  const override { return Board::Unknown; }
-    SocFamily   GetSoc()    const override { return SocFamily::Unknown; }
-    CpuArch     GetCpuArch() const override { return CpuArch::Arm; }
-    RomPlacingMode GetRomPlacingMode() const override { return RomPlacingMode::Unknown; }
+    bool ShouldRegister() override { return true; }
+
+    std::string_view GetBoardId() const override { return {}; }
 };
 
-}  /* namespace */
+}
 
 REGISTER_SERVICE_AS_FALLBACK(NullBoardContext, BoardContext);

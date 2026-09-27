@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/rate_probe.h"
 #include "../../boards/board_context.h"
+#include "../../cpu/vr5500/vr5500_id.h"
 #include "../../jit/mips/mips_jit.h"
 #include "../../state/state_stream.h"
 
@@ -23,7 +24,7 @@ REGISTER_SERVICE(Vrc5477Intc);
 
 bool Vrc5477Intc::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::VR5500;
+    return bd && bd->GetSocId() == SocId::Vr5500;
 }
 
 uint32_t Vrc5477Intc::StatusForLineLocked(uint32_t n) const {
@@ -111,18 +112,18 @@ void Vrc5477Intc::WriteReg(uint32_t off, uint32_t value) {
 
 void Vrc5477Intc::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    for (uint32_t v : intctrl_) w.Write(v);
-    w.Write(intppes0_); w.Write(intppes1_);
-    w.Write(cpustat_);  w.Write(busctrl_); w.Write(nmistat_); w.Write(pending_);
-    w.Write(line_level_);
+    for (uint32_t v : intctrl_) w.Write("intctrl", v);
+    w.Write("intppes0", intppes0_); w.Write("intppes1", intppes1_);
+    w.Write("cpustat", cpustat_);  w.Write("busctrl", busctrl_); w.Write("nmistat", nmistat_); w.Write("pending", pending_);
+    w.Write("line_level", line_level_);
 }
 
 void Vrc5477Intc::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(state_mtx_);
-    for (uint32_t& v : intctrl_) r.Read(v);
-    r.Read(intppes0_); r.Read(intppes1_);
-    r.Read(cpustat_);  r.Read(busctrl_); r.Read(nmistat_); r.Read(pending_);
-    r.Read(line_level_);
+    for (uint32_t& v : intctrl_) r.Read("intctrl", v);
+    r.Read("intppes0", intppes0_); r.Read("intppes1", intppes1_);
+    r.Read("cpustat", cpustat_);  r.Read("busctrl", busctrl_); r.Read("nmistat", nmistat_); r.Read("pending", pending_);
+    r.Read("line_level", line_level_);
 }
 
 void Vrc5477Intc::Renotify() {

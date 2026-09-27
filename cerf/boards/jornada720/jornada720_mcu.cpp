@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../board_context.h"
+#include "jornada_720_id.h"
 #include "jornada720_battery.h"
 #include "jornada720_keyboard.h"
 #include "jornada720_led.h"
@@ -32,7 +33,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Jornada720;
+        return bd && bd->GetBoardId() == BoardId::Jornada720;
     }
 
     uint16_t Exchange(uint16_t tx_frame) override {

@@ -1,6 +1,7 @@
 #include "cortex_a9_processor_config.h"
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
+#include "../../socs/imx6/imx6_id.h"
 
 namespace {
 class Imx6ProcessorConfig final : public CortexA9ProcessorConfigBase {
@@ -8,7 +9,7 @@ public:
     using CortexA9ProcessorConfigBase::CortexA9ProcessorConfigBase;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     /* ARM DDI 0388I Table 4-28; IMX6DQIEC Rev.6 Table 2: Cortex-A9 r2p10;
        hmi_ktp400_mobile_v17 nk.exe 0x80310324. */

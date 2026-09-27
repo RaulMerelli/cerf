@@ -5,6 +5,7 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
+#include "imx6_id.h"
 
 namespace {
 
@@ -14,7 +15,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetSoc() == SocFamily::iMX6;
+        return board && board->GetSocId() == SocId::Imx6;
     }
 
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }

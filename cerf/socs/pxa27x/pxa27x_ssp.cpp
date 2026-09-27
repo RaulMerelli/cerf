@@ -1,6 +1,7 @@
 #include "../../peripherals/peripheral_base.h"
 
 #include "../../boards/board_context.h"
+#include "pxa270_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::PXA27x;
+        return bd && bd->GetSocId() == SocId::Pxa270;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -202,29 +203,29 @@ void Pxa27xSsp::UpdateIrq() {
 }
 
 void Pxa27xSsp::SaveState(StateWriter& w) {
-    w.Write(sscr0_);
-    w.Write(sscr1_);
-    w.Write(ssitr_);
-    w.Write(ssto_);
-    w.Write(sspsp_);
-    w.Write(sstsa_);
-    w.Write(ssrsa_);
-    w.Write(ssacd_);
-    w.Write(sticky_);
-    w.Write(irq_);
+    w.Write("sscr0", sscr0_);
+    w.Write("sscr1", sscr1_);
+    w.Write("ssitr", ssitr_);
+    w.Write("ssto", ssto_);
+    w.Write("sspsp", sspsp_);
+    w.Write("sstsa", sstsa_);
+    w.Write("ssrsa", ssrsa_);
+    w.Write("ssacd", ssacd_);
+    w.Write("sticky", sticky_);
+    w.Write("irq", irq_);
 }
 
 void Pxa27xSsp::RestoreState(StateReader& r) {
-    r.Read(sscr0_);
-    r.Read(sscr1_);
-    r.Read(ssitr_);
-    r.Read(ssto_);
-    r.Read(sspsp_);
-    r.Read(sstsa_);
-    r.Read(ssrsa_);
-    r.Read(ssacd_);
-    r.Read(sticky_);
-    r.Read(irq_);
+    r.Read("sscr0", sscr0_);
+    r.Read("sscr1", sscr1_);
+    r.Read("ssitr", ssitr_);
+    r.Read("ssto", ssto_);
+    r.Read("sspsp", sspsp_);
+    r.Read("sstsa", sstsa_);
+    r.Read("ssrsa", ssrsa_);
+    r.Read("ssacd", ssacd_);
+    r.Read("sticky", sticky_);
+    r.Read("irq", irq_);
 }
 
 /* Table 8-11 (page 8-46) SSSR_1/2/3: "Physical Address 0x4100_0008 0x4170_0008

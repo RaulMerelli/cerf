@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../boards/simpad_sl4/simpad_sl4_id.h"
 #include "../../state/state_stream.h"
 #include "../peripheral_dispatcher.h"
 
@@ -20,7 +21,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SimpadSl4;
+        return bd && bd->GetBoardId() == BoardId::SimpadSl4;
     }
 
     void OnReady() override {
@@ -38,10 +39,10 @@ public:
     /* The 16 byte registers are the whole SCR state - writes land here,
        reads come straight back. No host-only members to skip. */
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_.data(), regs_.size());
+        w.WriteBytes("regs", regs_.data(), regs_.size());
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_.data(), regs_.size());
+        r.ReadBytes("regs", regs_.data(), regs_.size());
     }
 
 private:

@@ -147,6 +147,25 @@ void RateProbe::LogLoop() {
             t[static_cast<uint8_t>(TimeCounter::MmuXlate)] / ticks_per_ms : 0;
         const uint64_t native_ms =
             (run_ms > io_ms + mmu_ms) ? run_ms - io_ms - mmu_ms : 0;
+#if CERF_DEV_MODE
+        {
+            const bool active = jr != 0;
+            if (!active && sd_active_prev_ && sd_fired_ < 2u) {
+                ++sd_fired_;
+                LOG(Perf, "[JITSTALLDUMP] jit_runs fell to 0 after an active "
+                          "second - invoking the registered stall dumps "
+                          "(#%u)\n",
+                    sd_fired_);
+                std::vector<std::function<void()>> fns;
+                {
+                    std::lock_guard<std::mutex> lk(sd_mtx_);
+                    fns = stall_dumps_;
+                }
+                for (const auto& fn : fns) fn();
+            }
+            sd_active_prev_ = active;
+        }
+#endif
         LogTopMmioPcs();
         LogTopCtxSlots();
         char cbuf[kCount][24];
@@ -159,14 +178,13 @@ void RateProbe::LogLoop() {
             }
         }
         LOG(Perf,
-            "jit_runs=%s ost_rd=%s ost_poll=%s ost_fire=%s "
+            "jit_runs=%s ost_rd=%s ost_fire=%s "
             "intc_assert=%s intc_deassert=%s jit_pend_set=%s "
             "jit_pend_clr=%s dma_w=%s audio_msg=%s rd_per_run=%llu "
             "run_ms=%llu ost_ms=%llu io_ms=%llu mmu_ms=%llu native_ms=%llu "
             "mmu_calls=%s jit_compile=%s tc_flush=%s ctx_flush=%s\n",
             cbuf[static_cast<uint8_t>(Counter::JitRuns)],
             cbuf[static_cast<uint8_t>(Counter::OstReadOscr)],
-            cbuf[static_cast<uint8_t>(Counter::OstPolls)],
             cbuf[static_cast<uint8_t>(Counter::OstFires)],
             cbuf[static_cast<uint8_t>(Counter::IntcAsserts)],
             cbuf[static_cast<uint8_t>(Counter::IntcDeasserts)],

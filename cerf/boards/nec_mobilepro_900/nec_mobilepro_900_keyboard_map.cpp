@@ -1,6 +1,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../host/keyboard_map.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 
 #include <array>
 #include <cstdint>
@@ -43,7 +44,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::NecMobilePro900;
+        return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
     }
 
     void OnReady() override {

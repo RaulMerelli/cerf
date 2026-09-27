@@ -1,6 +1,7 @@
 #include "../amd_command_set_flash.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/smdk2410_devemu/devemu_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -24,7 +25,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::Smdk2410DevEmu;
+        return bd && bd->GetBoardId() == BoardId::Devemu;
     }
 
     uint32_t MmioBase() const override { return kBase; }

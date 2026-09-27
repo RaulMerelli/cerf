@@ -1,6 +1,7 @@
 #include "../../peripherals/open_bus_window.h"
 
 #include "../../core/cerf_emulator.h"
+#include "casio_cassiopeia_e55_id.h"
 
 namespace {
 
@@ -18,7 +19,7 @@ public:
     uint32_t MmioSize() const override { return 0x00800000u; }
 
 protected:
-    Board       WindowBoard() const override { return Board::CasioCassiopeiaE55; }
+    std::string_view WindowBoardId() const override { return BoardId::CasioCassiopeiaE55; }
     const char* WindowTag()   const override { return "E55 dictionary ROM"; }
 };
 

@@ -1,8 +1,8 @@
 #include <winver.h>
 #include "version.h"
 
-APPICON ICON "assets/cerf.ico"
-1 ICON "assets/cerf.ico"
+APPICON ICON "assets/cerf_running.ico"
+1 ICON "assets/cerf_running.ico"
 2 ICON "assets/suspend.ico"
 
 /* built from assets/icons_sources/*.svg by tools/make_icons.py. */
@@ -32,12 +32,11 @@ ICON_SERIAL_MODEM        ICON "assets/serial_modem.ico"
 ICON_USB                 ICON "assets/usb.ico"
 ICON_USB_FORD_FLASHER    ICON "assets/usb_ford_flasher.ico"
 ICON_SD_MAP              ICON "assets/sd_map.ico"
+ICON_CAR                 ICON "assets/car.ico"
 ICON_ILP_DIAGNOSTICS     ICON "assets/ilp_diagnostics.ico"
 ICON_ILP_DIAGNOSTICS_REJECTED ICON "assets/ilp_diagnostics_rejected.ico"
 
 CERF_LOGO        RCDATA "assets/cerf_1024.png"
-
-ABOUT_CONTRIBUTORS RCDATA "host/contributors_generated.txt"
 
 FONT_PLEX_SANS           RCDATA "assets/fonts/IBMPlexSans-Regular.ttf"
 FONT_PLEX_SANS_BOLD      RCDATA "assets/fonts/IBMPlexSans-Bold.ttf"
@@ -61,12 +60,13 @@ BEGIN
     BEGIN
         BLOCK "040904E4"
         BEGIN
-            VALUE "CompanyName",      "CERF Project"
-            VALUE "FileDescription",  "CE Runtime Foundation - universal Windows CE ARM emulator"
+            VALUE "CompanyName",      "Yaroslav Kibysh"
+            VALUE "FileDescription",  "Universal Windows CE emulator"
             VALUE "FileVersion",      CERF_VERSION_DISPLAY_STR
             VALUE "InternalName",     "cerf"
+            VALUE "LegalCopyright",   "Copyright (c) Yaroslav Kibysh"
             VALUE "OriginalFilename", "cerf.exe"
-            VALUE "ProductName",      "CERF"
+            VALUE "ProductName",      "CE Runtime Foundation"
             VALUE "ProductVersion",   CERF_VERSION_DISPLAY_STR
         END
     END

@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/imx31/imx31_id.h"
 
 namespace {
 
@@ -11,7 +12,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
 
     /* ARM DDI 0100I "Reading the program counter" (p. A2-9): STR/STM of R15
@@ -44,10 +45,16 @@ public:
     bool     HasExtendRotate()            const override { return true; }
     bool     HasRev()                     const override { return true; }
     bool     HasLdrexStrex()              const override { return true; }
+    /* ARM DDI 0211I section 2.10 (p. 2-24): "These instructions were
+       introduced in rev1 of the ARM1136JF-S processor (r1p0)." */
+    bool     HasLdrexStrexV6k()           const override { return true; }
     bool     HasCp15V6()                  const override { return true; }
-    /* ARM1136JF-S and ARM1136J-S Technical Reference Manual DDI 0211K,
-       Memory Management Unit. */
-    ArmSupersectionFormat SupersectionFormat() const override { return ArmSupersectionFormat::kArmV6; }
+    /* ARM DDI 0211I section 6.2.5: "Every supersection is defined to have its
+       Domain as 0" and they work at either XP setting; Figures 6-4/6-7/6-8
+       show bits[23:20] SBZ and bits[8:5] Ignored, so the PA is 32-bit. */
+    ArmSupersectionFormat SupersectionFormat() const override {
+        return ArmSupersectionFormat::kPa32;
+    }
 
     /* ARM DDI 0406C.c Figure D12-1 (p. D12-2526): c1 opc1=0 CRm=c0
        opc2={0-2} System control registers, Read/Write. */

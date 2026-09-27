@@ -13,7 +13,7 @@
 REGISTER_SERVICE(BoardNotFoundService);
 
 bool BoardNotFoundService::ShouldRegister() {
-    return emu_.Get<BoardContext>().GetBoard() == Board::Unknown;
+    return emu_.Get<BoardContext>().GetBoardId().empty();
 }
 
 void BoardNotFoundService::EnsureFound() {

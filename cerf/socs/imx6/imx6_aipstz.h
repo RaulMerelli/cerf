@@ -4,13 +4,14 @@
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "imx6_mmio_lane.h"
+#include "imx6_id.h"
 
 template <uint32_t kBase> class Imx6Aipstz : public Peripheral {
 public:
     using Peripheral::Peripheral;
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../boards/board_context.h"
+#include "../../boards/siemens_p177/siemens_p177_id.h"
 #include "../../state/state_stream.h"
 
 #include <cstdint>
@@ -44,7 +45,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SiemensP177;
+        return bd && bd->GetBoardId() == BoardId::SiemensP177;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -85,16 +86,16 @@ public:
     void WriteHalf(uint32_t a, uint16_t v) override { RmwNarrow(a, v, 0xFFFFu, 2u); }
 
     void SaveState(StateWriter& w) override {
-        for (auto r : regs_)    w.Write(r);
-        for (auto r : mac_csr_) w.Write(r);
-        w.Write(mac_csr_cmd_);
-        w.Write(mac_csr_data_);
+        for (auto r : regs_)    w.Write("regs", r);
+        for (auto r : mac_csr_) w.Write("mac_csr", r);
+        w.Write("mac_csr_cmd", mac_csr_cmd_);
+        w.Write("mac_csr_data", mac_csr_data_);
     }
     void RestoreState(StateReader& r) override {
-        for (auto& v : regs_)    r.Read(v);
-        for (auto& v : mac_csr_) r.Read(v);
-        r.Read(mac_csr_cmd_);
-        r.Read(mac_csr_data_);
+        for (auto& v : regs_)    r.Read("regs", v);
+        for (auto& v : mac_csr_) r.Read("mac_csr", v);
+        r.Read("mac_csr_cmd", mac_csr_cmd_);
+        r.Read("mac_csr_data", mac_csr_data_);
     }
 
 private:

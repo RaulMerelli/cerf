@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "zune_30_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 
 #include <cstdint>
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::ZuneKeel;
+        return bd && bd->GetBoardId() == BoardId::Zune30;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);

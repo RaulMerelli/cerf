@@ -9,6 +9,7 @@
 #include "../../boards/board_context.h"
 #include <cstdint>
 #include <vector>
+#include "ktp_mobile_id.h"
 
 namespace {
 
@@ -25,7 +26,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && BoardContext::IsKtpMobile(bd->GetBoard());
+        return bd && BoardId::IsKtpMobile(bd->GetBoardId());
     }
 
     uint32_t InitStackTopPa() const override { return kInitStackTopPa; }

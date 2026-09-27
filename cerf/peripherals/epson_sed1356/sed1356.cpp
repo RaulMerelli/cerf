@@ -1,13 +1,11 @@
 #include "sed1356.h"
 
 #include "sed1356_config.h"
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
-#include "../../host/host_window.h"
 #include "../peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
-
-#include <cstring>
 
 bool Sed1356::ShouldRegister() {
     return emu_.TryGet<Sed1356Config>() != nullptr;
@@ -78,16 +76,11 @@ uint8_t Sed1356::VndStatusBit() const {
 }
 
 void Sed1356::PublishOnLcdEnableEdge() {
-    if (!LcdDisplayOn()) { enable_published_ = false; return; }
-    const uint32_t w = LcdGuestW(), h = LcdGuestH();
-    if (enable_published_ && w == published_w_ && h == published_h_) return;
-
-    enable_published_ = true;
-    published_w_ = w;
-    published_h_ = h;
+    const bool on = LcdDisplayOn();
+    const uint32_t w = on ? LcdGuestW() : 0u, h = on ? LcdGuestH() : 0u;
+    if (!mode_latch_.Publish(emu_, on, w, h)) return;
     LOG(Lcd, "Sed1356: LCD enabled %ux%u %ubpp start=0x%X stride=%u\n",
         w, h, LcdBpp(), LcdStartByte(), LcdStrideBytes());
-    emu_.Get<HostWindow>().OnLcdEnabled();
 }
 
 namespace {
@@ -226,6 +219,23 @@ void Sed1356::StepLutPointer() {
     }
 }
 
+uint32_t Sed1356::VramLoad(uint32_t off, uint32_t width) const {
+    const uint32_t r = VramWrap(off);
+    if (r + width <= vram_size_) return static_cast<uint32_t>(cerf::le::UN(&vram_[r], width));
+    uint32_t v = 0;
+    for (uint32_t i = 0; i < width; ++i) v |= uint32_t(vram_[VramWrap(r + i)]) << (8u * i);
+    return v;
+}
+
+void Sed1356::VramStore(uint32_t off, uint32_t value, uint32_t width) {
+    const uint32_t r = VramWrap(off);
+    if (r + width <= vram_size_) {
+        cerf::le::PutN(&vram_[r], value, width);
+        return;
+    }
+    for (uint32_t i = 0; i < width; ++i) vram_[VramWrap(r + i)] = uint8_t(value >> (8u * i));
+}
+
 uint8_t Sed1356::ReadByte(uint32_t addr) {
     const uint32_t off = addr - MmioBase();
     if (off < kRegWindow) return RegRead(off);
@@ -241,13 +251,7 @@ uint16_t Sed1356::ReadHalf(uint32_t addr) {
         return (uint16_t)(RegRead(off) | (RegRead(off + 1) << 8));
     if (off >= kBltAperture && off < kBltApertureEnd) return blt_.DataRead();
     if (off >= kVramBase && off + 1 < kVramBase + kVramAperture) {
-        const uint32_t r = VramWrap(off - kVramBase);
-        if (r + 2u <= vram_size_) {
-            uint16_t v;
-            std::memcpy(&v, &vram_[r], sizeof(v));
-            return v;
-        }
-        return (uint16_t)(vram_[r] | vram_[VramWrap(r + 1u)] << 8);
+        return static_cast<uint16_t>(VramLoad(off - kVramBase, 2u));
     }
     HaltUnsupportedAccess("ReadHalf", addr, 0);
 }
@@ -262,16 +266,7 @@ uint32_t Sed1356::ReadWord(uint32_t addr) {
         return lo | (uint32_t)blt_.DataRead() << 16;
     }
     if (off >= kVramBase && off + 3 < kVramBase + kVramAperture) {
-        const uint32_t r = VramWrap(off - kVramBase);
-        if (r + 4u <= vram_size_) {
-            uint32_t v;
-            std::memcpy(&v, &vram_[r], sizeof(v));
-            return v;
-        }
-        return (uint32_t)vram_[r]                          |
-               (uint32_t)vram_[VramWrap(r + 1u)] << 8  |
-               (uint32_t)vram_[VramWrap(r + 2u)] << 16 |
-               (uint32_t)vram_[VramWrap(r + 3u)] << 24;
+        return VramLoad(off - kVramBase, 4u);
     }
     HaltUnsupportedAccess("ReadWord", addr, 0);
 }
@@ -298,13 +293,7 @@ void Sed1356::WriteHalf(uint32_t addr, uint16_t value) {
         return;
     }
     if (off >= kVramBase && off + 1 < kVramBase + kVramAperture) {
-        const uint32_t r = VramWrap(off - kVramBase);
-        if (r + 2u <= vram_size_) {
-            std::memcpy(&vram_[r], &value, sizeof(value));
-        } else {
-            vram_[r]                     = (uint8_t)value;
-            vram_[VramWrap(r + 1u)]  = (uint8_t)(value >> 8);
-        }
+        VramStore(off - kVramBase, value, 2u);
         return;
     }
     HaltUnsupportedAccess("WriteHalf", addr, value);
@@ -325,48 +314,33 @@ void Sed1356::WriteWord(uint32_t addr, uint32_t value) {
         return;
     }
     if (off >= kVramBase && off + 3 < kVramBase + kVramAperture) {
-        const uint32_t r = VramWrap(off - kVramBase);
-        if (r + 4u <= vram_size_) {
-            std::memcpy(&vram_[r], &value, sizeof(value));
-        } else {
-            vram_[r]                     = (uint8_t)value;
-            vram_[VramWrap(r + 1u)]  = (uint8_t)(value >> 8);
-            vram_[VramWrap(r + 2u)]  = (uint8_t)(value >> 16);
-            vram_[VramWrap(r + 3u)]  = (uint8_t)(value >> 24);
-        }
+        VramStore(off - kVramBase, value, 4u);
         return;
     }
     HaltUnsupportedAccess("WriteWord", addr, value);
 }
 
 void Sed1356::SaveState(StateWriter& w) {
-    w.WriteBytes(reg_, sizeof(reg_));
-    w.Write<uint64_t>(vram_.size());
-    if (!vram_.empty()) w.WriteBytes(vram_.data(), vram_.size());
-    w.WriteBytes(lcd_lut_, sizeof(lcd_lut_));
-    w.WriteBytes(crt_lut_, sizeof(crt_lut_));
-    w.Write(lut_index_);
-    w.Write(lut_component_);
-    w.WriteBytes(lut_rgb_latch_, sizeof(lut_rgb_latch_));
-    w.Write<uint8_t>(enable_published_ ? 1u : 0u);
-    w.Write(published_w_);
-    w.Write(published_h_);
+    w.WriteBytes("reg", reg_, sizeof(reg_));
+    w.WriteBytes("vram", vram_.data(), vram_.size());
+    w.WriteBytes("lcd_lut", lcd_lut_, sizeof(lcd_lut_));
+    w.WriteBytes("crt_lut", crt_lut_, sizeof(crt_lut_));
+    w.Write("lut_index", lut_index_);
+    w.Write("lut_component", lut_component_);
+    w.WriteBytes("lut_rgb_latch", lut_rgb_latch_, sizeof(lut_rgb_latch_));
+    mode_latch_.SaveState(w);
     blt_.SaveState(w);
 }
 
 void Sed1356::RestoreState(StateReader& r) {
-    r.ReadBytes(reg_, sizeof(reg_));
-    uint64_t n = 0; r.Read(n);
-    vram_.assign(static_cast<size_t>(n), 0u);
-    if (n) r.ReadBytes(vram_.data(), static_cast<size_t>(n));
-    r.ReadBytes(lcd_lut_, sizeof(lcd_lut_));
-    r.ReadBytes(crt_lut_, sizeof(crt_lut_));
-    r.Read(lut_index_);
-    r.Read(lut_component_);
-    r.ReadBytes(lut_rgb_latch_, sizeof(lut_rgb_latch_));
-    uint8_t en = 0; r.Read(en); enable_published_ = (en != 0);
-    r.Read(published_w_);
-    r.Read(published_h_);
+    r.ReadBytes("reg", reg_, sizeof(reg_));
+    r.ReadBytes("vram", vram_.data(), vram_.size());
+    r.ReadBytes("lcd_lut", lcd_lut_, sizeof(lcd_lut_));
+    r.ReadBytes("crt_lut", crt_lut_, sizeof(crt_lut_));
+    r.Read("lut_index", lut_index_);
+    r.Read("lut_component", lut_component_);
+    r.ReadBytes("lut_rgb_latch", lut_rgb_latch_, sizeof(lut_rgb_latch_));
+    mode_latch_.RestoreState(r);
     blt_.RestoreState(r);
 }
 

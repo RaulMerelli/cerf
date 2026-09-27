@@ -3,6 +3,7 @@
 #include "siemens_mp377_power_reset.h"
 
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../host/host_widget_registry.h"
 #include "../../socs/guest_cpu_reset.h"
@@ -12,7 +13,7 @@ namespace siemens_mp377 {
 
 bool SiemensMp377PowerFail::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
-    return board && board->GetBoard() == Board::SiemensMP377;
+    return board && board->GetBoardId() == BoardId::SiemensMp377;
 }
 
 void SiemensMp377PowerFail::OnReady() {

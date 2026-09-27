@@ -4,12 +4,13 @@
 #include "../../core/log.h"
 #include "../../socs/pxa255/pxa255_btuart.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 
 REGISTER_SERVICE(NecMobilePro900PcoCompanion);
 
 bool NecMobilePro900PcoCompanion::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::NecMobilePro900;
+    return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
 }
 
 void NecMobilePro900PcoCompanion::OnReady() {

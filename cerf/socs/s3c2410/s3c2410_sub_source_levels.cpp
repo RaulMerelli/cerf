@@ -1,6 +1,7 @@
 #include "s3c2410_sub_source_levels.h"
 
 #include "../../boards/board_context.h"
+#include "s3c2410_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../irq_controller.h"
@@ -9,7 +10,7 @@ REGISTER_SERVICE(S3C2410SubSourceLevels);
 
 bool S3C2410SubSourceLevels::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::S3C2410;
+    return bd && bd->GetSocId() == SocId::S3c2410;
 }
 
 void S3C2410SubSourceLevels::Register(int main_source_bit, int sub_source_bit,

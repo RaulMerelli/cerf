@@ -4,6 +4,7 @@
 #include "../../host/host_widget_registry.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
 #include "../board_context.h"
+#include "nec_mobilepro_900_id.h"
 #include "nec_mobilepro_900_pco_companion.h"
 
 #include <cmath>
@@ -34,7 +35,7 @@ constexpr Band kBands[] = {
 
 bool NecMobilePro900Battery::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::NecMobilePro900;
+    return bd && bd->GetBoardId() == BoardId::NecMobilepro900;
 }
 
 void NecMobilePro900Battery::OnReady() {

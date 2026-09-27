@@ -5,6 +5,7 @@
 #include "../../state/state_stream.h"
 
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace {
 
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().RegisterResettable(this); }
 
@@ -62,12 +63,12 @@ public:
     }
 
     void SaveState(StateWriter& w) override {
-        w.Write(p0_sctl_);
-        w.Write(p0_phycr_);
+        w.Write("p0_sctl", p0_sctl_);
+        w.Write("p0_phycr", p0_phycr_);
     }
     void RestoreState(StateReader& r) override {
-        r.Read(p0_sctl_);
-        r.Read(p0_phycr_);
+        r.Read("p0_sctl", p0_sctl_);
+        r.Read("p0_phycr", p0_phycr_);
     }
 
 private:

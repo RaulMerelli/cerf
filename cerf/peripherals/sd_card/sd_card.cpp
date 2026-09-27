@@ -31,43 +31,43 @@ void SdCard::ConfigureMedia(std::unique_ptr<SdCardMediaBackend> backend) {
 }
 
 void SdCard::SaveState(StateWriter& w) const {
-    w.Write(state_);
-    w.Write(rca_);
-    w.Write(card_status_);
-    w.Write(high_capacity_);
-    w.Write(xfer_addr_);
-    w.WriteBytes(ext_csd_, sizeof(ext_csd_));
-    w.Write(xfer_scr_);
-    w.Write(xfer_switch_status_);
-    w.Write(switch_status_arg_);
-    w.Write(mmc_mode_);
-    w.Write(mmc_layout_ready_);
-    w.Write(xfer_ext_csd_);
-    w.Write(mmc_predefined_block_count_);
-    w.Write(erase_start_addr_);
-    w.Write(erase_end_addr_);
-    w.Write(erase_start_valid_);
-    w.Write(erase_end_valid_);
+    w.Write("state", state_);
+    w.Write("rca", rca_);
+    w.Write("card_status", card_status_);
+    w.Write("high_capacity", high_capacity_);
+    w.Write("xfer_addr", xfer_addr_);
+    w.WriteBytes("ext_csd", ext_csd_, sizeof(ext_csd_));
+    w.Write("xfer_scr", xfer_scr_);
+    w.Write("xfer_switch_status", xfer_switch_status_);
+    w.Write("switch_status_arg", switch_status_arg_);
+    w.Write("mmc_mode", mmc_mode_);
+    w.Write("mmc_layout_ready", mmc_layout_ready_);
+    w.Write("xfer_ext_csd", xfer_ext_csd_);
+    w.Write("mmc_predefined_block_count", mmc_predefined_block_count_);
+    w.Write("erase_start_addr", erase_start_addr_);
+    w.Write("erase_end_addr", erase_end_addr_);
+    w.Write("erase_start_valid", erase_start_valid_);
+    w.Write("erase_end_valid", erase_end_valid_);
 }
 
 void SdCard::RestoreState(StateReader& r) {
-    r.Read(state_);
-    r.Read(rca_);
-    r.Read(card_status_);
-    r.Read(high_capacity_);
-    r.Read(xfer_addr_);
-    r.ReadBytes(ext_csd_, sizeof(ext_csd_));
-    r.Read(xfer_scr_);
-    r.Read(xfer_switch_status_);
-    r.Read(switch_status_arg_);
-    r.Read(mmc_mode_);
-    r.Read(mmc_layout_ready_);
-    r.Read(xfer_ext_csd_);
-    r.Read(mmc_predefined_block_count_);
-    r.Read(erase_start_addr_);
-    r.Read(erase_end_addr_);
-    r.Read(erase_start_valid_);
-    r.Read(erase_end_valid_);
+    r.Read("state", state_);
+    r.Read("rca", rca_);
+    r.Read("card_status", card_status_);
+    r.Read("high_capacity", high_capacity_);
+    r.Read("xfer_addr", xfer_addr_);
+    r.ReadBytes("ext_csd", ext_csd_, sizeof(ext_csd_));
+    r.Read("xfer_scr", xfer_scr_);
+    r.Read("xfer_switch_status", xfer_switch_status_);
+    r.Read("switch_status_arg", switch_status_arg_);
+    r.Read("mmc_mode", mmc_mode_);
+    r.Read("mmc_layout_ready", mmc_layout_ready_);
+    r.Read("xfer_ext_csd", xfer_ext_csd_);
+    r.Read("mmc_predefined_block_count", mmc_predefined_block_count_);
+    r.Read("erase_start_addr", erase_start_addr_);
+    r.Read("erase_end_addr", erase_end_addr_);
+    r.Read("erase_start_valid", erase_start_valid_);
+    r.Read("erase_end_valid", erase_end_valid_);
     if (mmc_layout_ready_) media_.InitializeMmcLayout();
     media_.SetMmcMode(mmc_mode_);
 }

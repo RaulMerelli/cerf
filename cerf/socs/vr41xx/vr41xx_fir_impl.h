@@ -14,14 +14,14 @@ namespace cerf_vr41xx_fir_detail {
 
 /* VR41xx FIR (Fast IrDA Interface Unit): IRSR1 at block offset 0x18
    (VR4121 UM Table 27-1 p588 / VR4102 UM Table 26-1 p498). */
-template <SocFamily Soc, uint32_t Base>
+template <const std::string_view& Soc, uint32_t Base>
 class Vr41xxFirBase : public Peripheral {
 public:
     using Peripheral::Peripheral;
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == Soc;
+        return bd && bd->GetSocId() == Soc;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -54,8 +54,8 @@ public:
     void WriteByte(uint32_t addr, uint8_t  v) override { HaltUnsupportedAccess("FIR WriteByte", addr, v); }
     void WriteWord(uint32_t addr, uint32_t v) override { HaltUnsupportedAccess("FIR WriteWord", addr, v); }
 
-    void SaveState(StateWriter& w) override { w.Write(frstr_); w.Write(irsr1_); }
-    void RestoreState(StateReader& r) override { r.Read(frstr_); r.Read(irsr1_); }
+    void SaveState(StateWriter& w) override { w.Write("frstr", frstr_); w.Write("irsr1", irsr1_); }
+    void RestoreState(StateReader& r) override { r.Read("frstr", frstr_); r.Read("irsr1", irsr1_); }
 
 private:
     static constexpr uint32_t kOffFrstr = 0x00u;   /* FRSTR at Base+0x00 */

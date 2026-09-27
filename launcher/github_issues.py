@@ -11,7 +11,6 @@ from bundles import BundleError, DEFAULT_TIMEOUT, USER_AGENT
 ISSUES_API_URL = ("https://api.github.com/search/issues"
                   "?q=repo:gweslab/cerf+is:issue+is:open"
                   "&sort=reactions&order=desc&per_page=100")
-ISSUES_URL = "https://github.com/gweslab/cerf/issues"
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,8 @@
 #include "ucb1x00_codec.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/simpad_sl4/simpad_sl4_id.h"
+#include "../../boards/jornada820/jornada_820_id.h"
 #include "../../core/cerf_emulator.h"
 
 #include <cstdint>
@@ -16,8 +18,8 @@ public:
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
         if (!bd) return false;
-        const Board b = bd->GetBoard();
-        return b == Board::SimpadSl4 || b == Board::Jornada820;
+        const std::string_view b = bd->GetBoardId();
+        return b == BoardId::SimpadSl4 || b == BoardId::Jornada820;
     }
 
     uint16_t ReadReg(uint8_t reg) override {

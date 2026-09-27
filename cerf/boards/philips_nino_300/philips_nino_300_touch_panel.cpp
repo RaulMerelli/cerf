@@ -1,6 +1,7 @@
 #include "philips_nino_300_touch_panel.h"
 
 #include "../board_context.h"
+#include "philips_nino_300_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/pr31x00/pr31x00_intc.h"
 
@@ -18,7 +19,7 @@ constexpr uint32_t kSibIrqPosInt    = 1u << 6;
 
 bool PhilipsNino300TouchPanel::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::PhilipsNino300;
+    return bd && bd->GetBoardId() == BoardId::PhilipsNino300;
 }
 
 void PhilipsNino300TouchPanel::SetPen(bool down, int x, int y) {

@@ -4,11 +4,12 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../state/state_stream.h"
 #include "imx51_gpu2d_blend.h"
 #include "imx51_gpu2d_gradw_sampler.h"
-#include "imx51_pixel_pack.h"
+#include "../../lcd/lcd_pixel_expand.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,7 +20,7 @@ REGISTER_SERVICE(Imx51Gpu2dRasterizer);
 
 bool Imx51Gpu2dRasterizer::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX51;
+    return bd && bd->GetSocId() == SocId::Imx51;
 }
 
 void Imx51Gpu2dRasterizer::HaltFill(const char* why, float a, float b) const {
@@ -149,7 +150,7 @@ uint32_t Imx51Gpu2dRasterizer::LoadDest(const Gpu2dFillTarget& t, int32_t x, int
 void Imx51Gpu2dRasterizer::StoreDest(const Gpu2dFillTarget& t, int32_t x, int32_t y,
                                      uint32_t argb) {
     uint8_t* hp = DestHost(t, x, y);
-    if (t.dest_565) *reinterpret_cast<uint16_t*>(hp) = imx51_pixel::PackArgb565(argb);
+    if (t.dest_565) *reinterpret_cast<uint16_t*>(hp) = lcd_pixel::PackRgb565(argb);
     else            *reinterpret_cast<uint32_t*>(hp) = argb;
 }
 
@@ -476,23 +477,23 @@ void Imx51Gpu2dRasterizer::FillRect(const Gpu2dFillTarget& t, int32_t x0, int32_
 
 void Imx51Gpu2dRasterizer::SaveState(StateWriter& w) const {
     const uint32_t np = static_cast<uint32_t>(pts_.size());
-    w.Write(np);
-    for (float f : pts_) w.Write(f);
+    w.Write("coordinate_count", np);
+    for (float f : pts_) w.Write("pts", f);
     const uint32_t ns = static_cast<uint32_t>(starts_.size());
-    w.Write(ns);
-    for (uint32_t s : starts_) w.Write(s);
-    for (uint8_t c : closed_) w.Write(c);
+    w.Write("subpath_count", ns);
+    for (uint32_t s : starts_) w.Write("starts", s);
+    for (uint8_t c : closed_) w.Write("closed", c);
 }
 
 void Imx51Gpu2dRasterizer::RestoreState(StateReader& r) {
     uint32_t np = 0;
-    r.Read(np);
+    r.Read("coordinate_count", np);
     pts_.resize(np);
-    for (uint32_t i = 0; i < np; ++i) r.Read(pts_[i]);
+    for (uint32_t i = 0; i < np; ++i) r.Read("pts", pts_[i]);
     uint32_t ns = 0;
-    r.Read(ns);
+    r.Read("subpath_count", ns);
     starts_.resize(ns);
-    for (uint32_t i = 0; i < ns; ++i) r.Read(starts_[i]);
+    for (uint32_t i = 0; i < ns; ++i) r.Read("starts", starts_[i]);
     closed_.resize(ns);
-    for (uint32_t i = 0; i < ns; ++i) r.Read(closed_[i]);
+    for (uint32_t i = 0; i < ns; ++i) r.Read("closed", closed_[i]);
 }

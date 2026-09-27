@@ -28,6 +28,8 @@ public:
                    DWORD page_protect = PAGE_READWRITE,
                    uint32_t decode_span = 0);
 
+    bool OverlapsRegion(uint32_t base, uint32_t size) const;
+
     uint8_t* Translate(uint32_t vaddr);
 
     uint8_t* TryTranslate(uint32_t paddr);
@@ -58,21 +60,17 @@ public:
        CopyIn. */
     void CopyOut(uint32_t vaddr, void* host_dst, size_t size);
 
+    bool CanCopyRange(uint32_t paddr, size_t size, bool writable);
+
     /* Power-cycle RAM loss: zero every backed volatile region. Flash
        (PAGE_READONLY / PAGE_EXECUTE_READ) keeps its contents - guest NOR
        writes survive a real power cycle. JIT thread at reset delivery
        only; anywhere else the memset races guest stores. */
     void WipeVolatileRegions();
 
-    /* State image: snapshot / restore every volatile region (the set
-       WipeVolatileRegions touches). Flash regions go through the separate
-       SaveFlashRegions/RestoreFlashRegions pair below. */
     void SaveState(StateWriter& w);
     void RestoreState(StateReader& r);
 
-    /* State image: snapshot / restore the backed flash regions (PAGE_READONLY /
-       PAGE_EXECUTE_READ). A cold boot re-populates these from the ROM image, so
-       without this capture a restore reverts guest NOR/NAND writes to ROM. */
     void SaveFlashRegions(StateWriter& w);
     void RestoreFlashRegions(StateReader& r);
 
@@ -83,7 +81,7 @@ private:
     struct Region {
         uint32_t              base         = 0;
         uint32_t              size         = 0;   /* backed bytes */
-        uint32_t              span         = 0;   /* decoded bytes; >= size */
+        uint32_t              span         = 0;
         uint32_t              wrap_mask    = 0xFFFFFFFFu;
         DWORD                 page_protect = 0;
         std::atomic<uint8_t*> host_ptr{nullptr};  /* lazy first-touch */
@@ -94,6 +92,11 @@ private:
     /* Shared CopyIn/CopyOut gate: region containing [vaddr, vaddr+size)
        or fatal (unmapped / boundary-crossing). */
     Region*  BulkRegionFor(uint32_t vaddr, size_t size, const char* op);
+    Region*  BulkRegion(uint32_t vaddr, size_t size);
+    static bool IsFlash(const Region& r);
+    uint32_t RegionCount(bool flash) const;
+    void     SaveRegions(StateWriter& w, bool flash);
+    void     RestoreRegions(StateReader& r, bool flash);
     /* Atomic first-touch CAS on host_ptr. Halts on VirtualAlloc fail. */
     uint8_t* EnsureBacked(Region* r);
 

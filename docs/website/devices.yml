@@ -1,4 +1,4 @@
-# The device wall on the front page.
+# The device row on the front page.
 #
 # Each device is a folder under docs/website/content/assets/devices/. Drop any
 # number of screenshots in it: the tile cycles through them, sorted by file name
@@ -11,7 +11,7 @@
 #   - dir:    folder under content/assets/devices/
 #     device: device name shown on the tile
 #     os:     guest OS shown under the device name
-#     wide:   true to let the tile span two columns (optional)
+#     wide:   true for a wider tile, for a landscape guest (optional)
 
 devices:
   - dir: velo1

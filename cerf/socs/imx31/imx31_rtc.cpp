@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -45,7 +46,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX31;
+        return bd && bd->GetSocId() == SocId::Imx31;
     }
     void OnReady() override {
         for (uint32_t i = 0; i < kSlotCount; ++i) regs_[i] = 0u;
@@ -95,11 +96,11 @@ void Imx31Rtc::WriteWord(uint32_t addr, uint32_t value) {
 }
 
 void Imx31Rtc::SaveState(StateWriter& w) {
-    for (uint32_t i = 0; i < kSlotCount; ++i) w.Write(regs_[i]);
+    for (uint32_t i = 0; i < kSlotCount; ++i) w.Write("regs", regs_[i]);
 }
 
 void Imx31Rtc::RestoreState(StateReader& r) {
-    for (uint32_t i = 0; i < kSlotCount; ++i) r.Read(regs_[i]);
+    for (uint32_t i = 0; i < kSlotCount; ++i) r.Read("regs", regs_[i]);
 }
 
 }  /* namespace */

@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "../../socs/msm8255/msm8255_id.h"
 #include "../../jit/arm/cpu_state.h"
 #include "../../jit/x86_emit_alu.h"
 #include "../../socs/irq_controller.h"
@@ -16,7 +17,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::MSM8255;
+        return bd && bd->GetSocId() == SocId::Msm8255;
     }
 
     /* ARM DDI 0406C.c Figure B3-35 (p. B3-1477): CP15 c9 is CRm {c0-c2} and

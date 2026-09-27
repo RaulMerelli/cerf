@@ -1,4 +1,5 @@
 #include "../board_context.h"
+#include "zune_30_id.h"
 #include "zune_keel_framebuffer.h"
 
 #include "../../boot/guest_cold_boot.h"
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::ZuneKeel;
+        return bd && bd->GetBoardId() == BoardId::Zune30;
     }
 
     void OnReady() override {

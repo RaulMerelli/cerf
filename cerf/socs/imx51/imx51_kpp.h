@@ -4,6 +4,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/state_stream.h"
 
@@ -19,7 +20,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX51;
+        return bd && bd->GetSocId() == SocId::Imx51;
     }
     void OnReady() override {
         regs_[kKpsrOff >> 1] = kKpsrReset;
@@ -56,12 +57,12 @@ public:
     /* JIT-thread-only register file (no worker thread). input_level_ is
        board-driven state; serialize it symmetrically (build-specific image). */
     void SaveState(StateWriter& w) override {
-        w.WriteBytes(regs_.data(), sizeof(regs_));
-        w.Write(input_level_);
+        w.WriteBytes("regs", regs_.data(), sizeof(regs_));
+        w.Write("input_level", input_level_);
     }
     void RestoreState(StateReader& r) override {
-        r.ReadBytes(regs_.data(), sizeof(regs_));
-        r.Read(input_level_);
+        r.ReadBytes("regs", regs_.data(), sizeof(regs_));
+        r.Read("input_level", input_level_);
     }
 
 private:

@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "odo_id.h"
 #include "../../host/host_widget.h"
 #include "../../host/host_widget_registry.h"
 #include "../../peripherals/peripheral_dispatcher.h"
@@ -28,7 +29,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::OdoArm720;
+        return bd && bd->GetBoardId() == BoardId::Odo;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -45,13 +46,13 @@ public:
        are UI-thread display latches, not guest state. */
     void SaveState(StateWriter& w) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        w.Write<uint32_t>(led_discrete_value_);
-        w.Write<uint32_t>(led_alpha_value_);
+        w.Write<uint32_t>("led_discrete_value", led_discrete_value_);
+        w.Write<uint32_t>("led_alpha_value", led_alpha_value_);
     }
     void RestoreState(StateReader& r) override {
         std::lock_guard<std::mutex> lk(state_mutex_);
-        r.Read(led_discrete_value_);
-        r.Read(led_alpha_value_);
+        r.Read("led_discrete_value", led_discrete_value_);
+        r.Read("led_alpha_value", led_alpha_value_);
     }
 
     /* HostWidget. The icon IS the LED - the discrete LED register lights it,

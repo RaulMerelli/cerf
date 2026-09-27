@@ -1,6 +1,7 @@
 #include "wm9705_codec.h"
 
 #include "../../boards/board_context.h"
+#include "../../boards/falcon_pc3xx/falcon_4220_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../state/state_stream.h"
@@ -35,7 +36,7 @@ constexpr uint16_t kBmonAdc        = 0x0FFFu;
 
 bool Wm9705Codec::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::FalconPC3xx;
+    return bd && bd->GetBoardId() == BoardId::Falcon4220;
 }
 
 void Wm9705Codec::OnReady() {
@@ -79,11 +80,11 @@ void Wm9705Codec::WriteReg(uint32_t reg, uint16_t value) {
 }
 
 void Wm9705Codec::SaveState(StateWriter& w) {
-    w.WriteBytes(reg_, sizeof(reg_));
+    w.WriteBytes("reg", reg_, sizeof(reg_));
 }
 
 void Wm9705Codec::RestoreState(StateReader& r) {
-    r.ReadBytes(reg_, sizeof(reg_));
+    r.ReadBytes("reg", reg_, sizeof(reg_));
 }
 
 REGISTER_SERVICE_AS(Wm9705Codec, Ac97Codec);

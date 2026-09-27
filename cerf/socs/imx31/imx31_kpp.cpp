@@ -2,6 +2,7 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../boards/board_context.h"
+#include "imx31_id.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../state/emulation_freeze.h"
 #include "imx31_avic.h"
@@ -48,7 +49,7 @@ Imx31Kpp::~Imx31Kpp() { StopSyncThread(); }
 
 bool Imx31Kpp::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX31;
+    return bd && bd->GetSocId() == SocId::Imx31;
 }
 
 void Imx31Kpp::OnReady() {

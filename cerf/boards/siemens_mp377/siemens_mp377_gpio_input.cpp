@@ -2,6 +2,7 @@
 
 #include "siemens_mp377_touch_panel.h"
 #include "../board_context.h"
+#include "siemens_mp377_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../socs/irq_controller.h"
 
@@ -13,7 +14,7 @@ public:
 
     bool ShouldRegister() override {
         auto* board = emu_.TryGet<BoardContext>();
-        return board && board->GetBoard() == Board::SiemensMP377;
+        return board && board->GetBoardId() == BoardId::SiemensMp377;
     }
 
     uint32_t ReadPins() override {

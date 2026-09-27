@@ -3,6 +3,7 @@
 #include "sharp_mobilon_hc4100_battery.h"
 #include "sharp_mobilon_hc4100_touch_panel.h"
 #include "../board_context.h"
+#include "sharp_mobilon_hc4100_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 
@@ -48,7 +49,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::SharpMobilonHc4100;
+        return bd && bd->GetBoardId() == BoardId::SharpMobilonHc4100;
     }
 
     uint16_t AuxAdc(uint8_t channel) override {

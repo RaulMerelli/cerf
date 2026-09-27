@@ -4,6 +4,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "imx51_id.h"
 #include "imx51_gpu2d_rasterizer.h"
 
 #include <algorithm>
@@ -15,7 +16,7 @@ REGISTER_SERVICE(Imx51Gpu2dStroker);
 
 bool Imx51Gpu2dStroker::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetSoc() == SocFamily::iMX51;
+    return bd && bd->GetSocId() == SocId::Imx51;
 }
 
 namespace {

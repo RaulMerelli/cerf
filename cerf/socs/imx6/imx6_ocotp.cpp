@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include "imx6_id.h"
 
 namespace {
 
@@ -43,7 +44,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::iMX6;
+        return bd && bd->GetSocId() == SocId::Imx6;
     }
     void OnReady() override { emu_.Get<PeripheralDispatcher>().Register(this); }
 

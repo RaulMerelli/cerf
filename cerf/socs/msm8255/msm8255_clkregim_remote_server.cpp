@@ -1,4 +1,5 @@
 #include "msm8255_clock_rates.h"
+#include "msm8255_clock_reset.h"
 #include "msm8255_oncrpc_codec.h"
 #include "msm8255_rpc_server.h"
 #include "msm8255_rpc_server_registry.h"
@@ -6,6 +7,7 @@
 #include "msm8255_value_set.h"
 
 #include "../../boards/board_context.h"
+#include "msm8255_id.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
@@ -20,6 +22,7 @@ constexpr uint32_t kClkProg = 0x3000000Fu;
 constexpr uint32_t kClkVers = 0x00030001u;
 constexpr uint32_t kClkCid  = 3u;
 
+constexpr uint32_t kProcClockReset     = 2u;
 constexpr uint32_t kProcClockEnable    = 5u;
 constexpr uint32_t kProcClockDisable   = 6u;
 constexpr uint32_t kProcClockIsEnabled = 8u;
@@ -71,7 +74,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetSoc() == SocFamily::MSM8255;
+        return bd && bd->GetSocId() == SocId::Msm8255;
     }
 
     void OnReady() override {
@@ -89,10 +92,10 @@ public:
     void SaveState(StateWriter& w) override {
         emu_.Get<Msm8255ClockRates>().SaveState(w);
         for (const auto& word : clock_known_) {
-            w.Write<uint32_t>(word.load(std::memory_order_acquire));
+            w.Write<uint32_t>("word", word.load(std::memory_order_acquire));
         }
         for (const auto& held : clock_refcount_) {
-            w.Write<uint32_t>(held.load(std::memory_order_acquire));
+            w.Write<uint32_t>("held", held.load(std::memory_order_acquire));
         }
     }
 
@@ -100,12 +103,12 @@ public:
         emu_.Get<Msm8255ClockRates>().RestoreState(r);
         for (auto& word : clock_known_) {
             uint32_t bits = 0u;
-            r.Read(bits);
+            r.Read("word", bits);
             word.store(bits, std::memory_order_release);
         }
         for (auto& held : clock_refcount_) {
             uint32_t count = 0u;
-            r.Read(count);
+            r.Read("held", count);
             held.store(count, std::memory_order_release);
         }
     }
@@ -228,6 +231,15 @@ uint32_t Msm8255ClkregimRemoteServer::AnswerCall(
                                         kClockResultWords);
     }
 
+    if (call.proc == kProcClockReset) {
+        codec.RequireCallBytes(*this, call.proc, size, kClockPayloadBytes);
+        emu_.Get<Msm8255ClockReset>().Reset(
+            CheckedClock(Be32(mem.ReadWord(call.body + kArg0Off))));
+        return codec.WriteAcceptedReply(out_pa, out_cap, self_pid, kClkCid,
+                                        peer_pid, peer_cid, call.xid, nullptr,
+                                        kClockResultWords);
+    }
+
     if (call.proc == kProcClockIsEnabled) {
         codec.RequireCallBytes(*this, call.proc, size, kClockPayloadBytes);
         const uint32_t results[kResultWords] = {
@@ -248,9 +260,16 @@ uint32_t Msm8255ClkregimRemoteServer::AnswerCall(
     }
 
     if (call.proc != kProcConfigMdhClk && call.proc != kProcSelClkFreqHz) {
+        if (size >= kClockPayloadBytes) {
+            emu_.Get<Fatal>().Die(
+                "msm8255 clkregim remote server: rpc procedure %u with a "
+                "%u-byte payload carrying first argument %u is not modeled",
+                call.proc, size,
+                Be32(mem.ReadWord(call.body + kArg0Off)));
+        }
         emu_.Get<Fatal>().Die(
             "msm8255 clkregim remote server: rpc procedure %u with a %u-byte "
-            "payload is not modeled", call.proc, size);
+            "payload carrying no argument is not modeled", call.proc, size);
     }
     codec.RequireCallBytes(*this, call.proc, size, kThreeArgPayloadBytes);
 

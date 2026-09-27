@@ -1,8 +1,10 @@
 #include "../../peripherals/peripheral_base.h"
 
+#include "../../core/byte_order.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "falcon_4220_id.h"
 #include "../../jit/guest_engine.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "../../socs/pxa255/pxa255_gpio.h"
@@ -22,7 +24,7 @@ public:
 
     bool ShouldRegister() override {
         auto* bd = emu_.TryGet<BoardContext>();
-        return bd && bd->GetBoard() == Board::FalconPC3xx;
+        return bd && bd->GetBoardId() == BoardId::Falcon4220;
     }
     void OnReady() override {
         emu_.Get<PeripheralDispatcher>().Register(this);
@@ -32,11 +34,7 @@ public:
     uint32_t MmioSize() const override { return 0x00001000u; }
 
     uint8_t  ReadByte (uint32_t addr) override { return regs_[addr - MmioBase()]; }
-    uint32_t ReadWord (uint32_t addr) override {
-        uint32_t off = addr - MmioBase(), v = 0;
-        for (int i = 0; i < 4; ++i) v |= static_cast<uint32_t>(regs_[off + i]) << (8 * i);
-        return v;
-    }
+    uint32_t ReadWord (uint32_t addr) override { return cerf::le::U32(regs_, addr - MmioBase()); }
     void WriteByte(uint32_t addr, uint8_t value) override {
         const uint32_t off = addr - MmioBase();
         regs_[off] = value;
@@ -44,12 +42,12 @@ public:
     }
     void WriteWord(uint32_t addr, uint32_t value) override {
         const uint32_t off = addr - MmioBase();
-        for (int i = 0; i < 4; ++i) regs_[off + i] = static_cast<uint8_t>(value >> (8 * i));
+        cerf::le::Put32(regs_ + off, value);
         if (off == kReboot && (value & 0xFFu) == kRebootCmd) TriggerReset();
     }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes(regs_, sizeof(regs_)); }
-    void RestoreState(StateReader& r) override { r.ReadBytes(regs_, sizeof(regs_)); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_, sizeof(regs_)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_, sizeof(regs_)); }
 
 private:
     static constexpr uint32_t kReboot    = 0x80Cu;  /* PA 0xA3CC380C - base 0xA3CC3000. */

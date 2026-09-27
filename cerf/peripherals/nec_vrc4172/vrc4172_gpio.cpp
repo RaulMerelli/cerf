@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/log.h"
 #include "../../boards/board_context.h"
+#include "../../boards/nec_mobilepro_700/nec_mobilepro_700_id.h"
 #include "../peripheral_dispatcher.h"
 #include "../../socs/vr41xx/vr41xx_giu.h"
 #include "../../state/state_stream.h"
@@ -32,7 +33,7 @@ REGISTER_SERVICE(Vrc4172Gpio);
 
 bool Vrc4172Gpio::ShouldRegister() {
     auto* bd = emu_.TryGet<BoardContext>();
-    return bd && bd->GetBoard() == Board::NecMobilePro700;
+    return bd && bd->GetBoardId() == BoardId::NecMobilepro700;
 }
 void Vrc4172Gpio::OnReady() { emu_.Get<PeripheralDispatcher>().Register(this); }
 
@@ -127,13 +128,13 @@ void Vrc4172Gpio::DriveGiuLocked() {
 
 void Vrc4172Gpio::SaveState(StateWriter& w) {
     std::lock_guard<std::mutex> lk(mtx_);
-    w.Write(dir_); w.Write(inten_); w.Write(intst_); w.Write(inttyp_);
-    w.Write(intlv0l_); w.Write(intlv0h_); w.Write(level_);
+    w.Write("dir", dir_); w.Write("inten", inten_); w.Write("intst", intst_); w.Write("inttyp", inttyp_);
+    w.Write("intlv0l", intlv0l_); w.Write("intlv0h", intlv0h_); w.Write("level", level_);
 }
 void Vrc4172Gpio::RestoreState(StateReader& r) {
     std::lock_guard<std::mutex> lk(mtx_);
-    r.Read(dir_); r.Read(inten_); r.Read(intst_); r.Read(inttyp_);
-    r.Read(intlv0l_); r.Read(intlv0h_); r.Read(level_);
+    r.Read("dir", dir_); r.Read("inten", inten_); r.Read("intst", intst_); r.Read("inttyp", inttyp_);
+    r.Read("intlv0l", intlv0l_); r.Read("intlv0h", intlv0h_); r.Read("level", level_);
 }
 void Vrc4172Gpio::PostRestore() {
     std::lock_guard<std::mutex> lk(mtx_);
