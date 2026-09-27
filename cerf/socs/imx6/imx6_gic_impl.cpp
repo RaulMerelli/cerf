@@ -11,6 +11,7 @@
 #include "../../state/state_stream.h"
 #include "../guest_cpu_reset.h"
 #include "imx6_gic_aux.h"
+#include "imx6_gic_identity.h"
 
 #include <algorithm>
 #include <atomic>
@@ -74,8 +75,7 @@ public:
             emu_.Get<ArmJit>().ClearInterruptPending();
             return id;
         }
-        /* QEMU i.MX6/A9MPCore GIC model. */
-        case 0x1FC: return 0x0001043Bu;
+        case 0x1FC: return imx6_gic_detail::kIccIdr;
         case 0x200:
         case 0x204: {
             std::lock_guard<std::mutex> lk(timer_mutex_);
@@ -96,8 +96,8 @@ public:
             return private_timer_status_;
         }
         case 0x1000: return distributor_control_;
-        case 0x1004: return 4u;
-        case 0x1008: return 0x0000043Bu;
+        case 0x1004: return imx6_gic_detail::kIcdIctr;
+        case 0x1008: return imx6_gic_detail::kIcdIidr;
         default: break;
         }
 

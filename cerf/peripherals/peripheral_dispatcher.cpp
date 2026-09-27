@@ -181,14 +181,12 @@ void PeripheralDispatcher::RegisterResettable(Peripheral* p) {
 
     if (!reset_baseline_listener_registered_) {
         emu_.Get<GuestCpuReset>().RegisterPostResetKindListener(
-            [this](ResetKind kind) { RestoreResetBaselines(kind); });
+            [this](ResetKind) { RestoreResetBaselines(); });
         reset_baseline_listener_registered_ = true;
     }
 }
 
-void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
-    const bool cold = reset_kind == ResetKind::Cold;
-    const ResetLineKind legacy_kind = cold ? ResetLineKind::Rtc : ResetLineKind::Other;
+void PeripheralDispatcher::RestoreResetBaselines() {
     for (auto& baseline : reset_baselines_) {
         StateReader reader(baseline.state);
         baseline.p->RestoreResetState(reader);
@@ -198,7 +196,7 @@ void PeripheralDispatcher::RestoreResetBaselines(ResetKind reset_kind) {
     }
     for (auto& baseline : reset_baselines_) {
         baseline.p->PostRestore();
-        baseline.p->PostReset(legacy_kind);
+        baseline.p->PostReset(ResetLineKind::Other);
     }
 }
 

@@ -121,7 +121,8 @@ private:
     /* The bus restores its devices after the controller, so the slave the transfer was
        addressing is re-resolved once they are back. */
     void PostRestore() override {
-        if (!expecting_addr_) device_ = emu_.Get<Imx6I2cBus>().Find(kBase, slave_addr_);
+        if (!expecting_addr_ || stop_pending_final_read_)
+            device_ = emu_.Get<Imx6I2cBus>().Find(kBase, slave_addr_);
     }
 
     void SaveResetState(StateWriter& w) override { SaveControllerState(w); }

@@ -50,7 +50,7 @@ private:
         std::vector<uint8_t> state;
     };
 
-    void RestoreResetBaselines(ResetKind reset_kind);
+    void RestoreResetBaselines();
     struct InversionRange {
         uint32_t base;
         uint32_t end;
