@@ -440,10 +440,7 @@ private:
         return active_irq_ == 1023u && HighestPriorityPendingLocked() != 1023u;
     }
 
-    /* ARM DDI 0407F §4.1: the private timer counts down at PERIPHCLK/(prescaler+1), and this
-       model anchors it to the guest cycle counter, which arm_interrupt_channel.cpp advances at
-       ArmProcessorConfig::CpuClockHz(). The sampler therefore waits the time the timer itself
-       still needs, so its resolution follows the period the guest programmed. */
+    /* ARM DDI 0407F §4.1: the private timer counts down at PERIPHCLK/(prescaler+1). */
     int64_t NextSampleNs() override {
         std::lock_guard<std::mutex> lk(timer_mutex_);
         if ((private_timer_control_ & 1u) == 0u) return kIdleSampleNs;

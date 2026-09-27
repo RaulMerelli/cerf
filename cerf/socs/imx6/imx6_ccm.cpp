@@ -46,16 +46,7 @@ public:
                             [this](const Imx6MmioLane& lane) { WriteLane(lane); });
     }
     void WriteWord(uint32_t addr, uint32_t value) override {
-        const uint32_t off = addr - MmioBase();
-        if (off == 0x58u) {
-            regs_[off >> 2] &= ~value;
-            return;
-        }
-        if (IsWritableRegister(off)) {
-            regs_[off >> 2] = value;
-            return;
-        }
-        HaltUnsupportedAccess("write32", addr, value);
+        WriteLane({addr & ~3u, value, 0xFFFFFFFFu});
     }
 
     void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_, sizeof(regs_)); }
@@ -64,14 +55,25 @@ public:
 
 private:
     static bool IsRegister(uint32_t off) {
-        if (off <= 0x3Cu && (off & 3u) == 0u) return true;
-        if (off >= 0x48u && off <= 0x80u && (off & 3u) == 0u && off != 0x4Cu)
-            return true;
-        return off == 0x88u;
+        if ((off & 3u) != 0u) return false;
+        if (off == 0x00u || off == 0x50u) return true;
+        if (off >= 0x10u && off <= 0x3Cu) return true;
+        return off >= 0x68u && off <= 0x80u;
     }
 
     static bool IsWritableRegister(uint32_t off) {
-        return IsRegister(off) && off != 0x08u && off != 0x48u && off != 0x58u;
+        switch (off) {
+        case 0x18u:
+        case 0x50u:
+        case 0x6Cu:
+        case 0x70u:
+        case 0x74u:
+        case 0x7Cu:
+        case 0x80u:
+            return true;
+        default:
+            return false;
+        }
     }
 
     void ResetRegisters() {
@@ -79,8 +81,6 @@ private:
         /* IMX6DQRM Rev.2 Table 60-4 resets functional modules on POR, COLD, and WARM;
            §18.6 gives one CCM reset-value column and notes ROM may change its values. */
         regs_[0x00u >> 2] = 0x040116FFu;
-        regs_[0x08u >> 2] = 0x00000010u;
-        regs_[0x0Cu >> 2] = 0x00000100u;
         regs_[0x14u >> 2] = 0x00018D00u;
         regs_[0x18u >> 2] = 0x00020324u;
         regs_[0x1Cu >> 2] = 0x00F00000u;
@@ -95,10 +95,6 @@ private:
         /* QEMU i.MX6 CCM model resets CCM_CTOR to 0; hmi_ktp400_mobile_v17
            nk.exe 0x803187C2 clears bits 7:4 then sets bit 13. */
         regs_[0x50u >> 2] = 0x00000000u;
-        regs_[0x54u >> 2] = 0x00000079u;
-        regs_[0x5Cu >> 2] = 0xFFFFFFFFu;
-        regs_[0x60u >> 2] = 0x000A0001u;
-        regs_[0x64u >> 2] = 0x0000FE62u;
         regs_[0x68u >> 2] = 0xFFFFFFFFu;
         regs_[0x6Cu >> 2] = 0xFFFFFFFFu;
         regs_[0x70u >> 2] = 0xFC3FFFFFu;
@@ -106,15 +102,10 @@ private:
         regs_[0x78u >> 2] = 0xFFFFFFFFu;
         regs_[0x7Cu >> 2] = 0xFFFFFFFFu;
         regs_[0x80u >> 2] = 0xFFFFFFFFu;
-        regs_[0x88u >> 2] = 0xFFFFFFFFu;
     }
 
     void WriteLane(const Imx6MmioLane& lane) {
         const uint32_t off = lane.address - MmioBase();
-        if (off == 0x58u) {
-            regs_[off >> 2] &= ~lane.value;
-            return;
-        }
         if (IsWritableRegister(off)) {
             regs_[off >> 2] = lane.Merge(regs_[off >> 2]);
             return;

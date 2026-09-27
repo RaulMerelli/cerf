@@ -10,6 +10,7 @@
 #include "arm_mmu.h"
 #include "arm_mmu_ap_permits.h"
 #include "arm_pte.h"
+#include "arm_page_walk_slot.h"
 #include "arm_par_attributes.h"
 #include "arm_tlb_ops.h"
 
@@ -127,12 +128,7 @@ uint8_t* ArmPageWalker::MapGuestVirtualToHost(ArmCpuState* cpu_state, uint32_t p
         ArmL1Pte l1_pte;
         l1_pte.word = *reinterpret_cast<uint32_t*>(l1_host);
 
-        struct {
-            uint32_t span_bytes    = 0x1000u;
-            uint16_t par_attrs     = 0u;
-            bool     global        = false;
-            bool     fast_fillable = true;
-        } new_slot{};
+        ArmPageWalkSlot new_slot{};
 
         switch (l1_pte.fault.type) {
         case ArmL1PteType::kFault: {

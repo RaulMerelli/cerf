@@ -3,6 +3,7 @@
 #include "../freescale_wdog_impl.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/fatal.h"
 #include "../../core/virtual_clock.h"
 #include "../../core/virtual_timer_list.h"
 #include "../../state/state_stream.h"
@@ -143,6 +144,13 @@ protected:
                 next = static_cast<uint16_t>((next & ~kPolicyWriteOnce) |
                                              (wcr_ & kPolicyWriteOnce));
             next = static_cast<uint16_t>(next | (wcr_ & kWriteOneOnce));
+            /* IMX6DQRM Rev.2 §70.7.1: WDA[5] = 0 asserts WDOG_B, which Table 70-1
+               says powers down the chip. */
+            if ((value & 0x0020u) == 0u)
+                this->HaltUnsupportedAccess("WCR WDA chip power-down", Base + off, value);
+            /* IMX6DQRM Rev.2 §70.7.1: SRS "automatically resets to '1' after it has
+               been asserted to '0'". */
+            next = static_cast<uint16_t>(next | 0x0010u);
             wcr_ = next;
             wcr_policy_locked_ = true;
             if (!was_enabled && (wcr_ & 0x0004u) != 0u) ReloadCounter();
@@ -242,11 +250,19 @@ private:
         DeliverResetRequest(reset);
     }
 
+    /* IMX6DQRM Rev.2 Table 70-1: "WDOG2_RESET_B_DEB - This signal is a reset source
+       for the chip", and §70.4 activates wdog_rst_b for either module. */
     void TriggerResetLocked(uint16_t cause) {
         timer_->Arm(VirtualTimerList::kNoDeadline);
         interrupt_timer_->Arm(VirtualTimerList::kNoDeadline);
         wrsr_ = cause;
-        if constexpr (Base == 0x020BC000u) reset_requested_ = true;
+        if constexpr (Base == 0x020BC000u) {
+            reset_requested_ = true;
+        } else {
+            this->emu_.template Get<Fatal>().Die(
+                "i.MX6 WDOG2 requests a chip reset (cause 0x%04X), which is not modelled",
+                cause);
+        }
     }
 
     bool TakeResetRequestLocked() {
