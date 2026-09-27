@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../peripherals/sd_card/sd_card_media_backend.h"
+#include "ktp_mobile_emmc_backing.h"
 #include "ktp_mobile_hardware_info.h"
 
 #include <array>
@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-class KtpMobileSdCardBackend final : public SdCardMediaBackend {
+class KtpMobileSdCardBackend final : public KtpMobileEmmcBacking {
 public:
     KtpMobileSdCardBackend(std::string device_dir, std::string container_name,
                            KtpMobileOpType op_type,

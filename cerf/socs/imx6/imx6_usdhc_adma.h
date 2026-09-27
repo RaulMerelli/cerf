@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-class SdCard;
+class MmcCard;
 
 class Imx6UsdhcAdma final : public Service {
 public:
@@ -17,9 +17,9 @@ public:
         bool count_limited;
     };
 
-    void Read(SdCard& card, const Transfer& transfer, uint8_t* block_buffer);
-    void Write(SdCard& card, const Transfer& transfer, uint8_t* block_buffer);
+    void Read(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer);
+    void Write(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer);
 
 private:
-    void Walk(SdCard& card, const Transfer& transfer, uint8_t* block_buffer, bool write);
+    void Walk(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer, bool write);
 };

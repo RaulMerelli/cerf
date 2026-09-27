@@ -9,12 +9,13 @@
 
 #include "../../core/cerf_emulator.h"
 #include "../../peripherals/peripheral_base.h"
-#include "../../peripherals/sd_card/sd_card.h"
+#include "../../peripherals/mmc/emmc_card_base.h"
+#include "../../peripherals/mmc/mmc_card.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <optional>
+#include <vector>
 
 namespace cerf_imx6_usdhc_detail {
 
@@ -25,39 +26,51 @@ public:
 protected:
     virtual int Spi() const = 0;
     virtual bool HasCard() const = 0;
+    virtual uint32_t SlotIndex() const = 0;
 
     /* IMX6DQRM Rev.2 §67.8: with MIX_CTRL[AC12EN] the uSDHC issues CMD12 itself at the end of a
        multiple-block transfer and stores that R1b card status in CMDRSP3; AUTOCMD12_ERR_STATUS
        AC12NE[0] reports that it could not issue it, and IRQSTAT AC12E[24] follows that bit. */
     void IssueAutoCmd12() {
         if ((mix_ctrl_ & (kMixAutoCmd12 | kMixMultiBlk)) != (kMixAutoCmd12 | kMixMultiBlk)) return;
-        if (HasCard()) {
-            const SdCard::CommandResult res = Card().Command(12u, 0u, false);
-            autocmd12_err_status_ &= ~kAc12NotExecuted;
-            if (res.illegal) {
-                autocmd12_err_status_ |= kAc12NotExecuted;
-                SetIrqStatus(kAC12E);
-                return;
-            }
-            rsp_[3] = res.resp[0];
+        MmcCard* card = Card();
+        if (!card) return;
+        uint32_t resp[4] = {};
+        const MmcCommandResult res =
+            card->Command(cerf_mmc::kCmdStopTransmission, 0u, resp);
+        autocmd12_err_status_ &= ~kAc12NotExecuted;
+        if (res == MmcCommandResult::NoResponse) {
+            autocmd12_err_status_ |= kAc12NotExecuted;
+            SetIrqStatus(kAC12E);
+            return;
         }
+        rsp_[3] = resp[0];
     }
 
     void ExecuteCommand(uint32_t cmd_xfr_typ) {
         const uint8_t idx = static_cast<uint8_t>((cmd_xfr_typ >> 24) & 0x3Fu);
         const bool dpsel = ((cmd_xfr_typ >> 21) & 1u) != 0u;
-        const bool is_acmd = next_is_acmd_;
-        next_is_acmd_ = (idx == 55u);
 
-        SdCard::CommandResult res{};
-        if (HasCard())
-            res = Card().Command(idx, cmdarg_, is_acmd);
-        else
-            res.illegal = true;
+        MmcCard* card = Card();
+        uint32_t resp[4] = {};
+        MmcCommandResult res = MmcCommandResult::NoResponse;
+        if (card) res = card->Command(idx, cmdarg_, resp);
+
+        /* JEDEC JESD84-A43 Table 26: CMD17 and CMD18 read, CMD24 and CMD25 write,
+           and CMD8 sends the extended CSD on the data lines. */
+        const bool starts_read = card && !card->ReadData().empty();
+        const bool starts_write = card && (idx == cerf_mmc::kCmdWriteBlock ||
+                                           idx == cerf_mmc::kCmdWriteMultiBlock);
 
         /* QEMU hw/sd/sdhci.c sdhci_send_command builds the R2 registers from the same bytes. */
-        if (res.rsp == SdCard::Rsp::R2) {
-            const auto* b = reinterpret_cast<const uint8_t*>(res.resp);
+        if (res == MmcCommandResult::Long) {
+            uint8_t b[16];
+            for (uint32_t i = 0; i < 4u; ++i) {
+                b[i * 4u + 0u] = static_cast<uint8_t>(resp[i] >> 24);
+                b[i * 4u + 1u] = static_cast<uint8_t>(resp[i] >> 16);
+                b[i * 4u + 2u] = static_cast<uint8_t>(resp[i] >> 8);
+                b[i * 4u + 3u] = static_cast<uint8_t>(resp[i]);
+            }
             rsp_[0] = (static_cast<uint32_t>(b[11]) << 24) | (static_cast<uint32_t>(b[12]) << 16) |
                       (static_cast<uint32_t>(b[13]) << 8) | static_cast<uint32_t>(b[14]);
             rsp_[1] = (static_cast<uint32_t>(b[7]) << 24) | (static_cast<uint32_t>(b[8]) << 16) |
@@ -67,15 +80,14 @@ protected:
             rsp_[3] =
                 (static_cast<uint32_t>(b[0]) << 16) | (static_cast<uint32_t>(b[1]) << 8) | static_cast<uint32_t>(b[2]);
         } else {
-            rsp_[0] = res.resp[0];
+            rsp_[0] = resp[0];
             rsp_[1] = rsp_[2] = rsp_[3] = 0u;
         }
-        const bool response_timeout = res.illegal && (((cmd_xfr_typ >> 16) & 3u) != 0u);
+        const bool no_response = res == MmcCommandResult::NoResponse;
+        const bool response_timeout = no_response && (((cmd_xfr_typ >> 16) & 3u) != 0u);
         const bool dma_mode = (mix_ctrl_ & kMixDmaEn) != 0u;
-        const bool busy_response = (res.rsp == SdCard::Rsp::R1b);
-        const bool pure_busy_response = busy_response && !dpsel && !res.starts_read && !res.starts_write;
 
-        if (idx == 12u && !response_timeout) {
+        if (idx == cerf_mmc::kCmdStopTransmission && !response_timeout) {
             buf_reading_ = false;
             buf_writing_ = false;
             open_ended_read_ = false;
@@ -86,19 +98,19 @@ protected:
 
         if (response_timeout) {
             SetIrqStatus(kCTOE);
-        } else if (!pure_busy_response) {
+        } else {
             SetIrqStatus(kCC);
         }
         if (dpsel && dma_mode) {
-            if (res.starts_read)
+            if (starts_read) {
                 AdmaDmaRead();
-            else if (res.starts_write) {
+                card->EndDataPhase();
+            } else if (starts_write) {
                 AdmaDmaWrite();
-                Card().CommitWrites();
             }
             IssueAutoCmd12();
             SetIrqStatus(kTC | kDINT);
-        } else if (dpsel && res.starts_read) {
+        } else if (dpsel && starts_read) {
             const uint32_t blkcnt = (blk_att_ >> 16) & 0xFFFFu;
             const bool multi = ((mix_ctrl_ & kMixMultiBlk) != 0u) || idx == 18u;
             const bool count_limited = !multi || ((mix_ctrl_ & kMixBlkCntEn) != 0u);
@@ -106,12 +118,12 @@ protected:
             blocks_rem_ = count_limited ? (total - 1u) : 0u;
             open_ended_read_ = !count_limited;
             open_ended_write_ = false;
-            Card().ReadBlock(buf_);
+            StageReadBlock(*card);
             buf_pos_ = 0u;
             buf_reading_ = true;
             buf_writing_ = false;
             SetIrqStatus(kBRR);
-        } else if (dpsel && res.starts_write) {
+        } else if (dpsel && starts_write) {
             const uint32_t blkcnt = (blk_att_ >> 16) & 0xFFFFu;
             const bool multi = ((mix_ctrl_ & kMixMultiBlk) != 0u) || idx == 25u;
             const bool count_limited = !multi || ((mix_ctrl_ & kMixBlkCntEn) != 0u);
@@ -123,9 +135,7 @@ protected:
             buf_reading_ = false;
             buf_writing_ = true;
             SetIrqStatus(kBWR);
-        } else if (dpsel && !res.illegal) {
-            SetIrqStatus(kTC);
-        } else if (pure_busy_response && !res.illegal && !response_timeout) {
+        } else if (dpsel && !no_response) {
             SetIrqStatus(kTC);
         }
 
@@ -142,16 +152,17 @@ protected:
         if (buf_pos_ >= blksize) {
             irqstat_ &= ~kBRR;
             if (open_ended_read_) {
-                Card().ReadBlock(buf_);
+                NextReadBlock();
                 buf_pos_ = 0u;
                 SetIrqStatus(kBRR);
             } else if (blocks_rem_ > 0u) {
                 --blocks_rem_;
-                Card().ReadBlock(buf_);
+                NextReadBlock();
                 buf_pos_ = 0u;
                 SetIrqStatus(kBRR);
             } else {
                 buf_reading_ = false;
+                if (MmcCard* card = Card()) card->EndDataPhase();
                 IssueAutoCmd12();
                 SetIrqStatus(kTC);
             }
@@ -176,7 +187,7 @@ protected:
         std::memcpy(buf_ + buf_pos_, src, n);
         buf_pos_ += n;
         if (buf_pos_ >= blksize) {
-            Card().WriteBlock(buf_);
+            Card()->ReceiveBlock(buf_, blksize);
             irqstat_ &= ~kBWR;
             if (open_ended_write_) {
                 buf_pos_ = 0u;
@@ -187,7 +198,6 @@ protected:
                 SetIrqStatus(kBWR);
             } else {
                 buf_writing_ = false;
-                Card().CommitWrites();
                 IssueAutoCmd12();
                 SetIrqStatus(kTC);
             }
@@ -199,14 +209,14 @@ protected:
         const uint32_t blksize = std::max(4u, blk_att_ & 0x1FFFu);
         const Imx6UsdhcAdma::Transfer transfer{adma_sys_addr_ ? adma_sys_addr_ : ds_addr_, blksize,
                                                (blk_att_ >> 16) & 0xFFFFu, (mix_ctrl_ & kMixBlkCntEn) != 0u};
-        emu_.Get<Imx6UsdhcAdma>().Read(Card(), transfer, buf_);
+        emu_.Get<Imx6UsdhcAdma>().Read(*Card(), transfer, buf_);
     }
 
     void AdmaDmaWrite() {
         const uint32_t blksize = std::max(4u, blk_att_ & 0x1FFFu);
         const Imx6UsdhcAdma::Transfer transfer{adma_sys_addr_ ? adma_sys_addr_ : ds_addr_, blksize,
                                                (blk_att_ >> 16) & 0xFFFFu, (mix_ctrl_ & kMixBlkCntEn) != 0u};
-        emu_.Get<Imx6UsdhcAdma>().Write(Card(), transfer, buf_);
+        emu_.Get<Imx6UsdhcAdma>().Write(*Card(), transfer, buf_);
     }
 
     uint32_t PresentState() const {
@@ -245,9 +255,27 @@ protected:
             emu_.Get<::Imx6Gic>().DeAssertSpi(Spi());
     }
 
-    SdCard& Card() { return *card_; }
+    MmcCard* Card() {
+        auto* card = emu_.TryGet<MmcCard>();
+        return (card != nullptr && card->SlotIndex() == SlotIndex()) ? card : nullptr;
+    }
 
-    std::optional<SdCard> card_;
+    void StageReadBlock(MmcCard& card) {
+        const std::vector<uint8_t>& staged = card.ReadData();
+        const uint32_t blksize = std::max(4u, blk_att_ & 0x1FFFu);
+        if (staged.size() < blksize)
+            HaltUnsupportedAccess("imx6-usdhc read block shorter than the block size",
+                                  MmioBase() + kDATA_BUFF, static_cast<uint32_t>(staged.size()));
+        std::memcpy(buf_, staged.data(), std::min<size_t>(sizeof(buf_), blksize));
+    }
+
+    void NextReadBlock() {
+        MmcCard* card = Card();
+        if (!card) return;
+        card->NextBlock();
+        StageReadBlock(*card);
+    }
+
     uint32_t cmdarg_ = 0u;
     uint32_t cmd_xfr_typ_ = 0u;
     uint32_t mix_ctrl_ = 0u;
@@ -269,7 +297,6 @@ protected:
     uint32_t blocks_rem_ = 0u;
     bool buf_reading_ = false;
     bool buf_writing_ = false;
-    bool next_is_acmd_ = false;
     bool open_ended_read_ = false;
     bool open_ended_write_ = false;
 };

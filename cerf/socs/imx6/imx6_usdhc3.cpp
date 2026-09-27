@@ -1,7 +1,7 @@
 #include "imx6_usdhc_port.h"
 
 namespace {
-class Imx6Usdhc3 final : public Imx6UsdhcPort<0x02198000u, 24> {
+class Imx6Usdhc3 final : public Imx6UsdhcPort<0x02198000u, 24, true, 3u> {
 public:
     using Imx6UsdhcPort::Imx6UsdhcPort;
 

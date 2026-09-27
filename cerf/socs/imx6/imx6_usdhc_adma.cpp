@@ -4,11 +4,12 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 #include "../../cpu/emulated_memory.h"
-#include "../../peripherals/sd_card/sd_card.h"
+#include "../../peripherals/mmc/mmc_card.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace {
 
@@ -24,7 +25,7 @@ constexpr uint32_t kActLink = 3u;
 /* i.MX 6Dual/6Quad Reference Manual Rev. 2, sections 67.4.2.4-67.4.2.4.3: ADMA2 descriptors
    carry Valid, End, Act, a byte length and an address; Act selects Nop, Tran or Link.
    QEMU hw/sd/sdhci.c ACT_LINK arm loads the next table from the descriptor address. */
-void Imx6UsdhcAdma::Walk(SdCard& card, const Transfer& transfer, uint8_t* block_buffer, bool write) {
+void Imx6UsdhcAdma::Walk(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer, bool write) {
     auto& memory = emu_.Get<EmulatedMemory>();
     auto& fatal = emu_.Get<Fatal>();
     uint32_t blocks_left = transfer.block_count;
@@ -33,6 +34,7 @@ void Imx6UsdhcAdma::Walk(SdCard& card, const Transfer& transfer, uint8_t* block_
     uint32_t data_count = 0u;
     uint32_t table = transfer.descriptor_base;
     uint32_t offset = 0u;
+    bool first_block = true;
     if (write) std::memset(block_buffer, 0, transfer.block_size);
 
     while (!transfer.count_limited || blocks_left > 0u) {
@@ -62,7 +64,15 @@ void Imx6UsdhcAdma::Walk(SdCard& card, const Transfer& transfer, uint8_t* block_
             const uint32_t length = length16 ? static_cast<uint32_t>(length16) : 65536u;
             uint32_t moved = 0u;
             while (moved < length && (!transfer.count_limited || blocks_left > 0u)) {
-                if (!write && data_count == 0u) card.ReadBlock(block_buffer);
+                if (!write && data_count == 0u) {
+                    if (!first_block) card.NextBlock();
+                    first_block = false;
+                    const std::vector<uint8_t>& staged = card.ReadData();
+                    if (staged.size() < transfer.block_size)
+                        fatal.Die("uSDHC ADMA2 read wants %u bytes and the card staged %zu",
+                                  transfer.block_size, staged.size());
+                    std::memcpy(block_buffer, staged.data(), transfer.block_size);
+                }
                 const uint32_t count = std::min(length - moved, transfer.block_size - data_count);
                 uint8_t* host = memory.TryTranslateRange(address + moved, count, write);
                 if (!host)
@@ -76,7 +86,7 @@ void Imx6UsdhcAdma::Walk(SdCard& card, const Transfer& transfer, uint8_t* block_
                 moved += count;
                 if (data_count == transfer.block_size) {
                     if (write) {
-                        card.WriteBlock(block_buffer);
+                        card.ReceiveBlock(block_buffer, transfer.block_size);
                         std::memset(block_buffer, 0, transfer.block_size);
                     }
                     data_count = 0u;
@@ -89,11 +99,11 @@ void Imx6UsdhcAdma::Walk(SdCard& card, const Transfer& transfer, uint8_t* block_
     }
 }
 
-void Imx6UsdhcAdma::Read(SdCard& card, const Transfer& transfer, uint8_t* block_buffer) {
+void Imx6UsdhcAdma::Read(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer) {
     Walk(card, transfer, block_buffer, /*write=*/false);
 }
 
-void Imx6UsdhcAdma::Write(SdCard& card, const Transfer& transfer, uint8_t* block_buffer) {
+void Imx6UsdhcAdma::Write(MmcCard& card, const Transfer& transfer, uint8_t* block_buffer) {
     Walk(card, transfer, block_buffer, /*write=*/true);
 }
 

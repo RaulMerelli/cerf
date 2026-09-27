@@ -11,8 +11,6 @@
 #include "../../core/log.h"
 #include "../../peripherals/peripheral_base.h"
 #include "../../peripherals/peripheral_dispatcher.h"
-#include "../../peripherals/sd_card/sd_card.h"
-#include "../../peripherals/sd_card/sd_card_configuration.h"
 #include "../../state/state_stream.h"
 
 #include <algorithm>
@@ -23,13 +21,15 @@
 #include "imx6_id.h"
 namespace cerf_imx6_usdhc_detail {
 
-template <uint32_t kBase, int kSpi, bool kHasCard = true> class Imx6UsdhcPort : public Imx6UsdhcTransfer {
+template <uint32_t kBase, int kSpi, bool kHasCard = true, uint32_t kSlot = 0u>
+class Imx6UsdhcPort : public Imx6UsdhcTransfer {
 public:
     using Imx6UsdhcTransfer::Imx6UsdhcTransfer;
 
 protected:
     int Spi() const override { return kSpi; }
     bool HasCard() const override { return kHasCard; }
+    uint32_t SlotIndex() const override { return kSlot; }
 
 public:
 
@@ -39,11 +39,6 @@ public:
     }
 
     void OnReady() override {
-        if constexpr (kHasCard) {
-            SdCardConfiguration& config = emu_.Get<SdCardConfiguration>();
-            card_.emplace(config.MediaSizeBytes());
-            config.Configure(*card_);
-        }
         emu_.Get<PeripheralDispatcher>().RegisterResettable(this);
     }
 
@@ -116,11 +111,11 @@ private:
         w.WriteBytes("rsp", rsp_, sizeof(rsp_));
         w.Write("buf_pos", buf_pos_);
         w.Write("blocks_rem", blocks_rem_);
-        const uint32_t flags = (buf_reading_ ? 1u : 0u) | (buf_writing_ ? 2u : 0u) | (next_is_acmd_ ? 4u : 0u) |
-                               (open_ended_read_ ? 8u : 0u) | (open_ended_write_ ? 16u : 0u);
+        const uint32_t flags = (buf_reading_ ? 1u : 0u) | (buf_writing_ ? 2u : 0u) |
+                               (open_ended_read_ ? 4u : 0u) | (open_ended_write_ ? 8u : 0u);
         w.Write("flags", flags);
         w.WriteBytes("buf", buf_, sizeof(buf_));
-        if constexpr (kHasCard) Card().SaveState(w);
+
     }
 
     void RestoreState(StateReader& r) override {
@@ -145,11 +140,10 @@ private:
         r.Read("flags", flags);
         buf_reading_ = (flags & 1u) != 0u;
         buf_writing_ = (flags & 2u) != 0u;
-        next_is_acmd_ = (flags & 4u) != 0u;
-        open_ended_read_ = (flags & 8u) != 0u;
-        open_ended_write_ = (flags & 16u) != 0u;
+        open_ended_read_ = (flags & 4u) != 0u;
+        open_ended_write_ = (flags & 8u) != 0u;
         r.ReadBytes("buf", buf_, sizeof(buf_));
-        if constexpr (kHasCard) Card().RestoreState(r);
+
     }
 
     void PostRestore() override { UpdateIrqLine(); }
