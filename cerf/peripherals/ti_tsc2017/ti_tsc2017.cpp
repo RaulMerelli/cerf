@@ -160,12 +160,10 @@ private:
             }
             return;
         }
-        /* SBAS472 Table 2: D3-D2 select 00 power down between cycles with PENIRQ enabled,
-           01 and 11 A/D converter on with PENIRQ disabled, and 10 A/D converter off. CERF
-           drives PENIRQ from the host touch state and converts on every command. */
-        if ((command & 0x0Cu) != 0u)
-            emu_.Get<Fatal>().Die("TSC2017 command 0x%02X selects power-down mode %u", command,
-                                  static_cast<unsigned>((command >> 2) & 0x03u));
+        /* SBAS472 Table 2: D3-D2 leave PENIRQ enabled on 00 and 10 and disable it on 01
+           and 11. CERF drives PENIRQ from the host touch state, which no command disables. */
+        if ((command & 0x04u) != 0u)
+            emu_.Get<Fatal>().Die("TSC2017 command 0x%02X disables PENIRQ", command);
         last_value_ = Clamp12(SampleForFunction(function));
     }
 
