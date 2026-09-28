@@ -44,7 +44,7 @@ public:
         r.Read("in_frame", in_frame);
         r.Read("rx_payload_count", payload_size);
         if (payload_size > 7u) {
-            emu_.Get<Fatal>().Die("KTP Mobile ConnBox restored payload exceeds 7 bytes");
+            r.Reject("ConnBox payload %u exceeds 7 bytes", payload_size);
         }
         prev_dle_ = prev_dle != 0u;
         in_frame_ = in_frame != 0u;

@@ -1,3 +1,4 @@
+#include "../rtc_bcd_clock.h"
 #include "rtc8564_wiring.h"
 
 #include "../../core/cerf_emulator.h"
@@ -38,26 +39,11 @@ constexpr uint8_t kControl2Writable = kTie | kAie | kTf | kAf | kTiTp;
 constexpr uint8_t kTimerEnable = 0x80u;
 constexpr uint8_t kTimerFrequencyMask = 0x03u;
 
-std::tm LocalTime(std::time_t value) {
-    std::tm result{};
-#if defined(_WIN32)
-    localtime_s(&result, &value);
-#else
-    localtime_r(&value, &result);
-#endif
-    return result;
-}
-
-uint8_t BinToBcd(int value) {
-    return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
-}
+using cerf::rtc_bcd::BinToBcd;
+using cerf::rtc_bcd::LocalTime;
 
 bool BcdToBin(uint8_t value, int maximum, int& result) {
-    const int high = (value >> 4) & 0x0F;
-    const int low = value & 0x0F;
-    if (high > 9 || low > 9) return false;
-    result = high * 10 + low;
-    return result <= maximum;
+    return cerf::rtc_bcd::BcdToBin(value, 0xFFu, maximum, result);
 }
 
 class Rtc8564 final : public Iop13xxI2cDevice {

@@ -1,3 +1,4 @@
+#include "../rtc_bcd_clock.h"
 #include "../../socs/imx6/imx6_i2c_device.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
@@ -8,34 +9,15 @@
 
 namespace {
 
+using cerf::rtc_bcd::BcdToBin;
+using cerf::rtc_bcd::BinToBcd;
+using cerf::rtc_bcd::LocalTime;
+
 constexpr uint8_t kRegYear = 0x06u;
 constexpr uint8_t kRegFlag = 0x0Eu;
 constexpr uint8_t kRegControl = 0x0Fu;
 constexpr uint8_t kFlagVlf = 0x02u;
 constexpr uint8_t kControlStop = 0x02u;
-
-constexpr uint8_t Bcd(uint8_t value) {
-    return static_cast<uint8_t>(((value / 10u) << 4) | (value % 10u));
-}
-
-bool BcdToBin(uint8_t value, int mask, int maximum, int& result) {
-    const int v = value & mask;
-    const int high = (v >> 4) & 0x0F;
-    const int low = v & 0x0F;
-    if (high > 9 || low > 9) return false;
-    result = high * 10 + low;
-    return result <= maximum;
-}
-
-std::tm LocalTime(std::time_t value) {
-    std::tm result{};
-#if defined(_WIN32)
-    localtime_s(&result, &value);
-#else
-    localtime_r(&value, &result);
-#endif
-    return result;
-}
 
 /* Epson RX-8571SA Application Manual ETM30E-02 sections 12.2 and 12.3;
    hmi_ktp400_mobile_v13 RTC8571.dll @0xEF2E2830/@0xEF2E2B58. */
@@ -75,6 +57,7 @@ public:
             writer.Write("value", value);
         writer.Write("pointer", pointer_);
         writer.Write("epoch_delta_seconds", epoch_delta_seconds_);
+        writer.Write("expecting_pointer", static_cast<uint8_t>(expecting_pointer_));
     }
 
     void RestoreState(StateReader& reader) override {
@@ -82,7 +65,10 @@ public:
             reader.Read("value", value);
         reader.Read("pointer", pointer_);
         reader.Read("epoch_delta_seconds", epoch_delta_seconds_);
-        expecting_pointer_ = true;
+        uint8_t expecting_pointer = 0;
+        reader.Read("expecting_pointer", expecting_pointer);
+        if (expecting_pointer > 1u) reader.Reject("RX8571: saved flag is not a boolean");
+        expecting_pointer_ = expecting_pointer != 0u;
     }
 
 private:
@@ -92,21 +78,21 @@ private:
         const std::time_t now = std::time(nullptr) + static_cast<std::time_t>(epoch_delta_seconds_);
         const std::tm local = LocalTime(now);
         int year2 = (local.tm_year + 1900) % 100;
-        registers_[0] = Bcd(static_cast<uint8_t>(local.tm_sec));
-        registers_[1] = Bcd(static_cast<uint8_t>(local.tm_min));
-        registers_[2] = Bcd(static_cast<uint8_t>(local.tm_hour));
+        registers_[0] = BinToBcd(static_cast<int>(local.tm_sec));
+        registers_[1] = BinToBcd(static_cast<int>(local.tm_min));
+        registers_[2] = BinToBcd(static_cast<int>(local.tm_hour));
         registers_[3] = static_cast<uint8_t>(1u << local.tm_wday);
-        registers_[4] = Bcd(static_cast<uint8_t>(local.tm_mday));
-        registers_[5] = Bcd(static_cast<uint8_t>(local.tm_mon + 1));
-        registers_[kRegYear] = Bcd(static_cast<uint8_t>(year2));
+        registers_[4] = BinToBcd(static_cast<int>(local.tm_mday));
+        registers_[5] = BinToBcd(static_cast<int>(local.tm_mon + 1));
+        registers_[kRegYear] = BinToBcd(static_cast<int>(year2));
         registers_[kRegFlag] &= static_cast<uint8_t>(~kFlagVlf);
     }
 
     void CommitClockRegisters() {
         int second = 0, minute = 0, hour = 0, day = 0, month = 0, year2 = 0;
-        if (!BcdToBin(registers_[0], 0x7F, 59, second) || !BcdToBin(registers_[1], 0x7F, 59, minute) ||
-            !BcdToBin(registers_[2], 0x3F, 23, hour) || !BcdToBin(registers_[4], 0x3F, 31, day) || day < 1 ||
-            !BcdToBin(registers_[5], 0x1F, 12, month) || month < 1 ||
+        if (!BcdToBin(registers_[0], 0x7Fu, 59, second) || !BcdToBin(registers_[1], 0x7Fu, 59, minute) ||
+            !BcdToBin(registers_[2], 0x3Fu, 23, hour) || !BcdToBin(registers_[4], 0x3Fu, 31, day) || day < 1 ||
+            !BcdToBin(registers_[5], 0x1Fu, 12, month) || month < 1 ||
             !BcdToBin(registers_[kRegYear], 0xFFu, 99, year2)) {
             emu_.Get<Fatal>().Die("RX-8571SA clock registers hold a value that is not BCD");
         }

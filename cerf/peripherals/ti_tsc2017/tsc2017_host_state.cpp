@@ -25,7 +25,6 @@ void Tsc2017HostState::SetPen(bool down, uint16_t raw_x, uint16_t raw_y) {
     {
         std::lock_guard<std::mutex> lk(mutex_);
         const bool was_down = state_.down;
-        const bool was_penirq_low = state_.penirq_low;
         const uint16_t old_x = state_.x;
         const uint16_t old_y = state_.y;
 
@@ -33,19 +32,17 @@ void Tsc2017HostState::SetPen(bool down, uint16_t raw_x, uint16_t raw_y) {
             state_.x = raw_x;
             state_.y = raw_y;
             state_.down = true;
-            state_.penirq_low = true;
             state_.z1 = kPenDownZ1;
             state_.z2 = kPenDownZ2;
         } else {
             state_.down = false;
-            state_.penirq_low = false;
             state_.z1 = kPenUpZ1;
             state_.z2 = kPenUpZ2;
         }
 
         const bool changed =
-            was_down != state_.down || old_x != state_.x || old_y != state_.y || was_penirq_low != state_.penirq_low;
-        if (changed && (down || was_down || was_penirq_low)) {
+            was_down != state_.down || old_x != state_.x || old_y != state_.y;
+        if (changed && (down || was_down)) {
             penirq_pending_ = true;
             notify = true;
         }
@@ -92,5 +89,5 @@ void Tsc2017HostState::NotifyIrqChanged() {
 
 bool Tsc2017HostState::PenIrqLineHigh() {
     std::lock_guard<std::mutex> lk(mutex_);
-    return !state_.penirq_low;
+    return !state_.down;
 }

@@ -12,7 +12,6 @@ public:
 
     struct Sample {
         bool down = false;
-        bool penirq_low = false;
         uint16_t x = 0x800u;
         uint16_t y = 0x800u;
         uint16_t z1 = 0x000u;

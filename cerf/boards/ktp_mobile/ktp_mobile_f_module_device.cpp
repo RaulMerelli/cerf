@@ -335,10 +335,10 @@ void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
     r.Read("cyclic_ready_remaining_ns", cyclic_ready_remaining_ns);
 
     if (!r.Ok())
-        emu_.Get<Fatal>().Die("KTP Mobile F-module: truncated saved state");
+        r.Reject("F-module: truncated saved state");
     for (uint8_t flag : flags) {
         if (flag > 1u)
-            emu_.Get<Fatal>().Die("KTP Mobile F-module: invalid saved adapter flags");
+            r.Reject("F-module: adapter flag %u is not a boolean", flag);
     }
 
     const bool dma_tx_ready = flags[0] != 0u;
@@ -367,17 +367,15 @@ void KtpMobileFModuleDevice::RestoreState(StateReader& r) {
             ? cyclic_ready_remaining_ns != VirtualTimerList::kNoDeadline
             : cyclic_ready_remaining_ns == VirtualTimerList::kNoDeadline;
     if (!lengths_valid || !transaction_valid || !timer_valid) {
-        emu_.Get<Fatal>().Die("KTP Mobile F-module: invalid saved adapter state");
+        r.Reject("F-module: invalid saved adapter state");
     }
     if (!selected_container_valid_ || state->approved_container_valid == 0u ||
         state->approved_container_sha256 != selected_container_sha256_) {
-        emu_.Get<Fatal>().Die(
-            "KTP Mobile F-module: saved state does not match selected FWF firmware");
+        r.Reject("F-module: saved state does not match the selected FWF firmware");
     }
     const auto status = model_.RestoreState(*state);
     if (status != ktp_mobile::Status::Ok)
-        emu_.Get<Fatal>().Die("KTP Mobile F-module: invalid saved model state (%u)",
-                              static_cast<unsigned>(status));
+        r.Reject("F-module: invalid saved model state (%u)", static_cast<unsigned>(status));
 
     dma_tx_bytes_ = dma_tx_bytes;
     dma_rx_buffer_pa_ = dma_rx_buffer_pa;

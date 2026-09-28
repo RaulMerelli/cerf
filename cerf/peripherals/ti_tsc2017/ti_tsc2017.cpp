@@ -42,12 +42,8 @@ public:
            8-bit modes." */
         if (index >= result_bytes) return 0xFFu;
 
-        uint8_t out = 0;
-        if (eight_bit) {
-            out = index == 0 ? static_cast<uint8_t>(sample >> 4) : 0x00u;
-        } else {
-            out = index == 0 ? static_cast<uint8_t>(sample >> 4) : static_cast<uint8_t>((sample & 0x000Fu) << 4);
-        }
+        const uint8_t out = index == 0 ? static_cast<uint8_t>(sample >> 4)
+                                       : static_cast<uint8_t>((sample & 0x000Fu) << 4);
         const uint8_t function = static_cast<uint8_t>((command_ >> 4) & 0x0Fu);
         if (function == 0x0Fu && ((eight_bit && index == 0u) || (!eight_bit && index == 1u))) {
             AdvanceFrame(function);
@@ -66,16 +62,38 @@ public:
         w.Write("read_index", read_index_);
         w.Write("last_value", last_value_);
         w.Write("setup", setup_);
+        w.Write("frame_down", static_cast<uint8_t>(frame_.down));
+        w.Write("frame_x", frame_.x);
+        w.Write("frame_y", frame_.y);
+        w.Write("frame_z1", frame_.z1);
+        w.Write("frame_z2", frame_.z2);
+        w.Write("frame_z2_count", frame_z2_count_);
+        w.Write("frame_active", static_cast<uint8_t>(frame_active_));
+        w.Write("expecting_command", static_cast<uint8_t>(expecting_command_));
+        w.Write("pending_completion", static_cast<uint8_t>(pending_completion_));
     }
     void RestoreState(StateReader& r) override {
         r.Read("command", command_);
         r.Read("read_index", read_index_);
         r.Read("last_value", last_value_);
         r.Read("setup", setup_);
-        frame_active_ = false;
-        frame_z2_count_ = 0;
-        pending_completion_ = false;
-        expecting_command_ = false;
+        uint8_t frame_down = 0, frame_active = 0, expecting_command = 0, pending_completion = 0;
+        r.Read("frame_down", frame_down);
+        r.Read("frame_x", frame_.x);
+        r.Read("frame_y", frame_.y);
+        r.Read("frame_z1", frame_.z1);
+        r.Read("frame_z2", frame_.z2);
+        r.Read("frame_z2_count", frame_z2_count_);
+        r.Read("frame_active", frame_active);
+        r.Read("expecting_command", expecting_command);
+        r.Read("pending_completion", pending_completion);
+        if (frame_down > 1u || frame_active > 1u || expecting_command > 1u || pending_completion > 1u)
+            r.Reject("TSC2017: saved flag is not a boolean");
+        if (frame_z2_count_ >= 3u) r.Reject("TSC2017: frame Z2 count %u past the third read", frame_z2_count_);
+        frame_.down = frame_down != 0u;
+        frame_active_ = frame_active != 0u;
+        expecting_command_ = expecting_command != 0u;
+        pending_completion_ = pending_completion != 0u;
     }
 
 private:
@@ -132,6 +150,9 @@ private:
         const uint8_t function = static_cast<uint8_t>(command >> 4);
         BeginFrameIfNeeded(function);
         if (function == 0x0Bu) {
+            /* SBAS472 Table 4: D3 is "Reserved; must write '0'". */
+            if (command & 0x08u)
+                emu_.Get<Fatal>().Die("TSC2017 setup command 0x%02X writes reserved D3", command);
             setup_ = static_cast<uint8_t>(command & 0x0Fu);
             if (setup_ & 0x04u) {
                 setup_ = 0;
@@ -139,6 +160,12 @@ private:
             }
             return;
         }
+        /* SBAS472 Table 2: D3-D2 select 00 power down between cycles with PENIRQ enabled,
+           01 and 11 A/D converter on with PENIRQ disabled, and 10 A/D converter off. CERF
+           drives PENIRQ from the host touch state and converts on every command. */
+        if ((command & 0x0Cu) != 0u)
+            emu_.Get<Fatal>().Die("TSC2017 command 0x%02X selects power-down mode %u", command,
+                                  static_cast<unsigned>((command >> 2) & 0x03u));
         last_value_ = Clamp12(SampleForFunction(function));
     }
 
