@@ -70,7 +70,8 @@ void KtpMobileEmmc::OnReady() {
     const auto& profile = KtpMobileBoardProfileFor(emu_.Get<BoardContext>().GetBoardId());
     data_.assign(kMediaBytes, 0u);
     backing_ = std::make_unique<KtpMobileSdCardBackend>(
-        GetDeviceDir(config.device_name), config.rom_primary, profile.op_type,
+        ResolveDeviceFile(config.device_name, config.storage_emmc),
+        GetDeviceDir(config.device_name), config.rom_primary, profile.op_type, profile.panel,
         emu_.Get<NetworkBackend>().MacForReceiver(
             kImx6FecReceiverId, NetworkBackend::ReceiverKind::Ethernet));
     backing_->Initialize(data_);

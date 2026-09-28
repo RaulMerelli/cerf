@@ -19,10 +19,19 @@ enum class KtpMobileOpType : uint16_t {
 struct KtpMobilePanel {
     uint16_t width;
     uint16_t height;
+    uint16_t hsync_width;
+    uint16_t hstart_width;
+    uint16_t hend_width;
+    uint16_t vsync_width;
+    uint16_t vstart_width;
+    uint16_t vend_width;
+    uint32_t pixel_clock_hz;
+    uint8_t  data_bus_width;
 };
 
 std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
                                                    KtpMobilePanel panel);
 
 std::vector<uint8_t> BuildKtpMobileInstalledHardwareDescriptionOms(const std::array<uint8_t, 6>& mac,
-                                                                   KtpMobileOpType op_type);
+                                                                   KtpMobileOpType op_type,
+                                                                   KtpMobilePanel panel);

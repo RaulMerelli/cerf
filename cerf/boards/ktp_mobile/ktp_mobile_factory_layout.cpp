@@ -60,7 +60,8 @@ std::vector<uint8_t> LoadFwfContainer(const std::string& device_dir, const std::
 }
 
 void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>& fwf_container,
-                         const std::array<uint8_t, 6>& hardware_mac, KtpMobileOpType op_type) {
+                         const std::array<uint8_t, 6>& hardware_mac, KtpMobileOpType op_type,
+                         KtpMobilePanel panel) {
     /* hmi_ktp400_mobile_v13 bspio.dll @0x41885AC0 reads the eMMC factory table
        at 0x101000; @0x41886264 decodes its HWF offset, size, CRC, and OMS stream. */
     constexpr uint32_t kSectorTableOff = kKtp400FactoryTableOff;
@@ -74,7 +75,7 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     constexpr uint32_t kPaHeaderSize = 0x00000200u;
     constexpr uint32_t kFwfInfoOff = kKtp400FwfInfoOff;
     constexpr uint32_t kFwfInfoSize = kKtp400FwfInfoSize;
-    const std::vector<uint8_t> ktp400_oms_root = BuildKtpMobileInstalledHardwareDescriptionOms(hardware_mac, op_type);
+    const std::vector<uint8_t> ktp400_oms_root = BuildKtpMobileInstalledHardwareDescriptionOms(hardware_mac, op_type, panel);
     std::vector<uint8_t> installed_firmware;
     cerf::fwf_oms::ExtractInstalledFirmwareSummary(fwf_container.data(), fwf_container.size(), installed_firmware);
     const uint32_t kHwfSize = static_cast<uint32_t>(ktp400_oms_root.size());

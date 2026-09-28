@@ -6,14 +6,14 @@
 namespace {
 
 constexpr KtpMobileBoardProfile kProfiles[] = {
-    {BoardId::HmiKtp400FMobile,       KtpMobileOpType::Ktp400F,       {480u, 272u}, "4in",   true},
-    {BoardId::HmiKtp700Mobile,        KtpMobileOpType::Ktp700,        {800u, 480u}, "7_9in", false},
-    {BoardId::HmiKtp700FMobile,       KtpMobileOpType::Ktp700F,       {800u, 480u}, "7_9in", true},
-    {BoardId::HmiKtp900Mobile,        KtpMobileOpType::Ktp900,        {800u, 480u}, "7_9in", false},
-    {BoardId::HmiKtp900FMobile,       KtpMobileOpType::Ktp900F,       {800u, 480u}, "7_9in", true},
-    {BoardId::HmiTp1000fMobile,       KtpMobileOpType::Tp1000F,       {800u, 480u}, "10in",  true},
-    {BoardId::HmiKtp700FHwMobile,     KtpMobileOpType::Ktp700FHw,     {800u, 480u}, "7_9in", true},
-    {BoardId::HmiKtp700FArcticMobile, KtpMobileOpType::Ktp700FArctic, {800u, 480u}, "7_9in", true},
+    {BoardId::HmiKtp400FMobile,       KtpMobileOpType::Ktp400F,       {480u, 272u, 1u, 42u, 8u, 10u, 2u, 4u, 9000000u, 24u}, "4in",   true},
+    {BoardId::HmiKtp700Mobile,        KtpMobileOpType::Ktp700,        {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", false},
+    {BoardId::HmiKtp700FMobile,       KtpMobileOpType::Ktp700F,       {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", true},
+    {BoardId::HmiKtp900Mobile,        KtpMobileOpType::Ktp900,        {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", false},
+    {BoardId::HmiKtp900FMobile,       KtpMobileOpType::Ktp900F,       {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", true},
+    {BoardId::HmiTp1000fMobile,       KtpMobileOpType::Tp1000F,       {1280u, 800u, 136u, 200u, 64u, 3u, 24u, 1u, 83001328u, 24u}, "10in", true},
+    {BoardId::HmiKtp700FHwMobile,     KtpMobileOpType::Ktp700FHw,     {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", true},
+    {BoardId::HmiKtp700FArcticMobile, KtpMobileOpType::Ktp700FArctic, {800u, 480u, 96u, 128u, 32u, 2u, 32u, 11u, 33000000u, 24u}, "7_9in", true},
 };
 
 }

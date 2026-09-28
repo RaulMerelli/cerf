@@ -48,11 +48,12 @@ bool IsValidBacking(const std::vector<uint8_t>& data) {
 }
 
 KtpMobileSdCardBackend::KtpMobileSdCardBackend(
-    std::string device_dir, std::string container_name, KtpMobileOpType op_type,
-    std::array<uint8_t, 6> mac)
-    : backing_path_(device_dir + "ktp400_pdcfs_autobacking.bin"),
+    std::string backing_path, std::string device_dir, std::string container_name,
+    KtpMobileOpType op_type, KtpMobilePanel panel, std::array<uint8_t, 6> mac)
+    : backing_path_(std::move(backing_path)),
       fwf_container_(ktp_mobile_emmc::LoadFwfContainer(device_dir, container_name)),
-      op_type_(op_type), hardware_mac_(mac) {}
+      op_type_(op_type), panel_(panel), hardware_mac_(mac) {}
+
 
 void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
     if (data.size() < 4096u) return;
@@ -97,7 +98,7 @@ void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
 
 void KtpMobileSdCardBackend::EnsureHardwareInfo(std::vector<uint8_t>& data) {
     ktp_mobile_emmc::EnsureFactoryLayout(
-        data, fwf_container_, hardware_mac_, op_type_);
+        data, fwf_container_, hardware_mac_, op_type_, panel_);
 }
 
 void KtpMobileSdCardBackend::PersistHardwareInfo(

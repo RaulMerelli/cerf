@@ -11,9 +11,9 @@
 
 class KtpMobileSdCardBackend final : public KtpMobileEmmcBacking {
 public:
-    KtpMobileSdCardBackend(std::string device_dir, std::string container_name,
-                           KtpMobileOpType op_type,
-                           std::array<uint8_t, 6> mac);
+    KtpMobileSdCardBackend(std::string backing_path, std::string device_dir,
+                           std::string container_name, KtpMobileOpType op_type,
+                           KtpMobilePanel panel, std::array<uint8_t, 6> mac);
 
     void Initialize(std::vector<uint8_t>& data) override;
     void Persist(const std::vector<uint8_t>& data, uint64_t offset,
@@ -28,6 +28,7 @@ private:
     std::string backing_path_;
     std::vector<uint8_t> fwf_container_;
     KtpMobileOpType op_type_;
+    KtpMobilePanel panel_;
     std::array<uint8_t, 6> hardware_mac_;
     std::vector<std::pair<uint64_t, uint64_t>> dirty_ranges_;
     uint64_t dirty_bytes_pending_ = 0;

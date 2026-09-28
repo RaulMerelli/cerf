@@ -34,8 +34,10 @@ public:
         /* SBAS472 section 8.5.2: a conversion result is one byte in 8-bit mode and two in
            12-bit mode; the device has nothing further to hand out. */
         const uint8_t result_bytes = eight_bit ? 1u : 2u;
-        if (index >= result_bytes)
-            emu_.Get<Fatal>().Die("TSC2017 read byte %u past the %u-byte conversion result", index, result_bytes);
+        /* SBAS472 page 27: "If the master somehow acknowledges the second data byte,
+           invalid data are returned (FFh). This condition applies to both 12- and
+           8-bit modes." */
+        if (index >= result_bytes) return 0xFFu;
 
         uint8_t out = 0;
         if (eight_bit) {

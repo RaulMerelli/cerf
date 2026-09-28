@@ -1635,8 +1635,8 @@
         }
       ],
       "lcd_panel_size": {
-        "width": 800,
-        "height": 480
+        "width": 1280,
+        "height": 800
       },
       "rom_placing_mode": "flat_container"
     },
