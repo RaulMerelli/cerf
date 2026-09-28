@@ -92,7 +92,6 @@ void VivanteFe::RunFrontend(uint32_t control) {
     const uint32_t prefetch = control & kFeCommandPrefetchMask;
     const uint32_t address = s_.regs_[kFeCommandAddress >> 2];
     constexpr FeCommandAddressSpace kBootstrapSpace = FeCommandAddressSpace::Physical;
-    mem_.DumpCommandWords(address, prefetch, kBootstrapSpace);
 
     IdleRingInfo idle;
     if (prefetch >= 2u && mem_.DetectIdleRing(address, kBootstrapSpace, idle)) {

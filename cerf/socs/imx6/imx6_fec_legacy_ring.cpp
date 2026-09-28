@@ -1,11 +1,13 @@
 #include "imx6_fec_legacy_ring.h"
 
 #include "../../core/crc32.h"
+#include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../net/network_backend.h"
 #include "../../state/state_stream.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <vector>
 
@@ -19,6 +21,9 @@ constexpr uint16_t kDescriptorOwned = 0x8000u;
 constexpr uint16_t kDescriptorWrap = 0x2000u;
 constexpr uint16_t kDescriptorLast = 0x0800u;
 
+/* IMX6DQRM Rev.2 §23.5: the legacy FEC carries a frame of up to 1518 bytes. */
+constexpr std::size_t kMaximumFrameBytes = 1518u;
+
 constexpr uint32_t kEirRxb = 0x01000000u;
 constexpr uint32_t kEirRxf = 0x02000000u;
 constexpr uint32_t kEirTxb = 0x04000000u;
@@ -26,6 +31,20 @@ constexpr uint32_t kEirTxf = 0x08000000u;
 
 uint32_t NextDescriptor(uint32_t current, uint16_t status, uint32_t base) {
     return (status & kDescriptorWrap) ? base : current + kDescriptorStride;
+}
+
+uint8_t* RequireDescriptor(EmulatedMemory& memory, uint32_t pa) {
+    if (uint8_t* host = memory.TryTranslateRange(pa, kDescriptorStride, true)) return host;
+    LOG(Caution, "i.MX6 FEC: buffer descriptor at 0x%08X is not mapped for %u bytes\n",
+        pa, kDescriptorStride);
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+}
+
+uint8_t* RequireBuffer(EmulatedMemory& memory, uint32_t pa, std::size_t bytes, bool write) {
+    if (uint8_t* host = memory.TryTranslateRange(pa, bytes, write)) return host;
+    LOG(Caution, "i.MX6 FEC: buffer 0x%08X+%zu is not mapped for %s\n", pa, bytes,
+        write ? "write" : "read");
+    CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
 }
@@ -75,10 +94,10 @@ void Imx6FecLegacyRing::RequestReceive(EmulatedMemory& memory, bool controller_e
 }
 
 void Imx6FecLegacyRing::RefreshReceiveDemand(EmulatedMemory& memory) {
-    uint8_t* descriptor = memory.TryTranslateWrite(rx_descriptor_);
+    uint8_t* descriptor = RequireDescriptor(memory, rx_descriptor_);
     uint16_t status = 0u;
-    if (descriptor) std::memcpy(&status, descriptor + 2, sizeof(status));
-    rdar_ = descriptor && (status & kDescriptorOwned) ? kDemandActive : 0u;
+    std::memcpy(&status, descriptor + 2, sizeof(status));
+    rdar_ = (status & kDescriptorOwned) ? kDemandActive : 0u;
 }
 
 uint32_t Imx6FecLegacyRing::RequestTransmit(EmulatedMemory& memory, NetworkBackend& network, bool controller_enabled,
@@ -91,11 +110,10 @@ uint32_t Imx6FecLegacyRing::RequestTransmit(EmulatedMemory& memory, NetworkBacke
     tdar_ = kDemandActive;
     uint32_t events = 0u;
     std::vector<uint8_t> frame;
-    frame.reserve(1518u);
+    frame.reserve(kMaximumFrameBytes);
 
     for (uint32_t count = 0u; count < kMaximumDescriptors; ++count) {
-        uint8_t* descriptor = memory.TryTranslateWrite(tx_descriptor_);
-        if (!descriptor) break;
+        uint8_t* descriptor = RequireDescriptor(memory, tx_descriptor_);
 
         uint16_t length = 0u;
         uint16_t status = 0u;
@@ -105,12 +123,15 @@ uint32_t Imx6FecLegacyRing::RequestTransmit(EmulatedMemory& memory, NetworkBacke
         std::memcpy(&data_address, descriptor + 4, sizeof(data_address));
         if ((status & kDescriptorOwned) == 0u) break;
 
-        const std::size_t room = 1518u - std::min<std::size_t>(1518u, frame.size());
-        const std::size_t copy_length = std::min<std::size_t>(length, room);
-        if (copy_length != 0u) {
-            const uint8_t* data = memory.TryTranslateWrite(data_address);
-            if (!data) break;
-            frame.insert(frame.end(), data, data + copy_length);
+        if (frame.size() + length > kMaximumFrameBytes) {
+            LOG(Caution, "i.MX6 FEC: a transmit frame of %zu bytes is longer than the "
+                         "%u bytes this model carries\n",
+                frame.size() + length, kMaximumFrameBytes);
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
+        if (length != 0u) {
+            const uint8_t* data = RequireBuffer(memory, data_address, length, false);
+            frame.insert(frame.end(), data, data + length);
         }
 
         const bool last = (status & kDescriptorLast) != 0u;
@@ -145,8 +166,7 @@ uint32_t Imx6FecLegacyRing::Receive(EmulatedMemory& memory, const uint8_t* frame
     uint32_t events = 0u;
     std::size_t offset = 0u;
     for (uint32_t count = 0u; count < kMaximumDescriptors && offset < packet.size(); ++count) {
-        uint8_t* descriptor = memory.TryTranslateWrite(rx_descriptor_);
-        if (!descriptor) break;
+        uint8_t* descriptor = RequireDescriptor(memory, rx_descriptor_);
 
         uint16_t status = 0u;
         uint32_t data_address = 0u;
@@ -154,9 +174,8 @@ uint32_t Imx6FecLegacyRing::Receive(EmulatedMemory& memory, const uint8_t* frame
         std::memcpy(&data_address, descriptor + 4, sizeof(data_address));
         if ((status & kDescriptorOwned) == 0u) break;
 
-        uint8_t* destination = memory.TryTranslateWrite(data_address);
-        if (!destination) break;
         const std::size_t copy_length = std::min<std::size_t>(packet.size() - offset, max_receive_buffer);
+        uint8_t* destination = RequireBuffer(memory, data_address, copy_length, true);
         std::memcpy(destination, packet.data() + offset, copy_length);
         offset += copy_length;
 

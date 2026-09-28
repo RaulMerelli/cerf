@@ -56,7 +56,7 @@ void FreescaleSdmaChannel0::Execute(uint32_t mode, uint32_t arm_src_pa, uint32_t
     case kC0SetPm: {
         uint32_t copied = 0;
         for (; copied < count && (sdma_dst_word + copied) < kSdmaProgramWords; ++copied) {
-            uint8_t* src = memory.TryTranslate(arm_src_pa + copied * 2u);
+            uint8_t* src = memory.TryTranslateRange(arm_src_pa + copied * 2u, sizeof(uint16_t));
             if (!src) emu_.Get<Fatal>().Die("[SDMA] channel 0 program source 0x%08X is not mapped", arm_src_pa + copied * 2u);
             uint16_t value = 0;
             std::memcpy(&value, src, sizeof(value));
@@ -68,7 +68,7 @@ void FreescaleSdmaChannel0::Execute(uint32_t mode, uint32_t arm_src_pa, uint32_t
     case kC0SetDm: {
         uint32_t copied = 0;
         for (; copied < count && (sdma_dst_word + copied) < kSdmaDataWords; ++copied) {
-            uint8_t* src = memory.TryTranslate(arm_src_pa + copied * 4u);
+            uint8_t* src = memory.TryTranslateRange(arm_src_pa + copied * 4u, sizeof(uint32_t));
             if (!src) emu_.Get<Fatal>().Die("[SDMA] channel 0 data source 0x%08X is not mapped", arm_src_pa + copied * 4u);
             uint32_t value = 0;
             std::memcpy(&value, src, sizeof(value));
@@ -82,7 +82,7 @@ void FreescaleSdmaChannel0::Execute(uint32_t mode, uint32_t arm_src_pa, uint32_t
         const uint32_t destination = kSdmaContextBase + count * channel;
         uint32_t copied = 0;
         for (; copied < count && (destination + copied) < kSdmaDataWords; ++copied) {
-            uint8_t* src = memory.TryTranslate(arm_src_pa + copied * 4u);
+            uint8_t* src = memory.TryTranslateRange(arm_src_pa + copied * 4u, sizeof(uint32_t));
             if (!src) emu_.Get<Fatal>().Die("[SDMA] channel 0 context source 0x%08X is not mapped", arm_src_pa + copied * 4u);
             uint32_t value = 0;
             std::memcpy(&value, src, sizeof(value));

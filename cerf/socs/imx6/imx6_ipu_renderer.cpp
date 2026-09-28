@@ -52,11 +52,14 @@ public:
         const auto d = ActiveDisplay();
         if (!d.valid) return;
 
-        const uint8_t* src = emu_.Get<EmulatedMemory>().TryTranslate(d.eba);
-        if (!src)
-            emu_.Get<Fatal>().Die("i.MX6 IPU: display channel EBA 0x%08X is not backed memory", d.eba);
         const uint32_t cw = std::min<uint32_t>(d.fw, host_w);
         const uint32_t ch = std::min<uint32_t>(d.fh, host_h);
+        const uint64_t span = ch != 0u ? static_cast<uint64_t>(ch - 1u) * d.sl + RowBytes(d, cw) : 0u;
+        const uint8_t* src = emu_.Get<EmulatedMemory>().TryTranslateRange(d.eba, span);
+        if (!src)
+            emu_.Get<Fatal>().Die("i.MX6 IPU: display channel EBA 0x%08X is not backed memory "
+                                  "for %llu bytes",
+                                  d.eba, static_cast<unsigned long long>(span));
 
         if (d.bits_per_pixel == kBitsRgb565) {
             for (uint32_t y = 0; y < ch; ++y) {
@@ -75,6 +78,10 @@ public:
             emu_.Get<Fatal>().Die("i.MX6 IPU: display channel bits per pixel %u is not modelled",
                                   d.bits_per_pixel);
         }
+    }
+
+    static uint64_t RowBytes(const Imx6IpuChannelDesc& d, uint32_t pixels) {
+        return static_cast<uint64_t>(pixels) * d.bits_per_pixel / 8u;
     }
 
     void PresentedSize(uint32_t& w, uint32_t& h) override {

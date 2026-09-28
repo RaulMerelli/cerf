@@ -23,7 +23,7 @@ uint32_t VivanteMmu::MemoryBaseRegister(MmuClient client) {
     return registers[static_cast<uint32_t>(client)];
 }
 bool VivanteMmu::ReadPhysicalU32(uint32_t address, uint32_t& value) const {
-    const uint8_t* entry = emu_.Get<EmulatedMemory>().TryTranslate(address);
+    const uint8_t* entry = emu_.Get<EmulatedMemory>().TryTranslateRange(address, sizeof(uint32_t));
     if (!entry) return false;
     std::memcpy(&value, entry, sizeof(value));
     return true;

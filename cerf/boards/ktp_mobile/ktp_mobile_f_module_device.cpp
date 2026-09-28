@@ -108,7 +108,7 @@ void KtpMobileFModuleDevice::StageDmaTransmit(uint32_t buffer_pa,
 
     auto& memory = emu_.Get<EmulatedMemory>();
     for (uint32_t off = 0; off < bytes; off += 4u) {
-        uint8_t* src = memory.TryTranslate(buffer_pa + off);
+        uint8_t* src = memory.TryTranslateRange(buffer_pa + off, sizeof(uint32_t));
         if (!src) {
             adapter_error_ = true;
             return;
@@ -138,7 +138,7 @@ void KtpMobileFModuleDevice::FlushDmaReceive() {
     if (!dma_rx_pending_ || !dma_response_ready_ || adapter_error_) return;
     auto& memory = emu_.Get<EmulatedMemory>();
     for (uint32_t off = 0; off < dma_rx_bytes_; off += 4u) {
-        uint8_t* dst = memory.TryTranslateWrite(dma_rx_buffer_pa_ + off);
+        uint8_t* dst = memory.TryTranslateRange(dma_rx_buffer_pa_ + off, sizeof(uint32_t), true);
         if (!dst) {
             adapter_error_ = true;
             return;

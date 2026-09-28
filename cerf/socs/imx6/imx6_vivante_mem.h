@@ -120,7 +120,6 @@ public:
     bool WriteGpuBytes(uint32_t address, const void* in_buffer, size_t count,
                        MmuClient client = MmuClient::PixelEngine) const;
     bool ReadMemoryU64(uint32_t address, uint64_t& out) const;
-    void DumpCommandWords(uint32_t address, uint32_t prefetch, FeCommandAddressSpace address_space) const;
 
     static uint32_t PatternBytesPerPixel(uint32_t fmt) {
         switch (fmt & 0xFu) {

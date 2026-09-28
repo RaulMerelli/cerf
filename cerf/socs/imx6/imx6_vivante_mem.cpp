@@ -153,18 +153,4 @@ bool VivanteMem::ReadMemoryU64(uint32_t address, uint64_t& out) const {
     return true;
 }
 
-void VivanteMem::DumpCommandWords(uint32_t address, uint32_t prefetch, FeCommandAddressSpace address_space) const {
-    const uint32_t prefetch_words = prefetch * 2u;
-    const uint32_t words = prefetch ? ((prefetch_words < 32u) ? prefetch_words : 32u) : 0u;
-    if (words == 0u) return;
-
-    char line[320];
-    int n = std::snprintf(line, sizeof(line), "Imx6Gpu%s: FE words @0x%08X:", CoreName(), address);
-    for (uint32_t i = 0; i < words && n > 0 && n < static_cast<int>(sizeof(line)) - 16; ++i) {
-        uint32_t w = 0u;
-        if (!ReadCommandWords(address + i * 4u, &w, 1u, address_space)) break;
-        n += std::snprintf(line + n, sizeof(line) - n, " %08X", w);
-    }
-}
-
 }

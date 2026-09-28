@@ -3,6 +3,7 @@
 #include "../../boards/board_context.h"
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
+#include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
 #include "../../peripherals/peripheral_dispatcher.h"
 #include "imx6_ecspi_endpoint.h"
@@ -52,8 +53,9 @@ public:
 
         if (channel == 1u) {
             for (uint32_t off = 0; off < bytes; off += 4u) {
-                uint32_t value = 0xFFFFFFFFu;
-                if (uint8_t* src = memory.TryTranslate(buffer_pa + off)) std::memcpy(&value, src, sizeof(value));
+                const uint8_t* src = RequireWord(memory, buffer_pa + off, false);
+                uint32_t value = 0u;
+                std::memcpy(&value, src, sizeof(value));
                 io.WriteWord(kTxData, value);
             }
             return;
@@ -61,8 +63,16 @@ public:
 
         for (uint32_t off = 0; off < bytes; off += 4u) {
             const uint32_t value = io.ReadWord(kRxData);
-            if (uint8_t* dst = memory.TryTranslateWrite(buffer_pa + off)) std::memcpy(dst, &value, sizeof(value));
+            uint8_t* dst = RequireWord(memory, buffer_pa + off, true);
+            std::memcpy(dst, &value, sizeof(value));
         }
+    }
+
+    static uint8_t* RequireWord(EmulatedMemory& memory, uint32_t pa, bool write) {
+        if (uint8_t* host = memory.TryTranslateRange(pa, sizeof(uint32_t), write)) return host;
+        LOG(Caution, "i.MX6 eCSPI SDMA: buffer word 0x%08X is not mapped for %s\n", pa,
+            write ? "write" : "read");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
     }
 };
 
