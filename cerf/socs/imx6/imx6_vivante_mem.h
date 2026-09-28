@@ -31,13 +31,6 @@ public:
         uint32_t preserve_mask;
     };
 
-    const char* CoreName() const {
-        switch (core_) {
-        case VivanteCore::Gc3202d: return "2D";
-        case VivanteCore::Gc355Vg: return "VG";
-        default: return "3D";
-        }
-    }
     VivanteCore Core() const { return core_; }
     bool Is2d() const { return core_ == VivanteCore::Gc3202d; }
     uint32_t PixelPipes() const {

@@ -32,21 +32,21 @@ constexpr uint32_t kEirTxf = 0x08000000u;
 uint32_t NextDescriptor(uint32_t current, uint16_t status, uint32_t base) {
     return (status & kDescriptorWrap) ? base : current + kDescriptorStride;
 }
+}
 
-uint8_t* RequireDescriptor(EmulatedMemory& memory, uint32_t pa) {
+uint8_t* Imx6FecLegacyRing::RequireDescriptor(EmulatedMemory& memory, uint32_t pa) {
     if (uint8_t* host = memory.TryTranslateRange(pa, kDescriptorStride, true)) return host;
     LOG(Caution, "i.MX6 FEC: buffer descriptor at 0x%08X is not mapped for %u bytes\n",
         pa, kDescriptorStride);
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
 }
 
-uint8_t* RequireBuffer(EmulatedMemory& memory, uint32_t pa, std::size_t bytes, bool write) {
+uint8_t* Imx6FecLegacyRing::RequireBuffer(EmulatedMemory& memory, uint32_t pa,
+                                          std::size_t bytes, bool write) {
     if (uint8_t* host = memory.TryTranslateRange(pa, bytes, write)) return host;
     LOG(Caution, "i.MX6 FEC: buffer 0x%08X+%zu is not mapped for %s\n", pa, bytes,
         write ? "write" : "read");
     CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
-}
-
 }
 
 void Imx6FecLegacyRing::Reset() {
@@ -172,7 +172,15 @@ uint32_t Imx6FecLegacyRing::Receive(EmulatedMemory& memory, const uint8_t* frame
         uint32_t data_address = 0u;
         std::memcpy(&status, descriptor + 2, sizeof(status));
         std::memcpy(&data_address, descriptor + 4, sizeof(data_address));
-        if ((status & kDescriptorOwned) == 0u) break;
+        if ((status & kDescriptorOwned) == 0u) {
+            if (offset == 0u) break;
+            /* IMX6DQRM Rev.2 §23.6.4.5: a frame the ring cannot hold is truncated with
+               RxBD[TR] and RxBD[CR], neither of which is modelled. */
+            LOG(Caution, "i.MX6 FEC: the receive ring ran out of descriptors %zu bytes "
+                         "into a %zu byte frame\n",
+                offset, packet.size());
+            CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+        }
 
         const std::size_t copy_length = std::min<std::size_t>(packet.size() - offset, max_receive_buffer);
         uint8_t* destination = RequireBuffer(memory, data_address, copy_length, true);

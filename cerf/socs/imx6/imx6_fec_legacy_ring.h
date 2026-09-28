@@ -30,6 +30,10 @@ public:
 private:
     void RefreshReceiveDemand(EmulatedMemory& memory);
 
+    static uint8_t* RequireDescriptor(EmulatedMemory& memory, uint32_t pa);
+    static uint8_t* RequireBuffer(EmulatedMemory& memory, uint32_t pa, std::size_t bytes,
+                                  bool write);
+
     uint32_t rdar_ = 0u;
     uint32_t tdar_ = 0u;
     uint32_t rx_descriptor_ = 0u;

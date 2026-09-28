@@ -104,7 +104,6 @@ bool RomParserService::ParseOne(ParsedRom& rom) {
                 rom.filename.c_str());
             return false;
         }
-        rom.is_fwf = true;
         rom.flat = std::span<const uint8_t>(rom.flat_storage);
         rom.flat_base_va = 0;
         LOG(Boot,

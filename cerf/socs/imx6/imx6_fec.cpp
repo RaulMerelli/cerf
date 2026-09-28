@@ -280,10 +280,19 @@ private:
         UpdateIrq();
     }
 
+    /* IMX6DQRM Rev.2 §23.5: the legacy FEC carries a frame of up to 1518 bytes. */
+    static constexpr std::size_t kMaximumFrameBytes = 1518u;
+
     void OnHostFrame(const uint8_t* frame, std::size_t len) {
         if (!frame || len < 14u) return;
         if (!LinkIsUp()) return;
-        if (len > 1518u) len = 1518u;
+        /* IMX6DQRM Rev.2 §23.6.4.5: a frame longer than MAX_FL raises BABR and sets
+           RxBD[LG], and it is truncated only past FTRL[TRUNC_FL], which sets RxBD[TR]
+           and RxBD[CR]. Neither indication is modelled. */
+        if (len > kMaximumFrameBytes)
+            emu_.Get<Fatal>().Die("i.MX6 FEC: a received frame of %zu bytes is longer than "
+                                  "the %u bytes this model carries",
+                                  len, static_cast<unsigned>(kMaximumFrameBytes));
 
         std::lock_guard<std::mutex> lk(mtx_);
         if ((ecr_ & kEcrEtherEn) == 0u || erdsr_ == 0u || emrbr_ == 0u) return;

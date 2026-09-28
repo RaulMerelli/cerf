@@ -5,8 +5,8 @@
 #include "../../core/log.h"
 
 #include <cstring>
+#include <cstddef>
 #include <string>
-#include <vector>
 
 namespace {
 
