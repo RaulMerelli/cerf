@@ -8,20 +8,30 @@
 namespace cerf::fwf_oms {
 namespace {
 
+/* hmi_ktp400_mobile_v13 OsOms.dll sub_422DAFAC reads a record tag byte and accepts
+   0xA1..0xAF; 0xA3 carries an attribute id varint that reaches
+   OMS::Class::get_variable_type_from_aid, 0xA4 a link, and 0xAF ends the stream. */
 constexpr uint8_t kStreamStart = 0x03u;
 constexpr uint8_t kObjectTag = 0xA1u;
 constexpr uint8_t kAttributeTag = 0xA3u;
 constexpr uint8_t kLinkTag = 0xA4u;
+/* hmi_tp1000f_mobile_v17 bspio.dll sub_41D1B3F4 @0x41D1B3F4 looks attribute 233 up on
+   an object, checks its type is 21, and reads it as the object's name string. */
 constexpr uint32_t kNameAttrId = 233u;
 
 constexpr uint8_t kFsfMagic[4] = {'F', 'S', 'F', 0x00u};
 constexpr size_t kMaxSliceBytes = 64u * 1024u * 1024u;
 
+/* hmi_ktp400_mobile_v13 OsOms.dll OMS::Blob::get_value_from_blob_classic @0x42250DA0
+   masks the type with 0x78FFFFFF and reads 0x14 and 0x17 through its array path. */
 constexpr uint8_t kTypeBool = 0x01u;
 constexpr uint8_t kTypeUint = 0x04u;
 constexpr uint8_t kTypeBlob = 0x14u;
 constexpr uint8_t kTypeString = 0x15u;
 
+/* hmi_ktp400_mobile_v13 OsOms.dll OMS::Blob::get_value_from_blob_classic @0x42250DA0:
+   types 2, 6 and 10 are one byte, 3, 7 and 11 two, 8, 12, 14, 18 and 19 four, and
+   5, 9, 13, 15, 16 and 17 eight, each byte-swapped out of the blob. */
 uint32_t FixedWidth(uint8_t type) {
     switch (type) {
     case 0x02:
@@ -81,6 +91,8 @@ bool BlobSpan(const uint8_t* d, size_t n, size_t value_at, size_t& off, size_t& 
         return off + size <= n;
     }
 
+    /* hmi_ktp400_mobile_v13 OsOms.dll sub_422DBFDC takes the streamed path on type
+       0x40000014 and reads its bytes as chunks, each behind its own header. */
     const size_t after = value_at + used;
     uint32_t streamed = 0;
     size_t used2 = 0;

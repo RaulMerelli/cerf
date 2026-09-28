@@ -4,6 +4,9 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/fatal.h"
 
+/* hmi_ktp400_mobile_v13 touch.dll carries the PDB name "touch_tsc2017.pdb" at offset
+   0x21CE, so the panel drives a Texas Instruments TSC2017. */
+
 namespace {
 
 class TiTsc2017 : public Imx6I2cDevice {

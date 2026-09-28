@@ -92,24 +92,40 @@ def build_supported_devices():
         '  <tbody>',
     ]
     for _soc_id, group in groups:
-        for index, board in enumerate(group):
+        # Boards that name the same device_family share one row: they are one product
+        # family running the same firmware images, so a row each would repeat it.
+        rows = []
+        by_family = {}
+        for board in group:
+            name = board.get('device_family')
+            if not name:
+                rows.append([board])
+            elif name in by_family:
+                by_family[name].append(board)
+            else:
+                by_family[name] = [board]
+                rows.append(by_family[name])
+
+        for index, row in enumerate(rows):
+            head = row[0]
             lines.append('    <tr>')
             if index == 0:
-                soc = soc_of(board['id'])
-                family = soc_family_of(board['id'])
-                rowspan = f' rowspan="{len(group)}"' if len(group) > 1 else ''
+                soc = soc_of(head['id'])
+                family = soc_family_of(head['id'])
+                rowspan = f' rowspan="{len(rows)}"' if len(rows) > 1 else ''
                 lines.append(f'      <td{rowspan} align="center">'
                              f'{badge_img(family["arch"])}'
                              f'<br/><b>{soc["name"]}</b>'
                              f'<br/><sub>{family["name"]}</sub></td>')
-            cell = [f'{icon_img("board", "PDA", 16)} <b>{board["name"]}</b> '
-                    f'<code>{board["id"]}</code>']
+            title = head.get('device_family') or head['name']
+            ids = ' '.join(f'<code>{member["id"]}</code>' for member in row)
+            cell = [f'{icon_img("board", "PDA", 16)} <b>{title}</b> {ids}']
             cell += [guest_os['name']
-                     for guest_os in operating_systems_of(board['id'])]
+                     for guest_os in operating_systems_of(head['id'])]
             lines.append('      <td>')
             lines.append('        ' + '<br/>\n        '.join(cell))
             lines.append('      </td>')
-            lines.append(f'      <td>{features_cell(board)}</td>')
+            lines.append(f'      <td>{features_cell(head)}</td>')
             lines.append('    </tr>')
     lines.append('  </tbody>')
     lines.append('</table>')

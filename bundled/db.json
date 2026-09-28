@@ -1493,7 +1493,8 @@
         "width": 480,
         "height": 272
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp700_mobile",
@@ -1522,7 +1523,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp700f_mobile",
@@ -1551,7 +1553,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp900_mobile",
@@ -1580,7 +1583,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp900f_mobile",
@@ -1609,7 +1613,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_tp1000f_mobile",
@@ -1638,7 +1643,8 @@
         "width": 1280,
         "height": 800
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp700f_hw_mobile",
@@ -1667,7 +1673,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     },
     {
       "id": "hmi_ktp700f_arctic_mobile",
@@ -1696,7 +1703,8 @@
         "width": 800,
         "height": 480
       },
-      "rom_placing_mode": "flat_container"
+      "rom_placing_mode": "flat_container",
+      "device_family": "Siemens SIMATIC HMI Mobile Panels, 2nd Generation"
     }
   ],
   "rom_types": [
