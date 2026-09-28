@@ -2,6 +2,7 @@
 
 #include "imx6_vivante_state.h"
 
+#include <cstddef>
 #include <cstdint>
 
 class CerfEmulator;
@@ -14,10 +15,10 @@ public:
         : state_(state), emu_(emu) {}
 
     const uint8_t* TranslateToHost(
-        uint32_t gpu_address,
+        uint32_t gpu_address, size_t size,
         MmuClient client = MmuClient::Texture) const;
     uint8_t* TranslateToHostWrite(
-        uint32_t gpu_address,
+        uint32_t gpu_address, size_t size,
         MmuClient client = MmuClient::PixelEngine) const;
 
 private:

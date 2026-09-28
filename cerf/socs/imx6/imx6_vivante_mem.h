@@ -105,7 +105,8 @@ public:
 
     void StoreStateReg(uint32_t byte_off, uint32_t value);
 
-    const uint8_t* TranslateCommandToHost(uint32_t address, FeCommandAddressSpace address_space) const;
+    const uint8_t* TranslateCommandToHost(uint32_t address, size_t size,
+                                          FeCommandAddressSpace address_space) const;
     bool ReadCommandBytes(uint32_t address, void* out_buffer, size_t count, FeCommandAddressSpace address_space) const;
     bool ReadCommandWords(uint32_t address, uint32_t* out, uint32_t count, FeCommandAddressSpace address_space) const;
     bool ReadMemoryWords(uint32_t address, uint32_t* out, uint32_t count) const;
@@ -128,8 +129,10 @@ public:
         }
     }
 
-    const uint8_t* TranslateGpuToHost(uint32_t gpu_addr, MmuClient client = MmuClient::Texture) const;
-    uint8_t* TranslateGpuToHostWrite(uint32_t gpu_addr, MmuClient client = MmuClient::PixelEngine) const;
+    const uint8_t* TranslateGpuToHost(uint32_t gpu_addr, size_t size,
+                                      MmuClient client = MmuClient::Texture) const;
+    uint8_t* TranslateGpuToHostWrite(uint32_t gpu_addr, size_t size,
+                                     MmuClient client = MmuClient::PixelEngine) const;
 
     void RaiseInterrupt(uint32_t bits) const {
         s_.intr_status_ |= bits;

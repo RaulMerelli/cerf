@@ -112,10 +112,10 @@ void VivanteRs::ExecuteRs() {
     }
 
     for (uint32_t p = 0; p < pipe_count; ++p) {
-        if (clear_mode == 0u && (pipe_src_addr[p] == 0u || !mem_.TranslateGpuToHost(pipe_src_addr[p]))) {
+        if (clear_mode == 0u && (pipe_src_addr[p] == 0u || !mem_.TranslateGpuToHost(pipe_src_addr[p], 1u))) {
             mem_.HaltUnsupported("imx6-vivante RS source outside GPU-mapped memory", kRsSourceAddr, pipe_src_addr[p]);
         }
-        if (pipe_dst_addr[p] == 0u || !mem_.TranslateGpuToHostWrite(pipe_dst_addr[p])) {
+        if (pipe_dst_addr[p] == 0u || !mem_.TranslateGpuToHostWrite(pipe_dst_addr[p], 1u)) {
             mem_.HaltUnsupported("imx6-vivante RS destination outside GPU-mapped memory", kRsDestAddr,
                                  pipe_dst_addr[p]);
         }

@@ -6,14 +6,14 @@ void VivanteMem::StoreStateReg(uint32_t byte_off, uint32_t value) {
     state_registers_.Store(byte_off, value);
 }
 
-const uint8_t* VivanteMem::TranslateGpuToHost(uint32_t gpu_addr,
+const uint8_t* VivanteMem::TranslateGpuToHost(uint32_t gpu_addr, size_t size,
                                               MmuClient client) const {
-    return mmu_.TranslateToHost(gpu_addr, client);
+    return mmu_.TranslateToHost(gpu_addr, size, client);
 }
 
-uint8_t* VivanteMem::TranslateGpuToHostWrite(uint32_t gpu_addr,
+uint8_t* VivanteMem::TranslateGpuToHostWrite(uint32_t gpu_addr, size_t size,
                                              MmuClient client) const {
-    return mmu_.TranslateToHostWrite(gpu_addr, client);
+    return mmu_.TranslateToHostWrite(gpu_addr, size, client);
 }
 
 bool VivanteMem::DetectIdleRing(uint32_t pc, FeCommandAddressSpace address_space, IdleRingInfo& info) const {
@@ -52,10 +52,11 @@ bool VivanteMem::DetectIdleRing(uint32_t pc, FeCommandAddressSpace address_space
     return true;
 }
 
-const uint8_t* VivanteMem::TranslateCommandToHost(uint32_t address, FeCommandAddressSpace address_space) const {
-    if (address_space == FeCommandAddressSpace::Virtual) return TranslateGpuToHost(address, MmuClient::Fe);
+const uint8_t* VivanteMem::TranslateCommandToHost(uint32_t address, size_t size,
+                                                  FeCommandAddressSpace address_space) const {
+    if (address_space == FeCommandAddressSpace::Virtual) return TranslateGpuToHost(address, size, MmuClient::Fe);
 
-    return emu_.Get<EmulatedMemory>().TryTranslate(address);
+    return emu_.Get<EmulatedMemory>().TryTranslateRange(address, size);
 }
 
 bool VivanteMem::ReadCommandBytes(uint32_t address, void* out_buffer, size_t count,
@@ -68,7 +69,7 @@ bool VivanteMem::ReadCommandBytes(uint32_t address, void* out_buffer, size_t cou
     while (count != 0u) {
         const size_t page_left = 0x1000u - (address & 0xFFFu);
         const size_t chunk = count < page_left ? count : page_left;
-        const uint8_t* src = TranslateCommandToHost(address, address_space);
+        const uint8_t* src = TranslateCommandToHost(address, chunk, address_space);
         if (!src) return false;
         std::memcpy(out, src, chunk);
         last_touched = address + static_cast<uint32_t>(chunk - 1u);
@@ -81,8 +82,8 @@ bool VivanteMem::ReadCommandBytes(uint32_t address, void* out_buffer, size_t cou
 
     const uint32_t fetch = last_touched & ~7u;
     uint32_t pair[2]{};
-    const uint8_t* lo = TranslateCommandToHost(fetch, address_space);
-    const uint8_t* hi = TranslateCommandToHost(fetch + 4u, address_space);
+    const uint8_t* lo = TranslateCommandToHost(fetch, sizeof(uint32_t), address_space);
+    const uint8_t* hi = TranslateCommandToHost(fetch + 4u, sizeof(uint32_t), address_space);
     if (lo && hi) {
         std::memcpy(&pair[0], lo, sizeof(pair[0]));
         std::memcpy(&pair[1], hi, sizeof(pair[1]));
@@ -100,7 +101,7 @@ bool VivanteMem::ReadCommandWords(uint32_t address, uint32_t* out, uint32_t coun
 
 bool VivanteMem::ReadMemoryWords(uint32_t address, uint32_t* out, uint32_t count) const {
     for (uint32_t i = 0; i < count; ++i) {
-        const uint8_t* p = TranslateGpuToHost(address + i * 4u, MmuClient::Fe);
+        const uint8_t* p = TranslateGpuToHost(address + i * 4u, sizeof(out[i]), MmuClient::Fe);
         if (!p) return false;
         std::memcpy(&out[i], p, sizeof(out[i]));
     }
@@ -114,7 +115,7 @@ bool VivanteMem::ReadGpuBytes(uint32_t address, void* out_buffer, size_t count, 
         const size_t page_left = 0x1000u - (address & 0xFFFu);
         size_t chunk = count;
         if (chunk > page_left) chunk = page_left;
-        const uint8_t* src = TranslateGpuToHost(address, client);
+        const uint8_t* src = TranslateGpuToHost(address, chunk, client);
         if (!src) return false;
         std::memcpy(out, src, chunk);
         out += chunk;
@@ -133,7 +134,7 @@ bool VivanteMem::WriteGpuBytes(uint32_t address, const void* in_buffer, size_t c
         const size_t page_left = 0x1000u - (address & 0xFFFu);
         size_t chunk = count;
         if (chunk > page_left) chunk = page_left;
-        uint8_t* dst = TranslateGpuToHostWrite(address, client);
+        uint8_t* dst = TranslateGpuToHostWrite(address, chunk, client);
         if (!dst) return false;
         std::memcpy(dst, in, chunk);
         in += chunk;

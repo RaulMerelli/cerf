@@ -57,9 +57,9 @@ VivanteDraw2dMultiSource::MultiSourceDesc VivanteDraw2dMultiSource::LoadMultiSou
     if (!IsValidDeRot(m.rotation))
         mem_.HaltUnsupported("imx6-vivante multi-source DE_ROT_MODE encoding is not assigned", m.rot_angle, m.rotation);
     if (m.address && m.stride && m.bpp && !m.unsupported_layout) {
-        m.valid = mem_.TranslateGpuToHost(m.address) != nullptr &&
+        m.valid = mem_.TranslateGpuToHost(m.address, 1u) != nullptr &&
                   (!IsMultiLayout(m.layout) ||
-                   (m.extra_address != 0u && mem_.TranslateGpuToHost(m.extra_address) != nullptr));
+                   (m.extra_address != 0u && mem_.TranslateGpuToHost(m.extra_address, 1u) != nullptr));
     }
     return m;
 }

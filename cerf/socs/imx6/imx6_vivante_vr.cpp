@@ -102,15 +102,15 @@ void VivanteVr::Execute(uint32_t start_value) {
     }
 
     const bool src_base_valid =
-        src_addr && src_stride && (src_bpp || src_yuv) && mem_.TranslateGpuToHost(src_addr) != nullptr &&
-        (!IsMultiLayout(src_layout) || (src_ex_addr != 0u && mem_.TranslateGpuToHost(src_ex_addr) != nullptr));
+        src_addr && src_stride && (src_bpp || src_yuv) && mem_.TranslateGpuToHost(src_addr, 1u) != nullptr &&
+        (!IsMultiLayout(src_layout) || (src_ex_addr != 0u && mem_.TranslateGpuToHost(src_ex_addr, 1u) != nullptr));
     const uint32_t u_addr = mem_.StateReg(kUplaneAddress);
     const uint32_t u_stride = mem_.StateReg(kUplaneStride) & 0x3FFFFu;
     const uint32_t v_addr = mem_.StateReg(kVplaneAddress);
     const uint32_t v_stride = mem_.StateReg(kVplaneStride) & 0x3FFFFu;
-    const bool u_base_valid = (u_addr && u_stride) ? mem_.TranslateGpuToHost(u_addr) != nullptr : false;
-    const bool v_base_valid = (v_addr && v_stride) ? mem_.TranslateGpuToHost(v_addr) != nullptr : false;
-    const bool dst_base_valid = dst_addr && dst_stride && dst_bpp && mem_.TranslateGpuToHostWrite(dst_addr) != nullptr;
+    const bool u_base_valid = (u_addr && u_stride) ? mem_.TranslateGpuToHost(u_addr, 1u) != nullptr : false;
+    const bool v_base_valid = (v_addr && v_stride) ? mem_.TranslateGpuToHost(v_addr, 1u) != nullptr : false;
+    const bool dst_base_valid = dst_addr && dst_stride && dst_bpp && mem_.TranslateGpuToHostWrite(dst_addr, 1u) != nullptr;
     const bool yuv_planes_valid =
         !src_yuv || ((src_fmt == 7u || src_fmt == 8u) || ((src_fmt == 17u || src_fmt == 18u) && u_base_valid) ||
                      (src_fmt == 15u && u_base_valid && v_base_valid));

@@ -45,18 +45,18 @@ bool VivanteMmu::TranslateMmuv1(uint32_t gpu_address, MmuClient client,
     physical = (pte & kMmuv1PageMask) | (gpu_address & ~kMmuv1PageMask);
     return true;
 }
-const uint8_t* VivanteMmu::TranslateToHost(uint32_t gpu_address,
+const uint8_t* VivanteMmu::TranslateToHost(uint32_t gpu_address, size_t size,
                                            MmuClient client) const {
     uint32_t physical = 0u;
     if (!TranslateMmuv1(gpu_address, client, physical)) return nullptr;
-    return emu_.Get<EmulatedMemory>().TryTranslate(physical);
+    return emu_.Get<EmulatedMemory>().TryTranslateRange(physical, size);
 }
 
-uint8_t* VivanteMmu::TranslateToHostWrite(uint32_t gpu_address,
+uint8_t* VivanteMmu::TranslateToHostWrite(uint32_t gpu_address, size_t size,
                                           MmuClient client) const {
     uint32_t physical = 0u;
     if (!TranslateMmuv1(gpu_address, client, physical)) return nullptr;
-    return emu_.Get<EmulatedMemory>().TryTranslateWrite(physical);
+    return emu_.Get<EmulatedMemory>().TryTranslateRange(physical, size, true);
 }
 
 }

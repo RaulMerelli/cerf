@@ -23,7 +23,7 @@ void VivanteDraw2dState::LoadState() {
     dst_swizzle_ = (dst_cfg_ >> 16) & 3u;
     dst_endian_ = (dst_cfg_ >> 20) & 3u;
     dst_bpp_ = RequireMemoryDeFormat(dst_fmt_, "imx6-vivante unsupported DRAW_2D destination format");
-    dst_ptr_ = mem_.TranslateGpuToHostWrite(dst_addr_);
+    dst_ptr_ = mem_.TranslateGpuToHostWrite(dst_addr_, 1u);
 
     dst_ready_ = dst_ptr_ && dst_stride_ != 0u && dst_bpp_ != 0u;
 
@@ -52,8 +52,8 @@ void VivanteDraw2dState::LoadState() {
     if (!IsKnownDeFormat(src_fmt_) || (src_bpp_ == 0u && !(src_fmt_ == 10u && src_stream_))) {
         mem_.HaltUnsupported("imx6-vivante unsupported DRAW_2D source format", kD2dSrcConfig, src_fmt_);
     }
-    src_ptr_ = (src_addr_ && src_stride_ && src_bpp_) ? mem_.TranslateGpuToHost(src_addr_) : nullptr;
-    src_extra_ptr_ = IsMultiLayout(src_layout_) && src_ex_addr_ ? mem_.TranslateGpuToHost(src_ex_addr_) : nullptr;
+    src_ptr_ = (src_addr_ && src_stride_ && src_bpp_) ? mem_.TranslateGpuToHost(src_addr_, 1u) : nullptr;
+    src_extra_ptr_ = IsMultiLayout(src_layout_) && src_ex_addr_ ? mem_.TranslateGpuToHost(src_ex_addr_, 1u) : nullptr;
     src_surface_configured_ = src_addr_ != 0u && src_stride_ != 0u && src_bpp_ != 0u && !src_layout_conflict_ &&
                               (!IsMultiLayout(src_layout_) || src_ex_addr_ != 0u);
 
@@ -136,7 +136,7 @@ void VivanteDraw2dState::LoadState() {
     if (pat_memory_ && (!IsKnownDeFormat(pat_fmt_) || pat_bpp_ == 0u)) {
         mem_.HaltUnsupported("imx6-vivante unsupported DRAW_2D pattern format", kD2dPatternConfig, pat_fmt_);
     }
-    pat_ptr_ = (pat_memory_ && pat_addr_ && pat_bpp_) ? mem_.TranslateGpuToHost(pat_addr_) : nullptr;
+    pat_ptr_ = (pat_memory_ && pat_addr_ && pat_bpp_) ? mem_.TranslateGpuToHost(pat_addr_, 1u) : nullptr;
     src_key_low_ = src_bg_;
     src_key_high_ = mem_.StateReg(kD2dSrcColorKeyHigh);
     dst_key_low_ = mem_.StateReg(kD2dDestColorKey);

@@ -26,7 +26,11 @@ void VivanteFe::AdvanceFrontendRing() {
 
     if (s_.fe_idle_ring_) {
         uint32_t w0 = 0u;
-        mem_.ReadCommandWords(s_.fe_ring_pc_, &w0, 1u, s_.fe_address_space_);
+        if (!mem_.ReadCommandWords(s_.fe_ring_pc_, &w0, 1u, s_.fe_address_space_)) {
+            s_.regs_[kFeCurrentAddress >> 2] = s_.fe_ring_pc_;
+            s_.fe_in_advance_ = false;
+            return;
+        }
         const uint32_t op = w0 >> 27;
         if (op == kFeLink) {
             s_.fe_idle_ring_ = false;
