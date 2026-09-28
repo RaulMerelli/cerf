@@ -12,7 +12,6 @@ namespace {
 /* No panel's own blanking is in any reference on hand. ddraw_ipu.dll sub_EF52245C
    copies these values into its configuration without validating them, and nothing in
    CERF reads them, so each set is a stand-in whose clock gives 60 Hz over its totals. */
-/* Fields: width, height, hsync, hstart, hend, vsync, vstart, vend, pixel clock, bus. */
 constexpr KtpMobilePanel kPanel480x272AbsentStub =
     {480u, 272u, 1u, 42u, 8u, 10u, 2u, 4u, 9175680u, 24u};
 constexpr KtpMobilePanel kPanel800x480AbsentStub =

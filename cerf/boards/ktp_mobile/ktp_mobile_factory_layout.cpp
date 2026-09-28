@@ -75,7 +75,7 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     constexpr uint32_t kPaHeaderSize = 0x00000200u;
     constexpr uint32_t kFwfInfoOff = kKtp400FwfInfoOff;
     constexpr uint32_t kFwfInfoSize = kKtp400FwfInfoSize;
-    const std::vector<uint8_t> ktp400_oms_root = BuildKtpMobileInstalledHardwareDescriptionOms(hardware_mac, op_type, panel);
+    const std::vector<uint8_t> ktp400_oms_root = BuildKtpMobileHardwareInfoOms(hardware_mac, op_type, panel);
     std::vector<uint8_t> installed_firmware;
     cerf::fwf_oms::ExtractInstalledFirmwareSummary(fwf_container.data(), fwf_container.size(), installed_firmware);
     const uint32_t kHwfSize = static_cast<uint32_t>(ktp400_oms_root.size());

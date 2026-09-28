@@ -56,7 +56,7 @@ uint32_t FixedWidth(uint8_t type) {
 }
 
 bool IsRecordTag(uint8_t b) {
-    return (b >= 0xA1u && b <= 0xA7u) || b == 0xA9u;
+    return b >= 0xA1u && b <= 0xAFu;
 }
 
 bool Varint(const uint8_t* d, size_t n, size_t at, uint32_t& value, size_t& used) {

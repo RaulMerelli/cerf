@@ -7,8 +7,14 @@ namespace {
 constexpr char kHex[] = "0123456789ABCDEF";
 
 void PushVarint(std::vector<uint8_t>& out, uint32_t value) {
-    if (value >= 0x80u) out.push_back(static_cast<uint8_t>(0x80u | ((value >> 7u) & 0x7Fu)));
-    out.push_back(static_cast<uint8_t>(value & 0x7Fu));
+    uint8_t group[5];
+    std::size_t count = 0;
+    do {
+        group[count++] = static_cast<uint8_t>(value & 0x7Fu);
+        value >>= 7u;
+    } while (value != 0u);
+    while (count > 1u) out.push_back(static_cast<uint8_t>(0x80u | group[--count]));
+    out.push_back(group[0]);
 }
 
 void PushUintProperty(std::vector<uint8_t>& out, uint8_t id_hi, uint8_t id_lo, uint32_t value) {
@@ -23,10 +29,8 @@ void PushUintProperty(std::vector<uint8_t>& out, uint8_t id_hi, uint8_t id_lo, u
 
 }
 
-namespace {
-
-std::vector<uint8_t> BuildHardwareInfo(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
-                                       const KtpMobilePanel* panel) {
+std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
+                                                   const KtpMobilePanel& panel) {
     /* hmi_ktp400_mobile_v13 bspio.dll HWI_GetMACAddressInfo @0x418851DC reads
        MicroOMS object 0x474C, child 0x4928, and string property 0x492B. */
 
@@ -53,24 +57,22 @@ std::vector<uint8_t> BuildHardwareInfo(const std::array<uint8_t, 6>& mac, KtpMob
                                                    0x20, 0x00, 0xA3, 0x81, 0x92, 0x2B, 0x00, 0x15, 0x11};
 
     std::vector<uint8_t> oms(std::begin(kRootObject), std::end(kRootObject));
-    if (panel) {
-        oms.insert(oms.end(), std::begin(kPanelObject), std::end(kPanelObject));
-        PushUintProperty(oms, 0x8E, 0x59, panel->width);
-        PushUintProperty(oms, 0x8E, 0x5A, panel->height);
-        /* bspio.dll HWI_GetDisplayAttributes @0x41D15730 fills its struct from these
-           attribute ids; ddi_wrapper.dll sub_EF202EEC writes them to the LVDS1
-           configuration key only when the pixel clock is non-zero. */
-        PushUintProperty(oms, 0x93, 0x5F, 0u);
-        PushUintProperty(oms, 0x93, 0x62, panel->data_bus_width);
-        PushUintProperty(oms, 0x93, 0x64, panel->pixel_clock_hz);
-        PushUintProperty(oms, 0x93, 0x66, panel->vsync_width);
-        PushUintProperty(oms, 0x93, 0x68, panel->vend_width);
-        PushUintProperty(oms, 0x93, 0x69, panel->vstart_width);
-        PushUintProperty(oms, 0x93, 0x6C, panel->hsync_width);
-        PushUintProperty(oms, 0x93, 0x6E, panel->hend_width);
-        PushUintProperty(oms, 0x93, 0x6F, panel->hstart_width);
-        oms.insert(oms.end(), std::begin(kPanelRest), std::end(kPanelRest));
-    }
+    oms.insert(oms.end(), std::begin(kPanelObject), std::end(kPanelObject));
+    PushUintProperty(oms, 0x8E, 0x59, panel.width);
+    PushUintProperty(oms, 0x8E, 0x5A, panel.height);
+    /* bspio.dll HWI_GetDisplayAttributes @0x41D15730 fills its struct from these
+       attribute ids; ddi_wrapper.dll sub_EF202EEC writes them to the LVDS1
+       configuration key only when the pixel clock is non-zero. */
+    PushUintProperty(oms, 0x93, 0x5F, 0u);
+    PushUintProperty(oms, 0x93, 0x62, panel.data_bus_width);
+    PushUintProperty(oms, 0x93, 0x64, panel.pixel_clock_hz);
+    PushUintProperty(oms, 0x93, 0x66, panel.vsync_width);
+    PushUintProperty(oms, 0x93, 0x68, panel.vend_width);
+    PushUintProperty(oms, 0x93, 0x69, panel.vstart_width);
+    PushUintProperty(oms, 0x93, 0x6C, panel.hsync_width);
+    PushUintProperty(oms, 0x93, 0x6E, panel.hend_width);
+    PushUintProperty(oms, 0x93, 0x6F, panel.hstart_width);
+    oms.insert(oms.end(), std::begin(kPanelRest), std::end(kPanelRest));
     oms.insert(oms.end(), std::begin(kOpTypeObject), std::end(kOpTypeObject));
     PushUintProperty(oms, 0x92, 0x0D, static_cast<uint32_t>(op_type));
     oms.push_back(0xA2);
@@ -87,15 +89,3 @@ std::vector<uint8_t> BuildHardwareInfo(const std::array<uint8_t, 6>& mac, KtpMob
     return oms;
 }
 
-}
-
-std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
-                                                   KtpMobilePanel panel) {
-    return BuildHardwareInfo(mac, op_type, &panel);
-}
-
-std::vector<uint8_t> BuildKtpMobileInstalledHardwareDescriptionOms(const std::array<uint8_t, 6>& mac,
-                                                                   KtpMobileOpType op_type,
-                                                                   KtpMobilePanel panel) {
-    return BuildHardwareInfo(mac, op_type, &panel);
-}

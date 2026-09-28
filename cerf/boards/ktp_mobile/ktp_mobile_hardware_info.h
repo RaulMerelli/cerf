@@ -30,8 +30,4 @@ struct KtpMobilePanel {
 };
 
 std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>& mac, KtpMobileOpType op_type,
-                                                   KtpMobilePanel panel);
-
-std::vector<uint8_t> BuildKtpMobileInstalledHardwareDescriptionOms(const std::array<uint8_t, 6>& mac,
-                                                                   KtpMobileOpType op_type,
-                                                                   KtpMobilePanel panel);
+                                                   const KtpMobilePanel& panel);
