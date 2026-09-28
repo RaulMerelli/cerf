@@ -3,6 +3,7 @@
 #include "../../core/cerf_emulator.h"
 #include "../../core/cerf_paths.h"
 #include "../../core/device_config.h"
+#include "../../core/fatal.h"
 #include "../../net/network_backend.h"
 #include "../../socs/imx6/imx6_fec.h"
 #include "../board_context.h"
@@ -93,13 +94,21 @@ uint8_t KtpMobileEmmc::ErasedMemCont() const {
 }
 
 void KtpMobileEmmc::ReadBlock(uint32_t sector, uint8_t* out) {
+    RequireSector(sector, "read");
     std::memcpy(out, data_.data() + static_cast<size_t>(sector) * kBlockBytes, kBlockBytes);
 }
 
 void KtpMobileEmmc::WriteBlock(uint32_t sector, const uint8_t* data) {
+    RequireSector(sector, "write");
     const uint64_t offset = static_cast<uint64_t>(sector) * kBlockBytes;
     std::memcpy(data_.data() + static_cast<size_t>(offset), data, kBlockBytes);
     backing_->Persist(data_, offset, kBlockBytes);
+}
+
+void KtpMobileEmmc::RequireSector(uint32_t sector, const char* what) const {
+    if (sector >= kSectorCount)
+        emu_.Get<Fatal>().Die("KTP Mobile eMMC: %s of sector %u past the %u-sector card",
+                              what, sector, kSectorCount);
 }
 
 REGISTER_SERVICE_AS(KtpMobileEmmc, MmcCard);

@@ -28,6 +28,9 @@ protected:
     void WriteBlock(uint32_t sector, const uint8_t* data) override;
 
 private:
+    void RequireSector(uint32_t sector, const char* what) const;
+
+private:
     std::vector<uint8_t>                data_;
     std::unique_ptr<KtpMobileEmmcBacking> backing_;
 };
