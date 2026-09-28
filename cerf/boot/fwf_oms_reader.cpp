@@ -103,8 +103,7 @@ bool BlobSpan(const uint8_t* d, size_t n, size_t value_at, size_t& off, size_t& 
     }
     const size_t data = after + used2;
     const size_t end = data + streamed;
-    if (end <= n &&
-        (end == n || d[end] == kStreamStart || IsRecordTag(d[end]) || (d[end] >= 0xB0u && d[end] <= 0xBFu))) {
+    if (end <= n && (end == n || d[end] == kStreamStart || IsRecordTag(d[end]))) {
         off = data;
         size = streamed;
         return true;
