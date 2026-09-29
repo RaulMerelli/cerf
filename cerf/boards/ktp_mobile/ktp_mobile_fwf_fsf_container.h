@@ -23,6 +23,6 @@ struct FatSink {
     std::function<void(uint32_t, uint32_t, uint32_t)> persist;
 };
 
-uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, const FatSink& fat);
+bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, const FatSink& fat);
 
 }

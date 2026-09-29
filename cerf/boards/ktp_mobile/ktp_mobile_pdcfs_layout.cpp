@@ -25,14 +25,14 @@ uint32_t Get32(const uint8_t* p) {
 
 namespace ktp_mobile_emmc {
 
-void EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_range,
+bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_range,
                        const std::vector<ktp_mobile_fwf::FsfEntry>& addon_files) {
-    if (data.size() < 16u * 1024u * 1024u) return;
+    if (data.size() < 16u * 1024u * 1024u) return true;
 
     const uint8_t* mbr = data.data();
-    if (mbr[510] != 0x55u || mbr[511] != 0xAAu) return;
+    if (mbr[510] != 0x55u || mbr[511] != 0xAAu) return true;
     const uint32_t part_lba = Get32(mbr + 446u + 8u);
-    if (part_lba == 0u || (uint64_t(part_lba) + 1u) * 512u > data.size()) return;
+    if (part_lba == 0u || (uint64_t(part_lba) + 1u) * 512u > data.size()) return true;
 
     uint8_t* bpb = data.data() + uint64_t(part_lba) * 512u;
     const uint16_t bytes_per_sec = uint16_t(bpb[11] | (uint16_t(bpb[12]) << 8));
@@ -64,7 +64,7 @@ void EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
 
     if (uint16_t(bpb[11] | (uint16_t(bpb[12]) << 8)) != 512u || bpb[13] == 0u || bpb[16] == 0u ||
         Get32(bpb + 36u) == 0u || Get32(bpb + 44u) < 2u)
-        return;
+        return true;
 
     const uint32_t spc = bpb[13];
     const uint32_t reserved = uint16_t(bpb[14] | (uint16_t(bpb[15]) << 8));
@@ -100,7 +100,7 @@ void EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
         Put16(ent + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
     };
 
-    if (cluster_off(root_clus) + uint64_t(spc) * 512u > data.size()) return;
+    if (cluster_off(root_clus) + uint64_t(spc) * 512u > data.size()) return true;
     if (get_fat(0u) == 0u) put_fat(0u, 0x0FFFFFF8u);
     if (get_fat(1u) == 0u) put_fat(1u, 0x0FFFFFFFu);
     if (get_fat(root_clus) == 0u) put_fat(root_clus, 0x0FFFFFFFu);
@@ -386,11 +386,12 @@ void EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
             fat.persist = [&](uint32_t clus, uint32_t off, uint32_t len) {
                 persist_range(cluster_off(clus) + off, len);
             };
-            ktp_mobile_fwf::SeedFsfVolume(addon_files, root_clus, fat);
+            if (!ktp_mobile_fwf::SeedFsfVolume(addon_files, root_clus, fat)) return false;
         }
     }
     ensure_root_file_min_size("__LOG__    ", 2048u);
     ensure_fsinfo();
+    return true;
 }
 
 }

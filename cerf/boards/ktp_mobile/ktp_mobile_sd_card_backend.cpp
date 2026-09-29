@@ -88,10 +88,13 @@ void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
     mbr[511] = 0xAAu;
     Persist(data, 0u, 512u);
     EnsureHardwareInfo(data);
-    ktp_mobile_emmc::EnsurePdcfsLayout(
-        data, [this, &data](uint64_t offset, uint64_t length) {
-            Persist(data, offset, length);
-        }, ktp_mobile_fwf::ParseFsfVolume(fwf_container_));
+    if (!ktp_mobile_emmc::EnsurePdcfsLayout(
+            data, [this, &data](uint64_t offset, uint64_t length) {
+                Persist(data, offset, length);
+            }, ktp_mobile_fwf::ParseFsfVolume(fwf_container_))) {
+        LOG(Caution, "KTP Mobile SD card: the FSF volume does not fit the PDCFS directory\n");
+        CerfFatalExit(CERF_FATAL_RUNTIME_ERROR);
+    }
     PersistHardwareInfo(data);
     Flush(data);
 }

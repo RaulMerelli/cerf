@@ -259,9 +259,9 @@ std::string EntryName(const uint8_t* dir, uint32_t at) {
 
 }
 
-uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, const FatSink& fat) {
+bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, const FatSink& fat) {
     if (root_clus < 2u || fat.cluster_bytes < 2u * kDirEntryBytes || (fat.cluster_bytes % kDirEntryBytes) != 0u)
-        return 0u;
+        return false;
 
     std::map<std::string, uint32_t> dir_cache;
     std::map<uint32_t, DirectoryWriter> writers;
@@ -285,7 +285,7 @@ uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus,
     create:
         const uint32_t clus = fat.alloc_cluster();
         uint8_t* body = clus ? fat.cluster_ptr(clus) : nullptr;
-        if (!body) return 0u;
+        if (!body) return false;
         std::memset(body, 0, fat.cluster_bytes);
         std::memcpy(body, ".          ", 11u);
         body[11] = 0x10u;
@@ -301,7 +301,7 @@ uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus,
         auto it = writers.try_emplace(parent, fat, parent).first;
         const uint32_t slots = static_cast<uint32_t>((name.size() + kLfnCharsPerSlot - 1u) / kLfnCharsPerSlot);
         uint8_t* slot = it->second.Take(slots + 1u);
-        if (!slot) return 0u;
+        if (!slot) return false;
         uint8_t short_name[11];
         MakeShortName(name, ++written, short_name);
         const uint8_t checksum = ShortChecksum(short_name);
@@ -360,7 +360,7 @@ uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus,
         Put32(ent + 28u, static_cast<uint32_t>(entry.data.size()));
         it->second.Persist(slot, lfn_slots + 1u);
     }
-    return written;
+    return true;
 }
 
 }
