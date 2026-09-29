@@ -68,10 +68,13 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     constexpr uint32_t kPartLbaBytes = kKtp400PartLbaBytes;
     constexpr uint32_t kSectorMagic = 0x20100305u;
     constexpr uint32_t kHwfOff = 0x00102000u;
-    constexpr uint32_t kHwfAreaSize = 0x00000200u;
-    constexpr uint32_t kBootStateOff = 0x00103000u;
+    /* hmi_tp1000f_mobile_v17 bspio.dll sub_41D17FE0 takes at most 0x19000 bytes of HWF
+       behind its 8-byte header, and sub_41D171A8 rejects an area size that is not a
+       multiple of 0x200. */
+    constexpr uint32_t kHwfAreaSize = 0x00019200u;
+    constexpr uint32_t kBootStateOff = kHwfOff + kHwfAreaSize;
     constexpr uint32_t kBootStateSize = 0x00000200u;
-    constexpr uint32_t kPaHeaderOff = 0x00103200u;
+    constexpr uint32_t kPaHeaderOff = kBootStateOff + kBootStateSize;
     constexpr uint32_t kPaHeaderSize = 0x00000200u;
     constexpr uint32_t kFwfInfoOff = kKtp400FwfInfoOff;
     constexpr uint32_t kFwfInfoSize = kKtp400FwfInfoSize;
@@ -133,9 +136,6 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
     seed_at(kSectorTableOff, kHwfOff, kBootStateOff, kPaHeaderOff, kFwfInfoOff);
 
     /* bspio.dll Store accesses use byte offset 0x101000 from card or partition base. */
-    seed_at(kSectorTableOff + kPartLbaBytes, kHwfOff + kPartLbaBytes, kBootStateOff + kPartLbaBytes,
-            kPaHeaderOff + kPartLbaBytes, kFwfInfoOff + kPartLbaBytes);
-
     seed_at(kSectorTableOff + kPartLbaBytes, kHwfOff, kBootStateOff, kPaHeaderOff, kFwfInfoOff);
 }
 

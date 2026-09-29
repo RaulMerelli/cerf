@@ -36,10 +36,18 @@ void PushAttribute(std::vector<uint8_t>& out, uint32_t id, uint8_t type, uint32_
         out.push_back(static_cast<uint8_t>(value));
         break;
     case kOmsVarint: PushVarint(out, value); break;
-    case kOmsSignedVarint:
-        if (value > 0x3Fu) out.push_back(static_cast<uint8_t>(0x80u | (value >> 7u)));
-        out.push_back(static_cast<uint8_t>(value & 0x7Fu));
+    case kOmsSignedVarint: {
+        uint8_t group[6];
+        std::size_t count = 0;
+        do {
+            group[count++] = static_cast<uint8_t>(value & 0x7Fu);
+            value >>= 7u;
+        } while (value != 0u);
+        if (group[count - 1u] & 0x40u) group[count++] = 0u;
+        while (count > 1u) out.push_back(static_cast<uint8_t>(0x80u | group[--count]));
+        out.push_back(group[0]);
         break;
+    }
     }
 }
 
@@ -62,9 +70,17 @@ void PushDisplayObject(std::vector<uint8_t>& out, const KtpMobilePanel& panel) {
     PushAttribute(out, 18266u, kOmsVarint, panel.height);
     PushAttribute(out, 18267u, kOmsVarint, 0u);
     PushAttribute(out, 18268u, kOmsVarint, 0u);
-    /* hmi_ktp700_mobile_v17 backlight.dll sub_EF2C4154 falls back to the registry
-       BrightnessMin_PWM / BrightnessMax_PWM when all five brightness values are 0. */
-    for (uint32_t id = 18756u; id <= 18760u; ++id) PushAttribute(out, id, kOmsSignedVarint, 0u);
+    /* hmi_ktp700_mobile_v17 backlight.dll sub_EF2C3FA0 builds the 101-step PWM table
+       as table[0] = MaxReg and, with MaxReg <= MinReg, table[b] =
+       (MinReg - OffsetC) * 2^(-(100 - b) * FactorF / GammaB) + OffsetC. MaxReg and
+       MinReg take BrightnessMin_PWM = 0 and BrightnessMax_PWM = 33000 from
+       KTP_7_9_Mobile_V17_0.fwf default.hv; GammaB 50 and FactorF 1 are a chosen
+       slope, no reference on hand has the panel's curve. */
+    PushAttribute(out, 18756u, kOmsSignedVarint, 33000u);
+    PushAttribute(out, 18757u, kOmsSignedVarint, 0u);
+    PushAttribute(out, 18758u, kOmsSignedVarint, 50u);
+    PushAttribute(out, 18759u, kOmsSignedVarint, 0u);
+    PushAttribute(out, 18760u, kOmsSignedVarint, 1u);
     /* hmi_ktp700_mobile_v17 ddi_wrapper.dll sub_EF232EEC selects the LVDS1 key for
        Interface 0 and copies DataColorBits, PixelClock, the pulse widths and porches,
        and the polarities into it: HStartWidth is HsyncFrontPorch, HEndWidth

@@ -106,7 +106,7 @@ void KtpMobileSdCardBackend::EnsureHardwareInfo(std::vector<uint8_t>& data) {
 
 void KtpMobileSdCardBackend::PersistHardwareInfo(
     const std::vector<uint8_t>& data) {
-    Persist(data, kFactoryTableOffset, 0x00006000u + kPartitionLbaBytes);
+    Persist(data, kFactoryTableOffset, 0x0001A600u + kPartitionLbaBytes);
     std::vector<uint8_t> installed_firmware;
     if (cerf::fwf_oms::ExtractInstalledFirmwareSummary(
             fwf_container_.data(), fwf_container_.size(), installed_firmware)) {
