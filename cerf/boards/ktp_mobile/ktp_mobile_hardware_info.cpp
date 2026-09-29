@@ -17,6 +17,32 @@ void PushVarint(std::vector<uint8_t>& out, uint32_t value) {
     out.push_back(group[0]);
 }
 
+/* hmi_tp1000f_mobile_v17 bspio.dll sub_41D1B268: an attribute is its id varint, a
+   big-endian 16-bit type, then type 1 one byte read as bool, type 2 one byte, type 3
+   a big-endian 16-bit value (sub_41D1AE9C), type 4 an unsigned varint (sub_41D1AF44)
+   and type 8 a varint whose first group is sign-extended from bit 6 (sub_41D1AF80). */
+enum : uint8_t { kOmsBool = 1u, kOmsU8 = 2u, kOmsU16 = 3u, kOmsVarint = 4u, kOmsSignedVarint = 8u };
+
+void PushAttribute(std::vector<uint8_t>& out, uint32_t id, uint8_t type, uint32_t value) {
+    out.push_back(0xA3);
+    PushVarint(out, id);
+    out.push_back(0x00);
+    out.push_back(type);
+    switch (type) {
+    case kOmsBool: out.push_back(value != 0u ? 1u : 0u); break;
+    case kOmsU8: out.push_back(static_cast<uint8_t>(value)); break;
+    case kOmsU16:
+        out.push_back(static_cast<uint8_t>(value >> 8u));
+        out.push_back(static_cast<uint8_t>(value));
+        break;
+    case kOmsVarint: PushVarint(out, value); break;
+    case kOmsSignedVarint:
+        if (value > 0x3Fu) out.push_back(static_cast<uint8_t>(0x80u | (value >> 7u)));
+        out.push_back(static_cast<uint8_t>(value & 0x7Fu));
+        break;
+    }
+}
+
 void PushUintProperty(std::vector<uint8_t>& out, uint8_t id_hi, uint8_t id_lo, uint32_t value) {
     out.push_back(0xA3);
     out.push_back(0x81);
@@ -25,6 +51,52 @@ void PushUintProperty(std::vector<uint8_t>& out, uint8_t id_hi, uint8_t id_lo, u
     out.push_back(0x00);
     out.push_back(0x04);
     PushVarint(out, value);
+}
+
+/* hmi_ktp700_mobile_v17 DeviceManager.exe sub_54B68 registers the display class
+   attributes with these ids and OMS::ValueType codes. */
+void PushDisplayObject(std::vector<uint8_t>& out, const KtpMobilePanel& panel) {
+    const uint32_t h_period = panel.width + panel.hsync_width + panel.hstart_width + panel.hend_width;
+    const uint32_t v_period = panel.height + panel.vsync_width + panel.vstart_width + panel.vend_width;
+    PushAttribute(out, 18265u, kOmsVarint, panel.width);
+    PushAttribute(out, 18266u, kOmsVarint, panel.height);
+    PushAttribute(out, 18267u, kOmsVarint, 0u);
+    PushAttribute(out, 18268u, kOmsVarint, 0u);
+    /* hmi_ktp700_mobile_v17 backlight.dll sub_EF2C4154 falls back to the registry
+       BrightnessMin_PWM / BrightnessMax_PWM when all five brightness values are 0. */
+    for (uint32_t id = 18756u; id <= 18760u; ++id) PushAttribute(out, id, kOmsSignedVarint, 0u);
+    /* hmi_ktp700_mobile_v17 ddi_wrapper.dll sub_EF232EEC selects the LVDS1 key for
+       Interface 0 and copies DataColorBits, PixelClock, the pulse widths and porches,
+       and the polarities into it: HStartWidth is HsyncFrontPorch, HEndWidth
+       HsyncBackPorch, VStartWidth VsyncFrontPorch, VEndWidth VsyncBackPorch,
+       OuputEnablePolarity EnPolarity and ClkPol DePolarity. */
+    PushAttribute(out, 18911u, kOmsU8, 0u);
+    PushAttribute(out, 18912u, kOmsU8, 0u);
+    PushAttribute(out, 18913u, kOmsU8, 0u);
+    PushAttribute(out, 18914u, kOmsU8, panel.data_bus_width);
+    PushAttribute(out, 18915u, kOmsU8, 0u);
+    PushAttribute(out, 18916u, kOmsVarint, panel.pixel_clock_hz);
+    PushAttribute(out, 18917u, kOmsU16, v_period);
+    PushAttribute(out, 18918u, kOmsU16, panel.vsync_width);
+    PushAttribute(out, 18919u, kOmsU16, panel.height);
+    PushAttribute(out, 18920u, kOmsU16, panel.vend_width);
+    PushAttribute(out, 18921u, kOmsU16, panel.vstart_width);
+    PushAttribute(out, 18922u, kOmsBool, 0u);
+    PushAttribute(out, 18923u, kOmsU16, h_period);
+    PushAttribute(out, 18924u, kOmsU16, panel.hsync_width);
+    PushAttribute(out, 18925u, kOmsU16, panel.width);
+    PushAttribute(out, 18926u, kOmsU16, panel.hend_width);
+    PushAttribute(out, 18927u, kOmsU16, panel.hstart_width);
+    PushAttribute(out, 18928u, kOmsBool, 0u);
+    PushAttribute(out, 18929u, kOmsBool, 0u);
+    PushAttribute(out, 18930u, kOmsBool, 0u);
+    /* KTP_7_9_Mobile_V17_0.fwf default.hv [HKLM\Drivers\Display\Configuration\LVDS1]
+       OuputEnablePolarity = 1 in every Mobile ROM. */
+    PushAttribute(out, 18931u, kOmsBool, 1u);
+    for (uint32_t id = 18932u; id <= 18935u; ++id) PushAttribute(out, id, kOmsU16, 0u);
+    PushAttribute(out, 18936u, kOmsVarint, 0u);
+    PushAttribute(out, 18937u, kOmsU16, 0u);
+    PushAttribute(out, 18938u, kOmsU16, 0u);
 }
 
 }
@@ -38,17 +110,13 @@ std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>&
                                               /* hmi_ktp400_mobile_v17 DeviceManager.exe @0x17E80 and @0x72DC8. */
                                               0xA1, 0x01, 0x00, 0x00, 0x01, 0x81, 0x8E, 0x2F, 0x20, 0x00};
 
-    static constexpr uint8_t kPanelObject[] = {0xA1, 0x01, 0x00, 0x00, 0x02, 0x81, 0x8E, 0x3F, 0x20, 0x00,
-                                               0xA1, 0x01, 0x00, 0x00, 0x03, 0x81, 0x8E, 0x58, 0x20, 0x00};
+    /* hmi_ktp700_mobile_v17 backlight.dll sub_EF2C4038 and bspio.dll
+       HWI_GetDisplayAttributes @0x41D15730 reach the display attributes through root
+       child 18239, then 18264. */
+    static constexpr uint8_t kDisplayObject[] = {0xA1, 0x01, 0x00, 0x00, 0x02, 0x81, 0x8E, 0x3F, 0x20, 0x00,
+                                                 0xA1, 0x01, 0x00, 0x00, 0x03, 0x81, 0x8E, 0x58, 0x20, 0x00};
 
     /* hmi_ktp400_mobile_v13 bspio.dll HWI_GetOPTypeEx @0x418852B8. */
-    static constexpr uint8_t kPanelRest[] = {
-        0xA3, 0x81, 0x8E, 0x5B, 0x00, 0x04, 0x80, 0x5F, 0xA3, 0x81, 0x8E, 0x5C, 0x00, 0x04, 0x80, 0x36,
-        0xA3, 0x81, 0x92, 0x44, 0x00, 0x04, 0x01, 0xA3, 0x81, 0x92, 0x45, 0x00, 0x04, 0x0F, 0xA3, 0x81,
-        0x92, 0x46, 0x00, 0x04, 0x80, 0x64, 0xA3, 0x81, 0x92, 0x47, 0x00, 0x04, 0x00, 0xA3, 0x81, 0x92,
-        0x48, 0x00, 0x04, 0x80, 0x64, 0xA2, 0xA1, 0x01, 0x00, 0x00, 0x04, 0x81, 0x8E, 0x5E, 0x20, 0x00,
-        0xA2, 0xA1, 0x01, 0x00, 0x00, 0x05, 0x81, 0x8E, 0x63, 0x20, 0x00, 0xA2, 0xA2};
-
     static constexpr uint8_t kOpTypeObject[] = {0xA1, 0x01, 0x00, 0x00, 0x06, 0x81, 0x92, 0x07, 0x20,
                                                 0x00, 0xA3, 0x81, 0x92, 0x0A, 0x00, 0x04, 0x40};
 
@@ -57,22 +125,10 @@ std::vector<uint8_t> BuildKtpMobileHardwareInfoOms(const std::array<uint8_t, 6>&
                                                    0x20, 0x00, 0xA3, 0x81, 0x92, 0x2B, 0x00, 0x15, 0x11};
 
     std::vector<uint8_t> oms(std::begin(kRootObject), std::end(kRootObject));
-    oms.insert(oms.end(), std::begin(kPanelObject), std::end(kPanelObject));
-    PushUintProperty(oms, 0x8E, 0x59, panel.width);
-    PushUintProperty(oms, 0x8E, 0x5A, panel.height);
-    /* bspio.dll HWI_GetDisplayAttributes @0x41D15730 fills its struct from these
-       attribute ids; ddi_wrapper.dll sub_EF202EEC writes them to the LVDS1
-       configuration key only when the pixel clock is non-zero. */
-    PushUintProperty(oms, 0x93, 0x5F, 0u);
-    PushUintProperty(oms, 0x93, 0x62, panel.data_bus_width);
-    PushUintProperty(oms, 0x93, 0x64, panel.pixel_clock_hz);
-    PushUintProperty(oms, 0x93, 0x66, panel.vsync_width);
-    PushUintProperty(oms, 0x93, 0x68, panel.vend_width);
-    PushUintProperty(oms, 0x93, 0x69, panel.vstart_width);
-    PushUintProperty(oms, 0x93, 0x6C, panel.hsync_width);
-    PushUintProperty(oms, 0x93, 0x6E, panel.hend_width);
-    PushUintProperty(oms, 0x93, 0x6F, panel.hstart_width);
-    oms.insert(oms.end(), std::begin(kPanelRest), std::end(kPanelRest));
+    oms.insert(oms.end(), std::begin(kDisplayObject), std::end(kDisplayObject));
+    PushDisplayObject(oms, panel);
+    oms.push_back(0xA2);
+    oms.push_back(0xA2);
     oms.insert(oms.end(), std::begin(kOpTypeObject), std::end(kOpTypeObject));
     PushUintProperty(oms, 0x92, 0x0D, static_cast<uint32_t>(op_type));
     oms.push_back(0xA2);
