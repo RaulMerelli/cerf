@@ -6,7 +6,6 @@
 #include "../../core/service.h"
 #include "../../state/state_stream.h"
 
-enum class ResetLineKind;
 
 class Imx6GpioInputSource : public Service {
 public:
@@ -27,7 +26,7 @@ public:
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
     virtual void PostRestore() { Reevaluate(); }
-    virtual void OnControllerReset(ResetLineKind) {}
+    virtual void OnControllerReset() {}
 
     void SetReevaluate(std::function<void()> fn) { reevaluate_ = std::move(fn); }
 

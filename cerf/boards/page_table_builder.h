@@ -20,11 +20,6 @@ struct DramRegion {
     uint32_t size;
 };
 
-struct InjectionBandPlacement {
-    uint32_t va;
-    bool     run_in_place;
-};
-
 struct BackedRegion {
     uint32_t va_base;
     uint32_t pa_base;
@@ -110,7 +105,5 @@ public:
         return 0u;
     }
 
-    virtual InjectionBandPlacement GuestAdditionsBandPlacement(uint32_t size) const {
-        return {StaticWindowHole(size), true};
-    }
+    virtual uint32_t GuestAdditionsBandVa(uint32_t size) const { return StaticWindowHole(size); }
 };

@@ -69,6 +69,8 @@ bool Varint(const uint8_t* d, size_t n, size_t at, uint32_t& value, size_t& used
     return false;
 }
 
+/* hmi_tp1000f_mobile_v17 bspio.dll sub_41D1D25C reads an object header as a 4-byte
+   big-endian word, the class id varint and two more varints, here 0x20 and 0x00. */
 bool ObjectHeaderLength(const uint8_t* d, size_t n, size_t at, size_t& length) {
     for (size_t q = at + 2u; q + 1u < n && q < at + 26u; ++q) {
         if (d[q] != 0x20u || d[q + 1u] != 0x00u) continue;
@@ -230,6 +232,8 @@ bool AssembleOsImage(const uint8_t* src, size_t size, std::vector<uint8_t>& out,
 
 bool ExtractPersistentStream(const uint8_t* src, size_t size, std::vector<uint8_t>& out) {
     if (!IsOmsStream(src, size)) return false;
+    /* hmi_ktp400_mobile_v13 DeviceManagerClient.dll @0x426024F4 requests attribute 0x496D
+       (18797) beside the "Stream" and "PersistentStream - Store" strings. */
     for (const Blob& blob : WalkBlobs(src, size)) {
         if (blob.attr_id != 18797u || blob.name != "PersistentStream" || !IsOmsStream(src + blob.off, blob.size))
             continue;
@@ -308,6 +312,8 @@ bool ExtractInstalledFirmwareSummary(const uint8_t* src, size_t size, std::vecto
             p += header;
             continue;
         }
+        /* hmi_tp1000f_mobile_v17 bspio.dll sub_41D1D25C: 0xA1 opens a child object and
+           0xA2 closes the current one. */
         if (tag == 0xA2u) {
             if (depth == 0u) return false;
             --depth;

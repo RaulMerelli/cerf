@@ -35,9 +35,7 @@ public:
     std::vector<BackedRegion> BackedMemoryRegions() const override;
     uint32_t DramChipSelectBytes() const override { return kDdrChipSelectSize; }
     std::vector<DramRegion> MappedVaSpans() const override;
-    InjectionBandPlacement GuestAdditionsBandPlacement(uint32_t) const override {
-        return {kGuestAdditionsBandVa, false};
-    }
+    uint32_t GuestAdditionsBandVa(uint32_t) const override { return kGuestAdditionsBandVa; }
 private:
     const std::vector<KtpMobileOatEntry>& RomSpans() const;
 

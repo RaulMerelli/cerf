@@ -4,7 +4,6 @@
 
 class StateWriter;
 class StateReader;
-enum class ResetLineKind;
 
 /* Off-chip device on a UART's serial lines (e.g. the SYNC2 VMCU companion on
    UART2). The UART forwards guest TX bytes here; the endpoint replies via the
@@ -23,5 +22,5 @@ public:
     virtual void SaveState(StateWriter&) {}
     virtual void RestoreState(StateReader&) {}
 
-    virtual void OnUartReset(ResetLineKind) {}
+    virtual void OnUartReset() {}
 };

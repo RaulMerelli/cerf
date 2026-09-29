@@ -6,7 +6,6 @@
 
 class StateWriter;
 class StateReader;
-enum class ResetLineKind;
 
 class Peripheral : public Service {
 public:
@@ -25,7 +24,7 @@ public:
        yet, so the assertion is clobbered. */
     virtual void PostRestore() {}
 
-    virtual void PostReset(ResetLineKind) {}
+    virtual void PostReset() {}
 
     /* MMIO range. Stable for the lifetime of the peripheral. Both
        must be set before OnReady runs, since OnReady is where

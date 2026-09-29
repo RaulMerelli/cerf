@@ -82,9 +82,9 @@ public:
         emu_.Get<Imx6GpioBus>().PostRestoreSources(MmioBase());
         UpdateIrq();
     }
-    void PostReset(ResetLineKind kind) override {
+    void PostReset() override {
         if (Imx6GpioInputSource* s = Source()) {
-            s->OnControllerReset(kind);
+            s->OnControllerReset();
             s->OnEffectiveOutputs(regs_[kDr >> 2], regs_[kGdir >> 2]);
         }
         emu_.Get<Imx6GpioBus>().PostRestoreSources(MmioBase());

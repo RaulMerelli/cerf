@@ -8,7 +8,6 @@ class ArmMmu;
 class ArmPageWalker;
 class GuestCycleClock;
 class PeripheralDispatcher;
-class RateProbe;
 struct ArmCpuState;
 
 class ArmRoutedAccess : public Service {
@@ -49,7 +48,6 @@ private:
     ArmMmu*               mmu_        = nullptr;
     ArmPageWalker*        walker_     = nullptr;
     PeripheralDispatcher* dispatcher_ = nullptr;
-    RateProbe* rate_probe_ = nullptr;
     GuestCycleClock*      clock_      = nullptr;
     ArmCpuState*          cpu_state_  = nullptr;
 };

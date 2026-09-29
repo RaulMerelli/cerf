@@ -75,7 +75,7 @@ public:
         emu_.Get<KtpMobileFModuleDevice>().PostRestore();
         Reevaluate();
     }
-    void OnControllerReset(ResetLineKind) override {
+    void OnControllerReset() override {
         ready_rise_pending_ = false;
         last_ready_ = emu_.Get<KtpMobileFModuleDevice>().ReadyLevel();
     }

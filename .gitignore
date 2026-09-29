@@ -316,8 +316,6 @@ cerf/tracing/*/**
 .build_lock
 .cerf_lock*
 
-ktp400_pdcfs_autobacking.bin
-
 # Site assets synced from launcher/ and cerf/ by tools/build_site.py
 docs/website/content/assets/icons/
 docs/website/content/assets/img/

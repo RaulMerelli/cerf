@@ -12,7 +12,6 @@
 
 enum class MmioWidth : uint32_t { kByte = 1u, kHalf = 2u, kWord = 4u };
 enum class ResetKind;
-enum class ResetLineKind;
 
 class PeripheralDispatcher : public Service {
 public:

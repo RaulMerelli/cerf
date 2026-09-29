@@ -70,8 +70,8 @@ public:
 
     void PostRestore() override { UpdateRxIrq(); }
 
-    void PostReset(ResetLineKind kind) override {
-        if (endpoint_) endpoint_->OnUartReset(kind);
+    void PostReset() override {
+        if (endpoint_) endpoint_->OnUartReset();
         UpdateRxIrq();
     }
 

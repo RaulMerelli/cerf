@@ -196,7 +196,7 @@ void PeripheralDispatcher::RestoreResetBaselines() {
     }
     for (auto& baseline : reset_baselines_) {
         baseline.p->PostRestore();
-        baseline.p->PostReset(ResetLineKind::Other);
+        baseline.p->PostReset();
     }
 }
 

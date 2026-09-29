@@ -55,7 +55,7 @@ public:
         armed_ = a != 0;
         box_id_sent_ = b != 0;
     }
-    void OnControllerReset(ResetLineKind) override {
+    void OnControllerReset() override {
         armed_ = false;
         box_id_sent_ = false;
     }

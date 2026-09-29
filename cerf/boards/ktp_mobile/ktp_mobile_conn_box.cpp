@@ -23,7 +23,7 @@ public:
     // hmi_ktp400_mobile_v13 ConnBox.dll: BOX_Init @ 0xEF493334 opens COM2:.
     void OnReady() override { emu_.Get<Imx6Uart2>().AttachEndpoint(this); }
 
-    void OnUartReset(ResetLineKind) override {
+    void OnUartReset() override {
         prev_dle_ = false;
         in_frame_ = false;
         rx_payload_.clear();

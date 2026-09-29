@@ -48,7 +48,7 @@ public:
         level_known_ = known != 0u;
         line_high_ = high != 0u;
     }
-    void OnControllerReset(ResetLineKind) override {
+    void OnControllerReset() override {
         level_known_ = false;
         line_high_ = true;
     }

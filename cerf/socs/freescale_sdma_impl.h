@@ -184,10 +184,7 @@ public:
 
     void RegisterSdmaEvent(uint32_t event, FreescaleSdmaPeripheral* p,
                            bool is_tx) override {
-        if (event < kMaxDmaEvents) { dma_events_[event] = FreescaleSdmaEventBinding{p, is_tx, true};
-            if constexpr (kSoc == SocId::Imx6)
-                LOG(Board, "IMX6_SDMA_BIND event=%u tx=%u\n", event, is_tx ? 1u : 0u);
-        }
+        if (event < kMaxDmaEvents) dma_events_[event] = FreescaleSdmaEventBinding{p, is_tx, true};
     }
 
     /* Channel config offered to sinks at the HSTART edge. A sink that claims the
@@ -316,6 +313,8 @@ private:
         return true;
     }
 
+    /* IMX6DQRM Rev.2 Sec 55.8.4: HSTART on an already running channel is held as a pending
+       start; hmi_ktp400_mobile_v13 cspddk.dll DDKSdmaStartChan @0xEF5AA0FC reads it first. */
     void StartHostChannels(uint32_t channels) {
         const uint32_t already_enabled = stop_stat_ & channels;
         const uint32_t newly_enabled = channels & ~stop_stat_;
@@ -390,6 +389,8 @@ private:
             }
             hstart_ &= ~(1u << n);
             stop_stat_ &= ~(1u << n);
+            /* MCIMX51RM Sec 52.11: channel 0 completion is "indicated by HI[0]=1 in the
+               SDMA_INTR register". */
             if (completed_any && n == 0u)
                 intr_ |= (1u << n);
         }
