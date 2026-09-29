@@ -22,6 +22,9 @@
 namespace {
 
 constexpr uint32_t kOalOatMagic = 0x87654321u;
+/* nk.exe .data carries 0x10005000 as the initial HW-info slot value: VA 0x803235AC in
+   the V14.0.1 to V17 ROMs, 0x8031D7AC in hmi_ktp400_mobile_v13, 0x8031E7AC in
+   hmi_ktp700_mobile_v13. */
 constexpr uint32_t kHwInfoHandoffPa = 0x10005000u;
 constexpr uint32_t kHwInfoSeedClear = 0x00000200u;
 constexpr uint32_t kHwfToken = 0x4B545034u;
@@ -37,7 +40,8 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
     auto& mem = emu_.Get<EmulatedMemory>();
     auto& ptb = emu_.Get<PageTableBuilder>();
 
-    /* nk.exe OEMAddressTable terminator: zero entry, 0x87654321, then table VA. */
+    /* hmi_ktp400_mobile_v17 nk.exe ends its OEMAddressTable with a zero entry at
+       0x803013C4 and 0x87654321 at 0x803013D4. */
     auto& parser = emu_.Get<RomParserService>();
     if (!parser.Ok())
         emu_.Get<Fatal>().Die("%s: ROM not parsed; the OAL handoff cannot be placed", oal.log_tag);
@@ -78,7 +82,8 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
         rom_oat.entries[0].size, rom_oat.entries[0].flags, oat_magic_pa, kOalOatMagic, old_words[0], old_words[1],
         old_words[2], old_words[3], old_magic);
 
-    /* nk.exe IOCTL 0x01014090 reads the MicroOMS blob through an OALPAtoVA-translated PA. */
+    /* hmi_tp1000f_mobile_v17 bspio.dll sub_41D17FE0 reads the MicroOMS blob through nk.exe
+       IOCTL 0x01014090, and sub_41D170A8 stores it back through IOCTL 0x01014094. */
     mem.WriteWord(ptb.VaToPa(words.hw_info_slot_va), kHwInfoHandoffPa);
     for (uint32_t i = 0; i < kHwInfoSeedClear; ++i)
         mem.WriteByte(kHwInfoHandoffPa + i, 0u);

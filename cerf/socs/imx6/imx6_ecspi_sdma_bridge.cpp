@@ -23,7 +23,9 @@ public:
     }
 
     bool Handles(uint32_t channel, int event) const override {
-        /* hmi_ktp400_mobile_v17 ecspi.dll @0x100033B0 and @0x10003404. */
+        /* hmi_ktp400_mobile_v17 ecspi.dll @0xEF5927F0 opens its RX channel before its TX
+           channel, and hmi_ktp400_mobile_v13 cspddk.dll DDKSdmaOpenChan @0xEF5AACD0 hands
+           out the lowest free channel from 1: RX is channel 1, TX channel 2. */
         return (channel == 1u && event == 7) || (channel == 2u && event == 8);
     }
 
@@ -51,7 +53,9 @@ public:
             return;
         }
 
-        if (channel == 1u) {
+        /* hmi_ktp400_mobile_v17 ecspi.dll @0xEF592740 queues the transmit buffer on the
+           TX channel and the receive buffer, 0x1400 bytes above it, on the RX channel. */
+        if (channel == 2u) {
             for (uint32_t off = 0; off < bytes; off += 4u) {
                 const uint8_t* src = RequireWord(memory, buffer_pa + off, false);
                 uint32_t value = 0u;
