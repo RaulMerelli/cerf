@@ -4,6 +4,7 @@
 #include "ktp_mobile_f_module_protocol.h"
 
 #include <algorithm>
+#include "../../core/byte_order.h"
 
 namespace ktp_mobile::detail {
 
@@ -198,13 +199,13 @@ Status ValidateIncomingRelay(const std::uint8_t* relay,
         return Status::Ok;
     }
 
-    const std::uint16_t sequence = ReadBe16(relay);
-    const std::uint32_t length32 = ReadBe32(relay + 2u);
+    const std::uint16_t sequence = cerf::be::U16(relay);
+    const std::uint32_t length32 = cerf::be::U32(relay + 2u);
     if (sequence == 0u || length32 < 8u || length32 > kRelayAreaBytes) {
         return Status::ProtocolRejected;
     }
     const std::size_t length = static_cast<std::size_t>(length32);
-    if (ReadBe16(relay + length - kRelayCrcBytes) !=
+    if (cerf::be::U16(relay + length - kRelayCrcBytes) !=
         Crc16(relay, length - kRelayCrcBytes)) {
         return Status::ProtocolRejected;
     }
@@ -241,7 +242,7 @@ void FinalizeAdvertisedResponse(State& state,
                                                  kWireTransactionBytes>& response,
                                 bool request_was_logically_valid) noexcept {
     const std::uint8_t* logical = response.data() + 1u;
-    const std::uint16_t advertised_ack = ReadBe16(logical);
+    const std::uint16_t advertised_ack = cerf::be::U16(logical);
     const bool advertised_startup_ack =
         (logical[kStatusOffset] & kStartupAckBit) != 0u;
 
@@ -275,7 +276,7 @@ Status CommitWireRequest(State& state,
     }
 
     const std::uint8_t* logical = request.data() + 1u;
-    if (ReadBe16(logical + kOuterCrcOffset) != Crc16(logical, 13u)) {
+    if (cerf::be::U16(logical + kOuterCrcOffset) != Crc16(logical, 13u)) {
         FinalizeAdvertisedResponse(state, response, false);
         return Status::ProtocolRejected;
     }
@@ -300,7 +301,7 @@ Status CommitWireRequest(State& state,
                 state.panel_cyclic_bytes.begin());
     state.panel_status_byte = logical[kStatusOffset];
 
-    const std::uint16_t outgoing_ack = ReadBe16(logical + kOuterSequenceOffset);
+    const std::uint16_t outgoing_ack = cerf::be::U16(logical + kOuterSequenceOffset);
     if (state.active_module_relay_length != 0u &&
         outgoing_ack == state.active_module_relay_sequence) {
         const std::uint16_t acknowledged = state.active_module_relay_sequence;

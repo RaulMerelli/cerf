@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <map>
+#include "../../core/byte_order.h"
 
 namespace ktp_mobile_fwf {
 namespace {
@@ -18,27 +19,6 @@ constexpr size_t kMaxRecordBytes = 64u * 1024u * 1024u;
 
 constexpr uint32_t kDirEntryBytes = 32u;
 constexpr uint32_t kLfnCharsPerSlot = 13u;
-
-uint16_t Be16(const uint8_t* p) {
-    return static_cast<uint16_t>((static_cast<uint16_t>(p[0]) << 8u) | p[1]);
-}
-
-uint32_t Be32(const uint8_t* p) {
-    return (static_cast<uint32_t>(p[0]) << 24u) | (static_cast<uint32_t>(p[1]) << 16u) |
-           (static_cast<uint32_t>(p[2]) << 8u) | static_cast<uint32_t>(p[3]);
-}
-
-void Put16(uint8_t* p, uint16_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-}
-
-void Put32(uint8_t* p, uint32_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-    p[2] = static_cast<uint8_t>(value >> 16u);
-    p[3] = static_cast<uint8_t>(value >> 24u);
-}
 
 /* Microsoft Extensible Firmware Initiative FAT32 File System Specification
    1.03 § 7 "Name Limits and Character Sets": the long-name checksum folds
@@ -100,15 +80,15 @@ void WriteLfnSlot(uint8_t* slot, const std::string& name, uint32_t index, uint32
     slot[0] = static_cast<uint8_t>((index == count ? 0x40u : 0u) | index);
     slot[11] = 0x0Fu;
     slot[13] = checksum;
-    Put16(slot + 26u, 0u);
+    cerf::le::Put16(slot + 26u, 0u);
     for (uint32_t i = 0; i < kLfnCharsPerSlot; ++i) {
         const size_t pos = static_cast<size_t>(index - 1u) * kLfnCharsPerSlot + i;
         if (pos < name.size())
-            Put16(slot + kLfnCharOffsets[i], static_cast<uint8_t>(name[pos]));
+            cerf::le::Put16(slot + kLfnCharOffsets[i], static_cast<uint8_t>(name[pos]));
         else if (pos == name.size())
-            Put16(slot + kLfnCharOffsets[i], 0u);
+            cerf::le::Put16(slot + kLfnCharOffsets[i], 0u);
         else
-            Put16(slot + kLfnCharOffsets[i], 0xFFFFu);
+            cerf::le::Put16(slot + kLfnCharOffsets[i], 0xFFFFu);
     }
 }
 
@@ -186,17 +166,17 @@ std::vector<FsfEntry> ParseFsfVolume(const std::vector<uint8_t>& fwf_stream) {
     std::vector<uint8_t> volume;
     if (!cerf::fwf_oms::AssembleFsfVolume(fwf_stream.data(), fwf_stream.size(), volume) || volume.size() < kHeaderLen)
         return {};
-    const uint32_t declared_records = Be32(volume.data() + kHeaderRecordCountOff);
+    const uint32_t declared_records = cerf::be::U32(volume.data() + kHeaderRecordCountOff);
 
     std::vector<FsfEntry> out;
     size_t off = kHeaderLen;
     while (off + kDescLen + 6u <= volume.size()) {
         const size_t p = off + kDescLen;
-        const uint16_t nlen = Be16(volume.data() + p);
+        const uint16_t nlen = cerf::be::U16(volume.data() + p);
         if (nlen == 0u || p + 2u + nlen + 4u > volume.size()) return {};
         const std::string full(reinterpret_cast<const char*>(volume.data() + p + 2u), nlen);
         const size_t q = p + 2u + nlen;
-        const uint32_t size = Be32(volume.data() + q);
+        const uint32_t size = cerf::be::U32(volume.data() + q);
         if (volume[off + kDescStorageByte] == 0u && q + 4u + size > volume.size()) return {};
 
         std::string full_path = full;
@@ -243,7 +223,7 @@ std::string EntryName(const uint8_t* dir, uint32_t at) {
         if (e[11] != 0x0Fu) break;
         std::string part;
         for (uint32_t i = 0; i < kLfnCharsPerSlot; ++i) {
-            const uint16_t ch = static_cast<uint16_t>(e[kLfnCharOffsets[i]] | (e[kLfnCharOffsets[i] + 1u] << 8u));
+            const uint16_t ch = cerf::le::U16(e + kLfnCharOffsets[i]);
             if (ch == 0u || ch == 0xFFFFu) break;
             part.push_back(static_cast<char>(ch));
         }
@@ -276,8 +256,8 @@ bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, con
                 if (dir[at] == 0xE5u || (dir[at + 11u] & 0x0Fu) == 0x0Fu) continue;
                 if ((dir[at + 11u] & 0x10u) == 0u) continue;
                 if (NameMatches(EntryName(dir, at), name)) {
-                    return (static_cast<uint32_t>(dir[at + 20u] | (dir[at + 21u] << 8u)) << 16u) |
-                           static_cast<uint32_t>(dir[at + 26u] | (dir[at + 27u] << 8u));
+                    return (static_cast<uint32_t>(cerf::le::U16(dir + at + 20u)) << 16u) |
+                           static_cast<uint32_t>(cerf::le::U16(dir + at + 26u));
                 }
             }
             break;
@@ -289,13 +269,13 @@ bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, con
         std::memset(body, 0, fat.cluster_bytes);
         std::memcpy(body, ".          ", 11u);
         body[11] = 0x10u;
-        Put16(body + 20u, static_cast<uint16_t>(clus >> 16u));
-        Put16(body + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
+        cerf::le::Put16(body + 20u, static_cast<uint16_t>(clus >> 16u));
+        cerf::le::Put16(body + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
         std::memcpy(body + kDirEntryBytes, "..         ", 11u);
         body[kDirEntryBytes + 11u] = 0x10u;
         const uint32_t up = (parent == root_clus) ? 0u : parent;
-        Put16(body + kDirEntryBytes + 20u, static_cast<uint16_t>(up >> 16u));
-        Put16(body + kDirEntryBytes + 26u, static_cast<uint16_t>(up & 0xFFFFu));
+        cerf::le::Put16(body + kDirEntryBytes + 20u, static_cast<uint16_t>(up >> 16u));
+        cerf::le::Put16(body + kDirEntryBytes + 26u, static_cast<uint16_t>(up & 0xFFFFu));
         fat.persist(clus, 0u, fat.cluster_bytes);
 
         auto it = writers.try_emplace(parent, fat, parent).first;
@@ -311,8 +291,8 @@ bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, con
         std::memset(ent, 0, kDirEntryBytes);
         std::memcpy(ent, short_name, 11u);
         ent[11] = 0x10u;
-        Put16(ent + 20u, static_cast<uint16_t>(clus >> 16u));
-        Put16(ent + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
+        cerf::le::Put16(ent + 20u, static_cast<uint16_t>(clus >> 16u));
+        cerf::le::Put16(ent + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
         it->second.Persist(slot, slots + 1u);
         return clus;
     };
@@ -355,9 +335,9 @@ bool SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus, con
         std::memset(ent, 0, kDirEntryBytes);
         std::memcpy(ent, short_name, 11u);
         ent[11] = 0x20u;
-        Put16(ent + 20u, static_cast<uint16_t>(first >> 16u));
-        Put16(ent + 26u, static_cast<uint16_t>(first & 0xFFFFu));
-        Put32(ent + 28u, static_cast<uint32_t>(entry.data.size()));
+        cerf::le::Put16(ent + 20u, static_cast<uint16_t>(first >> 16u));
+        cerf::le::Put16(ent + 26u, static_cast<uint16_t>(first & 0xFFFFu));
+        cerf::le::Put32(ent + 28u, static_cast<uint32_t>(entry.data.size()));
         it->second.Persist(slot, lfn_slots + 1u);
     }
     return true;

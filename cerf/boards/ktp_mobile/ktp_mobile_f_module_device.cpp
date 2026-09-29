@@ -18,6 +18,7 @@
 #include <memory>
 #include <type_traits>
 #include <vector>
+#include "../../core/byte_order.h"
 
 bool KtpMobileFModuleDevice::ShouldRegister() {
     auto* board = emu_.TryGet<BoardContext>();
@@ -143,11 +144,7 @@ void KtpMobileFModuleDevice::FlushDmaReceive() {
             adapter_error_ = true;
             return;
         }
-        const uint32_t word =
-            (static_cast<uint32_t>(dma_rx_[off + 0u]) << 24u) |
-            (static_cast<uint32_t>(dma_rx_[off + 1u]) << 16u) |
-            (static_cast<uint32_t>(dma_rx_[off + 2u]) << 8u) |
-            static_cast<uint32_t>(dma_rx_[off + 3u]);
+        const uint32_t word = cerf::be::U32(dma_rx_.data(), off);
         std::memcpy(dst, &word, sizeof(word));
     }
     dma_rx_pending_ = false;

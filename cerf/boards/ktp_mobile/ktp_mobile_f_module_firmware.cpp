@@ -4,34 +4,10 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include "../../core/byte_order.h"
 
 namespace ktp_mobile::detail {
 
-
-std::uint16_t ReadBe16(const std::uint8_t* data) noexcept {
-    return static_cast<std::uint16_t>(
-        (static_cast<std::uint16_t>(data[0]) << 8u) |
-        static_cast<std::uint16_t>(data[1]));
-}
-
-std::uint32_t ReadBe32(const std::uint8_t* data) noexcept {
-    return (static_cast<std::uint32_t>(data[0]) << 24u) |
-           (static_cast<std::uint32_t>(data[1]) << 16u) |
-           (static_cast<std::uint32_t>(data[2]) << 8u) |
-           static_cast<std::uint32_t>(data[3]);
-}
-
-void WriteBe16(std::uint8_t* data, std::uint16_t value) noexcept {
-    data[0] = static_cast<std::uint8_t>(value >> 8u);
-    data[1] = static_cast<std::uint8_t>(value & 0xFFu);
-}
-
-void WriteBe32(std::uint8_t* data, std::uint32_t value) noexcept {
-    data[0] = static_cast<std::uint8_t>(value >> 24u);
-    data[1] = static_cast<std::uint8_t>((value >> 16u) & 0xFFu);
-    data[2] = static_cast<std::uint8_t>((value >> 8u) & 0xFFu);
-    data[3] = static_cast<std::uint8_t>(value & 0xFFu);
-}
 
 std::uint16_t Crc16(const std::uint8_t* data, std::size_t length) noexcept {
     std::uint16_t crc = 0u;
@@ -104,10 +80,7 @@ std::array<std::uint8_t, 32> Sha256(const std::uint8_t* data,
         std::array<std::uint32_t, 64> w{};
         for (std::size_t i = 0u; i < 16u; ++i) {
             const std::size_t j = i * 4u;
-            w[i] = (static_cast<std::uint32_t>(block[j]) << 24u) |
-                   (static_cast<std::uint32_t>(block[j + 1u]) << 16u) |
-                   (static_cast<std::uint32_t>(block[j + 2u]) << 8u) |
-                   static_cast<std::uint32_t>(block[j + 3u]);
+            w[i] = cerf::be::U32(block.data(), j);
         }
         for (std::size_t i = 16u; i < 64u; ++i) {
             const std::uint32_t s0 = RotateRight(w[i - 15u], 7u) ^

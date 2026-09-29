@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <limits>
+#include "../../core/byte_order.h"
 
 namespace ktp_mobile::detail {
 
@@ -143,14 +144,14 @@ void PromoteStagedRelay(State& state) noexcept {
     const std::size_t total_length =
         kRelayHeaderBytes + record_bytes + kRelayCrcBytes;
     state.active_module_relay.fill(0u);
-    WriteBe16(state.active_module_relay.data(), state.next_module_relay_sequence);
-    WriteBe32(state.active_module_relay.data() + 2u,
+    cerf::be::Put16(state.active_module_relay.data(), state.next_module_relay_sequence);
+    cerf::be::Put32(state.active_module_relay.data() + 2u,
               static_cast<std::uint32_t>(total_length));
     std::copy_n(state.staged_module_records.data(), record_bytes,
                 state.active_module_relay.data() + kRelayHeaderBytes);
     const std::uint16_t crc =
         Crc16(state.active_module_relay.data(), total_length - kRelayCrcBytes);
-    WriteBe16(state.active_module_relay.data() + total_length - kRelayCrcBytes,
+    cerf::be::Put16(state.active_module_relay.data() + total_length - kRelayCrcBytes,
               crc);
     state.active_module_relay_sequence = state.next_module_relay_sequence;
     state.active_module_relay_length =
@@ -175,8 +176,8 @@ Status QueueModuleRecord(State& state,
 
     std::uint8_t* record =
         state.staged_module_records.data() + state.staged_module_record_bytes;
-    WriteBe16(record, command);
-    WriteBe32(record + 2u, static_cast<std::uint32_t>(payload_length));
+    cerf::be::Put16(record, command);
+    cerf::be::Put32(record + 2u, static_cast<std::uint32_t>(payload_length));
     if (payload_length != 0u) {
         std::copy_n(payload, payload_length, record + kRecordHeaderBytes);
     }
@@ -191,7 +192,7 @@ bool ActiveRelayIsSuccessfulUpdateResponse(const State& state) noexcept {
         return false;
     }
     const std::uint8_t* record = state.active_module_relay.data() + kRelayHeaderBytes;
-    return ReadBe16(record) == 239u && ReadBe32(record + 2u) == 6u &&
+    return cerf::be::U16(record) == 239u && cerf::be::U32(record + 2u) == 6u &&
            record[kRecordHeaderBytes + 1u] == 17u;
 }
 
@@ -209,11 +210,11 @@ void BuildResponseFrame(const State& state,
     out[0] = kModuleMarker;
     std::uint8_t* logical = out.data() + 1u;
 
-    WriteBe16(logical + kOuterSequenceOffset, state.last_panel_relay_sequence);
+    cerf::be::Put16(logical + kOuterSequenceOffset, state.last_panel_relay_sequence);
     std::copy(state.module_cyclic_bytes.begin(), state.module_cyclic_bytes.end(),
               logical + kCyclicOffset);
     logical[kStatusOffset] = state.module_status_byte;
-    WriteBe16(logical + kOuterCrcOffset, Crc16(logical, 13u));
+    cerf::be::Put16(logical + kOuterCrcOffset, Crc16(logical, 13u));
 
     if (state.active_module_relay_length != 0u) {
         std::copy_n(state.active_module_relay.data(), kRelayAreaBytes,
@@ -230,8 +231,8 @@ bool ValidateRecordArea(const std::uint8_t* records,
         if (record_bytes - cursor < kRecordHeaderBytes) {
             return false;
         }
-        const std::uint16_t command = ReadBe16(records + cursor);
-        const std::uint32_t payload_length = ReadBe32(records + cursor + 2u);
+        const std::uint16_t command = cerf::be::U16(records + cursor);
+        const std::uint32_t payload_length = cerf::be::U32(records + cursor + 2u);
         const std::size_t remaining = record_bytes - cursor - kRecordHeaderBytes;
         if (payload_length > remaining) {
             return false;
@@ -263,13 +264,13 @@ bool ValidateActiveRelay(const State& state) noexcept {
         return false;
     }
     const std::size_t length = state.active_module_relay_length;
-    if (ReadBe16(state.active_module_relay.data()) !=
+    if (cerf::be::U16(state.active_module_relay.data()) !=
             state.active_module_relay_sequence ||
-        ReadBe32(state.active_module_relay.data() + 2u) != length) {
+        cerf::be::U32(state.active_module_relay.data() + 2u) != length) {
         return false;
     }
     const std::uint16_t stored_crc =
-        ReadBe16(state.active_module_relay.data() + length - kRelayCrcBytes);
+        cerf::be::U16(state.active_module_relay.data() + length - kRelayCrcBytes);
     if (stored_crc !=
         Crc16(state.active_module_relay.data(), length - kRelayCrcBytes)) {
         return false;
@@ -321,7 +322,7 @@ Status QueueUpdateResponse(State& state,
                            std::uint32_t request_sequence) noexcept {
     std::array<std::uint8_t, kFirmwareUpdateResponseBytes> response{};
     response[1] = status;
-    WriteBe32(response.data() + 2u, request_sequence);
+    cerf::be::Put32(response.data() + 2u, request_sequence);
     const Status queued =
         QueueModuleRecord(state, 239u, response.data(), response.size());
     if (queued == Status::Ok) {
@@ -348,8 +349,8 @@ Status ProcessUpdateRequest(State& state,
 
     const std::uint8_t opcode = payload[0];
     const std::uint8_t final_flag = payload[1];
-    const std::uint32_t sequence = ReadBe32(payload + 2u);
-    const std::uint16_t data_length = ReadBe16(payload + 6u);
+    const std::uint32_t sequence = cerf::be::U32(payload + 2u);
+    const std::uint16_t data_length = cerf::be::U16(payload + 6u);
     if (final_flag > 1u || data_length > kFirmwareUpdateBlockBytes) {
         return RejectUpdate(state, sequence, final_flag != 0u);
     }
@@ -444,13 +445,13 @@ Status DispatchIncomingRecords(State& state, const std::uint8_t* relay) noexcept
     if (AllZero(relay, kRelayHeaderBytes)) {
         return Status::Ok;
     }
-    const std::size_t relay_length = ReadBe32(relay + 2u);
+    const std::size_t relay_length = cerf::be::U32(relay + 2u);
     const std::size_t record_bytes = relay_length - kRelayHeaderBytes - kRelayCrcBytes;
     std::size_t cursor = 0u;
     const std::uint8_t* records = relay + kRelayHeaderBytes;
     while (cursor < record_bytes) {
-        const std::uint16_t command = ReadBe16(records + cursor);
-        const std::uint32_t payload_length = ReadBe32(records + cursor + 2u);
+        const std::uint16_t command = cerf::be::U16(records + cursor);
+        const std::uint32_t payload_length = cerf::be::U32(records + cursor + 2u);
         const std::uint8_t* payload = records + cursor + kRecordHeaderBytes;
         if (command == 131u) {
             if (state.firmware.valid == 0u) {

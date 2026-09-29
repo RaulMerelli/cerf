@@ -96,15 +96,8 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
             oal.op_type, oal.panel);
     const uint32_t hwf_size = static_cast<uint32_t>(oms_root.size()) + 1u;
 
-    const auto write_le32_pa = [&](uint32_t pa, uint32_t value) {
-        mem.WriteByte(pa + 0u, static_cast<uint8_t>(value & 0xFFu));
-        mem.WriteByte(pa + 1u, static_cast<uint8_t>((value >> 8u) & 0xFFu));
-        mem.WriteByte(pa + 2u, static_cast<uint8_t>((value >> 16u) & 0xFFu));
-        mem.WriteByte(pa + 3u, static_cast<uint8_t>((value >> 24u) & 0xFFu));
-    };
-
-    write_le32_pa(kHwInfoHandoffPa + 0x00u, hwf_size);
-    write_le32_pa(kHwInfoHandoffPa + 0x04u, kHwfToken);
+    mem.WriteWord(kHwInfoHandoffPa + 0x00u, hwf_size);
+    mem.WriteWord(kHwInfoHandoffPa + 0x04u, kHwfToken);
     mem.WriteByte(kHwInfoHandoffPa + 0x08u, 0u);
     for (uint32_t i = 0; i < oms_root.size(); ++i)
         mem.WriteByte(kHwInfoHandoffPa + 0x09u + i, oms_root[i]);

@@ -1,6 +1,7 @@
 #include "ktp_mobile_oat_from_rom.h"
 
 #include <cstring>
+#include "../../core/byte_order.h"
 
 namespace {
 
@@ -8,22 +9,17 @@ constexpr uint32_t kOatMagic = 0x87654321u;
 
 constexpr size_t kMaxEntries = 64u;
 
-uint32_t Le32(const uint8_t* p) {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8u) | (static_cast<uint32_t>(p[2]) << 16u) |
-           (static_cast<uint32_t>(p[3]) << 24u);
-}
-
 }
 
 KtpMobileRomOat FindKtpMobileOatInRom(std::span<const uint8_t> flat) {
     if (flat.size() < 32u) return {};
 
     for (size_t at = 0; at + 16u <= flat.size(); at += 4u) {
-        if (Le32(flat.data() + at) != kOatMagic) continue;
+        if (cerf::le::U32(flat.data() + at) != kOatMagic) continue;
 
-        const uint32_t table_va = Le32(flat.data() + at + 4u);
-        const uint32_t zero = Le32(flat.data() + at + 8u);
-        const uint32_t base_va = Le32(flat.data() + at + 12u);
+        const uint32_t table_va = cerf::le::U32(flat.data() + at + 4u);
+        const uint32_t zero = cerf::le::U32(flat.data() + at + 8u);
+        const uint32_t base_va = cerf::le::U32(flat.data() + at + 12u);
         if (zero != 0u || base_va == 0u || table_va < base_va) continue;
 
         const uint32_t magic_va = base_va + static_cast<uint32_t>(at);
@@ -32,8 +28,8 @@ KtpMobileRomOat FindKtpMobileOatInRom(std::span<const uint8_t> flat) {
 
         KtpMobileRomOat oat;
         for (size_t off = table_off; off + 16u <= at; off += 16u) {
-            const KtpMobileOatEntry e{Le32(flat.data() + off), Le32(flat.data() + off + 4u),
-                                      Le32(flat.data() + off + 8u), Le32(flat.data() + off + 12u)};
+            const KtpMobileOatEntry e{cerf::le::U32(flat.data() + off), cerf::le::U32(flat.data() + off + 4u),
+                                      cerf::le::U32(flat.data() + off + 8u), cerf::le::U32(flat.data() + off + 12u)};
             if (e.va == 0u && e.size == 0u) break;
             if (e.size == 0u || oat.entries.size() >= kMaxEntries) {
                 oat.entries.clear();
@@ -78,8 +74,8 @@ KtpMobileRomOalWords FindKtpMobileOalWordsInRom(std::span<const uint8_t> flat, u
         const size_t slot_at = LdrLiteralTarget(flat, at + kSlotLdrOff);
         if (cache_at + 4u > flat.size() || slot_at + 4u > flat.size()) return {};
         KtpMobileRomOalWords out;
-        out.hw_info_cache_va = Le32(flat.data() + cache_at);
-        out.hw_info_slot_va = Le32(flat.data() + slot_at);
+        out.hw_info_cache_va = cerf::le::U32(flat.data() + cache_at);
+        out.hw_info_slot_va = cerf::le::U32(flat.data() + slot_at);
         if (out.hw_info_slot_va < base_va || out.hw_info_cache_va < base_va) return {};
         return out;
     }

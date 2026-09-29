@@ -2,26 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
-
-namespace {
-
-void Put16(uint8_t* p, uint16_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-}
-
-void Put32(uint8_t* p, uint32_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-    p[2] = static_cast<uint8_t>(value >> 16u);
-    p[3] = static_cast<uint8_t>(value >> 24u);
-}
-
-uint32_t Get32(const uint8_t* p) {
-    return uint32_t(p[0]) | (uint32_t(p[1]) << 8u) | (uint32_t(p[2]) << 16u) | (uint32_t(p[3]) << 24u);
-}
-
-}
+#include "../../core/byte_order.h"
 
 namespace ktp_mobile_emmc {
 
@@ -31,11 +12,11 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
 
     const uint8_t* mbr = data.data();
     if (mbr[510] != 0x55u || mbr[511] != 0xAAu) return true;
-    const uint32_t part_lba = Get32(mbr + 446u + 8u);
+    const uint32_t part_lba = cerf::le::U32(mbr + 446u + 8u);
     if (part_lba == 0u || (uint64_t(part_lba) + 1u) * 512u > data.size()) return true;
 
     uint8_t* bpb = data.data() + uint64_t(part_lba) * 512u;
-    const uint16_t bytes_per_sec = uint16_t(bpb[11] | (uint16_t(bpb[12]) << 8));
+    const uint16_t bytes_per_sec = cerf::le::U16(bpb + 11u);
 
     if (bytes_per_sec == 0u) {
         std::memset(bpb, 0, 512u);
@@ -43,16 +24,16 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
         bpb[1] = 0x58u;
         bpb[2] = 0x90u;
         std::memcpy(bpb + 3u, "MSDOS5.0", 8u);
-        Put16(bpb + 11u, 512u);
+        cerf::le::Put16(bpb + 11u, 512u);
         bpb[13] = 1u;
-        Put16(bpb + 14u, 32u);
+        cerf::le::Put16(bpb + 14u, 32u);
         bpb[16] = 2u;
         bpb[21] = 0xF8u;
-        Put32(bpb + 32u, static_cast<uint32_t>((data.size() / 512u) - part_lba));
-        Put32(bpb + 36u, 2032u);
-        Put32(bpb + 44u, 2u);
-        Put16(bpb + 48u, 1u);
-        Put16(bpb + 50u, 6u);
+        cerf::le::Put32(bpb + 32u, static_cast<uint32_t>((data.size() / 512u) - part_lba));
+        cerf::le::Put32(bpb + 36u, 2032u);
+        cerf::le::Put32(bpb + 44u, 2u);
+        cerf::le::Put16(bpb + 48u, 1u);
+        cerf::le::Put16(bpb + 50u, 6u);
         bpb[64] = 0x80u;
         bpb[66] = 0x29u;
         std::memcpy(bpb + 71u, "           ", 11u);
@@ -62,15 +43,15 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
         persist_range(uint64_t(part_lba) * 512u, 512u);
     }
 
-    if (uint16_t(bpb[11] | (uint16_t(bpb[12]) << 8)) != 512u || bpb[13] == 0u || bpb[16] == 0u ||
-        Get32(bpb + 36u) == 0u || Get32(bpb + 44u) < 2u)
+    if (cerf::le::U16(bpb + 11u) != 512u || bpb[13] == 0u || bpb[16] == 0u ||
+        cerf::le::U32(bpb + 36u) == 0u || cerf::le::U32(bpb + 44u) < 2u)
         return true;
 
     const uint32_t spc = bpb[13];
-    const uint32_t reserved = uint16_t(bpb[14] | (uint16_t(bpb[15]) << 8));
+    const uint32_t reserved = cerf::le::U16(bpb + 14u);
     const uint32_t num_fats = bpb[16];
-    const uint32_t sectors_per_fat = Get32(bpb + 36u);
-    const uint32_t root_clus = Get32(bpb + 44u);
+    const uint32_t sectors_per_fat = cerf::le::U32(bpb + 36u);
+    const uint32_t root_clus = cerf::le::U32(bpb + 44u);
     const uint64_t fat0_off = uint64_t(part_lba + reserved) * 512u;
     const uint64_t fat1_off = uint64_t(part_lba + reserved + sectors_per_fat) * 512u;
     const uint64_t dataoff = uint64_t(part_lba + reserved + num_fats * sectors_per_fat) * 512u;
@@ -78,26 +59,26 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
     const auto put_fat = [&](uint32_t clus, uint32_t value) {
         const uint64_t e0 = fat0_off + uint64_t(clus) * 4u;
         if (e0 + 4u <= data.size()) {
-            Put32(data.data() + e0, value);
+            cerf::le::Put32(data.data() + e0, value);
             persist_range(e0, 4u);
         }
         const uint64_t e1 = fat1_off + uint64_t(clus) * 4u;
         if (num_fats > 1u && e1 + 4u <= data.size()) {
-            Put32(data.data() + e1, value);
+            cerf::le::Put32(data.data() + e1, value);
             persist_range(e1, 4u);
         }
     };
     const auto get_fat = [&](uint32_t clus) -> uint32_t {
         const uint64_t e0 = fat0_off + uint64_t(clus) * 4u;
         if (e0 + 4u > data.size()) return 0u;
-        return Get32(data.data() + e0) & 0x0FFFFFFFu;
+        return cerf::le::U32(data.data() + e0) & 0x0FFFFFFFu;
     };
     const auto write_short_entry = [&](uint8_t* ent, const char name[11], uint8_t attr, uint32_t clus) {
         std::memset(ent, 0, 32u);
         std::memcpy(ent, name, 11u);
         ent[11] = attr;
-        Put16(ent + 20u, static_cast<uint16_t>(clus >> 16u));
-        Put16(ent + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
+        cerf::le::Put16(ent + 20u, static_cast<uint16_t>(clus >> 16u));
+        cerf::le::Put16(ent + 26u, static_cast<uint16_t>(clus & 0xFFFFu));
     };
 
     if (cluster_off(root_clus) + uint64_t(spc) * 512u > data.size()) return true;
@@ -173,32 +154,32 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
         ent[11] = 0x0Fu;
         ent[12] = 0u;
         ent[13] = checksum;
-        Put16(ent + 26u, 0u);
+        cerf::le::Put16(ent + 26u, 0u);
         const uint32_t dst_offsets[] = {1u, 3u, 5u, 7u, 9u, 14u, 16u, 18u, 20u, 22u, 24u, 28u, 30u};
         uint32_t i = 0;
         for (; i < 13u && long_name[i] != '\0'; ++i)
-            Put16(ent + dst_offsets[i], static_cast<uint8_t>(long_name[i]));
-        if (i < 13u) Put16(ent + dst_offsets[i++], 0u);
+            cerf::le::Put16(ent + dst_offsets[i], static_cast<uint8_t>(long_name[i]));
+        if (i < 13u) cerf::le::Put16(ent + dst_offsets[i++], 0u);
         for (; i < 13u; ++i)
-            Put16(ent + dst_offsets[i], 0xFFFFu);
+            cerf::le::Put16(ent + dst_offsets[i], 0xFFFFu);
     };
     const auto cluster_from_entry = [](const uint8_t* ent) -> uint32_t {
-        return (uint32_t(ent[20u] | (uint16_t(ent[21u]) << 8u)) << 16u) |
-               uint32_t(ent[26u] | (uint16_t(ent[27u]) << 8u));
+        return (uint32_t(cerf::le::U16(ent + 20u)) << 16u) |
+               uint32_t(cerf::le::U16(ent + 26u));
     };
     const auto ensure_root_file = [&](const char file_name[11]) {
         if (uint8_t* old = find_short_entry(file_name)) {
             old[11] = 0x20u;
-            Put16(old + 20u, 0u);
-            Put16(old + 26u, 0u);
-            Put32(old + 28u, 0u);
+            cerf::le::Put16(old + 20u, 0u);
+            cerf::le::Put16(old + 26u, 0u);
+            cerf::le::Put32(old + 28u, 0u);
             persist_range(uint64_t(old - data.data()), 32u);
             return;
         }
         uint8_t* ent = alloc_entry();
         if (!ent) return;
         write_short_entry(ent, file_name, 0x20u, 0u);
-        Put32(ent + 28u, 0u);
+        cerf::le::Put32(ent + 28u, 0u);
         persist_range(uint64_t(ent - data.data()), 32u);
     };
     const auto ensure_root_file_min_size = [&](const char file_name[11], uint32_t min_size_bytes) {
@@ -256,11 +237,11 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
                 put_fat(clus, 0x0FFFFFFFu);
             }
 
-            Put16(ent + 20u, static_cast<uint16_t>(first >> 16u));
-            Put16(ent + 26u, static_cast<uint16_t>(first & 0xFFFFu));
+            cerf::le::Put16(ent + 20u, static_cast<uint16_t>(first >> 16u));
+            cerf::le::Put16(ent + 26u, static_cast<uint16_t>(first & 0xFFFFu));
         }
 
-        Put32(ent + 28u, min_size_bytes);
+        cerf::le::Put32(ent + 28u, min_size_bytes);
         persist_range(uint64_t(ent - data.data()), 32u);
     };
 
@@ -270,8 +251,8 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
             const bool has_lfn = old >= root + 32u && old[-32] == 0x41u && ((old[-32 + 11] & 0x0Fu) == 0x0Fu) &&
                                  old[-32 + 13] == short_checksum(short_name);
             if (has_lfn) return;
-            clus = (uint32_t(old[20u] | (uint16_t(old[21u]) << 8u)) << 16u) |
-                   uint32_t(old[26u] | (uint16_t(old[27u]) << 8u));
+            clus = (uint32_t(cerf::le::U16(old + 20u)) << 16u) |
+                   uint32_t(cerf::le::U16(old + 26u));
             old[0] = 0xE5u;
             persist_range(uint64_t(old - data.data()), 32u);
         } else {
@@ -294,8 +275,8 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
     const auto ensure_dir_file = [&](const char dir_short_name[11], const char file_name[11]) {
         uint8_t* dir_ent = find_short_entry(dir_short_name);
         if (!dir_ent) return;
-        const uint32_t dir_clus = (uint32_t(dir_ent[20u] | (uint16_t(dir_ent[21u]) << 8u)) << 16u) |
-                                  uint32_t(dir_ent[26u] | (uint16_t(dir_ent[27u]) << 8u));
+        const uint32_t dir_clus = (uint32_t(cerf::le::U16(dir_ent + 20u)) << 16u) |
+                                  uint32_t(cerf::le::U16(dir_ent + 26u));
         if (dir_clus < 2u || cluster_off(dir_clus) + uint64_t(spc) * 512u > data.size()) return;
         uint8_t* dir = data.data() + cluster_off(dir_clus);
         const uint32_t dir_bytes = spc * 512u;
@@ -307,13 +288,13 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
         for (uint32_t off = 0; off + 32u <= dir_bytes; off += 32u) {
             if (dir[off] != 0x00u && dir[off] != 0xE5u) continue;
             write_short_entry(dir + off, file_name, 0x20u, 0u);
-            Put32(dir + off + 28u, 0u);
+            cerf::le::Put32(dir + off + 28u, 0u);
             persist_range(cluster_off(dir_clus) + off, 32u);
             return;
         }
     };
     const auto ensure_fsinfo = [&]() {
-        const uint32_t total_sec32 = Get32(bpb + 32u);
+        const uint32_t total_sec32 = cerf::le::U32(bpb + 32u);
         if (total_sec32 <= reserved + num_fats * sectors_per_fat || spc == 0u) return;
         const uint32_t total_clusters = (total_sec32 - reserved - num_fats * sectors_per_fat) / spc;
 
@@ -330,18 +311,18 @@ bool EnsurePdcfsLayout(std::vector<uint8_t>& data, const PersistRange& persist_r
             }
         }
 
-        const uint32_t fsinfo_sector = uint16_t(bpb[48u] | (uint16_t(bpb[49u]) << 8u));
-        const uint32_t backup_sector = uint16_t(bpb[50u] | (uint16_t(bpb[51u]) << 8u));
+        const uint32_t fsinfo_sector = cerf::le::U16(bpb + 48u);
+        const uint32_t backup_sector = cerf::le::U16(bpb + 50u);
         const auto write_fsinfo_sector = [&](uint32_t rel_sector) {
             const uint64_t off = uint64_t(part_lba + rel_sector) * 512u;
             if (rel_sector == 0u || off + 512u > data.size()) return;
             uint8_t* fsi = data.data() + off;
             std::memset(fsi, 0, 512u);
-            Put32(fsi + 0x000u, 0x41615252u);
-            Put32(fsi + 0x1E4u, 0x61417272u);
-            Put32(fsi + 0x1E8u, free_count);
-            Put32(fsi + 0x1ECu, next_free);
-            Put32(fsi + 0x1FCu, 0xAA550000u);
+            cerf::le::Put32(fsi + 0x000u, 0x41615252u);
+            cerf::le::Put32(fsi + 0x1E4u, 0x61417272u);
+            cerf::le::Put32(fsi + 0x1E8u, free_count);
+            cerf::le::Put32(fsi + 0x1ECu, next_free);
+            cerf::le::Put32(fsi + 0x1FCu, 0xAA550000u);
             persist_range(off, 512u);
         };
 

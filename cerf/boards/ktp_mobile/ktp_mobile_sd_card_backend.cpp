@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include "../../core/byte_order.h"
 
 namespace {
 
@@ -16,32 +17,20 @@ constexpr uint32_t kFactoryTableOffset = 0x00101000u;
 constexpr uint32_t kPartitionLbaBytes = 0x00000200u;
 constexpr uint32_t kFwfInfoOffset = 0x02000000u;
 
-void Put32(uint8_t* p, uint32_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-    p[2] = static_cast<uint8_t>(value >> 16u);
-    p[3] = static_cast<uint8_t>(value >> 24u);
-}
-
-uint32_t Get32(const uint8_t* p) {
-    return uint32_t(p[0]) | (uint32_t(p[1]) << 8u) |
-           (uint32_t(p[2]) << 16u) | (uint32_t(p[3]) << 24u);
-}
-
 bool IsValidBacking(const std::vector<uint8_t>& data) {
     if (data.size() < 4096u || data[510] != 0x55u || data[511] != 0xAAu)
         return false;
     const uint8_t part_type = data[450u];
-    const uint32_t part_lba = Get32(data.data() + 454u);
-    const uint32_t part_blocks = Get32(data.data() + 458u);
+    const uint32_t part_lba = cerf::le::U32(data.data() + 454u);
+    const uint32_t part_blocks = cerf::le::U32(data.data() + 458u);
     if ((part_type != 0x0Bu && part_type != 0x0Cu) || part_lba == 0u ||
         part_blocks == 0u || uint64_t(part_lba) + part_blocks > data.size() / 512u)
         return false;
     const uint64_t bpb_offset = uint64_t(part_lba) * 512u;
     const uint8_t* bpb = data.data() + bpb_offset;
-    const uint16_t bytes_per_sector = uint16_t(bpb[11] | (uint16_t(bpb[12]) << 8u));
+    const uint16_t bytes_per_sector = cerf::le::U16(bpb + 11u);
     return bytes_per_sector == 512u && bpb[13] != 0u && bpb[16] != 0u &&
-           Get32(bpb + 36u) != 0u && Get32(bpb + 44u) >= 2u &&
+           cerf::le::U32(bpb + 36u) != 0u && cerf::le::U32(bpb + 44u) >= 2u &&
            bpb[510] == 0x55u && bpb[511] == 0xAAu;
 }
 
@@ -82,8 +71,8 @@ void KtpMobileSdCardBackend::Initialize(std::vector<uint8_t>& data) {
     mbr[451] = 0xFEu;
     mbr[452] = 0xFFu;
     mbr[453] = 0xFFu;
-    Put32(mbr + 454u, part_lba);
-    Put32(mbr + 458u, part_blocks);
+    cerf::le::Put32(mbr + 454u, part_lba);
+    cerf::le::Put32(mbr + 458u, part_blocks);
     mbr[510] = 0x55u;
     mbr[511] = 0xAAu;
     Persist(data, 0u, 512u);

@@ -107,6 +107,11 @@ inline void Put16(uint8_t* p, uint16_t v) {
     p[1] = uint8_t(v);
 }
 
+inline void Put32(uint8_t* p, uint32_t v) {
+    Put16(p, uint16_t(v >> 16));
+    Put16(p + 2, uint16_t(v));
+}
+
 inline void Append16(std::vector<uint8_t>& out, uint16_t v) {
     out.push_back(uint8_t(v >> 8));
     out.push_back(uint8_t(v));

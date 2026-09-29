@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include "../../core/byte_order.h"
 
 namespace {
 
@@ -17,17 +18,6 @@ constexpr uint32_t kKtp400FactoryTableOff = 0x00101000u;
 constexpr uint32_t kKtp400PartLbaBytes = 0x00000200u;
 constexpr uint32_t kKtp400FwfInfoOff = 0x02000000u;
 constexpr uint32_t kKtp400FwfInfoSize = 0x04000000u;
-
-void Put32(uint8_t* p, uint32_t value) {
-    p[0] = static_cast<uint8_t>(value);
-    p[1] = static_cast<uint8_t>(value >> 8u);
-    p[2] = static_cast<uint8_t>(value >> 16u);
-    p[3] = static_cast<uint8_t>(value >> 24u);
-}
-
-uint32_t Get32(const uint8_t* p) {
-    return uint32_t(p[0]) | (uint32_t(p[1]) << 8u) | (uint32_t(p[2]) << 16u) | (uint32_t(p[3]) << 24u);
-}
 
 std::vector<uint8_t> ReadWholeFile(const std::string& path, size_t max_size) {
     std::ifstream in(path, std::ios::binary);
@@ -92,43 +82,43 @@ void EnsureFactoryLayout(std::vector<uint8_t>& data, const std::vector<uint8_t>&
 
         uint8_t* table = data.data() + table_off;
         std::memset(table, 0, 512u);
-        Put32(table + 0x00u, kSectorMagic);
-        Put32(table + 0x04u, 512u);
-        Put32(table + 0x08u, 0u);
-        Put32(table + 0x38u, boot_state_off);
-        Put32(table + 0x3Cu, kBootStateSize);
-        Put32(table + 0x40u, hwf_off);
-        Put32(table + 0x44u, kHwfAreaSize);
-        Put32(table + 0x48u, pa_header_off);
-        Put32(table + 0x4Cu, kPaHeaderSize);
-        Put32(table + 0x50u, installed_firmware.empty() ? 0u : fwf_info_off);
-        Put32(table + 0x54u, installed_firmware.empty() ? 0u : kFwfInfoSize);
+        cerf::le::Put32(table + 0x00u, kSectorMagic);
+        cerf::le::Put32(table + 0x04u, 512u);
+        cerf::le::Put32(table + 0x08u, 0u);
+        cerf::le::Put32(table + 0x38u, boot_state_off);
+        cerf::le::Put32(table + 0x3Cu, kBootStateSize);
+        cerf::le::Put32(table + 0x40u, hwf_off);
+        cerf::le::Put32(table + 0x44u, kHwfAreaSize);
+        cerf::le::Put32(table + 0x48u, pa_header_off);
+        cerf::le::Put32(table + 0x4Cu, kPaHeaderSize);
+        cerf::le::Put32(table + 0x50u, installed_firmware.empty() ? 0u : fwf_info_off);
+        cerf::le::Put32(table + 0x54u, installed_firmware.empty() ? 0u : kFwfInfoSize);
 
         uint8_t* boot = data.data() + boot_state_off;
-        if (Get32(boot) == 0u) Put32(boot, 0x96969664u);
+        if (cerf::le::U32(boot) == 0u) cerf::le::Put32(boot, 0x96969664u);
 
         uint8_t* pa = data.data() + pa_header_off;
-        if (!(Get32(pa + 0x00u) == 0x44484150u && Get32(pa + 0x04u) == 1u)) {
+        if (!(cerf::le::U32(pa + 0x00u) == 0x44484150u && cerf::le::U32(pa + 0x04u) == 1u)) {
             std::memset(pa, 0, kPaHeaderSize);
-            Put32(pa + 0x00u, 0x44484150u);
-            Put32(pa + 0x04u, 1u);
+            cerf::le::Put32(pa + 0x00u, 0x44484150u);
+            cerf::le::Put32(pa + 0x04u, 1u);
         }
 
         uint8_t* hwf = data.data() + hwf_off;
         std::memset(hwf, 0, kHwfAreaSize);
-        Put32(hwf + 0x00u, kHwfSize);
+        cerf::le::Put32(hwf + 0x00u, kHwfSize);
         /* hmi_ktp400_mobile_v13 DeviceManager.exe 0x14B9E skips the OMS version byte;
            hmi_ktp400_mobile_v13 BSPIO.dll 0x41886DC0 starts its object parser at HWF+9. */
         std::memcpy(hwf + 0x08u, ktp400_oms_root.data(), ktp400_oms_root.size());
         /* hmi_ktp400_mobile_v13 dmosapi.dll 0x418AD4A0 validates the
            CDmOsLinearStoreBin header before exposing /hwf. */
-        Put32(hwf + 0x04u, cerf::Crc32(hwf + 0x08u, kHwfSize));
+        cerf::le::Put32(hwf + 0x04u, cerf::Crc32(hwf + 0x08u, kHwfSize));
 
         uint8_t* fwf = data.data() + fwf_info_off;
         if (!installed_firmware.empty() && installed_firmware.size() + 8u <= kFwfInfoSize) {
             std::memset(fwf, 0, installed_firmware.size() + 8u);
-            Put32(fwf + 0x00u, static_cast<uint32_t>(installed_firmware.size()));
-            Put32(fwf + 0x04u, cerf::Crc32(installed_firmware.data(), installed_firmware.size()));
+            cerf::le::Put32(fwf + 0x00u, static_cast<uint32_t>(installed_firmware.size()));
+            cerf::le::Put32(fwf + 0x04u, cerf::Crc32(installed_firmware.data(), installed_firmware.size()));
             std::memcpy(fwf + 0x08u, installed_firmware.data(), installed_firmware.size());
         }
     };
