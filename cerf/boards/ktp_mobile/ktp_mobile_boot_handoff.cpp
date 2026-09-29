@@ -9,6 +9,7 @@
 #include "../page_table_builder.h"
 
 #include "../../core/cerf_emulator.h"
+#include "../../core/crc32.h"
 #include "../../core/fatal.h"
 #include "../../core/log.h"
 #include "../../cpu/emulated_memory.h"
@@ -27,7 +28,6 @@ constexpr uint32_t kOalOatMagic = 0x87654321u;
    hmi_ktp700_mobile_v13. */
 constexpr uint32_t kHwInfoHandoffPa = 0x10005000u;
 constexpr uint32_t kHwInfoSeedClear = 0x00000200u;
-constexpr uint32_t kHwfToken = 0x4B545034u;
 
 }
 
@@ -94,13 +94,15 @@ void KtpMobileBootHandoff::Place(const KtpMobileOalLayout& oal) {
             emu_.Get<NetworkBackend>().MacForReceiver(kImx6FecReceiverId,
                                                       NetworkBackend::ReceiverKind::Ethernet),
             oal.op_type, oal.panel);
-    const uint32_t hwf_size = static_cast<uint32_t>(oms_root.size()) + 1u;
+    const uint32_t hwf_size = static_cast<uint32_t>(oms_root.size());
 
+    /* hmi_tp1000f_mobile_v17 bspio.dll sub_41D171A8 counts the RAM copy current only when
+       its first two words equal the eMMC HWF header (size, CRC32), and sub_41D170A8
+       copies the eMMC header and payload into RAM unchanged. */
     mem.WriteWord(kHwInfoHandoffPa + 0x00u, hwf_size);
-    mem.WriteWord(kHwInfoHandoffPa + 0x04u, kHwfToken);
-    mem.WriteByte(kHwInfoHandoffPa + 0x08u, 0u);
-    for (uint32_t i = 0; i < oms_root.size(); ++i)
-        mem.WriteByte(kHwInfoHandoffPa + 0x09u + i, oms_root[i]);
+    mem.WriteWord(kHwInfoHandoffPa + 0x04u, cerf::Crc32(oms_root.data(), oms_root.size()));
+    for (uint32_t i = 0; i < hwf_size; ++i)
+        mem.WriteByte(kHwInfoHandoffPa + 0x08u + i, oms_root[i]);
 
     LOG(Boot,
         "%s: MicroOMS HW-info boot handoff [VA 0x%08X] = live OAL "
