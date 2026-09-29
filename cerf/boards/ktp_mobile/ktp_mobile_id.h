@@ -2,6 +2,10 @@
 
 #include <string_view>
 
+/* hmi_tp1000f_mobile_v17 bspio.dll serves every variant: HWI_IsMobile @0x41D17DB0 and
+   HWI_GetOPType @0x41D15254 return constants, and HWI_IsSafety @0x41D15B90 tells the
+   variants apart only by the op-type attributes HWI_GetOPTypeEx @0x41D15478 reads from
+   hardware-description object 18695. */
 namespace BoardId {
 
 inline constexpr std::string_view HmiKtp400FMobile = "hmi_ktp400f_mobile";
