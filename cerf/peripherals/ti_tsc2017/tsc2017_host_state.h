@@ -18,6 +18,8 @@ public:
         uint16_t z2 = 0x000u;
     };
 
+    enum class PenIrqMode : uint8_t { Enabled = 0, Disabled = 1, ForcedLow = 2 };
+
     using IrqChangedCallback = void (*)(void*);
 
     void SetPen(bool down, uint16_t raw_x, uint16_t raw_y);
@@ -26,6 +28,7 @@ public:
     void ClearPenIrqPending();
     void SetIrqChangedCallback(IrqChangedCallback cb, void* ctx);
     bool PenIrqLineHigh();
+    void SetPenIrqMode(PenIrqMode mode, bool notify);
 
 private:
     void NotifyIrqChanged();
@@ -33,6 +36,7 @@ private:
     std::mutex mutex_;
     Sample state_;
     bool penirq_pending_ = false;
+    PenIrqMode penirq_mode_ = PenIrqMode::Enabled;
     IrqChangedCallback irq_cb_ = nullptr;
     void* irq_ctx_ = nullptr;
 };

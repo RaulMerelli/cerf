@@ -20,6 +20,9 @@ public:
         expecting_command_ = !read;
         pending_completion_ = false;
         if (read) read_index_ = 0;
+        /* SBAS472 p. 19: "When the bus master sends the address byte with the R/W bit = 0
+           ... the pen-interrupt function is disabled." */
+        else SetPenIrqMode(PenIrqMode::Disabled);
     }
 
     void WriteByte(uint8_t value) override {
@@ -71,6 +74,7 @@ public:
         w.Write("frame_active", static_cast<uint8_t>(frame_active_));
         w.Write("expecting_command", static_cast<uint8_t>(expecting_command_));
         w.Write("pending_completion", static_cast<uint8_t>(pending_completion_));
+        w.Write("penirq_mode", static_cast<uint8_t>(penirq_mode_));
     }
     void RestoreState(StateReader& r) override {
         r.Read("command", command_);
@@ -87,6 +91,10 @@ public:
         r.Read("frame_active", frame_active);
         r.Read("expecting_command", expecting_command);
         r.Read("pending_completion", pending_completion);
+        uint8_t penirq_mode = 0;
+        r.Read("penirq_mode", penirq_mode);
+        if (penirq_mode > static_cast<uint8_t>(PenIrqMode::ForcedLow))
+            r.Reject("TSC2017: saved PENIRQ mode %u out of range", penirq_mode);
         if (frame_down > 1u || frame_active > 1u || expecting_command > 1u || pending_completion > 1u)
             r.Reject("TSC2017: saved flag is not a boolean");
         if (frame_z2_count_ >= 3u) r.Reject("TSC2017: frame Z2 count %u past the third read", frame_z2_count_);
@@ -94,9 +102,18 @@ public:
         frame_active_ = frame_active != 0u;
         expecting_command_ = expecting_command != 0u;
         pending_completion_ = pending_completion != 0u;
+        penirq_mode_ = static_cast<PenIrqMode>(penirq_mode);
+        emu_.Get<Tsc2017HostState>().SetPenIrqMode(penirq_mode_, false);
     }
 
 private:
+    using PenIrqMode = Tsc2017HostState::PenIrqMode;
+
+    void SetPenIrqMode(PenIrqMode mode) {
+        penirq_mode_ = mode;
+        emu_.Get<Tsc2017HostState>().SetPenIrqMode(mode, true);
+    }
+
     static uint16_t Clamp12(uint16_t v) { return static_cast<uint16_t>(v & 0x0FFFu); }
 
     Tsc2017HostState::Sample FrameSample() { return frame_active_ ? frame_ : emu_.Get<Tsc2017HostState>().Get(); }
@@ -160,10 +177,17 @@ private:
             }
             return;
         }
-        /* SBAS472 Table 2: D3-D2 leave PENIRQ enabled on 00 and 10 and disable it on 01
-           and 11. CERF drives PENIRQ from the host touch state, which no command disables. */
-        if ((command & 0x04u) != 0u)
-            emu_.Get<Fatal>().Die("TSC2017 command 0x%02X disables PENIRQ", command);
+        /* SBAS472 p. 19: "commands that activate the X-drivers, Y-drivers, and Y+ and
+           X-drivers without performing a measurement also disconnect the X+ input from the
+           PENIRQ pull-down transistor, and disable the pen-interrupt output function,
+           regardless of the value of the PD0 bit. Under these conditions, the PENIRQ output
+           is forced low." Table 2: PD0 = 1 disables PENIRQ, PD0 = 0 enables it. */
+        if (function == 0x8u || function == 0x9u || function == 0xAu)
+            SetPenIrqMode(PenIrqMode::ForcedLow);
+        else if ((command & 0x04u) != 0u)
+            SetPenIrqMode(PenIrqMode::Disabled);
+        else
+            SetPenIrqMode(PenIrqMode::Enabled);
         last_value_ = Clamp12(SampleForFunction(function));
     }
 
@@ -174,6 +198,7 @@ private:
     bool frame_active_ = false;
     bool expecting_command_ = false;
     bool pending_completion_ = false;
+    PenIrqMode penirq_mode_ = PenIrqMode::Enabled;
 };
 
 }

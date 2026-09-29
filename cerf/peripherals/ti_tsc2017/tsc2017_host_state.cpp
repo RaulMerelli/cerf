@@ -87,7 +87,24 @@ void Tsc2017HostState::NotifyIrqChanged() {
     if (cb) cb(ctx);
 }
 
+/* SBAS472 p. 19: driver-activation commands force PENIRQ low; with the pen-interrupt
+   function disabled the device "cannot detect when the panel is touched". */
 bool Tsc2017HostState::PenIrqLineHigh() {
     std::lock_guard<std::mutex> lk(mutex_);
+    switch (penirq_mode_) {
+    case PenIrqMode::ForcedLow: return false;
+    case PenIrqMode::Disabled: return true;
+    case PenIrqMode::Enabled: break;
+    }
     return !state_.down;
+}
+
+void Tsc2017HostState::SetPenIrqMode(PenIrqMode mode, bool notify) {
+    bool changed = false;
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        changed = penirq_mode_ != mode;
+        penirq_mode_ = mode;
+    }
+    if (changed && notify) NotifyIrqChanged();
 }
