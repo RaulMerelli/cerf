@@ -45,15 +45,6 @@ public:
     bool SupportsColorCompression() const { return SupportsTileStatus(); }
     uint32_t TileStatusBitsPerTile() const { return SupportsTileStatus() ? 2u : 0u; }
 
-    static constexpr uint32_t kTileStatusFunctionalMask = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 4) | (1u << 5) |
-                                                          (1u << 6) | (1u << 7) | (0xFu << 8) | (1u << 12) |
-                                                          (1u << 13) | (1u << 14) | (1u << 30);
-
-    uint32_t SanitizeTileStatusConfig(uint32_t value) const {
-        if (!SupportsTileStatus()) return value & ~kTileStatusFunctionalMask;
-        return value;
-    }
-
     void FlushEngineCaches() const {
         std::atomic_thread_fence(std::memory_order_seq_cst);
     }

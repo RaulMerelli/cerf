@@ -19,8 +19,6 @@ inline uint32_t Crc32(const uint8_t* data, std::size_t size) {
     return Crc32Update(0u, data, size);
 }
 
-/* Crc32 is the zlib CRC-32, which ends in the final inversion an FCS carries. A hardware
-   hash index is taken from the accumulator before that inversion. */
 inline uint32_t Crc32Accumulator(const uint8_t* data, std::size_t size) {
     return ~Crc32(data, size);
 }

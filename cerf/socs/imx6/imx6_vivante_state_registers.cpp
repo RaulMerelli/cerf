@@ -102,8 +102,7 @@ void VivanteStateRegisters::Store(uint32_t byte_off, uint32_t value) {
     }
 
     if (byte_off == 0x01654u) { /* VIVS_TS_MEM_CONFIG */
-        state_.state_[idx] = memory_.SanitizeTileStatusConfig(value);
-        return;
+        memory_.HaltUnsupported("imx6-vivante TS_MEM_CONFIG write", byte_off, value);
     }
 
     if (byte_off == 0x0123Cu) { /* VIVS_DE_PATTERN_CONFIG */

@@ -92,8 +92,6 @@ def build_supported_devices():
         '  <tbody>',
     ]
     for _soc_id, group in groups:
-        # Boards that name the same device_family share one row: they are one product
-        # family running the same firmware images, so a row each would repeat it.
         rows = []
         by_family = {}
         for board in group:

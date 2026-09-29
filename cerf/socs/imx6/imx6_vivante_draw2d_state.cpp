@@ -280,7 +280,8 @@ bool VivanteDraw2dState::ReadPatternMemory(uint32_t x, uint32_t y, uint32_t& arg
         if (use_latch) {
             ix = s_.de_pattern_latch_[latch_offset];
         } else if (!ReadPackedGpu(pat_addr_, py * 8u + px, 1u, 0u, ix)) {
-            return false;
+            mem_.HaltUnsupported("imx6-vivante pattern pixel read outside GPU-mapped memory", pat_addr_,
+                                 (static_cast<uint64_t>(py) << 32) | px);
         }
         argb = mem_.StateReg(kD2dIndexColorTable32 + (ix & 0xFFu) * 4u);
         return true;
@@ -291,7 +292,8 @@ bool VivanteDraw2dState::ReadPatternMemory(uint32_t x, uint32_t y, uint32_t& arg
         if (use_latch) {
             a = s_.de_pattern_latch_[latch_offset];
         } else if (!ReadPackedGpu(pat_addr_, py * 8u + px, 1u, 0u, a)) {
-            return false;
+            mem_.HaltUnsupported("imx6-vivante pattern pixel read outside GPU-mapped memory", pat_addr_,
+                                 (static_cast<uint64_t>(py) << 32) | px);
         }
         argb = ((a & 0xFFu) << 24) | (NormalizeArgb(pat_fg_) & 0x00FFFFFFu);
         return true;
@@ -304,7 +306,10 @@ bool VivanteDraw2dState::ReadPatternMemory(uint32_t x, uint32_t y, uint32_t& arg
         return true;
     }
 
-    return ReadSurfacePixelGpu(pat_addr_, 8u * pat_bpp_, px, py, pat_fmt_, 0u, false, false, argb);
+    if (!ReadSurfacePixelGpu(pat_addr_, 8u * pat_bpp_, px, py, pat_fmt_, 0u, false, false, argb))
+        mem_.HaltUnsupported("imx6-vivante pattern pixel read outside GPU-mapped memory", pat_addr_,
+                             (static_cast<uint64_t>(py) << 32) | px);
+    return true;
 }
 
 uint32_t VivanteDraw2dState::PatternPixel(uint32_t x, uint32_t y) {

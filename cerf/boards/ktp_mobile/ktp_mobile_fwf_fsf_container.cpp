@@ -247,7 +247,7 @@ std::string EntryName(const uint8_t* dir, uint32_t at) {
             if (ch == 0u || ch == 0xFFFFu) break;
             part.push_back(static_cast<char>(ch));
         }
-        lfn = part + lfn;
+        lfn += part;
         if ((e[0] & 0x40u) != 0u) break;
     }
     if (!lfn.empty()) return lfn;
@@ -299,7 +299,7 @@ uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus,
         fat.persist(clus, 0u, fat.cluster_bytes);
 
         auto it = writers.try_emplace(parent, fat, parent).first;
-        const uint32_t slots = static_cast<uint32_t>((name.size() + kLfnCharsPerSlot) / kLfnCharsPerSlot);
+        const uint32_t slots = static_cast<uint32_t>((name.size() + kLfnCharsPerSlot - 1u) / kLfnCharsPerSlot);
         uint8_t* slot = it->second.Take(slots + 1u);
         if (!slot) return 0u;
         uint8_t short_name[11];
@@ -340,7 +340,7 @@ uint32_t SeedFsfVolume(const std::vector<FsfEntry>& entries, uint32_t root_clus,
         if (dir_clus < 2u) continue;
 
         auto it = writers.try_emplace(dir_clus, fat, dir_clus).first;
-        const uint32_t lfn_slots = static_cast<uint32_t>((entry.name.size() + kLfnCharsPerSlot) / kLfnCharsPerSlot);
+        const uint32_t lfn_slots = static_cast<uint32_t>((entry.name.size() + kLfnCharsPerSlot - 1u) / kLfnCharsPerSlot);
         uint8_t* slot = it->second.Take(lfn_slots + 1u);
         if (!slot) continue;
 

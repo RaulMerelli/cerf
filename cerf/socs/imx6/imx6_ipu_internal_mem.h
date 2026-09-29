@@ -30,29 +30,50 @@ public:
 
     uint8_t ReadByte(uint32_t addr) override {
         const uint32_t off = addr - kBase;
+        EnsureModelled("read8", addr);
         return static_cast<uint8_t>(regs_[off >> 2] >> ((off & 3u) * 8u));
     }
     uint16_t ReadHalf(uint32_t addr) override {
         const uint32_t off = addr - kBase;
+        EnsureModelled("read16", addr);
         return static_cast<uint16_t>(regs_[off >> 2] >> ((off & 2u) * 8u));
     }
-    uint32_t ReadWord(uint32_t addr) override { return regs_[(addr - kBase) >> 2]; }
+    uint32_t ReadWord(uint32_t addr) override {
+        EnsureModelled("read32", addr);
+        return regs_[(addr - kBase) >> 2];
+    }
     void WriteByte(uint32_t addr, uint8_t value) override {
         const uint32_t off = addr - kBase, sh = (off & 3u) * 8u;
+        EnsureModelled("write8", addr);
         uint32_t& w = regs_[off >> 2];
         w = (w & ~(0xFFu << sh)) | (static_cast<uint32_t>(value) << sh);
     }
     void WriteHalf(uint32_t addr, uint16_t value) override {
         const uint32_t off = addr - kBase, sh = (off & 2u) * 8u;
+        EnsureModelled("write16", addr);
         uint32_t& w = regs_[off >> 2];
         w = (w & ~(0xFFFFu << sh)) | (static_cast<uint32_t>(value) << sh);
     }
-    void WriteWord(uint32_t addr, uint32_t value) override { regs_[(addr - kBase) >> 2] = value; }
+    void WriteWord(uint32_t addr, uint32_t value) override {
+        EnsureModelled("write32", addr);
+        regs_[(addr - kBase) >> 2] = value;
+    }
 
-    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_.data(), regs_.size()); }
-    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_.data(), regs_.size()); }
+    void SaveState(StateWriter& w) override { w.WriteBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
+    void RestoreState(StateReader& r) override { r.ReadBytes("regs", regs_.data(), regs_.size() * sizeof(uint32_t)); }
 
 protected:
+    void EnsureModelled(const char* op, uint32_t addr) const {
+        const uint32_t off = addr - kBase;
+        for (const auto& window : kModelledWindows)
+            if (off >= window[0] && off <= window[1]) return;
+        HaltUnsupportedAccess(op, addr, 0);
+    }
+
+    static constexpr uint32_t kModelledWindows[3][2] = {
+        {0x00000u, 0x013FFu}, {0x40000u, 0x40117u}, {0x80000u, 0x80017u},
+    };
+
     std::array<uint32_t, kSize / 4> regs_{};
 };
 
